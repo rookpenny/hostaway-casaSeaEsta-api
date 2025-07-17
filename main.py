@@ -11,6 +11,10 @@ CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 PROPERTY_LISTING_IDS = {"casa-sea-esta": "191357"}
 
+@app.route("/")
+def home():
+    return send_from_directory('.', 'index.html')
+
 def get_token():
     resp = requests.post(
         "https://api.hostaway.com/v1/accessTokens",
@@ -24,10 +28,6 @@ def get_token():
     )
     print("Token status:", resp.status_code, resp.text[:200])
     return resp.json().get("access_token") if resp.ok else None
-
-@app.route("/")
-def home():
-    return send_from_directory('.', 'index.html')
 
 @app.route("/api/guest")
 def get_guest_info():
