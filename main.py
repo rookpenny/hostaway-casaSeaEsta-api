@@ -1,11 +1,13 @@
 import os
 import requests
 from flask import Flask, jsonify, request, send_from_directory
+from flask_cors import CORS  # <-- Add this line
 from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
+CORS(app)  # <-- This enables CORS for all routes
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
