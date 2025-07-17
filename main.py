@@ -5,15 +5,11 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
-app = Flask(__name__, static_folder='.', static_url_path='')
+app = Flask(__name__)
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 PROPERTY_LISTING_IDS = {"casa-sea-esta": "191357"}
-
-@app.route("/")
-def home():
-    return send_from_directory('.', 'index.html')
 
 def get_token():
     resp = requests.post(
@@ -28,6 +24,10 @@ def get_token():
     )
     print("Token status:", resp.status_code, resp.text[:200])
     return resp.json().get("access_token") if resp.ok else None
+
+@app.route("/")
+def home():
+    return send_from_directory('.', 'index.html')
 
 @app.route("/api/guest")
 def get_guest_info():
@@ -62,9 +62,9 @@ def get_guest_info():
     return jsonify({
         "guestName": sel.get("guestName"),
         "checkIn": sel.get("arrivalDate"),
-        "checkInTime": sel.get("checkInTime"),
+        "checkInTime": sel.get("checkInTime", 16),
         "checkOut": sel.get("departureDate"),
-        "checkOutTime": sel.get("checkOutTime"),
+        "checkOutTime": sel.get("checkOutTime", 10),
         "numberOfGuests": sel.get("numberOfGuests"),
         "notes": sel.get("comment"),
     })
