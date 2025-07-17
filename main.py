@@ -5,13 +5,11 @@ from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
-app = Flask(__name__)
-
-# Replace with your actual Hostaway listing ID for Casa Sea Esta
-PROPERTY_LISTING_IDS = {"casa-sea-esta": "191357"}
+app = Flask(__name__, static_folder='.', static_url_path='')
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
+PROPERTY_LISTING_IDS = {"casa-sea-esta": "191357"}
 
 def get_token():
     resp = requests.post(
@@ -60,12 +58,16 @@ def get_guest_info():
     return jsonify({
         "guestName": sel.get("guestName"),
         "checkIn": sel.get("arrivalDate"),
-        "checkOut": sel.get("departureDate"),
         "checkInTime": sel.get("checkInTime"),
+        "checkOut": sel.get("departureDate"),
         "checkOutTime": sel.get("checkOutTime"),
         "numberOfGuests": sel.get("numberOfGuests"),
         "notes": sel.get("comment"),
     })
+
+@app.route("/")
+def home():
+    return app.send_static_file("index.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=81)
