@@ -1,6 +1,6 @@
 import os
 import requests
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 from datetime import datetime
 from dotenv import load_dotenv
 
@@ -24,6 +24,10 @@ def get_token():
     )
     print("Token status:", resp.status_code, resp.text[:200])
     return resp.json().get("access_token") if resp.ok else None
+
+@app.route("/")
+def home():
+    return send_from_directory('.', 'index.html')
 
 @app.route("/api/guest")
 def get_guest_info():
@@ -64,10 +68,6 @@ def get_guest_info():
         "numberOfGuests": sel.get("numberOfGuests"),
         "notes": sel.get("comment"),
     })
-
-@app.route("/")
-def home():
-    return app.send_static_file("index.html")
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=81)
