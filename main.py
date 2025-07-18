@@ -8,7 +8,7 @@ from calendar import monthrange
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app)
+CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
