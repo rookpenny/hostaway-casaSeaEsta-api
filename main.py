@@ -1,13 +1,13 @@
 import os
 import requests
 from flask import Flask, jsonify, request, send_from_directory
-from flask_cors import CORS  # <-- Add this line
+from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app)  # <-- This enables CORS for all routes
+CORS(app)  # Enables CORS for all routes
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
@@ -29,7 +29,7 @@ def get_token():
 
 @app.route("/")
 def home():
-    return send_from_directory('.', 'index.html')
+    return jsonify({"message": "Welcome to Casa Sea Esta API!"}), 200
 
 @app.route("/api/guest")
 def get_guest_info():
@@ -72,4 +72,4 @@ def get_guest_info():
     })
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=81)
+    app.run(host="0.0.0.0", port=8080)
