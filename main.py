@@ -66,6 +66,19 @@ def get_guest_info():
         data = resp.json()
         reservations = data.get("result", [])
 
+        # DEBUG: Print all reservations
+        print("\n=== RAW RESERVATIONS RECEIVED ===")
+        for r in reservations:
+            print({
+                "guestName": r.get("guestName"),
+                "arrivalDate": r.get("arrivalDate"),
+                "departureDate": r.get("departureDate"),
+                "status": r.get("status"),
+                "checkInTime": r.get("checkInTime"),
+                "checkOutTime": r.get("checkOutTime")
+            })
+        print("=== END RAW RESERVATIONS ===\n")
+
         valid_reservations = [
             r for r in reservations
             if r.get("status") in {"new", "modified", "confirmed", "accepted"}
@@ -74,32 +87,33 @@ def get_guest_info():
         selected = None
 
         for r in valid_reservations:
-            arrival = datetime.strptime(r.get("arrivalDate"), "%Y-%m-%d").date()
-            departure = datetime.strptime(r.get("departureDate"), "%Y-%m-%d").date()
-            checkin_hour = int(r.get("checkInTime", 16))
-            checkin_time = datetime.combine(arrival, datetime.min.time()).replace(hour=checkin_hour).time()
-            checkout_hour = int(r.get("checkOutTime", 10))
-            checkout_time = datetime.combine(departure, datetime.min.time()).replace(hour=checkout_hour).time()
+            try:
+                arrival = datetime.strptime(r.get("arrivalDate"), "%Y-%m-%d").date()
+                departure = datetime.strptime(r.get("departureDate"), "%Y-%m-%d").date()
+                checkin_hour = int(r.get("checkInTime", 16))
+                checkin_time = datetime.combine(arrival, datetime.min.time()).replace(hour=checkin_hour).time()
+                checkout_hour = int(r.get("checkOutTime", 10))
+                checkout_time = datetime.combine(departure, datetime.min.time()).replace(hour=checkout_hour).time()
+            except Exception as e:
+                print("ERROR parsing reservation:", e, r)
+                continue
 
             print(f"Checking: {r.get('guestName')} | Arrival: {arrival} @ {checkin_time} | Departure: {departure} @ {checkout_time}")
 
             if arrival < today < departure:
-                # Guest is staying between arrival and departure
                 print("Matched: in middle of stay.")
                 selected = r
                 break
             elif today == arrival and current_time >= checkin_time:
-                # Today is check-in day, and it's after check-in time
                 print("Matched: just checked in.")
                 selected = r
                 break
             elif today == departure and current_time < checkout_time:
-                # Today is check-out day, and it's before check-out time
                 print("Matched: last morning before checkout.")
                 selected = r
                 break
             else:
-                print("No match.")
+                print("No match for this reservation.")
 
         if selected:
             result = {
