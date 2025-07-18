@@ -12,7 +12,7 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
-PROPERTY_LISTING_IDS = {"casa-sea-esta": "191357"}
+PROPERTY_LISTING_IDS = {"casa-sea-esta": "256853"}
 
 # ✅ In-memory store declared before routes
 vibe_storage = {}
