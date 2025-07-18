@@ -5,7 +5,6 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from calendar import monthrange
-import pytz  # timezone support
 
 load_dotenv()
 app = Flask(__name__)
@@ -14,7 +13,9 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 PROPERTY_LISTING_IDS = {"casa-sea-esta": "256853"}
-EASTERN = pytz.timezone('US/Eastern')
+
+# ✅ In-memory store declared before routes
+vibe_storage = {}
 
 def get_token():
     resp = requests.post(
@@ -27,7 +28,6 @@ def get_token():
             "scope": "general"
         }
     )
-    print("Token status:", resp.status_code, resp.text[:200])
     return resp.json().get("access_token") if resp.ok else None
 
 @app.route("/")
@@ -42,19 +42,15 @@ def get_guest_info():
             return jsonify({"error": "Unknown property"}), 404
 
         token = get_token()
-        print("Token used:", token)
         if not token:
             return jsonify({"error": "Authentication failed"}), 401
 
-        now = datetime.now(EASTERN)
-        today = now.date()
-        current_time = now.time()
-        print(f"PROPERTY TIME (US/Eastern): {now} | TODAY: {today} | TIME: {current_time}")
-        year = today.year
-        month = today.month
+        today = datetime.today().strftime("%Y-%m-%d")
+        year = datetime.today().year
+        month = datetime.today().month
         last_day = monthrange(year, month)[1]
-        date_range_start = today.replace(day=1).strftime("%Y-%m-%d")
-        date_range_end = today.replace(day=last_day).strftime("%Y-%m-%d")
+        date_range_start = datetime.today().replace(day=1).strftime("%Y-%m-%d")
+        date_range_end = datetime.today().replace(day=last_day).strftime("%Y-%m-%d")
 
         resp = requests.get(
             "https://api.hostaway.com/v1/reservations",
@@ -65,82 +61,45 @@ def get_guest_info():
                 "dateTo": date_range_end
             }
         )
-        print("Reservations status:", resp.status_code)
         data = resp.json()
         reservations = data.get("result", [])
 
-        print("\n=== RAW RESERVATIONS RECEIVED ===")
+        valid = []
         for r in reservations:
-            print({
-                "guestName": r.get("guestName"),
-                "arrivalDate": r.get("arrivalDate"),
-                "departureDate": r.get("departureDate"),
-                "checkInTime": r.get("checkInTime"),
-                "checkOutTime": r.get("checkOutTime"),
-                "status": r.get("status")
-            })
-        print("=== END RAW RESERVATIONS ===\n")
+            check_in = r.get("arrivalDate")
+            check_out = r.get("departureDate")
+            check_in_time = int(r.get("checkInTime", 16))
+            check_out_time = int(r.get("checkOutTime", 10))
+            now = datetime.now()
 
-        valid_reservations = [
-            r for r in reservations
-            if r.get("status") in {"new", "modified", "confirmed", "accepted"}
-        ]
+            if r.get("status") in {"new", "modified", "confirmed", "accepted"}:
+                if check_in == today and now.hour >= check_in_time:
+                    valid.append(r)
+                elif check_in < today < check_out:
+                    valid.append(r)
+                elif check_out == today and now.hour < check_out_time:
+                    valid.append(r)
 
-        selected = None
+        if not valid:
+            return jsonify({"message": "No guest currently checked in."}), 404
 
-        for r in valid_reservations:
-            try:
-                arrival = datetime.strptime(r.get("arrivalDate"), "%Y-%m-%d").date()
-                departure = datetime.strptime(r.get("departureDate"), "%Y-%m-%d").date()
-                checkin_hour = int(r.get("checkInTime", 16))
-                checkin_time = datetime.combine(arrival, datetime.min.time()).replace(hour=checkin_hour).time()
-                checkout_hour = int(r.get("checkOutTime", 10))
-                checkout_time = datetime.combine(departure, datetime.min.time()).replace(hour=checkout_hour).time()
-            except Exception as e:
-                print("ERROR parsing reservation:", e, r)
-                continue
+        sel = max(valid, key=lambda r: r.get("updatedOn", ""))
+        selected = {
+            "guestName": sel.get("guestName"),
+            "checkIn": sel.get("arrivalDate"),
+            "checkInTime": str(sel.get("checkInTime", 16)),
+            "checkOut": sel.get("departureDate"),
+            "checkOutTime": str(sel.get("checkOutTime", 10)),
+            "numberOfGuests": str(sel.get("numberOfGuests")),
+            "notes": sel.get("comment", "")
+        }
 
-            print(
-                f"Checking: {r.get('guestName')} | Arrival: {arrival} @ {checkin_time} | "
-                f"Departure: {departure} @ {checkout_time} | Status: {r.get('status')}"
-            )
-
-            if arrival < today < departure:
-                print("Matched: in middle of stay.")
-                selected = r
-                break
-            elif today == arrival and current_time >= checkin_time:
-                print("Matched: just checked in (after check-in time).")
-                selected = r
-                break
-            elif today == departure and current_time < checkout_time:
-                print("Matched: still here (before check-out time).")
-                selected = r
-                break
-            else:
-                print("No match for this reservation.")
-
-        if selected:
-            result = {
-                "guestName": selected.get("guestName"),
-                "checkIn": selected.get("arrivalDate"),
-                "checkInTime": str(selected.get("checkInTime", 16)),
-                "checkOut": selected.get("departureDate"),
-                "checkOutTime": str(selected.get("checkOutTime", 10)),
-                "numberOfGuests": str(selected.get("numberOfGuests")),
-                "notes": selected.get("comment", "")
-            }
-            print("Selected reservation:", result)
-            return jsonify(result), 200
-        else:
-            print("No guest currently checked in.")
-            return jsonify({"message": "No guest currently checked in."}), 200
+        return jsonify(selected), 200
 
     except Exception as e:
-        print("SERVER ERROR:", str(e))
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
-# POST daily vibe message from Zapier
+# ✅ POST endpoint to save vibe message
 @app.route("/api/vibe-message", methods=["POST"])
 def save_vibe_message():
     try:
@@ -152,13 +111,12 @@ def save_vibe_message():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# GET vibe message for Sandy to read
+# ✅ GET endpoint for Sandy to retrieve vibe
 @app.route("/api/vibe-message", methods=["GET"])
 def get_vibe_message():
     if "message" in vibe_storage:
         return jsonify(vibe_storage), 200
     return jsonify({"message": "No vibe message set"}), 404
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
