@@ -72,7 +72,7 @@ def get_guest_info():
             if r.get("status") in {"new", "modified", "confirmed", "accepted"}
         ]
 
-        # Initialize possible matches
+        print("Today's date:", today, "| Current time:", current_time)
         outgoing = None
         incoming = None
 
@@ -84,12 +84,23 @@ def get_guest_info():
             checkout_hour = int(r.get("checkOutTime", 10))
             checkout_time = datetime.combine(departure, datetime.min.time()).replace(hour=checkout_hour).time()
 
+            print(
+                f"Checking reservation: {r.get('guestName')} | "
+                f"Arrival: {arrival} @ {checkin_time} | "
+                f"Departure: {departure} @ {checkout_time} | "
+                f"Status: {r.get('status')}"
+            )
+
             # Outgoing guest: it's their checkout day, before checkout time
             if departure == today and current_time < checkout_time:
+                print("Matched as outgoing guest.")
                 outgoing = r
             # Incoming guest: it's their check-in day, after check-in time
             elif arrival == today and current_time >= checkin_time:
+                print("Matched as incoming guest.")
                 incoming = r
+            else:
+                print("No match for this reservation.")
 
         selected = None
         if outgoing:
@@ -110,6 +121,7 @@ def get_guest_info():
             print("Selected reservation:", result)
             return jsonify(result), 200
         else:
+            print("No guest currently checked in.")
             return jsonify({"message": "No guest currently checked in."}), 200
 
     except Exception as e:
