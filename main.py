@@ -5,6 +5,7 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from calendar import monthrange
+import pytz  # <--- NEW
 
 load_dotenv()
 app = Flask(__name__)
@@ -13,6 +14,7 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 PROPERTY_LISTING_IDS = {"casa-sea-esta": "256853"}
+EASTERN = pytz.timezone('US/Eastern')  # <--- NEW
 
 def get_token():
     resp = requests.post(
@@ -44,10 +46,11 @@ def get_guest_info():
         if not token:
             return jsonify({"error": "Authentication failed"}), 401
 
-        now = datetime.now()
+        # Always use property local time!
+        now = datetime.now(EASTERN)
         today = now.date()
         current_time = now.time()
-        print(f"SERVER TODAY: {today} | TIME: {current_time}")
+        print(f"PROPERTY TIME (US/Eastern): {now} | TODAY: {today} | TIME: {current_time}")
         year = today.year
         month = today.month
         last_day = monthrange(year, month)[1]
