@@ -12,7 +12,7 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
-PROPERTY_LISTING_IDS = {"casa-sea-esta": "191357"}
+PROPERTY_LISTING_IDS = {"casa-sea-esta": "256853"}
 
 def get_token():
     resp = requests.post(
@@ -47,6 +47,7 @@ def get_guest_info():
         now = datetime.now()
         today = now.date()
         current_time = now.time()
+        print(f"SERVER TODAY: {today} | TIME: {current_time}")
         year = today.year
         month = today.month
         last_day = monthrange(year, month)[1]
@@ -71,11 +72,11 @@ def get_guest_info():
         for r in reservations:
             print({
                 "guestName": r.get("guestName"),
-                "arrivalDate": r.get("arrivalDate"),
-                "departureDate": r.get("departureDate"),
-                "status": r.get("status"),
+                "checkIn": r.get("checkIn"),
                 "checkInTime": r.get("checkInTime"),
-                "checkOutTime": r.get("checkOutTime")
+                "checkOut": r.get("checkOut"),
+                "checkOutTime": r.get("checkOutTime"),
+                "status": r.get("status")
             })
         print("=== END RAW RESERVATIONS ===\n")
 
@@ -88,8 +89,8 @@ def get_guest_info():
 
         for r in valid_reservations:
             try:
-                arrival = datetime.strptime(r.get("arrivalDate"), "%Y-%m-%d").date()
-                departure = datetime.strptime(r.get("departureDate"), "%Y-%m-%d").date()
+                arrival = datetime.strptime(r.get("checkIn"), "%Y-%m-%d").date()
+                departure = datetime.strptime(r.get("checkOut"), "%Y-%m-%d").date()
                 checkin_hour = int(r.get("checkInTime", 16))
                 checkin_time = datetime.combine(arrival, datetime.min.time()).replace(hour=checkin_hour).time()
                 checkout_hour = int(r.get("checkOutTime", 10))
@@ -98,32 +99,41 @@ def get_guest_info():
                 print("ERROR parsing reservation:", e, r)
                 continue
 
-            print(f"Checking: {r.get('guestName')} | Arrival: {arrival} @ {checkin_time} | Departure: {departure} @ {checkout_time}")
+            print(
+                f"Checking: {r.get('guestName')} | Arrival: {arrival} @ {checkin_time} | "
+                f"Departure: {departure} @ {checkout_time} | Status: {r.get('status')}"
+            )
 
             if arrival < today < departure:
                 print("Matched: in middle of stay.")
                 selected = r
                 break
-            elif today == arrival and current_time >= checkin_time:
-                print("Matched: just checked in.")
-                selected = r
-                break
-            elif today == departure and current_time < checkout_time:
-                print("Matched: last morning before checkout.")
-                selected = r
-                break
+            elif today == arrival:
+                if current_time >= checkin_time:
+                    print("Matched: just checked in (after check-in time).")
+                    selected = r
+                    break
+                else:
+                    print("Too early: arrival day but before check-in time.")
+            elif today == departure:
+                if current_time < checkout_time:
+                    print("Matched: morning of checkout (before check-out time).")
+                    selected = r
+                    break
+                else:
+                    print("Too late: departure day but after check-out time.")
             else:
                 print("No match for this reservation.")
 
         if selected:
             result = {
                 "guestName": selected.get("guestName"),
-                "checkIn": selected.get("arrivalDate"),
+                "checkIn": selected.get("checkIn"),
                 "checkInTime": str(selected.get("checkInTime", 16)),
-                "checkOut": selected.get("departureDate"),
+                "checkOut": selected.get("checkOut"),
                 "checkOutTime": str(selected.get("checkOutTime", 10)),
                 "numberOfGuests": str(selected.get("numberOfGuests")),
-                "notes": selected.get("comment", "")
+                "notes": selected.get("notes", selected.get("comment", ""))
             }
             print("Selected reservation:", result)
             return jsonify(result), 200
