@@ -34,23 +34,23 @@ def home():
 
 @app.route("/api/guest")
 def get_guest_info():
-    slug = request.args.get("property")
-    if slug not in PROPERTY_LISTING_IDS:
-        return jsonify({"error": "Unknown property"}), 404
-
-    token = get_token()
-    print("Token used:", token)
-    if not token:
-        return jsonify({"error": "Authentication failed"}), 401
-
-    today = datetime.today().strftime("%Y-%m-%d")
-    year = datetime.today().year
-    month = datetime.today().month
-    last_day = monthrange(year, month)[1]
-    date_range_start = datetime.today().replace(day=1).strftime("%Y-%m-%d")
-    date_range_end = datetime.today().replace(day=last_day).strftime("%Y-%m-%d")
-
     try:
+        slug = request.args.get("property")
+        if slug not in PROPERTY_LISTING_IDS:
+            return jsonify({"error": "Unknown property"}), 404
+
+        token = get_token()
+        print("Token used:", token)
+        if not token:
+            return jsonify({"error": "Authentication failed"}), 401
+
+        today = datetime.today().strftime("%Y-%m-%d")
+        year = datetime.today().year
+        month = datetime.today().month
+        last_day = monthrange(year, month)[1]
+        date_range_start = datetime.today().replace(day=1).strftime("%Y-%m-%d")
+        date_range_end = datetime.today().replace(day=last_day).strftime("%Y-%m-%d")
+
         resp = requests.get(
             "https://api.hostaway.com/v1/reservations",
             headers={"Authorization": f"Bearer {token}"},
@@ -62,39 +62,39 @@ def get_guest_info():
         )
         print("Reservations status:", resp.status_code)
         data = resp.json()
+        reservations = data.get("result", [])
+
+        print("Today's date:", today)
+        for r in reservations:
+            print("Reservation:", r.get("guestName"), r.get("arrivalDate"), r.get("departureDate"), r.get("status"))
+
+        valid = [
+            r for r in reservations
+            if r.get("status") in {"new", "modified", "confirmed", "accepted"}
+            and r.get("arrivalDate") <= today <= r.get("departureDate")
+        ]
+
+        if not valid:
+            return jsonify({"message": "No active guest staying today"}), 404
+
+        sel = max(valid, key=lambda r: r.get("updatedOn", ""))
+
+        selected = {
+            "guestName": sel.get("guestName"),
+            "checkIn": sel.get("arrivalDate"),
+            "checkInTime": str(sel.get("checkInTime", 16)),
+            "checkOut": sel.get("departureDate"),
+            "checkOutTime": str(sel.get("checkOutTime", 10)),
+            "numberOfGuests": str(sel.get("numberOfGuests")),
+            "notes": sel.get("comment", "")
+        }
+
+        print("Selected reservation:", selected)
+        return jsonify(selected), 200
+
     except Exception as e:
-        print("Failed to fetch or parse reservations:", str(e))
-        return jsonify({"error": "Upstream Hostaway error"}), 502
-
-    reservations = data.get("result", [])
-
-    print("Today's date:", today)
-    for r in reservations:
-        print("Reservation:", r.get("guestName"), r.get("arrivalDate"), r.get("departureDate"), r.get("status"))
-
-    valid = [
-        r for r in reservations
-        if r.get("status") in {"new", "modified", "confirmed", "accepted"}
-        and r.get("arrivalDate") <= today <= r.get("departureDate")
-    ]
-
-    if not valid:
-        return jsonify({"message": "No active guest staying today"}), 404
-
-    sel = max(valid, key=lambda r: r.get("updatedOn", ""))
-
-    selected = {
-        "guestName": sel.get("guestName"),
-        "checkIn": sel.get("arrivalDate"),
-        "checkInTime": str(sel.get("checkInTime", 16)),
-        "checkOut": sel.get("departureDate"),
-        "checkOutTime": str(sel.get("checkOutTime", 10)),
-        "numberOfGuests": str(sel.get("numberOfGuests")),
-        "notes": sel.get("comment", "")
-    }
-
-    print("Selected reservation:", selected)
-    return jsonify(selected), 200
+        print("SERVER ERROR:", str(e))
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
