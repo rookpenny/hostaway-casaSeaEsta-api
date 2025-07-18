@@ -44,12 +44,14 @@ def get_guest_info():
         if not token:
             return jsonify({"error": "Authentication failed"}), 401
 
-        today = datetime.today().strftime("%Y-%m-%d")
-        year = datetime.today().year
-        month = datetime.today().month
+        now = datetime.now()
+        today = now.date()
+        current_time = now.time()
+        year = today.year
+        month = today.month
         last_day = monthrange(year, month)[1]
-        date_range_start = datetime.today().replace(day=1).strftime("%Y-%m-%d")
-        date_range_end = datetime.today().replace(day=last_day).strftime("%Y-%m-%d")
+        date_range_start = today.replace(day=1).strftime("%Y-%m-%d")
+        date_range_end = today.replace(day=last_day).strftime("%Y-%m-%d")
 
         resp = requests.get(
             "https://api.hostaway.com/v1/reservations",
@@ -64,33 +66,51 @@ def get_guest_info():
         data = resp.json()
         reservations = data.get("result", [])
 
-        print("Today's date:", today)
-        for r in reservations:
-            print("Reservation:", r.get("guestName"), r.get("arrivalDate"), r.get("departureDate"), r.get("status"))
-
-        valid = [
+        # Filter for only valid reservations
+        valid_reservations = [
             r for r in reservations
             if r.get("status") in {"new", "modified", "confirmed", "accepted"}
-            and r.get("arrivalDate") <= today <= r.get("departureDate")
         ]
 
-        if not valid:
-            return jsonify({"message": "No active guest staying today"}), 404
+        # Initialize possible matches
+        outgoing = None
+        incoming = None
 
-        sel = max(valid, key=lambda r: r.get("updatedOn", ""))
+        for r in valid_reservations:
+            arrival = datetime.strptime(r.get("arrivalDate"), "%Y-%m-%d").date()
+            checkin_hour = int(r.get("checkInTime", 16))
+            checkin_time = datetime.combine(arrival, datetime.min.time()).replace(hour=checkin_hour).time()
+            departure = datetime.strptime(r.get("departureDate"), "%Y-%m-%d").date()
+            checkout_hour = int(r.get("checkOutTime", 10))
+            checkout_time = datetime.combine(departure, datetime.min.time()).replace(hour=checkout_hour).time()
 
-        selected = {
-            "guestName": sel.get("guestName"),
-            "checkIn": sel.get("arrivalDate"),
-            "checkInTime": str(sel.get("checkInTime", 16)),
-            "checkOut": sel.get("departureDate"),
-            "checkOutTime": str(sel.get("checkOutTime", 10)),
-            "numberOfGuests": str(sel.get("numberOfGuests")),
-            "notes": sel.get("comment", "")
-        }
+            # Outgoing guest: it's their checkout day, before checkout time
+            if departure == today and current_time < checkout_time:
+                outgoing = r
+            # Incoming guest: it's their check-in day, after check-in time
+            elif arrival == today and current_time >= checkin_time:
+                incoming = r
 
-        print("Selected reservation:", selected)
-        return jsonify(selected), 200
+        selected = None
+        if outgoing:
+            selected = outgoing
+        elif incoming:
+            selected = incoming
+
+        if selected:
+            result = {
+                "guestName": selected.get("guestName"),
+                "checkIn": selected.get("arrivalDate"),
+                "checkInTime": str(selected.get("checkInTime", 16)),
+                "checkOut": selected.get("departureDate"),
+                "checkOutTime": str(selected.get("checkOutTime", 10)),
+                "numberOfGuests": str(selected.get("numberOfGuests")),
+                "notes": selected.get("comment", "")
+            }
+            print("Selected reservation:", result)
+            return jsonify(result), 200
+        else:
+            return jsonify({"message": "No guest currently checked in."}), 200
 
     except Exception as e:
         print("SERVER ERROR:", str(e))
