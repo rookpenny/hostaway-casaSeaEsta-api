@@ -94,7 +94,7 @@ def get_guest_info():
     }
 
     print("Selected reservation:", selected)
-    return jsonify(selected)
+    return jsonify(selected), 200
 
 if __name__ == "__main__":
     # Use PORT env var or default to 8080 (works on Replit and most platforms)
