@@ -1,17 +1,18 @@
 import os
 import requests
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
+from calendar import monthrange
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app)  # Enables CORS for all routes
+CORS(app)  # Allow all origins during testing; restrict in prod as needed
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
-PROPERTY_LISTING_IDS = {"casa-sea-esta": "191357"}
+PROPERTY_LISTING_IDS = {"casa-sea-esta": "256853"}
 
 def get_token():
     resp = requests.post(
@@ -38,18 +39,39 @@ def get_guest_info():
         return jsonify({"error": "Unknown property"}), 404
 
     token = get_token()
+    print("Token used:", token)
     if not token:
         return jsonify({"error": "Authentication failed"}), 401
 
     today = datetime.today().strftime("%Y-%m-%d")
-    resp = requests.get(
-        "https://api.hostaway.com/v1/reservations",
-        headers={"Authorization": f"Bearer {token}"},
-        params={"listingId": PROPERTY_LISTING_IDS[slug], "dateFrom": today, "dateTo": today}
-    )
-    print("Reservations status:", resp.status_code)
-    data = resp.json()
+    year = datetime.today().year
+    month = datetime.today().month
+    last_day = monthrange(year, month)[1]
+    date_range_start = datetime.today().replace(day=1).strftime("%Y-%m-%d")
+    date_range_end = datetime.today().replace(day=last_day).strftime("%Y-%m-%d")
+
+    try:
+        resp = requests.get(
+            "https://api.hostaway.com/v1/reservations",
+            headers={"Authorization": f"Bearer {token}"},
+            params={
+                "listingId": PROPERTY_LISTING_IDS[slug],
+                "dateFrom": date_range_start,
+                "dateTo": date_range_end
+            }
+        )
+        print("Reservations status:", resp.status_code)
+        print("Raw response text:", resp.text[:500])
+        data = resp.json()
+    except Exception as e:
+        print("Failed to fetch or parse reservations:", str(e))
+        return jsonify({"error": "Upstream Hostaway error"}), 502
+
     reservations = data.get("result", [])
+
+    print("Today's date:", today)
+    for r in reservations:
+        print("Reservation:", r.get("guestName"), r.get("arrivalDate"), r.get("departureDate"), r.get("status"))
 
     valid = [
         r for r in reservations
@@ -61,7 +83,7 @@ def get_guest_info():
         return jsonify({"message": "No active guest staying today"}), 404
 
     sel = max(valid, key=lambda r: r.get("updatedOn", ""))
-    return jsonify({
+    selected = {
         "guestName": sel.get("guestName"),
         "checkIn": sel.get("arrivalDate"),
         "checkInTime": sel.get("checkInTime", 16),
@@ -69,7 +91,11 @@ def get_guest_info():
         "checkOutTime": sel.get("checkOutTime", 10),
         "numberOfGuests": sel.get("numberOfGuests"),
         "notes": sel.get("comment"),
-    })
+    }
+
+    print("Selected reservation:", selected)
+    return jsonify(selected)
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=8080)
+    # Use PORT env var or default to 8080 (works on Replit and most platforms)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
