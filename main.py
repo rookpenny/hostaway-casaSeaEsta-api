@@ -98,4 +98,4 @@ def get_guest_info():
 
 if __name__ == "__main__":
     # Use PORT env var or default to 8080 (works on Replit and most platforms)
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 8080)))
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
