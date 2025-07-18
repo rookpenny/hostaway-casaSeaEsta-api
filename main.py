@@ -140,5 +140,25 @@ def get_guest_info():
         print("SERVER ERROR:", str(e))
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
+# POST daily vibe message from Zapier
+@app.route("/api/vibe-message", methods=["POST"])
+def save_vibe_message():
+    try:
+        data = request.json
+        vibe_storage["message"] = data.get("message")
+        vibe_storage["guestName"] = data.get("guestName")
+        vibe_storage["timestamp"] = datetime.now().isoformat()
+        return jsonify({"status": "success"}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+# GET vibe message for Sandy to read
+@app.route("/api/vibe-message", methods=["GET"])
+def get_vibe_message():
+    if "message" in vibe_storage:
+        return jsonify(vibe_storage), 200
+    return jsonify({"message": "No vibe message set"}), 404
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
