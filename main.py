@@ -5,7 +5,7 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 from calendar import monthrange
-import pytz  # <--- NEW
+import pytz  # timezone support
 
 load_dotenv()
 app = Flask(__name__)
@@ -14,7 +14,7 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 PROPERTY_LISTING_IDS = {"casa-sea-esta": "256853"}
-EASTERN = pytz.timezone('US/Eastern')  # <--- NEW
+EASTERN = pytz.timezone('US/Eastern')
 
 def get_token():
     resp = requests.post(
@@ -46,7 +46,6 @@ def get_guest_info():
         if not token:
             return jsonify({"error": "Authentication failed"}), 401
 
-        # Always use property local time!
         now = datetime.now(EASTERN)
         today = now.date()
         current_time = now.time()
@@ -70,14 +69,13 @@ def get_guest_info():
         data = resp.json()
         reservations = data.get("result", [])
 
-        # DEBUG: Print all reservations
         print("\n=== RAW RESERVATIONS RECEIVED ===")
         for r in reservations:
             print({
                 "guestName": r.get("guestName"),
-                "checkIn": r.get("checkIn"),
+                "arrivalDate": r.get("arrivalDate"),
+                "departureDate": r.get("departureDate"),
                 "checkInTime": r.get("checkInTime"),
-                "checkOut": r.get("checkOut"),
                 "checkOutTime": r.get("checkOutTime"),
                 "status": r.get("status")
             })
@@ -92,8 +90,8 @@ def get_guest_info():
 
         for r in valid_reservations:
             try:
-                arrival = datetime.strptime(r.get("checkIn"), "%Y-%m-%d").date()
-                departure = datetime.strptime(r.get("checkOut"), "%Y-%m-%d").date()
+                arrival = datetime.strptime(r.get("arrivalDate"), "%Y-%m-%d").date()
+                departure = datetime.strptime(r.get("departureDate"), "%Y-%m-%d").date()
                 checkin_hour = int(r.get("checkInTime", 16))
                 checkin_time = datetime.combine(arrival, datetime.min.time()).replace(hour=checkin_hour).time()
                 checkout_hour = int(r.get("checkOutTime", 10))
@@ -111,32 +109,26 @@ def get_guest_info():
                 print("Matched: in middle of stay.")
                 selected = r
                 break
-            elif today == arrival:
-                if current_time >= checkin_time:
-                    print("Matched: just checked in (after check-in time).")
-                    selected = r
-                    break
-                else:
-                    print("Too early: arrival day but before check-in time.")
-            elif today == departure:
-                if current_time < checkout_time:
-                    print("Matched: morning of checkout (before check-out time).")
-                    selected = r
-                    break
-                else:
-                    print("Too late: departure day but after check-out time.")
+            elif today == arrival and current_time >= checkin_time:
+                print("Matched: just checked in (after check-in time).")
+                selected = r
+                break
+            elif today == departure and current_time < checkout_time:
+                print("Matched: still here (before check-out time).")
+                selected = r
+                break
             else:
                 print("No match for this reservation.")
 
         if selected:
             result = {
                 "guestName": selected.get("guestName"),
-                "checkIn": selected.get("checkIn"),
+                "checkIn": selected.get("arrivalDate"),
                 "checkInTime": str(selected.get("checkInTime", 16)),
-                "checkOut": selected.get("checkOut"),
+                "checkOut": selected.get("departureDate"),
                 "checkOutTime": str(selected.get("checkOutTime", 10)),
                 "numberOfGuests": str(selected.get("numberOfGuests")),
-                "notes": selected.get("notes", selected.get("comment", ""))
+                "notes": selected.get("comment", "")
             }
             print("Selected reservation:", result)
             return jsonify(result), 200
