@@ -66,47 +66,40 @@ def get_guest_info():
         data = resp.json()
         reservations = data.get("result", [])
 
-        # Filter for only valid reservations
         valid_reservations = [
             r for r in reservations
             if r.get("status") in {"new", "modified", "confirmed", "accepted"}
         ]
 
-        print("Today's date:", today, "| Current time:", current_time)
-        outgoing = None
-        incoming = None
+        selected = None
 
         for r in valid_reservations:
             arrival = datetime.strptime(r.get("arrivalDate"), "%Y-%m-%d").date()
+            departure = datetime.strptime(r.get("departureDate"), "%Y-%m-%d").date()
             checkin_hour = int(r.get("checkInTime", 16))
             checkin_time = datetime.combine(arrival, datetime.min.time()).replace(hour=checkin_hour).time()
-            departure = datetime.strptime(r.get("departureDate"), "%Y-%m-%d").date()
             checkout_hour = int(r.get("checkOutTime", 10))
             checkout_time = datetime.combine(departure, datetime.min.time()).replace(hour=checkout_hour).time()
 
-            print(
-                f"Checking reservation: {r.get('guestName')} | "
-                f"Arrival: {arrival} @ {checkin_time} | "
-                f"Departure: {departure} @ {checkout_time} | "
-                f"Status: {r.get('status')}"
-            )
+            print(f"Checking: {r.get('guestName')} | Arrival: {arrival} @ {checkin_time} | Departure: {departure} @ {checkout_time}")
 
-            # Outgoing guest: it's their checkout day, before checkout time
-            if departure == today and current_time < checkout_time:
-                print("Matched as outgoing guest.")
-                outgoing = r
-            # Incoming guest: it's their check-in day, after check-in time
-            elif arrival == today and current_time >= checkin_time:
-                print("Matched as incoming guest.")
-                incoming = r
+            if arrival < today < departure:
+                # Guest is staying between arrival and departure
+                print("Matched: in middle of stay.")
+                selected = r
+                break
+            elif today == arrival and current_time >= checkin_time:
+                # Today is check-in day, and it's after check-in time
+                print("Matched: just checked in.")
+                selected = r
+                break
+            elif today == departure and current_time < checkout_time:
+                # Today is check-out day, and it's before check-out time
+                print("Matched: last morning before checkout.")
+                selected = r
+                break
             else:
-                print("No match for this reservation.")
-
-        selected = None
-        if outgoing:
-            selected = outgoing
-        elif incoming:
-            selected = incoming
+                print("No match.")
 
         if selected:
             result = {
