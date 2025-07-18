@@ -8,7 +8,7 @@ from calendar import monthrange
 
 load_dotenv()
 app = Flask(__name__)
-CORS(app)  # Allow all origins during testing; restrict in prod as needed
+CORS(app)
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
@@ -61,7 +61,6 @@ def get_guest_info():
             }
         )
         print("Reservations status:", resp.status_code)
-        print("Raw response text:", resp.text[:500])
         data = resp.json()
     except Exception as e:
         print("Failed to fetch or parse reservations:", str(e))
@@ -83,19 +82,19 @@ def get_guest_info():
         return jsonify({"message": "No active guest staying today"}), 404
 
     sel = max(valid, key=lambda r: r.get("updatedOn", ""))
+
     selected = {
         "guestName": sel.get("guestName"),
         "checkIn": sel.get("arrivalDate"),
-        "checkInTime": sel.get("checkInTime", 16),
+        "checkInTime": str(sel.get("checkInTime", 16)),
         "checkOut": sel.get("departureDate"),
-        "checkOutTime": sel.get("checkOutTime", 10),
-        "numberOfGuests": sel.get("numberOfGuests"),
-        "notes": sel.get("comment"),
+        "checkOutTime": str(sel.get("checkOutTime", 10)),
+        "numberOfGuests": str(sel.get("numberOfGuests")),
+        "notes": sel.get("comment", "")
     }
 
     print("Selected reservation:", selected)
     return jsonify(selected), 200
 
 if __name__ == "__main__":
-    # Use PORT env var or default to 8080 (works on Replit and most platforms)
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
