@@ -4,17 +4,24 @@ info:
   version: 1.0.0
 servers:
   - url: https://hostaway-casaseaesta-api.onrender.com
+
 paths:
   /api/guest:
     get:
-      summary: Get today's guest info by listing ID
+      summary: Get today's guest info
       parameters:
         - in: query
           name: listingId
-          required: true
           schema:
             type: string
-          description: Hostaway listing ID (e.g., 256853)
+          required: false
+          description: Hostaway listing ID (preferred, e.g., 256853)
+        - in: query
+          name: property
+          schema:
+            type: string
+          required: false
+          description: Legacy slug (e.g., casa-sea-esta). Will be mapped to listingId internally.
       responses:
         '200':
           description: Guest found
@@ -29,21 +36,25 @@ paths:
                     type: string
                   checkOut:
                     type: string
+                  checkInTime:
+                    type: string
+                  checkOutTime:
+                    type: string
                   numberOfGuests:
                     type: string
                   notes:
                     type: string
-        '404':
-          description: No guest found or unknown listing ID
         '401':
           description: Authentication failed
+        '404':
+          description: No guest or unauthorized listingId
 
   /api/vibe-message:
     get:
-      summary: Get current vibe message
+      summary: Get the current vibe message
       responses:
         '200':
-          description: Message returned
+          description: Message retrieved
           content:
             application/json:
               schema:
@@ -56,7 +67,7 @@ paths:
                   timestamp:
                     type: string
         '404':
-          description: No vibe set
+          description: No vibe message set
 
     post:
       summary: Save a new vibe message
@@ -75,4 +86,4 @@ paths:
         '200':
           description: Vibe stored
         '500':
-          description: Error saving
+          description: Error saving message
