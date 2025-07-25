@@ -1,0 +1,58 @@
+openapi: 3.0.0
+info:
+  title: Casa Sea Esta Guest Info
+  version: "1.0.0"
+
+servers:
+  - url: https://hostaway-casaseaesta-api.onrender.com
+
+paths:
+  /api/guest:
+    get:
+      summary: Get today's guest
+      operationId: getTodaysGuest
+      parameters:
+        - name: property
+          in: query
+          required: true
+          schema:
+            type: string
+            example: casa-sea-esta
+      responses:
+        "200":
+          description: Current guest data
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Guest"
+        "404":
+          description: No guest currently checked in
+
+components:
+  schemas:
+    Guest:
+      type: object
+      properties:
+        guestName:
+          type: string
+          example: Alex Rivera
+        checkIn:
+          type: string
+          format: date
+          example: 2025-07-25
+        checkInTime:
+          type: string
+          example: "16"
+        checkOut:
+          type: string
+          format: date
+          example: 2025-07-28
+        checkOutTime:
+          type: string
+          example: "10"
+        numberOfGuests:
+          type: string
+          example: "6"
+        notes:
+          type: string
+          example: Anniversary trip 🎉
