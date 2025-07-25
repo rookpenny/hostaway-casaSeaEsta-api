@@ -12,9 +12,10 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
-PROPERTY_LISTING_IDS = {"casa-sea-esta": "256853"}
 
-# ✅ In-memory store declared before routes
+# ✅ Accept Hostaway listing ID directly
+ALLOWED_LISTING_IDS = {"256853"}
+
 vibe_storage = {}
 
 def get_token():
@@ -37,9 +38,9 @@ def home():
 @app.route("/api/guest")
 def get_guest_info():
     try:
-        slug = request.args.get("property")
-        if slug not in PROPERTY_LISTING_IDS:
-            return jsonify({"error": "Unknown property"}), 404
+        listing_id = request.args.get("listingId")
+        if listing_id not in ALLOWED_LISTING_IDS:
+            return jsonify({"error": "Unknown or unauthorized listingId"}), 404
 
         token = get_token()
         if not token:
@@ -56,7 +57,7 @@ def get_guest_info():
             "https://api.hostaway.com/v1/reservations",
             headers={"Authorization": f"Bearer {token}"},
             params={
-                "listingId": PROPERTY_LISTING_IDS[slug],
+                "listingId": listing_id,
                 "dateFrom": date_range_start,
                 "dateTo": date_range_end
             }
@@ -99,7 +100,6 @@ def get_guest_info():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
-# ✅ POST endpoint to save vibe message
 @app.route("/api/vibe-message", methods=["POST"])
 def save_vibe_message():
     try:
@@ -111,7 +111,6 @@ def save_vibe_message():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ✅ GET endpoint for Sandy to retrieve vibe
 @app.route("/api/vibe-message", methods=["GET"])
 def get_vibe_message():
     if "message" in vibe_storage:
