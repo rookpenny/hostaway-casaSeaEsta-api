@@ -12,7 +12,7 @@
     "url": "https://your-domain.com/openapi.yaml",
     "is_user_authenticated": false
   },
-  "logo_url": "https://your-domain.com/logo.png",
-  "contact_email": "support@yourdomain.com",
-  "legal_info_url": "https://your-domain.com/terms"
+  "logo_url": "https://www.neatsleeps.com/logo.png",
+  "contact_email": "hello@neatsleeps.com"
+  "legal_info_url": "https://www.neatsleeps.com/chatai-privacy-policy"
 }
