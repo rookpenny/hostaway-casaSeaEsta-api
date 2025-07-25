@@ -13,9 +13,15 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 
-# ✅ Accept Hostaway listing ID directly
+# ✅ Supported PMS listing IDs
 ALLOWED_LISTING_IDS = {"256853"}
 
+# 🔁 Legacy name-to-ID mapping (optional)
+LEGACY_PROPERTY_MAP = {
+    "casa-sea-esta": "256853"
+}
+
+# ✅ In-memory vibe message
 vibe_storage = {}
 
 def get_token():
@@ -38,7 +44,14 @@ def home():
 @app.route("/api/guest")
 def get_guest_info():
     try:
+        # ✅ Accept listingId directly
         listing_id = request.args.get("listingId")
+
+        # 🔁 Fallback for legacy ?property=casa-sea-esta
+        if not listing_id:
+            legacy_property = request.args.get("property")
+            listing_id = LEGACY_PROPERTY_MAP.get(legacy_property)
+
         if listing_id not in ALLOWED_LISTING_IDS:
             return jsonify({"error": "Unknown or unauthorized listingId"}), 404
 
