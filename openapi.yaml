@@ -1,24 +1,23 @@
-openapi: 3.0.0
+openapi: 3.0.1
 info:
-  title: Casa Sea Esta Guest Info
+  title: Casa Sea Esta API
   version: 1.0.0
 servers:
   - url: https://hostaway-casaseaesta-api.onrender.com
 paths:
   /api/guest:
     get:
-      summary: Get today's guest
-      operationId: getTodaysGuest
+      summary: Get today's guest info by listing ID
       parameters:
-        - name: property
-          in: query
+        - in: query
+          name: listingId
           required: true
           schema:
             type: string
-          example: casa-sea-esta
+          description: Hostaway listing ID (e.g., 256853)
       responses:
         '200':
-          description: Current guest data
+          description: Guest found
           content:
             application/json:
               schema:
@@ -28,23 +27,52 @@ paths:
                     type: string
                   checkIn:
                     type: string
-                    format: date
-                  checkInTime:
-                    type: string
                   checkOut:
-                    type: string
-                    format: date
-                  checkOutTime:
                     type: string
                   numberOfGuests:
                     type: string
                   notes:
                     type: string
-              example:
-                guestName: Shelby King
-                checkIn: 2025-07-17
-                checkInTime: "16"
-                checkOut: 2025-07-20
-                checkOutTime: "10"
-                numberOfGuests: "8"
-                notes: ""
+        '404':
+          description: No guest found or unknown listing ID
+        '401':
+          description: Authentication failed
+
+  /api/vibe-message:
+    get:
+      summary: Get current vibe message
+      responses:
+        '200':
+          description: Message returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  guestName:
+                    type: string
+                  timestamp:
+                    type: string
+        '404':
+          description: No vibe set
+
+    post:
+      summary: Save a new vibe message
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+                guestName:
+                  type: string
+      responses:
+        '200':
+          description: Vibe stored
+        '500':
+          description: Error saving
