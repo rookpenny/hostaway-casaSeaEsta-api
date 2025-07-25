@@ -1,11 +1,9 @@
 openapi: 3.0.0
 info:
   title: Casa Sea Esta Guest Info
-  version: "1.0.0"
-
+  version: 1.0.0
 servers:
   - url: https://hostaway-casaseaesta-api.onrender.com
-
 paths:
   /api/guest:
     get:
@@ -17,42 +15,36 @@ paths:
           required: true
           schema:
             type: string
-            example: casa-sea-esta
+          example: casa-sea-esta
       responses:
-        "200":
+        '200':
           description: Current guest data
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Guest"
-        "404":
-          description: No guest currently checked in
-
-components:
-  schemas:
-    Guest:
-      type: object
-      properties:
-        guestName:
-          type: string
-          example: Alex Rivera
-        checkIn:
-          type: string
-          format: date
-          example: 2025-07-25
-        checkInTime:
-          type: string
-          example: "16"
-        checkOut:
-          type: string
-          format: date
-          example: 2025-07-28
-        checkOutTime:
-          type: string
-          example: "10"
-        numberOfGuests:
-          type: string
-          example: "6"
-        notes:
-          type: string
-          example: Anniversary trip 🎉
+                type: object
+                properties:
+                  guestName:
+                    type: string
+                  checkIn:
+                    type: string
+                    format: date
+                  checkInTime:
+                    type: string
+                  checkOut:
+                    type: string
+                    format: date
+                  checkOutTime:
+                    type: string
+                  numberOfGuests:
+                    type: string
+                  notes:
+                    type: string
+              example:
+                guestName: Shelby King
+                checkIn: 2025-07-17
+                checkInTime: "16"
+                checkOut: 2025-07-20
+                checkOutTime: "10"
+                numberOfGuests: "8"
+                notes: ""
