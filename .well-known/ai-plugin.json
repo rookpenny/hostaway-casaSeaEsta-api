@@ -1,0 +1,17 @@
+{
+  "schema_version": "v1",
+  "name_for_model": "casa_sea_esta_guest_info",
+  "name_for_human": "Casa Sea Esta Guest Info",
+  "description_for_model": "Provides guest details and vibe message for Casa Sea Esta.",
+  "description_for_human": "Get real-time guest information for Casa Sea Esta stays.",
+  "auth": {
+    "type": "none"
+  },
+  "api": {
+    "type": "openapi",
+    "url": "https://hostaway-casaseaesta-api.onrender.com/openapi.yaml"
+  },
+  "logo_url": "https://hostaway-casaseaesta-api.onrender.com/logo.png",
+  "contact_email": "info@neatsleeps.com",
+  "legal_info_url": "https://www.neatsleeps.com/terms"
+}
