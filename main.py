@@ -91,29 +91,40 @@ def guest_authenticated():
         now = datetime.now()
 
         for r in reservations:
-            phone = r.get("phone", "")
             guest_name = r.get("guestName", "UNKNOWN")
+            phone = r.get("phone", "")
             check_in = r.get("arrivalDate")
             check_out = r.get("departureDate")
             check_in_time = int(r.get("checkInTime", 16))
             check_out_time = int(r.get("checkOutTime", 10))
             status = r.get("status")
 
-            # Must be an active reservation and currently checked in
-            if status not in {"new", "modified", "confirmed", "accepted"}:
-                continue
+            # Log everything
+            print(f"Checking: {guest_name}")
+            print(f"Phone: {phone}")
+            print(f"Status: {status}")
+            print(f"Dates: {check_in} → {check_out}")
+            print(f"Code entered: {code}")
+            print(f"Current guest? ", end="")
 
             is_current_guest = (
                 (check_in == today and now.hour >= check_in_time) or
                 (check_in < today < check_out) or
                 (check_out == today and now.hour < check_out_time)
             )
+            print(is_current_guest)
 
-            if not is_current_guest:
+            if status not in {"new", "modified", "confirmed", "accepted"} or not is_current_guest:
                 continue
 
-            # Must have a phone, and the end of the phone must match the input code
-            if phone and phone[-len(code):] == code:
+            # Skip guests without a valid phone
+            if not phone or len(phone) < len(code):
+                print("Skipping — phone too short or missing.")
+                continue
+
+            # Compare LAST N digits exactly
+            if phone[-len(code):] == code:
+                print("✅ MATCH FOUND")
                 return jsonify({
                     "guestName": guest_name,
                     "phone": phone,
@@ -122,6 +133,7 @@ def guest_authenticated():
                     "checkOut": check_out
                 }), 200
 
+        print("❌ No matching guest found.")
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
     except Exception as e:
