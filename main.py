@@ -67,6 +67,7 @@ def get_guest_info():
             "checkOut": latest.get("departureDate"),
             "checkOutTime": str(latest.get("checkOutTime", 10)),
             "numberOfGuests": str(latest.get("numberOfGuests")),
+            "phone": latest.get("phone"),
             "notes": latest.get("comment", "")
         }
 
@@ -140,6 +141,7 @@ def debug_guests():
             check_out = r.get("departureDate")
             check_in_time = int(r.get("checkInTime", 16))
             check_out_time = int(r.get("checkOutTime", 10))
+            phone = r.get("phone")
             status = r.get("status")
 
             is_current_guest = (
