@@ -10,8 +10,10 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# ✅ Allowed listing IDs (Hostaway PMS IDs)
 ALLOWED_LISTING_IDS = {"256853"}
 
+# 🔁 Flexible slug mapping
 LEGACY_PROPERTY_MAP = {
     "casa-sea-esta": "256853"
 }
@@ -27,7 +29,7 @@ def get_guest_info():
     try:
         listing_id = request.args.get("listingId")
         if not listing_id:
-            legacy_slug = request.args.get("property")
+            legacy_slug = request.args.get("property", "").lower().replace(" ", "-")
             listing_id = LEGACY_PROPERTY_MAP.get(legacy_slug)
 
         if listing_id not in ALLOWED_LISTING_IDS:
