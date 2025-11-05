@@ -81,7 +81,7 @@ def guest_authenticated():
     try:
         code = request.args.get("code")
 
-        if not code or not code.isdigit() or len(code) != 4:
+        if not code or not code.isdigit():
             return jsonify({"error": "Invalid code format"}), 400
 
         listing_id = LEGACY_PROPERTY_MAP.get("casa-sea-esta")
@@ -89,8 +89,6 @@ def guest_authenticated():
         reservations = fetch_reservations(listing_id, token)
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
-
-        print(f"\n=== Incoming Code: {code} ===")
 
         for r in reservations:
             phone = r.get("phone", "")
@@ -107,20 +105,11 @@ def guest_authenticated():
                 (check_out == today and now.hour < check_out_time)
             )
 
-            print(f"\n--- Checking Guest: {guest_name} ---")
-            print(f"Phone: {phone}")
-            print(f"Phone[-4:]: {phone[-4:] if phone else 'N/A'}")
-            print(f"Code Match? {phone[-4:] == code if phone else 'No phone'}")
-            print(f"Current Guest? {is_current_guest}")
-            print(f"Status: {status}")
-
             if (
                 status in {"new", "modified", "confirmed", "accepted"}
                 and is_current_guest
-                and phone
-                and phone[-4:] == code
+                and phone.endswith(code)
             ):
-                print("✅ MATCH FOUND — Returning guest info\n")
                 return jsonify({
                     "guestName": guest_name,
                     "phone": phone,
@@ -129,7 +118,6 @@ def guest_authenticated():
                     "checkOut": check_out
                 }), 200
 
-        print("❌ No match found — returning 401\n")
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
     except Exception as e:
