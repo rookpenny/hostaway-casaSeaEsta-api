@@ -99,17 +99,21 @@ def guest_authenticated():
             check_out_time = int(r.get("checkOutTime", 10))
             status = r.get("status")
 
+            # Must be an active reservation and currently checked in
+            if status not in {"new", "modified", "confirmed", "accepted"}:
+                continue
+
             is_current_guest = (
                 (check_in == today and now.hour >= check_in_time) or
                 (check_in < today < check_out) or
                 (check_out == today and now.hour < check_out_time)
             )
 
-            if (
-                status in {"new", "modified", "confirmed", "accepted"}
-                and is_current_guest
-                and phone.endswith(code)
-            ):
+            if not is_current_guest:
+                continue
+
+            # Must have a phone, and the end of the phone must match the input code
+            if phone and phone[-len(code):] == code:
                 return jsonify({
                     "guestName": guest_name,
                     "phone": phone,
@@ -122,6 +126,7 @@ def guest_authenticated():
 
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
 
 @app.route("/api/debug-guests")
 def debug_guests():
