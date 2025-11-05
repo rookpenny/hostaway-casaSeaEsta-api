@@ -28,7 +28,6 @@ def home():
 @app.route("/api/guest")
 def get_guest_info():
     try:
-        # ✅ Accept listingId or fallback to legacy ?property=
         listing_id = request.args.get("listingId")
         if not listing_id:
             legacy_slug = request.args.get("property")
@@ -104,6 +103,14 @@ def guest_authenticated():
             check_out_time = int(r.get("checkOutTime", 10))
             status = r.get("status")
 
+            if status not in {"new", "modified", "confirmed", "accepted"}:
+                print(f"Skipping {guest_name} — status: {status}")
+                continue
+
+            if not phone:
+                print(f"Skipping {guest_name} — no phone on file")
+                continue
+
             print(f"\n--- Checking {guest_name} ---")
             print(f"Phone: {phone} | Ends with code? {phone.endswith(code)}")
             print(f"Check-in: {check_in} @ {check_in_time}:00")
@@ -118,7 +125,7 @@ def guest_authenticated():
 
             print(f"is_current_guest? {is_current_guest}")
 
-            if status in {"new", "modified", "confirmed", "accepted"} and is_current_guest and phone.endswith(code):
+            if is_current_guest and phone.endswith(code):
                 return jsonify({
                     "guestName": guest_name,
                     "phone": phone,
