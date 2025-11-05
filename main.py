@@ -90,17 +90,16 @@ def guest_authenticated():
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
 
+        print(f"\n=== Incoming Code: {code} ===")
+
         for r in reservations:
             phone = r.get("phone", "")
-            guest_name = r.get("guestName", "")
+            guest_name = r.get("guestName", "UNKNOWN")
             check_in = r.get("arrivalDate")
             check_out = r.get("departureDate")
             check_in_time = int(r.get("checkInTime", 16))
             check_out_time = int(r.get("checkOutTime", 10))
             status = r.get("status")
-
-            if not phone or len(phone) < 4:
-                continue
 
             is_current_guest = (
                 (check_in == today and now.hour >= check_in_time) or
@@ -108,11 +107,20 @@ def guest_authenticated():
                 (check_out == today and now.hour < check_out_time)
             )
 
+            print(f"\n--- Checking Guest: {guest_name} ---")
+            print(f"Phone: {phone}")
+            print(f"Phone[-4:]: {phone[-4:] if phone else 'N/A'}")
+            print(f"Code Match? {phone[-4:] == code if phone else 'No phone'}")
+            print(f"Current Guest? {is_current_guest}")
+            print(f"Status: {status}")
+
             if (
                 status in {"new", "modified", "confirmed", "accepted"}
                 and is_current_guest
+                and phone
                 and phone[-4:] == code
             ):
+                print("✅ MATCH FOUND — Returning guest info\n")
                 return jsonify({
                     "guestName": guest_name,
                     "phone": phone,
@@ -121,6 +129,7 @@ def guest_authenticated():
                     "checkOut": check_out
                 }), 200
 
+        print("❌ No match found — returning 401\n")
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
     except Exception as e:
