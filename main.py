@@ -76,6 +76,51 @@ def get_guest_info():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
+@app.route("/api/guest-authenticated")
+def guest_authenticated():
+    try:
+        code = request.args.get("code")
+
+        if not code or not code.isdigit() or len(code) != 4:
+            return jsonify({"error": "Invalid code format"}), 400
+
+        listing_id = LEGACY_PROPERTY_MAP.get("casa-sea-esta")
+        token = get_token()
+        reservations = fetch_reservations(listing_id, token)
+        today = datetime.today().strftime("%Y-%m-%d")
+        now = datetime.now()
+
+        for r in reservations:
+            phone = r.get("guestPhone", "")
+            check_in = r.get("arrivalDate")
+            check_out = r.get("departureDate")
+            check_in_time = int(r.get("checkInTime", 16))
+            check_out_time = int(r.get("checkOutTime", 10))
+            status = r.get("status")
+
+            if status not in {"new", "modified", "confirmed", "accepted"}:
+                continue
+
+            is_current_guest = (
+                (check_in == today and now.hour >= check_in_time) or
+                (check_in < today < check_out) or
+                (check_out == today and now.hour < check_out_time)
+            )
+
+            if is_current_guest and phone.endswith(code):
+                return jsonify({
+                    "guestName": r.get("guestName"),
+                    "phone": phone,
+                    "property": "Casa Sea Esta",
+                    "checkIn": check_in,
+                    "checkOut": check_out
+                }), 200
+
+        return jsonify({"error": "Guest not found or not currently staying"}), 401
+
+    except Exception as e:
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
 @app.route("/api/vibe-message", methods=["GET"])
 def get_vibe_message():
     if "message" in vibe_storage:
