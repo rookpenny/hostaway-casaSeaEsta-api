@@ -95,7 +95,7 @@ def guest_authenticated():
         print("========================")
 
         for r in reservations:
-            phone = r.get("contactPhone1", "")
+            phone = r.get("phone", "")
             guest_name = r.get("guestName", "")
             check_in = r.get("arrivalDate")
             check_out = r.get("departureDate")
