@@ -107,6 +107,45 @@ def guest_authenticated():
                 (check_out == today and now.hour < check_out_time)
             )
 
+            print("\n===== DEBUG START =====")
+print(f"Incoming code: {code}")
+print(f"Today's date: {today}, Hour: {now.hour}")
+print("========================")
+
+for r in reservations:
+    phone = r.get("guestPhone", "")
+    guest_name = r.get("guestName", "")
+    check_in = r.get("arrivalDate")
+    check_out = r.get("departureDate")
+    check_in_time = int(r.get("checkInTime", 16))
+    check_out_time = int(r.get("checkOutTime", 10))
+    status = r.get("status")
+
+    print(f"\n--- Checking {guest_name} ---")
+    print(f"Phone: {phone} | Ends with code? {phone.endswith(code)}")
+    print(f"Check-in: {check_in} @ {check_in_time}:00")
+    print(f"Check-out: {check_out} @ {check_out_time}:00")
+    print(f"Status: {status}")
+    
+    is_current_guest = (
+        (check_in == today and now.hour >= check_in_time) or
+        (check_in < today < check_out) or
+        (check_out == today and now.hour < check_out_time)
+    )
+
+    print(f"is_current_guest? {is_current_guest}")
+
+    if status in {"new", "modified", "confirmed", "accepted"} and is_current_guest and phone.endswith(code):
+        return jsonify({
+            "guestName": guest_name,
+            "phone": phone,
+            "property": "Casa Sea Esta",
+            "checkIn": check_in,
+            "checkOut": check_out
+        }), 200
+
+
+            
             if is_current_guest and phone.endswith(code):
                 return jsonify({
                     "guestName": r.get("guestName"),
