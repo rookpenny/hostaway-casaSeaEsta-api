@@ -10,12 +10,15 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# ✅ Allowed listing IDs (Hostaway PMS IDs)
 ALLOWED_LISTING_IDS = {"256853"}
 
+# 🔁 Flexible slug mapping
 LEGACY_PROPERTY_MAP = {
     "casa-sea-esta": "256853"
 }
 
+# 🧠 In-memory storage
 vibe_storage = {}
 
 @app.route("/")
@@ -95,9 +98,6 @@ def guest_authenticated():
             check_out_time = int(r.get("checkOutTime", 10))
             status = r.get("status")
 
-            if status not in {"new", "modified", "confirmed", "accepted"}:
-                continue
-
             if not phone or len(phone) < 4:
                 continue
 
@@ -107,7 +107,11 @@ def guest_authenticated():
                 (check_out == today and now.hour < check_out_time)
             )
 
-            if is_current_guest and phone[-4:] == code:
+            if (
+                status in {"new", "modified", "confirmed", "accepted"}
+                and is_current_guest
+                and phone[-4:] == code
+            ):
                 return jsonify({
                     "guestName": guest_name,
                     "phone": phone,
