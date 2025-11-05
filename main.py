@@ -10,15 +10,12 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# ✅ Allowed listing IDs (Hostaway PMS IDs)
 ALLOWED_LISTING_IDS = {"256853"}
 
-# 🔁 Optional: Legacy mapping from slug to ID
 LEGACY_PROPERTY_MAP = {
     "casa-sea-esta": "256853"
 }
 
-# 🧠 In-memory store for vibe message
 vibe_storage = {}
 
 @app.route("/")
@@ -89,11 +86,6 @@ def guest_authenticated():
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
 
-        print("\n===== DEBUG START =====")
-        print(f"Incoming code: {code}")
-        print(f"Today's date: {today}, Hour: {now.hour}")
-        print("========================")
-
         for r in reservations:
             phone = r.get("phone", "")
             guest_name = r.get("guestName", "")
@@ -104,26 +96,16 @@ def guest_authenticated():
             status = r.get("status")
 
             if status not in {"new", "modified", "confirmed", "accepted"}:
-                print(f"Skipping {guest_name} — status: {status}")
                 continue
 
             if not phone:
-                print(f"Skipping {guest_name} — no phone on file")
                 continue
-
-            print(f"\n--- Checking {guest_name} ---")
-            print(f"Phone: {phone} | Ends with code? {phone.endswith(code)}")
-            print(f"Check-in: {check_in} @ {check_in_time}:00")
-            print(f"Check-out: {check_out} @ {check_out_time}:00")
-            print(f"Status: {status}")
 
             is_current_guest = (
                 (check_in == today and now.hour >= check_in_time) or
                 (check_in < today < check_out) or
                 (check_out == today and now.hour < check_out_time)
             )
-
-            print(f"is_current_guest? {is_current_guest}")
 
             if is_current_guest and phone.endswith(code):
                 return jsonify({
@@ -135,6 +117,43 @@ def guest_authenticated():
                 }), 200
 
         return jsonify({"error": "Guest not found or not currently staying"}), 401
+
+    except Exception as e:
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+@app.route("/api/debug-guests")
+def debug_guests():
+    try:
+        listing_id = LEGACY_PROPERTY_MAP.get("casa-sea-esta")
+        token = get_token()
+        reservations = fetch_reservations(listing_id, token)
+        today = datetime.today().strftime("%Y-%m-%d")
+        now = datetime.now()
+
+        result = []
+        for r in reservations:
+            check_in = r.get("arrivalDate")
+            check_out = r.get("departureDate")
+            check_in_time = int(r.get("checkInTime", 16))
+            check_out_time = int(r.get("checkOutTime", 10))
+            status = r.get("status")
+
+            is_current_guest = (
+                (check_in == today and now.hour >= check_in_time) or
+                (check_in < today < check_out) or
+                (check_out == today and now.hour < check_out_time)
+            )
+
+            if status in {"new", "modified", "confirmed", "accepted"} and is_current_guest:
+                result.append({
+                    "guestName": r.get("guestName"),
+                    "phone": r.get("phone"),
+                    "status": status,
+                    "arrivalDate": check_in,
+                    "departureDate": check_out
+                })
+
+        return jsonify(result), 200
 
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
