@@ -48,7 +48,7 @@ def get_guest_info():
             check_in_time = int(r.get("checkInTime", 16))
             check_out_time = int(r.get("checkOutTime", 10))
 
-            if r.get("status") in {"new", "modified", "confirmed", "accepted"}:
+            if r.get("status") in {"new", "modified", "confirmed", "accepted", "ownerStay"}:
                 if check_in == today and now.hour >= check_in_time:
                     valid.append(r)
                 elif check_in < today < check_out:
@@ -105,7 +105,7 @@ def guest_authenticated():
                 (check_out == today and now.hour < check_out_time)
             )
 
-            if status not in {"new", "modified", "confirmed", "accepted"} or not is_current_guest:
+            if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"} or not is_current_guest:
                 continue
 
             if not phone or len(phone) < len(code):
@@ -149,7 +149,7 @@ def debug_guests():
                 (check_out == today and now.hour < check_out_time)
             )
 
-            if status in {"new", "modified", "confirmed", "accepted"} and is_current_guest:
+            if status in {"new", "modified", "confirmed", "accepted", "ownerStay"} and is_current_guest:
                 result.append({
                     "guestName": r.get("guestName"),
                     "phone": r.get("phone"),
