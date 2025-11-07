@@ -213,12 +213,12 @@ def save_guest_message():
             "Category": category
         }
 
-        # Only include attachment if it has a valid URL
-        print("📷 Incoming attachment:", attachment)
-        
-        if attachment and "url" in attachment:
+        # Show what was sent in HTML
+        attachment_url = ""
+        if attachment and isinstance(attachment, dict) and "url" in attachment:
+            attachment_url = attachment["url"]
             fields["Attachment"] = [{
-                "url": attachment["url"],
+                "url": attachment_url,
                 "filename": attachment.get("filename", "guest-upload.jpg")
             }]
 
@@ -226,11 +226,22 @@ def save_guest_message():
 
         response = requests.post(airtable_url, headers=headers, json=payload)
 
-        print("📥 Airtable Response:", response.status_code)
-        print("📥 Airtable Body:", response.text)
-
         if response.status_code in [200, 201]:
-            return jsonify({"success": True}), 200
+            html = f"""
+                <html>
+                    <body>
+                        <h2>✅ Message Saved to Airtable</h2>
+                        <p><strong>Name:</strong> {name}</p>
+                        <p><strong>Phone:</strong> {phone_last4}</p>
+                        <p><strong>Message:</strong> {message}</p>
+                        <p><strong>Category:</strong> {category}</p>
+                        <p><strong>Date:</strong> {date}</p>
+                        <p><strong>Attachment Object:</strong> {json.dumps(attachment)}</p>
+                        {'<p><img src="' + attachment_url + '" width="300"></p>' if attachment_url else '<p>No image attached</p>'}
+                    </body>
+                </html>
+            """
+            return Response(html, mimetype="text/html")
         else:
             return jsonify({
                 "error": "Failed to save to Airtable",
