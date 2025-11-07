@@ -198,12 +198,14 @@ def save_guest_message():
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
-        airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{table_id}"
+        airtable_url = f"https://api.airtable.com/v0/appa2xkVtq4aH81gK/tblGEDhos73P2C5kn"
+        
 
         headers = {
             "Authorization": f"Bearer {airtable_api_key}",
             "Content-Type": "application/json"
         }
+        
 
         payload = {
             "fields": {
