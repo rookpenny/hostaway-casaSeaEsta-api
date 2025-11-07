@@ -6,6 +6,7 @@ import requests
 import json
 from dotenv import load_dotenv
 
+
 from utils.hostaway import get_token, fetch_reservations
 
 # Load environment variables
@@ -168,11 +169,11 @@ def save_guest_message():
 
             if not openai_api_key:
                 return jsonify({"error": "Missing OPENAI_API_KEY in environment"}), 500
-
+            
             file_response = requests.get(openai_url, headers={
                 "Authorization": f"Bearer {openai_api_key}"
             })
-
+            
             if file_response.status_code != 200:
                 return jsonify({"error": "The provided URL did not return an image."}), 400
 
