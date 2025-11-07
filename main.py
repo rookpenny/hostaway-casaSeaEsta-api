@@ -186,6 +186,7 @@ def save_guest_message():
         name = data.get("name")
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
+        category = data.get("category") 
         date = data.get("date")
 
         if not all([name, phone_last4, message, date]):
@@ -206,7 +207,8 @@ def save_guest_message():
                 "Name": name,
                 "Phone Last 4": phone_last4,
                 "Message": message,
-                "Date": date
+                "Date": date,
+                "Category": category
             }
         }
 
