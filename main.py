@@ -187,9 +187,10 @@ def save_guest_message():
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
         category = data.get("category") 
+        attachment = data.get("attachment")
         date = data.get("date")
 
-        if not all([name, phone_last4, message, date]):
+        if not all([name, phone_last4, message, date, category, attachment]):
             return jsonify({"error": "Missing fields"}), 400
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
@@ -208,7 +209,8 @@ def save_guest_message():
                 "Phone Last 4": phone_last4,
                 "Message": message,
                 "Date": date,
-                "Category": category
+                "Category": category,
+                "Attachment": [{ url: imageUrl }]
             }
         }
 
