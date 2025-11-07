@@ -7,7 +7,6 @@ import requests
 
 from utils.hostaway import get_token, fetch_reservations
 
-
 load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
@@ -182,7 +181,7 @@ def save_vibe_message():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# 🌴 NEW: Airtable guest message route
+# 🌴 NEW: Guest message to Airtable
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
     try:
@@ -192,7 +191,6 @@ def save_guest_message():
         if not all(field in data for field in required_fields):
             return jsonify({"error": "Missing required fields"}), 400
 
-        # Airtable settings
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_name = "Guest Messages"
@@ -215,6 +213,12 @@ def save_guest_message():
             "Authorization": f"Bearer {airtable_api_key}",
             "Content-Type": "application/json"
         }
+
+        # 🔍 Debug logs (remove once working)
+        print("🔒 API Key:", airtable_api_key[:6] + "..." if airtable_api_key else "None")
+        print("🔗 URL:", airtable_url)
+        print("📦 Payload:", payload)
+        print("🧾 Headers:", headers)
 
         response = requests.post(airtable_url, json=payload, headers=headers)
 
