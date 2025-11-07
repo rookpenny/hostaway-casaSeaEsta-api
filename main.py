@@ -3,6 +3,7 @@ from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
+import requests
 
 from utils.hostaway import get_token, fetch_reservations
 
@@ -179,6 +180,53 @@ def save_vibe_message():
         return jsonify({"status": "success"}), 200
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+# 🌴 NEW: Airtable guest message route
+@app.route("/api/guest-message", methods=["POST"])
+def save_guest_message():
+    try:
+        data = request.json
+
+        required_fields = ["name", "phoneLast4", "message", "date"]
+        if not all(field in data for field in required_fields):
+            return jsonify({"error": "Missing required fields"}), 400
+
+        # Airtable settings
+        airtable_api_key = os.getenv("AIRTABLE_API_KEY")
+        airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
+        table_name = "Guest Messages"
+        airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{table_name}"
+
+        payload = {
+            "records": [
+                {
+                    "fields": {
+                        "Name": data["name"],
+                        "Phone Last 4": data["phoneLast4"],
+                        "Message": data["message"],
+                        "Date": data["date"]
+                    }
+                }
+            ]
+        }
+
+        headers = {
+            "Authorization": f"Bearer {airtable_api_key}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(airtable_url, json=payload, headers=headers)
+
+        if response.status_code == 200:
+            return jsonify({"success": True}), 200
+        else:
+            return jsonify({
+                "error": "Failed to save to Airtable",
+                "details": response.text
+            }), 500
+
+    except Exception as e:
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
