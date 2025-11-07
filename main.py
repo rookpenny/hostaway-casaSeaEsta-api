@@ -214,11 +214,11 @@ def save_guest_message():
         }
 
         # Include attachment with filename, if provided
-        if attachment:
+       if attachment and "url" in attachment:
             fields["Attachment"] = [{
-                "url": attachment,
-                "filename": "guest-issue.jpg"
-            }]
+            "url": attachment["url"],
+            "filename": attachment.get("filename", "guest-upload.jpg")
+        }]
 
         payload = { "fields": fields }
 
