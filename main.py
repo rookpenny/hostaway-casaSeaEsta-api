@@ -4,48 +4,22 @@ from flask_cors import CORS
 from datetime import datetime
 import requests
 import json
-from io import BytesIO
 
 from utils.hostaway import get_token, fetch_reservations
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# ✅ Allowed listing IDs
 ALLOWED_LISTING_IDS = {"256853"}
 
+# 🔁 Legacy slug → Hostaway listing ID
 LEGACY_PROPERTY_MAP = {
     "casa-sea-esta": "256853"
 }
 
+# 🧠 Vibe message in-memory storage
 vibe_storage = {}
-
-def upload_sandy_image(temp_url, filename="guest-upload.jpg"):
-    try:
-        print(f"📦 Fetching image from: {temp_url}")
-        image_response = requests.get(temp_url, timeout=10)
-        print("📸 Image response status:", image_response.status_code)
-
-        if image_response.status_code != 200:
-            print("❌ Failed to fetch image data")
-            return None
-
-        file_data = BytesIO(image_response.content)
-
-        upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
-        files = {'file': (filename, file_data)}
-        upload_response = requests.post(upload_url, files=files)
-        print("🌍 Upload response status:", upload_response.status_code)
-        print("🌍 Upload response body:", upload_response.text)
-
-        if upload_response.status_code != 200:
-            return None
-
-        result = upload_response.json()
-        return result.get("url")
-
-    except Exception as e:
-        print("🚫 upload_sandy_image error:", str(e))
-        return None
 
 @app.route("/")
 def home():
@@ -181,6 +155,21 @@ def save_guest_message():
         if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
 
+        # Upload image to your website folder if available
+        hosted_url = ""
+        if attachment and "url" in attachment:
+            openai_url = attachment["url"]
+            filename = attachment.get("filename", "guest-upload.jpg")
+            img_data = requests.get(openai_url).content
+
+            upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
+            files = {'file': (filename, img_data)}
+            upload_resp = requests.post(upload_url, files=files)
+
+            if upload_resp.status_code == 200:
+                hosted_url = upload_resp.json().get("url")
+
+        # Airtable payload
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
@@ -199,21 +188,13 @@ def save_guest_message():
             "Category": category
         }
 
-        attachment_url = ""
-        if attachment and "url" in attachment:
-            print("📎 Attempting to upload:", attachment["url"])
-            uploaded_url = upload_sandy_image(attachment["url"], attachment.get("filename", "guest-upload.jpg"))
-            if uploaded_url:
-                attachment_url = uploaded_url
-                fields["Attachment"] = [{
-                    "url": attachment_url,
-                    "filename": attachment.get("filename", "guest-upload.jpg")
-                }]
-            else:
-                print("⚠️ Attachment upload failed, skipping.")
+        if hosted_url:
+            fields["Attachment"] = [{
+                "url": hosted_url,
+                "filename": attachment.get("filename", "guest-upload.jpg")
+            }]
 
         payload = { "fields": fields }
-
         response = requests.post(airtable_url, headers=headers, json=payload)
 
         if response.status_code in [200, 201]:
@@ -226,18 +207,17 @@ def save_guest_message():
                         <p><strong>Message:</strong> {message}</p>
                         <p><strong>Category:</strong> {category}</p>
                         <p><strong>Date:</strong> {date}</p>
-                        <p><strong>Final Attachment URL:</strong> {attachment_url}</p>
-                        {'<p><img src="' + attachment_url + '" width="300"></p>' if attachment_url else '<p>No image attached</p>'}
+                        <p><strong>Image:</strong> {hosted_url or 'None'}</p>
+                        {'<img src="' + hosted_url + '" width="300"/>' if hosted_url else ''}
                     </body>
                 </html>
             """
             return Response(html, mimetype="text/html")
 
-        else:
-            return jsonify({
-                "error": "Failed to save to Airtable",
-                "details": response.text
-            }), 500
+        return jsonify({
+            "error": "Failed to save to Airtable",
+            "details": response.text
+        }), 500
 
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 400
