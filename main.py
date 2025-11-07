@@ -192,7 +192,7 @@ def save_guest_message():
         if not all(field in data for field in required_fields):
             return jsonify({"error": "Missing required fields"}), 400
 
-        airtable_api_key = os.getenv("AIRTABLE_API_KEY")
+        airtable_api_key = os.getenv("patDY7sl6P1NLRXta.0f9630379c34cd9a027c17c229b8f8123d81164c7a100b32f2b5f4c69bc55a75")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"  # Use the table ID directly
         airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{table_id}"
