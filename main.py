@@ -4,6 +4,7 @@ from flask_cors import CORS
 from datetime import datetime
 from dotenv import load_dotenv
 import requests
+from urllib.parse import quote  # NEW: for URL-encoding the table name
 
 from utils.hostaway import get_token, fetch_reservations
 
@@ -194,7 +195,9 @@ def save_guest_message():
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_name = "Guest Messages"
-        airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{table_name}"
+        encoded_table = quote(table_name)
+
+        airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{encoded_table}"
 
         payload = {
             "records": [
