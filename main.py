@@ -1,6 +1,5 @@
 import os
-from flask import Flask, jsonify, request
-from flask import Response
+from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from datetime import datetime
 import requests
@@ -187,12 +186,22 @@ def save_guest_message():
         name = data.get("name")
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
-        category = data.get("category") 
+        category = data.get("category")
         attachment = data.get("attachment")
         date = data.get("date")
 
         if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
+
+        # Convert OpenAI image URL to hosted version if needed
+        attachment_url = ""
+        if attachment and isinstance(attachment, dict) and "url" in attachment:
+            if "files.oaiusercontent.com" in attachment["url"]:
+                # Rewrite URL to your WordPress folder
+                filename = attachment.get("filename", "guest-upload.jpg")
+                attachment_url = f"https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/uploads/{filename}"
+            else:
+                attachment_url = attachment["url"]
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
@@ -212,16 +221,13 @@ def save_guest_message():
             "Category": category
         }
 
-        attachment_url = ""
-        if attachment and isinstance(attachment, dict) and "url" in attachment:
-            attachment_url = attachment["url"]
+        if attachment_url:
             fields["Attachment"] = [{
                 "url": attachment_url,
                 "filename": attachment.get("filename", "guest-upload.jpg")
             }]
 
-        payload = { "fields": fields }
-
+        payload = {"fields": fields}
         response = requests.post(airtable_url, headers=headers, json=payload)
 
         if response.status_code in [200, 201]:
@@ -234,13 +240,12 @@ def save_guest_message():
                         <p><strong>Message:</strong> {message}</p>
                         <p><strong>Category:</strong> {category}</p>
                         <p><strong>Date:</strong> {date}</p>
-                        <p><strong>Attachment Object:</strong> {attachment}</p>
+                        <p><strong>Attachment:</strong> {attachment_url}</p>
                         {'<p><img src="' + attachment_url + '" width="300"></p>' if attachment_url else '<p>No image attached</p>'}
                     </body>
                 </html>
             """
             return Response(html, mimetype="text/html")
-
         else:
             return jsonify({
                 "error": "Failed to save to Airtable",
@@ -249,5 +254,6 @@ def save_guest_message():
 
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 400
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
