@@ -194,10 +194,9 @@ def save_guest_message():
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-        table_name = "Guest Messages"
-        encoded_table = quote(table_name)
-
-        airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{encoded_table}"
+        table_id = "tblGEDhos73P2C5kn"  # Use the table ID directly
+        airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{table_id}"
+        
 
         payload = {
             "records": [
