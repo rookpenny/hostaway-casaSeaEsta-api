@@ -4,22 +4,37 @@ from flask_cors import CORS
 from datetime import datetime
 import requests
 import json
+from io import BytesIO
 
 from utils.hostaway import get_token, fetch_reservations
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# ✅ Allowed listing IDs
 ALLOWED_LISTING_IDS = {"256853"}
 
-# 🔁 Legacy slug → Hostaway listing ID
 LEGACY_PROPERTY_MAP = {
     "casa-sea-esta": "256853"
 }
 
-# 🧠 Vibe message in-memory storage
 vibe_storage = {}
+
+def upload_sandy_image(temp_url, filename="guest-upload.jpg"):
+    try:
+        image_response = requests.get(temp_url)
+        image_response.raise_for_status()
+        file_data = BytesIO(image_response.content)
+
+        upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
+        files = {'file': (filename, file_data)}
+        upload_response = requests.post(upload_url, files=files)
+        upload_response.raise_for_status()
+
+        result = upload_response.json()
+        return result.get("url")
+    except Exception as e:
+        print("🚫 Image upload failed:", str(e))
+        return None
 
 @app.route("/")
 def home():
@@ -124,44 +139,6 @@ def guest_authenticated():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
-@app.route("/api/debug-guests")
-def debug_guests():
-    try:
-        listing_id = LEGACY_PROPERTY_MAP.get("casa-sea-esta")
-        token = get_token()
-        reservations = fetch_reservations(listing_id, token)
-        today = datetime.today().strftime("%Y-%m-%d")
-        now = datetime.now()
-
-        result = []
-        for r in reservations:
-            check_in = r.get("arrivalDate")
-            check_out = r.get("departureDate")
-            check_in_time = int(r.get("checkInTime", 16))
-            check_out_time = int(r.get("checkOutTime", 10))
-            phone = r.get("phone")
-            status = r.get("status")
-
-            is_current_guest = (
-                (check_in == today and now.hour >= check_in_time) or
-                (check_in < today < check_out) or
-                (check_out == today and now.hour < check_out_time)
-            )
-
-            if status in {"new", "modified", "confirmed", "accepted", "ownerStay"} and is_current_guest:
-                result.append({
-                    "guestName": r.get("guestName"),
-                    "phone": phone,
-                    "status": status,
-                    "arrivalDate": check_in,
-                    "departureDate": check_out
-                })
-
-        return jsonify(result), 200
-
-    except Exception as e:
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
-
 @app.route("/api/vibe-message", methods=["GET"])
 def get_vibe_message():
     if "message" in vibe_storage:
@@ -186,22 +163,12 @@ def save_guest_message():
         name = data.get("name")
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
-        category = data.get("category")
+        category = data.get("category") 
         attachment = data.get("attachment")
         date = data.get("date")
 
         if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
-
-        # Convert OpenAI image URL to hosted version if needed
-        attachment_url = ""
-        if attachment and isinstance(attachment, dict) and "url" in attachment:
-            if "files.oaiusercontent.com" in attachment["url"]:
-                # Rewrite URL to your WordPress folder
-                filename = attachment.get("filename", "guest-upload.jpg")
-                attachment_url = f"https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/uploads/{filename}"
-            else:
-                attachment_url = attachment["url"]
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
@@ -221,13 +188,21 @@ def save_guest_message():
             "Category": category
         }
 
-        if attachment_url:
-            fields["Attachment"] = [{
-                "url": attachment_url,
-                "filename": attachment.get("filename", "guest-upload.jpg")
-            }]
+        attachment_url = ""
+        if attachment and "url" in attachment:
+            print("📎 Attempting to upload:", attachment["url"])
+            uploaded_url = upload_sandy_image(attachment["url"], attachment.get("filename", "guest-upload.jpg"))
+            if uploaded_url:
+                attachment_url = uploaded_url
+                fields["Attachment"] = [{
+                    "url": attachment_url,
+                    "filename": attachment.get("filename", "guest-upload.jpg")
+                }]
+            else:
+                print("⚠️ Attachment upload failed, skipping.")
 
-        payload = {"fields": fields}
+        payload = { "fields": fields }
+
         response = requests.post(airtable_url, headers=headers, json=payload)
 
         if response.status_code in [200, 201]:
@@ -240,12 +215,13 @@ def save_guest_message():
                         <p><strong>Message:</strong> {message}</p>
                         <p><strong>Category:</strong> {category}</p>
                         <p><strong>Date:</strong> {date}</p>
-                        <p><strong>Attachment:</strong> {attachment_url}</p>
+                        <p><strong>Final Attachment URL:</strong> {attachment_url}</p>
                         {'<p><img src="' + attachment_url + '" width="300"></p>' if attachment_url else '<p>No image attached</p>'}
                     </body>
                 </html>
             """
             return Response(html, mimetype="text/html")
+
         else:
             return jsonify({
                 "error": "Failed to save to Airtable",
