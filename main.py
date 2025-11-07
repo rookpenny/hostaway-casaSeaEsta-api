@@ -2,6 +2,9 @@ import os
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from datetime import datetime
+from dotenv import load_dotenv
+load_dotenv()
+
 import requests
 
 from utils.hostaway import get_token, fetch_reservations
