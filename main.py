@@ -9,15 +9,8 @@ from utils.hostaway import get_token, fetch_reservations
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# ✅ Allowed listing IDs
 ALLOWED_LISTING_IDS = {"256853"}
-
-# 🔁 Legacy slug → Hostaway listing ID
-LEGACY_PROPERTY_MAP = {
-    "casa-sea-esta": "256853"
-}
-
-# 🧠 Vibe message in-memory storage
+LEGACY_PROPERTY_MAP = { "casa-sea-esta": "256853" }
 vibe_storage = {}
 
 @app.route("/")
@@ -147,27 +140,40 @@ def save_guest_message():
         name = data.get("name")
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
-        category = data.get("category")
+        category = data.get("category") 
         attachment = data.get("attachment")
         date = data.get("date")
 
         if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
 
-        # Try uploading image to your WordPress server if attachment is present
+        # Upload image to your website folder if available
         hosted_url = ""
-        if attachment and isinstance(attachment, dict) and "url" in attachment:
-            try:
-                image_data = requests.get(attachment["url"]).content
-                upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
-                filename = attachment.get("filename", "guest-upload.jpg")
-                upload_response = requests.post(upload_url, files={'file': (filename, image_data)})
-                if upload_response.status_code == 200:
-                    hosted_url = upload_response.json().get("url", "")
-            except Exception as upload_error:
-                print("🚨 Upload failed:", upload_error)
+        if attachment and "url" in attachment:
+            openai_url = attachment["url"]
+            filename = attachment.get("filename", "guest-upload.jpg")
 
-        # Prepare Airtable payload
+            # 🛡️ Fetch image and validate content type
+            img_resp = requests.get(openai_url)
+            content_type = img_resp.headers.get("Content-Type", "")
+
+            if "image" not in content_type:
+                return jsonify({"error": "The provided URL did not return an image."}), 400
+
+            img_data = img_resp.content
+
+            # 📤 Upload to your hosting folder
+            upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
+            files = {'file': (filename, img_data)}
+            upload_resp = requests.post(upload_url, files=files)
+
+            if upload_resp.status_code == 200:
+                upload_json = upload_resp.json()
+                hosted_url = upload_json.get("url")
+            else:
+                return jsonify({"error": "Failed to upload image to hosting server"}), 500
+
+        # 📝 Prepare Airtable payload
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
@@ -189,12 +195,13 @@ def save_guest_message():
         if hosted_url:
             fields["Attachment"] = [{
                 "url": hosted_url,
-                "filename": attachment.get("filename", "guest-upload.jpg")
+                "filename": filename
             }]
 
-        payload = {"fields": fields}
+        payload = { "fields": fields }
         response = requests.post(airtable_url, headers=headers, json=payload)
 
+        # ✅ Return HTML confirmation
         if response.status_code in [200, 201]:
             html = f"""
                 <html>
@@ -205,7 +212,8 @@ def save_guest_message():
                         <p><strong>Message:</strong> {message}</p>
                         <p><strong>Category:</strong> {category}</p>
                         <p><strong>Date:</strong> {date}</p>
-                        {'<p><img src="' + hosted_url + '" width="300"/></p>' if hosted_url else '<p>No image attached</p>'}
+                        <p><strong>Image:</strong> {hosted_url or 'None'}</p>
+                        {'<img src="' + hosted_url + '" width="300"/>' if hosted_url else ''}
                     </body>
                 </html>
             """
