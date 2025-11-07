@@ -7,6 +7,7 @@ import requests
 
 from utils.hostaway import get_token, fetch_reservations
 
+
 load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
