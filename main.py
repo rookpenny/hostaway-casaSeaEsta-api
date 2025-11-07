@@ -214,6 +214,8 @@ def save_guest_message():
         }
 
         # Only include attachment if it has a valid URL
+        print("📷 Incoming attachment:", attachment)
+        
         if attachment and "url" in attachment:
             fields["Attachment"] = [{
                 "url": attachment["url"],
