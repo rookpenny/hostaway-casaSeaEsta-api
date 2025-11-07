@@ -213,9 +213,12 @@ def save_guest_message():
             "Category": category
         }
 
-        # Only include the attachment if it exists
+        # Include attachment with filename, if provided
         if attachment:
-            fields["Attachment"] = [{"url": attachment}]
+            fields["Attachment"] = [{
+                "url": attachment,
+                "filename": "guest-issue.jpg"
+            }]
 
         payload = { "fields": fields }
 
