@@ -2,18 +2,27 @@ import os
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from datetime import datetime
-from dotenv import load_dotenv
-load_dotenv()
-
 import requests
+import json
+from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
+
+# Load environment variables
+load_dotenv()
 
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# ✅ Allowed listing IDs
 ALLOWED_LISTING_IDS = {"256853"}
-LEGACY_PROPERTY_MAP = { "casa-sea-esta": "256853" }
+
+# 🔁 Legacy slug → Hostaway listing ID
+LEGACY_PROPERTY_MAP = {
+    "casa-sea-esta": "256853"
+}
+
+# 🧠 Vibe message in-memory storage
 vibe_storage = {}
 
 @app.route("/")
@@ -143,29 +152,38 @@ def save_guest_message():
         name = data.get("name")
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
-        category = data.get("category")
+        category = data.get("category") 
         attachment = data.get("attachment")
         date = data.get("date")
 
         if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
 
-        # 🖼️ Step 1: Upload image to your hosting server (if there is one)
+        # 🌐 Upload image from OpenAI URL to website folder
         hosted_url = ""
         if attachment and "url" in attachment:
             openai_url = attachment["url"]
             filename = attachment.get("filename", "guest-upload.jpg")
-            img_data = requests.get(openai_url).content
+            openai_api_key = os.getenv("OPENAI_API_KEY")
 
-            # Upload to your server
+            if not openai_api_key:
+                return jsonify({"error": "Missing OPENAI_API_KEY in environment"}), 500
+
+            file_response = requests.get(openai_url, headers={
+                "Authorization": f"Bearer {openai_api_key}"
+            })
+
+            if file_response.status_code != 200:
+                return jsonify({"error": "The provided URL did not return an image."}), 400
+
             upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
-            files = {'file': (filename, img_data)}
+            files = {'file': (filename, file_response.content)}
             upload_resp = requests.post(upload_url, files=files)
 
             if upload_resp.status_code == 200:
                 hosted_url = upload_resp.json().get("url")
 
-        # ✍️ Step 2: Build Airtable fields
+        # Airtable submission
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
@@ -187,12 +205,10 @@ def save_guest_message():
         if hosted_url:
             fields["Attachment"] = [{
                 "url": hosted_url,
-                "filename": filename
+                "filename": attachment.get("filename", "guest-upload.jpg")
             }]
 
         payload = { "fields": fields }
-
-        # ✅ Step 3: Send to Airtable
         response = requests.post(airtable_url, headers=headers, json=payload)
 
         if response.status_code in [200, 201]:
