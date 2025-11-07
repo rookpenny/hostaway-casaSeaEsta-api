@@ -212,6 +212,9 @@ def save_guest_message():
 
         response = requests.post(airtable_url, headers=headers, json=payload)
 
+        print("📥 Airtable Response:", response.status_code)
+        print("📥 Airtable Body:", response.text)
+
         if response.status_code in [200, 201]:
             return jsonify({"success": True}), 200
         else:
