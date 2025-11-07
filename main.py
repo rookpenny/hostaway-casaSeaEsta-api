@@ -222,6 +222,11 @@ def save_guest_message():
         print("🔗 URL:", airtable_url)
         print("📦 Payload:", payload)
         print("🧾 Headers:", headers)
+    
+        # 👉 Print Airtable's response if it fails
+        response = requests.post(airtable_url, json=payload, headers=headers)
+        print("📥 Airtable Response Code:", response.status_code)
+        print("📥 Airtable Response Body:", response.text)
 
         response = requests.post(airtable_url, json=payload, headers=headers)
 
