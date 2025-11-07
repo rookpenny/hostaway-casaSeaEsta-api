@@ -1,5 +1,6 @@
 import os
 from flask import Flask, jsonify, request
+from flask import Response
 from flask_cors import CORS
 from datetime import datetime
 import requests
@@ -190,7 +191,6 @@ def save_guest_message():
         attachment = data.get("attachment")
         date = data.get("date")
 
-        # Only require core fields — attachment is optional
         if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
 
@@ -204,7 +204,6 @@ def save_guest_message():
             "Content-Type": "application/json"
         }
 
-        # Build the fields payload
         fields = {
             "Name": name,
             "Phone Last 4": phone_last4,
@@ -213,7 +212,6 @@ def save_guest_message():
             "Category": category
         }
 
-        # Show what was sent in HTML
         attachment_url = ""
         if attachment and isinstance(attachment, dict) and "url" in attachment:
             attachment_url = attachment["url"]
@@ -236,12 +234,13 @@ def save_guest_message():
                         <p><strong>Message:</strong> {message}</p>
                         <p><strong>Category:</strong> {category}</p>
                         <p><strong>Date:</strong> {date}</p>
-                        <p><strong>Attachment Object:</strong> {json.dumps(attachment)}</p>
+                        <p><strong>Attachment Object:</strong> {attachment}</p>
                         {'<p><img src="' + attachment_url + '" width="300"></p>' if attachment_url else '<p>No image attached</p>'}
                     </body>
                 </html>
             """
             return Response(html, mimetype="text/html")
+
         else:
             return jsonify({
                 "error": "Failed to save to Airtable",
@@ -250,6 +249,5 @@ def save_guest_message():
 
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 400
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
