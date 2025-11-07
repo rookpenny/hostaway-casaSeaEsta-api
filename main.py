@@ -213,15 +213,12 @@ def save_guest_message():
             "Category": category
         }
 
-       attachment = data.get("attachment")
-
         # Only include attachment if it has a valid URL
         if attachment and "url" in attachment:
             fields["Attachment"] = [{
-            "url": attachment["url"],
-            "filename": attachment.get("filename", "guest-upload.jpg")
-        }]
-
+                "url": attachment["url"],
+                "filename": attachment.get("filename", "guest-upload.jpg")
+            }]
 
         payload = { "fields": fields }
 
