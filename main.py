@@ -2,25 +2,23 @@ import os
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
-from dotenv import load_dotenv
 import requests
 import json
 
 from utils.hostaway import get_token, fetch_reservations
 
-load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# ✅ Allowed listing IDs (Hostaway PMS IDs)
+# ✅ Allowed listing IDs
 ALLOWED_LISTING_IDS = {"256853"}
 
-# 🔁 Flexible slug mapping
+# 🔁 Legacy slug → Hostaway listing ID
 LEGACY_PROPERTY_MAP = {
     "casa-sea-esta": "256853"
 }
 
-# 🧠 In-memory storage
+# 🧠 Vibe message in-memory storage
 vibe_storage = {}
 
 @app.route("/")
@@ -82,7 +80,6 @@ def get_guest_info():
 def guest_authenticated():
     try:
         code = request.args.get("code")
-
         if not code or not code.isdigit():
             return jsonify({"error": "Invalid code format"}), 400
 
@@ -154,7 +151,7 @@ def debug_guests():
             if status in {"new", "modified", "confirmed", "accepted", "ownerStay"} and is_current_guest:
                 result.append({
                     "guestName": r.get("guestName"),
-                    "phone": r.get("phone"),
+                    "phone": phone,
                     "status": status,
                     "arrivalDate": check_in,
                     "departureDate": check_out
@@ -186,7 +183,6 @@ def save_vibe_message():
 def save_guest_message():
     try:
         data = request.get_json()
-
         name = data.get("name")
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
@@ -198,14 +194,12 @@ def save_guest_message():
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
-        airtable_url = f"https://api.airtable.com/v0/appa2xkVtq4aH81gK/tblGEDhos73P2C5kn"
-        
+        airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{table_id}"
 
         headers = {
             "Authorization": f"Bearer {airtable_api_key}",
             "Content-Type": "application/json"
         }
-        
 
         payload = {
             "fields": {
@@ -216,14 +210,7 @@ def save_guest_message():
             }
         }
 
-        print("📤 Sending to Airtable:", json.dumps(payload))
-        print("🔗 Airtable URL:", airtable_url)
-        print("🔑 Token Present:", bool(airtable_api_key))
-
         response = requests.post(airtable_url, headers=headers, json=payload)
-
-        print("📥 Airtable Response:", response.status_code)
-        print("📥 Airtable Body:", response.text)
 
         if response.status_code in [200, 201]:
             return jsonify({"success": True}), 200
