@@ -190,7 +190,8 @@ def save_guest_message():
         attachment = data.get("attachment")
         date = data.get("date")
 
-        if not all([name, phone_last4, message, date, category, attachment]):
+        # Only require core fields — attachment is optional
+        if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
@@ -203,16 +204,20 @@ def save_guest_message():
             "Content-Type": "application/json"
         }
 
-        payload = {
-            "fields": {
-                "Name": name,
-                "Phone Last 4": phone_last4,
-                "Message": message,
-                "Date": date,
-                "Category": category,
-                "Attachment": [{ url: imageUrl }]
-            }
+        # Build the fields payload
+        fields = {
+            "Name": name,
+            "Phone Last 4": phone_last4,
+            "Message": message,
+            "Date": date,
+            "Category": category
         }
+
+        # Only include the attachment if it exists
+        if attachment:
+            fields["Attachment"] = [{"url": attachment}]
+
+        payload = { "fields": fields }
 
         response = requests.post(airtable_url, headers=headers, json=payload)
 
