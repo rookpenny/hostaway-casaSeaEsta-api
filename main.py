@@ -148,31 +148,29 @@ def save_guest_message():
             return jsonify({"error": "Missing fields"}), 400
 
         # Upload image to your website folder if available
+                # Upload image to your hosting space if provided
         hosted_url = ""
         if attachment and "url" in attachment:
             openai_url = attachment["url"]
             filename = attachment.get("filename", "guest-upload.jpg")
 
-            # 🛡️ Fetch image and validate content type
-            img_resp = requests.get(openai_url)
-            content_type = img_resp.headers.get("Content-Type", "")
-
-            if "image" not in content_type:
-                return jsonify({"error": "The provided URL did not return an image."}), 400
-
-            img_data = img_resp.content
-
-            # 📤 Upload to your hosting folder
-            upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
-            files = {'file': (filename, img_data)}
-            upload_resp = requests.post(upload_url, files=files)
-
-            if upload_resp.status_code == 200:
-                upload_json = upload_resp.json()
-                hosted_url = upload_json.get("url")
-            else:
-                return jsonify({"error": "Failed to upload image to hosting server"}), 500
-
+            # Detect OpenAI URLs and fetch image content directly
+            if "oaiusercontent.com" in openai_url:
+                try:
+                    file_response = requests.get(openai_url, headers={"Authorization": f"Bearer {os.getenv('OPENAI_API_KEY')}"})
+                    if file_response.status_code == 200 and "image" in file_response.headers.get("Content-Type", ""):
+                        upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
+                        files = {'file': (filename, file_response.content)}
+                        upload_resp = requests.post(upload_url, files=files)
+                        if upload_resp.status_code == 200:
+                            hosted_url = upload_resp.json().get("url")
+                        else:
+                            print("❌ Upload failed:", upload_resp.text)
+                    else:
+                        print("❌ Not an image or failed download:", file_response.status_code)
+                except Exception as e:
+                    print("❌ Error downloading or uploading image:", str(e))
+    
         # 📝 Prepare Airtable payload
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
