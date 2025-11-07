@@ -21,19 +21,30 @@ vibe_storage = {}
 
 def upload_sandy_image(temp_url, filename="guest-upload.jpg"):
     try:
-        image_response = requests.get(temp_url)
-        image_response.raise_for_status()
+        print(f"📦 Fetching image from: {temp_url}")
+        image_response = requests.get(temp_url, timeout=10)
+        print("📸 Image response status:", image_response.status_code)
+
+        if image_response.status_code != 200:
+            print("❌ Failed to fetch image data")
+            return None
+
         file_data = BytesIO(image_response.content)
 
         upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
         files = {'file': (filename, file_data)}
         upload_response = requests.post(upload_url, files=files)
-        upload_response.raise_for_status()
+        print("🌍 Upload response status:", upload_response.status_code)
+        print("🌍 Upload response body:", upload_response.text)
+
+        if upload_response.status_code != 200:
+            return None
 
         result = upload_response.json()
         return result.get("url")
+
     except Exception as e:
-        print("🚫 Image upload failed:", str(e))
+        print("🚫 upload_sandy_image error:", str(e))
         return None
 
 @app.route("/")
