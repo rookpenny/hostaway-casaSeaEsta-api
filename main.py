@@ -153,42 +153,36 @@ def save_guest_message():
         name = data.get("name")
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
-        category = data.get("category") 
+        category = data.get("category")
         attachment = data.get("attachment")
         date = data.get("date")
 
         if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
 
-        # 📷 Handle protected OpenAI file URLs
+        # Default values
         hosted_url = ""
         if attachment and "url" in attachment:
             openai_url = attachment["url"]
             filename = attachment.get("filename", "guest-upload.jpg")
-
-            # 🧠 Authenticate with OpenAI to access protected file
             openai_api_key = os.getenv("OPENAI_API_KEY")
+
             if not openai_api_key:
-                return jsonify({"error": "Missing OPENAI_API_KEY in environment"}), 500
+                return jsonify({"error": "Missing OPENAI_API_KEY"}), 500
 
-            image_response = requests.get(openai_url, headers={
-                "Authorization": f"Bearer {openai_api_key}"
-            })
-
-            if image_response.status_code != 200 or not image_response.headers["Content-Type"].startswith("image/"):
+            # Download image using OpenAI auth
+            response = requests.get(openai_url, headers={"Authorization": f"Bearer {openai_api_key}"})
+            if response.status_code == 200 and response.headers["Content-Type"].startswith("image/"):
+                img_data = response.content
+                upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
+                files = {'file': (filename, img_data)}
+                upload_resp = requests.post(upload_url, files=files)
+                if upload_resp.status_code == 200:
+                    hosted_url = upload_resp.json().get("url")
+            else:
                 return jsonify({"error": "The provided URL did not return an image."}), 400
 
-            # 🛰 Upload to your server
-            upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
-            files = {"file": (filename, image_response.content)}
-            upload_resp = requests.post(upload_url, files=files)
-
-            if upload_resp.status_code == 200:
-                hosted_url = upload_resp.json().get("url")
-            else:
-                return jsonify({"error": "Failed to upload to hosting", "details": upload_resp.text}), 500
-
-        # ✅ Submit to Airtable
+        # Prepare Airtable
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
@@ -210,36 +204,19 @@ def save_guest_message():
         if hosted_url:
             fields["Attachment"] = [{
                 "url": hosted_url,
-                "filename": filename
+                "filename": attachment.get("filename", "guest-upload.jpg")
             }]
 
-        payload = {"fields": fields}
-        response = requests.post(airtable_url, headers=headers, json=payload)
+        payload = { "fields": fields }
+        airtable_resp = requests.post(airtable_url, headers=headers, json=payload)
 
-        if response.status_code in [200, 201]:
-            html = f"""
-                <html>
-                    <body>
-                        <h2>✅ Message Saved to Airtable</h2>
-                        <p><strong>Name:</strong> {name}</p>
-                        <p><strong>Phone:</strong> {phone_last4}</p>
-                        <p><strong>Message:</strong> {message}</p>
-                        <p><strong>Category:</strong> {category}</p>
-                        <p><strong>Date:</strong> {date}</p>
-                        <p><strong>Image:</strong> {hosted_url or 'None'}</p>
-                        {'<img src="' + hosted_url + '" width="300"/>' if hosted_url else ''}
-                    </body>
-                </html>
-            """
-            return Response(html, mimetype="text/html")
-
-        return jsonify({
-            "error": "Failed to save to Airtable",
-            "details": response.text
-        }), 500
+        if airtable_resp.status_code in [200, 201]:
+            return jsonify({"success": True}), 200
+        else:
+            return jsonify({"error": "Failed to save to Airtable", "details": airtable_resp.text}), 500
 
     except Exception as e:
-        return jsonify({"error": "Unexpected server error", "details": str(e)}), 400
+        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
