@@ -3,9 +3,7 @@ from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from datetime import datetime
 import requests
-import json
 from dotenv import load_dotenv
-
 
 from utils.hostaway import get_token, fetch_reservations
 
@@ -15,13 +13,8 @@ load_dotenv()
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-# ✅ Allowed listing IDs
 ALLOWED_LISTING_IDS = {"256853"}
-
-# 🔁 Legacy slug → Hostaway listing ID
-LEGACY_PROPERTY_MAP = {
-    "casa-sea-esta": "256853"
-}
+LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}
 
 @app.route("/debug-api-key")
 def debug_api_key():
@@ -30,11 +23,6 @@ def debug_api_key():
         return jsonify({"message": "API key is set", "length": len(key)}), 200
     else:
         return jsonify({"error": "API key is missing"}), 500
-
-
-# 🧠 Vibe message in-memory storage
-vibe_storage = {}
-
 
 @app.route("/")
 def home():
@@ -139,24 +127,6 @@ def guest_authenticated():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
-@app.route("/api/vibe-message", methods=["GET"])
-def get_vibe_message():
-    if "message" in vibe_storage:
-        return jsonify(vibe_storage), 200
-    return jsonify({"message": "No vibe message set"}), 404
-
-@app.route("/api/vibe-message", methods=["POST"])
-def save_vibe_message():
-    try:
-        data = request.json
-        vibe_storage["message"] = data.get("message")
-        vibe_storage["guestName"] = data.get("guestName")
-        vibe_storage["timestamp"] = datetime.now().isoformat()
-        return jsonify({"status": "success"}), 200
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
-
 @app.route("/test-download-image", methods=["POST"])
 def test_download_image():
     try:
@@ -185,7 +155,6 @@ def test_download_image():
                 "status_code": response.status_code
             }), 400
 
-        # Return success info
         return jsonify({
             "status": "success",
             "content_type": content_type,
@@ -211,14 +180,13 @@ def save_guest_message():
 
         hosted_url = ""
         if attachment and "url" in attachment:
-            openai_url = attachment["url"]
+            image_url = attachment["url"]
             filename = attachment.get("filename", "guest-upload.jpg")
             openai_api_key = os.getenv("OPENAI_API_KEY")
 
             if not openai_api_key:
                 return jsonify({"error": "Missing OPENAI_API_KEY"}), 500
 
-            # 🔐 Fetch from OpenAI URL with auth
             headers = {"Authorization": f"Bearer {openai_api_key}"}
             response = requests.get(image_url, headers=headers)
 
@@ -229,7 +197,6 @@ def save_guest_message():
             if not content_type.startswith("image/"):
                 return jsonify({"error": "The provided URL did not return an image."}), 400
 
-            # 🌐 Upload to your WordPress server
             upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
             files = {'file': (filename, response.content, content_type)}
             upload_resp = requests.post(upload_url, files=files)
@@ -239,7 +206,6 @@ def save_guest_message():
             else:
                 return jsonify({"error": "Upload to server failed", "details": upload_resp.text}), 500
 
-        # 📤 Send to Airtable
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
