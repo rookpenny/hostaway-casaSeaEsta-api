@@ -210,7 +210,7 @@ def save_guest_message():
 
             # 🔐 Fetch from OpenAI URL with auth
             headers = {"Authorization": f"Bearer {openai_api_key}"}
-            response = requests.get(openai_url, headers=headers)
+            response = requests.get(image_url, headers=headers)
 
             if response.status_code != 200:
                 return jsonify({"error": f"OpenAI download failed: {response.status_code}"}), 400
