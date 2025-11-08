@@ -168,22 +168,32 @@ def test_download_image():
         if not openai_api_key:
             return jsonify({"error": "OPENAI_API_KEY not set"}), 500
 
+        if not image_url:
+            return jsonify({"error": "Image URL is missing"}), 400
+
         headers = {"Authorization": f"Bearer {openai_api_key}"}
         response = requests.get(image_url, headers=headers)
 
-        if response.status_code == 200 and response.headers["Content-Type"].startswith("image/"):
-            content_type = response.headers.get("Content-Type", "")
+        if response.status_code != 200:
+            return jsonify({"error": f"Download failed: {response.status_code}"}), 400
+
+        content_type = response.headers.get("Content-Type", "")
+        if not content_type.startswith("image/"):
             return jsonify({
-                "status": "success",
+                "error": "The provided URL did not return an image.",
                 "content_type": content_type,
-                "size_bytes": len(response.content)
-            }), 200
-        else:
-            return jsonify({"error": "The provided URL did not return an image."}), 400
+                "status_code": response.status_code
+            }), 400
+
+        # Return success info
+        return jsonify({
+            "status": "success",
+            "content_type": content_type,
+            "size_bytes": len(response.content)
+        }), 200
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
