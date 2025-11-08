@@ -1,9 +1,14 @@
 import os
+
 from flask import Flask, jsonify, request, Response
 from flask_cors import CORS
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
+
+from utils.hostaway import get_token, fetch_reservations
+from utils.cloudinary_upload import upload_image_from_url  # 👈 add this here
+
 
 from utils.hostaway import get_token, fetch_reservations
 
@@ -180,31 +185,12 @@ def save_guest_message():
 
         hosted_url = ""
         if attachment and "url" in attachment:
-            image_url = attachment["url"]
+            openai_url = attachment["url"]
             filename = attachment.get("filename", "guest-upload.jpg")
-            openai_api_key = os.getenv("OPENAI_API_KEY")
-
-            if not openai_api_key:
-                return jsonify({"error": "Missing OPENAI_API_KEY"}), 500
-
-            headers = {"Authorization": f"Bearer {openai_api_key}"}
-            response = requests.get(image_url, headers=headers)
-
-            if response.status_code != 200:
-                return jsonify({"error": f"OpenAI download failed: {response.status_code}"}), 400
-
-            content_type = response.headers.get("Content-Type", "")
-            if not content_type.startswith("image/"):
-                return jsonify({"error": "The provided URL did not return an image."}), 400
-
-            upload_url = "https://wordpress-1513490-5816047.cloudwaysapps.com/Hostscout/Casa-Sea-Esta/upload.php"
-            files = {'file': (filename, response.content, content_type)}
-            upload_resp = requests.post(upload_url, files=files)
-
-            if upload_resp.status_code == 200:
-                hosted_url = upload_resp.json().get("url")
-            else:
-                return jsonify({"error": "Upload to server failed", "details": upload_resp.text}), 500
+            try:
+                hosted_url = upload_image_from_url(openai_url, filename)
+            except Exception as e:
+                return jsonify({"error": "Cloudinary upload failed", "details": str(e)}), 500
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
