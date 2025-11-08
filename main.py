@@ -131,18 +131,18 @@ def guest_authenticated():
 def test_download_image():
     try:
         data = request.get_json()
-        image_url = data.get("url")
+        openai_url = data.get("url")  # ✅ correctly renamed
         filename = data.get("filename", "test.jpg")
         openai_api_key = os.getenv("OPENAI_API_KEY")
 
         if not openai_api_key:
             return jsonify({"error": "OPENAI_API_KEY not set"}), 500
 
-        if not image_url:
+        if not openai_url:
             return jsonify({"error": "Image URL is missing"}), 400
 
         headers = {"Authorization": f"Bearer {openai_api_key}"}
-        response = requests.get(image_url, headers=headers)
+        response = requests.get(openai_url, headers=headers)  # ✅ using correct variable
 
         if response.status_code != 200:
             return jsonify({"error": f"Download failed: {response.status_code}"}), 400
