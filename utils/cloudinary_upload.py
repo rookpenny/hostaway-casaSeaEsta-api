@@ -12,9 +12,9 @@ cloudinary.config(
 )
 
 def upload_image_bytes(image_bytes, filename=None):
-    upload_options = {}
+    options = {}
     if filename:
-        upload_options["public_id"] = filename.split('.')[0]
+        options["public_id"] = filename.split('.')[0]
 
-    result = cloudinary.uploader.upload(image_bytes, **upload_options)
+    result = cloudinary.uploader.upload(image_bytes, **options)
     return result["secure_url"]
