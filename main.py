@@ -146,6 +146,36 @@ def save_vibe_message():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+
+@app.route("/test-download-image", methods=["POST"])
+def test_download_image():
+    try:
+        data = request.get_json()
+        image_url = data.get("url")
+        filename = data.get("filename", "test.jpg")
+        openai_api_key = os.getenv("OPENAI_API_KEY")
+
+        if not openai_api_key:
+            return jsonify({"error": "OPENAI_API_KEY not set"}), 500
+
+        headers = {"Authorization": f"Bearer {openai_api_key}"}
+        resp = requests.get(image_url, headers=headers)
+
+        if resp.status_code != 200:
+            return jsonify({"error": f"Download failed: {resp.status_code}"}), 400
+
+        content_type = resp.headers.get("Content-Type", "")
+        return jsonify({
+            "status": "success",
+            "content_type": content_type,
+            "size_bytes": len(resp.content)
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
     try:
