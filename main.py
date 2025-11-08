@@ -23,8 +23,18 @@ LEGACY_PROPERTY_MAP = {
     "casa-sea-esta": "256853"
 }
 
+@app.route("/debug-api-key")
+def debug_api_key():
+    key = os.getenv("OPENAI_API_KEY")
+    if key:
+        return jsonify({"message": "API key is set", "length": len(key)}), 200
+    else:
+        return jsonify({"error": "API key is missing"}), 500
+
+
 # 🧠 Vibe message in-memory storage
 vibe_storage = {}
+
 
 @app.route("/")
 def home():
