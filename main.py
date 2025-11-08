@@ -1,16 +1,12 @@
 import os
-
-from flask import Flask, jsonify, request, Response
+from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
-from utils.cloudinary_upload import upload_image_from_url  # 👈 add this here
-
-
-from utils.hostaway import get_token, fetch_reservations
+from utils.cloudinary_upload import upload_image_from_url  # ✅ Cloudinary helper
 
 # Load environment variables
 load_dotenv()
@@ -24,10 +20,7 @@ LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}
 @app.route("/debug-api-key")
 def debug_api_key():
     key = os.getenv("OPENAI_API_KEY")
-    if key:
-        return jsonify({"message": "API key is set", "length": len(key)}), 200
-    else:
-        return jsonify({"error": "API key is missing"}), 500
+    return jsonify({"message": "API key is set", "length": len(key)}) if key else jsonify({"error": "API key is missing"}), 500
 
 @app.route("/")
 def home():
@@ -131,43 +124,6 @@ def guest_authenticated():
 
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
-
-@app.route("/test-download-image", methods=["POST"])
-def test_download_image():
-    try:
-        data = request.get_json()
-        openai_url = data.get("url")  # ✅ correctly renamed
-        filename = data.get("filename", "test.jpg")
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-
-        if not openai_api_key:
-            return jsonify({"error": "OPENAI_API_KEY not set"}), 500
-
-        if not openai_url:
-            return jsonify({"error": "Image URL is missing"}), 400
-
-        headers = {"Authorization": f"Bearer {openai_api_key}"}
-        response = requests.get(openai_url, headers=headers)  # ✅ using correct variable
-
-        if response.status_code != 200:
-            return jsonify({"error": f"Download failed: {response.status_code}"}), 400
-
-        content_type = response.headers.get("Content-Type", "")
-        if not content_type.startswith("image/"):
-            return jsonify({
-                "error": "The provided URL did not return an image.",
-                "content_type": content_type,
-                "status_code": response.status_code
-            }), 400
-
-        return jsonify({
-            "status": "success",
-            "content_type": content_type,
-            "size_bytes": len(response.content)
-        }), 200
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
 
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
