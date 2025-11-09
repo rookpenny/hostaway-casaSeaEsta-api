@@ -6,7 +6,7 @@ import requests
 from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
-from utils.cloudinary_upload import upload_image_from_url  # ✅ Cloudinary integration
+from utils.cloudinary_tool import upload_openai_file_to_cloudinary
 
 # Load environment variables
 load_dotenv()
@@ -150,11 +150,13 @@ def save_guest_message():
         hosted_url = ""
         if attachment and "url" in attachment:
             openai_url = attachment["url"]
-            filename = attachment.get("filename", "guest-upload.jpg")
+           filename = attachment.get("filename", "guest-upload.jpg")
             try:
-                hosted_url = upload_image_from_url(openai_url, filename)
+                upload_result = upload_openai_file_to_cloudinary(openai_url, filename)
+                hosted_url = upload_result["url"]
             except Exception as e:
-                return jsonify({"error": "Cloudinary upload failed", "details": str(e)}), 500
+            return jsonify({"error": "Cloudinary upload failed", "details": str(e)}), 500
+
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
