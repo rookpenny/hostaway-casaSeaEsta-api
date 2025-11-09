@@ -11,10 +11,10 @@ cloudinary.config(
     api_secret=os.getenv("CLOUDINARY_API_SECRET")
 )
 
-def upload_image_bytes(image_bytes, filename=None):
-    options = {}
+def upload_image_from_url(url, filename=None):
+    upload_options = {}
     if filename:
-        options["public_id"] = filename.split('.')[0]
+        upload_options["public_id"] = filename.split('.')[0]
 
-    result = cloudinary.uploader.upload(image_bytes, **options)
+    result = cloudinary.uploader.upload(url, **upload_options)
     return result["secure_url"]
