@@ -55,6 +55,17 @@ def smart_response(category):
             "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
         )
 
+# ---------- NEW: HELPER TO CALCULATE EXTRA NIGHTS ----------
+def calculate_extra_nights(next_start_date):
+    if not next_start_date:
+        return "open-ended"
+
+    today = datetime.utcnow().date()
+    next_date = datetime.strptime(next_start_date, '%Y-%m-%d').date()
+    delta = (next_date - today).days
+
+    return max(0, delta)
+
 # ---------- ROUTES ----------
 @app.route("/")
 def home():
@@ -159,24 +170,39 @@ def guest_authenticated():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
+# ---------- NEW: NEXT AVAILABILITY ROUTE ----------
 @app.route('/api/next-availability', methods=['GET'])
 def next_availability():
-    property = request.args.get('property')  # should be "Casa Sea Esta"
+    property = request.args.get('property')
     if property != "Casa Sea Esta":
         return jsonify({"error": "Unknown property"}), 400
 
     try:
-        token = get_hostaway_token(CLIENT_ID, CLIENT_SECRET)
-        next_booking = get_next_reservation_start_date(LISTING_ID, token)
-        nights = calculate_extra_nights(next_booking)
+        listing_id = LEGACY_PROPERTY_MAP.get("casa-sea-esta")
+        token = get_token()
+        reservations = fetch_reservations(listing_id, token)
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+
+        future_reservations = [
+            r for r in reservations
+            if r.get("arrivalDate") and r.get("arrivalDate") > today
+        ]
+
+        if future_reservations:
+            next_booking = min(future_reservations, key=lambda r: r["arrivalDate"])
+            next_start_date = next_booking["arrivalDate"]
+        else:
+            next_start_date = None
+
+        nights = calculate_extra_nights(next_start_date)
 
         return jsonify({
             "availableNights": nights,
-            "nextBookingStart": next_booking
+            "nextBookingStart": next_start_date
         })
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
-
 
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
@@ -190,13 +216,9 @@ def save_guest_message():
         if not all([name, phone_last4, message, date]):
             return jsonify({"error": "Missing fields"}), 400
 
-        # Classify category
         category = classify_category(message)
-
-        # Prepare response message
         sandy_reply = smart_response(category)
 
-        # Airtable setup
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
