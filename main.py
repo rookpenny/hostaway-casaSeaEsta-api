@@ -43,7 +43,7 @@ def smart_response(category):
     elif category == "urgent":
         return (
             "Thanks for reporting that. I’ve marked it as urgent. Your host will be notified right away.\n\n"
-            "**If this is a true emergency**, please call the emergency number provided in your guest info email or binder."
+            "**If this is a true emergency**, please call the host @ 650-313-3724"
         )
     elif category == "request":
         return (
