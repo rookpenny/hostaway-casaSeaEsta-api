@@ -1,51 +1,38 @@
-import requests
+import os
 import cloudinary
 import cloudinary.uploader
-import os
+import requests
+from dotenv import load_dotenv
 
-# Load Cloudinary credentials (you can also hardcode them here if needed)
+load_dotenv()
+
 cloudinary.config(
     cloud_name=os.getenv("CLOUDINARY_CLOUD_NAME"),
     api_key=os.getenv("CLOUDINARY_API_KEY"),
     api_secret=os.getenv("CLOUDINARY_API_SECRET")
 )
 
-def upload_openai_file_to_cloudinary(url: str, filename: str) -> dict:
-    """
-    Downloads a file from OpenAI's temporary URL and uploads it to Cloudinary.
-    
-    Args:
-        url (str): The OpenAI file URL (files.oaiusercontent.com)
-        filename (str): Original filename (used for Cloudinary public_id)
-
-    Returns:
-        dict: {
-            "url": "https://res.cloudinary.com/...",
-            "filename": "original.jpg"
-        }
-    Raises:
-        Exception: If the download or upload fails
-    """
-    # Step 1: Download from OpenAI file URL using Bearer token
+def upload_openai_file_to_cloudinary(openai_file_url, filename=None):
     openai_api_key = os.getenv("OPENAI_API_KEY")
-    headers = {"Authorization": f"Bearer {openai_api_key}"}
-    response = requests.get(url, headers=headers)
+    if not openai_api_key:
+        raise Exception("OPENAI_API_KEY is not set")
 
+    headers = {
+        "Authorization": f"Bearer {openai_api_key}"
+    }
+
+    response = requests.get(openai_file_url, headers=headers)
     if response.status_code != 200:
-        raise Exception(f"OpenAI download failed with status {response.status_code}")
+        raise Exception(f"Download failed: {response.status_code}")
 
-    content_type = response.headers.get("Content-Type", "")
-    if not content_type.startswith("image/"):
-        raise Exception(f"Downloaded file is not an image: {content_type}")
+    file_data = response.content
+    upload_options = {}
 
-    # Step 2: Upload to Cloudinary using file content
-    upload_response = cloudinary.uploader.upload(
-        response.content,
-        public_id=filename.rsplit(".", 1)[0],  # use filename without extension
-        resource_type="image"
-    )
+    if filename:
+        upload_options["public_id"] = filename.rsplit(".", 1)[0]
 
+    upload_response = cloudinary.uploader.upload(file_data, **upload_options)
     return {
         "url": upload_response["secure_url"],
-        "filename": filename
+        "public_id": upload_response["public_id"]
     }
