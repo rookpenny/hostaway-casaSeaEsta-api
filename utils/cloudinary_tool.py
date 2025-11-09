@@ -3,6 +3,7 @@ import cloudinary.uploader
 import os
 from dotenv import load_dotenv
 import requests
+from io import BytesIO  # ✅ Needed to wrap binary content
 
 load_dotenv()
 
@@ -16,19 +17,20 @@ def upload_image_from_url(url, filename=None):
     headers = {}
     openai_key = os.getenv("OPENAI_API_KEY")
     
-    # ✅ Add auth only if it's a gated OpenAI image
+    # ✅ Add auth if this is an OpenAI gated file
     if "files.oaiusercontent.com" in url and openai_key:
         headers["Authorization"] = f"Bearer {openai_key}"
 
-    # ✅ Download the image manually
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise Exception(f"Download failed: {response.status_code}")
 
-    # ✅ Upload the raw content to Cloudinary
+    # ✅ Wrap the binary content in a file-like object
+    image_file = BytesIO(response.content)
+
     upload_options = {}
     if filename:
         upload_options["public_id"] = filename.split('.')[0]
 
-    result = cloudinary.uploader.upload(response.content, **upload_options)
+    result = cloudinary.uploader.upload(image_file, **upload_options)
     return result["secure_url"]
