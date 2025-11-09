@@ -181,23 +181,26 @@ def next_availability():
         listing_id = LEGACY_PROPERTY_MAP.get("casa-sea-esta")
         token = get_token()
         reservations = fetch_reservations(listing_id, token)
+
         today = datetime.utcnow().strftime("%Y-%m-%d")
 
+        # Filter future reservations with a valid arrivalDate
         future_reservations = [
             r for r in reservations
-            if r.get("arrivalDate") and r.get("arrivalDate") > today
+            if r.get("arrivalDate") and r["arrivalDate"] > today
         ]
 
         if future_reservations:
             next_booking = min(future_reservations, key=lambda r: r["arrivalDate"])
             next_start_date = next_booking["arrivalDate"]
         else:
+            # No future booking, calendar is open-ended
             next_start_date = None
 
         nights = calculate_extra_nights(next_start_date)
 
         return jsonify({
-            "availableNights": nights,
+            "availableNights": nights,  # could be an int or "open-ended"
             "nextBookingStart": next_start_date
         })
 
