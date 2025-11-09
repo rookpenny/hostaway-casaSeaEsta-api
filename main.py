@@ -6,7 +6,6 @@ import requests
 from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
-from utils.cloudinary_tool import upload_image_from_url  # ✅ your Cloudinary helper
 
 # Load environment variables
 load_dotenv()
@@ -136,20 +135,10 @@ def save_guest_message():
         phone_last4 = data.get("phoneLast4")
         message = data.get("message")
         category = data.get("category")
-        attachment = data.get("attachment")
         date = data.get("date")
 
         if not all([name, phone_last4, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
-
-        hosted_url = ""
-        if attachment and "url" in attachment:
-            image_url = attachment["url"]
-            filename = attachment.get("filename", "guest-upload.jpg")
-            try:
-                hosted_url = upload_image_from_url(image_url, filename)
-            except Exception as e:
-                return jsonify({"error": "Cloudinary upload failed", "details": str(e)}), 500
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
@@ -169,17 +158,11 @@ def save_guest_message():
             "Category": category
         }
 
-        if hosted_url:
-            fields["Attachment"] = [{
-                "url": hosted_url,
-                "filename": filename
-            }]
-
         payload = {"fields": fields}
         airtable_resp = requests.post(airtable_url, headers=headers, json=payload)
 
         if airtable_resp.status_code in [200, 201]:
-            return jsonify({"success": True, "hostedImage": hosted_url}), 200
+            return jsonify({"success": True}), 200
         else:
             return jsonify({"error": "Failed to save to Airtable", "details": airtable_resp.text}), 500
 
