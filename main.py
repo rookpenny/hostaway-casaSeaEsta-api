@@ -6,7 +6,7 @@ import requests
 from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
-from utils.cloudinary_upload import upload_image_from_url  # ✅ Cloudinary helper
+from utils.cloudinary_upload import upload_image_from_url  # 👈 Cloudinary integration
 
 # Load environment variables
 load_dotenv()
@@ -20,7 +20,10 @@ LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}
 @app.route("/debug-api-key")
 def debug_api_key():
     key = os.getenv("OPENAI_API_KEY")
-    return jsonify({"message": "API key is set", "length": len(key)}) if key else jsonify({"error": "API key is missing"}), 500
+    if key:
+        return jsonify({"message": "API key is set", "length": len(key)}), 200
+    else:
+        return jsonify({"error": "API key is missing"}), 500
 
 @app.route("/")
 def home():
