@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
 
+# Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
@@ -15,17 +16,17 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 ALLOWED_LISTING_IDS = {"256853"}
 LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}
 
+# ---------- CATEGORY LOGIC ----------
 def classify_category(message):
     message_lower = message.lower()
-    if any(word in message_lower for word in ["broken", "not working", "leak", "damage", "flood"]):
-        return "maintenance"
-    elif any(word in message_lower for word in ["dirty", "clean", "stains", "mess"]):
-        return "cleaning"
-    elif any(word in message_lower for word in ["urgent", "emergency", "help now", "immediately"]):
+
+    if any(word in message_lower for word in ["urgent", "emergency", "fire", "leak", "locked out", "break", "flood"]):
         return "urgent"
-    elif any(word in message_lower for word in ["can i", "is it possible", "request", "extra", "late checkout", "early checkin"]):
+    elif any(word in message_lower for word in ["repair", "broken", "not working", "malfunction", "maintenance"]):
+        return "maintenance"
+    elif any(word in message_lower for word in ["can we", "is it possible", "could we", "extra", "more", "late checkout", "early checkin", "request"]):
         return "request"
-    elif any(word in message_lower for word in ["tv", "netflix", "wifi", "games", "entertainment"]):
+    elif any(word in message_lower for word in ["tv", "wifi", "internet", "stream", "remote", "netflix", "entertainment"]):
         return "entertainment"
     else:
         return "other"
@@ -33,31 +34,28 @@ def classify_category(message):
 def smart_response(category):
     if category == "maintenance":
         return (
-            "Thanks for letting me know! While I alert your host, try checking if anything can be reset or safely turned off. "
-            "They'll respond soon."
-        )
-    elif category == "cleaning":
-        return (
-            "Thanks! I’ll let your host know. If there’s something you can tidy in the meantime, feel free — they’ll address this shortly."
+            "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly."
         )
     elif category == "urgent":
         return (
-            "Thanks for reporting that. I’ve marked it as urgent. Your host will be notified right away.\n\n"
-            "**If this is a true emergency**, please call the host @ 650-313-3724"
+            "I’ve marked this as urgent and alerted your host right away.\n\n"
+            "**If this is a real emergency**, please call them at +1-555-123-3724."
         )
     elif category == "request":
         return (
-            "Got it! I’ll check with the host and get back to you soon. In the meantime, I’ll see if there’s anything I can do to help."
+            "Got it! I’ve passed your request along. Let me know if there’s anything else I can help with in the meantime."
         )
     elif category == "entertainment":
         return (
-            "Let’s get this sorted! If you’re having trouble with a device or feature, try restarting it. If that doesn’t work, I’ll alert the host."
+            "Thanks for the heads-up! If you’re having trouble with the TV or internet, try restarting the modem and checking that the input source is correct.\n\n"
+            "If that doesn’t work, I’ve gone ahead and notified your host too."
         )
     else:
         return (
-            "Thanks for reaching out! I’ve passed this on. If there’s something more I can help with, just let me know."
+            "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
         )
 
+# ---------- ROUTES ----------
 @app.route("/")
 def home():
     return jsonify({"message": "Welcome to Casa Sea Esta API!"}), 200
@@ -173,9 +171,13 @@ def save_guest_message():
         if not all([name, phone_last4, message, date]):
             return jsonify({"error": "Missing fields"}), 400
 
+        # Classify category
         category = classify_category(message)
-        auto_response = smart_response(category)
 
+        # Prepare response message
+        sandy_reply = smart_response(category)
+
+        # Airtable setup
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
@@ -191,18 +193,15 @@ def save_guest_message():
             "Phone Last 4": phone_last4,
             "Message": message,
             "Date": date,
-            "Category": category
+            "Category": category,
+            "Reply": sandy_reply
         }
 
         payload = {"fields": fields}
         airtable_resp = requests.post(airtable_url, headers=headers, json=payload)
 
         if airtable_resp.status_code in [200, 201]:
-            return jsonify({
-                "success": True,
-                "response": auto_response,
-                "category": category
-            }), 200
+            return jsonify({"success": True, "reply": sandy_reply}), 200
         else:
             return jsonify({"error": "Failed to save to Airtable", "details": airtable_resp.text}), 500
 
