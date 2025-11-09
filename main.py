@@ -6,7 +6,7 @@ import requests
 from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
-from utils.cloudinary_upload import upload_image_from_url  # 👈 Cloudinary integration
+from utils.cloudinary_upload import upload_image_from_url  # ✅ Cloudinary integration
 
 # Load environment variables
 load_dotenv()
@@ -17,6 +17,7 @@ CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 ALLOWED_LISTING_IDS = {"256853"}
 LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}
 
+
 @app.route("/debug-api-key")
 def debug_api_key():
     key = os.getenv("OPENAI_API_KEY")
@@ -25,9 +26,11 @@ def debug_api_key():
     else:
         return jsonify({"error": "API key is missing"}), 500
 
+
 @app.route("/")
 def home():
     return jsonify({"message": "Welcome to Casa Sea Esta API!"}), 200
+
 
 @app.route("/api/guest")
 def get_guest_info():
@@ -80,6 +83,7 @@ def get_guest_info():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
+
 @app.route("/api/guest-authenticated")
 def guest_authenticated():
     try:
@@ -127,6 +131,7 @@ def guest_authenticated():
 
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
 
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
@@ -185,6 +190,7 @@ def save_guest_message():
 
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
