@@ -159,6 +159,25 @@ def guest_authenticated():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
+@app.route('/api/next-availability', methods=['GET'])
+def next_availability():
+    property = request.args.get('property')  # should be "Casa Sea Esta"
+    if property != "Casa Sea Esta":
+        return jsonify({"error": "Unknown property"}), 400
+
+    try:
+        token = get_hostaway_token(CLIENT_ID, CLIENT_SECRET)
+        next_booking = get_next_reservation_start_date(LISTING_ID, token)
+        nights = calculate_extra_nights(next_booking)
+
+        return jsonify({
+            "availableNights": nights,
+            "nextBookingStart": next_booking
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
     try:
