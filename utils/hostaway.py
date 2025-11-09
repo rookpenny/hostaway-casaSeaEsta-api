@@ -49,3 +49,24 @@ def fetch_reservations(listing_id, token):
         raise Exception("Error fetching reservations from Hostaway")
 
     return resp.json().get("result", [])
+
+from datetime import datetime
+
+def calculate_extra_nights(next_start_date):
+    """
+    Given the start date of the next reservation (YYYY-MM-DD),
+    return number of nights available from today until then.
+    If no future reservation exists, return 'open-ended'.
+    """
+    if not next_start_date:
+        return "open-ended"
+
+    try:
+        today = datetime.utcnow().date()
+        next_date = datetime.strptime(next_start_date, "%Y-%m-%d").date()
+        delta = (next_date - today).days
+        return max(0, delta)  # in case of same-day or past reservation glitch
+    except Exception as e:
+        print(f"Error calculating extra nights: {e}")
+        return 0
+
