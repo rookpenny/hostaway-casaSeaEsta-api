@@ -1,5 +1,3 @@
-# utils/cloudinary_tool.py
-
 import cloudinary
 import cloudinary.uploader
 import os
@@ -15,16 +13,19 @@ cloudinary.config(
 )
 
 def upload_image_from_url(url, filename=None):
-    # Fetch the image content (required if url is OpenAI gated)
     headers = {}
     openai_key = os.getenv("OPENAI_API_KEY")
+    
+    # ✅ Add auth only if it's a gated OpenAI image
     if "files.oaiusercontent.com" in url and openai_key:
         headers["Authorization"] = f"Bearer {openai_key}"
 
+    # ✅ Download the image manually
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise Exception(f"Download failed: {response.status_code}")
 
+    # ✅ Upload the raw content to Cloudinary
     upload_options = {}
     if filename:
         upload_options["public_id"] = filename.split('.')[0]
