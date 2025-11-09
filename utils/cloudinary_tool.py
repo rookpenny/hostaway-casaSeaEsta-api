@@ -21,6 +21,7 @@ def upload_image_from_url(url, filename=None):
     if "files.oaiusercontent.com" in url and openai_key:
         headers["Authorization"] = f"Bearer {openai_key}"
 
+    print("Downloading image from URL:", url)
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise Exception(f"Download failed: {response.status_code}")
