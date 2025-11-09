@@ -24,7 +24,9 @@ def classify_category(message):
         return "urgent"
     elif any(word in message_lower for word in ["repair", "broken", "not working", "malfunction", "maintenance"]):
         return "maintenance"
-    elif any(word in message_lower for word in ["can we", "is it possible", "could we", "extra", "more", "late checkout", "early checkin", "request"]):
+    elif any(word in message_lower for word in ["late checkout", "late check-out", "extend stay", "stay longer", "extra night", "another night", "add nights", "extend trip"]):
+        return "extension"
+    elif any(word in message_lower for word in ["can we", "is it possible", "could we", "extra", "more", "early checkin", "early check-in", "request"]):
         return "request"
     elif any(word in message_lower for word in ["tv", "wifi", "internet", "stream", "remote", "netflix", "entertainment"]):
         return "entertainment"
