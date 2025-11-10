@@ -109,6 +109,8 @@ def get_guest_info():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
+# ... (previous imports and setup)
+
 @app.route("/api/guest-authenticated")
 def guest_authenticated():
     try:
@@ -123,7 +125,7 @@ def guest_authenticated():
         now = datetime.now()
 
         for r in reservations:
-            guest_name = r.get("guestName", "UNKNOWN")
+            guest_name = r.get("guestName", "there")
             phone = r.get("phone", "")
             check_in = r.get("arrivalDate")
             check_out = r.get("departureDate")
@@ -137,29 +139,29 @@ def guest_authenticated():
                 (check_out == today and now.hour < check_out_time)
             )
 
-            # Debug logs
-            print(f"DEBUG: Guest {guest_name} | Phone: {phone} | Status: {status} | Check-in: {check_in} | Check-out: {check_out}")
+            if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"} or not is_current_guest:
+                continue
 
-            if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"}:
-                continue
-            if not is_current_guest:
-                continue
             if not phone or len(phone) < len(code):
                 continue
 
             if phone[-len(code):] == code:
+                welcome_message = (
+                    f"You're all set, {guest_name} — welcome to Casa Sea Esta! 🌴\n"
+                    "Need local recs, help with the house, or want to extend your stay? I’ve got you covered! ☀️"
+                )
                 return jsonify({
                     "guestName": guest_name,
                     "phone": phone,
                     "property": "Casa Sea Esta",
                     "checkIn": check_in,
-                    "checkOut": check_out
+                    "checkOut": check_out,
+                    "message": welcome_message  # Optional for frontend use
                 }), 200
 
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
     except Exception as e:
-        print(f"ERROR: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 @app.route('/api/next-availability')
