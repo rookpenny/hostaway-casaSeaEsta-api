@@ -214,7 +214,7 @@ def save_guest_message():
     try:
         data = request.get_json()
         name = data.get("name")
-        phone = data.get("phone")
+        phone = data.get("phone")  # Now capturing full phone number
         message = data.get("message")
         date = data.get("date")
 
@@ -236,7 +236,7 @@ def save_guest_message():
 
         fields = {
             "Name": name,
-            "Phone": phone,
+            "Phone": phone,  # Store full phone number
             "Message": message,
             "Date": date,
             "Category": category,
@@ -247,12 +247,18 @@ def save_guest_message():
         airtable_resp = requests.post(airtable_url, headers=headers, json=payload)
 
         if airtable_resp.status_code in [200, 201]:
-            return jsonify({"success": True, "reply": sandy_reply}), 200
+            return jsonify({"success": True, "reply": sandy_reply, "category": category}), 200
         else:
-            return jsonify({"error": "Failed to save to Airtable", "details": airtable_resp.text}), 500
+            return jsonify({
+                "error": "Failed to save to Airtable",
+                "details": airtable_resp.text
+            }), 500
 
     except Exception as e:
-        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+        return jsonify({
+            "error": "Unexpected server error",
+            "details": str(e)
+        }), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
