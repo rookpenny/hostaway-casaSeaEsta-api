@@ -4,7 +4,6 @@ from flask_cors import CORS
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
-
 from utils.hostaway import get_token, fetch_reservations
 
 # Load environment variables
