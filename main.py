@@ -24,14 +24,9 @@ def classify_category(message):
         return "urgent"
     elif any(word in message_lower for word in ["repair", "broken", "not working", "malfunction", "maintenance"]):
         return "maintenance"
-    elif any(word in message_lower for word in [
-        "late checkout", "late check-out", "check out late", "extend stay",
-        "stay longer", "extra night", "another night", "add nights", "extend trip"
-    ]):
+    elif any(word in message_lower for word in ["late checkout", "late check-out", "extend stay", "stay longer", "extra night", "another night", "add nights", "extend trip"]):
         return "extension"
-    elif any(word in message_lower for word in [
-        "can we", "is it possible", "could we", "extra", "more", "early checkin", "early check-in", "request"
-    ]):
+    elif any(word in message_lower for word in ["can we", "is it possible", "could we", "extra", "more", "early checkin", "early check-in", "request"]):
         return "request"
     elif any(word in message_lower for word in ["tv", "wifi", "internet", "stream", "remote", "netflix", "entertainment"]):
         return "entertainment"
@@ -42,30 +37,13 @@ def smart_response(category):
     if category == "maintenance":
         return "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly."
     elif category == "urgent":
-        return (
-            "I’ve marked this as urgent and alerted your host right away.\n\n"
-            "**If this is a real emergency**, please call them at +1-650-313-3724."
-        )
+        return "I’ve marked this as urgent and alerted your host right away.\n\n**If this is a real emergency**, please call them at +1-650-313-3724."
     elif category == "request":
         return "Got it! I’ve passed your request along. Let me know if there’s anything else I can help with in the meantime."
     elif category == "entertainment":
-        return (
-            "Thanks for the heads-up! If you’re having trouble with the TV or internet, try restarting the modem and checking that the input source is correct.\n\n"
-            "If that doesn’t work, I’ve gone ahead and notified your host too."
-        )
+        return "Thanks for the heads-up! If you’re having trouble with the TV or internet, try restarting the modem and checking that the input source is correct.\n\nIf that doesn’t work, I’ve gone ahead and notified your host too."
     else:
         return "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
-
-# ---------- HELPER TO CALCULATE EXTRA NIGHTS ----------
-def calculate_extra_nights(next_start_date):
-    if not next_start_date:
-        return "open-ended"
-
-    today = datetime.utcnow().date()
-    next_date = datetime.strptime(next_start_date, '%Y-%m-%d').date()
-    delta = (next_date - today).days
-
-    return max(0, delta)
 
 # ---------- ROUTES ----------
 @app.route("/")
@@ -154,7 +132,10 @@ def guest_authenticated():
             if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"} or not is_current_guest:
                 continue
 
-            if phone and phone[-4:] == code:
+            if not phone or len(phone) < len(code):
+                continue
+
+            if phone[-len(code):] == code:
                 return jsonify({
                     "guestName": guest_name,
                     "phone": phone,
@@ -168,6 +149,7 @@ def guest_authenticated():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
+# ---------- NEXT AVAILABILITY ----------
 @app.route('/api/next-availability', methods=['GET'])
 def next_availability():
     property = request.args.get('property')
@@ -180,37 +162,40 @@ def next_availability():
         reservations = fetch_reservations(listing_id, token)
 
         today = datetime.utcnow().strftime("%Y-%m-%d")
+        future_reservations = [r for r in reservations if r.get("arrivalDate") and r["arrivalDate"] > today]
 
-        future_reservations = [
-            r for r in reservations
-            if r.get("arrivalDate") and r["arrivalDate"] > today
-        ]
+        if future_reservations:
+            next_booking = min(future_reservations, key=lambda r: r["arrivalDate"])
+            next_start_date = next_booking["arrivalDate"]
+        else:
+            next_start_date = None
 
-        next_start_date = min(future_reservations, key=lambda r: r["arrivalDate"])["arrivalDate"] if future_reservations else None
-        nights = calculate_extra_nights(next_start_date)
+        delta = (datetime.strptime(next_start_date, '%Y-%m-%d').date() - datetime.utcnow().date()).days if next_start_date else "open-ended"
 
         return jsonify({
-            "availableNights": nights,
+            "availableNights": max(0, delta) if isinstance(delta, int) else delta,
             "nextBookingStart": next_start_date
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+# ---------- GUEST MESSAGE SUBMISSION ----------
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
     try:
         data = request.get_json()
         name = data.get("name")
-        phone = data.get("phone") or data.get("phoneLast4")
+        phone = data.get("phone") or data.get("phoneLast4")  # fallback
         message = data.get("message")
         date = data.get("date")
+        category = classify_category(message)
+        sandy_reply = smart_response(category)
 
         if not all([name, phone, message, date]):
             return jsonify({"error": "Missing fields"}), 400
 
-        category = classify_category(message)
-        sandy_reply = smart_response(category)
+        phone_last4 = phone[-4:]
 
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
@@ -224,18 +209,18 @@ def save_guest_message():
 
         fields = {
             "Name": name,
-            "Phone": phone,
+            "Phone": phone,  # full phone for emergencies
+            "Phone Last 4": phone_last4,
             "Message": message,
             "Date": date,
             "Category": category,
             "Reply": sandy_reply
         }
 
-        payload = {"fields": fields}
-        airtable_resp = requests.post(airtable_url, headers=headers, json=payload)
+        airtable_resp = requests.post(airtable_url, headers=headers, json={"fields": fields})
 
         if airtable_resp.status_code in [200, 201]:
-            return jsonify({"success": True, "reply": sandy_reply, "category": category}), 200
+            return jsonify({"success": True, "reply": sandy_reply}), 200
         else:
             return jsonify({"error": "Failed to save to Airtable", "details": airtable_resp.text}), 500
 
