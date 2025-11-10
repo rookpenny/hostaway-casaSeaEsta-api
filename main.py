@@ -155,17 +155,15 @@ def guest_authenticated():
             if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"} or not is_current_guest:
                 continue
 
-            if not phone or len(phone) < len(code):
-                continue
-
-            if phone[-len(code):] == code:
+           if phone and phone[-4:] == code:
                 return jsonify({
-                    "guestName": guest_name,
-                    "phone": phone,
-                    "property": "Casa Sea Esta",
-                    "checkIn": check_in,
-                    "checkOut": check_out
-                }), 200
+                "guestName": guest_name,
+                "phone": phone,
+                "property": "Casa Sea Esta",
+                "checkIn": check_in,
+                "checkOut": check_out
+            }), 200
+
 
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
