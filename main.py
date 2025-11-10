@@ -181,15 +181,14 @@ def save_guest_message():
         import urllib.parse
         data = request.get_json()
 
-        # Check for required fields
+        # ✅ Required fields (simplified — no more phoneLast4)
         required_fields = ["name", "phone", "date", "category"]
-        has_message_or_attachment = "message" in data or "attachment" in data
+        has_message = "message" in data and data["message"]
 
-        if not all(field in data and data[field] for field in required_fields) or not has_message_or_attachment:
-            return jsonify({"error": "Missing fields"}), 400
+        if not all(field in data and data[field] for field in required_fields) or not has_message:
+            return jsonify({"error": "Missing required fields"}), 400
 
         reply = smart_response(data["category"])
-        attachment = data.get("attachment")
 
         # Airtable setup
         airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
@@ -198,36 +197,19 @@ def save_guest_message():
             "Content-Type": "application/json"
         }
 
-        # Start building Airtable fields
+        # Build the record
         airtable_data = {
             "fields": {
                 "Name": data["name"],
                 "Full Phone": data["phone"],
                 "Date": data["date"],
                 "Category": data["category"],
+                "Message": data["message"],
                 "Reply": reply
             }
         }
 
-        # ✅ Add text message from 'message' or decode text/plain attachment
-        if "message" in data:
-            airtable_data["fields"]["Message"] = data["message"]
-        elif attachment and "url" in attachment and attachment["url"].startswith("data:text/plain,"):
-            try:
-                encoded = attachment["url"].split(",", 1)[1]
-                decoded = urllib.parse.unquote(encoded)
-                airtable_data["fields"]["Message"] = decoded
-            except Exception:
-                airtable_data["fields"]["Message"] = "(Failed to decode message from attachment)"
-
-        # ✅ If attachment is image/media (not plain text), save as Attachment
-        if attachment and "url" in attachment and not attachment["url"].startswith("data:text/plain,"):
-            airtable_data["fields"]["Attachment"] = [{
-                "url": attachment["url"],
-                "filename": attachment.get("filename")
-            }]
-
-        # Submit to Airtable
+        # Send to Airtable
         response = requests.post(airtable_url, headers=headers, json=airtable_data)
 
         if response.status_code in [200, 201]:
