@@ -137,9 +137,13 @@ def guest_authenticated():
                 (check_out == today and now.hour < check_out_time)
             )
 
-            if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"} or not is_current_guest:
-                continue
+            # Debug logs
+            print(f"DEBUG: Guest {guest_name} | Phone: {phone} | Status: {status} | Check-in: {check_in} | Check-out: {check_out}")
 
+            if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"}:
+                continue
+            if not is_current_guest:
+                continue
             if not phone or len(phone) < len(code):
                 continue
 
@@ -155,6 +159,7 @@ def guest_authenticated():
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
     except Exception as e:
+        print(f"ERROR: {e}")
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
 @app.route('/api/next-availability')
