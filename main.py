@@ -186,17 +186,26 @@ def save_guest_message():
     try:
         data = request.get_json()
         name = data.get("name")
-        phone = data.get("phone")  # full phone number
+        phone_last4 = data.get("phoneLast4")
+        full_phone = data.get("phone")
         message = data.get("message")
         date = data.get("date")
-
-        if not all([name, phone, message, date]):
-            return jsonify({"error": "Missing fields"}), 400
-
-        phone_last4 = phone[-4:]
         category = classify_category(message)
         sandy_reply = smart_response(category)
+        attachment = data.get("attachment")
 
+        if not all([name, phone_last4, message, date, category]):
+            return jsonify({"error": "Missing fields"}), 400
+
+        # Build Airtable-compatible attachment object
+        airtable_attachment = []
+        if attachment and "url" in attachment:
+            airtable_attachment = [{
+                "url": attachment["url"],
+                "filename": attachment.get("filename", "guest_upload.jpg")
+            }]
+
+        # Airtable config
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
@@ -207,14 +216,16 @@ def save_guest_message():
             "Content-Type": "application/json"
         }
 
+        # Fields to send to Airtable
         fields = {
             "Name": name,
             "Phone Last 4": phone_last4,
-            "Full Phone": phone,  # ✅ Added full phone here
+            "Phone": full_phone,
             "Message": message,
             "Date": date,
             "Category": category,
-            "Reply": sandy_reply
+            "Reply": sandy_reply,
+            "Attachment": airtable_attachment
         }
 
         payload = {"fields": fields}
@@ -229,10 +240,7 @@ def save_guest_message():
             }), 500
 
     except Exception as e:
-        return jsonify({
-            "error": "Unexpected server error",
-            "details": str(e)
-        }), 500
+        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
