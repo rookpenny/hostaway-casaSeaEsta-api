@@ -4,6 +4,7 @@ from flask_cors import CORS
 from datetime import datetime
 import requests
 from dotenv import load_dotenv
+
 from utils.hostaway import get_token, fetch_reservations
 
 # Load environment variables
@@ -23,9 +24,14 @@ def classify_category(message):
         return "urgent"
     elif any(word in message_lower for word in ["repair", "broken", "not working", "malfunction", "maintenance"]):
         return "maintenance"
-    elif any(word in message_lower for word in ["late checkout", "late check-out", "extend stay", "stay longer", "extra night", "another night", "add nights", "extend trip"]):
+    elif any(word in message_lower for word in [
+        "late checkout", "late check-out", "check out late", "extend stay",
+        "stay longer", "extra night", "another night", "add nights", "extend trip"
+    ]):
         return "extension"
-    elif any(word in message_lower for word in ["can we", "is it possible", "could we", "extra", "more", "early checkin", "early check-in", "request"]):
+    elif any(word in message_lower for word in [
+        "can we", "is it possible", "could we", "extra", "more", "early checkin", "early check-in", "request"
+    ]):
         return "request"
     elif any(word in message_lower for word in ["tv", "wifi", "internet", "stream", "remote", "netflix", "entertainment"]):
         return "entertainment"
@@ -34,29 +40,23 @@ def classify_category(message):
 
 def smart_response(category):
     if category == "maintenance":
-        return (
-            "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly."
-        )
+        return "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly."
     elif category == "urgent":
         return (
             "I’ve marked this as urgent and alerted your host right away.\n\n"
             "**If this is a real emergency**, please call them at +1-650-313-3724."
         )
     elif category == "request":
-        return (
-            "Got it! I’ve passed your request along. Let me know if there’s anything else I can help with in the meantime."
-        )
+        return "Got it! I’ve passed your request along. Let me know if there’s anything else I can help with in the meantime."
     elif category == "entertainment":
         return (
             "Thanks for the heads-up! If you’re having trouble with the TV or internet, try restarting the modem and checking that the input source is correct.\n\n"
             "If that doesn’t work, I’ve gone ahead and notified your host too."
         )
     else:
-        return (
-            "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
-        )
+        return "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
 
-# ---------- NEW: HELPER TO CALCULATE EXTRA NIGHTS ----------
+# ---------- HELPER TO CALCULATE EXTRA NIGHTS ----------
 def calculate_extra_nights(next_start_date):
     if not next_start_date:
         return "open-ended"
@@ -162,12 +162,12 @@ def guest_authenticated():
                     "checkIn": check_in,
                     "checkOut": check_out
                 }), 200
+
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
-# ---------- NEW: NEXT AVAILABILITY ROUTE ----------
 @app.route('/api/next-availability', methods=['GET'])
 def next_availability():
     property = request.args.get('property')
@@ -181,23 +181,16 @@ def next_availability():
 
         today = datetime.utcnow().strftime("%Y-%m-%d")
 
-        # Filter future reservations with a valid arrivalDate
         future_reservations = [
             r for r in reservations
             if r.get("arrivalDate") and r["arrivalDate"] > today
         ]
 
-        if future_reservations:
-            next_booking = min(future_reservations, key=lambda r: r["arrivalDate"])
-            next_start_date = next_booking["arrivalDate"]
-        else:
-            # No future booking, calendar is open-ended
-            next_start_date = None
-
+        next_start_date = min(future_reservations, key=lambda r: r["arrivalDate"])["arrivalDate"] if future_reservations else None
         nights = calculate_extra_nights(next_start_date)
 
         return jsonify({
-            "availableNights": nights,  # could be an int or "open-ended"
+            "availableNights": nights,
             "nextBookingStart": next_start_date
         })
 
@@ -209,7 +202,7 @@ def save_guest_message():
     try:
         data = request.get_json()
         name = data.get("name")
-        phone = data.get("phone")  # Now capturing full phone number
+        phone = data.get("phone")
         message = data.get("message")
         date = data.get("date")
 
@@ -231,7 +224,7 @@ def save_guest_message():
 
         fields = {
             "Name": name,
-            "Phone": phone,  # Store full phone number
+            "Phone": phone,
             "Message": message,
             "Date": date,
             "Category": category,
@@ -244,16 +237,10 @@ def save_guest_message():
         if airtable_resp.status_code in [200, 201]:
             return jsonify({"success": True, "reply": sandy_reply, "category": category}), 200
         else:
-            return jsonify({
-                "error": "Failed to save to Airtable",
-                "details": airtable_resp.text
-            }), 500
+            return jsonify({"error": "Failed to save to Airtable", "details": airtable_resp.text}), 500
 
     except Exception as e:
-        return jsonify({
-            "error": "Unexpected server error",
-            "details": str(e)
-        }), 500
+        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
