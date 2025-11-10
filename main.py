@@ -178,9 +178,9 @@ def next_availability():
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
     try:
+        import urllib.parse
         data = request.get_json()
 
-        # Allow either 'message' or 'attachment'
         required_fields = ["name", "phone", "date", "category"]
         has_message_or_attachment = "message" in data or "attachment" in data
 
@@ -190,7 +190,6 @@ def save_guest_message():
         reply = smart_response(data["category"])
         attachment = data.get("attachment")
 
-        # Airtable setup
         airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
         headers = {
             "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
@@ -200,31 +199,28 @@ def save_guest_message():
         airtable_data = {
             "fields": {
                 "Name": data["name"],
-                "Full Phone": data["phone"],  # ✅ Matches your Airtable field
+                "Full Phone": data["phone"],
                 "Date": data["date"],
                 "Category": data["category"],
                 "Reply": reply
             }
         }
 
+        # ✅ Message handling only (no attachment saved)
         if "message" in data:
             airtable_data["fields"]["Message"] = data["message"]
-
-        if attachment and "url" in attachment:
-            airtable_data["fields"]["Attachment"] = [{
-                "url": attachment["url"],
-                "filename": attachment.get("filename")
-            }]
+        elif attachment and "url" in attachment and attachment["url"].startswith("data:text/plain,"):
+            try:
+                encoded = attachment["url"].split(",", 1)[1]
+                decoded = urllib.parse.unquote(encoded)
+                airtable_data["fields"]["Message"] = decoded
+            except Exception:
+                airtable_data["fields"]["Message"] = "(Failed to decode message from attachment)"
 
         response = requests.post(airtable_url, headers=headers, json=airtable_data)
 
         if response.status_code in [200, 201]:
-            return jsonify({"success": True, "reply": reply}), 200
-        else:
-            return jsonify({"error": "Failed to save to Airtable", "details": response.text}), 500
-
-    except Exception as e:
-        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+            return jsonify({"success": True, "reply":
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
