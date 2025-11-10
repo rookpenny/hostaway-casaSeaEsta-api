@@ -7,46 +7,46 @@ from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
 
-# Load environment variables
+# Load .env variables
 load_dotenv()
 
+# Initialize Flask app
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
+# Constants
 ALLOWED_LISTING_IDS = {"256853"}
 LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}
+EMERGENCY_PHONE = "+1-650-313-3724"
 
-# ---------- CATEGORY LOGIC ----------
-def classify_category(message):
+# ---------- CLASSIFICATION ----------
+def classify_category(message: str) -> str:
     message_lower = message.lower()
 
-    if any(word in message_lower for word in ["urgent", "emergency", "fire", "leak", "locked out", "break", "flood"]):
+    if any(term in message_lower for term in ["urgent", "emergency", "fire", "leak", "locked out", "break", "flood"]):
         return "urgent"
-    elif any(word in message_lower for word in ["repair", "broken", "not working", "malfunction", "maintenance"]):
+    elif any(term in message_lower for term in ["repair", "broken", "not working", "malfunction", "maintenance"]):
         return "maintenance"
-    elif any(word in message_lower for word in ["late checkout", "late check-out", "extend stay", "stay longer", "extra night", "another night", "add nights", "extend trip"]):
+    elif any(term in message_lower for term in ["late checkout", "extend stay", "stay longer", "extra night", "add nights", "extend trip"]):
         return "extension"
-    elif any(word in message_lower for word in ["can we", "is it possible", "could we", "extra", "more", "early checkin", "early check-in", "request"]):
+    elif any(term in message_lower for term in ["can we", "is it possible", "request", "early check-in", "extra"]):
         return "request"
-    elif any(word in message_lower for word in ["tv", "wifi", "internet", "stream", "remote", "netflix", "entertainment"]):
+    elif any(term in message_lower for term in ["tv", "wifi", "internet", "remote", "stream", "netflix"]):
         return "entertainment"
-    else:
-        return "other"
+    return "other"
 
-def smart_response(category):
-    if category == "maintenance":
-        return "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly."
-    elif category == "urgent":
-        return "I’ve marked this as urgent and alerted your host right away.\n\n**If this is a real emergency**, please call them at +1-650-313-3724."
-    elif category == "request":
-        return "Got it! I’ve passed your request along. Let me know if there’s anything else I can help with in the meantime."
-    elif category == "entertainment":
-        return "Thanks for the heads-up! Try restarting the modem and checking the input source. I’ve notified your host too."
-    else:
-        return "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
+def smart_response(category: str) -> str:
+    responses = {
+        "urgent": f"I’ve marked this as urgent and alerted your host right away.\n\n**If this is a real emergency**, please call them at {EMERGENCY_PHONE}.",
+        "maintenance": "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly.",
+        "request": "Got it! I’ve passed your request along. Let me know if there’s anything else I can help with in the meantime.",
+        "entertainment": "Thanks for the heads-up! Try restarting the modem and checking the input source. I’ve notified your host too.",
+        "other": "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
+    }
+    return responses.get(category, responses["other"])
 
-# ---------- HELPER ----------
-def calculate_extra_nights(next_start_date):
+# ---------- UTILS ----------
+def calculate_extra_nights(next_start_date: str) -> int | str:
     if not next_start_date:
         return "open-ended"
     today = datetime.utcnow().date()
@@ -61,39 +61,39 @@ def home():
 @app.route("/api/guest")
 def get_guest_info():
     try:
-        listing_id = request.args.get("listingId")
-        if not listing_id:
-            legacy_slug = request.args.get("property", "").lower().replace(" ", "-")
-            listing_id = LEGACY_PROPERTY_MAP.get(legacy_slug)
-
+        listing_id = request.args.get("listingId") or LEGACY_PROPERTY_MAP.get(request.args.get("property", "").lower().replace(" ", "-"))
         if listing_id not in ALLOWED_LISTING_IDS:
             return jsonify({"error": "Unknown or unauthorized listingId"}), 404
 
         token = get_token()
         reservations = fetch_reservations(listing_id, token)
+
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
+        valid_reservations = []
 
-        valid = []
         for r in reservations:
-            check_in = r.get("arrivalDate")
-            check_out = r.get("departureDate")
+            if r.get("status") not in {"new", "modified", "confirmed", "accepted", "ownerStay"}:
+                continue
+            check_in, check_out = r.get("arrivalDate"), r.get("departureDate")
+            if not check_in or not check_out:
+                continue
+
             check_in_time = int(r.get("checkInTime", 16))
             check_out_time = int(r.get("checkOutTime", 10))
 
-            if r.get("status") in {"new", "modified", "confirmed", "accepted", "ownerStay"}:
-                if check_in == today and now.hour >= check_in_time:
-                    valid.append(r)
-                elif check_in < today < check_out:
-                    valid.append(r)
-                elif check_out == today and now.hour < check_out_time:
-                    valid.append(r)
+            if (
+                (check_in == today and now.hour >= check_in_time) or
+                (check_in < today < check_out) or
+                (check_out == today and now.hour < check_out_time)
+            ):
+                valid_reservations.append(r)
 
-        if not valid:
+        if not valid_reservations:
             return jsonify({"message": "No guest currently checked in."}), 404
 
-        latest = max(valid, key=lambda r: r.get("updatedOn", ""))
-        guest_info = {
+        latest = max(valid_reservations, key=lambda r: r.get("updatedOn", ""))
+        return jsonify({
             "guestName": latest.get("guestName"),
             "checkIn": latest.get("arrivalDate"),
             "checkInTime": str(latest.get("checkInTime", 16)),
@@ -102,14 +102,10 @@ def get_guest_info():
             "numberOfGuests": str(latest.get("numberOfGuests")),
             "phone": latest.get("phone"),
             "notes": latest.get("comment", "")
-        }
-
-        return jsonify(guest_info), 200
+        })
 
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
-
-# ... (previous imports and setup)
 
 @app.route("/api/guest-authenticated")
 def guest_authenticated():
@@ -118,73 +114,63 @@ def guest_authenticated():
         if not code or not code.isdigit():
             return jsonify({"error": "Invalid code format"}), 400
 
-        listing_id = LEGACY_PROPERTY_MAP.get("casa-sea-esta")
+        listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
         token = get_token()
         reservations = fetch_reservations(listing_id, token)
+
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
 
         for r in reservations:
-            guest_name = r.get("guestName", "there")
             phone = r.get("phone", "")
-            check_in = r.get("arrivalDate")
-            check_out = r.get("departureDate")
-            check_in_time = int(r.get("checkInTime", 16))
-            check_out_time = int(r.get("checkOutTime", 10))
-            status = r.get("status")
-
-            is_current_guest = (
-                (check_in == today and now.hour >= check_in_time) or
-                (check_in < today < check_out) or
-                (check_out == today and now.hour < check_out_time)
-            )
-
-            if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"} or not is_current_guest:
-                continue
-
             if not phone or len(phone) < len(code):
                 continue
 
-            if phone[-len(code):] == code:
-                welcome_message = (
-                    f"You're all set, {guest_name} — welcome to Casa Sea Esta! 🌴\n"
-                    "Need local recs, help with the house, or want to extend your stay? I’ve got you covered! ☀️"
+            if phone.endswith(code):
+                guest_name = r.get("guestName", "there")
+                check_in, check_out = r.get("arrivalDate"), r.get("departureDate")
+                check_in_time = int(r.get("checkInTime", 16))
+                check_out_time = int(r.get("checkOutTime", 10))
+                status = r.get("status")
+
+                is_current_guest = (
+                    (check_in == today and now.hour >= check_in_time) or
+                    (check_in < today < check_out) or
+                    (check_out == today and now.hour < check_out_time)
                 )
-                return jsonify({
-                    "guestName": guest_name,
-                    "phone": phone,
-                    "property": "Casa Sea Esta",
-                    "checkIn": check_in,
-                    "checkOut": check_out,
-                    "message": welcome_message  # Optional for frontend use
-                }), 200
+
+                if status in {"new", "modified", "confirmed", "accepted", "ownerStay"} and is_current_guest:
+                    return jsonify({
+                        "guestName": guest_name,
+                        "phone": phone,
+                        "property": "Casa Sea Esta",
+                        "checkIn": check_in,
+                        "checkOut": check_out,
+                        "message": f"You're all set, {guest_name} — welcome to Casa Sea Esta! 🌴\n"
+                                   "Need local recs, help with the house, or want to extend your stay? I’ve got you covered! ☀️"
+                    })
 
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
-@app.route('/api/next-availability')
+@app.route("/api/next-availability")
 def next_availability():
-    property = request.args.get('property')
-    if property != "Casa Sea Esta":
+    if request.args.get('property') != "Casa Sea Esta":
         return jsonify({"error": "Unknown property"}), 400
 
     try:
-        listing_id = LEGACY_PROPERTY_MAP.get("casa-sea-esta")
+        listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
         token = get_token()
         reservations = fetch_reservations(listing_id, token)
 
         today = datetime.utcnow().strftime("%Y-%m-%d")
-        future_reservations = [r for r in reservations if r.get("arrivalDate") and r["arrivalDate"] > today]
+        future = [r for r in reservations if r.get("arrivalDate") and r["arrivalDate"] > today]
+        next_start = min(future, key=lambda r: r["arrivalDate"])["arrivalDate"] if future else None
+        nights = calculate_extra_nights(next_start)
 
-        next_start_date = min(future_reservations, key=lambda r: r["arrivalDate"])["arrivalDate"] if future_reservations else None
-        nights = calculate_extra_nights(next_start_date)
-
-        return jsonify({
-            "availableNights": nights,
-            "nextBookingStart": next_start_date
-        })
+        return jsonify({"availableNights": nights, "nextBookingStart": next_start})
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -193,49 +179,43 @@ def next_availability():
 def save_guest_message():
     try:
         data = request.get_json()
-        name = data.get("name")
-        phone = data.get("phone")
-        message = data.get("message")
-        date = data.get("date")
-        category = data.get("category")
-        attachment = data.get("attachment")
-
-        if not all([name, phone, message, date, category]):
+        required_fields = ["name", "phone", "message", "date", "category"]
+        if not all(field in data and data[field] for field in required_fields):
             return jsonify({"error": "Missing fields"}), 400
 
-        sandy_reply = smart_response(category)
+        reply = smart_response(data["category"])
+        attachment = data.get("attachment")
 
-        airtable_api_key = os.getenv("AIRTABLE_API_KEY")
-        airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
-        table_id = "tblGEDhos73P2C5kn"
-        airtable_url = f"https://api.airtable.com/v0/{airtable_base_id}/{table_id}"
-
+        # Airtable setup
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
         headers = {
-            "Authorization": f"Bearer {airtable_api_key}",
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
             "Content-Type": "application/json"
         }
 
-        fields = {
-            "Name": name,
-            "Phone": phone,
-            "Message": message,
-            "Date": date,
-            "Category": category,
-            "Reply": sandy_reply
+        airtable_data = {
+            "fields": {
+                "Name": data["name"],
+                "Phone": data["phone"],
+                "Message": data["message"],
+                "Date": data["date"],
+                "Category": data["category"],
+                "Reply": reply
+            }
         }
 
         if attachment and "url" in attachment:
-            fields["Attachment"] = [{"url": attachment["url"]}]
-            if "filename" in attachment:
-                fields["Attachment"][0]["filename"] = attachment["filename"]
+            airtable_data["fields"]["Attachment"] = [{
+                "url": attachment["url"],
+                "filename": attachment.get("filename")
+            }]
 
-        payload = {"fields": fields}
-        airtable_resp = requests.post(airtable_url, headers=headers, json=payload)
+        response = requests.post(airtable_url, headers=headers, json=airtable_data)
 
-        if airtable_resp.status_code in [200, 201]:
-            return jsonify({"success": True, "reply": sandy_reply}), 200
+        if response.status_code in [200, 201]:
+            return jsonify({"success": True, "reply": reply}), 200
         else:
-            return jsonify({"error": "Failed to save to Airtable", "details": airtable_resp.text}), 500
+            return jsonify({"error": "Failed to save to Airtable", "details": response.text}), 500
 
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
