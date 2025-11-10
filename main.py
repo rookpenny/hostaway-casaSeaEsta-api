@@ -179,8 +179,12 @@ def next_availability():
 def save_guest_message():
     try:
         data = request.get_json()
-        required_fields = ["name", "phone", "message", "date", "category"]
-        if not all(field in data and data[field] for field in required_fields):
+
+        # Updated validation
+        required_fields = ["name", "phone", "date", "category"]
+        has_message_or_attachment = "message" in data or "attachment" in data
+
+        if not all(field in data and data[field] for field in required_fields) or not has_message_or_attachment:
             return jsonify({"error": "Missing fields"}), 400
 
         reply = smart_response(data["category"])
@@ -193,16 +197,19 @@ def save_guest_message():
             "Content-Type": "application/json"
         }
 
+        # Build Airtable payload
         airtable_data = {
             "fields": {
                 "Name": data["name"],
                 "Phone": data["phone"],
-                "Message": data["message"],
                 "Date": data["date"],
                 "Category": data["category"],
                 "Reply": reply
             }
         }
+
+        if "message" in data:
+            airtable_data["fields"]["Message"] = data["message"]
 
         if attachment and "url" in attachment:
             airtable_data["fields"]["Attachment"] = [{
