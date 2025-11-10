@@ -175,5 +175,51 @@ def next_availability():
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
+@app.route("/api/guest-message", methods=["POST"])
+def save_guest_message():
+    try:
+        import urllib.parse
+        data = request.get_json()
+
+        # ✅ Required fields (simplified — no more phoneLast4)
+        required_fields = ["name", "phone", "date", "category"]
+        has_message = "message" in data and data["message"]
+
+        if not all(field in data and data[field] for field in required_fields) or not has_message:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        reply = smart_response(data["category"])
+
+        # Airtable setup
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+
+        # Build the record
+        airtable_data = {
+            "fields": {
+                "Name": data["name"],
+                "Full Phone": data["phone"],
+                "Date": data["date"],
+                "Category": data["category"],
+                "Message": data["message"],
+                "Reply": reply
+            }
+        }
+
+        # Send to Airtable
+        response = requests.post(airtable_url, headers=headers, json=airtable_data)
+
+        if response.status_code in [200, 201]:
+            return jsonify({"success": True, "reply": reply}), 200
+        else:
+            return jsonify({"error": "Failed to save to Airtable", "details": response.text}), 500
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+
+
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
