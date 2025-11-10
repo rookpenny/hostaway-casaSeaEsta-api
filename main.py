@@ -202,7 +202,7 @@ def save_guest_message():
     try:
         data = request.get_json()
         name = data.get("name")
-        phone = data.get("phone")
+        phone = data.get("phone") or data.get("phoneLast4")
         message = data.get("message")
         date = data.get("date")
 
