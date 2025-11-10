@@ -181,6 +181,7 @@ def save_guest_message():
         import urllib.parse
         data = request.get_json()
 
+        # Ensure required fields are present
         required_fields = ["name", "phone", "date", "category"]
         has_message_or_attachment = "message" in data or "attachment" in data
 
@@ -190,12 +191,14 @@ def save_guest_message():
         reply = smart_response(data["category"])
         attachment = data.get("attachment")
 
+        # Airtable setup
         airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
         headers = {
             "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
             "Content-Type": "application/json"
         }
 
+        # Build the Airtable data payload
         airtable_data = {
             "fields": {
                 "Name": data["name"],
@@ -206,9 +209,11 @@ def save_guest_message():
             }
         }
 
-        # ✅ Message handling only (no attachment saved)
+        # Prefer direct 'message' field
         if "message" in data:
             airtable_data["fields"]["Message"] = data["message"]
+
+        # Fallback: decode message from data:text/plain URL
         elif attachment and "url" in attachment and attachment["url"].startswith("data:text/plain,"):
             try:
                 encoded = attachment["url"].split(",", 1)[1]
@@ -217,10 +222,16 @@ def save_guest_message():
             except Exception:
                 airtable_data["fields"]["Message"] = "(Failed to decode message from attachment)"
 
+        # Send to Airtable
         response = requests.post(airtable_url, headers=headers, json=airtable_data)
 
         if response.status_code in [200, 201]:
-            return jsonify({"success": True, "reply":
+            return jsonify({"success": True, "reply": reply}), 200
+        else:
+            return jsonify({"error": "Failed to save to Airtable", "details": response.text}), 500
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
