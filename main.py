@@ -41,9 +41,17 @@ def smart_response(category):
     elif category == "request":
         return "Got it! I’ve passed your request along. Let me know if there’s anything else I can help with in the meantime."
     elif category == "entertainment":
-        return "Thanks for the heads-up! If you’re having trouble with the TV or internet, try restarting the modem and checking that the input source is correct.\n\nIf that doesn’t work, I’ve gone ahead and notified your host too."
+        return "Thanks for the heads-up! Try restarting the modem and checking the input source. I’ve notified your host too."
     else:
         return "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
+
+# ---------- HELPER ----------
+def calculate_extra_nights(next_start_date):
+    if not next_start_date:
+        return "open-ended"
+    today = datetime.utcnow().date()
+    next_date = datetime.strptime(next_start_date, '%Y-%m-%d').date()
+    return max(0, (next_date - today).days)
 
 # ---------- ROUTES ----------
 @app.route("/")
@@ -149,8 +157,7 @@ def guest_authenticated():
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
-# ---------- NEXT AVAILABILITY ----------
-@app.route('/api/next-availability', methods=['GET'])
+@app.route('/api/next-availability')
 def next_availability():
     property = request.args.get('property')
     if property != "Casa Sea Esta":
@@ -164,48 +171,33 @@ def next_availability():
         today = datetime.utcnow().strftime("%Y-%m-%d")
         future_reservations = [r for r in reservations if r.get("arrivalDate") and r["arrivalDate"] > today]
 
-        if future_reservations:
-            next_booking = min(future_reservations, key=lambda r: r["arrivalDate"])
-            next_start_date = next_booking["arrivalDate"]
-        else:
-            next_start_date = None
-
-        delta = (datetime.strptime(next_start_date, '%Y-%m-%d').date() - datetime.utcnow().date()).days if next_start_date else "open-ended"
+        next_start_date = min(future_reservations, key=lambda r: r["arrivalDate"])["arrivalDate"] if future_reservations else None
+        nights = calculate_extra_nights(next_start_date)
 
         return jsonify({
-            "availableNights": max(0, delta) if isinstance(delta, int) else delta,
+            "availableNights": nights,
             "nextBookingStart": next_start_date
         })
 
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-# ---------- GUEST MESSAGE SUBMISSION ----------
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
     try:
         data = request.get_json()
         name = data.get("name")
-        phone_last4 = data.get("phoneLast4")
-        full_phone = data.get("phone")
+        phone = data.get("phone")
         message = data.get("message")
         date = data.get("date")
-        category = classify_category(message)
-        sandy_reply = smart_response(category)
+        category = data.get("category")
         attachment = data.get("attachment")
 
-        if not all([name, phone_last4, message, date, category]):
+        if not all([name, phone, message, date, category]):
             return jsonify({"error": "Missing fields"}), 400
 
-        # Build Airtable-compatible attachment object
-        airtable_attachment = []
-        if attachment and "url" in attachment:
-            airtable_attachment = [{
-                "url": attachment["url"],
-                "filename": attachment.get("filename", "guest_upload.jpg")
-            }]
+        sandy_reply = smart_response(category)
 
-        # Airtable config
         airtable_api_key = os.getenv("AIRTABLE_API_KEY")
         airtable_base_id = os.getenv("AIRTABLE_BASE_ID")
         table_id = "tblGEDhos73P2C5kn"
@@ -216,17 +208,19 @@ def save_guest_message():
             "Content-Type": "application/json"
         }
 
-        # Fields to send to Airtable
         fields = {
             "Name": name,
-            "Phone Last 4": phone_last4,
-            "Phone": full_phone,
+            "Phone": phone,
             "Message": message,
             "Date": date,
             "Category": category,
-            "Reply": sandy_reply,
-            "Attachment": airtable_attachment
+            "Reply": sandy_reply
         }
+
+        if attachment and "url" in attachment:
+            fields["Attachment"] = [{"url": attachment["url"]}]
+            if "filename" in attachment:
+                fields["Attachment"][0]["filename"] = attachment["filename"]
 
         payload = {"fields": fields}
         airtable_resp = requests.post(airtable_url, headers=headers, json=payload)
@@ -234,10 +228,7 @@ def save_guest_message():
         if airtable_resp.status_code in [200, 201]:
             return jsonify({"success": True, "reply": sandy_reply}), 200
         else:
-            return jsonify({
-                "error": "Failed to save to Airtable",
-                "details": airtable_resp.text
-            }), 500
+            return jsonify({"error": "Failed to save to Airtable", "details": airtable_resp.text}), 500
 
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
