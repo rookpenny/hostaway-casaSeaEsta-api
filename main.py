@@ -214,11 +214,11 @@ def save_guest_message():
     try:
         data = request.get_json()
         name = data.get("name")
-        phone_last4 = data.get("phoneLast4")
+        phone = data.get("phone")
         message = data.get("message")
         date = data.get("date")
 
-        if not all([name, phone_last4, message, date]):
+        if not all([name, phone, message, date]):
             return jsonify({"error": "Missing fields"}), 400
 
         category = classify_category(message)
@@ -236,7 +236,7 @@ def save_guest_message():
 
         fields = {
             "Name": name,
-            "Phone Last 4": phone_last4,
+            "Phone": phone,
             "Message": message,
             "Date": date,
             "Category": category,
