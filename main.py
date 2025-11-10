@@ -211,6 +211,7 @@ def save_guest_message():
             "Name": name,
             "Phone": phone,  # full phone for emergencies
             "Phone Last 4": phone_last4,
+            "Full Phone": phone,  # <-- Added line
             "Message": message,
             "Date": date,
             "Category": category,
