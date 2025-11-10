@@ -180,7 +180,7 @@ def save_guest_message():
     try:
         data = request.get_json()
 
-        # ✅ Make 'message' optional, allow 'attachment' instead
+        # Allow either 'message' or 'attachment'
         required_fields = ["name", "phone", "date", "category"]
         has_message_or_attachment = "message" in data or "attachment" in data
 
@@ -200,7 +200,7 @@ def save_guest_message():
         airtable_data = {
             "fields": {
                 "Name": data["name"],
-                "Phone": data["phone"],
+                "Full Phone": data["phone"],  # ✅ Matches your Airtable field
                 "Date": data["date"],
                 "Category": data["category"],
                 "Reply": reply
