@@ -137,7 +137,7 @@ def guest_authenticated():
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
 
-                for r in reservations:
+        for r in reservations:
             guest_name = r.get("guestName", "UNKNOWN")
             phone = r.get("phone", "")
             check_in = r.get("arrivalDate")
