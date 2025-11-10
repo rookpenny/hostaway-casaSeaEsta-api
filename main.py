@@ -137,7 +137,7 @@ def guest_authenticated():
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
 
-        for r in reservations:
+                for r in reservations:
             guest_name = r.get("guestName", "UNKNOWN")
             phone = r.get("phone", "")
             check_in = r.get("arrivalDate")
@@ -155,16 +155,14 @@ def guest_authenticated():
             if status not in {"new", "modified", "confirmed", "accepted", "ownerStay"} or not is_current_guest:
                 continue
 
-           if phone and phone[-4:] == code:
+            if phone and phone[-4:] == code:
                 return jsonify({
-                "guestName": guest_name,
-                "phone": phone,
-                "property": "Casa Sea Esta",
-                "checkIn": check_in,
-                "checkOut": check_out
-            }), 200
-
-
+                    "guestName": guest_name,
+                    "phone": phone,
+                    "property": "Casa Sea Esta",
+                    "checkIn": check_in,
+                    "checkOut": check_out
+                }), 200
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
     except Exception as e:
