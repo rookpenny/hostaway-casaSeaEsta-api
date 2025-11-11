@@ -176,4 +176,41 @@ paths:
         "500":
           description: Internal server error
 
-  /api/prear;
+  /api/prearrival-options:
+    get:
+      summary: Get bonus upgrades or services for upcoming verified guests
+      operationId: getPrearrivalOptions
+      parameters:
+        - in: query
+          name: phone
+          required: true
+          schema:
+            type: string
+          description: Full phone number of the guest (after verification)
+      responses:
+        "200":
+          description: List of available upgrade options
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  options:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        label:
+                          type: string
+                        description:
+                          type: string
+                        price:
+                          type: string
+        "400":
+          description: Missing or invalid phone number
+        "404":
+          description: Guest not found or not eligible
+        "500":
+          description: Internal server error
