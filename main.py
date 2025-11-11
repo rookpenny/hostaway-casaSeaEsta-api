@@ -288,30 +288,31 @@ def save_guest_message():
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
 
-@app.route("/api/prearrival-offers")
-def prearrival_offers():
+@app.route("/api/prearrival-options")
+def prearrival_options():
     try:
-        code = request.args.get("code")
-        if not code or not code.isdigit():
-            return jsonify({"error": "Invalid or missing code"}), 400
+        phone = request.args.get("phone")
+        if not phone:
+            return jsonify({"error": "Phone number is required"}), 400
 
-        guest = find_upcoming_guest_by_code(code)
-        if not guest:
-            return jsonify({"error": "No upcoming guest found"}), 404
+        # TODO: You could later validate this phone using existing reservations
 
-        # 🎁 Define prearrival offers here (adjust as needed)
-        offers = [
-            "early_checkin",
-            "fridge_stock",
-            "welcome_note"
+        options = [
+            {
+                "id": "early-checkin",
+                "label": "Early Check-in",
+                "description": "Access the property starting at 1 PM",
+                "price": "$40"
+            },
+            {
+                "id": "beach-bundle",
+                "label": "Beach Bundle",
+                "description": "Umbrella, 4 chairs & a cooler",
+                "price": "$25"
+            }
         ]
 
-        return jsonify({
-            "name": guest["name"],
-            "phone": guest["phone"],
-            "checkin_date": guest["checkin_date"],
-            "offers": offers
-        })
+        return jsonify({"options": options}), 200
 
     except Exception as e:
         return jsonify({"error": "Unexpected error", "details": str(e)}), 500
