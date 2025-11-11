@@ -176,4 +176,4 @@ paths:
         "500":
           description: Internal server error
 
-  /api/prear
+  /api/prear;
