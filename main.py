@@ -1,4 +1,5 @@
 import os
+import time
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
@@ -53,6 +54,14 @@ def calculate_extra_nights(next_start_date: str) -> int | str:
     next_date = datetime.strptime(next_start_date, '%Y-%m-%d').date()
     return max(0, (next_date - today).days)
 
+def safe_fetch_reservations(listing_id, retries=3, delay=1):
+    for attempt in range(retries):
+        try:
+            return fetch_reservations(listing_id, get_token())
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            time.sleep(delay * (2 ** attempt))  # Exponential backoff
+    raise Exception("Failed to fetch reservations after retries.")
 
 def find_upcoming_guest_by_code(code: str):
     """Search upcoming real reservations using the last 4 digits of the guest's phone number."""
@@ -274,6 +283,34 @@ def save_guest_message():
 
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+
+@app.route("/api/prearrival-offers")
+def prearrival_offers():
+    try:
+        code = request.args.get("code")
+        if not code or not code.isdigit():
+            return jsonify({"error": "Invalid or missing code"}), 400
+
+        guest = find_upcoming_guest_by_code(code)
+        if not guest:
+            return jsonify({"error": "No upcoming guest found"}), 404
+
+        # 🎁 Define prearrival offers here (adjust as needed)
+        offers = [
+            "early_checkin",
+            "fridge_stock",
+            "welcome_note"
+        ]
+
+        return jsonify({
+            "name": guest["name"],
+            "phone": guest["phone"],
+            "checkin_date": guest["checkin_date"],
+            "offers": offers
+        })
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
 
 
 if __name__ == "__main__":
