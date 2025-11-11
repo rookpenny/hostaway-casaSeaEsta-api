@@ -1,0 +1,179 @@
+openapi: 3.1.1
+info:
+  title: Casa Sea Esta Guest Messaging API
+  description: API for verified guests to send messages and receive pre-arrival or in-stay support.
+  version: 1.1.0
+servers:
+  - url: https://hostaway-casaseaesta-api.onrender.com
+
+paths:
+  /api/guest-authenticated:
+    get:
+      summary: Check guest authentication by last 4 digits of booking phone number
+      operationId: checkGuestAuth
+      parameters:
+        - in: query
+          name: code
+          required: true
+          schema:
+            type: string
+          description: Last 4 digits of the guest's booking phone number
+      responses:
+        "200":
+          description: Guest authentication or pre-arrival readiness
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  guestName:
+                    type: string
+                  phone:
+                    type: string
+                  property:
+                    type: string
+                  checkIn:
+                    type: string
+                    format: date
+                  checkOut:
+                    type: string
+                    format: date
+                  message:
+                    type: string
+                  verified:
+                    type: boolean
+                  prearrival:
+                    type: boolean
+        "400":
+          description: Invalid code or missing parameters
+        "401":
+          description: Guest not found or not currently staying
+        "500":
+          description: Internal server error
+
+  /api/guest-info:
+    get:
+      summary: Retrieve full guest info by verified phone number
+      operationId: getGuestInfo
+      parameters:
+        - in: query
+          name: phone
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Guest info retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  name:
+                    type: string
+                  phone:
+                    type: string
+                  property:
+                    type: string
+                  checkin_date:
+                    type: string
+                    format: date
+                  checkout_date:
+                    type: string
+                    format: date
+        "400":
+          description: Missing or invalid phone number
+        "404":
+          description: Guest not found
+        "500":
+          description: Internal server error
+
+  /api/next-availability:
+    get:
+      summary: Check next availability after current stay
+      operationId: getNextAvailability
+      parameters:
+        - in: query
+          name: property
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Next available dates returned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nights_available:
+                    type: integer
+                  available_from:
+                    type: string
+                    format: date
+        "400":
+          description: Missing or invalid property name
+        "500":
+          description: Internal server error
+
+  /api/guest-message:
+    post:
+      summary: Submit a message from a verified guest to the host
+      operationId: submitGuestMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+                - phone
+                - date
+                - category
+              properties:
+                name:
+                  type: string
+                phone:
+                  type: string
+                date:
+                  type: string
+                  format: date
+                category:
+                  type: string
+                  enum:
+                    - maintenance
+                    - cleaning
+                    - request
+                    - urgent
+                    - entertainment
+                    - extension
+                    - other
+                message:
+                  type: string
+                attachment:
+                  type: object
+                  properties:
+                    url:
+                      type: string
+                      format: uri
+                    filename:
+                      type: string
+      responses:
+        "200":
+          description: Message received and processed successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  reply:
+                    type: string
+        "400":
+          description: Bad request — missing required fields or validation failed
+        "500":
+          description: Internal server error
+
+  /api/prear
