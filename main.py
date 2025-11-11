@@ -55,53 +55,6 @@ def calculate_extra_nights(next_start_date: str) -> int | str:
 
 from datetime import datetime, timedelta
 
-# Sample data - you would replace this with actual reservation records from your system/database
-GUEST_RESERVATIONS = [
-    {
-        "name": "Jane Smith",
-        "phone": "5551232558",
-        "property": "Casa Sea Esta",
-        "checkin_date": "2025-11-11",
-        "checkout_date": "2025-11-16"
-    },
-    {
-        "name": "John Doe",
-        "phone": "5559876543",
-        "property": "Casa Sea Esta",
-        "checkin_date": "2025-11-20",
-        "checkout_date": "2025-11-23"
-    },
-    # Add more as needed
-]
-
-def find_upcoming_guest_by_code(code: str):
-    """Find a guest with an upcoming reservation at Casa Sea Esta
-    using only the last 4 digits of their phone number.
-    
-    Returns guest info if check-in is within 3 days or less from today.
-    """
-    today = datetime.today().date()
-    for guest in GUEST_RESERVATIONS:
-        if guest["property"] != "Casa Sea Esta":
-            continue
-
-        # Check if last 4 digits match
-        if guest["phone"][-4:] != code:
-            continue
-
-        # Check if check-in is in 3 days or less
-        checkin = datetime.strptime(guest["checkin_date"], "%Y-%m-%d").date()
-        days_until_checkin = (checkin - today).days
-        if 0 <= days_until_checkin <= 3:
-            return {
-                "name": guest["name"],
-                "phone": guest["phone"],
-                "property": guest["property"],
-                "checkin_date": guest["checkin_date"],
-                "checkout_date": guest["checkout_date"]
-            }
-
-    return None
 # ---------- ROUTES ----------
 @app.route("/")
 def home():
@@ -170,6 +123,7 @@ def guest_authenticated():
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
 
+        # STEP 1: Try to match a current guest (same as before)
         for r in reservations:
             phone = r.get("phone", "")
             if not phone or len(phone) < len(code):
@@ -196,8 +150,27 @@ def guest_authenticated():
                         "checkIn": check_in,
                         "checkOut": check_out,
                         "message": f"You're all set, {guest_name} — welcome to Casa Sea Esta! 🌴\n"
-                                   "Need local recs, help with the house, or want to extend your stay? I’ve got you covered! ☀️"
+                                   "Need local recs, help with the house, or want to extend your stay? I’ve got you covered! ☀️",
+                        "verified": True
                     })
+
+        # STEP 2: No current guest — try future guest for readiness help
+        guest = find_upcoming_guest_by_code(code)
+        if guest:
+            return jsonify({
+                "guestName": guest["name"],
+                "phone": guest["phone"],
+                "property": guest["property"],
+                "checkIn": guest["checkin_date"],
+                "checkOut": guest["checkout_date"],
+                "message": f"Hey hey! It looks like your stay hasn’t kicked off just yet, so I can’t verify you until check-in day. 🕓\n"
+                           "BUT — I’d love to help you get ready! Want to know:\n"
+                           "- ✅ What to expect on arrival\n"
+                           "- 🏡 How check-in works\n"
+                           "- 📍 Where to find stuff like Wi-Fi or towels?\n"
+                           "Just say the word!",
+                "prearrival": True
+            })
 
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
