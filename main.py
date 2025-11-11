@@ -289,23 +289,30 @@ def save_guest_message():
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
 
 
+import os
+import requests
+from flask import jsonify, request
+
 @app.route("/api/prearrival-options")
 def prearrival_options():
     try:
+        # ✅ Require phone param (even if unused — for API consistency)
         phone = request.args.get("phone")
         if not phone:
             return jsonify({"error": "Phone number is required"}), 400
 
-        # ✅ Airtable Config with hardcoded table ID
+        # ✅ Airtable config
         AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
         BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
-        TABLE_ID = "tblviNlbgLbdEalOj"  # <- Hardcoded table ID
+        TABLE_ID = "tblviNlbgLbdEalOj"  # Hardcoded table ID
 
+        # ✅ Build request
         url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
         headers = {
             "Authorization": f"Bearer {AIRTABLE_TOKEN}"
         }
 
+        # ✅ Fetch from Airtable
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
             return jsonify({"error": "Failed to fetch from Airtable", "details": response.text}), 500
@@ -313,15 +320,18 @@ def prearrival_options():
         records = response.json().get("records", [])
         options = []
 
+        # ✅ Only include options where 'active' is checked
         for record in records:
             fields = record.get("fields", {})
-            if fields.get("active", True):  # Optional filter
-                options.append({
-                    "id": fields.get("id"),
-                    "label": fields.get("label"),
-                    "description": fields.get("description"),
-                    "price": fields.get("price")
-                })
+            if not fields.get("active"):  # <- filter only active
+                continue
+
+            options.append({
+                "id": fields.get("id"),
+                "label": fields.get("label"),
+                "description": fields.get("description"),
+                "price": fields.get("price")
+            })
 
         return jsonify({"options": options}), 200
 
