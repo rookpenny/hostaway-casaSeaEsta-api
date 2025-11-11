@@ -296,13 +296,14 @@ def prearrival_options():
         if not phone:
             return jsonify({"error": "Phone number is required"}), 400
 
-        airtable_token = os.getenv("AIRTABLE_API_KEY")  # Store securely
-        base_id = os.getenv("AIRTABLE_BASE_ID")         # Store securely
-        table_name = "Prearrival Options"
+        # ✅ Airtable Config with hardcoded table ID
+        AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
+        BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
+        TABLE_ID = "tblviNlbgLbdEalOj"  # <- Hardcoded table ID
 
-        url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+        url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
         headers = {
-            "Authorization": f"Bearer {airtable_token}"
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}"
         }
 
         response = requests.get(url, headers=headers)
@@ -314,7 +315,7 @@ def prearrival_options():
 
         for record in records:
             fields = record.get("fields", {})
-            if fields.get("active"):  # Optional filter
+            if fields.get("active", True):  # Optional filter
                 options.append({
                     "id": fields.get("id"),
                     "label": fields.get("label"),
@@ -326,6 +327,7 @@ def prearrival_options():
 
     except Exception as e:
         return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
