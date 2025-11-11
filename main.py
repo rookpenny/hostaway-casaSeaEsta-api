@@ -102,6 +102,10 @@ def find_upcoming_guest_by_code(code: str):
 def home():
     return jsonify({"message": "Welcome to Casa Sea Esta API!"}), 200
 
+@app.route("/docs/openapi.yaml")
+def serve_openapi():
+    return app.send_static_file("docs/openapi.yaml")
+
 @app.route("/api/guest")
 def get_guest_info():
     try:
