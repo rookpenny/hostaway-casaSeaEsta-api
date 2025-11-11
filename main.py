@@ -54,53 +54,39 @@ def calculate_extra_nights(next_start_date: str) -> int | str:
     return max(0, (next_date - today).days)
 
 
-# Sample data - you would replace this with actual reservation records from your system/database
-GUEST_RESERVATIONS = [
-    {
-        "name": "Jane Smith",
-        "phone": "5551232558",
-        "property": "Casa Sea Esta",
-        "checkin_date": "2025-11-11",
-        "checkout_date": "2025-11-16"
-    },
-    {
-        "name": "John Doe",
-        "phone": "5559876543",
-        "property": "Casa Sea Esta",
-        "checkin_date": "2025-11-20",
-        "checkout_date": "2025-11-23"
-    },
-    # Add more as needed
-]
-
 def find_upcoming_guest_by_code(code: str):
-    """Find a guest with an upcoming reservation at Casa Sea Esta
-    using only the last 4 digits of their phone number.
-    
-    Returns guest info if check-in is within 3 days or less from today.
-    """
-    today = datetime.today().date()
-    for guest in GUEST_RESERVATIONS:
-        if guest["property"] != "Casa Sea Esta":
-            continue
+    """Search upcoming real reservations using the last 4 digits of the guest's phone number."""
+    try:
+        listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
+        token = get_token()
+        reservations = fetch_reservations(listing_id, token)
 
-        # Check if last 4 digits match
-        if guest["phone"][-4:] != code:
-            continue
+        today = datetime.today().date()
 
-        # Check if check-in is in 3 days or less
-        checkin = datetime.strptime(guest["checkin_date"], "%Y-%m-%d").date()
-        days_until_checkin = (checkin - today).days
-        if 0 <= days_until_checkin <= 3:
-            return {
-                "name": guest["name"],
-                "phone": guest["phone"],
-                "property": guest["property"],
-                "checkin_date": guest["checkin_date"],
-                "checkout_date": guest["checkout_date"]
-            }
+        for r in reservations:
+            phone = r.get("phone", "")
+            if not phone or not phone.endswith(code):
+                continue
 
-    return None
+            checkin_str = r.get("arrivalDate")
+            if not checkin_str:
+                continue
+
+            checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
+            days_until_checkin = (checkin - today).days
+
+            if 0 <= days_until_checkin <= 3:
+                return {
+                    "name": r.get("guestName", "Guest"),
+                    "phone": phone,
+                    "property": "Casa Sea Esta",
+                    "checkin_date": checkin_str,
+                    "checkout_date": r.get("departureDate")
+                }
+
+    except Exception as e:
+        print(f"Error in find_upcoming_guest_by_code: {e}")
+        return None
 
 # ---------- ROUTES ----------
 @app.route("/")
