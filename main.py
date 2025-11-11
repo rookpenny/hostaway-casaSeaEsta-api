@@ -1,11 +1,11 @@
 import os
 import time
+import requests
+
 from flask import Flask, jsonify, request
 from flask_cors import CORS
 from datetime import datetime, timedelta
-import requests
 from dotenv import load_dotenv
-
 from utils.hostaway import get_token, fetch_reservations
 
 # Load .env variables
@@ -288,6 +288,7 @@ def save_guest_message():
     except Exception as e:
         return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
 
+
 @app.route("/api/prearrival-options")
 def prearrival_options():
     try:
@@ -295,28 +296,36 @@ def prearrival_options():
         if not phone:
             return jsonify({"error": "Phone number is required"}), 400
 
-        # TODO: You could later validate this phone using existing reservations
+        airtable_token = os.getenv("AIRTABLE_API_KEY")  # Store securely
+        base_id = os.getenv("AIRTABLE_BASE_ID")         # Store securely
+        table_name = "Prearrival Options"
 
-        options = [
-            {
-                "id": "early-checkin",
-                "label": "Early Check-in",
-                "description": "Access the property starting at 1 PM",
-                "price": "$40"
-            },
-            {
-                "id": "beach-bundle",
-                "label": "Beach Bundle",
-                "description": "Umbrella, 4 chairs & a cooler",
-                "price": "$25"
-            }
-        ]
+        url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+        headers = {
+            "Authorization": f"Bearer {airtable_token}"
+        }
+
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to fetch from Airtable", "details": response.text}), 500
+
+        records = response.json().get("records", [])
+        options = []
+
+        for record in records:
+            fields = record.get("fields", {})
+            if fields.get("active"):  # Optional filter
+                options.append({
+                    "id": fields.get("id"),
+                    "label": fields.get("label"),
+                    "description": fields.get("description"),
+                    "price": fields.get("price")
+                })
 
         return jsonify({"options": options}), 200
 
     except Exception as e:
         return jsonify({"error": "Unexpected error", "details": str(e)}), 500
-
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
