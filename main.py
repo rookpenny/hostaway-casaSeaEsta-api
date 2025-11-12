@@ -558,7 +558,7 @@ def save_guest_message():
             "Content-Type": "application/json"
         }
 
-        log_type = map_log_type(message)
+        log_types = detect_log_types(message)
         
         airtable_data = {
             "fields": {
@@ -568,10 +568,9 @@ def save_guest_message():
                 "Category": category,
                 "Message": message,
                 "Reply": reply,
-                "Log Type": log_type
+                "Log Type": log_types  # This is now a list!
             }
         }
-
 
         response = requests.post(airtable_url, headers=headers, json=airtable_data)
         if response.status_code in [200, 201]:
