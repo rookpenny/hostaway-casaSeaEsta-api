@@ -106,6 +106,42 @@ def home():
 def serve_openapi():
     return app.send_static_file("docs/openapi.yaml")
 
+@app.route("/api/debug/upcoming-guests")
+def debug_upcoming_guests():
+    try:
+        property_name = request.args.get("property", "").lower().replace(" ", "-")
+        days_out = int(request.args.get("days_out", 20))
+
+        listing_id = LEGACY_PROPERTY_MAP.get(property_name)
+        if not listing_id:
+            return jsonify({"error": "Unknown property"}), 400
+
+        token = get_token()
+        reservations = fetch_reservations(listing_id, token)
+
+        today = datetime.utcnow().date()
+        end_date = today + timedelta(days=days_out)
+
+        guests = []
+        for r in reservations:
+            try:
+                checkin = datetime.strptime(r.get("arrivalDate", ""), "%Y-%m-%d").date()
+                if today <= checkin <= end_date:
+                    guests.append({
+                        "name": r.get("guestName", "Unknown"),
+                        "phone": r.get("phone", "N/A"),
+                        "arrivalDate": r.get("arrivalDate"),
+                        "departureDate": r.get("departureDate"),
+                        "status": r.get("status", "unknown")
+                    })
+            except Exception as inner_e:
+                print(f"Error parsing reservation: {inner_e}")
+
+        return jsonify({"results": guests, "count": len(guests)})
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
 @app.route("/api/guest")
 def get_guest_info():
     try:
