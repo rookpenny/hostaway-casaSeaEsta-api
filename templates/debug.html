@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Casa Sea Esta Admin</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; max-width: 600px; margin: auto; }
+    input, button { padding: 0.5rem; margin: 0.5rem 0; width: 100%; }
+    #results { white-space: pre-wrap; background: #f9f9f9; padding: 1rem; border-radius: 4px; }
+  </style>
+</head>
+<body>
+  <h2>🔐 Casa Sea Esta Debug Tool</h2>
+
+  <label>API Key</label>
+  <input type="password" id="apiKey" placeholder="Enter admin API key">
+
+  <label>Days Out</label>
+  <input type="number" id="daysOut" value="20">
+
+  <button onclick="fetchGuests()">Fetch Upcoming Guests</button>
+
+  <div id="results"></div>
+
+  <script>
+    async function fetchGuests() {
+      const key = document.getElementById("apiKey").value;
+      const daysOut = document.getElementById("daysOut").value;
+      const resultsBox = document.getElementById("results");
+
+      if (!key) {
+        alert("API key required");
+        return;
+      }
+
+      resultsBox.textContent = "Loading...";
+
+      try {
+        const response = await fetch(`https://hostaway-casaseaesta-api.onrender.com/api/debug/upcoming-guests?property=Casa Sea Esta&days_out=${daysOut}`, {
+          headers: {
+            "X-API-KEY": key
+          }
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          resultsBox.textContent = `Error: ${data.error || 'Unknown error'}`;
+        } else {
+          resultsBox.textContent = JSON.stringify(data, null, 2);
+        }
+      } catch (err) {
+        resultsBox.textContent = `Fetch error: ${err.message}`;
+      }
+    }
+  </script>
+</body>
+</html>
