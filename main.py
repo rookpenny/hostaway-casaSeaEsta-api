@@ -2,7 +2,10 @@ import os
 import time
 import requests
 
-from flask import Flask, jsonify, request, render_template, CORS
+
+from flask import Flask, jsonify, request, render_template
+from flask_cors import CORS
+
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from utils.hostaway import get_token, fetch_reservations
