@@ -332,37 +332,88 @@ def save_guest_message():
         import urllib.parse
         data = request.get_json()
 
-        # ✅ Required fields (simplified — no more phoneLast4)
-        required_fields = ["name", "phone", "date", "category"]
-        has_message = "message" in data and data["message"]
-
-        if not all(field in data and data[field] for field in required_fields) or not has_message:
+        # ✅ Required fields
+        required_fields = ["name", "phone", "date", "message"]
+        if not all(field in data and data[field] for field in required_fields):
             return jsonify({"error": "Missing required fields"}), 400
 
-        reply = smart_response(data["category"])
+        name = data["name"]
+        phone = data["phone"]
+        date = data["date"]
+        message = data["message"]
 
-        # Airtable setup
+        # 🔍 Detect early access or fridge interest
+        def matches_early_access_or_fridge(msg: str) -> bool:
+            triggers = [
+                "early access", "early check-in", "early checkin", "early arrival",
+                "fridge stocking", "stock the fridge", "grocery drop",
+                "fridge pre-stock", "can you stock", "groceries before arrival"
+            ]
+            return any(trigger in msg.lower() for trigger in triggers)
+
+        if matches_early_access_or_fridge(message):
+            try:
+                AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
+                BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
+                TABLE_ID = "tblviNlbgLbdEalOj"
+
+                url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
+                headers = {
+                    "Authorization": f"Bearer {AIRTABLE_TOKEN}"
+                }
+
+                response = requests.get(url, headers=headers)
+                if response.status_code != 200:
+                    return jsonify({"error": "Failed to fetch upsell options", "details": response.text}), 500
+
+                records = response.json().get("records", [])
+                options = []
+                for record in records:
+                    fields = record.get("fields", {})
+                    if not fields.get("active"):
+                        continue
+                    label = fields.get("label", "Option")
+                    price = fields.get("price", "$—")
+                    description = fields.get("description", "")
+                    options.append(f"### {label} — **{price}**\n> {description}")
+
+                upsell_text = (
+                    "Here’s what I can offer before your stay kicks off:\n\n"
+                    + "\n\n".join(options)
+                    + "\n\nLet me know if you'd like me to pass any of these on to the host for you! 🌴"
+                )
+
+                return jsonify({
+                    "smartHandled": True,
+                    "reply": upsell_text
+                })
+
+            except Exception as e:
+                return jsonify({"error": "Upsell auto-reply failed", "details": str(e)}), 500
+
+        # 🧠 Normal category classification
+        category = classify_category(message)
+        reply = smart_response(category)
+
+        # Airtable setup for logging
         airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
         headers = {
             "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
             "Content-Type": "application/json"
         }
 
-        # Build the record
         airtable_data = {
             "fields": {
-                "Name": data["name"],
-                "Full Phone": data["phone"],
-                "Date": data["date"],
-                "Category": data["category"],
-                "Message": data["message"],
+                "Name": name,
+                "Full Phone": phone,
+                "Date": date,
+                "Category": category,
+                "Message": message,
                 "Reply": reply
             }
         }
 
-        # Send to Airtable
         response = requests.post(airtable_url, headers=headers, json=airtable_data)
-
         if response.status_code in [200, 201]:
             return jsonify({"success": True, "reply": reply}), 200
         else:
