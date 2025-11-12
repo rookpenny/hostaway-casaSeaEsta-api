@@ -383,10 +383,37 @@ def save_guest_message():
                     + "\n\nLet me know if you'd like me to pass any of these on to the host for you! 🌴"
                 )
 
+                # Log the upsell interest to Airtable
+                try:
+                    airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+                    headers = {
+                        "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+                        "Content-Type": "application/json"
+                    }
+                
+                    log_data = {
+                        "fields": {
+                            "Name": name,
+                            "Full Phone": phone,
+                            "Date": date,
+                            "Category": "request",
+                            "Message": message,
+                            "Reply": upsell_text,
+                            "Log Type": "Prearrival Upsell"
+                        }
+                    }
+                
+                    log_response = requests.post(airtable_url, headers=headers, json=log_data)
+                    if log_response.status_code not in [200, 201]:
+                        print(f"[Airtable] Upsell log failed: {log_response.text}")
+                except Exception as e:
+                    print(f"[Airtable] Logging error: {e}")
+                
                 return jsonify({
                     "smartHandled": True,
                     "reply": upsell_text
                 })
+
 
             except Exception as e:
                 return jsonify({"error": "Upsell auto-reply failed", "details": str(e)}), 500
