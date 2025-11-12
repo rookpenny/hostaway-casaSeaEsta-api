@@ -108,6 +108,12 @@ def serve_openapi():
 
 @app.route("/api/debug/upcoming-guests")
 def debug_upcoming_guests():
+    api_key = request.headers.get("X-API-KEY")
+    expected_key = os.getenv("ADMIN_API_KEY")
+
+    if api_key != expected_key:
+        return jsonify({"error": "Unauthorized"}), 403
+
     try:
         property_name = request.args.get("property", "").lower().replace(" ", "-")
         days_out = int(request.args.get("days_out", 20))
