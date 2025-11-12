@@ -226,7 +226,7 @@ def guest_authenticated():
         today = datetime.today().strftime("%Y-%m-%d")
         now = datetime.now()
 
-        # STEP 1: Try to match a current guest (same as before)
+        # STEP 1: Try to match a current guest
         for r in reservations:
             phone = r.get("phone", "")
             if not phone or len(phone) < len(code):
@@ -257,48 +257,49 @@ def guest_authenticated():
                         "verified": True
                     })
 
-guest = find_upcoming_guest_by_code(code)
-if guest:
-    # ✅ Airtable log for prearrival verification
-    try:
-        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
-        headers = {
-            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
-            "Content-Type": "application/json"
-        }
+        # STEP 2: No current guest — try future guest for readiness help
+        guest = find_upcoming_guest_by_code(code)
+        if guest:
+            # ✅ Airtable log for prearrival verification
+            try:
+                airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+                headers = {
+                    "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+                    "Content-Type": "application/json"
+                }
 
-        log_data = {
-            "fields": {
-                "Name": guest["name"],
-                "Full Phone": guest["phone"],
-                "Date": datetime.utcnow().strftime("%Y-%m-%d"),
-                "Category": "prearrival",
-                "Message": "Guest was verified early (prearrival).",
-                "Reply": "N/A",
-                "Log Type": "Prearrival Verification"
-            }
-        }
+                log_data = {
+                    "fields": {
+                        "Name": guest["name"],
+                        "Full Phone": guest["phone"],
+                        "Date": datetime.utcnow().strftime("%Y-%m-%d"),
+                        "Category": "prearrival",
+                        "Message": "Guest was verified early (prearrival).",
+                        "Reply": "N/A",
+                        "Log Type": "Prearrival Verification"
+                    }
+                }
 
-        log_response = requests.post(airtable_url, headers=headers, json=log_data)
-        if log_response.status_code not in [200, 201]:
-            print(f"[Airtable] Prearrival log failed: {log_response.text}")
-    except Exception as airtable_log_error:
-        print(f"[Airtable] Logging error: {airtable_log_error}")
+                log_response = requests.post(airtable_url, headers=headers, json=log_data)
+                if log_response.status_code not in [200, 201]:
+                    print(f"[Airtable] Prearrival log failed: {log_response.text}")
+            except Exception as airtable_log_error:
+                print(f"[Airtable] Logging error: {airtable_log_error}")
 
-    return jsonify({
-        "guestName": guest["name"],
-        "phone": guest["phone"],
-        "property": guest["property"],
-        "checkIn": guest["checkin_date"],
-        "checkOut": guest["checkout_date"],
-        "message": f"Hey hey! It looks like your stay hasn’t kicked off just yet, so I can’t verify you until check-in day. 🕓\n"
-                   "BUT — I’d love to help you get ready! Want to know:\n"
-                   "- ✅ What to expect on arrival\n"
-                   "- 🏡 How check-in works\n"
-                   "- 📍 Where to find stuff like Wi-Fi or towels?\n"
-                   "Just say the word!",
-        "prearrival": True
-    })
+            return jsonify({
+                "guestName": guest["name"],
+                "phone": guest["phone"],
+                "property": guest["property"],
+                "checkIn": guest["checkin_date"],
+                "checkOut": guest["checkout_date"],
+                "message": f"Hey hey! It looks like your stay hasn’t kicked off just yet, so I can’t verify you until check-in day. 🕓\n"
+                           "BUT — I’d love to help you get ready! Want to know:\n"
+                           "- ✅ What to expect on arrival\n"
+                           "- 🏡 How check-in works\n"
+                           "- 📍 Where to find stuff like Wi-Fi or towels?\n"
+                           "Just say the word!",
+                "prearrival": True
+            })
 
         return jsonify({"error": "Guest not found or not currently staying"}), 401
 
