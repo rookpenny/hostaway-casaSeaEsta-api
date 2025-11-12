@@ -1,0 +1,23 @@
+## Airtable: Guest Messages Table Schema
+
+### Required Fields:
+- `Name` (Single line text)
+- `Full Phone` (Phone)
+- `Date` (Date)
+- `Message` (Long text)
+- `Reply` (Long text)
+- `Category` (Single select)
+  - Values: request, urgent, maintenance, extension, email_opt_in, referral, other
+- `Log Type` (Multiple select)
+  - Values:
+    - Early Access Request
+    - Fridge Stocking Request
+    - Extension Request
+    - Referral
+    - Email Opt-In
+    - Urgent Issue
+    - Guest Message
+
+### Notes:
+- `Log Type` is determined programmatically based on message content.
+- `Category` is classified using a simpler set of rules.
