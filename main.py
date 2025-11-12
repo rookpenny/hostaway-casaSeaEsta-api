@@ -2,11 +2,12 @@ import os
 import time
 import requests
 
-from flask import Flask, jsonify, request
-from flask_cors import CORS
+from flask import Flask, jsonify, request, render_template, CORS
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
 from utils.hostaway import get_token, fetch_reservations
+
+
 
 # Load .env variables
 load_dotenv()
@@ -105,6 +106,10 @@ def home():
 @app.route("/docs/openapi.yaml")
 def serve_openapi():
     return app.send_static_file("docs/openapi.yaml")
+
+@app.route("/debug")
+def serve_debug_ui():
+    return render_template("debug.html")
 
 @app.route("/api/debug/upcoming-guests")
 def debug_upcoming_guests():
