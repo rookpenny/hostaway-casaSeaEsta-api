@@ -116,6 +116,89 @@ def serve_debug_ui():
 
 ALLOWED_STATUSES = {"new", "modified", "confirmed", "accepted", "ownerStay"}
 
+@app.route("/api/refer", methods=["POST"])
+def refer_friend():
+    try:
+        data = request.get_json()
+        name = data.get("name")
+        phone = data.get("phone")
+
+        if not name or not phone:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "fields": {
+                "Name": name,
+                "Full Phone": phone,
+                "Date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "Category": "referral",
+                "Message": "Guest requested a referral link.",
+                "Reply": "Referral link sent.",
+                "Log Type": "Referral"
+            }
+        }
+
+        response = requests.post(airtable_url, headers=headers, json=payload)
+        if response.status_code not in [200, 201]:
+            return jsonify({"error": "Failed to save referral log", "details": response.text}), 500
+
+        # Example static link — ideally you'd generate a unique one
+        referral_link = "https://casaseaesta.com/referral?from=" + phone[-4:]
+
+        return jsonify({
+            "success": True,
+            "message": "Here’s your referral link!",
+            "link": referral_link
+        })
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
+@app.route("/api/join-email", methods=["POST"])
+def join_email_list():
+    try:
+        data = request.get_json()
+        name = data.get("name")
+        phone = data.get("phone")
+        email = data.get("email")
+
+        if not all([name, phone, email]):
+            return jsonify({"error": "Missing name, phone, or email"}), 400
+
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "fields": {
+                "Name": name,
+                "Full Phone": phone,
+                "Date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "Category": "email_opt_in",
+                "Message": f"{name} ({email}) opted into the email list.",
+                "Reply": "N/A",
+                "Log Type": "Email List Opt-in"
+            }
+        }
+
+        response = requests.post(airtable_url, headers=headers, json=payload)
+        if response.status_code not in [200, 201]:
+            return jsonify({"error": "Failed to log email opt-in", "details": response.text}), 500
+
+        return jsonify({"success": True, "message": "You're on the list — welcome!"})
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
+
 @app.route("/api/debug/upcoming-guests")
 def debug_upcoming_guests():
     api_key = request.headers.get("X-API-KEY")
