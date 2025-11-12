@@ -114,6 +114,8 @@ def serve_openapi():
 def serve_debug_ui():
     return render_template("debug.html")
 
+ALLOWED_STATUSES = {"new", "modified", "confirmed", "accepted", "ownerStay"}
+
 @app.route("/api/debug/upcoming-guests")
 def debug_upcoming_guests():
     api_key = request.headers.get("X-API-KEY")
@@ -140,6 +142,11 @@ def debug_upcoming_guests():
         for r in reservations:
             try:
                 checkin = datetime.strptime(r.get("arrivalDate", ""), "%Y-%m-%d").date()
+                status = r.get("status", "").lower()
+
+                if status not in ALLOWED_STATUSES:
+                    continue
+
                 if today <= checkin <= end_date:
                     guests.append({
                         "name": r.get("guestName", "Unknown"),
