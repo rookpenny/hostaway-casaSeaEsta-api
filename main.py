@@ -2,15 +2,19 @@ import os
 import time
 import requests
 
-
 from flask import Flask, jsonify, request, render_template
 from flask_cors import CORS
 
 from datetime import datetime, timedelta
 from dotenv import load_dotenv
+from functools import lru_cache
+
 from utils.hostaway import get_token, fetch_reservations
 
-
+# ✅ Cached token to improve performance
+@lru_cache(maxsize=1)
+def cached_token():
+    return get_token()
 
 # Load .env variables
 load_dotenv()
@@ -83,7 +87,7 @@ def calculate_extra_nights(next_start_date: str) -> int | str:
 def safe_fetch_reservations(listing_id, retries=3, delay=1):
     for attempt in range(retries):
         try:
-            return fetch_reservations(listing_id, get_token())
+            return fetch_reservations(listing_id, cached_token())
         except Exception as e:
             print(f"Attempt {attempt + 1} failed: {e}")
             time.sleep(delay * (2 ** attempt))  # Exponential backoff
@@ -93,7 +97,7 @@ def find_upcoming_guest_by_code(code: str):
     """Search upcoming real reservations using the last 4 digits of the guest's phone number."""
     try:
         listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
-        token = get_token()
+        token = cached_token()
         reservations = fetch_reservations(listing_id, token)
 
         today = datetime.today().date()
@@ -262,7 +266,7 @@ def debug_upcoming_guests():
         if not listing_id:
             return jsonify({"error": "Unknown property"}), 400
 
-        token = get_token()
+        token = cached_token()
         reservations = fetch_reservations(listing_id, token)
 
         today = datetime.utcnow().date()
@@ -300,7 +304,7 @@ def get_guest_info():
         if listing_id not in ALLOWED_LISTING_IDS:
             return jsonify({"error": "Unknown or unauthorized listingId"}), 404
 
-        token = get_token()
+        token = cached_token()
         reservations = fetch_reservations(listing_id, token)
 
         today = datetime.today().strftime("%Y-%m-%d")
@@ -350,7 +354,7 @@ def guest_authenticated():
             return jsonify({"error": "Invalid code format"}), 400
 
         listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
-        token = get_token()
+        token = cached_token()
         reservations = fetch_reservations(listing_id, token)
 
         today = datetime.today().strftime("%Y-%m-%d")
@@ -443,7 +447,7 @@ def next_availability():
 
     try:
         listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
-        token = get_token()
+        token = cached_token()
         reservations = fetch_reservations(listing_id, token)
 
         today = datetime.utcnow().strftime("%Y-%m-%d")
