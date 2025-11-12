@@ -123,6 +123,8 @@ def find_upcoming_guest_by_code(code: str):
         print(f"Error in find_upcoming_guest_by_code: {e}")
         return None
 # ---------- LOG TYPE DETECTION ----------
+
+# ---------- LOG TYPE DETECTION ----------
 LOG_TYPE_MAP = {
     "early check": ["Early Access Request"],
     "early access": ["Early Access Request"],
@@ -144,7 +146,6 @@ def detect_log_types(message: str) -> list:
         if keyword in message_lower:
             matched.extend(types)
     return list(set(matched)) or ["Guest Message"]
-
 
 
 # ---------- ROUTES ----------
