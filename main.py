@@ -100,6 +100,30 @@ def find_upcoming_guest_by_code(code: str):
     except Exception as e:
         print(f"Error in find_upcoming_guest_by_code: {e}")
         return None
+# ---------- LOG TYPE DETECTION ----------
+LOG_TYPE_MAP = {
+    "early check": ["Early Access Request"],
+    "early access": ["Early Access Request"],
+    "fridge": ["Fridge Stocking Request"],
+    "stock": ["Fridge Stocking Request"],
+    "groceries": ["Fridge Stocking Request"],
+    "extend": ["Extension Request"],
+    "longer": ["Extension Request"],
+    "refer": ["Referral"],
+    "email": ["Email Opt-In"],
+    "maintenance": ["Maintenance"],
+    "urgent": ["Urgent Issue"]
+}
+
+def detect_log_types(message: str) -> list:
+    matched = []
+    message_lower = message.lower()
+    for keyword, types in LOG_TYPE_MAP.items():
+        if keyword in message_lower:
+            matched.extend(types)
+    return list(set(matched)) or ["Guest Message"]
+
+
 
 # ---------- ROUTES ----------
 @app.route("/")
@@ -519,9 +543,11 @@ def save_guest_message():
                 "Date": date,
                 "Category": category,
                 "Message": message,
-                "Reply": reply
+                "Reply": reply,
+                "Log Type": detect_log_types(message)
             }
         }
+
 
         response = requests.post(airtable_url, headers=headers, json=airtable_data)
         if response.status_code in [200, 201]:
