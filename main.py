@@ -292,11 +292,11 @@ def guest_authenticated():
                 "property": guest["property"],
                 "checkIn": guest["checkin_date"],
                 "checkOut": guest["checkout_date"],
-                "message": f"Hey hey! It looks like your stay hasn’t kicked off just yet, so I can’t verify you until check-in day. 🕓\n"
+                "message": f"Hey hey! It looks like your stay hasn’t kicked off just yet, so I can’t verify you until check-in day @ 4pm. 🕓\n"
                            "BUT — I’d love to help you get ready! Want to know:\n"
                            "- ✅ What to expect on arrival\n"
                            "- 🏡 How check-in works\n"
-                           "- 📍 Where to find stuff like Wi-Fi or towels?\n"
+                           "- 📍Want early access or a pre-stocked fridge?\n"
                            "Just say the word!",
                 "prearrival": True
             })
