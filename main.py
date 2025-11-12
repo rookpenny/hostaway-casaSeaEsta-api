@@ -50,6 +50,28 @@ def smart_response(category: str) -> str:
     }
     return responses.get(category, responses["other"])
 
+
+def map_log_type(message: str) -> str:
+    message_lower = message.lower()
+
+    if any(term in message_lower for term in ["early check-in", "early checkin", "early access", "early arrival"]):
+        return "Early Access Request"
+    elif any(term in message_lower for term in ["fridge stocking", "stock the fridge", "grocery", "groceries", "pre-stock"]):
+        return "Fridge Stocking Request"
+    elif any(term in message_lower for term in ["extend", "late checkout", "extra night", "add night", "stay longer"]):
+        return "Extension Request"
+    elif "refer" in message_lower:
+        return "Referral"
+    elif "email" in message_lower and any(term in message_lower for term in ["list", "opt", "stay connected"]):
+        return "Email Opt-In"
+    elif any(term in message_lower for term in ["maintenance", "broken", "repair", "not working"]):
+        return "Maintenance"
+    elif any(term in message_lower for term in ["urgent", "emergency", "flood", "leak", "locked out", "fire"]):
+        return "Urgent Issue"
+
+    return "Guest Message"
+
+
 # ---------- UTILS ----------
 def calculate_extra_nights(next_start_date: str) -> int | str:
     if not next_start_date:
@@ -536,6 +558,8 @@ def save_guest_message():
             "Content-Type": "application/json"
         }
 
+        log_type = map_log_type(message)
+        
         airtable_data = {
             "fields": {
                 "Name": name,
@@ -544,7 +568,7 @@ def save_guest_message():
                 "Category": category,
                 "Message": message,
                 "Reply": reply,
-                "Log Type": detect_log_types(message)
+                "Log Type": log_type
             }
         }
 
