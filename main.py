@@ -84,7 +84,7 @@ def find_upcoming_guest_by_code(code: str):
             checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
             days_until_checkin = (checkin - today).days
 
-            if 0 <= days_until_checkin <= 3:
+            if 0 <= days_until_checkin <= 20:
                 return {
                     "name": r.get("guestName", "Guest"),
                     "phone": phone,
