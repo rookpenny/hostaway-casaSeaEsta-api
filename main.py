@@ -230,17 +230,17 @@ def get_config(slug):
     except FileNotFoundError:
         return jsonify({"error": "Config not found"}), 404
 
-@app.route("/admin/config/<slug>", methods=["POST"])
-def save_config(slug):
-    try:
-        data = request.get_json()
-        config_path = f"data/{slug}/config.json"
-        os.makedirs(os.path.dirname(config_path), exist_ok=True)
-        with open(config_path, "w") as f:
-            json.dump(data, f, indent=2)
-        return jsonify({"success": True})
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
+#@app.route("/admin/config/<slug>", methods=["POST"])
+#def save_config(slug):
+#    try:
+#        data = request.get_json()
+#        config_path = f"data/{slug}/config.json"
+#        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+#        with open(config_path, "w") as f:
+#            json.dump(data, f, indent=2)
+#        return jsonify({"success": True})
+#    except Exception as e:
+#        return jsonify({"error": str(e)}), 500
 
 
 ALLOWED_STATUSES = {"new", "modified", "confirmed", "accepted", "ownerStay"}
