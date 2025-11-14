@@ -190,7 +190,15 @@ def serve_openapi():
 def serve_debug_ui():
     return render_template("debug.html")
 
-
+@app.route("/api/debug/property-config")
+def debug_property_config():
+    slug = request.args.get("slug", "casa-sea-esta")
+    try:
+        config = load_property_config(slug)
+        return jsonify(config)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 404
+        
 @app.route("/admin/config/<slug>", methods=["GET"])
 def get_config(slug):
     try:
