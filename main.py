@@ -16,6 +16,7 @@ from utils.config import load_property_config  # Ensure this loads per-property 
 from utils.constants import DEFAULT_EMERGENCY_PHONE
 
 
+
 # ----------- CONFIG LOADER -----------
 def load_property_config(slug: str) -> dict:
     path = f"data/{slug}/config.json"
@@ -55,7 +56,7 @@ def classify_category(message: str) -> str:
         return "entertainment"
     return "other"
 
-def smart_response(category: str, emergency_phone: str = EMERGENCY_PHONE) -> str:
+def smart_response(category: str, emergency_phone: str = DEFAULT_EMERGENCY_PHONE) -> str:
     responses = {
         "urgent": f"I’ve marked this as urgent and alerted your host right away.\n\n**If this is a real emergency**, please call them at {emergency_phone}.",
         "maintenance": "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly.",
