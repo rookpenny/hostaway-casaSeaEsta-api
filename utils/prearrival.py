@@ -5,12 +5,10 @@ import requests
 
 prearrival_router = APIRouter()
 
-@prearrival_router.get("/api/prearrival-options")
-def prearrival_options(phone: str = Query(...)):
+def fetch_prearrival_options(phone: str) -> list:
     try:
-        # Consolidated Airtable API access (now "HostScout")
-        AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")  # 🔁 Use consolidated env var
-        BASE_ID = os.getenv("AIRTABLE_BASE_ID")         # 🔁 Use consolidated env var
+        AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
+        BASE_ID = os.getenv("AIRTABLE_BASE_ID")
         TABLE_ID = "tblviNlbgLbdEalOj"
 
         url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
@@ -20,10 +18,7 @@ def prearrival_options(phone: str = Query(...)):
 
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
-            return JSONResponse(
-                status_code=500,
-                content={"error": "Failed to fetch from Airtable", "details": response.text}
-            )
+            return []
 
         records = response.json().get("records", [])
         options = []
@@ -40,10 +35,12 @@ def prearrival_options(phone: str = Query(...)):
                 "price": fields.get("price")
             })
 
-        return {"options": options}
+        return options
 
     except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Unexpected error", "details": str(e)}
-        )
+        return []
+
+@prearrival_router.get("/api/prearrival-options")
+def prearrival_options(phone: str = Query(...)):
+    options = fetch_prearrival_options(phone)
+    return {"options": options}
