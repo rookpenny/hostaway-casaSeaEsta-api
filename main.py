@@ -330,19 +330,25 @@ def join_email_list():
 
 @app.route("/api/debug/upcoming-guests")
 def debug_upcoming_guests():
+    # 🔐 API key check
     api_key = request.headers.get("X-API-KEY")
     expected_key = os.getenv("ADMIN_API_KEY")
-
     if api_key != expected_key:
         return jsonify({"error": "Unauthorized"}), 403
 
     try:
-        property_name = request.args.get("property", "").lower().replace(" ", "-")
+        slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")
         days_out = int(request.args.get("days_out", 20))
 
-        listing_id = LEGACY_PROPERTY_MAP.get(property_name)
+        # ✅ Load config dynamically
+        try:
+            config = load_property_config(slug)
+        except FileNotFoundError:
+            return jsonify({"error": f"No config found for '{slug}'"}), 404
+
+        listing_id = config.get("listing_id")
         if not listing_id:
-            return jsonify({"error": "Unknown property"}), 400
+            return jsonify({"error": "Missing listing_id in config"}), 400
 
         token = cached_token()
         reservations = fetch_reservations(listing_id, token)
