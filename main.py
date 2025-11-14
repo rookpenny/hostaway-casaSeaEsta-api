@@ -34,9 +34,12 @@ from utils.airtable_client import (
     get_messages_table
 )
 
+
+
 app = FastAPI()
 app.include_router(prearrival_router)
-
+from utils.prearrival_debug import prearrival_debug_router
+app.include_router(prearrival_debug_router)
 
 # Enable CORS
 app.add_middleware(
