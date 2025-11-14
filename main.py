@@ -18,6 +18,12 @@ from utils.airtable_client import get_properties_table
 
 app = FastAPI()
 
+@app.get("/properties")
+def list_properties():
+    table = get_properties_table()
+    records = table.all()
+    return [record["fields"] for record in records]
+
 
 #config = load_property_config(slug)
 #emergency_phone = config.get("emergency_phone", "N/A")
@@ -30,12 +36,6 @@ def load_property_config(slug: str) -> dict:
         raise FileNotFoundError(f"No config found for {slug}")
     with open(path) as f:
         return json.load(f)
-
-@app.get("/properties")
-def list_properties():
-    table = get_properties_table()
-    records = table.all()
-    return [r["fields"] for r in records]
 
 # ----------- TOKEN CACHING -----------
 @lru_cache(maxsize=1)
