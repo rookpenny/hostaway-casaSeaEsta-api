@@ -4,6 +4,7 @@ import time
 import requests
 import logging
 
+
 from datetime import datetime, timedelta
 from functools import lru_cache
 from flask import Flask, jsonify, request, render_template
@@ -12,6 +13,8 @@ from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
 from utils.config import load_property_config  # Ensure this loads per-property configs
+from utils.constants import DEFAULT_EMERGENCY_PHONE
+
 
 # ----------- CONFIG LOADER -----------
 def load_property_config(slug: str) -> dict:
