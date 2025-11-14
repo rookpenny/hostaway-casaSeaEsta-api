@@ -6,7 +6,7 @@ from datetime import datetime, timedelta
 from utils.config import load_property_config
 from utils.smart import classify_category, smart_response, detect_log_types
 
-
+from functools import lru_cache
 from fastapi import Request, Query, Path
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from utils.config import load_property_config
