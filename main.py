@@ -260,7 +260,8 @@ async def save_guest_message(message: GuestMessage, request: Request, property: 
                 port = os.getenv("PORT", "10000")
                 internal_url = f"http://localhost:{port}/api/prearrival-options"
 
-                options_resp = requests.get(internal_url, params={"phone": phone})
+                from utils.prearrival import fetch_prearrival_options
+                options = fetch_prearrival_options(phone)
 
                 if options_resp.status_code != 200:
                     return JSONResponse(
