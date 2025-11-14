@@ -192,12 +192,13 @@ def serve_debug_ui():
 
 @app.route("/api/debug/property-config")
 def debug_property_config():
-    slug = request.args.get("slug", "casa-sea-esta")
+    slug = request.args.get("property", "casa-sea-esta")
     try:
         config = load_property_config(slug)
         return jsonify(config)
     except Exception as e:
         return jsonify({"error": str(e)}), 404
+
 
 @app.route("/some-endpoint")
 def some_endpoint():
