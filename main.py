@@ -254,7 +254,7 @@ async def save_guest_message(message: GuestMessage, request: Request, property: 
             ]
             return any(trigger in msg.lower() for trigger in triggers)
 
-        if matches_early_access_or_fridge(msg_text):
+    if matches_early_access_or_fridge(msg_text):
     try:
         # Use internal API call to fetch prearrival upsell options
         port = os.getenv("PORT", "10000")
