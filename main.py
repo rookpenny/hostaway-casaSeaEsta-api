@@ -255,58 +255,41 @@ async def save_guest_message(message: GuestMessage, request: Request, property: 
             return any(trigger in msg.lower() for trigger in triggers)
 
         if matches_early_access_or_fridge(msg_text):
-            try:
-                AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
-                BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-                TABLE_ID = "tblviNlbgLbdEalOj"
+    try:
+        # Use internal API call to fetch prearrival upsell options
+        port = os.getenv("PORT", "10000")
+        internal_url = f"http://localhost:{port}/api/prearrival-options"
 
-                url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
-                headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
-                response = requests.get(url, headers=headers)
+        options_resp = requests.get(internal_url, params={"phone": phone})
 
-                if response.status_code != 200:
-                    return JSONResponse(status_code=500, content={"error": "Failed to fetch upsell options"})
+        if options_resp.status_code != 200:
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Failed to fetch upsell options"}
+            )
 
-                records = response.json().get("records", [])
-                options = []
-                for record in records:
-                    fields = record.get("fields", {})
-                    if not fields.get("active"):
-                        continue
-                    label = fields.get("label", "Option")
-                    price = fields.get("price", "$—")
-                    description = fields.get("description", "")
-                    options.append(f"### {label} — **{price}**\n> {description}")
+        data = options_resp.json()
+        options = data.get("options", [])
 
-                upsell_text = (
-                    "Here’s what I can offer before your stay kicks off:\n\n"
-                    + "\n\n".join(options)
-                    + "\n\nLet me know if you'd like me to pass any of these on to the host for you! 🌴"
-                )
+        if not options:
+            return {"smartHandled": True, "reply": "Prearrival options coming soon."}
 
-                # Log to main guest messages table
-                log_headers = {
-                    "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
-                    "Content-Type": "application/json"
-                }
-                log_data = {
-                    "fields": {
-                        "Name": name,
-                        "Full Phone": phone,
-                        "Date": date,
-                        "Category": "request",
-                        "Message": msg_text,
-                        "Reply": upsell_text,
-                        "Log Type": "Prearrival Upsell"
-                    }
-                }
-                log_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
-                requests.post(log_url, headers=log_headers, json=log_data)
+        # Format upsell message
+        upsell_text = (
+            "Here’s what I can offer before your stay kicks off:\n\n" +
+            "\n\n".join(
+                [f"### {o['label']} — **{o['price']}**\n> {o['description']}" for o in options]
+            ) +
+            "\n\nLet me know if you'd like me to pass any of these on to the host for you! 🌴"
+        )
 
-                return {"smartHandled": True, "reply": upsell_text}
+        return {"smartHandled": True, "reply": upsell_text}
 
-            except Exception as e:
-                return JSONResponse(status_code=500, content={"error": "Upsell auto-reply failed", "details": str(e)})
+    except Exception as e:
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Upsell auto-reply failed", "details": str(e)}
+        )
 
         # Normal classification path
         category = classify_category(msg_text)
