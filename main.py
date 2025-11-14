@@ -611,10 +611,6 @@ def prearrival_options():
     except Exception as e:
         return jsonify({"error": "Unexpected error", "details": str(e)}), 500
 
-@app.route("/health")
-def health_check():
-    return jsonify({"status": "ok"}), 200
-
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
 
