@@ -13,8 +13,9 @@ from dotenv import load_dotenv
 
 from utils.hostaway import get_token, fetch_reservations
 from utils.config import load_property_config  # Ensure this loads per-property configs
-from utils.constants import DEFAULT_EMERGENCY_PHONE
 
+config = load_property_config(slug)
+emergency_phone = config.get("emergency_phone", "N/A")
 
 
 # ----------- CONFIG LOADER -----------
@@ -56,7 +57,7 @@ def classify_category(message: str) -> str:
         return "entertainment"
     return "other"
 
-def smart_response(category: str, emergency_phone: str = DEFAULT_EMERGENCY_PHONE) -> str:
+def smart_response(category: str, emergency_phone: str) -> str:
     responses = {
         "urgent": f"I’ve marked this as urgent and alerted your host right away.\n\n**If this is a real emergency**, please call them at {emergency_phone}.",
         "maintenance": "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly.",
@@ -504,6 +505,8 @@ def save_guest_message():
         slug = request.args.get("property", "casa-sea-esta")
         config = load_property_config(slug)
         emergency_phone = config.get("emergency_phone", "N/A")
+        reply = smart_response(category, emergency_phone)
+
 
         # ✅ Required fields
         required_fields = ["name", "phone", "date", "message"]
