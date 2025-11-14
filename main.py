@@ -13,6 +13,11 @@ from dotenv import load_dotenv
 from utils.hostaway import get_token, fetch_reservations
 from utils.config import load_property_config  # Ensure this loads per-property configs
 
+from fastapi import FastAPI
+from airtable_client import get_properties_table
+
+app = FastAPI()
+
 #config = load_property_config(slug)
 #emergency_phone = config.get("emergency_phone", "N/A")
 
@@ -24,6 +29,12 @@ def load_property_config(slug: str) -> dict:
         raise FileNotFoundError(f"No config found for {slug}")
     with open(path) as f:
         return json.load(f)
+
+@app.get("/properties")
+def list_properties():
+    table = get_properties_table()
+    records = table.all()
+    return [r["fields"] for r in records]
 
 # ----------- TOKEN CACHING -----------
 @lru_cache(maxsize=1)
