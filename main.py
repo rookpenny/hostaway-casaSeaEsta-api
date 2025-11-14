@@ -30,7 +30,7 @@ from utils.airtable_client import (
     get_properties_table,
     get_pmcs_table,
     get_guests_table,
-    get_prearrival_table,
+    #get_prearrival_table,
     get_messages_table
 )
 
