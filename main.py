@@ -261,8 +261,8 @@ async def save_guest_message(message: GuestMessage, request: Request, property: 
 
         if matches_early_access_or_fridge(msg_text):
             try:
-                AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
-                BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
+                AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
+                BASE_ID = os.getenv("AIRTABLE_BASE_ID")
                 TABLE_ID = "tblviNlbgLbdEalOj"
 
                 url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
