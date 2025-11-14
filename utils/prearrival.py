@@ -25,16 +25,14 @@ def fetch_prearrival_options(phone: str, property: str) -> list:
 
         for record in records:
             fields = record.get("fields", {})
-            if not fields.get("Active"):  # Match field capitalization from Airtable
+            if not fields.get("active"):
                 continue
-            if fields.get("Property") != property:  # Filter by property name
-                continue
-
+        
             options.append({
-                "id": fields.get("ID"),
-                "label": fields.get("Label"),
-                "description": fields.get("Description"),
-                "price": fields.get("Price")
+                "id": fields.get("id"),
+                "label": fields.get("label"),
+                "description": fields.get("description"),
+                "price": fields.get("price")
             })
 
         return options
