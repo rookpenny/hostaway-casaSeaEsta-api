@@ -273,12 +273,12 @@ if matches_early_access_or_fridge(msg_text):
 
         if not options:
             return {"smartHandled": True, "reply": "Prearrival options coming soon."}
-        
-        # (Optional) Add how to build the reply text here
+
         reply_text = "\n\n".join(
             f"### {opt['label']} — **{opt['price']}**\n> {opt['description']}"
             for opt in options
         )
+
         return {
             "smartHandled": True,
             "reply": "Here’s what I can offer before your stay kicks off:\n\n" + reply_text
