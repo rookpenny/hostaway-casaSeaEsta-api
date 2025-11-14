@@ -741,6 +741,7 @@ def prearrival_options(phone: str = Query(...)):
             content={"error": "Unexpected error", "details": str(e)}
         )
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+import uvicorn  # ✅ Add this if not already present
 
+if __name__ == "__main__":
+    uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
