@@ -118,3 +118,14 @@ def find_upcoming_guest_by_code(code: str, slug: str) -> dict | None:
         print(f"[Guest Lookup] Error in find_upcoming_guest_by_code: {e}")
         return None
 
+from datetime import datetime
+from functools import lru_cache
+
+def calculate_extra_nights(...):
+    ...
+
+@lru_cache(maxsize=1)
+def cached_token():
+    return get_token()
+
+
