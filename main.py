@@ -681,6 +681,4 @@ if __name__ == "__main__":
     try:
         uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
     except Exception as e:
-        print(f"Failed to start server: {e}")
-
-
+        print(f"Error: {e}")
