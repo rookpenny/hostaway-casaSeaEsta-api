@@ -1,134 +1,644 @@
 import os
+import time
 import requests
-from flask import Flask, jsonify, request
-from flask_cors import CORS
-from datetime import datetime
-from dotenv import load_dotenv
-from calendar import monthrange
 
+from flask import Flask, jsonify, request, render_template
+from flask_cors import CORS
+
+from datetime import datetime, timedelta
+from dotenv import load_dotenv
+from functools import lru_cache
+
+from utils.hostaway import get_token, fetch_reservations
+
+# ✅ Cached token to improve performance
+@lru_cache(maxsize=1)
+def cached_token():
+    return get_token()
+
+# Load .env variables
 load_dotenv()
+
+# Initialize Flask app
 app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
-CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
-CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
-
-# ✅ Supported PMS listing IDs
+# Constants
 ALLOWED_LISTING_IDS = {"256853"}
+LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}
+EMERGENCY_PHONE = "+1-650-313-3724"
 
-# 🔁 Legacy name-to-ID mapping (optional)
-LEGACY_PROPERTY_MAP = {
-    "casa-sea-esta": "256853"
+# ---------- CLASSIFICATION ----------
+def classify_category(message: str) -> str:
+    message_lower = message.lower()
+
+    if any(term in message_lower for term in ["urgent", "emergency", "fire", "leak", "locked out", "break", "flood"]):
+        return "urgent"
+    elif any(term in message_lower for term in ["repair", "broken", "not working", "malfunction", "maintenance"]):
+        return "maintenance"
+    elif any(term in message_lower for term in ["late checkout", "extend stay", "stay longer", "extra night", "add nights", "extend trip"]):
+        return "extension"
+    elif any(term in message_lower for term in ["can we", "is it possible", "request", "early check-in", "extra"]):
+        return "request"
+    elif any(term in message_lower for term in ["tv", "wifi", "internet", "remote", "stream", "netflix"]):
+        return "entertainment"
+    return "other"
+
+def smart_response(category: str) -> str:
+    responses = {
+        "urgent": f"I’ve marked this as urgent and alerted your host right away.\n\n**If this is a real emergency**, please call them at {EMERGENCY_PHONE}.",
+        "maintenance": "Thanks for letting me know! I’ve passed this on to your host. They’ll respond shortly.",
+        "request": "Got it! I’ve passed your request along. Let me know if there’s anything else I can help with in the meantime.",
+        "entertainment": "Thanks for the heads-up! Try restarting the modem and checking the input source. I’ve notified your host too.",
+        "other": "Thanks for your message! I’ve shared it with your host. They’ll follow up shortly."
+    }
+    return responses.get(category, responses["other"])
+
+
+def map_log_type(message: str) -> str:
+    message_lower = message.lower()
+
+    if any(term in message_lower for term in ["early check-in", "early checkin", "early access", "early arrival"]):
+        return "Early Access Request"
+    elif any(term in message_lower for term in ["fridge stocking", "stock the fridge", "grocery", "groceries", "pre-stock"]):
+        return "Fridge Stocking Request"
+    elif any(term in message_lower for term in ["extend", "late checkout", "extra night", "add night", "stay longer"]):
+        return "Extension Request"
+    elif "refer" in message_lower:
+        return "Referral"
+    elif "email" in message_lower and any(term in message_lower for term in ["list", "opt", "stay connected"]):
+        return "Email Opt-In"
+    elif any(term in message_lower for term in ["maintenance", "broken", "repair", "not working"]):
+        return "Maintenance"
+    elif any(term in message_lower for term in ["urgent", "emergency", "flood", "leak", "locked out", "fire"]):
+        return "Urgent Issue"
+
+    return "Guest Message"
+
+
+# ---------- UTILS ----------
+def calculate_extra_nights(next_start_date: str) -> int | str:
+    if not next_start_date:
+        return "open-ended"
+    today = datetime.utcnow().date()
+    next_date = datetime.strptime(next_start_date, '%Y-%m-%d').date()
+    return max(0, (next_date - today).days)
+
+def safe_fetch_reservations(listing_id, retries=3, delay=1):
+    for attempt in range(retries):
+        try:
+            return fetch_reservations(listing_id, cached_token())
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            time.sleep(delay * (2 ** attempt))  # Exponential backoff
+    raise Exception("Failed to fetch reservations after retries.")
+
+def find_upcoming_guest_by_code(code: str):
+    """Search upcoming real reservations using the last 4 digits of the guest's phone number."""
+    try:
+        listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
+        token = cached_token()
+        reservations = fetch_reservations(listing_id, token)
+
+        today = datetime.today().date()
+
+        for r in reservations:
+            phone = r.get("phone", "")
+            if not phone or not phone.endswith(code):
+                continue
+
+            checkin_str = r.get("arrivalDate")
+            if not checkin_str:
+                continue
+
+            checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
+            days_until_checkin = (checkin - today).days
+
+            if 0 <= days_until_checkin <= 20:
+                return {
+                    "name": r.get("guestName", "Guest"),
+                    "phone": phone,
+                    "property": "Casa Sea Esta",
+                    "checkin_date": checkin_str,
+                    "checkout_date": r.get("departureDate")
+                }
+
+    except Exception as e:
+        print(f"Error in find_upcoming_guest_by_code: {e}")
+        return None
+# ---------- LOG TYPE DETECTION ----------
+
+# ---------- LOG TYPE DETECTION ----------
+LOG_TYPE_MAP = {
+    "early check": ["Early Access Request"],
+    "early access": ["Early Access Request"],
+    "fridge": ["Fridge Stocking Request"],
+    "stock": ["Fridge Stocking Request"],
+    "groceries": ["Fridge Stocking Request"],
+    "extend": ["Extension Request"],
+    "longer": ["Extension Request"],
+    "refer": ["Referral"],
+    "email": ["Email Opt-In"],
+    "maintenance": ["Maintenance"],
+    "urgent": ["Urgent Issue"]
 }
 
-# ✅ In-memory vibe message
-vibe_storage = {}
+def detect_log_types(message: str) -> list:
+    matched = []
+    message_lower = message.lower()
+    for keyword, types in LOG_TYPE_MAP.items():
+        if keyword in message_lower:
+            matched.extend(types)
+    return list(set(matched)) or ["Guest Message"]
 
-def get_token():
-    resp = requests.post(
-        "https://api.hostaway.com/v1/accessTokens",
-        headers={"Content-Type": "application/x-www-form-urlencoded"},
-        data={
-            "grant_type": "client_credentials",
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "scope": "general"
-        }
-    )
-    return resp.json().get("access_token") if resp.ok else None
 
+# ---------- ROUTES ----------
 @app.route("/")
 def home():
     return jsonify({"message": "Welcome to Casa Sea Esta API!"}), 200
 
+@app.route("/docs/openapi.yaml")
+def serve_openapi():
+    return app.send_static_file("docs/openapi.yaml")
+
+@app.route("/debug")
+def serve_debug_ui():
+    return render_template("debug.html")
+
+ALLOWED_STATUSES = {"new", "modified", "confirmed", "accepted", "ownerStay"}
+
+@app.route("/api/refer", methods=["POST"])
+def refer_friend():
+    try:
+        data = request.get_json()
+        name = data.get("name")
+        phone = data.get("phone")
+
+        if not name or not phone:
+            return jsonify({"error": "Missing required fields"}), 400
+
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "fields": {
+                "Name": name,
+                "Full Phone": phone,
+                "Date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "Category": "referral",
+                "Message": "Guest requested a referral link.",
+                "Reply": "Referral link sent.",
+                "Log Type": "Referral"
+            }
+        }
+
+        response = requests.post(airtable_url, headers=headers, json=payload)
+        if response.status_code not in [200, 201]:
+            return jsonify({"error": "Failed to save referral log", "details": response.text}), 500
+
+        # Example static link — ideally you'd generate a unique one
+        referral_link = "https://casaseaesta.com/referral?from=" + phone[-4:]
+
+        return jsonify({
+            "success": True,
+            "message": "Here’s your referral link!",
+            "link": referral_link
+        })
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
+@app.route("/api/join-email", methods=["POST"])
+def join_email_list():
+    try:
+        data = request.get_json()
+        name = data.get("name")
+        phone = data.get("phone")
+        email = data.get("email")
+
+        if not all([name, phone, email]):
+            return jsonify({"error": "Missing name, phone, or email"}), 400
+
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "fields": {
+                "Name": name,
+                "Full Phone": phone,
+                "Date": datetime.utcnow().strftime("%Y-%m-%d"),
+                "Category": "email_opt_in",
+                "Message": f"{name} ({email}) opted into the email list.",
+                "Reply": "N/A",
+                "Log Type": "Email List Opt-in"
+            }
+        }
+
+        response = requests.post(airtable_url, headers=headers, json=payload)
+        if response.status_code not in [200, 201]:
+            return jsonify({"error": "Failed to log email opt-in", "details": response.text}), 500
+
+        return jsonify({"success": True, "message": "You're on the list — welcome!"})
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
+
+@app.route("/api/debug/upcoming-guests")
+def debug_upcoming_guests():
+    api_key = request.headers.get("X-API-KEY")
+    expected_key = os.getenv("ADMIN_API_KEY")
+
+    if api_key != expected_key:
+        return jsonify({"error": "Unauthorized"}), 403
+
+    try:
+        property_name = request.args.get("property", "").lower().replace(" ", "-")
+        days_out = int(request.args.get("days_out", 20))
+
+        listing_id = LEGACY_PROPERTY_MAP.get(property_name)
+        if not listing_id:
+            return jsonify({"error": "Unknown property"}), 400
+
+        token = cached_token()
+        reservations = fetch_reservations(listing_id, token)
+
+        today = datetime.utcnow().date()
+        end_date = today + timedelta(days=days_out)
+
+        guests = []
+        for r in reservations:
+            try:
+                checkin = datetime.strptime(r.get("arrivalDate", ""), "%Y-%m-%d").date()
+                status = r.get("status", "").lower()
+
+                if status not in ALLOWED_STATUSES:
+                    continue
+
+                if today <= checkin <= end_date:
+                    guests.append({
+                        "name": r.get("guestName", "Unknown"),
+                        "phone": r.get("phone", "N/A"),
+                        "arrivalDate": r.get("arrivalDate"),
+                        "departureDate": r.get("departureDate"),
+                        "status": r.get("status", "unknown")
+                    })
+            except Exception as inner_e:
+                print(f"Error parsing reservation: {inner_e}")
+
+        return jsonify({"results": guests, "count": len(guests)})
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
 @app.route("/api/guest")
 def get_guest_info():
     try:
-        # ✅ Accept listingId directly
-        listing_id = request.args.get("listingId")
-
-        # 🔁 Fallback for legacy ?property=casa-sea-esta
-        if not listing_id:
-            legacy_property = request.args.get("property")
-            listing_id = LEGACY_PROPERTY_MAP.get(legacy_property)
-
+        listing_id = request.args.get("listingId") or LEGACY_PROPERTY_MAP.get(request.args.get("property", "").lower().replace(" ", "-"))
         if listing_id not in ALLOWED_LISTING_IDS:
             return jsonify({"error": "Unknown or unauthorized listingId"}), 404
 
-        token = get_token()
-        if not token:
-            return jsonify({"error": "Authentication failed"}), 401
+        token = cached_token()
+        reservations = fetch_reservations(listing_id, token)
 
         today = datetime.today().strftime("%Y-%m-%d")
-        year = datetime.today().year
-        month = datetime.today().month
-        last_day = monthrange(year, month)[1]
-        date_range_start = datetime.today().replace(day=1).strftime("%Y-%m-%d")
-        date_range_end = datetime.today().replace(day=last_day).strftime("%Y-%m-%d")
+        now = datetime.now()
+        valid_reservations = []
 
-        resp = requests.get(
-            "https://api.hostaway.com/v1/reservations",
-            headers={"Authorization": f"Bearer {token}"},
-            params={
-                "listingId": listing_id,
-                "dateFrom": date_range_start,
-                "dateTo": date_range_end
-            }
-        )
-        data = resp.json()
-        reservations = data.get("result", [])
-
-        valid = []
         for r in reservations:
-            check_in = r.get("arrivalDate")
-            check_out = r.get("departureDate")
+            if r.get("status") not in {"new", "modified", "confirmed", "accepted", "ownerStay"}:
+                continue
+            check_in, check_out = r.get("arrivalDate"), r.get("departureDate")
+            if not check_in or not check_out:
+                continue
+
             check_in_time = int(r.get("checkInTime", 16))
             check_out_time = int(r.get("checkOutTime", 10))
-            now = datetime.now()
 
-            if r.get("status") in {"new", "modified", "confirmed", "accepted"}:
-                if check_in == today and now.hour >= check_in_time:
-                    valid.append(r)
-                elif check_in < today < check_out:
-                    valid.append(r)
-                elif check_out == today and now.hour < check_out_time:
-                    valid.append(r)
+            if (
+                (check_in == today and now.hour >= check_in_time) or
+                (check_in < today < check_out) or
+                (check_out == today and now.hour < check_out_time)
+            ):
+                valid_reservations.append(r)
 
-        if not valid:
+        if not valid_reservations:
             return jsonify({"message": "No guest currently checked in."}), 404
 
-        sel = max(valid, key=lambda r: r.get("updatedOn", ""))
-        selected = {
-            "guestName": sel.get("guestName"),
-            "checkIn": sel.get("arrivalDate"),
-            "checkInTime": str(sel.get("checkInTime", 16)),
-            "checkOut": sel.get("departureDate"),
-            "checkOutTime": str(sel.get("checkOutTime", 10)),
-            "numberOfGuests": str(sel.get("numberOfGuests")),
-            "notes": sel.get("comment", "")
-        }
-
-        return jsonify(selected), 200
+        latest = max(valid_reservations, key=lambda r: r.get("updatedOn", ""))
+        return jsonify({
+            "guestName": latest.get("guestName"),
+            "checkIn": latest.get("arrivalDate"),
+            "checkInTime": str(latest.get("checkInTime", 16)),
+            "checkOut": latest.get("departureDate"),
+            "checkOutTime": str(latest.get("checkOutTime", 10)),
+            "numberOfGuests": str(latest.get("numberOfGuests")),
+            "phone": latest.get("phone"),
+            "notes": latest.get("comment", "")
+        })
 
     except Exception as e:
         return jsonify({"error": "Internal server error", "details": str(e)}), 500
 
-@app.route("/api/vibe-message", methods=["POST"])
-def save_vibe_message():
+@app.route("/api/guest-authenticated")
+def guest_authenticated():
     try:
-        data = request.json
-        vibe_storage["message"] = data.get("message")
-        vibe_storage["guestName"] = data.get("guestName")
-        vibe_storage["timestamp"] = datetime.now().isoformat()
-        return jsonify({"status": "success"}), 200
+        code = request.args.get("code")
+        if not code or not code.isdigit():
+            return jsonify({"error": "Invalid code format"}), 400
+
+        listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
+        token = cached_token()
+        reservations = fetch_reservations(listing_id, token)
+
+        today = datetime.today().strftime("%Y-%m-%d")
+        now = datetime.now()
+
+        # STEP 1: Try to match a current guest
+        for r in reservations:
+            phone = r.get("phone", "")
+            if not phone or len(phone) < len(code):
+                continue
+
+            if phone.endswith(code):
+                guest_name = r.get("guestName", "there")
+                check_in, check_out = r.get("arrivalDate"), r.get("departureDate")
+                check_in_time = int(r.get("checkInTime", 16))
+                check_out_time = int(r.get("checkOutTime", 10))
+                status = r.get("status")
+
+                is_current_guest = (
+                    (check_in == today and now.hour >= check_in_time) or
+                    (check_in < today < check_out) or
+                    (check_out == today and now.hour < check_out_time)
+                )
+
+                if status in {"new", "modified", "confirmed", "accepted", "ownerStay"} and is_current_guest:
+                    return jsonify({
+                        "guestName": guest_name,
+                        "phone": phone,
+                        "property": "Casa Sea Esta",
+                        "checkIn": check_in,
+                        "checkOut": check_out,
+                        "message": f"You're all set, {guest_name} — welcome to Casa Sea Esta! 🌴\n"
+                                   "Need local recs, help with the house, or want to extend your stay? I’ve got you covered! ☀️",
+                        "verified": True
+                    })
+
+        # STEP 2: No current guest — try future guest for readiness help
+        guest = find_upcoming_guest_by_code(code)
+        if guest:
+            # ✅ Airtable log for prearrival verification
+            try:
+                airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+                headers = {
+                    "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+                    "Content-Type": "application/json"
+                }
+
+                log_data = {
+                    "fields": {
+                        "Name": guest["name"],
+                        "Full Phone": guest["phone"],
+                        "Date": datetime.utcnow().strftime("%Y-%m-%d"),
+                        "Category": "prearrival",
+                        "Message": "Guest was verified early (prearrival).",
+                        "Reply": "N/A",
+                        "Log Type": "Prearrival Verification"
+                    }
+                }
+
+                log_response = requests.post(airtable_url, headers=headers, json=log_data)
+                if log_response.status_code not in [200, 201]:
+                    print(f"[Airtable] Prearrival log failed: {log_response.text}")
+            except Exception as airtable_log_error:
+                print(f"[Airtable] Logging error: {airtable_log_error}")
+
+            return jsonify({
+                "guestName": guest["name"],
+                "phone": guest["phone"],
+                "property": guest["property"],
+                "checkIn": guest["checkin_date"],
+                "checkOut": guest["checkout_date"],
+                "message": f"Hey hey! It looks like your stay hasn’t kicked off just yet, so I can’t verify you until check-in day @ 4pm. 🕓\n"
+                           "BUT — I’d love to help you get ready! Want to know:\n"
+                           "- ✅ What to expect on arrival\n"
+                           "- 🏡 How check-in works\n"
+                           "- 📍Want early access or a pre-stocked fridge?\n"
+                           "Just say the word!",
+                "prearrival": True
+            })
+
+        return jsonify({"error": "Guest not found or not currently staying"}), 401
+
+    except Exception as e:
+        return jsonify({"error": "Internal server error", "details": str(e)}), 500
+
+@app.route("/api/next-availability")
+def next_availability():
+    if request.args.get('property') != "Casa Sea Esta":
+        return jsonify({"error": "Unknown property"}), 400
+
+    try:
+        listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]
+        token = cached_token()
+        reservations = fetch_reservations(listing_id, token)
+
+        today = datetime.utcnow().strftime("%Y-%m-%d")
+        future = [r for r in reservations if r.get("arrivalDate") and r["arrivalDate"] > today]
+        next_start = min(future, key=lambda r: r["arrivalDate"])["arrivalDate"] if future else None
+        nights = calculate_extra_nights(next_start)
+
+        return jsonify({"availableNights": nights, "nextBookingStart": next_start})
+
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-@app.route("/api/vibe-message", methods=["GET"])
-def get_vibe_message():
-    if "message" in vibe_storage:
-        return jsonify(vibe_storage), 200
-    return jsonify({"message": "No vibe message set"}), 404
+@app.route("/api/guest-message", methods=["POST"])
+def save_guest_message():
+    try:
+        import urllib.parse
+        data = request.get_json()
 
+        # ✅ Required fields
+        required_fields = ["name", "phone", "date", "message"]
+        if not all(field in data and data[field] for field in required_fields):
+            return jsonify({"error": "Missing required fields"}), 400
+
+        name = data["name"]
+        phone = data["phone"]
+        date = data["date"]
+        message = data["message"]
+
+        # 🔍 Detect early access or fridge interest
+        def matches_early_access_or_fridge(msg: str) -> bool:
+            triggers = [
+                "early access", "early check-in", "early checkin", "early arrival",
+                "fridge stocking", "stock the fridge", "grocery drop",
+                "fridge pre-stock", "can you stock", "groceries before arrival"
+            ]
+            return any(trigger in msg.lower() for trigger in triggers)
+
+        if matches_early_access_or_fridge(message):
+            try:
+                AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
+                BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
+                TABLE_ID = "tblviNlbgLbdEalOj"
+
+                url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
+                headers = {
+                    "Authorization": f"Bearer {AIRTABLE_TOKEN}"
+                }
+
+                response = requests.get(url, headers=headers)
+                if response.status_code != 200:
+                    return jsonify({"error": "Failed to fetch upsell options", "details": response.text}), 500
+
+                records = response.json().get("records", [])
+                options = []
+                for record in records:
+                    fields = record.get("fields", {})
+                    if not fields.get("active"):
+                        continue
+                    label = fields.get("label", "Option")
+                    price = fields.get("price", "$—")
+                    description = fields.get("description", "")
+                    options.append(f"### {label} — **{price}**\n> {description}")
+
+                upsell_text = (
+                    "Here’s what I can offer before your stay kicks off:\n\n"
+                    + "\n\n".join(options)
+                    + "\n\nLet me know if you'd like me to pass any of these on to the host for you! 🌴"
+                )
+
+                # Log the upsell interest to Airtable
+                try:
+                    airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+                    headers = {
+                        "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+                        "Content-Type": "application/json"
+                    }
+                
+                    log_data = {
+                        "fields": {
+                            "Name": name,
+                            "Full Phone": phone,
+                            "Date": date,
+                            "Category": "request",
+                            "Message": message,
+                            "Reply": upsell_text,
+                            "Log Type": "Prearrival Upsell"
+                        }
+                    }
+                
+                    log_response = requests.post(airtable_url, headers=headers, json=log_data)
+                    if log_response.status_code not in [200, 201]:
+                        print(f"[Airtable] Upsell log failed: {log_response.text}")
+                except Exception as e:
+                    print(f"[Airtable] Logging error: {e}")
+                
+                return jsonify({
+                    "smartHandled": True,
+                    "reply": upsell_text
+                })
+
+
+            except Exception as e:
+                return jsonify({"error": "Upsell auto-reply failed", "details": str(e)}), 500
+
+        # 🧠 Normal category classification
+        category = classify_category(message)
+        reply = smart_response(category)
+
+        # Airtable setup for logging
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+
+        log_types = detect_log_types(message)
+        
+        airtable_data = {
+            "fields": {
+                "Name": name,
+                "Full Phone": phone,
+                "Date": date,
+                "Category": category,
+                "Message": message,
+                "Reply": reply,
+                "Log Type": log_types  # This is now a list!
+            }
+        }
+
+        response = requests.post(airtable_url, headers=headers, json=airtable_data)
+        if response.status_code in [200, 201]:
+            return jsonify({"success": True, "reply": reply}), 200
+        else:
+            return jsonify({"error": "Failed to save to Airtable", "details": response.text}), 500
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+
+
+import os
+import requests
+from flask import jsonify, request
+
+@app.route("/api/prearrival-options")
+def prearrival_options():
+    try:
+        # ✅ Require phone param (even if unused — for API consistency)
+        phone = request.args.get("phone")
+        if not phone:
+            return jsonify({"error": "Phone number is required"}), 400
+
+        # ✅ Airtable config
+        AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
+        BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
+        TABLE_ID = "tblviNlbgLbdEalOj"  # Hardcoded table ID
+
+        # ✅ Build request
+        url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_TOKEN}"
+        }
+
+        # ✅ Fetch from Airtable
+        response = requests.get(url, headers=headers)
+        if response.status_code != 200:
+            return jsonify({"error": "Failed to fetch from Airtable", "details": response.text}), 500
+
+        records = response.json().get("records", [])
+        options = []
+
+        # ✅ Only include options where 'active' is checked
+        for record in records:
+            fields = record.get("fields", {})
+            if not fields.get("active"):  # <- filter only active
+                continue
+
+            options.append({
+                "id": fields.get("id"),
+                "label": fields.get("label"),
+                "description": fields.get("description"),
+                "price": fields.get("price")
+            })
+
+        return jsonify({"options": options}), 200
+
+    except Exception as e:
+        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+
+@app.route("/health")
+def health_check():
+    return jsonify({"status": "ok"}), 200
+    
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
