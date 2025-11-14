@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from utils.config import load_property_config
 from utils.message_helpers import classify_category, smart_response, detect_log_types  # assume you split helpers
 from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest_by_code
-
+from routers.prearrival import prearrival_router
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -34,8 +34,6 @@ from utils.airtable_client import (
 app = FastAPI()
 app.include_router(prearrival_router)
 
-
-app = FastAPI()
 
 # Enable CORS
 app.add_middleware(
