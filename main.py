@@ -191,7 +191,7 @@ def serve_debug_ui():
 
 @app.route("/api/debug/property-config")
 def debug_property_config():
-    slug = request.args.get("property", "casa-sea-esta")
+    slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")
     try:
         config = load_property_config(slug)
         return jsonify(config)
@@ -201,7 +201,7 @@ def debug_property_config():
 
 @app.route("/some-endpoint")
 def some_endpoint():
-    slug = request.args.get("property", "casa-sea-esta")  # Fallback if not provided
+    slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")  # Fallback if not provided
     try:
         config = load_property_config(slug)
     except FileNotFoundError:
