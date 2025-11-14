@@ -703,8 +703,8 @@ router = APIRouter()
 def prearrival_options(phone: str = Query(...)):
     try:
         # ✅ Airtable config
-        AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
-        BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
+        AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
+        BASE_ID = os.getenv("AIRTABLE_BASE_ID")
         TABLE_ID = "tblviNlbgLbdEalOj"  # Hardcoded table ID
 
         url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
