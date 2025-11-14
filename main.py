@@ -16,6 +16,7 @@ from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest
 
 from utils.prearrival import prearrival_router
 
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -696,51 +697,6 @@ def guest_authenticated(
 
     except Exception as e:
         return JSONResponse(content={"error": "Unexpected server error", "details": str(e)}, status_code=500)
-
-router = APIRouter()
-
-@router.get("/api/prearrival-options")
-def prearrival_options(phone: str = Query(...)):
-    try:
-        # ✅ Airtable config
-        AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
-        BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-        TABLE_ID = "tblviNlbgLbdEalOj"  # Hardcoded table ID
-
-        url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
-        headers = {
-            "Authorization": f"Bearer {AIRTABLE_TOKEN}"
-        }
-
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            return JSONResponse(
-                status_code=500,
-                content={"error": "Failed to fetch from Airtable", "details": response.text}
-            )
-
-        records = response.json().get("records", [])
-        options = []
-
-        for record in records:
-            fields = record.get("fields", {})
-            if not fields.get("active"):
-                continue
-
-            options.append({
-                "id": fields.get("id"),
-                "label": fields.get("label"),
-                "description": fields.get("description"),
-                "price": fields.get("price")
-            })
-
-        return {"options": options}
-
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Unexpected error", "details": str(e)}
-        )
 
 import uvicorn  # ✅ Add this if not already present
 
