@@ -4,7 +4,6 @@ import time
 import requests
 import logging
 
-
 from datetime import datetime, timedelta
 from functools import lru_cache
 from flask import Flask, jsonify, request, render_template
