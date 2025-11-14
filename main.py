@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 
 
 from utils.config import load_property_config
-from smart import classify_category, smart_response, detect_log_types
+from utils.smart import classify_category, smart_response, detect_log_types
 
 
 from fastapi import Request, Query, Path
