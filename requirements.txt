@@ -4,3 +4,6 @@ requests==2.32.3
 python-dotenv==1.0.1
 pytz
 cloudinary
+fastapi
+uvicorn[standard]
+pyairtable
