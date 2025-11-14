@@ -107,12 +107,16 @@ def safe_fetch_reservations(listing_id: str, retries: int = 3, delay: int = 1) -
             time.sleep(delay * (2 ** attempt))  # Exponential backoff
     raise Exception("Failed to fetch reservations after retries.")
 
-def find_upcoming_guest_by_code(code: str) -> dict | None:
+def find_upcoming_guest_by_code(code: str, slug: str = "casa-sea-esta") -> dict | None:
     """
     Search upcoming real reservations using the last 4 digits of the guest's phone number.
+    Dynamically loads listing_id and property name from config.json.
     """
     try:
-        listing_id = LEGACY_PROPERTY_MAP["casa-sea-esta"]  # TODO: Make dynamic per-property
+        config = load_property_config(slug)
+        listing_id = config.get("listing_id")
+        property_name = config.get("property", "Unknown Property")
+
         token = cached_token()
         reservations = fetch_reservations(listing_id, token)
 
@@ -134,7 +138,7 @@ def find_upcoming_guest_by_code(code: str) -> dict | None:
                 return {
                     "name": r.get("guestName", "Guest"),
                     "phone": phone,
-                    "property": "Casa Sea Esta",  # TODO: Make dynamic
+                    "property": property_name,
                     "checkin_date": checkin_str,
                     "checkout_date": r.get("departureDate")
                 }
