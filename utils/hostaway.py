@@ -2,6 +2,7 @@ import os
 import requests
 from datetime import datetime
 from calendar import monthrange
+from functools import lru_cache
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,6 +26,11 @@ def get_token():
     if not resp.ok:
         raise Exception("Hostaway authentication failed.")
     return resp.json().get("access_token")
+
+@lru_cache(maxsize=1)
+def cached_token():
+    """Return a cached token to avoid repeat API calls."""
+    return get_token()
 
 def fetch_reservations(listing_id, token):
     """Get all reservations for the current month for a given listing ID"""
@@ -50,8 +56,6 @@ def fetch_reservations(listing_id, token):
 
     return resp.json().get("result", [])
 
-from datetime import datetime
-
 def calculate_extra_nights(next_start_date):
     """
     Given the start date of the next reservation (YYYY-MM-DD),
@@ -65,17 +69,10 @@ def calculate_extra_nights(next_start_date):
         today = datetime.utcnow().date()
         next_date = datetime.strptime(next_start_date, "%Y-%m-%d").date()
         delta = (next_date - today).days
-        return max(0, delta)  # in case of same-day or past reservation glitch
+        return max(0, delta)
     except Exception as e:
         print(f"Error calculating extra nights: {e}")
         return 0
-
-from functools import lru_cache
-
-@lru_cache(maxsize=1)
-def cached_token():
-    """Return a cached token to avoid repeat API calls."""
-    return get_token()
 
 def find_upcoming_guest_by_code(code: str, slug: str) -> dict | None:
     """
@@ -117,15 +114,3 @@ def find_upcoming_guest_by_code(code: str, slug: str) -> dict | None:
     except Exception as e:
         print(f"[Guest Lookup] Error in find_upcoming_guest_by_code: {e}")
         return None
-
-from datetime import datetime
-from functools import lru_cache
-
-def calculate_extra_nights(...):
-    ...
-
-@lru_cache(maxsize=1)
-def cached_token():
-    return get_token()
-
-
