@@ -383,7 +383,7 @@ def debug_upcoming_guests():
 
 @app.route("/api/guest")
 def get_guest_info():
-    slug = request.args.get("property", "casa-sea-esta")  # Default fallback
+    slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")  # Default fallback
 
     try:
         config = load_property_config(slug)
@@ -444,7 +444,7 @@ def get_guest_info():
 def guest_authenticated():
     try:
         code = request.args.get("code")
-        slug = request.args.get("property", "casa-sea-esta")
+        slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")
 
         if not code or not code.isdigit():
             return jsonify({"error": "Invalid code format"}), 400
@@ -548,7 +548,7 @@ def guest_authenticated():
 @app.route("/api/guest-message", methods=["POST"])
 def save_guest_message():
     try:
-        slug = request.args.get("property", "casa-sea-esta")
+        slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")
         config = load_property_config(slug)
         emergency_phone = config.get("emergency_phone", "N/A")
 
