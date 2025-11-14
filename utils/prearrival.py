@@ -9,7 +9,7 @@ def fetch_prearrival_options(phone: str) -> list:
     try:
         AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
         BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-        TABLE_ID = "tblviNlbgLbdEalOj"
+        TABLE_ID = "tbloNTWaJvuo71XQs"
 
         url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
         headers = {
