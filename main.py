@@ -254,41 +254,41 @@ async def save_guest_message(message: GuestMessage, request: Request, property: 
             ]
             return any(trigger in msg.lower() for trigger in triggers)
 
-if matches_early_access_or_fridge(msg_text):
-    try:
-        # Use internal API call to fetch prearrival upsell options
-        port = os.getenv("PORT", "10000")
-        internal_url = f"http://localhost:{port}/api/prearrival-options"
+        if matches_early_access_or_fridge(msg_text):
+            try:
+                # Use internal API call to fetch prearrival upsell options
+                port = os.getenv("PORT", "10000")
+                internal_url = f"http://localhost:{port}/api/prearrival-options"
 
-        options_resp = requests.get(internal_url, params={"phone": phone})
+                options_resp = requests.get(internal_url, params={"phone": phone})
 
-        if options_resp.status_code != 200:
-            return JSONResponse(
-                status_code=500,
-                content={"error": "Failed to fetch upsell options"}
-            )
+                if options_resp.status_code != 200:
+                    return JSONResponse(
+                        status_code=500,
+                        content={"error": "Failed to fetch upsell options"}
+                    )
 
-        data = options_resp.json()
-        options = data.get("options", [])
+                data = options_resp.json()
+                options = data.get("options", [])
 
-        if not options:
-            return {"smartHandled": True, "reply": "Prearrival options coming soon."}
+                if not options:
+                    return {"smartHandled": True, "reply": "Prearrival options coming soon."}
 
-        reply_text = "\n\n".join(
-            f"### {opt['label']} — **{opt['price']}**\n> {opt['description']}"
-            for opt in options
-        )
+                reply_text = "\n\n".join(
+                    f"### {opt['label']} — **{opt['price']}**\n> {opt['description']}"
+                    for opt in options
+                )
 
-        return {
-            "smartHandled": True,
-            "reply": "Here’s what I can offer before your stay kicks off:\n\n" + reply_text
-        }
+                return {
+                    "smartHandled": True,
+                    "reply": "Here’s what I can offer before your stay kicks off:\n\n" + reply_text
+                }
 
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Upsell auto-reply failed", "details": str(e)}
-        )
+            except Exception as e:
+                return JSONResponse(
+                    status_code=500,
+                    content={"error": "Upsell auto-reply failed", "details": str(e)}
+                )
 
         # Normal classification path
         category = classify_category(msg_text)
