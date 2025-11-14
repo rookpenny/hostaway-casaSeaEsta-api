@@ -32,9 +32,9 @@ app = Flask(__name__)
 CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # ----------- CONSTANTS -----------
-ALLOWED_LISTING_IDS = {"256853"}  # Expand this if adding more properties
-LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}  # Consider removing this when all configs move to file-based
-EMERGENCY_PHONE = "+1-650-313-3724"  # Consider moving this to per-property config
+#ALLOWED_LISTING_IDS = {"256853"}  # Expand this if adding more properties
+#LEGACY_PROPERTY_MAP = {"casa-sea-esta": "256853"}  # Consider removing this when all configs move to file-based
+#EMERGENCY_PHONE = "+1-650-313-3724"  # Consider moving this to per-property config
 
 # ----------- MESSAGE CLASSIFICATION -----------
 def classify_category(message: str) -> str:
@@ -164,6 +164,8 @@ def detect_log_types(message: str) -> list[str]:
         for log_type in types
     }) or ["Guest Message"]
 
+# ---------- LOG TYPE DETECTION ----------
+
 @app.route("/")
 def home():
     return jsonify({"message": "Welcome to the multi-property Sandy API!"}), 200
@@ -182,6 +184,27 @@ def serve_openapi():
 @app.route("/debug")
 def serve_debug_ui():
     return render_template("debug.html")
+
+
+@app.route("/admin/config/<slug>", methods=["GET"])
+def get_config(slug):
+    try:
+        config = load_property_config(slug)
+        return jsonify(config)
+    except FileNotFoundError:
+        return jsonify({"error": "Config not found"}), 404
+
+@app.route("/admin/config/<slug>", methods=["POST"])
+def save_config(slug):
+    try:
+        data = request.get_json()
+        config_path = f"data/{slug}/config.json"
+        os.makedirs(os.path.dirname(config_path), exist_ok=True)
+        with open(config_path, "w") as f:
+            json.dump(data, f, indent=2)
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 
 ALLOWED_STATUSES = {"new", "modified", "confirmed", "accepted", "ownerStay"}
