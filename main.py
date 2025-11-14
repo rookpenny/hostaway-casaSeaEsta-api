@@ -14,8 +14,8 @@ from dotenv import load_dotenv
 from utils.hostaway import get_token, fetch_reservations
 from utils.config import load_property_config  # Ensure this loads per-property configs
 
-config = load_property_config(slug)
-emergency_phone = config.get("emergency_phone", "N/A")
+#config = load_property_config(slug)
+#emergency_phone = config.get("emergency_phone", "N/A")
 
 
 # ----------- CONFIG LOADER -----------
@@ -198,6 +198,13 @@ def debug_property_config():
         return jsonify(config)
     except Exception as e:
         return jsonify({"error": str(e)}), 404
+
+@app.route("/some-endpoint")
+def some_endpoint():
+    slug = request.args.get("property", "casa-sea-esta")
+    config = load_property_config(slug)
+    # now use config
+
         
 @app.route("/admin/config/<slug>", methods=["GET"])
 def get_config(slug):
