@@ -234,12 +234,6 @@ def list_guests():
     records = table.all()
     return [record["fields"] for record in records]
 
-@app.get("/prearrival-options")
-def get_prearrival_options():
-    table = get_prearrival_table()
-    records = table.all()
-    return [record["fields"] for record in records if record["fields"].get("active")]
-
 @app.post("/guest-message")
 async def save_guest_message(message: GuestMessage, request: Request, property: str = Query("casa-sea-esta")):
     try:
