@@ -62,9 +62,9 @@ def load_property_config(slug: str) -> dict:
         return json.load(f)
 
 # ----------- TOKEN CACHING -----------
-@lru_cache(maxsize=1)
-def cached_token():
-    return get_token()
+#@lru_cache(maxsize=1)
+#def cached_token():
+#    return get_token()
 
 # ----------- FLASK INIT -----------
 #load_dotenv()
