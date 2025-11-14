@@ -254,7 +254,7 @@ async def save_guest_message(message: GuestMessage, request: Request, property: 
             ]
             return any(trigger in msg.lower() for trigger in triggers)
 
-    if matches_early_access_or_fridge(msg_text):
+if matches_early_access_or_fridge(msg_text):
     try:
         # Use internal API call to fetch prearrival upsell options
         port = os.getenv("PORT", "10000")
@@ -273,17 +273,16 @@ async def save_guest_message(message: GuestMessage, request: Request, property: 
 
         if not options:
             return {"smartHandled": True, "reply": "Prearrival options coming soon."}
-
-        # Format upsell message
-        upsell_text = (
-            "Here’s what I can offer before your stay kicks off:\n\n" +
-            "\n\n".join(
-                [f"### {o['label']} — **{o['price']}**\n> {o['description']}" for o in options]
-            ) +
-            "\n\nLet me know if you'd like me to pass any of these on to the host for you! 🌴"
+        
+        # (Optional) Add how to build the reply text here
+        reply_text = "\n\n".join(
+            f"### {opt['label']} — **{opt['price']}**\n> {opt['description']}"
+            for opt in options
         )
-
-        return {"smartHandled": True, "reply": upsell_text}
+        return {
+            "smartHandled": True,
+            "reply": "Here’s what I can offer before your stay kicks off:\n\n" + reply_text
+        }
 
     except Exception as e:
         return JSONResponse(
