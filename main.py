@@ -1,34 +1,44 @@
+
+from fastapi import Request, Query
+from fastapi.responses import JSONResponse
+from utils.config import load_property_config
+from utils.message_helpers import classify_category, smart_response, detect_log_types  # assume you split helpers
+
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from datetime import datetime
 import os
 import json
 import time
 import requests
 import logging
-
-from datetime import datetime, timedelta
-from functools import lru_cache
-from flask import Flask, jsonify, request, render_template
-from flask_cors import CORS
-from dotenv import load_dotenv
-
-from utils.hostaway import get_token, fetch_reservations
-from utils.config import load_property_config  # Ensure this loads per-property configs
-
-from fastapi import FastAPI
-from utils.airtable_client import get_properties_table
+from utils.airtable_client import (
+    get_properties_table,
+    get_pmcs_table,
+    get_guests_table,
+    get_prearrival_table,
+    get_messages_table
+)
 
 app = FastAPI()
 
-@app.get("/properties")
-def list_properties():
-    table = get_properties_table()
-    records = table.all()
-    return [record["fields"] for record in records]
+# Enable CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
-
-#config = load_property_config(slug)
-#emergency_phone = config.get("emergency_phone", "N/A")
-
-
+# ------------------ MODELS ------------------
+class GuestMessage(BaseModel):
+    name: str
+    phone: str
+    date: str
+    message: str
+    
 # ----------- CONFIG LOADER -----------
 def load_property_config(slug: str) -> dict:
     path = f"data/{slug}/config.json"
@@ -182,14 +192,146 @@ def detect_log_types(message: str) -> list[str]:
 
 # ---------- LOG TYPE DETECTION ----------
 
-@app.route("/")
-def home():
-    return jsonify({"message": "Welcome to the multi-property Sandy API!"}), 200
+@app.get("/")
+def root():
+    return {"message": "Welcome to the multi-property Sandy API (FastAPI edition)!"}
 
-
-@app.route("/health")
+@app.get("/health")
 def health_check():
-    return jsonify({"status": "ok"}), 200
+    return {"status": "ok"}
+
+@app.get("/properties")
+def list_properties():
+    table = get_properties_table()
+    records = table.all()
+    return [record["fields"] for record in records]
+
+
+@app.get("/pmcs")
+def list_pmcs():
+    table = get_pmcs_table()
+    records = table.all()
+    return [record["fields"] for record in records]
+
+@app.get("/guests")
+def list_guests():
+    table = get_guests_table()
+    records = table.all()
+    return [record["fields"] for record in records]
+
+@app.get("/prearrival-options")
+def get_prearrival_options():
+    table = get_prearrival_table()
+    records = table.all()
+    return [record["fields"] for record in records if record["fields"].get("active")]
+
+@app.post("/guest-message")
+async def save_guest_message(message: GuestMessage, request: Request, property: str = Query("casa-sea-esta")):
+    try:
+        slug = property.lower().replace(" ", "-")
+        config = load_property_config(slug)
+        emergency_phone = config.get("emergency_phone", "N/A")
+
+        name = message.name
+        phone = message.phone
+        date = message.date
+        msg_text = message.message
+
+        def matches_early_access_or_fridge(msg: str) -> bool:
+            triggers = [
+                "early access", "early check-in", "early checkin", "early arrival",
+                "fridge stocking", "stock the fridge", "grocery drop",
+                "fridge pre-stock", "can you stock", "groceries before arrival"
+            ]
+            return any(trigger in msg.lower() for trigger in triggers)
+
+        if matches_early_access_or_fridge(msg_text):
+            try:
+                AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
+                BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
+                TABLE_ID = "tblviNlbgLbdEalOj"
+
+                url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
+                headers = {"Authorization": f"Bearer {AIRTABLE_TOKEN}"}
+                response = requests.get(url, headers=headers)
+
+                if response.status_code != 200:
+                    return JSONResponse(status_code=500, content={"error": "Failed to fetch upsell options"})
+
+                records = response.json().get("records", [])
+                options = []
+                for record in records:
+                    fields = record.get("fields", {})
+                    if not fields.get("active"):
+                        continue
+                    label = fields.get("label", "Option")
+                    price = fields.get("price", "$—")
+                    description = fields.get("description", "")
+                    options.append(f"### {label} — **{price}**\n> {description}")
+
+                upsell_text = (
+                    "Here’s what I can offer before your stay kicks off:\n\n"
+                    + "\n\n".join(options)
+                    + "\n\nLet me know if you'd like me to pass any of these on to the host for you! 🌴"
+                )
+
+                # Log to main guest messages table
+                log_headers = {
+                    "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+                    "Content-Type": "application/json"
+                }
+                log_data = {
+                    "fields": {
+                        "Name": name,
+                        "Full Phone": phone,
+                        "Date": date,
+                        "Category": "request",
+                        "Message": msg_text,
+                        "Reply": upsell_text,
+                        "Log Type": "Prearrival Upsell"
+                    }
+                }
+                log_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+                requests.post(log_url, headers=log_headers, json=log_data)
+
+                return {"smartHandled": True, "reply": upsell_text}
+
+            except Exception as e:
+                return JSONResponse(status_code=500, content={"error": "Upsell auto-reply failed", "details": str(e)})
+
+        # Normal classification path
+        category = classify_category(msg_text)
+        reply = smart_response(category, emergency_phone)
+        log_types = detect_log_types(msg_text)
+
+        payload = {
+            "fields": {
+                "Name": name,
+                "Full Phone": phone,
+                "Date": date,
+                "Category": category,
+                "Message": msg_text,
+                "Reply": reply,
+                "Log Type": log_types
+            }
+        }
+
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+            "Content-Type": "application/json"
+        }
+
+        response = requests.post(airtable_url, headers=headers, json=payload)
+        if response.status_code not in [200, 201]:
+            return JSONResponse(status_code=500, content={"error": "Failed to save to Airtable", "details": response.text})
+
+        return {"success": True, "reply": reply}
+
+    except FileNotFoundError:
+        return JSONResponse(status_code=400, content={"error": "Unknown property"})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": "Unexpected server error", "details": str(e)})
 
 
 @app.route("/docs/openapi.yaml")
@@ -553,133 +695,6 @@ def guest_authenticated():
             })
 
         return jsonify({"error": "Guest not found or not currently staying"}), 401
-
-    except Exception as e:
-        return jsonify({"error": "Internal server error", "details": str(e)}), 500
-
-@app.route("/api/guest-message", methods=["POST"])
-def save_guest_message():
-    try:
-        slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")
-        config = load_property_config(slug)
-        emergency_phone = config.get("emergency_phone", "N/A")
-
-        data = request.get_json()
-
-        # ✅ Required fields
-        required_fields = ["name", "phone", "date", "message"]
-        if not all(field in data and data[field] for field in required_fields):
-            return jsonify({"error": "Missing required fields"}), 400
-
-        name = data["name"]
-        phone = data["phone"]
-        date = data["date"]
-        message = data["message"]
-
-        # 🔍 Detect early access or fridge interest
-        def matches_early_access_or_fridge(msg: str) -> bool:
-            triggers = [
-                "early access", "early check-in", "early checkin", "early arrival",
-                "fridge stocking", "stock the fridge", "grocery drop",
-                "fridge pre-stock", "can you stock", "groceries before arrival"
-            ]
-            return any(trigger in msg.lower() for trigger in triggers)
-
-        if matches_early_access_or_fridge(message):
-            try:
-                AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
-                BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
-                TABLE_ID = "tblviNlbgLbdEalOj"
-
-                url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
-                headers = {
-                    "Authorization": f"Bearer {AIRTABLE_TOKEN}"
-                }
-
-                response = requests.get(url, headers=headers)
-                if response.status_code != 200:
-                    return jsonify({
-                        "error": "Failed to fetch upsell options",
-                        "details": response.text
-                    }), 500
-
-                records = response.json().get("records", [])
-                options = []
-                for record in records:
-                    fields = record.get("fields", {})
-                    if not fields.get("active"):
-                        continue
-                    label = fields.get("label", "Option")
-                    price = fields.get("price", "$—")
-                    description = fields.get("description", "")
-                    options.append(f"### {label} — **{price}**\n> {description}")
-
-                upsell_text = (
-                    "Here’s what I can offer before your stay kicks off:\n\n"
-                    + "\n\n".join(options)
-                    + "\n\nLet me know if you'd like me to pass any of these on to the host for you! 🌴"
-                )
-
-                # Log interest in Airtable
-                airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
-                log_headers = {
-                    "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
-                    "Content-Type": "application/json"
-                }
-
-                log_data = {
-                    "fields": {
-                        "Name": name,
-                        "Full Phone": phone,
-                        "Date": date,
-                        "Category": "request",
-                        "Message": message,
-                        "Reply": upsell_text,
-                        "Log Type": "Prearrival Upsell"
-                    }
-                }
-
-                log_response = requests.post(airtable_url, headers=log_headers, json=log_data)
-                if log_response.status_code not in [200, 201]:
-                    print(f"[Airtable] Upsell log failed: {log_response.text}")
-
-                return jsonify({
-                    "smartHandled": True,
-                    "reply": upsell_text
-                })
-
-            except Exception as e:
-                return jsonify({"error": "Upsell auto-reply failed", "details": str(e)}), 500
-
-        # 🧠 Category classification + smart reply
-        category = classify_category(message)
-        reply = smart_response(category, emergency_phone)
-
-        # Log normal message to Airtable
-        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
-        headers = {
-            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
-            "Content-Type": "application/json"
-        }
-
-        log_types = detect_log_types(message)
-        airtable_data = {
-            "fields": {
-                "Name": name,
-                "Full Phone": phone,
-                "Date": date,
-                "Category": category,
-                "Message": message,
-                "Reply": reply,
-                "Log Type": log_types
-            }
-        }
-
-        response = requests.post(airtable_url, headers=headers, json=airtable_data)
-        if response.status_code in [200, 201]:
-            return jsonify({"success": True, "reply": reply}), 200
-        else:
-            return jsonify({"error": "Failed to save to Airtable", "details": response.text}), 500
 
     except FileNotFoundError:
         return jsonify({"error": "Unknown property"}), 400
