@@ -14,9 +14,10 @@ from utils.hostaway import get_token, fetch_reservations
 from utils.config import load_property_config  # Ensure this loads per-property configs
 
 from fastapi import FastAPI
-from airtable_client import get_properties_table
+from utils.airtable_client import get_properties_table
 
 app = FastAPI()
+
 
 #config = load_property_config(slug)
 #emergency_phone = config.get("emergency_phone", "N/A")
