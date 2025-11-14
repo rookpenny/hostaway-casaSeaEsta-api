@@ -1,1 +1,13 @@
-asdf
+{
+  "property": "Casa Sea Esta",
+  "slug": "casa-sea-esta",
+  "listing_id": "256853",
+  "emergency_phone": "+1-650-313-3724",
+  "checkin_time": 16,
+  "checkout_time": 10,
+  "wifi": {
+    "network": "Casa Sea Esta Guest",
+    "password": "EndlessSummer1969"
+  },
+  "manual": "manual.txt"
+}
