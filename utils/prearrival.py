@@ -5,11 +5,11 @@ import requests
 
 prearrival_router = APIRouter()
 
-def fetch_prearrival_options(phone: str, property: str) -> list:
+def fetch_prearrival_options(phone: str) -> list:
     try:
         AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
         BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-        TABLE_ID = "tbloNTWaJvuo71XQs"
+        TABLE_ID = "tbloNTWaJvuo71XQs"  # Your correct table ID
 
         url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
         headers = {
@@ -17,6 +17,8 @@ def fetch_prearrival_options(phone: str, property: str) -> list:
         }
 
         response = requests.get(url, headers=headers)
+        print(response.json())  # 🔍 Debug Airtable response
+
         if response.status_code != 200:
             return []
 
@@ -25,19 +27,24 @@ def fetch_prearrival_options(phone: str, property: str) -> list:
 
         for record in records:
             fields = record.get("fields", {})
-            if not fields.get("active"):
+            print(fields)  # 🔍 Inspect each row from Airtable
+
+            if not fields.get("Active"):
                 continue
-        
+            if fields.get("Property") != "Casa Sea Esta":
+                continue
+
             options.append({
-                "id": fields.get("id"),
-                "label": fields.get("label"),
-                "description": fields.get("description"),
-                "price": fields.get("price")
+                "id": fields.get("ID"),
+                "label": fields.get("Label"),
+                "description": fields.get("Description"),
+                "price": fields.get("Price")
             })
 
         return options
 
-    except Exception:
+    except Exception as e:
+        print(f"Error fetching prearrival options: {e}")
         return []
 
 @prearrival_router.get("/api/prearrival-options")
