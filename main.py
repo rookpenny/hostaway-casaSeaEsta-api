@@ -1,8 +1,17 @@
 
-from fastapi import Request, Query
-from fastapi.responses import JSONResponse
+
+from datetime import datetime, timedelta
+
+
+from config import load_property_config
+from smart import classify_category, smart_response, detect_log_types
+
+
+from fastapi import Request, Query, Path
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 from utils.config import load_property_config
 from utils.message_helpers import classify_category, smart_response, detect_log_types  # assume you split helpers
+from utils.pm_helpers import cached_token, fetch_reservations, find_upcoming_guest_by_code
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +29,10 @@ from utils.airtable_client import (
     get_prearrival_table,
     get_messages_table
 )
+
+app = FastAPI()
+app.include_router(prearrival_router)
+
 
 app = FastAPI()
 
@@ -53,9 +66,9 @@ def cached_token():
     return get_token()
 
 # ----------- FLASK INIT -----------
-load_dotenv()
-app = Flask(__name__)
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+#load_dotenv()
+#app = Flask(__name__)
+#CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
 
 # ----------- CONSTANTS -----------
 #ALLOWED_LISTING_IDS = {"256853"}  # Expand this if adding more properties
@@ -334,91 +347,74 @@ async def save_guest_message(message: GuestMessage, request: Request, property: 
         return JSONResponse(status_code=500, content={"error": "Unexpected server error", "details": str(e)})
 
 
-@app.route("/docs/openapi.yaml")
+# Example: handle /docs/openapi.yaml
+@app.get("/docs/openapi.yaml")
 def serve_openapi():
-    return app.send_static_file("docs/openapi.yaml")
+    return FileResponse("docs/openapi.yaml", media_type="text/yaml")
 
 
-@app.route("/debug")
+# Example: handle /debug
+@app.get("/debug", response_class=HTMLResponse)
 def serve_debug_ui():
-    return render_template("debug.html")
+    with open("templates/debug.html") as f:
+        return f.read()
 
-@app.route("/api/debug/property-config")
-def debug_property_config():
-    slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")
+# GET: /api/debug/property-config
+@app.get("/api/debug/property-config")
+def debug_property_config(property: str = Query("casa-sea-esta")):
+    slug = property.lower().replace(" ", "-")
     try:
         config = load_property_config(slug)
-        return jsonify(config)
+        return config
     except Exception as e:
-        return jsonify({"error": str(e)}), 404
-
-
-@app.route("/some-endpoint")
-def some_endpoint():
-    slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")  # Fallback if not provided
+        return JSONResponse(content={"error": str(e)}, status_code=404)
+# GET: /some-endpoint
+@app.get("/some-endpoint")
+def some_endpoint(property: str = Query("casa-sea-esta")):
+    slug = property.lower().replace(" ", "-")
     try:
         config = load_property_config(slug)
+        listing_id = config.get("listing_id")
+        emergency_phone = config.get("emergency_phone", "N/A")
+        return {
+            "property": config.get("property"),
+            "listing_id": listing_id,
+            "emergency_phone": emergency_phone
+        }
     except FileNotFoundError:
-        return jsonify({"error": f"Missing config for: {slug}"}), 404
+        return JSONResponse(content={"error": f"Missing config for: {slug}"}, status_code=404)
     except Exception as e:
-        return jsonify({"error": f"Config load error: {str(e)}"}), 500
+        return JSONResponse(content={"error": f"Config load error: {str(e)}"}, status_code=500)
 
-    # ✅ Now use config safely
-    listing_id = config.get("listing_id")
-    emergency_phone = config.get("emergency_phone", "N/A")
-
-    return jsonify({
-        "property": config.get("property"),
-        "listing_id": listing_id,
-        "emergency_phone": emergency_phone
-    })
-
-
-        
-@app.route("/admin/config/<slug>", methods=["GET"])
-def get_config(slug):
+# GET: /admin/config/{slug}
+@app.get("/admin/config/{slug}")
+def get_config(slug: str = Path(...)):
     try:
         config = load_property_config(slug)
-        return jsonify(config)
+        return config
     except FileNotFoundError:
-        return jsonify({"error": "Config not found"}), 404
+        return JSONResponse(content={"error": "Config not found"}, status_code=404)
 
-#@app.route("/admin/config/<slug>", methods=["POST"])
-#def save_config(slug):
-#    try:
-#        data = request.get_json()
-#        config_path = f"data/{slug}/config.json"
-#        os.makedirs(os.path.dirname(config_path), exist_ok=True)
-#        with open(config_path, "w") as f:
-#            json.dump(data, f, indent=2)
-#        return jsonify({"success": True})
-#    except Exception as e:
-#        return jsonify({"error": str(e)}), 500
+# POST: /api/refer
+class ReferRequest(BaseModel):
+    name: str
+    phone: str
 
 
 ALLOWED_STATUSES = {"new", "modified", "confirmed", "accepted", "ownerStay"}
 
-
-@app.route("/api/refer", methods=["POST"])
-def refer_friend():
+@app.post("/api/refer")
+def refer_friend(data: ReferRequest):
     try:
-        data = request.get_json()
-        name = data.get("name")
-        phone = data.get("phone")
-
-        if not name or not phone:
-            return jsonify({"error": "Missing required fields"}), 400
-
         airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
         headers = {
             "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
             "Content-Type": "application/json"
         }
-
         payload = {
             "fields": {
-                "Name": name,
-                "Full Phone": phone,
+                "Name": data.name,
+                "Full Phone": data.phone,
                 "Date": datetime.utcnow().strftime("%Y-%m-%d"),
                 "Category": "referral",
                 "Message": "Guest requested a referral link.",
@@ -429,30 +425,26 @@ def refer_friend():
 
         response = requests.post(airtable_url, headers=headers, json=payload)
         if response.status_code not in [200, 201]:
-            return jsonify({"error": "Failed to save referral log", "details": response.text}), 500
+            return JSONResponse(content={"error": "Failed to save referral log", "details": response.text}, status_code=500)
 
-        referral_link = f"https://casaseaesta.com/referral?from={phone[-4:]}"
-        return jsonify({
+        referral_link = f"https://casaseaesta.com/referral?from={data.phone[-4:]}"
+        return {
             "success": True,
             "message": "Here’s your referral link!",
             "link": referral_link
-        })
+        }
 
     except Exception as e:
-        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+        return JSONResponse(content={"error": "Unexpected error", "details": str(e)}, status_code=500)
+# POST: /api/join-email
+class EmailOptInRequest(BaseModel):
+    name: str
+    phone: str
+    email: str
 
-
-@app.route("/api/join-email", methods=["POST"])
-def join_email_list():
+@app.post("/api/join-email")
+def join_email_list(data: EmailOptInRequest):
     try:
-        data = request.get_json()
-        name = data.get("name")
-        phone = data.get("phone")
-        email = data.get("email")
-
-        if not all([name, phone, email]):
-            return jsonify({"error": "Missing name, phone, or email"}), 400
-
         airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblGEDhos73P2C5kn"
         headers = {
             "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
@@ -461,11 +453,11 @@ def join_email_list():
 
         payload = {
             "fields": {
-                "Name": name,
-                "Full Phone": phone,
+                "Name": data.name,
+                "Full Phone": data.phone,
                 "Date": datetime.utcnow().strftime("%Y-%m-%d"),
                 "Category": "email_opt_in",
-                "Message": f"{name} ({email}) opted into the email list.",
+                "Message": f"{data.name} ({data.email}) opted into the email list.",
                 "Reply": "N/A",
                 "Log Type": "Email List Opt-in"
             }
@@ -473,35 +465,37 @@ def join_email_list():
 
         response = requests.post(airtable_url, headers=headers, json=payload)
         if response.status_code not in [200, 201]:
-            return jsonify({"error": "Failed to log email opt-in", "details": response.text}), 500
+            return JSONResponse(content={"error": "Failed to log email opt-in", "details": response.text}, status_code=500)
 
-        return jsonify({"success": True, "message": "You're on the list — welcome!"})
+        return {"success": True, "message": "You're on the list — welcome!"}
 
     except Exception as e:
-        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+        return JSONResponse(content={"error": "Unexpected error", "details": str(e)}, status_code=500)
 
 
-@app.route("/api/debug/upcoming-guests")
-def debug_upcoming_guests():
-    # 🔐 API key check
-    api_key = request.headers.get("X-API-KEY")
+
+@app.get("/api/debug/upcoming-guests")
+def debug_upcoming_guests(
+    request: Request,
+    property: str = Query("casa-sea-esta"),
+    days_out: int = Query(20),
+    x_api_key: str = Header(None)
+):
     expected_key = os.getenv("ADMIN_API_KEY")
-    if api_key != expected_key:
-        return jsonify({"error": "Unauthorized"}), 403
+    if x_api_key != expected_key:
+        return JSONResponse(content={"error": "Unauthorized"}, status_code=403)
 
     try:
-        slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")
-        days_out = int(request.args.get("days_out", 20))
+        slug = property.lower().replace(" ", "-")
 
-        # ✅ Load config dynamically
         try:
             config = load_property_config(slug)
         except FileNotFoundError:
-            return jsonify({"error": f"No config found for '{slug}'"}), 404
+            return JSONResponse(content={"error": f"No config found for '{slug}'"}, status_code=404)
 
         listing_id = config.get("listing_id")
         if not listing_id:
-            return jsonify({"error": "Missing listing_id in config"}), 400
+            return JSONResponse(content={"error": "Missing listing_id in config"}, status_code=400)
 
         token = cached_token()
         reservations = fetch_reservations(listing_id, token)
@@ -529,27 +523,26 @@ def debug_upcoming_guests():
             except Exception as inner_e:
                 logging.warning(f"[Upcoming Guests] Reservation parse error: {inner_e}")
 
-        return jsonify({"results": guests, "count": len(guests)})
+        return {"results": guests, "count": len(guests)}
 
     except Exception as e:
-        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+        return JSONResponse(content={"error": "Unexpected error", "details": str(e)}, status_code=500)
 
-
-@app.route("/api/guest")
-def get_guest_info():
-    slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")  # Default fallback
+@app.get("/api/guest")
+def get_guest_info(property: str = Query("casa-sea-esta")):
+    slug = property.lower().replace(" ", "-")
 
     try:
         config = load_property_config(slug)
     except FileNotFoundError:
-        return jsonify({"error": f"No config found for '{slug}'"}), 404
+        return JSONResponse(content={"error": f"No config found for '{slug}'"}, status_code=404)
     except Exception as e:
-        return jsonify({"error": f"Failed to load config: {str(e)}"}), 500
+        return JSONResponse(content={"error": f"Failed to load config: {str(e)}"}, status_code=500)
 
     try:
         listing_id = config.get("listing_id")
         if not listing_id:
-            return jsonify({"error": "Missing listing_id in config"}), 400
+            return JSONResponse(content={"error": "Missing listing_id in config"}, status_code=400)
 
         token = cached_token()
         reservations = fetch_reservations(listing_id, token)
@@ -576,10 +569,10 @@ def get_guest_info():
                 valid_reservations.append(r)
 
         if not valid_reservations:
-            return jsonify({"message": "No guest currently checked in."}), 404
+            return JSONResponse(content={"message": "No guest currently checked in."}, status_code=404)
 
         latest = max(valid_reservations, key=lambda r: r.get("updatedOn", ""))
-        return jsonify({
+        return {
             "guestName": latest.get("guestName"),
             "checkIn": latest.get("arrivalDate"),
             "checkInTime": str(latest.get("checkInTime", config.get("default_checkin_time", 16))),
@@ -588,33 +581,35 @@ def get_guest_info():
             "numberOfGuests": str(latest.get("numberOfGuests")),
             "phone": latest.get("phone"),
             "notes": latest.get("comment", "")
-        })
+        }
 
     except Exception as e:
-        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+        return JSONResponse(content={"error": "Unexpected server error", "details": str(e)}, status_code=500)
+        
 
+@app.get("/api/guest-authenticated")
+def guest_authenticated(
+    code: str = Query(...),
+    property: str = Query("casa-sea-esta")
+):
+    slug = property.lower().replace(" ", "-")
 
-@app.route("/api/guest-authenticated")
-def guest_authenticated():
+    if not code.isdigit():
+        return JSONResponse(content={"error": "Invalid code format"}, status_code=400)
+
     try:
-        code = request.args.get("code")
-        slug = request.args.get("property", "casa-sea-esta").lower().replace(" ", "-")
+        config = load_property_config(slug)
+    except FileNotFoundError:
+        return JSONResponse(content={"error": f"No config found for '{slug}'"}, status_code=404)
 
-        if not code or not code.isdigit():
-            return jsonify({"error": "Invalid code format"}), 400
+    listing_id = config.get("listing_id")
+    property_name = config.get("property", slug.replace("-", " ").title())
+    emergency_phone = config.get("emergency_phone", "N/A")
 
-        try:
-            config = load_property_config(slug)
-        except FileNotFoundError:
-            return jsonify({"error": f"No config found for '{slug}'"}), 404
+    if not listing_id:
+        return JSONResponse(content={"error": "Missing listing_id in config"}, status_code=400)
 
-        listing_id = config.get("listing_id")
-        property_name = config.get("property", slug.replace("-", " ").title())
-        emergency_phone = config.get("emergency_phone", "N/A")
-
-        if not listing_id:
-            return jsonify({"error": "Missing listing_id in config"}), 400
-
+    try:
         token = cached_token()
         reservations = fetch_reservations(listing_id, token)
 
@@ -641,7 +636,7 @@ def guest_authenticated():
             )
 
             if status in ALLOWED_STATUSES and is_current_guest:
-                return jsonify({
+                return {
                     "guestName": guest_name,
                     "phone": phone,
                     "property": property_name,
@@ -650,7 +645,7 @@ def guest_authenticated():
                     "message": f"You're all set, {guest_name} — welcome to {property_name}! 🌴\n"
                                "Need local recs, help with the house, or want to extend your stay? I’ve got you covered! ☀️",
                     "verified": True
-                })
+                }
 
         # STEP 2: Future guest — readiness support
         guest = find_upcoming_guest_by_code(code, slug)
@@ -679,64 +674,56 @@ def guest_authenticated():
             except Exception as airtable_log_error:
                 logging.warning(f"[Airtable] Logging error: {airtable_log_error}")
 
-            return jsonify({
+            return {
                 "guestName": guest["name"],
                 "phone": guest["phone"],
                 "property": guest["property"],
                 "checkIn": guest["checkin_date"],
                 "checkOut": guest["checkout_date"],
-                "message": f"Hey hey! It looks like your stay hasn’t kicked off just yet, so I can’t verify you until check-in day @ 4pm. 🕓\n"
-                           "BUT — I’d love to help you get ready! Want to know:\n"
-                           "- ✅ What to expect on arrival\n"
-                           "- 🏡 How check-in works\n"
-                           "- 📍Want early access or a pre-stocked fridge?\n"
-                           "Just say the word!",
+                "message": (
+                    f"Hey hey! It looks like your stay hasn’t kicked off just yet, so I can’t verify you until check-in day @ 4pm. 🕓\n"
+                    "BUT — I’d love to help you get ready! Want to know:\n"
+                    "- ✅ What to expect on arrival\n"
+                    "- 🏡 How check-in works\n"
+                    "- 📍Want early access or a pre-stocked fridge?\n"
+                    "Just say the word!"
+                ),
                 "prearrival": True
-            })
+            }
 
-        return jsonify({"error": "Guest not found or not currently staying"}), 401
+        return JSONResponse(content={"error": "Guest not found or not currently staying"}, status_code=401)
 
-    except FileNotFoundError:
-        return jsonify({"error": "Unknown property"}), 400
     except Exception as e:
-        return jsonify({"error": "Unexpected server error", "details": str(e)}), 500
+        return JSONResponse(content={"error": "Unexpected server error", "details": str(e)}, status_code=500)
 
+router = APIRouter()
 
-import os
-import requests
-from flask import jsonify, request
-
-@app.route("/api/prearrival-options")
-def prearrival_options():
+@router.get("/api/prearrival-options")
+def prearrival_options(phone: str = Query(...)):
     try:
-        # ✅ Require phone param (even if unused — for API consistency)
-        phone = request.args.get("phone")
-        if not phone:
-            return jsonify({"error": "Phone number is required"}), 400
-
         # ✅ Airtable config
         AIRTABLE_TOKEN = os.getenv("AIRTABLE_PREARRIVAL_API_KEY")
         BASE_ID = os.getenv("AIRTABLE_PREARRIVAL_BASE_ID")
         TABLE_ID = "tblviNlbgLbdEalOj"  # Hardcoded table ID
 
-        # ✅ Build request
         url = f"https://api.airtable.com/v0/{BASE_ID}/{TABLE_ID}"
         headers = {
             "Authorization": f"Bearer {AIRTABLE_TOKEN}"
         }
 
-        # ✅ Fetch from Airtable
         response = requests.get(url, headers=headers)
         if response.status_code != 200:
-            return jsonify({"error": "Failed to fetch from Airtable", "details": response.text}), 500
+            return JSONResponse(
+                status_code=500,
+                content={"error": "Failed to fetch from Airtable", "details": response.text}
+            )
 
         records = response.json().get("records", [])
         options = []
 
-        # ✅ Only include options where 'active' is checked
         for record in records:
             fields = record.get("fields", {})
-            if not fields.get("active"):  # <- filter only active
+            if not fields.get("active"):
                 continue
 
             options.append({
@@ -746,10 +733,13 @@ def prearrival_options():
                 "price": fields.get("price")
             })
 
-        return jsonify({"options": options}), 200
+        return {"options": options}
 
     except Exception as e:
-        return jsonify({"error": "Unexpected error", "details": str(e)}), 500
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Unexpected error", "details": str(e)}
+        )
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
