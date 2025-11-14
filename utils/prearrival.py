@@ -5,7 +5,7 @@ import requests
 
 prearrival_router = APIRouter()
 
-def fetch_prearrival_options(phone: str) -> list:
+def fetch_prearrival_options(phone: str, property: str) -> list:
     try:
         AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
         BASE_ID = os.getenv("AIRTABLE_BASE_ID")
@@ -25,22 +25,27 @@ def fetch_prearrival_options(phone: str) -> list:
 
         for record in records:
             fields = record.get("fields", {})
-            if not fields.get("active"):
+            if not fields.get("Active"):  # Match field capitalization from Airtable
+                continue
+            if fields.get("Property") != property:  # Filter by property name
                 continue
 
             options.append({
-                "id": fields.get("id"),
-                "label": fields.get("label"),
-                "description": fields.get("description"),
-                "price": fields.get("price")
+                "id": fields.get("ID"),
+                "label": fields.get("Label"),
+                "description": fields.get("Description"),
+                "price": fields.get("Price")
             })
 
         return options
 
-    except Exception as e:
+    except Exception:
         return []
 
 @prearrival_router.get("/api/prearrival-options")
-def prearrival_options(phone: str = Query(...)):
-    options = fetch_prearrival_options(phone)
+def prearrival_options(
+    phone: str = Query(...),
+    property: str = Query("Casa Sea Esta")  # Default property name
+):
+    options = fetch_prearrival_options(phone, property)
     return {"options": options}
