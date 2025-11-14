@@ -70,3 +70,51 @@ def calculate_extra_nights(next_start_date):
         print(f"Error calculating extra nights: {e}")
         return 0
 
+from functools import lru_cache
+
+@lru_cache(maxsize=1)
+def cached_token():
+    """Return a cached token to avoid repeat API calls."""
+    return get_token()
+
+def find_upcoming_guest_by_code(code: str, slug: str) -> dict | None:
+    """
+    Match a guest by the last 4 digits of phone number and return their upcoming reservation.
+    """
+    from utils.config import load_property_config  # import here to avoid circular imports
+
+    try:
+        config = load_property_config(slug)
+        listing_id = config["listing_id"]
+        property_name = config.get("property_name", slug.replace("-", " ").title())
+
+        token = cached_token()
+        reservations = fetch_reservations(listing_id, token)
+
+        today = datetime.today().date()
+
+        for r in reservations:
+            phone = r.get("phone", "")
+            if not phone or not phone.endswith(code):
+                continue
+
+            checkin_str = r.get("arrivalDate")
+            if not checkin_str:
+                continue
+
+            checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
+            days_until_checkin = (checkin - today).days
+
+            if 0 <= days_until_checkin <= 20:
+                return {
+                    "name": r.get("guestName", "Guest"),
+                    "phone": phone,
+                    "property": property_name,
+                    "checkin_date": checkin_str,
+                    "checkout_date": r.get("departureDate")
+                }
+
+    except Exception as e:
+        print(f"[Guest Lookup] Error in find_upcoming_guest_by_code: {e}")
+        return None
+
