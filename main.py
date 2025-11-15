@@ -64,7 +64,8 @@ def manual_sync():
         return HTMLResponse(f"<h2>Sync failed: {str(e)}</h2><a href='/admin'>Back to Dashboard</a>", status_code=500)
 
 
-from routes.admin import admin_router  # Assuming you’ve defined your admin router separately
+from routes.admin import admin_router
+app.include_router(admin_router)
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
