@@ -56,9 +56,9 @@ from fastapi import Form
 
 @app.post("/admin/sync-properties")
 def manual_sync():
-    from utils.hostaway_sync import sync_hostaway_to_airtable
+    from utils.hostaway_sync import sync_hostaway_properties
     try:
-        sync_hostaway_to_airtable()
+        sync_hostaway_properties()
         return HTMLResponse("<h2>Sync completed successfully!</h2><a href='/admin'>Back to Dashboard</a>")
     except Exception as e:
         return HTMLResponse(f"<h2>Sync failed: {str(e)}</h2><a href='/admin'>Back to Dashboard</a>", status_code=500)
@@ -94,9 +94,9 @@ start_scheduler()
 
 @app.post("/admin/sync-hostaway-properties")
 def sync_hostaway_properties():
-    from utils.hostaway_sync import sync_hostaway_to_airtable
+    from utils.hostaway_sync import sync_hostaway_properties
     try:
-        sync_hostaway_to_airtable()
+        sync_hostaway_properties()
         return {"status": "success", "syncedCount": 5}  # You can dynamically count if needed
     except Exception as e:
         return JSONResponse(
