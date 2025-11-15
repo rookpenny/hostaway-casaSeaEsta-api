@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+pip install apscheduler
 
 
 from datetime import datetime, timedelta
@@ -49,6 +50,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ------------------ FETCH ------------------
+from apscheduler.schedulers.background import BackgroundScheduler
+from utils.hostaway_sync import sync_hostaway_properties
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(sync_hostaway_properties, 'interval', hours=24)
+    scheduler.start()
+
+# Inside your startup block
+start_scheduler()
+
 
 # ------------------ MODELS ------------------
 class GuestMessage(BaseModel):
