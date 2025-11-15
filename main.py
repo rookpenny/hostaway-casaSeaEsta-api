@@ -16,7 +16,10 @@ from utils.message_helpers import classify_category, smart_response, detect_log_
 from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest_by_code
 
 from utils.prearrival import prearrival_router
-
+from fastapi import FastAPI, Request
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import HTMLResponse
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
@@ -50,6 +53,21 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+from admin import admin_router  # Assuming you’ve defined your admin router separately
+
+app = FastAPI()
+
+templates = Jinja2Templates(directory="templates")
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
+app.include_router(admin_router)
+
+@app.get("/admin", response_class=HTMLResponse)
+def admin_dashboard(request: Request):
+    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
+
 
 # ------------------ FETCH ------------------
 from apscheduler.schedulers.background import BackgroundScheduler
