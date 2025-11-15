@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+</head>
+<body>
+  <h1>Hostaway Admin Dashboard</h1>
+
+  <button id="sync-button">Sync Hostaway Properties</button>
+  <p id="sync-message"></p>
+
+  <script>
+    const syncBtn = document.getElementById("sync-button");
+    const msgEl = document.getElementById("sync-message");
+
+    syncBtn.addEventListener("click", async () => {
+      syncBtn.disabled = true;
+      msgEl.textContent = "Syncing...";
+
+      try {
+        const response = await fetch("/admin/sync-hostaway-properties", {
+          method: "POST",
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+          msgEl.textContent = `✅ Synced ${data.syncedCount} properties`;
+        } else {
+          msgEl.textContent = `❌ Failed: ${data.detail || "Unknown error"}`;
+        }
+      } catch (err) {
+        console.error(err);
+        msgEl.textContent = "❌ Sync failed. Check console.";
+      } finally {
+        syncBtn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
