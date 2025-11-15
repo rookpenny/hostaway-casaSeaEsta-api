@@ -6,7 +6,7 @@ HOSTAWAY_CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 HOSTAWAY_CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PROPERTIES_TABLE_ID = "tblXXXXXXXXXXXXXX"  # Replace this with your actual table ID
+AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Replace this with your actual table ID
 
 # === Step 1: Generate Access Token from Hostaway ===
 def get_hostaway_access_token():
