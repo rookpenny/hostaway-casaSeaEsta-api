@@ -50,4 +50,4 @@ def sync_hostaway_properties():
     print("Done.")
 
 if __name__ == "__main__":
-    sync_hostaway_to_airtable()
+    sync_hostaway_properties()
