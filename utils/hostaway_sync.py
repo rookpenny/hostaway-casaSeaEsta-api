@@ -34,18 +34,11 @@ def fetch_hostaway_properties(access_token):
         raise Exception(f"Hostaway fetch failed: {response.text}")
 
     data = response.json()
+    print("DEBUG: Full response:", data)
 
-    print("DEBUG: Full response:", data)  # 👈 Add this to see the real shape
+    if isinstance(data, dict) and "result" in data and isinstance(data["result"], list):
+        return data["result"]
 
-    # If it's a list, just return it
-    if isinstance(data, list):
-        return data
-
-    # If it's a dict with "result" and "listings", return that
-    if "result" in data and "listings" in data["result"]:
-        return data["result"]["listings"]
-
-    # Otherwise raise a clearer error
     raise Exception(f"Unexpected data format from Hostaway: {data}")
 
 
