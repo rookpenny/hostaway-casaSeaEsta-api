@@ -57,16 +57,18 @@ app.add_middleware(
 
 from admin import admin_router  # Assuming you’ve defined your admin router separately
 
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
+
 app = FastAPI()
-
 templates = Jinja2Templates(directory="templates")
-
-app.mount("/static", StaticFiles(directory="static"), name="static")
-app.include_router(admin_router)
 
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin_dashboard.html", {"request": request})
+
+
 
 
 # ------------------ FETCH ------------------
