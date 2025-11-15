@@ -52,6 +52,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from fastapi import Form
+
+@app.post("/admin/sync-properties")
+def manual_sync():
+    from utils.hostaway_sync import sync_hostaway_to_airtable
+    try:
+        sync_hostaway_to_airtable()
+        return HTMLResponse("<h2>Sync completed successfully!</h2><a href='/admin'>Back to Dashboard</a>")
+    except Exception as e:
+        return HTMLResponse(f"<h2>Sync failed: {str(e)}</h2><a href='/admin'>Back to Dashboard</a>", status_code=500)
+
 
 from routes.admin import admin_router  # Assuming you’ve defined your admin router separately
 
