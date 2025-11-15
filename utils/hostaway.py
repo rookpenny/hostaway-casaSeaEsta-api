@@ -4,6 +4,12 @@ from datetime import datetime
 from calendar import monthrange
 from functools import lru_cache
 from dotenv import load_dotenv
+from utils.airtable import upsert_airtable_record
+
+HOSTAWAY_API_KEY = os.getenv("HOSTAWAY_API_KEY")
+HOSTAWAY_ACCOUNT_ID = os.getenv("HOSTAWAY_ACCOUNT_ID")
+AIRTABLE_PROPERTIES_TABLE = "Properties"  # Airtable table name
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 
 load_dotenv()
 
@@ -114,3 +120,47 @@ def find_upcoming_guest_by_code(code: str, slug: str) -> dict | None:
     except Exception as e:
         print(f"[Guest Lookup] Error in find_upcoming_guest_by_code: {e}")
         return None
+
+
+def get_hostaway_properties():
+    url = "https://api.hostaway.com/v1/properties"
+    headers = {
+        "Authorization": f"Bearer {HOSTAWAY_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    params = {
+        "accountId": HOSTAWAY_ACCOUNT_ID
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch Hostaway properties: {response.text}")
+
+    return response.json().get("result", [])
+
+def sync_hostaway_properties():
+    properties = get_hostaway_properties()
+    synced = []
+
+    for prop in properties:
+        fields = {
+            "Hostaway Property ID": str(prop.get("id")),
+            "Name": prop.get("name"),
+            "Address": prop.get("address", {}).get("addressLine1"),
+            "City": prop.get("address", {}).get("city"),
+            "Country": prop.get("address", {}).get("country"),
+            "Active": True
+        }
+
+        upsert_airtable_record(
+            base_id=AIRTABLE_BASE_ID,
+            table_name=AIRTABLE_PROPERTIES_TABLE,
+            unique_field="Hostaway Property ID",
+            record_data=fields
+        )
+
+        synced.append(fields)
+
+    return synced
+
