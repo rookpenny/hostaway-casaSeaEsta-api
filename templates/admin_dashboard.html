@@ -5,7 +5,6 @@
 </head>
 <body>
   <h1>Hostaway Admin Dashboard</h1>
-
   <button id="sync-button">Sync Hostaway Properties</button>
   <p id="sync-message"></p>
 
@@ -18,9 +17,7 @@
       msgEl.textContent = "Syncing...";
 
       try {
-        const response = await fetch("/admin/sync-hostaway-properties", {
-          method: "POST",
-        });
+        const response = await fetch("/admin/sync-hostaway-properties", { method: "POST" });
         const data = await response.json();
 
         if (response.ok) {
