@@ -1,6 +1,4 @@
 from fastapi import APIRouter
-pip install apscheduler
-
 
 from datetime import datetime, timedelta
 
