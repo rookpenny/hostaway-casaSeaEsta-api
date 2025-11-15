@@ -33,7 +33,10 @@ def fetch_hostaway_properties(access_token):
     if response.status_code != 200:
         raise Exception(f"Hostaway fetch failed: {response.text}")
 
-    return response.json()["result"]["listings"]
+    data = response.json()
+    print("DEBUG: Hostaway response structure:", data)  # 👈 This line is the debug print
+
+    return data["result"]["listings"]  # May break if 'result' is a list
 
 
 def save_to_airtable(properties):
