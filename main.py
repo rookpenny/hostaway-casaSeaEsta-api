@@ -53,7 +53,7 @@ app.add_middleware(
 )
 
 
-from admin import admin_router  # Assuming you’ve defined your admin router separately
+from routes.admin import admin_router  # Assuming you’ve defined your admin router separately
 
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
