@@ -55,7 +55,7 @@ def save_to_airtable(properties):
             "fields": {
                 "Property Name": prop.get("internalListingName"),
                 "Hostaway Property ID": str(prop.get("id")),
-                "Hostaway Account ID": str(prop.get("client_id")),
+                "Hostaway Account ID": HOSTAWAY_CLIENT_ID,
                 "Notes": prop.get("name"),
                 "Active": True
             }
