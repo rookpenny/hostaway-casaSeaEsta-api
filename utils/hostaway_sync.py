@@ -40,7 +40,7 @@ def save_to_airtable(properties):
             print(f"Failed to save property {prop['name']}: {res.text}")
 
 # MAIN RUNNER
-def sync_hostaway_to_airtable():
+def sync_hostaway_properties():
     print("Fetching properties from Hostaway...")
     properties = fetch_hostaway_properties()
     print(f"Fetched {len(properties)} properties.")
