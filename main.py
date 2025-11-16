@@ -39,7 +39,9 @@ from utils.airtable_client import (
     get_messages_table
 )
 
-
+AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Replace with your actual table ID
 
 app = FastAPI()
 app.include_router(prearrival_router)
