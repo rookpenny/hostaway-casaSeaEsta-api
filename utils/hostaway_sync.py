@@ -6,9 +6,8 @@ HOSTAWAY_CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 HOSTAWAY_CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # <-- Replace with actual PMC table ID
-
+AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
+AIRTABLE_PMC_TABLE_NAME = "PMC"  # PMC Table Name (not the ID)
 
 def get_hostaway_access_token():
     url = "https://api.hostaway.com/v1/accessTokens"
@@ -25,7 +24,6 @@ def get_hostaway_access_token():
 
     return response.json()["access_token"]
 
-
 def fetch_hostaway_properties(access_token):
     url = "https://api.hostaway.com/v1/listings"
     headers = {"Authorization": f"Bearer {access_token}"}
@@ -40,10 +38,9 @@ def fetch_hostaway_properties(access_token):
 
     raise Exception(f"Unexpected data format from Hostaway: {data}")
 
-
 def fetch_pmc_lookup():
     """Fetch PMC records from Airtable and build a lookup by Hostaway Account ID."""
-    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_NAME}"
     headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
 
     response = requests.get(url, headers=headers)
@@ -59,7 +56,6 @@ def fetch_pmc_lookup():
             lookup[str(account_id)] = record["id"]
     return lookup
 
-
 def save_to_airtable(properties):
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
@@ -71,7 +67,7 @@ def save_to_airtable(properties):
     count = 0
 
     for prop in properties:
-        account_id = str(HOSTAWAY_CLIENT_ID)
+        account_id = str(HOSTAWAY_CLIENT_ID)  # Replace with prop.get("client_id") if needed
         pmc_record_id = pmc_lookup.get(account_id)
 
         payload = {
@@ -93,13 +89,12 @@ def save_to_airtable(properties):
 
     return count
 
-
 def sync_hostaway_properties():
     access_token = get_hostaway_access_token()
     properties = fetch_hostaway_properties(access_token)
     return save_to_airtable(properties)
 
-
+# Run for local testing
 if __name__ == "__main__":
     synced = sync_hostaway_properties()
     print(f"✅ Synced {synced} properties to Airtable")
