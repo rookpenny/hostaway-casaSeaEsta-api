@@ -20,7 +20,26 @@ admin_router = APIRouter(prefix="/admin")
 # 🔷 Admin dashboard
 @admin_router.get("", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
-    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
+    pmcs = []
+
+    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}"
+    }
+
+    try:
+        response = requests.get(airtable_url, headers=headers)
+        if response.status_code == 200:
+            data = response.json()
+            pmcs = data.get("records", [])
+    except Exception as e:
+        print(f"Error fetching PMCs: {e}")
+
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "pmcs": pmcs
+    })
+
 
 
 # 🔄 Manual sync endpoint (used by Sync button)
