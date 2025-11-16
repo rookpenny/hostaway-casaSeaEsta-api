@@ -78,8 +78,9 @@ templates = Jinja2Templates(directory="templates")
 def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin_dashboard.html", {"request": request})
 
-
-
+@admin_router.get("/admin/add-pmc")
+def render_add_pmc_form(request: Request):
+    return templates.TemplateResponse("pmc_form.html", {"request": request})
 
 # ------------------ FETCH ------------------
 from apscheduler.schedulers.background import BackgroundScheduler
