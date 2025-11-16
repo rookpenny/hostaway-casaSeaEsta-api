@@ -72,6 +72,8 @@ app.include_router(admin.admin_router)
 
 templates = Jinja2Templates(directory="templates")
 
+admin_router = APIRouter()  # ✅ define router here
+
 @app.get("/admin", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin_dashboard.html", {"request": request})
@@ -123,7 +125,8 @@ def add_pmc_to_airtable(
     else:
         return {"error": "Failed to add PMC", "details": response.text}
 
-
+# Register the router
+app.include_router(admin_router)
 
 # ------------------ FETCH ------------------
 from apscheduler.schedulers.background import BackgroundScheduler
