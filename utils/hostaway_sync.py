@@ -63,29 +63,42 @@ def save_to_airtable(properties):
         "Content-Type": "application/json"
     }
 
+    # Fetch PMC link lookup
     pmc_lookup = fetch_pmc_lookup()
     count = 0
 
+    # Fetch existing properties to check for upserts
+    existing_records_url = airtable_url + "?fields[]=Hostaway%20Property%20ID"
+    existing_records = requests.get(existing_records_url, headers=headers).json().get("records", [])
+    existing_map = {record["fields"].get("Hostaway Property ID"): record["id"] for record in existing_records if "Hostaway Property ID" in record.get("fields", {})}
+
     for prop in properties:
-        account_id = str(HOSTAWAY_CLIENT_ID)  # Replace with prop.get("client_id") if needed
+        property_id = str(prop.get("id"))
+        account_id = str(HOSTAWAY_CLIENT_ID)
         pmc_record_id = pmc_lookup.get(account_id)
 
-        payload = {
-            "fields": {
-                "Property Name": prop.get("internalListingName"),
-                "Hostaway Property ID": str(prop.get("id")),
-                "Hostaway Account ID": account_id,
-                "PMC": [pmc_record_id] if pmc_record_id else [],
-                "Notes": prop.get("name"),
-                "Active": True
-            }
+        fields = {
+            "Property Name": prop.get("internalListingName"),
+            "Hostaway Property ID": property_id,
+            "Hostaway Account ID": account_id,
+            "PMC": [pmc_record_id] if pmc_record_id else [],
+            "Notes": prop.get("name"),
+            "Active": True
         }
 
-        res = requests.post(airtable_url, json=payload, headers=headers)
+        if property_id in existing_map:
+            # UPDATE
+            record_id = existing_map[property_id]
+            url = f"{airtable_url}/{record_id}"
+            res = requests.patch(url, json={"fields": fields}, headers=headers)
+        else:
+            # CREATE
+            res = requests.post(airtable_url, json={"fields": fields}, headers=headers)
+
         if res.status_code in (200, 201):
             count += 1
         else:
-            print(f"Failed to save property {prop.get('name')}: {res.text}")
+            print(f"Failed to sync property {prop.get('name')}: {res.text}")
 
     return count
 
