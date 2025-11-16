@@ -15,6 +15,7 @@ from datetime import datetime, timedelta
 
 from routes import admin
 from routes.admin import admin_router
+app.include_router(admin_router)
 
 from functools import lru_cache
 
