@@ -74,7 +74,7 @@ def save_to_airtable(properties):
 
     for prop in properties:
         property_id = str(prop.get("id"))
-        account_id = str(HOSTAWAY_CLIENT_ID)
+        account_id = str(prop.get("client_id"))
         pmc_record_id = pmc_lookup.get(account_id)
 
         fields = {
