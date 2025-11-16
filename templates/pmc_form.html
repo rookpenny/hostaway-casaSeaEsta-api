@@ -45,38 +45,40 @@
 </head>
 <body>
 
-  <form id="pmcForm">
-    <h2>Add New PMC</h2>
+  <form id="pmcForm" method="post" action="/admin/add-pmc">
+  <h2>Add New PMC</h2>
 
-    <label>PMC Name</label>
-    <input type="text" name="PMC Name" required />
+  <label>PMC Name</label>
+  <input type="text" name="pmc_name" required />
 
-    <label>Hostaway Account ID</label>
-    <input type="text" name="Hostaway Account ID" required />
+  <label>PMC ID</label>
+  <input type="text" name="pmc_id" required />
 
-    <label>Contact Email</label>
-    <input type="email" name="Contact Email" required />
+  <label>Hostaway Account ID</label>
+  <input type="text" name="hostaway_account_id" required />
 
-    <label>Main Contact</label>
-    <input type="text" name="Main Contact" required />
+  <label>Contact Email</label>
+  <input type="email" name="contact_email" required />
 
-    <label>Subscription Plan</label>
-    <select name="Subscription Plan" required>
-      <option value="">Select a plan</option>
-      <option value="Free">Free</option>
-      <option value="Pro">Pro</option>
-      <option value="Enterprise">Enterprise</option>
-    </select>
+  <label>Main Contact</label>
+  <input type="text" name="main_contact" required />
 
-    <label>
-      <input type="checkbox" name="Active" />
-      Active
-    </label>
+  <label>Subscription Plan</label>
+  <select name="subscription_plan" required>
+    <option value="">Select a plan</option>
+    <option value="Free">Free</option>
+    <option value="Pro">Pro</option>
+    <option value="Enterprise">Enterprise</option>
+  </select>
 
-    <button type="submit">Submit</button>
-    <div class="success" id="successMsg" style="display: none;">✅ PMC added successfully!</div>
-    <div class="error" id="errorMsg" style="display: none;">❌ Failed to add PMC.</div>
-  </form>
+  <label>
+    <input type="checkbox" name="active" />
+    Active
+  </label>
+
+  <button type="submit">Submit</button>
+</form>
+
 
   <script>
     const form = document.getElementById('pmcForm');
