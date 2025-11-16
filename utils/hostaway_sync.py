@@ -6,7 +6,8 @@ HOSTAWAY_CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 HOSTAWAY_CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Replace with your actual table ID
+AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # <-- Replace with actual PMC table ID
 
 
 def get_hostaway_access_token():
@@ -34,12 +35,29 @@ def fetch_hostaway_properties(access_token):
         raise Exception(f"Hostaway fetch failed: {response.text}")
 
     data = response.json()
-    print("DEBUG: Full response:", data)
-
     if isinstance(data, dict) and "result" in data and isinstance(data["result"], list):
         return data["result"]
 
     raise Exception(f"Unexpected data format from Hostaway: {data}")
+
+
+def fetch_pmc_lookup():
+    """Fetch PMC records from Airtable and build a lookup by Hostaway Account ID."""
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
+
+    response = requests.get(url, headers=headers)
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch PMC records: {response.text}")
+
+    records = response.json().get("records", [])
+    lookup = {}
+    for record in records:
+        fields = record.get("fields", {})
+        account_id = fields.get("Hostaway Account ID")
+        if account_id:
+            lookup[str(account_id)] = record["id"]
+    return lookup
 
 
 def save_to_airtable(properties):
@@ -49,13 +67,19 @@ def save_to_airtable(properties):
         "Content-Type": "application/json"
     }
 
+    pmc_lookup = fetch_pmc_lookup()
     count = 0
+
     for prop in properties:
+        account_id = str(HOSTAWAY_CLIENT_ID)
+        pmc_record_id = pmc_lookup.get(account_id)
+
         payload = {
             "fields": {
                 "Property Name": prop.get("internalListingName"),
                 "Hostaway Property ID": str(prop.get("id")),
-                "Hostaway Account ID": HOSTAWAY_CLIENT_ID,
+                "Hostaway Account ID": account_id,
+                "PMC": [pmc_record_id] if pmc_record_id else [],
                 "Notes": prop.get("name"),
                 "Active": True
             }
@@ -76,7 +100,6 @@ def sync_hostaway_properties():
     return save_to_airtable(properties)
 
 
-# Optional: for local testing
 if __name__ == "__main__":
     synced = sync_hostaway_properties()
     print(f"✅ Synced {synced} properties to Airtable")
