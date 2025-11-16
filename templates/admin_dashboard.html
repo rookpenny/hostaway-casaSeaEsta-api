@@ -39,53 +39,27 @@
       border-radius: 6px;
       text-decoration: none;
     }
-    button.sync-btn {
-      background: #1d8f50;
+    button.sync-one {
+      background: #2d72d9;
       color: white;
-      border: none;
-      padding: 0.5rem 1rem;
+      padding: 0.4rem 0.6rem;
       border-radius: 6px;
+      border: none;
       cursor: pointer;
+    }
+    select.status-select {
+      padding: 0.3rem;
+      border-radius: 4px;
     }
   </style>
 </head>
 <body>
 
-  <h1>Hostaway Admin Dashboard</h1>
+  <h1>PMC Dashboard</h1>
 
   <div class="top-bar">
     <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
-    <button id="sync-button" class="button">🔁 Sync All Hostaway Properties</button>
   </div>
-  <p id="sync-message"></p>
-
-  <script>
-    const syncBtn = document.getElementById("sync-button");
-    const msgEl = document.getElementById("sync-message");
-
-    syncBtn.addEventListener("click", async () => {
-      syncBtn.disabled = true;
-      msgEl.textContent = "Syncing...";
-
-      try {
-        const response = await fetch("/admin/sync-hostaway-properties", { method: "POST" });
-        const data = await response.json();
-
-        if (response.ok) {
-          msgEl.textContent = `✅ Synced ${data.syncedCount || "all"} properties`;
-        } else {
-          msgEl.textContent = `❌ Failed: ${data.detail || "Unknown error"}`;
-        }
-      } catch (err) {
-        console.error(err);
-        msgEl.textContent = "❌ Sync failed. Check console.";
-      } finally {
-        syncBtn.disabled = false;
-      }
-    });
-  </script>
-
-  <h1>PMC Dashboard</h1>
 
   {% if pmcs %}
     <table>
@@ -111,10 +85,15 @@
             <td>{{ f["Email"] or "—" }}</td>
             <td>{{ f["Subscription Plan"] or "—" }}</td>
             <td>{{ f["PMS Integration"] or "—" }}</td>
-            <td>{{ "✅ Active" if f["Active"] else "❌ Inactive" }}</td>
+            <td>
+              <select class="status-select" data-record-id="{{ record.id }}">
+                <option value="true" {% if f["Active"] %}selected{% endif %}>✅ Active</option>
+                <option value="false" {% if not f["Active"] %}selected{% endif %}>❌ Inactive</option>
+              </select>
+            </td>
             <td>
               <form action="/admin/sync-properties/{{ f['Hostaway Account ID'] }}" method="post">
-                <button type="submit" class="sync-btn">🔄 Sync</button>
+                <button class="sync-one" type="submit">🔄 Sync</button>
               </form>
             </td>
           </tr>
@@ -124,6 +103,32 @@
   {% else %}
     <p>No PMCs found. Add one to get started!</p>
   {% endif %}
+
+  <script>
+    document.querySelectorAll('.status-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const recordId = e.target.dataset.recordId;
+        const isActive = e.target.value === 'true';
+
+        try {
+          const res = await fetch('/admin/update-status', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ record_id: recordId, active: isActive }),
+          });
+
+          if (!res.ok) {
+            alert("❌ Failed to update status");
+          }
+        } catch (err) {
+          console.error(err);
+          alert("❌ Error updating status");
+        }
+      });
+    });
+  </script>
 
 </body>
 </html>
