@@ -8,7 +8,7 @@ from utils.hostaway import sync_hostaway_properties
 # Airtable settings
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Replace with your table ID
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Replace with your actual table ID
 
 # Template setup
 templates = Jinja2Templates(directory="templates")
@@ -17,11 +17,10 @@ templates = Jinja2Templates(directory="templates")
 admin_router = APIRouter(prefix="/admin")
 
 
-# 🔷 Admin dashboard
+# 🔷 Admin dashboard (lists existing PMCs)
 @admin_router.get("", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     pmcs = []
-
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}"
@@ -33,7 +32,7 @@ def admin_dashboard(request: Request):
             data = response.json()
             pmcs = data.get("records", [])
     except Exception as e:
-        print(f"Error fetching PMCs: {e}")
+        print(f"[ERROR] Failed to fetch PMCs: {e}")
 
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
@@ -41,8 +40,7 @@ def admin_dashboard(request: Request):
     })
 
 
-
-# 🔄 Manual sync endpoint (used by Sync button)
+# 🔄 Manual sync endpoint for Hostaway properties
 @admin_router.post("/sync-hostaway-properties")
 def sync_hostaway_properties_route():
     try:
@@ -55,13 +53,13 @@ def sync_hostaway_properties_route():
         )
 
 
-# ➕ Show form to create new PMC
+# ➕ Show the form to create a new PMC
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
     return templates.TemplateResponse("pmc_form.html", {"request": request})
 
 
-# ✅ Handle PMC form submission
+# ✅ Handle form submission and create PMC in Airtable
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
     pmc_name: str = Form(...),
@@ -90,12 +88,10 @@ def add_pmc_to_airtable(
         }
     }
 
-    response = requests.post(airtable_url, headers=headers, json=payload)
-
-    if response.status_code in (200, 201):
-        return RedirectResponse(url="/admin", status_code=303)
-    else:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Failed to add PMC", "details": response.text}
-        )
+    try:
+        response = requests.post(airtable_url, headers=headers, json=payload)
+        response.raise_for_status()
+        return RedirectResponse(url="/admin?status=success", status_code=303)
+    except Exception as e:
+        print(f"[ERROR] Failed to add PMC to Airtable: {e}")
+        return RedirectResponse(url="/admin?status=error", status_code=303)
