@@ -41,8 +41,10 @@ AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Replace with your actual table ID
 
 app = FastAPI()
-app.include_router(prearrival_router)
 
+# Register the router
+app.include_router(admin_router)
+app.include_router(prearrival_router)
 app.include_router(prearrival_debug_router)
 
 
@@ -91,8 +93,7 @@ def add_pmc_to_airtable(
     return {"message": "PMC received"}
 
         
-# Register the router
-app.include_router(admin_router)
+
 
 # ------------------ FETCH ------------------
 from apscheduler.schedulers.background import BackgroundScheduler
