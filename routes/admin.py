@@ -8,7 +8,7 @@ from utils.hostaway import sync_hostaway_properties
 # Airtable settings
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Replace with your table ID
 
 # Template setup
 templates = Jinja2Templates(directory="templates")
@@ -16,10 +16,12 @@ templates = Jinja2Templates(directory="templates")
 # Router setup
 admin_router = APIRouter(prefix="/admin")
 
+
 # 🔷 Admin dashboard
 @admin_router.get("", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     return templates.TemplateResponse("admin_dashboard.html", {"request": request})
+
 
 # 🔄 Manual sync endpoint (used by Sync button)
 @admin_router.post("/sync-hostaway-properties")
@@ -33,20 +35,22 @@ def sync_hostaway_properties_route():
             content={"error": "Failed to sync Hostaway properties", "details": str(e)}
         )
 
+
 # ➕ Show form to create new PMC
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
     return templates.TemplateResponse("pmc_form.html", {"request": request})
+
 
 # ✅ Handle PMC form submission
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
     pmc_name: str = Form(...),
     hostaway_account_id: str = Form(...),
-    pmc_id: str = Form(...),
     contact_email: str = Form(...),
     main_contact: str = Form(...),
     subscription_plan: str = Form(...),
+    pms_integration: str = Form(...),
     active: bool = Form(False)
 ):
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
@@ -59,10 +63,10 @@ def add_pmc_to_airtable(
         "fields": {
             "Name": pmc_name,
             "Hostaway Account ID": hostaway_account_id,
-            "PMC ID": pmc_id,
             "Email": contact_email,
             "Main Contact": main_contact,
             "Subscription Plan": subscription_plan,
+            "PMS Integration": pms_integration,
             "Active": active
         }
     }
