@@ -67,8 +67,14 @@ def save_to_airtable(properties):
     count = 0
 
     for prop in properties:
-        account_id = str(prop.get("clientId"))  # Get clientId from property
+        account_id = str(prop.get("clientId") or prop.get("client_id") or HOSTAWAY_CLIENT_ID)  # fallback
+        if not account_id or account_id.lower() == "none":
+            print(f"⚠️ Skipping property (missing account ID): {prop.get('internalListingName')}")
+            continue
+
         pmc_record_id = pmc_lookup.get(account_id)
+        if not pmc_record_id:
+            print(f"⚠️ No PMC match found for Hostaway Account ID: {account_id}")
 
         payload = {
             "fields": {
@@ -85,9 +91,10 @@ def save_to_airtable(properties):
         if res.status_code in (200, 201):
             count += 1
         else:
-            print(f"Failed to save property {prop.get('name')}: {res.text}")
+            print(f"❌ Failed to save property {prop.get('internalListingName')}: {res.text}")
 
     return count
+
 
 def sync_hostaway_properties():
     access_token = get_hostaway_access_token()
