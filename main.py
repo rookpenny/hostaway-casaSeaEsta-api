@@ -68,64 +68,16 @@ def manual_sync():
 
 
 app.include_router(admin_router)
-app.include_router(admin.admin_router)
+
 
 templates = Jinja2Templates(directory="templates")
 
-admin_router = APIRouter()  # ✅ define router here
 
-@app.get("/admin", response_class=HTMLResponse)
-def admin_dashboard(request: Request):
-    return templates.TemplateResponse("admin_dashboard.html", {"request": request})
 
-@admin_router.get("/admin/add-pmc")
-def render_add_pmc_form(request: Request):
-    return templates.TemplateResponse("pmc_form.html", {"request": request})
 
-@admin_router.get("/admin/pmc-form", response_class=HTMLResponse)
-def get_pmc_form(request: Request):
-    return templates.TemplateResponse("pmc_form.html", {"request": request})
-
-@admin_router.get("/admin/new-pmc", response_class=HTMLResponse)
-def new_pmc_form(request: Request):
-    return templates.TemplateResponse("pmc_form.html", {"request": request})
 
 from uuid import uuid4
 
-@admin_router.post("/admin/add-pmc")
-def add_pmc_to_airtable(
-    pmc_name: str = Form(...),
-    hostaway_account_id: str = Form(...),
-    contact_email: str = Form(...),
-    main_contact: str = Form(...),
-    subscription_plan: str = Form(...),
-    pms_integration: str = Form(...),
-    active: bool = Form(False)
-):
-    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    data = {
-        "fields": {
-            "Name": pmc_name,
-            "Hostaway Account ID": hostaway_account_id,
-            "Email": contact_email,
-            "Main Contact": main_contact,
-            "Subscription Plan": subscription_plan,
-            "PMS Integration": pms_integration,
-            "Active": active
-        }
-    }
-
-    response = requests.post(airtable_url, headers=headers, json=data)
-
-    if response.status_code in (200, 201):
-        return RedirectResponse(url="/admin", status_code=303)
-    else:
-        return {"error": "Failed to add PMC", "details": response.text}
         
 # Register the router
 app.include_router(admin_router)
