@@ -41,8 +41,10 @@ i<!DOCTYPE html>
   </style>
 </head>
 <body>
+<div id="successMsg" style="display:none; color: green; margin-top: 1rem;">✅ PMC successfully added!</div>
+<div id="errorMsg" style="display:none; color: red; margin-top: 1rem;">❌ Error submitting form. Please try again.</div>
 
-  <form method="post" action="/admin/add-pmc">
+  <form id="pmcForm" method="post" action="/admin/add-pmc">
     <h2>Add New PMC</h2>
 
     <label>PMC Name</label>
@@ -81,45 +83,48 @@ i<!DOCTYPE html>
   </form>
 
 
-  <script>
-    const form = document.getElementById('pmcForm');
+ <div id="successMsg" style="display:none; color: green; margin-top: 1rem;">✅ PMC successfully added!</div>
+<div id="errorMsg" style="display:none; color: red; margin-top: 1rem;">❌ Error submitting form. Please try again.</div>
 
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      document.getElementById("successMsg").style.display = "none";
-      document.getElementById("errorMsg").style.display = "none";
+<script>
+  const form = document.getElementById('pmcForm');
 
-      const formData = new FormData(form);
-      const fields = {};
+  form.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    document.getElementById("successMsg").style.display = "none";
+    document.getElementById("errorMsg").style.display = "none";
 
-      formData.forEach((value, key) => {
-        if (key === "Active") {
-          fields[key] = form.elements[key].checked;
-        } else {
-          fields[key] = value;
-        }
-      });
+    const formData = new FormData(form);
+    const fields = {};
 
-      try {
-        const res = await fetch("https://api.airtable.com/v0/YOUR_BASE_ID/YOUR_PMC_TABLE_ID", {
-          method: "POST",
-          headers: {
-            "Authorization": "Bearer YOUR_AIRTABLE_API_KEY",
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ fields })
-        });
-
-        if (!res.ok) throw new Error(await res.text());
-
-        document.getElementById("successMsg").style.display = "block";
-        form.reset();
-      } catch (err) {
-        console.error(err);
-        document.getElementById("errorMsg").style.display = "block";
+    formData.forEach((value, key) => {
+      if (key === "active") {
+        fields[key] = form.elements[key].checked;
+      } else {
+        fields[key] = value;
       }
     });
-  </script>
+
+    try {
+      const res = await fetch("https://api.airtable.com/v0/YOUR_BASE_ID/YOUR_PMC_TABLE_ID", {
+        method: "POST",
+        headers: {
+          "Authorization": "Bearer YOUR_AIRTABLE_API_KEY",
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({ fields })
+      });
+
+      if (!res.ok) throw new Error(await res.text());
+
+      document.getElementById("successMsg").style.display = "block";
+      form.reset();
+    } catch (err) {
+      console.error(err);
+      document.getElementById("errorMsg").style.display = "block";
+    }
+  });
+</script>
 
 </body>
 </html>
