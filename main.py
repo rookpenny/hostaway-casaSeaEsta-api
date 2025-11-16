@@ -67,14 +67,7 @@ def manual_sync():
         return HTMLResponse(f"<h2>Sync failed: {str(e)}</h2><a href='/admin'>Back to Dashboard</a>", status_code=500)
 
 
-app.include_router(admin_router)
-
-
 templates = Jinja2Templates(directory="templates")
-
-
-
-
 
 from uuid import uuid4
 
