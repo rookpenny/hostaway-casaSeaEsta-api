@@ -71,6 +71,25 @@ templates = Jinja2Templates(directory="templates")
 
 from uuid import uuid4
 
+from fastapi import APIRouter, Form
+
+admin_router = APIRouter(prefix="/admin")
+
+@admin_router.post("/add-pmc")
+def add_pmc_to_airtable(
+    pmc_name: str = Form(...),
+    hostaway_account_id: str = Form(...),
+    contact_email: str = Form(...),
+    main_contact: str = Form(...),
+    subscription_plan: str = Form(...),
+    pms_integration: str = Form(...),
+    active: bool = Form(False)
+):
+    # Optional: print to confirm
+    print("[DEBUG] Received POST /admin/add-pmc")
+
+    return {"message": "PMC received"}
+
         
 # Register the router
 app.include_router(admin_router)
