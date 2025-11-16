@@ -93,6 +93,9 @@ def render_add_pmc_form(request: Request):
 def get_pmc_form(request: Request):
     return templates.TemplateResponse("pmc_form.html", {"request": request})
 
+@admin_router.get("/admin/new-pmc", response_class=HTMLResponse)
+def new_pmc_form(request: Request):
+    return templates.TemplateResponse("new_pmc_form.html", {"request": request})
 
 @admin_router.post("/admin/add-pmc")
 def add_pmc_to_airtable(
