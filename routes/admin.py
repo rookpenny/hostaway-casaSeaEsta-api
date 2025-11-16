@@ -71,7 +71,7 @@ def sync_properties_for_pmc(hostaway_account_id: str):
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
-@admin_router.post("/admin/update-status")
+@admin_router.post("/update-status")
 def update_pmc_status(payload: dict = Body(...)):
     record_id = payload.get("record_id")
     active = payload.get("active", False)
