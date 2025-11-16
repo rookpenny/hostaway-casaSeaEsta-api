@@ -2,7 +2,7 @@
 <html>
 <head>
   <title>Admin Dashboard</title>
-    <style>
+  <style>
     body {
       font-family: Arial, sans-serif;
       padding: 2rem;
@@ -39,11 +39,24 @@
       border-radius: 6px;
       text-decoration: none;
     }
+    button.sync-btn {
+      background: #1d8f50;
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
+
   <h1>Hostaway Admin Dashboard</h1>
-  <button id="sync-button">Sync Hostaway Properties</button>
+
+  <div class="top-bar">
+    <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
+    <button id="sync-button" class="button">🔁 Sync All Hostaway Properties</button>
+  </div>
   <p id="sync-message"></p>
 
   <script>
@@ -59,7 +72,7 @@
         const data = await response.json();
 
         if (response.ok) {
-          msgEl.textContent = `✅ Synced ${data.syncedCount} properties`;
+          msgEl.textContent = `✅ Synced ${data.syncedCount || "all"} properties`;
         } else {
           msgEl.textContent = `❌ Failed: ${data.detail || "Unknown error"}`;
         }
@@ -72,14 +85,7 @@
     });
   </script>
 
-
-  <body>
-
   <h1>PMC Dashboard</h1>
-
-  <div class="top-bar">
-    <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
-  </div>
 
   {% if pmcs %}
     <table>
@@ -92,6 +98,7 @@
           <th>Plan</th>
           <th>PMS</th>
           <th>Status</th>
+          <th>Sync</th>
         </tr>
       </thead>
       <tbody>
@@ -105,6 +112,11 @@
             <td>{{ f["Subscription Plan"] or "—" }}</td>
             <td>{{ f["PMS Integration"] or "—" }}</td>
             <td>{{ "✅ Active" if f["Active"] else "❌ Inactive" }}</td>
+            <td>
+              <form action="/admin/sync-properties/{{ f['Hostaway Account ID'] }}" method="post">
+                <button type="submit" class="sync-btn">🔄 Sync</button>
+              </form>
+            </td>
           </tr>
         {% endfor %}
       </tbody>
