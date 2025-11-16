@@ -13,6 +13,9 @@ from utils.config import load_property_config
 from utils.message_helpers import classify_category, smart_response, detect_log_types  # assume you split helpers
 from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest_by_code
 
+from fastapi import Form
+from fastapi.responses import RedirectResponse
+
 from utils.prearrival import prearrival_router
 from fastapi import FastAPI, Request
 from fastapi.templating import Jinja2Templates
@@ -81,6 +84,43 @@ def admin_dashboard(request: Request):
 @admin_router.get("/admin/add-pmc")
 def render_add_pmc_form(request: Request):
     return templates.TemplateResponse("pmc_form.html", {"request": request})
+
+@admin_router.post("/admin/add-pmc")
+def add_pmc_to_airtable(
+    pmc_name: str = Form(...),
+    hostaway_account_id: str = Form(...),
+    pmc_id: str = Form(...),
+    contact_email: str = Form(...),
+    main_contact: str = Form(...),
+    subscription_plan: str = Form(...),
+    active: bool = Form(False)
+):
+    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    data = {
+        "fields": {
+            "Name": pmc_name,
+            "Hostaway Account ID": hostaway_account_id,
+            "PMC ID": pmc_id,
+            "Email": contact_email,
+            "Main Contact": main_contact,
+            "Subscription Plan": subscription_plan,
+            "Active": active
+        }
+    }
+
+    response = requests.post(airtable_url, headers=headers, json=data)
+
+    if response.status_code in (200, 201):
+        return RedirectResponse(url="/admin", status_code=303)
+    else:
+        return {"error": "Failed to add PMC", "details": response.text}
+
+
 
 # ------------------ FETCH ------------------
 from apscheduler.schedulers.background import BackgroundScheduler
