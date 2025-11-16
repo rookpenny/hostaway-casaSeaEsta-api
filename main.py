@@ -2,6 +2,9 @@ from fastapi import APIRouter
 
 from datetime import datetime, timedelta
 
+from routes import admin
+app.include_router(admin.admin_router)
+
 from fastapi import Header
 from utils.config import load_property_config
 from utils.smart import classify_category, smart_response, detect_log_types
