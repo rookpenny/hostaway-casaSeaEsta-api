@@ -71,6 +71,35 @@ def sync_properties_for_pmc(hostaway_account_id: str):
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
+@admin_router.post("/admin/update-status")
+def update_pmc_status(payload: dict = Body(...)):
+    record_id = payload.get("record_id")
+    active = payload.get("active", False)
+
+    if not record_id:
+        return JSONResponse(status_code=400, content={"error": "Missing record_id"})
+
+    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}/{record_id}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {
+        "fields": {
+            "Active": active
+        }
+    }
+
+    try:
+        response = requests.patch(airtable_url, headers=headers, json=data)
+        if response.status_code in (200, 201):
+            return {"success": True}
+        else:
+            return JSONResponse(status_code=500, content={"error": "Failed to update", "details": response.text})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
 # ✅ Handle form submission and create PMC in Airtable
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
