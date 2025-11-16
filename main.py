@@ -48,6 +48,7 @@ app.include_router(prearrival_router)
 from utils.prearrival_debug import prearrival_debug_router
 app.include_router(prearrival_debug_router)
 
+
 # Enable CORS
 app.add_middleware(
     CORSMiddleware,
@@ -76,6 +77,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
@@ -86,6 +88,11 @@ def admin_dashboard(request: Request):
 @admin_router.get("/admin/add-pmc")
 def render_add_pmc_form(request: Request):
     return templates.TemplateResponse("pmc_form.html", {"request": request})
+
+@admin_router.get("/admin/pmc-form", response_class=HTMLResponse)
+def get_pmc_form(request: Request):
+    return templates.TemplateResponse("pmc_form.html", {"request": request})
+
 
 @admin_router.post("/admin/add-pmc")
 def add_pmc_to_airtable(
