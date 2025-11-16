@@ -88,13 +88,17 @@ def add_pmc_to_airtable(
         }
     }
 
-try:
-    response = requests.post(airtable_url, headers=headers, json=payload)
-    response.raise_for_status()
-    return RedirectResponse(url="/admin?status=success", status_code=303)
+    try:
+        response = requests.post(airtable_url, headers=headers, json=payload)
+        response.raise_for_status()
 
-except Exception as e:
-    print("[ERROR] Airtable response code:", response.status_code)
-    print("[ERROR] Airtable response body:", response.text)
-    print("[ERROR] Exception details:", e)
-    return RedirectResponse(url="/admin?status=error", status_code=303)
+        print("[DEBUG] Payload sent to Airtable:")
+        print(payload)
+
+        return RedirectResponse(url="/admin?status=success", status_code=303)
+
+    except Exception as e:
+        print("[ERROR] Airtable response code:", response.status_code)
+        print("[ERROR] Airtable response body:", response.text)
+        print("[ERROR] Exception details:", e)
+        return RedirectResponse(url="/admin?status=error", status_code=303)
