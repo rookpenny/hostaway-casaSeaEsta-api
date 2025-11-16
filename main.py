@@ -99,11 +99,9 @@ def add_pmc_to_airtable(
     contact_email: str = Form(...),
     main_contact: str = Form(...),
     subscription_plan: str = Form(...),
-    pms_integration: str = Form(...),  # NEW FIELD
+    pms_integration: str = Form(...),
     active: bool = Form(False)
 ):
-    pmc_id = str(uuid4())  # ✅ Autogenerate PMC ID here
-
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
@@ -114,7 +112,6 @@ def add_pmc_to_airtable(
         "fields": {
             "Name": pmc_name,
             "Hostaway Account ID": hostaway_account_id,
-            "PMC ID": pmc_id,
             "Email": contact_email,
             "Main Contact": main_contact,
             "Subscription Plan": subscription_plan,
@@ -129,7 +126,7 @@ def add_pmc_to_airtable(
         return RedirectResponse(url="/admin", status_code=303)
     else:
         return {"error": "Failed to add PMC", "details": response.text}
-
+        
 # Register the router
 app.include_router(admin_router)
 
