@@ -3,7 +3,6 @@ from fastapi import APIRouter
 from datetime import datetime, timedelta
 
 from routes import admin
-app.include_router(admin.admin_router)
 
 from fastapi import Header
 from utils.config import load_property_config
@@ -80,6 +79,8 @@ from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
 
+
+app.include_router(admin.admin_router)
 
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
