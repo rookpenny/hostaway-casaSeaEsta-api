@@ -1,33 +1,3 @@
-from fastapi import APIRouter
-
-from datetime import datetime, timedelta
-
-from routes import admin
-
-from fastapi import Header
-from utils.config import load_property_config
-from utils.smart import classify_category, smart_response, detect_log_types
-
-from functools import lru_cache
-from fastapi import Request, Query, Path
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
-from utils.config import load_property_config
-from utils.message_helpers import classify_category, smart_response, detect_log_types  # assume you split helpers
-from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest_by_code
-
-from fastapi import Form
-from fastapi.responses import RedirectResponse
-
-from utils.prearrival import prearrival_router
-from fastapi import FastAPI, Request
-from fastapi.templating import Jinja2Templates
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import HTMLResponse
-
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-from datetime import datetime
 import os
 import json
 import time
@@ -41,13 +11,38 @@ from utils.airtable_client import (
     get_messages_table
 )
 
+from datetime import datetime, timedelta
+
+from routes import admin
+from routes.admin import admin_router
+
+from functools import lru_cache
+
+from utils.config import load_property_config
+from utils.message_helpers import classify_category, smart_response, detect_log_types  # assume you split helpers
+from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest_by_code
+from utils.prearrival import prearrival_router
+from utils.smart import classify_category, smart_response, detect_log_types
+from utils.prearrival_debug import prearrival_debug_router
+
+from fastapi import Form, FastAPI, Request, Query, Path, HTTPException, Header, APIRouter
+
+from fastapi.templating import Jinja2Templates
+from fastapi.staticfiles import StaticFiles
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
+
+from pydantic import BaseModel
+
+from fastapi.templating import Jinja2Templates
+
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Replace with your actual table ID
 
 app = FastAPI()
 app.include_router(prearrival_router)
-from utils.prearrival_debug import prearrival_debug_router
+
 app.include_router(prearrival_debug_router)
 
 
@@ -60,7 +55,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from fastapi import Form
+
 
 @app.post("/admin/sync-properties")
 def manual_sync():
@@ -72,17 +67,9 @@ def manual_sync():
         return HTMLResponse(f"<h2>Sync failed: {str(e)}</h2><a href='/admin'>Back to Dashboard</a>", status_code=500)
 
 
-from routes.admin import admin_router
 app.include_router(admin_router)
-
-from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
-
-
 app.include_router(admin.admin_router)
 
-app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
 @app.get("/admin", response_class=HTMLResponse)
