@@ -2,6 +2,44 @@
 <html>
 <head>
   <title>Admin Dashboard</title>
+    <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 1rem;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    a.button {
+      background: #2d72d9;
+      color: white;
+      padding: 0.6rem 1rem;
+      border-radius: 6px;
+      text-decoration: none;
+    }
+  </style>
 </head>
 <body>
   <h1>Hostaway Admin Dashboard</h1>
@@ -33,5 +71,47 @@
       }
     });
   </script>
+
+
+  <body>
+
+  <h1>PMC Dashboard</h1>
+
+  <div class="top-bar">
+    <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
+  </div>
+
+  {% if pmcs %}
+    <table>
+      <thead>
+        <tr>
+          <th>Name</th>
+          <th>Hostaway ID</th>
+          <th>Main Contact</th>
+          <th>Email</th>
+          <th>Plan</th>
+          <th>PMS</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for record in pmcs %}
+          {% set f = record.fields %}
+          <tr>
+            <td>{{ f["PMC Name"] or "N/A" }}</td>
+            <td>{{ f["Hostaway Account ID"] or "—" }}</td>
+            <td>{{ f["Main Contact"] or "—" }}</td>
+            <td>{{ f["Email"] or "—" }}</td>
+            <td>{{ f["Subscription Plan"] or "—" }}</td>
+            <td>{{ f["PMS Integration"] or "—" }}</td>
+            <td>{{ "✅ Active" if f["Active"] else "❌ Inactive" }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No PMCs found. Add one to get started!</p>
+  {% endif %}
+
 </body>
 </html>
