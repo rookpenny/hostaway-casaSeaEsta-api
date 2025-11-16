@@ -730,6 +730,11 @@ def guest_authenticated(
 
 import uvicorn  # ✅ Add this if not already present
 
+@app.get("/routes")
+def list_routes():
+    return [{"path": route.path, "methods": list(route.methods)} for route in app.router.routes]
+
+
 if __name__ == "__main__":
     try:
         uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
