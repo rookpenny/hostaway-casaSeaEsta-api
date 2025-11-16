@@ -90,16 +90,20 @@ def get_pmc_form(request: Request):
 def new_pmc_form(request: Request):
     return templates.TemplateResponse("pmc_form.html", {"request": request})
 
+from uuid import uuid4
+
 @admin_router.post("/admin/add-pmc")
 def add_pmc_to_airtable(
     pmc_name: str = Form(...),
     hostaway_account_id: str = Form(...),
-    pmc_id: str = Form(...),
     contact_email: str = Form(...),
     main_contact: str = Form(...),
     subscription_plan: str = Form(...),
+    pms_integration: str = Form(...),  # NEW FIELD
     active: bool = Form(False)
 ):
+    pmc_id = str(uuid4())  # ✅ Autogenerate PMC ID here
+
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
@@ -114,6 +118,7 @@ def add_pmc_to_airtable(
             "Email": contact_email,
             "Main Contact": main_contact,
             "Subscription Plan": subscription_plan,
+            "PMS Integration": pms_integration,
             "Active": active
         }
     }
