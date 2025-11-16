@@ -59,6 +59,18 @@ def show_new_pmc_form(request: Request):
     return templates.TemplateResponse("pmc_form.html", {"request": request})
 
 
+
+@admin_router.post("/sync-properties/{hostaway_account_id}")
+def sync_properties_for_pmc(hostaway_account_id: str):
+    try:
+        from utils.hostaway_sync import sync_hostaway_properties
+        sync_hostaway_properties(account_id=hostaway_account_id)
+        return RedirectResponse(url="/admin", status_code=303)
+    except Exception as e:
+        print(f"Error syncing properties for {hostaway_account_id}: {e}")
+        return RedirectResponse(url="/admin?status=error", status_code=303)
+
+
 # ✅ Handle form submission and create PMC in Airtable
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
