@@ -40,7 +40,7 @@ def fetch_hostaway_properties(access_token):
 
 def fetch_pmc_lookup():
     """Fetch PMC records from Airtable and build a lookup by Hostaway Account ID."""
-    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_NAME}"
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
 
     response = requests.get(url, headers=headers)
@@ -51,9 +51,9 @@ def fetch_pmc_lookup():
     lookup = {}
     for record in records:
         fields = record.get("fields", {})
-        account_id = fields.get("Hostaway Account ID")
-        if account_id:
-            lookup[str(account_id)] = record["id"]
+        account_id = str(fields.get("Hostaway Account ID")).strip()
+        if account_id and record.get("id"):
+            lookup[account_id] = record["id"]
     return lookup
 
 def save_to_airtable(properties):
@@ -67,14 +67,8 @@ def save_to_airtable(properties):
     count = 0
 
     for prop in properties:
-        account_id = str(prop.get("clientId") or prop.get("client_id") or HOSTAWAY_CLIENT_ID)  # fallback
-        if not account_id or account_id.lower() == "none":
-            print(f"⚠️ Skipping property (missing account ID): {prop.get('internalListingName')}")
-            continue
-
+        account_id = str(HOSTAWAY_CLIENT_ID).strip()
         pmc_record_id = pmc_lookup.get(account_id)
-        if not pmc_record_id:
-            print(f"⚠️ No PMC match found for Hostaway Account ID: {account_id}")
 
         payload = {
             "fields": {
@@ -91,7 +85,7 @@ def save_to_airtable(properties):
         if res.status_code in (200, 201):
             count += 1
         else:
-            print(f"❌ Failed to save property {prop.get('internalListingName')}: {res.text}")
+            print(f"Failed to save property {prop.get('name')}: {res.text}")
 
     return count
 
