@@ -33,10 +33,12 @@ def fetch_hostaway_properties(access_token):
         raise Exception(f"Hostaway fetch failed: {response.text}")
 
     data = response.json()
-    if isinstance(data, dict) and "result" in data and isinstance(data["result"], list):
-        return data["result"]
 
-    raise Exception(f"Unexpected data format from Hostaway: {data}")
+    # 🔍 DEBUG: Print first property
+    if "result" in data and data["result"]:
+        print("[DEBUG] First property result:", data["result"][0])
+    
+    return data.get("result", [])
 
 def fetch_pmc_lookup():
     """Fetch PMC records from Airtable and build a lookup by Hostaway Account ID."""
