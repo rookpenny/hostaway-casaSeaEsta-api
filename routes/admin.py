@@ -3,6 +3,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import os
 import requests
+import traceback
 from utils.hostaway import sync_hostaway_properties
 
 # Airtable settings
@@ -67,7 +68,8 @@ def sync_properties_for_pmc(hostaway_account_id: str):
         sync_hostaway_properties(account_id=hostaway_account_id)
         return RedirectResponse(url="/admin", status_code=303)
     except Exception as e:
-        print(f"Error syncing properties for {hostaway_account_id}: {e}")
+        print(f"[ERROR] Failed syncing for Hostaway Account ID {hostaway_account_id}: {e}")
+        traceback.print_exc()
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
