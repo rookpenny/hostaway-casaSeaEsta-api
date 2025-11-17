@@ -95,10 +95,16 @@ def save_to_airtable(properties):
     return count
 
 
-def sync_hostaway_properties():
+def sync_hostaway_properties(account_id: str = None):
     access_token = get_hostaway_access_token()
     properties = fetch_hostaway_properties(access_token)
+
+    if account_id:
+        # Only include properties that match the given Hostaway Account ID
+        properties = [p for p in properties if str(p.get("client_id")) == account_id]
+
     return save_to_airtable(properties)
+
 
 # Run for local testing
 if __name__ == "__main__":
