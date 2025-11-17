@@ -5,6 +5,9 @@ import os
 import requests
 import traceback
 from utils.hostaway_sync import sync_hostaway_properties  # ✅ correct
+from utils.scheduler import sync_all_pmcs
+
+admin_router = APIRouter()
 
 
 
@@ -145,4 +148,13 @@ def add_pmc_to_airtable(
         print("[ERROR] Airtable response code:", response.status_code)
         print("[ERROR] Airtable response body:", response.text)
         print("[ERROR] Exception details:", e)
+        return RedirectResponse(url="/admin?status=error", status_code=303)
+
+@admin_router.post("/admin/sync-all")
+def manual_sync_all():
+    try:
+        sync_all_pmcs()
+        return RedirectResponse(url="/admin?status=success", status_code=303)
+    except Exception as e:
+        print("[ERROR] Sync failed:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
