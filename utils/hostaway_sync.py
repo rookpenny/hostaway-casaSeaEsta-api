@@ -39,7 +39,7 @@ def fetch_hostaway_properties(access_token):
     return data.get("result", [])
 
 def fetch_pmc_lookup():
-    """Fetch PMC records from Airtable and build a lookup by Hostaway Account ID."""
+    """Builds a lookup of PMC credentials from Airtable using PMS Client ID and Secret."""
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
 
@@ -49,11 +49,19 @@ def fetch_pmc_lookup():
 
     records = response.json().get("records", [])
     lookup = {}
+
     for record in records:
         fields = record.get("fields", {})
-        account_id = str(fields.get("Hostaway Account ID")).strip()
-        if account_id and record.get("id"):
-            lookup[account_id] = record["id"]
+        client_id = str(fields.get("PMS Client ID", "")).strip()
+        client_secret = str(fields.get("PMS Secret", "")).strip()
+        pms = fields.get("PMS Integration", "").strip()
+
+        if client_id and client_secret and pms.lower() == "hostaway":
+            lookup[client_id] = {
+                "record_id": record["id"],
+                "client_secret": client_secret
+            }
+
     return lookup
 
 def save_to_airtable(properties):
