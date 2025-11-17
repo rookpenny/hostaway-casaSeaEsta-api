@@ -96,6 +96,14 @@ def sync_hostaway_properties(account_id: str):
     access_token = get_hostaway_access_token()
     properties = fetch_hostaway_properties(access_token)
 
+    import json
+    print("[DEBUG] First property raw dump:")
+    if properties:
+        print(json.dumps(properties[0], indent=2))
+    else:
+        print("No properties returned.")
+        return 0  # early return if no data
+
     print(f"[DEBUG] Total properties fetched from Hostaway: {len(properties)}")
     print(f"[DEBUG] Filtering for Hostaway Account ID: {account_id}")
 
@@ -103,7 +111,7 @@ def sync_hostaway_properties(account_id: str):
     for p in properties:
         print(f"  - Listing ID: {p.get('id')}, accountId: {p.get('accountId')}, client_id: {p.get('client_id')}")
 
-    # Use correct field for filtering
+    # Use correct field for filtering (we’ll update this after your next debug output)
     filtered = [p for p in properties if str(p.get("accountId")) == str(account_id)]
     print(f"[DEBUG] ✅ {len(filtered)} properties matched for account ID {account_id}")
 
