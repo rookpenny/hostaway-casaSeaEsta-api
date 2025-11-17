@@ -33,11 +33,9 @@ def fetch_hostaway_properties(access_token):
         raise Exception(f"Hostaway fetch failed: {response.text}")
 
     data = response.json()
+    print("[DEBUG] Raw Hostaway listings data:")
+    print(data)
 
-    # 🔍 DEBUG: Print first property
-    if "result" in data and data["result"]:
-        print("[DEBUG] First property result:", data["result"][0])
-    
     return data.get("result", [])
 
 def fetch_pmc_lookup():
