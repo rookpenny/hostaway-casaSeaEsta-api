@@ -74,7 +74,35 @@ def sync_hostaway_properties_route():
 # ➕ Show the form to create a new PMC
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
-    return templates.TemplateResponse("pmc_form.html", {"request": request})
+    pmcs = []
+    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}"
+    }
+
+    try:
+        response = requests.get(airtable_url, headers=headers)
+        if response.status_code == 200:
+            pmcs = response.json().get("records", [])
+    except Exception as e:
+        print(f"[ERROR] Failed to fetch PMCs for form: {e}")
+
+    # Extract unique dropdown values
+    def get_unique_field_values(records, field_name):
+        return sorted({
+            record.get("fields", {}).get(field_name)
+            for record in records
+            if record.get("fields", {}).get(field_name)
+        })
+
+    pms_integrations = get_unique_field_values(pmcs, "PMS Integration")
+    subscription_plans = get_unique_field_values(pmcs, "Subscription Plan")
+
+    return templates.TemplateResponse("pmc_form.html", {
+        "request": request,
+        "pms_integrations": pms_integrations,
+        "subscription_plans": subscription_plans
+    })
 
 
 
