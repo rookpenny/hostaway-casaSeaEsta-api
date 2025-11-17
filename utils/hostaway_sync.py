@@ -10,6 +10,27 @@ AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
 
+# utils/hostaway_sync.py
+
+
+def get_hostaway_access_token(client_id: str, client_secret: str) -> str:
+    url = "https://api.hostaway.com/v1/accessTokens"
+    payload = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret
+    }
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded"
+    }
+
+    response = requests.post(url, data=payload, headers=headers)
+    response.raise_for_status()
+
+    token_data = response.json()
+    return token_data["access_token"]
+
+
 def get_hostaway_access_token(client_id: str, client_secret: str):
     url = "https://api.hostaway.com/v1/accessTokens"
     data = {
