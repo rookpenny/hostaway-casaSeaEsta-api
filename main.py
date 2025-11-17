@@ -25,7 +25,7 @@ from utils.prearrival import prearrival_router
 from utils.smart import classify_category, smart_response, detect_log_types
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway_sync import sync_hostaway_properties
-
+from utils.hostaway_sync import sync_all_pmc_properties
 
 from fastapi import Form, FastAPI, Request, Query, Path, HTTPException, Header, APIRouter
 
@@ -59,13 +59,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
-from utils.hostaway_sync import sync_all_pmc_properties
-
-def start_scheduler():
-    scheduler = BackgroundScheduler()
-    scheduler.add_job(sync_all_pmc_properties, 'interval', hours=24)
-    scheduler.start()
 
 
 @app.post("/admin/sync-properties")
@@ -110,7 +103,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(sync_hostaway_properties, 'interval', hours=24)
+    scheduler.add_job(sync_all_pmc_properties, 'interval', hours=24)
     scheduler.start()
 
 # Inside your startup block
