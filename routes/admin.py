@@ -108,9 +108,22 @@ def show_new_pmc_form(request: Request):
 @admin_router.post("/sync-properties/{pms_client_id}")
 def sync_properties_for_pmc(pms_client_id: str):
     try:
+        if not pms_client_id or not pms_client_id.isdigit():
+            print(f"[WARN] Invalid PMS Client ID: {pms_client_id}")
+            return RedirectResponse(url="/admin?status=error", status_code=303)
+
         print(f"[INFO] Syncing for PMC with PMS Client ID: {pms_client_id}")
-        sync_hostaway_properties(account_id=pms_client_id)  # stays same for now
+
+        # ✅ PMS-agnostic for now (still using Hostaway sync logic)
+        from utils.hostaway_sync import sync_hostaway_properties
+        synced_count = sync_hostaway_properties(account_id=pms_client_id)
+
+        if not synced_count:
+            print(f"[WARN] No properties synced for ID: {pms_client_id}")
+            return RedirectResponse(url="/admin?status=error", status_code=303)
+
         return RedirectResponse(url="/admin?status=success", status_code=303)
+
     except Exception as e:
         print(f"[ERROR] Failed syncing for PMS Client ID {pms_client_id}: {e}")
         traceback.print_exc()
