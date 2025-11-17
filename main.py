@@ -24,6 +24,8 @@ from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest
 from utils.prearrival import prearrival_router
 from utils.smart import classify_category, smart_response, detect_log_types
 from utils.prearrival_debug import prearrival_debug_router
+from utils.hostaway_sync import sync_hostaway_properties
+
 
 from fastapi import Form, FastAPI, Request, Query, Path, HTTPException, Header, APIRouter
 
