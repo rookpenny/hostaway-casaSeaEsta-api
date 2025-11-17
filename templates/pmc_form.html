@@ -80,23 +80,24 @@
     <label for="subscription_plan">Subscription Plan</label>
     <select name="subscription_plan" id="subscription_plan" required>
       <option value="">Select a plan</option>
-      {% for plan in subscription_plans %}
-        <option value="{{ plan }}">{{ plan }}</option>
-      {% endfor %}
+      <option value="Free">Free</option>
+      <option value="Pro">Pro</option>
+      <option value="Enterprise">Enterprise</option>
     </select>
 
     <label for="pms_integration">PMS Integration</label>
     <select name="pms_integration" id="pms_integration" required>
       <option value="">Select integration</option>
-      {% for option in pms_integrations %}
-        <option value="{{ option }}">{{ option }}</option>
-      {% endfor %}
+      <option value="Hostaway">Hostaway</option>
+      <option value="Guesty">Guesty</option>
+      <option value="Lodgify">Lodgify</option>
+      <option value="Other">Other</option>
     </select>
 
-    <label for="pms_client_id">Hostaway Client ID</label>
-    <input type="text" name="pms_client_id" id="pms_client_id" placeholder="e.g. 63652" required />
+    <label for="pms_client_id" id="client_id_label">Client ID</label>
+    <input type="text" name="pms_client_id" id="pms_client_id" placeholder="Enter Client ID" required />
 
-    <label for="pms_secret">Hostaway Secret</label>
+    <label for="pms_secret" id="secret_label">Secret</label>
     <input type="password" name="pms_secret" id="pms_secret" placeholder="Enter API Secret" required />
 
     <label>
@@ -106,6 +107,29 @@
 
     <button type="submit">Submit</button>
   </form>
+
+  <script>
+    const integrationSelect = document.getElementById("pms_integration");
+    const clientIdLabel = document.getElementById("client_id_label");
+    const secretLabel = document.getElementById("secret_label");
+
+    const labelMap = {
+      "Hostaway": { client: "Hostaway Client ID", secret: "Hostaway Secret" },
+      "Guesty": { client: "Guesty API Key", secret: "Guesty API Secret" },
+      "Lodgify": { client: "Lodgify Client ID", secret: "Lodgify Secret" },
+      "Other": { client: "Client ID", secret: "Secret" }
+    };
+
+    function updateLabels() {
+      const selected = integrationSelect.value;
+      const labels = labelMap[selected] || labelMap["Other"];
+      clientIdLabel.textContent = labels.client;
+      secretLabel.textContent = labels.secret;
+    }
+
+    integrationSelect.addEventListener("change", updateLabels);
+    updateLabels(); // Initialize on page load
+  </script>
 
 </body>
 </html>
