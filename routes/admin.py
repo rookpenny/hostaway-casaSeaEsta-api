@@ -32,17 +32,29 @@ def admin_dashboard(request: Request):
         "Authorization": f"Bearer {AIRTABLE_API_KEY}"
     }
 
+    debug_info = {
+        "AIRTABLE_API_KEY": "✅ SET" if AIRTABLE_API_KEY else "❌ MISSING",
+        "AIRTABLE_BASE_ID": AIRTABLE_BASE_ID or "❌ MISSING",
+        "AIRTABLE_PMC_TABLE_ID": AIRTABLE_PMC_TABLE_ID
+    }
+
     try:
         response = requests.get(airtable_url, headers=headers)
         if response.status_code == 200:
             data = response.json()
             pmcs = data.get("records", [])
+        else:
+            debug_info["Airtable Response Code"] = response.status_code
+            debug_info["Airtable Response"] = response.text
     except Exception as e:
         print(f"[ERROR] Failed to fetch PMCs: {e}")
+        debug_info["Exception"] = str(e)
 
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
-        "pmcs": pmcs
+        "pmcs": pmcs,
+        "debug_info": debug_info,
+        "status": request.query_params.get("status", "")
     })
 
 
