@@ -60,6 +60,13 @@ app.add_middleware(
 )
 
 
+from utils.hostaway_sync import sync_all_pmc_properties
+
+def start_scheduler():
+    scheduler = BackgroundScheduler()
+    scheduler.add_job(sync_all_pmc_properties, 'interval', hours=24)
+    scheduler.start()
+
 
 @app.post("/admin/sync-properties")
 def manual_sync():
