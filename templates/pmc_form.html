@@ -69,25 +69,13 @@
     <h2>Add New PMC</h2>
 
     <label for="pmc_name">PMC Name</label>
-    <input type="text" name="pmc_name" id="pmc_name" required />
-
-    <label for="hostaway_account_id">Hostaway Account ID</label>
-    <input type="text" name="hostaway_account_id" id="hostaway_account_id" required />
+    <input type="text" name="pmc_name" id="pmc_name" placeholder="e.g. Sunshine Rentals" required />
 
     <label for="contact_email">Contact Email</label>
-    <input type="email" name="contact_email" id="contact_email" required />
+    <input type="email" name="contact_email" id="contact_email" placeholder="e.g. info@example.com" required />
 
     <label for="main_contact">Main Contact</label>
-    <input type="text" name="main_contact" id="main_contact" required />
-
-    <label>PMS Integration:</label>
-    <input type="text" name="pms_integration" value="hostaway" required>
-
-    <label>Hostaway Client ID:</label>
-    <input type="text" name="pms_client_id" required>
-
-    <label>Hostaway Secret:</label>
-    <input type="password" name="pms_secret" required>
+    <input type="text" name="main_contact" id="main_contact" placeholder="e.g. Jane Doe" required />
 
     <label for="subscription_plan">Subscription Plan</label>
     <select name="subscription_plan" id="subscription_plan" required>
@@ -99,8 +87,16 @@
 
     <label for="pms_integration">PMS Integration</label>
     <select name="pms_integration" id="pms_integration" required>
+      <option value="">Select integration</option>
       <option value="Hostaway">Hostaway</option>
+      <!-- Future: add Lodgify, Guesty, etc. -->
     </select>
+
+    <label for="pms_client_id">Hostaway Client ID</label>
+    <input type="text" name="pms_client_id" id="pms_client_id" placeholder="e.g. 63652" required />
+
+    <label for="pms_secret">Hostaway Secret</label>
+    <input type="password" name="pms_secret" id="pms_secret" placeholder="Enter API Secret" required />
 
     <label>
       <input type="checkbox" name="active" id="active" />
