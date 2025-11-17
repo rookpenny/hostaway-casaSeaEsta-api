@@ -110,11 +110,12 @@ def update_pmc_status(payload: dict = Body(...)):
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
     pmc_name: str = Form(...),
-    hostaway_account_id: str = Form(...),
     contact_email: str = Form(...),
     main_contact: str = Form(...),
     subscription_plan: str = Form(...),
     pms_integration: str = Form(...),
+    pms_client_id: str = Form(...),
+    pms_secret: str = Form(...),
     active: bool = Form(False)
 ):
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
@@ -125,12 +126,13 @@ def add_pmc_to_airtable(
 
     payload = {
         "fields": {
-            "Name": pmc_name,
-            "Hostaway Account ID": hostaway_account_id,
+            "PMC Name": pmc_name,
             "Email": contact_email,
             "Main Contact": main_contact,
             "Subscription Plan": subscription_plan,
             "PMS Integration": pms_integration,
+            "PMS Client ID": pms_client_id,
+            "PMS Secret": pms_secret,
             "Active": active
         }
     }
@@ -138,16 +140,9 @@ def add_pmc_to_airtable(
     try:
         response = requests.post(airtable_url, headers=headers, json=payload)
         response.raise_for_status()
-
-        print("[DEBUG] Payload sent to Airtable:")
-        print(payload)
-
         return RedirectResponse(url="/admin?status=success", status_code=303)
-
     except Exception as e:
-        print("[ERROR] Airtable response code:", response.status_code)
-        print("[ERROR] Airtable response body:", response.text)
-        print("[ERROR] Exception details:", e)
+        print("[ERROR] Failed to create PMC:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 @admin_router.post("/admin/sync-all")
