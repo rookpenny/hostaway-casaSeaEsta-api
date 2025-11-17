@@ -117,8 +117,10 @@ def add_pmc_to_airtable(
         return RedirectResponse(url="/admin?status=success", status_code=303)
     except requests.exceptions.RequestException as e:
         print(f"[ERROR] Failed to create PMC: {e}")
-        print(f"[DEBUG] Airtable response: {res.text}")
-        return RedirectResponse(url="/admin?status=error", status_code=303)        
+        if res is not None:
+            print(f"[DEBUG] Airtable response status: {res.status_code}")
+            print(f"[DEBUG] Airtable response body: {res.text}")
+        return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
 # ------------------ FETCH ------------------
