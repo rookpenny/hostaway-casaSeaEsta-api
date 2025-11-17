@@ -1,5 +1,6 @@
 import os
 import requests
+from datetime import datetime
 
 # Load credentials from environment
 HOSTAWAY_CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
@@ -32,11 +33,7 @@ def fetch_hostaway_properties(access_token):
     if response.status_code != 200:
         raise Exception(f"Hostaway fetch failed: {response.text}")
 
-    data = response.json()
-    print("[DEBUG] Raw Hostaway listings data:")
-    print(data)
-
-    return data.get("result", [])
+    return response.json().get("result", [])
 
 def fetch_pmc_lookup():
     """Builds a lookup of PMC credentials from Airtable using PMS Client ID and Secret."""
@@ -64,7 +61,7 @@ def fetch_pmc_lookup():
 
     return lookup
 
-def save_to_airtable(properties):
+def save_to_airtable(properties, account_id):
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
@@ -72,15 +69,11 @@ def save_to_airtable(properties):
     }
 
     pmc_lookup = fetch_pmc_lookup()
+    pmc_record = pmc_lookup.get(account_id)
+    pmc_record_id = pmc_record["record_id"] if pmc_record else None
     count = 0
 
     for prop in properties:
-        account_id = str(prop.get("client_id", "")).strip()
-        pmc_record_id = pmc_lookup.get(account_id)
-
-        print(f"Saving property for account_id: {account_id}")
-        print(f"PMC Record ID: {pmc_record_id}")
-
         payload = {
             "fields": {
                 "Property Name": prop.get("internalListingName"),
@@ -88,7 +81,8 @@ def save_to_airtable(properties):
                 "Hostaway Account ID": account_id,
                 "PMC": [pmc_record_id] if pmc_record_id else [],
                 "Notes": prop.get("name"),
-                "Active": True
+                "Active": True,
+                "Last Synced": datetime.utcnow().isoformat()
             }
         }
 
@@ -112,42 +106,28 @@ def sync_hostaway_properties(account_id: str):
     access_token = get_hostaway_access_token(account_id, client_secret)
     properties = fetch_hostaway_properties(access_token)
 
-    print(f"[DEBUG] Filtering for Hostaway Account ID: {account_id}")
+    # ✅ Filter using only accountIds (ignore listingFeeSetting)
     filtered = [p for p in properties if account_id in map(str, p.get("accountIds", []))]
-    print(f"[DEBUG] ✅ {len(filtered)} properties matched for account ID {account_id}")
-
-    return save_to_airtable(filtered)
-
-    # New filtering logic using listingFeeSetting
-    def matches_account(p):
-        for fee in p.get("listingFeeSetting", []):
-            if str(fee.get("accountId")) == str(account_id):
-                return True
-        return False
-
-    filtered = [p for p in properties if matches_account(p)]
-
-    # Extra debug aid
-    for p in properties:
-        nested_ids = [f.get("accountId") for f in p.get("listingFeeSetting", [])]
-        print(f"  - Listing ID: {p.get('id')}, nested accountIds: {nested_ids}")
 
     print(f"[DEBUG] ✅ {len(filtered)} properties matched for account ID {account_id}")
 
-    return save_to_airtable(filtered)
+    return save_to_airtable(filtered, account_id)
 
 def sync_all_pmc_properties():
     pmc_lookup = fetch_pmc_lookup()
     total = 0
 
     for account_id in pmc_lookup.keys():
-        print(f"[SCHEDULER] Syncing properties for account: {account_id}")
+        print(f"[SYNC] 🔄 Syncing properties for PMC: {account_id}")
         total += sync_hostaway_properties(account_id)
 
-    print(f"[SCHEDULER] ✅ Total properties synced across all PMCs: {total}")
+    print(f"[SYNC] ✅ Total properties synced across all PMCs: {total}")
     return total
 
-# Optional for local testing
+# Optional for local test
 if __name__ == "__main__":
-    synced = sync_hostaway_properties()
-    print(f"✅ Synced {synced} properties to Airtable")
+    # To sync all PMCs
+    sync_all_pmc_properties()
+
+    # OR to sync one PMC manually
+    # sync_hostaway_properties("your-account-id-here")
