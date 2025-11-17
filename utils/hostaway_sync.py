@@ -97,22 +97,29 @@ def sync_hostaway_properties(account_id: str):
     properties = fetch_hostaway_properties(access_token)
 
     import json
-    print("[DEBUG] First property raw dump:")
     if properties:
+        print("[DEBUG] First property raw dump:")
         print(json.dumps(properties[0], indent=2))
     else:
         print("No properties returned.")
-        return 0  # early return if no data
 
     print(f"[DEBUG] Total properties fetched from Hostaway: {len(properties)}")
     print(f"[DEBUG] Filtering for Hostaway Account ID: {account_id}")
 
-    # Extra debug: show each property's accountId and client_id
-    for p in properties:
-        print(f"  - Listing ID: {p.get('id')}, accountId: {p.get('accountId')}, client_id: {p.get('client_id')}")
+    # New filtering logic using listingFeeSetting
+    def matches_account(p):
+        for fee in p.get("listingFeeSetting", []):
+            if str(fee.get("accountId")) == str(account_id):
+                return True
+        return False
 
-    # Use correct field for filtering (we’ll update this after your next debug output)
-    filtered = [p for p in properties if str(p.get("accountId")) == str(account_id)]
+    filtered = [p for p in properties if matches_account(p)]
+
+    # Extra debug aid
+    for p in properties:
+        nested_ids = [f.get("accountId") for f in p.get("listingFeeSetting", [])]
+        print(f"  - Listing ID: {p.get('id')}, nested accountIds: {nested_ids}")
+
     print(f"[DEBUG] ✅ {len(filtered)} properties matched for account ID {account_id}")
 
     return save_to_airtable(filtered)
