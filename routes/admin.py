@@ -9,8 +9,6 @@ from utils.scheduler import sync_all_pmcs
 
 admin_router = APIRouter()
 
-
-
 # Airtable settings
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
@@ -74,36 +72,37 @@ def sync_hostaway_properties_route():
 # ➕ Show the form to create a new PMC
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
-    pmcs = []
-    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_API_KEY}"
-    }
+    # 🔹 Static fallback defaults (in case Airtable field fetch fails)
+    pms_integrations = ["Hostaway", "Guesty", "Lodgify"]
+    subscription_plans = ["Free", "Pro", "Enterprise"]
 
+    # Optional: Try fetching enum values from Airtable's "config" record
     try:
+        airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_API_KEY}"
+        }
+
         response = requests.get(airtable_url, headers=headers)
-        if response.status_code == 200:
-            pmcs = response.json().get("records", [])
+        response.raise_for_status()
+
+        records = response.json().get("records", [])
+        if records:
+            # This assumes the first record has all options populated as arrays
+            fields = records[0].get("fields", {})
+            if "PMS Integration Options" in fields:
+                pms_integrations = fields["PMS Integration Options"]
+            if "Subscription Plan Options" in fields:
+                subscription_plans = fields["Subscription Plan Options"]
+
     except Exception as e:
-        print(f"[ERROR] Failed to fetch PMCs for form: {e}")
-
-    # Extract unique dropdown values
-    def get_unique_field_values(records, field_name):
-        return sorted({
-            record.get("fields", {}).get(field_name)
-            for record in records
-            if record.get("fields", {}).get(field_name)
-        })
-
-    pms_integrations = get_unique_field_values(pmcs, "PMS Integration")
-    subscription_plans = get_unique_field_values(pmcs, "Subscription Plan")
+        print(f"[WARN] Failed to fetch dynamic dropdowns: {e}")
 
     return templates.TemplateResponse("pmc_form.html", {
         "request": request,
         "pms_integrations": pms_integrations,
         "subscription_plans": subscription_plans
     })
-
 
 
 @admin_router.post("/sync-properties/{hostaway_account_id}")
