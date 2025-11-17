@@ -92,7 +92,7 @@ def save_to_airtable(properties):
 
     return count
 
-def sync_hostaway_properties(account_id: str):
+def sync_hostaway_properties(account_id: str = None):
     access_token = get_hostaway_access_token()
     properties = fetch_hostaway_properties(access_token)
 
@@ -104,7 +104,9 @@ def sync_hostaway_properties(account_id: str):
         print("No properties returned.")
 
     print(f"[DEBUG] Total properties fetched from Hostaway: {len(properties)}")
-    print(f"[DEBUG] Filtering for Hostaway Account ID: {account_id}")
+
+    # ❗ Remove filtering because the token is already account-specific
+    return save_to_airtable(properties)
 
     # New filtering logic using listingFeeSetting
     def matches_account(p):
