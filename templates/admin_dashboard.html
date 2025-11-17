@@ -51,19 +51,40 @@
       padding: 0.3rem;
       border-radius: 4px;
     }
+    .message {
+      background-color: #f8d7da;
+      color: #721c24;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid #f5c6cb;
+      border-radius: 6px;
+      text-align: center;
+    }
   </style>
 </head>
 <body>
-{% if debug_info %}
-  <div class="message error">
-    <h3>🛠 Airtable Debug Info</h3>
-    <ul>
-      {% for key, value in debug_info.items() %}
-        <li><strong>{{ key }}:</strong> {{ value }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-{% endif %}
+
+  {% if request.query_params.get("status") == "error" %}
+    <div class="message">
+      ❌ Failed to load or sync PMC. Check logs for details.
+    </div>
+  {% elif request.query_params.get("status") == "success" %}
+    <div class="message" style="background-color: #d4edda; color: #155724; border-color: #c3e6cb;">
+      ✅ Operation completed successfully.
+    </div>
+  {% endif %}
+
+  {% if debug_info %}
+    <div class="message">
+      <h3>🛠 Airtable Debug Info</h3>
+      <ul>
+        {% for key, value in debug_info.items() %}
+          <li><strong>{{ key }}:</strong> {{ value }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
   <h1>PMC Dashboard</h1>
 
   <div class="top-bar">
@@ -71,7 +92,6 @@
   </div>
 
   {% if pmcs %}
-  
     <table>
       <thead>
         <tr>
@@ -87,24 +107,28 @@
       </thead>
       <tbody>
         {% for record in pmcs %}
-          {% set f = record.fields %}
+          {% set f = record["fields"] %}
           <tr>
-            <td>{{ f["PMC Name"] or "N/A" }}</td>
-            <td>{{ f["Hostaway Account ID"] or "—" }}</td>
-            <td>{{ f["Main Contact"] or "—" }}</td>
-            <td>{{ f["Email"] or "—" }}</td>
-            <td>{{ f["Subscription Plan"] or "—" }}</td>
-            <td>{{ f["PMS Integration"] or "—" }}</td>
+            <td>{{ f.get("PMC Name", "N/A") }}</td>
+            <td>{{ f.get("Hostaway Account ID", "—") }}</td>
+            <td>{{ f.get("Main Contact", "—") }}</td>
+            <td>{{ f.get("Email", "—") }}</td>
+            <td>{{ f.get("Subscription Plan", "—") }}</td>
+            <td>{{ f.get("PMS Integration", "—") }}</td>
             <td>
               <select class="status-select" data-record-id="{{ record.id }}">
-                <option value="true" {% if f["Active"] %}selected{% endif %}>✅ Active</option>
-                <option value="false" {% if not f["Active"] %}selected{% endif %}>❌ Inactive</option>
+                <option value="true" {% if f.get("Active") %}selected{% endif %}>✅ Active</option>
+                <option value="false" {% if not f.get("Active") %}selected{% endif %}>❌ Inactive</option>
               </select>
             </td>
             <td>
-              <form action="/admin/sync-properties/{{ f['Hostaway Account ID'] }}" method="post">
-                <button class="sync-one" type="submit">🔄 Sync</button>
-              </form>
+              {% if f.get("Hostaway Account ID") %}
+                <form action="/admin/sync-properties/{{ f.get('Hostaway Account ID') }}" method="post">
+                  <button class="sync-one" type="submit">🔄 Sync</button>
+                </form>
+              {% else %}
+                <span style="color: #999;">—</span>
+              {% endif %}
             </td>
           </tr>
         {% endfor %}
