@@ -94,24 +94,53 @@ def save_to_airtable(properties, account_id):
 
     return count
 
-def sync_hostaway_properties(account_id: str):
-    pmc_lookup = fetch_pmc_lookup()
+def sync_hostaway_properties(account_id: str = None):
+    """
+    If account_id is provided, sync properties only for that PMC.
+    Otherwise, sync all.
+    """
+    properties = []
 
-    pmc = pmc_lookup.get(account_id)
-    if not pmc:
-        raise Exception(f"No PMC found for Hostaway Account ID: {account_id}")
+    if account_id:
+        # Fetch properties for this specific Hostaway Account ID
+        url = f"https://api.hostaway.com/v1/properties?accountId={account_id}"
+        headers = {
+            "Authorization": f"Bearer {os.getenv('HOSTAWAY_API_KEY')}"
+        }
 
-    client_secret = pmc["client_secret"]
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        properties = response.json().get("properties", [])
 
-    access_token = get_hostaway_access_token(account_id, client_secret)
-    properties = fetch_hostaway_properties(access_token)
+    else:
+        # Optional: support syncing all PMCs here if no ID provided
+        pass
 
-    # ✅ Filter using only accountIds (ignore listingFeeSetting)
-    filtered = [p for p in properties if account_id in map(str, p.get("accountIds", []))]
+    # Push to Airtable
+    for prop in properties:
+        payload = {
+            "fields": {
+                "Property Name": prop["name"],
+                "Property ID": prop["id"],
+                "PMS Client ID": account_id,
+                "Active": True,
+                "Notes": prop.get("notes", ""),
+                "Sandy Enabled": True
+            }
+        }
 
-    print(f"[DEBUG] ✅ {len(filtered)} properties matched for account ID {account_id}")
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblABC123456"  # Your Properties Table ID
+        headers = {
+            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
+            "Content-Type": "application/json"
+        }
 
-    return save_to_airtable(filtered, account_id)
+        res = requests.post(airtable_url, headers=headers, json=payload)
+        if not res.ok:
+            print(f"[ERROR] Failed to push property {prop['name']}: {res.text}")
+
+    return len(properties)
+
 
 def sync_all_pmc_properties():
     pmc_lookup = fetch_pmc_lookup()
