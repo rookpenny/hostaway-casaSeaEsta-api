@@ -105,14 +105,15 @@ def show_new_pmc_form(request: Request):
     })
 
 
-@admin_router.post("/sync-properties/{hostaway_account_id}")
-def sync_properties_for_pmc(hostaway_account_id: str):
+@admin_router.post("/sync-properties/{pms_client_id}")
+def sync_properties_for_pmc(pms_client_id: str):
     try:
-        from utils.hostaway_sync import sync_hostaway_properties
-        sync_hostaway_properties(account_id=hostaway_account_id)
-        return RedirectResponse(url="/admin", status_code=303)
+        print(f"[INFO] Syncing for PMC with PMS Client ID: {pms_client_id}")
+        sync_hostaway_properties(account_id=pms_client_id)  # stays same for now
+        return RedirectResponse(url="/admin?status=success", status_code=303)
     except Exception as e:
-        print(f"[ERROR] Failed syncing for Hostaway Account ID {hostaway_account_id}: {e}")
+        print(f"[ERROR] Failed syncing for PMS Client ID {pms_client_id}: {e}")
+        traceback.print_exc()
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
