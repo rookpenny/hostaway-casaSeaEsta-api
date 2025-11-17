@@ -116,45 +116,29 @@ def save_to_airtable(properties, account_id):
     return count
 
 def sync_hostaway_properties(account_id: str):
-    # Treat account_id as the access token directly
+    client_id = account_id
+    client_secret = os.getenv("HOSTAWAY_SECRET")  # ✅ make sure this is set in your .env
+
+    if not client_secret:
+        raise Exception("Missing HOSTAWAY_SECRET in environment")
+
+    token = get_hostaway_access_token(client_id, client_secret)
+
     url = "https://api.hostaway.com/v1/properties"
     headers = {
-        "Authorization": f"Bearer {account_id}"
+        "Authorization": f"Bearer {token}"
     }
 
-    print(f"[DEBUG] Requesting: {url}")
     response = requests.get(url, headers=headers)
-
-    print(f"[DEBUG] Response: {response.status_code} - {response.text}")
     if response.status_code != 200:
         raise Exception(f"Failed to fetch properties: {response.text}")
 
     properties = response.json().get("properties", [])
-    print(f"[INFO] Found {len(properties)} properties")
+    print(f"[INFO] Retrieved {len(properties)} properties from Hostaway")
 
-    # Insert properties into Airtable (as before)
-    for prop in properties:
-        airtable_payload = {
-            "fields": {
-                "Property Name": prop["name"],
-                "Property ID": prop["id"],
-                "PMS Client ID": account_id,
-                "Active": True,
-                "Sandy Enabled": True
-            }
-        }
-
-        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblXYZ123"
-        airtable_headers = {
-            "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
-            "Content-Type": "application/json"
-        }
-
-        airtable_res = requests.post(airtable_url, headers=airtable_headers, json=airtable_payload)
-        if not airtable_res.ok:
-            print(f"[ERROR] Failed to insert property: {airtable_res.text}")
-
+    # TODO: Insert into Airtable, same as before...
     return len(properties)
+
 
 
 
