@@ -11,6 +11,21 @@ def fetch_pmcs():
     headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
     return requests.get(url, headers=headers).json().get("records", [])
 
+def upsert_airtable_record(table_id: str, record_id: str, fields: dict):
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{table_id}/{record_id}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "fields": fields
+    }
+
+    response = requests.patch(url, headers=headers, json=payload)
+    if response.status_code not in (200, 201):
+        raise Exception(f"[ERROR] Airtable upsert failed: {response.text}")
+    return response.json()
+    
 def save_properties_to_airtable(properties, pmc_id):
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
