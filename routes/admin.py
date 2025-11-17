@@ -71,7 +71,6 @@ def sync_properties_for_pmc(hostaway_account_id: str):
         return RedirectResponse(url="/admin", status_code=303)
     except Exception as e:
         print(f"[ERROR] Failed syncing for Hostaway Account ID {hostaway_account_id}: {e}")
-        traceback.print_exc()
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
