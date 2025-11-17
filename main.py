@@ -88,15 +88,16 @@ def add_pmc_to_airtable(
     pms_integration: str = Form(...),
     pms_client_id: str = Form(...),
     pms_secret: str = Form(...),
-    active: bool = Form(False),
+    active: bool = Form(False)
 ):
-    print("[DEBUG] Received new PMC form submission")
+    print("[DEBUG] Received POST /admin/add-pmc")
 
-    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
     }
+
     payload = {
         "fields": {
             "Name": pmc_name,
@@ -106,20 +107,22 @@ def add_pmc_to_airtable(
             "PMS Integration": pms_integration,
             "PMS Client ID": pms_client_id,
             "PMS Secret": pms_secret,
-            "Active": active,
+            "Active": active
         }
     }
 
+    print("[DEBUG] Airtable Payload:", payload)
+
     try:
-        res = requests.post(url, json=payload, headers=headers)
+        res = requests.post(airtable_url, json=payload, headers=headers)
         res.raise_for_status()
-        print("[DEBUG] Airtable PMC record created successfully")
+        print("[DEBUG] Airtable response:", res.json())
         return RedirectResponse(url="/admin?status=success", status_code=303)
-    except requests.exceptions.RequestException as e:
+
+    except requests.exceptions.HTTPError as e:
         print(f"[ERROR] Failed to create PMC: {e}")
-        if res is not None:
-            print(f"[DEBUG] Airtable response status: {res.status_code}")
-            print(f"[DEBUG] Airtable response body: {res.text}")
+        print(f"[DEBUG] Airtable response status: {res.status_code}")
+        print(f"[DEBUG] Airtable response body: {res.text}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
