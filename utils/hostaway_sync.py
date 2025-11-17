@@ -99,9 +99,9 @@ def sync_hostaway_properties(account_id=None):
     access_token = get_hostaway_access_token()
     properties = fetch_hostaway_properties(access_token)
 
+    # ✅ Filter properties for the given account_id if specified
     if account_id:
-        # Only include properties that match the given Hostaway Account ID
-        properties = [p for p in properties if str(p.get("client_id")) == account_id]
+        properties = [p for p in properties if str(p.get("client_id")) == str(account_id)]
 
     return save_to_airtable(properties)
 
