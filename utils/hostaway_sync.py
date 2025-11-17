@@ -95,18 +95,15 @@ def save_to_airtable(properties):
     return count
 
 def sync_hostaway_properties(account_id=None):
-    """
-    Sync all or only PMC-specific Hostaway properties to Airtable.
-    If account_id is given, only sync properties for that Hostaway account.
-    """
     access_token = get_hostaway_access_token()
-    properties = fetch_hostaway_properties(access_token)
+    all_properties = fetch_hostaway_properties(access_token)
 
     if account_id:
         print(f"[DEBUG] Filtering properties for Hostaway Account ID: {account_id}")
-        properties = [p for p in properties if str(p.get("client_id")) == str(account_id)]
+        all_properties = [p for p in all_properties if str(p.get("client_id")).strip() == str(account_id).strip()]
+        print(f"[DEBUG] {len(all_properties)} properties matched for account ID {account_id}")
 
-    return save_to_airtable(properties)
+    return save_to_airtable(all_properties)
 
 # Optional for local testing
 if __name__ == "__main__":
