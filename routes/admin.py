@@ -4,7 +4,8 @@ from fastapi.templating import Jinja2Templates
 import os
 import requests
 import traceback
-from utils.hostaway import sync_hostaway_properties
+from utils.hostaway_sync import sync_hostaway_properties
+
 
 # Airtable settings
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
