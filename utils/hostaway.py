@@ -139,28 +139,3 @@ def get_hostaway_properties():
 
     return response.json().get("result", [])
 
-#def sync_hostaway_properties():
-#    properties = get_hostaway_properties()
-#    synced = []
-
-#    for prop in properties:
-#        fields = {
-#            "Hostaway Property ID": str(prop.get("id")),
-#            "Name": prop.get("name"),
-#            "Address": prop.get("address", {}).get("addressLine1"),
-#            "City": prop.get("address", {}).get("city"),
-#            "Country": prop.get("address", {}).get("country"),
-#            "Active": True
-#        }
-
-#        upsert_airtable_record(
-#            base_id=AIRTABLE_BASE_ID,
-#            table_name=AIRTABLE_PROPERTIES_TABLE,
-#            unique_field="Hostaway Property ID",
-#            record_data=fields
-#        )
-
-#        synced.append(fields)
-
-#   return synced
-
