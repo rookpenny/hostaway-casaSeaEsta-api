@@ -7,8 +7,7 @@ HOSTAWAY_CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Replace with your actual PMC table ID
-AIRTABLE_PMC_TABLE_NAME = "PMC"  # PMC Table Name (not the ID)
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
 
 def get_hostaway_access_token():
     url = "https://api.hostaway.com/v1/accessTokens"
@@ -71,7 +70,6 @@ def save_to_airtable(properties):
         account_id = str(prop.get("client_id", "")).strip()
         pmc_record_id = pmc_lookup.get(account_id)
 
-        # DEBUG
         print(f"Saving property for account_id: {account_id}")
         print(f"PMC Record ID: {pmc_record_id}")
 
@@ -94,19 +92,21 @@ def save_to_airtable(properties):
 
     return count
 
-
 def sync_hostaway_properties(account_id=None):
+    """
+    Sync all or only PMC-specific Hostaway properties to Airtable.
+    If account_id is given, only sync properties for that Hostaway account.
+    """
     access_token = get_hostaway_access_token()
     properties = fetch_hostaway_properties(access_token)
 
-    # ✅ Filter properties for the given account_id if specified
     if account_id:
+        print(f"[DEBUG] Filtering properties for Hostaway Account ID: {account_id}")
         properties = [p for p in properties if str(p.get("client_id")) == str(account_id)]
 
     return save_to_airtable(properties)
 
-
-# Run for local testing
+# Optional for local testing
 if __name__ == "__main__":
     synced = sync_hostaway_properties()
     print(f"✅ Synced {synced} properties to Airtable")
