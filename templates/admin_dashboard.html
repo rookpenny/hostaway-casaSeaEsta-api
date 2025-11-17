@@ -54,7 +54,16 @@
   </style>
 </head>
 <body>
-
+{% if debug_info %}
+  <div class="message error">
+    <h3>🛠 Airtable Debug Info</h3>
+    <ul>
+      {% for key, value in debug_info.items() %}
+        <li><strong>{{ key }}:</strong> {{ value }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+{% endif %}
   <h1>PMC Dashboard</h1>
 
   <div class="top-bar">
@@ -62,6 +71,7 @@
   </div>
 
   {% if pmcs %}
+  
     <table>
       <thead>
         <tr>
