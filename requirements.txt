@@ -9,4 +9,3 @@ uvicorn[standard]
 pyairtable
 apscheduler
 python-multipart
-uvicorn
