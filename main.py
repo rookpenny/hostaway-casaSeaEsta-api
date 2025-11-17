@@ -82,50 +82,43 @@ admin_router = APIRouter(prefix="/admin")
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
     pmc_name: str = Form(...),
-    hostaway_account_id: str = Form(...),
     contact_email: str = Form(...),
     main_contact: str = Form(...),
     subscription_plan: str = Form(...),
     pms_integration: str = Form(...),
-    active: bool = Form(False),
     pms_client_id: str = Form(...),
-    pms_secret: str = Form(...)
+    pms_secret: str = Form(...),
+    active: bool = Form(False),
 ):
-    print("[DEBUG] Received POST /admin/add-pmc")
+    print("[DEBUG] Received new PMC form submission")
 
-    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
     }
-
     payload = {
         "fields": {
             "Name": pmc_name,
-            "Hostaway Token": hostaway_account_id,  # renamed to match new intent
             "Email": contact_email,
             "Main Contact": main_contact,
             "Subscription Plan": subscription_plan,
             "PMS Integration": pms_integration,
             "PMS Client ID": pms_client_id,
             "PMS Secret": pms_secret,
-            "Active": active
+            "Active": active,
         }
     }
 
     try:
-        response = requests.post(airtable_url, headers=headers, json=payload)
-        response.raise_for_status()
-        print("[DEBUG] Successfully added PMC to Airtable.")
+        res = requests.post(url, json=payload, headers=headers)
+        res.raise_for_status()
+        print("[DEBUG] Airtable PMC record created successfully")
         return RedirectResponse(url="/admin?status=success", status_code=303)
-
-    except requests.exceptions.HTTPError as e:
-        print("[ERROR] Failed to create PMC:", e)
-        print("[ERROR] Airtable response code:", response.status_code)
-        print("[ERROR] Airtable response body:", response.text)
-        print("[ERROR] Payload sent:", payload)
-        return RedirectResponse(url="/admin?status=error", status_code=303)
-        
+    except requests.exceptions.RequestException as e:
+        print(f"[ERROR] Failed to create PMC: {e}")
+        print(f"[DEBUG] Airtable response: {res.text}")
+        return RedirectResponse(url="/admin?status=error", status_code=303)        
 
 
 # ------------------ FETCH ------------------
