@@ -100,6 +100,16 @@ def sync_hostaway_properties(account_id: str):
     print(f"[DEBUG] {len(filtered)} properties matched for account ID {account_id}")
     return save_to_airtable(filtered)
 
+def sync_all_pmc_properties():
+    pmc_lookup = fetch_pmc_lookup()
+    total = 0
+
+    for account_id in pmc_lookup.keys():
+        print(f"[SCHEDULER] Syncing properties for account: {account_id}")
+        total += sync_hostaway_properties(account_id)
+
+    print(f"[SCHEDULER] ✅ Total properties synced across all PMCs: {total}")
+    return total
 
 # Optional for local testing
 if __name__ == "__main__":
