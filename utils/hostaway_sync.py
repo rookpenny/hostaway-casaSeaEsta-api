@@ -100,21 +100,23 @@ def save_to_airtable(properties):
 
     return count
 
-def sync_hostaway_properties(account_id: str = None):
-    access_token = get_hostaway_access_token()
+def sync_hostaway_properties(account_id: str):
+    pmc_lookup = fetch_pmc_lookup()
+
+    pmc = pmc_lookup.get(account_id)
+    if not pmc:
+        raise Exception(f"No PMC found for Hostaway Account ID: {account_id}")
+
+    client_secret = pmc["client_secret"]
+
+    access_token = get_hostaway_access_token(account_id, client_secret)
     properties = fetch_hostaway_properties(access_token)
 
-    import json
-    if properties:
-        print("[DEBUG] First property raw dump:")
-        print(json.dumps(properties[0], indent=2))
-    else:
-        print("No properties returned.")
+    print(f"[DEBUG] Filtering for Hostaway Account ID: {account_id}")
+    filtered = [p for p in properties if account_id in map(str, p.get("accountIds", []))]
+    print(f"[DEBUG] ✅ {len(filtered)} properties matched for account ID {account_id}")
 
-    print(f"[DEBUG] Total properties fetched from Hostaway: {len(properties)}")
-
-    # ❗ Remove filtering because the token is already account-specific
-    return save_to_airtable(properties)
+    return save_to_airtable(filtered)
 
     # New filtering logic using listingFeeSetting
     def matches_account(p):
