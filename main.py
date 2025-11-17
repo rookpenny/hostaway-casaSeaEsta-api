@@ -107,17 +107,17 @@ def start_scheduler():
 # Inside your startup block
 start_scheduler()
 
-@app.post("/admin/sync-hostaway-properties")
-def sync_hostaway_properties():
-    from utils.hostaway_sync import sync_hostaway_properties
-    try:
-        sync_hostaway_properties()
-        return {"status": "success", "syncedCount": 5}  # You can dynamically count if needed
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"detail": f"Sync failed: {str(e)}"}
-        )
+#@app.post("/admin/sync-hostaway-properties")
+#def sync_hostaway_properties():
+#    from utils.hostaway_sync import sync_hostaway_properties
+#    try:
+#        sync_hostaway_properties()
+#        return {"status": "success", "syncedCount": 5}  # You can dynamically count if needed
+#    except Exception as e:
+#        return JSONResponse(
+#            status_code=500,
+#            content={"detail": f"Sync failed: {str(e)}"}
+#        )
 
 
 # ------------------ MODELS ------------------
