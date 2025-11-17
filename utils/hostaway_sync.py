@@ -94,24 +94,26 @@ def save_to_airtable(properties, account_id):
 
     return count
 
-def sync_hostaway_properties(account_id: str = None):
-    if not account_id:
-        raise ValueError("No account_id provided")
-
-    url = f"https://api.hostaway.com/v1/properties?accountId={account_id}"
+def sync_hostaway_properties(account_id: str):
+    # Treat account_id as the access token directly
+    url = "https://api.hostaway.com/v1/properties"
     headers = {
-        "Authorization": f"Bearer {os.getenv('HOSTAWAY_API_KEY')}"
+        "Authorization": f"Bearer {account_id}"
     }
 
+    print(f"[DEBUG] Requesting: {url}")
     response = requests.get(url, headers=headers)
+
+    print(f"[DEBUG] Response: {response.status_code} - {response.text}")
     if response.status_code != 200:
         raise Exception(f"Failed to fetch properties: {response.text}")
 
     properties = response.json().get("properties", [])
+    print(f"[INFO] Found {len(properties)} properties")
 
-    # Push each property to Airtable
+    # Insert properties into Airtable (as before)
     for prop in properties:
-        payload = {
+        airtable_payload = {
             "fields": {
                 "Property Name": prop["name"],
                 "Property ID": prop["id"],
@@ -121,17 +123,18 @@ def sync_hostaway_properties(account_id: str = None):
             }
         }
 
-        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblABC123456"
-        headers = {
+        airtable_url = f"https://api.airtable.com/v0/{os.getenv('AIRTABLE_BASE_ID')}/tblXYZ123"
+        airtable_headers = {
             "Authorization": f"Bearer {os.getenv('AIRTABLE_API_KEY')}",
             "Content-Type": "application/json"
         }
 
-        r = requests.post(airtable_url, headers=headers, json=payload)
-        if not r.ok:
-            print(f"[ERROR] Failed to add property {prop['name']}: {r.text}")
+        airtable_res = requests.post(airtable_url, headers=airtable_headers, json=airtable_payload)
+        if not airtable_res.ok:
+            print(f"[ERROR] Failed to insert property: {airtable_res.text}")
 
     return len(properties)
+
 
 
 def sync_all_pmc_properties():
