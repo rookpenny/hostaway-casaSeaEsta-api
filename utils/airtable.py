@@ -1,24 +1,30 @@
-import os
 import requests
+import os
 
-AIRTABLE_TOKEN = os.getenv("AIRTABLE_API_KEY")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
+AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
+AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 
-def upsert_airtable_record(base_id, table_name, unique_field, record_data):
-    url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
+def fetch_pmcs():
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
+    return requests.get(url, headers=headers).json().get("records", [])
+
+def save_properties_to_airtable(properties, pmc_id):
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
-        "Authorization": f"Bearer {AIRTABLE_TOKEN}",
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    # Search for existing record
-    filter_formula = f"{{{unique_field}}} = '{record_data[unique_field]}'"
-    search_url = f"{url}?filterByFormula={requests.utils.quote(filter_formula)}"
-    response = requests.get(search_url, headers=headers)
-    records = response.json().get("records", [])
-
-    if records:
-        record_id = records[0]["id"]
-        update_url = f"{url}/{record_id}"
-        requests.patch(update_url, headers=headers, json={"fields": record_data})
-    else:
-        requests.post(url, headers=headers, json={"fields": record_data})
+    for prop in properties:
+        payload = {
+            "fields": {
+                **prop,
+                "PMC": [pmc_id]
+            }
+        }
+        res = requests.post(url, json=payload, headers=headers)
+        if res.status_code not in (200, 201):
+            print(f"[ERROR] Failed to sync property: {res.text}")
