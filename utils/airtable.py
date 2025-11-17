@@ -6,6 +6,9 @@ AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 
+print("[DEBUG] AIRTABLE_API_KEY:", "SET ✅" if AIRTABLE_API_KEY else "❌ MISSING")
+print("[DEBUG] AIRTABLE_BASE_ID:", AIRTABLE_BASE_ID or "❌ MISSING")
+
 def fetch_pmcs():
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
