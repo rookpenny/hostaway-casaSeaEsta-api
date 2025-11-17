@@ -95,9 +95,18 @@ def save_to_airtable(properties):
 def sync_hostaway_properties(account_id: str):
     access_token = get_hostaway_access_token()
     properties = fetch_hostaway_properties(access_token)
-    print(f"[DEBUG] Filtering properties for Hostaway Account ID: {account_id}")
-    filtered = [p for p in properties if str(p.get("client_id")) == account_id]
-    print(f"[DEBUG] {len(filtered)} properties matched for account ID {account_id}")
+
+    print(f"[DEBUG] Total properties fetched from Hostaway: {len(properties)}")
+    print(f"[DEBUG] Filtering for Hostaway Account ID: {account_id}")
+
+    # Extra debug: show each property's accountId and client_id
+    for p in properties:
+        print(f"  - Listing ID: {p.get('id')}, accountId: {p.get('accountId')}, client_id: {p.get('client_id')}")
+
+    # Use correct field for filtering
+    filtered = [p for p in properties if str(p.get("accountId")) == str(account_id)]
+    print(f"[DEBUG] ✅ {len(filtered)} properties matched for account ID {account_id}")
+
     return save_to_airtable(filtered)
 
 def sync_all_pmc_properties():
