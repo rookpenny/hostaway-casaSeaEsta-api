@@ -100,7 +100,7 @@
       <thead>
         <tr>
           <th>PMC Name</th>
-          <th>Account ID</th>
+          <th>Client ID</th>
           <th>Main Contact</th>
           <th>Email</th>
           <th>Plan</th>
@@ -132,7 +132,7 @@
                   type="submit"
                   {% if not f.get("PMS Client ID") %}
                     disabled
-                    title="Missing Account ID"
+                    title="Missing PMS Client ID"
                   {% endif %}
                 >
                   🔄 Sync
