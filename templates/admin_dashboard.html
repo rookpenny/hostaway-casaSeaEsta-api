@@ -47,6 +47,10 @@
       border: none;
       cursor: pointer;
     }
+    button.sync-one:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
     select.status-select {
       padding: 0.3rem;
       border-radius: 4px;
@@ -96,7 +100,7 @@
       <thead>
         <tr>
           <th>PMC Name</th>
-          <th>Hostaway ID</th>
+          <th>Account ID</th>
           <th>Main Contact</th>
           <th>Email</th>
           <th>Plan</th>
@@ -110,7 +114,7 @@
           {% set f = record["fields"] %}
           <tr>
             <td>{{ f.get("PMC Name", "N/A") }}</td>
-            <td>{{ f.get("Hostaway Account ID", "—") }}</td>
+            <td>{{ f.get("PMS Client ID", "—") }}</td>
             <td>{{ f.get("Main Contact", "—") }}</td>
             <td>{{ f.get("Email", "—") }}</td>
             <td>{{ f.get("Subscription Plan", "—") }}</td>
@@ -122,13 +126,18 @@
               </select>
             </td>
             <td>
-              {% if f.get("Hostaway Account ID") %}
-                <form action="/admin/sync-properties/{{ f.get('Hostaway Account ID') }}" method="post">
-                  <button class="sync-one" type="submit">🔄 Sync</button>
-                </form>
-              {% else %}
-                <span style="color: #999;">—</span>
-              {% endif %}
+              <form action="/admin/sync-properties/{{ f.get('PMS Client ID') }}" method="post">
+                <button
+                  class="sync-one"
+                  type="submit"
+                  {% if not f.get("PMS Client ID") %}
+                    disabled
+                    title="Missing Account ID"
+                  {% endif %}
+                >
+                  🔄 Sync
+                </button>
+              </form>
             </td>
           </tr>
         {% endfor %}
