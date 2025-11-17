@@ -113,17 +113,15 @@ def add_pmc_to_airtable(
 
     print("[DEBUG] Airtable Payload:", payload)
 
-    try:
-        res = requests.post(airtable_url, json=payload, headers=headers)
-        res.raise_for_status()
-        print("[DEBUG] Airtable response:", res.json())
-        return RedirectResponse(url="/admin?status=success", status_code=303)
+    res = requests.post(airtable_url, json=payload, headers=headers)
 
-    except requests.exceptions.HTTPError as e:
-        print(f"[ERROR] Failed to create PMC: {e}")
-        print(f"[DEBUG] Airtable response status: {res.status_code}")
+    if res.status_code not in (200, 201):
+        print(f"[ERROR] Failed to create PMC: {res.status_code} - {res.reason}")
         print(f"[DEBUG] Airtable response body: {res.text}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
+
+    print("[DEBUG] Airtable success response:", res.json())
+    return RedirectResponse(url="/admin?status=success", status_code=303)
 
 
 # ------------------ FETCH ------------------
