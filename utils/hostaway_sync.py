@@ -95,7 +95,7 @@ def save_to_airtable(properties):
     return count
 
 
-def sync_hostaway_properties(account_id: str = None):
+def sync_hostaway_properties(account_id=None):
     access_token = get_hostaway_access_token()
     properties = fetch_hostaway_properties(access_token)
 
