@@ -50,15 +50,26 @@ def fetch_pmc_lookup():
     return lookup
 
 
-def get_access_token(client_id: str, client_secret: str, base_url: str) -> str:
-    token_url = f"{base_url}/accessTokens"
-    payload = {
-        "grant_type": "client_credentials",
-        "client_id": client_id,
-        "client_secret": client_secret,
-    }
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
-    response = requests.post(token_url, data=payload, headers=headers)
+def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str) -> str:
+    if pms == "hostaway":
+        token_url = f"{base_url}/accessTokens"
+        payload = {
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": client_secret,
+        }
+        headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    elif pms == "guesty":
+        token_url = f"{base_url}/auth"
+        payload = {
+            "clientId": client_id,
+            "clientSecret": client_secret
+        }
+        headers = {"Content-Type": "application/json"}
+    else:
+        raise Exception(f"Unsupported PMS for auth: {pms}")
+
+    response = requests.post(token_url, json=payload if headers["Content-Type"] == "application/json" else payload, headers=headers)
 
     if response.status_code != 200:
         raise Exception(f"Token request failed: {response.text}")
@@ -123,7 +134,7 @@ def sync_properties(account_id: str):
         raise Exception(f"PMC not found for account ID: {account_id}")
 
     pmc = pmcs[account_id]
-    token = get_access_token(account_id, pmc["client_secret"], pmc["base_url"])
+    token = get_access_token(account_id, pmc["client_secret"], pmc["base_url"], pmc["pms"])
     properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
     count = save_to_airtable(properties, account_id, pmc["record_id"])
 
