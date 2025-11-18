@@ -134,6 +134,13 @@ def add_pmc_to_airtable(
             "Content-Type": "application/json"
         }
 
+        # 🔍 Debug Logging
+        import json
+        print("[DEBUG] Airtable POST URL:", url)
+        print("[DEBUG] Airtable Headers:", headers)
+        print("[DEBUG] Payload to Airtable:")
+        print(json.dumps(payload, indent=2))
+
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
 
