@@ -145,11 +145,11 @@ def add_pmc_to_airtable(
 
         return RedirectResponse(url="/admin?status=success", status_code=HTTP_303_SEE_OTHER)
 
-    except Exception as e:
-        import traceback
-        traceback.print_exc()
-        print(f"[ERROR] Failed to add PMC: {e}")
-        return RedirectResponse(url="/admin?status=error", status_code=HTTP_303_SEE_OTHER)
+        except Exception as e:
+            if hasattr(e, 'response') and e.response is not None:
+                print("[ERROR] Airtable response text:", e.response.text)
+            print(f"[ERROR] Failed to add PMC: {e}")
+            return RedirectResponse(url="/admin?status=error", status_code=HTTP_303_SEE_OTHER)
 
 # 🔁 Sync All PMCs
 @admin_router.post("/sync-all")
