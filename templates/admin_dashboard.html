@@ -116,13 +116,13 @@
               </select>
             </td>
             <td>
-              <form action="/admin/sync-properties/{{ f.get('Hostaway Account ID') }}" method="post">
+              <form action="/admin/sync-properties/{{ f.get('PMS Account ID') }}" method="post">
                 <button
                   class="sync-one"
                   type="submit"
-                  {% if not f.get("Hostaway Account ID") %}
+                  {% if not f.get("PMS Account ID") %}
                     disabled
-                    title="Missing Hostaway Account ID"
+                    title="Missing PMS Account ID"
                   {% endif %}
                 >
                   🔄 Sync
