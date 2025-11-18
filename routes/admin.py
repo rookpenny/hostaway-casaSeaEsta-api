@@ -67,15 +67,49 @@ def add_pmc_to_airtable(
     pms_integration: str = Form(...),
     pms_client_id: str = Form(...),
     pms_secret: str = Form(...),
-    pms_account_id: str = Form(...),
     active: bool = Form(False)
 ):
+    # Airtable endpoint
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
     }
 
+    # Step 1: Fetch all current PMS Account IDs
+    try:
+        existing_ids = []
+        offset = None
+        while True:
+            params = {"fields[]": ["PMS Account ID"]}
+            if offset:
+                params["offset"] = offset
+
+            res = requests.get(url, headers=headers, params=params)
+            res.raise_for_status()
+            records = res.json().get("records", [])
+
+            for rec in records:
+                fields = rec.get("fields", {})
+                account_id = fields.get("PMS Account ID")
+                if account_id:
+                    try:
+                        existing_ids.append(int(account_id))
+                    except:
+                        pass
+
+            offset = res.json().get("offset")
+            if not offset:
+                break
+
+        # Step 2: Determine the next available account ID
+        next_account_id = max(existing_ids, default=1000) + 1
+
+    except Exception as e:
+        print("[ERROR] Failed to determine next account ID:", e)
+        return RedirectResponse(url="/admin?status=error", status_code=303)
+
+    # Step 3: Build payload with auto-generated PMS Account ID
     payload = {
         "fields": {
             "PMC Name": pmc_name,
@@ -85,12 +119,13 @@ def add_pmc_to_airtable(
             "PMS Integration": pms_integration,
             "PMS Client ID": pms_client_id,
             "PMS Secret": pms_secret,
-            "PMS Account ID": pms_account_id,
+            "PMS Account ID": str(next_account_id),
             "Active": active,
             "Sync Enabled": True
         }
     }
 
+    # Step 4: Send to Airtable
     try:
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
