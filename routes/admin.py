@@ -116,15 +116,17 @@ def add_pmc_to_airtable(
         payload = {
             "fields": {
                 "PMC Name": pmc_name,
-                "Contact Email": contact_email,
+                "Email": contact_email,
                 "Main Contact": main_contact,
                 "Subscription Plan": subscription_plan,
                 "PMS Integration": pms_integration,
                 "PMS Client ID": pms_client_id,
                 "PMS Secret": pms_secret,
                 "PMS Account ID": new_account_id,
+                "Active": active,
                 "Sync Enabled": active,
-                "Active": active
+                "API Base URL": "",     # You can modify this if needed
+                "API Version": ""       # You can modify this if needed
             }
         }
 
@@ -134,12 +136,9 @@ def add_pmc_to_airtable(
             "Content-Type": "application/json"
         }
 
-        # 🔍 Debug Logging
-        import json
-        print("[DEBUG] Airtable POST URL:", url)
-        print("[DEBUG] Airtable Headers:", headers)
-        print("[DEBUG] Payload to Airtable:")
-        print(json.dumps(payload, indent=2))
+        print(f"[DEBUG] Airtable POST URL: {url}")
+        print(f"[DEBUG] Airtable Headers: {headers}")
+        print(f"[DEBUG] Payload to Airtable:\n{json.dumps(payload, indent=2)}")
 
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
