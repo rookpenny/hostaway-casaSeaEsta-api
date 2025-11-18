@@ -69,17 +69,6 @@
 <body>
 
   {% if debug_info %}
-  <div class="message error" style="white-space: pre-wrap; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; margin-top: 2rem;">
-    <h3>⚠️ Debug Info</h3>
-    <ul>
-      {% for key, value in debug_info.items() %}
-        <li><strong>{{ key }}:</strong> {{ value }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-{% endif %}
-
-  {% if debug_info %}
     <div class="message">
       <h3>🛠 Airtable Debug Info</h3>
       <ul>
