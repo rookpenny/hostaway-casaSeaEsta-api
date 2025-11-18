@@ -53,6 +53,9 @@
       background-color: #f8d7da;
       color: #721c24;
     }
+    .hidden {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -100,6 +103,12 @@
     <label for="pms_secret" id="secret_label">Secret</label>
     <input type="password" name="pms_secret" id="pms_secret" placeholder="Enter API Secret" required />
 
+    <!-- ✅ New field for Hostaway Account ID -->
+    <div id="hostaway_account_id_container" class="hidden">
+      <label for="hostaway_account_id">Hostaway Account ID</label>
+      <input type="text" name="hostaway_account_id" id="hostaway_account_id" placeholder="e.g. 63652" />
+    </div>
+
     <label>
       <input type="checkbox" name="active" id="active" />
       Active
@@ -112,6 +121,7 @@
     const integrationSelect = document.getElementById("pms_integration");
     const clientIdLabel = document.getElementById("client_id_label");
     const secretLabel = document.getElementById("secret_label");
+    const hostawayAccountField = document.getElementById("hostaway_account_id_container");
 
     const labelMap = {
       "Hostaway": { client: "Hostaway Client ID", secret: "Hostaway Secret" },
@@ -123,12 +133,16 @@
     function updateLabels() {
       const selected = integrationSelect.value;
       const labels = labelMap[selected] || labelMap["Other"];
+
       clientIdLabel.textContent = labels.client;
       secretLabel.textContent = labels.secret;
+
+      // Show Hostaway Account ID field only if Hostaway selected
+      hostawayAccountField.classList.toggle("hidden", selected !== "Hostaway");
     }
 
     integrationSelect.addEventListener("change", updateLabels);
-    updateLabels(); // Initialize on page load
+    updateLabels(); // Init on page load
   </script>
 
 </body>
