@@ -6,6 +6,9 @@ import os
 import requests
 import json
 from utils.pms_sync import sync_properties, sync_all_pmcs
+from uuid import uuid4
+
+from fastapi import APIRouter, Form
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -95,21 +98,37 @@ async def add_pmc(
         subscription_plan, pms_integration,
         pms_client_id, pms_secret, active
     )
-    
-def add_pmc_to_airtable(
-    pmc_name: str,
-    contact_email: str,
-    main_contact: str,
-    subscription_plan: str,
-    pms_integration: str,
-    pms_client_id: str,
-    pms_secret: str,
-    active: bool
-):
-    try:
-        new_account_id = get_next_pms_account_id()
 
-        fields = {
+
+
+
+
+
+
+
+        
+
+@admin_router.post("/add-pmc")
+def add_pmc_to_airtable(
+    pmc_name: str = Form(...),
+    contact_email: str = Form(...),
+    main_contact: str = Form(...),
+    subscription_plan: str = Form(...),
+    pms_integration: str = Form(...),
+    pms_client_id: str = Form(...),
+    pms_secret: str = Form(...),
+    active: bool = Form(False)
+):
+    print("[DEBUG] Received POST /admin/add-pmc")
+
+    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    payload = {
+        "fields": {
             "PMC Name": pmc_name,
             "Email": contact_email,
             "Main Contact": main_contact,
@@ -121,35 +140,20 @@ def add_pmc_to_airtable(
             "Active": active,
             "Sync Enabled": active
         }
+    }
 
-        # Optional fields
-        if "API_BASE_URL" in os.environ:
-            fields["API Base URL"] = os.environ["API_BASE_URL"]
-        if "API_VERSION" in os.environ:
-            fields["API Version"] = os.environ["API_VERSION"]
+    print("[DEBUG] Airtable Payload:", payload)
 
-        payload = { "fields": fields }
+    res = requests.post(airtable_url, json=payload, headers=headers)
 
-        url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-        headers = {
-            "Authorization": f"Bearer {AIRTABLE_API_KEY}",
-            "Content-Type": "application/json"
-        }
+    if res.status_code not in (200, 201):
+        print(f"[ERROR] Failed to create PMC: {res.status_code} - {res.reason}")
+        print(f"[DEBUG] Airtable response body: {res.text}")
+        return RedirectResponse(url="/admin?status=error", status_code=303)
 
-        print("[DEBUG] Airtable POST URL:", url)
-        print("[DEBUG] Airtable Headers:", headers)
-        print("[DEBUG] Payload to Airtable:\n", json.dumps(payload, indent=2))
+    print("[DEBUG] Airtable success response:", res.json())
+    return RedirectResponse(url="/admin?status=success", status_code=303)
 
-        response = requests.post(url, headers=headers, json=payload)
-        response.raise_for_status()
-
-        return RedirectResponse(url="/admin?status=success", status_code=HTTP_303_SEE_OTHER)
-
-        except Exception as e:
-            if hasattr(e, 'response') and e.response is not None:
-                print("[ERROR] Airtable response text:", e.response.text)
-            print(f"[ERROR] Failed to add PMC: {e}")
-            return RedirectResponse(url="/admin?status=error", status_code=HTTP_303_SEE_OTHER)
 
 # 🔁 Sync All PMCs
 @admin_router.post("/sync-all")
