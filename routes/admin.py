@@ -3,18 +3,17 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import os
 import requests
-from utils.hostaway_sync import sync_hostaway_properties, sync_all_pmcs
+from utils.pms_sync import sync_properties_for_account, sync_all_pmcs
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
 
-# Airtable Settings
+# Airtable config
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Your PMC table ID
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 
 
-# 🧭 Admin Dashboard
 @admin_router.get("", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     pmcs = []
@@ -45,13 +44,12 @@ def admin_dashboard(request: Request):
     })
 
 
-# ➕ Show new PMC form
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
-    pms_integrations = ["Hostaway", "Guesty", "Lodgify"]
+    pms_integrations = ["Hostaway", "Guesty", "Lodgify", "Other"]
     subscription_plans = ["Free", "Pro", "Enterprise"]
 
-    # Optional dynamic config from Airtable
+    # Optionally fetch dynamic dropdowns
     try:
         url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
         headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
@@ -73,7 +71,6 @@ def show_new_pmc_form(request: Request):
     })
 
 
-# ✅ Add a new PMC
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
     pmc_name: str = Form(...),
@@ -100,7 +97,6 @@ def add_pmc_to_airtable(
             "PMS Integration": pms_integration,
             "PMS Client ID": pms_client_id,
             "PMS Secret": pms_secret,
-            "Hostaway Account ID": pms_client_id if pms_integration.lower() == "hostaway" else "",
             "Active": active
         }
     }
@@ -114,29 +110,27 @@ def add_pmc_to_airtable(
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
-# 🔁 Sync all PMCs
 @admin_router.post("/sync-all")
 def manual_sync_all():
     try:
         sync_all_pmcs()
         return RedirectResponse(url="/admin?status=success", status_code=303)
     except Exception as e:
-        print("[ERROR] Sync failed:", e)
+        print("[ERROR] Sync all PMCs failed:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
-# 🔁 Sync a single PMC by Hostaway Account ID
 @admin_router.post("/sync-properties/{account_id}")
-def sync_properties_for_pmc(account_id: str):
+def manual_sync_one(account_id: str):
     try:
-        synced = sync_hostaway_properties(account_id=account_id)
+        synced = sync_properties_for_account(account_id)
+        print(f"[INFO] ✅ Synced {synced} properties for account {account_id}")
         return RedirectResponse(url="/admin?status=success", status_code=303)
     except Exception as e:
-        print(f"[ERROR] Failed syncing for Hostaway Account ID {account_id}: {e}")
+        print(f"[ERROR] Sync failed for {account_id}: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
-# ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
 def update_pmc_status(payload: dict = Body(...)):
     record_id = payload.get("record_id")
