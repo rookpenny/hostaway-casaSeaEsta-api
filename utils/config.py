@@ -6,15 +6,14 @@ from functools import lru_cache
 @lru_cache(maxsize=128)
 def load_property_config(slug: str) -> dict:
     """
-    Load property config from Airtable, with fallback to local file (if available).
+    Load property config from Airtable, with fallback to local file.
     """
-    # First try: Airtable
     try:
-        base_id = os.getenv("AIRTABLE_CONFIG_BASE_ID")
-        table_id = os.getenv("AIRTABLE_CONFIG_TABLE_ID")
+        base_id = os.getenv("AIRTABLE_BASE_ID")
+        table_name = "Properties"
         api_key = os.getenv("AIRTABLE_API_KEY")
 
-        url = f"https://api.airtable.com/v0/{base_id}/{table_id}"
+        url = f"https://api.airtable.com/v0/{base_id}/{table_name}"
         headers = {
             "Authorization": f"Bearer {api_key}"
         }
@@ -41,7 +40,7 @@ def load_property_config(slug: str) -> dict:
     except Exception as e:
         print(f"[Config] Airtable fetch failed for {slug}: {e}")
 
-    # Fallback: Local JSON file
+    # Fallback: Local JSON config
     try:
         path = f"data/{slug}/config.json"
         if not os.path.exists(path):
