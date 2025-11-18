@@ -3,33 +3,21 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import os
 import requests
-import traceback
-from utils.hostaway_sync import sync_hostaway_properties  # ✅ correct
-from utils.scheduler import sync_all_pmcs
+from utils.hostaway_sync import sync_hostaway_properties, sync_all_pmcs
 
-admin_router = APIRouter()
-
-# Airtable settings
-AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Replace with your actual table ID
-
-# Template setup
+admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
 
-# Router setup
-admin_router = APIRouter(prefix="/admin")
+# Airtable Settings
+AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
+AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Your PMC table ID
 
 
-# 🔷 Admin dashboard (lists existing PMCs)
+# 🧭 Admin Dashboard
 @admin_router.get("", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     pmcs = []
-    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_API_KEY}"
-    }
-
     debug_info = {
         "AIRTABLE_API_KEY": "✅ SET" if AIRTABLE_API_KEY else "❌ MISSING",
         "AIRTABLE_BASE_ID": AIRTABLE_BASE_ID or "❌ MISSING",
@@ -37,15 +25,16 @@ def admin_dashboard(request: Request):
     }
 
     try:
+        airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+        headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
         response = requests.get(airtable_url, headers=headers)
+
         if response.status_code == 200:
-            data = response.json()
-            pmcs = data.get("records", [])
+            pmcs = response.json().get("records", [])
         else:
             debug_info["Airtable Response Code"] = response.status_code
             debug_info["Airtable Response"] = response.text
     except Exception as e:
-        print(f"[ERROR] Failed to fetch PMCs: {e}")
         debug_info["Exception"] = str(e)
 
     return templates.TemplateResponse("admin_dashboard.html", {
@@ -56,47 +45,26 @@ def admin_dashboard(request: Request):
     })
 
 
-# 🔄 Manual sync endpoint for Hostaway properties
-@admin_router.post("/sync-hostaway-properties")
-def sync_hostaway_properties_route():
-    try:
-        result = sync_hostaway_properties()
-        return {"success": True, "synced": result}
-    except Exception as e:
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Failed to sync Hostaway properties", "details": str(e)}
-        )
-
-
-# ➕ Show the form to create a new PMC
+# ➕ Show new PMC form
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
-    # 🔹 Static fallback defaults (in case Airtable field fetch fails)
     pms_integrations = ["Hostaway", "Guesty", "Lodgify"]
     subscription_plans = ["Free", "Pro", "Enterprise"]
 
-    # Optional: Try fetching enum values from Airtable's "config" record
+    # Optional dynamic config from Airtable
     try:
-        airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-        headers = {
-            "Authorization": f"Bearer {AIRTABLE_API_KEY}"
-        }
+        url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+        headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
+        res = requests.get(url, headers=headers)
+        fields = res.json().get("records", [])[0].get("fields", {})
 
-        response = requests.get(airtable_url, headers=headers)
-        response.raise_for_status()
-
-        records = response.json().get("records", [])
-        if records:
-            # This assumes the first record has all options populated as arrays
-            fields = records[0].get("fields", {})
-            if "PMS Integration Options" in fields:
-                pms_integrations = fields["PMS Integration Options"]
-            if "Subscription Plan Options" in fields:
-                subscription_plans = fields["Subscription Plan Options"]
+        if "PMS Integration Options" in fields:
+            pms_integrations = fields["PMS Integration Options"]
+        if "Subscription Plan Options" in fields:
+            subscription_plans = fields["Subscription Plan Options"]
 
     except Exception as e:
-        print(f"[WARN] Failed to fetch dynamic dropdowns: {e}")
+        print(f"[WARN] Failed to fetch dropdowns: {e}")
 
     return templates.TemplateResponse("pmc_form.html", {
         "request": request,
@@ -105,61 +73,7 @@ def show_new_pmc_form(request: Request):
     })
 
 
-@admin_router.post("/sync-properties/{pms_client_id}")
-def sync_properties_for_pmc(pms_client_id: str):
-    try:
-        if not pms_client_id or not pms_client_id.isdigit():
-            print(f"[WARN] Invalid PMS Client ID: {pms_client_id}")
-            return RedirectResponse(url="/admin?status=error", status_code=303)
-
-        print(f"[INFO] Syncing for PMC with PMS Client ID: {pms_client_id}")
-
-        # ✅ PMS-agnostic for now (still using Hostaway sync logic)
-        from utils.hostaway_sync import sync_hostaway_properties
-        synced_count = sync_hostaway_properties(account_id=pms_client_id)
-
-        if not synced_count:
-            print(f"[WARN] No properties synced for ID: {pms_client_id}")
-            return RedirectResponse(url="/admin?status=error", status_code=303)
-
-        return RedirectResponse(url="/admin?status=success", status_code=303)
-
-    except Exception as e:
-        print(f"[ERROR] Failed syncing for PMS Client ID {pms_client_id}: {e}")
-        traceback.print_exc()
-        return RedirectResponse(url="/admin?status=error", status_code=303)
-
-
-@admin_router.post("/update-status")
-def update_pmc_status(payload: dict = Body(...)):
-    record_id = payload.get("record_id")
-    active = payload.get("active", False)
-
-    if not record_id:
-        return JSONResponse(status_code=400, content={"error": "Missing record_id"})
-
-    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}/{record_id}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
-        "Content-Type": "application/json"
-    }
-    data = {
-        "fields": {
-            "Active": active
-        }
-    }
-
-    try:
-        response = requests.patch(airtable_url, headers=headers, json=data)
-        if response.status_code in (200, 201):
-            return {"success": True}
-        else:
-            return JSONResponse(status_code=500, content={"error": "Failed to update", "details": response.text})
-    except Exception as e:
-        return JSONResponse(status_code=500, content={"error": str(e)})
-
-
-# ✅ Handle form submission and create PMC in Airtable
+# ✅ Add a new PMC
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
     pmc_name: str = Form(...),
@@ -171,7 +85,7 @@ def add_pmc_to_airtable(
     pms_secret: str = Form(...),
     active: bool = Form(False)
 ):
-    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
@@ -186,19 +100,22 @@ def add_pmc_to_airtable(
             "PMS Integration": pms_integration,
             "PMS Client ID": pms_client_id,
             "PMS Secret": pms_secret,
+            "Hostaway Account ID": pms_client_id if pms_integration.lower() == "hostaway" else "",
             "Active": active
         }
     }
 
     try:
-        response = requests.post(airtable_url, headers=headers, json=payload)
+        response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
         return RedirectResponse(url="/admin?status=success", status_code=303)
     except Exception as e:
         print("[ERROR] Failed to create PMC:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
-@admin_router.post("/admin/sync-all")
+
+# 🔁 Sync all PMCs
+@admin_router.post("/sync-all")
 def manual_sync_all():
     try:
         sync_all_pmcs()
@@ -206,3 +123,40 @@ def manual_sync_all():
     except Exception as e:
         print("[ERROR] Sync failed:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
+
+
+# 🔁 Sync a single PMC by Hostaway Account ID
+@admin_router.post("/sync-properties/{account_id}")
+def sync_properties_for_pmc(account_id: str):
+    try:
+        synced = sync_hostaway_properties(account_id=account_id)
+        return RedirectResponse(url="/admin?status=success", status_code=303)
+    except Exception as e:
+        print(f"[ERROR] Failed syncing for Hostaway Account ID {account_id}: {e}")
+        return RedirectResponse(url="/admin?status=error", status_code=303)
+
+
+# ✅ Toggle PMC Active Status
+@admin_router.post("/update-status")
+def update_pmc_status(payload: dict = Body(...)):
+    record_id = payload.get("record_id")
+    active = payload.get("active", False)
+
+    if not record_id:
+        return JSONResponse(status_code=400, content={"error": "Missing record_id"})
+
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}/{record_id}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {"fields": {"Active": active}}
+
+    try:
+        response = requests.patch(url, headers=headers, json=data)
+        if response.status_code in (200, 201):
+            return {"success": True}
+        else:
+            return JSONResponse(status_code=500, content={"error": response.text})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
