@@ -1,12 +1,10 @@
 from fastapi import APIRouter, Request, Form, Body
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
+from starlette.status import HTTP_303_SEE_OTHER
 import os
 import requests
 from utils.pms_sync import sync_properties, sync_all_pmcs
-from starlette.status import HTTP_303_SEE_OTHER
-
-
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -14,7 +12,8 @@ templates = Jinja2Templates(directory="templates")
 # Airtable Settings
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # PMC table ID
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Confirm this matches Airtable
+
 
 # 🧭 Admin Dashboard
 @admin_router.get("", response_class=HTMLResponse)
@@ -79,12 +78,12 @@ def get_next_pms_account_id():
         last_id = int(records[0]["fields"].get("PMS Account ID", 10000))
         return last_id + 1
     else:
-        return 10000  # Start from 10000 if empty
+        return 10000
 
 
-# ✅ Add a New PMC
-def add_pmc_to_airtable(
-    request: Request,
+# ✅ Add New PMC
+@admin_router.post("/add-pmc")
+async def add_pmc(
     pmc_name: str = Form(...),
     contact_email: str = Form(...),
     main_contact: str = Form(...),
@@ -93,6 +92,23 @@ def add_pmc_to_airtable(
     pms_client_id: str = Form(...),
     pms_secret: str = Form(...),
     active: bool = Form(False)
+):
+    return add_pmc_to_airtable(
+        pmc_name, contact_email, main_contact,
+        subscription_plan, pms_integration,
+        pms_client_id, pms_secret, active
+    )
+
+
+def add_pmc_to_airtable(
+    pmc_name: str,
+    contact_email: str,
+    main_contact: str,
+    subscription_plan: str,
+    pms_integration: str,
+    pms_client_id: str,
+    pms_secret: str,
+    active: bool
 ):
     try:
         new_account_id = get_next_pms_account_id()
@@ -139,7 +155,7 @@ def manual_sync_all():
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
-# 🔁 Sync One PMC by Account ID
+# 🔁 Sync Properties for One PMC
 @admin_router.post("/sync-properties/{account_id}")
 def sync_properties_for_pmc(account_id: str):
     try:
