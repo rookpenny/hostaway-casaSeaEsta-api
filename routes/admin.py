@@ -1,14 +1,15 @@
+# routes/admin.py
+
 from fastapi import APIRouter, Request, Form, Body
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 import os
 import requests
-from utils.pms_sync import sync_properties_for_account, sync_all_pmcs
+from utils.pms_sync import sync_properties, sync_all_pmcs
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
 
-# Airtable config
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
@@ -49,21 +50,6 @@ def show_new_pmc_form(request: Request):
     pms_integrations = ["Hostaway", "Guesty", "Lodgify", "Other"]
     subscription_plans = ["Free", "Pro", "Enterprise"]
 
-    # Optionally fetch dynamic dropdowns
-    try:
-        url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-        headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
-        res = requests.get(url, headers=headers)
-        fields = res.json().get("records", [])[0].get("fields", {})
-
-        if "PMS Integration Options" in fields:
-            pms_integrations = fields["PMS Integration Options"]
-        if "Subscription Plan Options" in fields:
-            subscription_plans = fields["Subscription Plan Options"]
-
-    except Exception as e:
-        print(f"[WARN] Failed to fetch dropdowns: {e}")
-
     return templates.TemplateResponse("pmc_form.html", {
         "request": request,
         "pms_integrations": pms_integrations,
@@ -97,6 +83,7 @@ def add_pmc_to_airtable(
             "PMS Integration": pms_integration,
             "PMS Client ID": pms_client_id,
             "PMS Secret": pms_secret,
+            "PMS Account ID": pms_client_id,
             "Active": active
         }
     }
@@ -116,18 +103,19 @@ def manual_sync_all():
         sync_all_pmcs()
         return RedirectResponse(url="/admin?status=success", status_code=303)
     except Exception as e:
-        print("[ERROR] Sync all PMCs failed:", e)
+        print("[ERROR] Sync failed:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
 @admin_router.post("/sync-properties/{account_id}")
-def manual_sync_one(account_id: str):
+def sync_properties_for_pmc(account_id: str):
     try:
-        synced = sync_properties_for_account(account_id)
-        print(f"[INFO] ✅ Synced {synced} properties for account {account_id}")
+        print(f"[INFO] Syncing for PMC with PMS Account ID: {account_id}")
+        synced_count = sync_properties(account_id=account_id)
+        print(f"[INFO] ✅ Synced {synced_count} properties")
         return RedirectResponse(url="/admin?status=success", status_code=303)
     except Exception as e:
-        print(f"[ERROR] Sync failed for {account_id}: {e}")
+        print(f"[ERROR] Failed syncing for PMS Account ID {account_id}: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
