@@ -1,52 +1,18 @@
-# utils/pms_sync.py
-
 import os
 import requests
 from datetime import datetime
 
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
-
-
-def get_access_token(pms: str, client_id: str, client_secret: str) -> str:
-    """Returns a bearer token for the given PMS."""
-    if pms.lower() == "hostaway":
-        url = "https://api.hostaway.com/v1/accessTokens"
-        payload = {
-            "grant_type": "client_credentials",
-            "client_id": client_id,
-            "client_secret": client_secret
-        }
-        headers = {"Content-Type": "application/x-www-form-urlencoded"}
-        response = requests.post(url, data=payload, headers=headers)
-        if response.status_code != 200:
-            raise Exception(f"Token request failed: {response.text}")
-        return response.json()["access_token"]
-
-    # Add more PMS logic here
-    raise Exception(f"Unsupported PMS: {pms}")
-
-
-def fetch_properties(pms: str, token: str) -> list:
-    """Fetches properties from the appropriate PMS."""
-    if pms.lower() == "hostaway":
-        url = "https://api.hostaway.com/v1/listings"
-        headers = {"Authorization": f"Bearer {token}"}
-        response = requests.get(url, headers=headers)
-        if response.status_code != 200:
-            raise Exception(f"Hostaway fetch failed: {response.text}")
-        return response.json().get("result", [])
-
-    # Add more PMS logic here
-    raise Exception(f"Unsupported PMS: {pms}")
+AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
 
 
 def fetch_pmc_lookup():
-    """Builds a lookup of PMC credentials from Airtable."""
+    """Fetch PMC configs from Airtable and return a dict of client_id -> credentials."""
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
+
     response = requests.get(url, headers=headers)
     if response.status_code != 200:
         raise Exception(f"Failed to fetch PMC records: {response.text}")
@@ -59,41 +25,75 @@ def fetch_pmc_lookup():
         client_id = str(fields.get("PMS Client ID", "")).strip()
         client_secret = str(fields.get("PMS Secret", "")).strip()
         pms = fields.get("PMS Integration", "").strip()
-        record_id = record.get("id")
+        base_url = fields.get("API Base URL", "").strip() or "https://api.hostaway.com/v1"
+        version = fields.get("API Version", "").strip()
+        sync_enabled = fields.get("Sync Enabled", True)
 
-        if client_id and client_secret and pms:
+        if client_id and client_secret and sync_enabled:
             lookup[client_id] = {
+                "record_id": record["id"],
                 "client_secret": client_secret,
-                "pms": pms,
-                "record_id": record_id
+                "pms": pms.lower(),
+                "base_url": base_url,
+                "version": version,
             }
 
     return lookup
 
 
-def save_to_airtable(properties: list, account_id: str, pms: str):
+def get_access_token(client_id: str, client_secret: str, base_url: str) -> str:
+    token_url = f"{base_url}/accessTokens"
+    payload = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+    }
+    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    response = requests.post(token_url, data=payload, headers=headers)
+
+    if response.status_code != 200:
+        raise Exception(f"Token request failed: {response.text}")
+
+    return response.json()["access_token"]
+
+
+def fetch_properties(access_token: str, base_url: str, pms: str):
+    """Fetch property list from PMS API using bearer token."""
+    url = f"{base_url}/listings" if pms == "hostaway" else f"{base_url}/properties"
+    headers = {"Authorization": f"Bearer {access_token}"}
+    response = requests.get(url, headers=headers)
+
+    if response.status_code != 200:
+        raise Exception(f"Failed to fetch properties: {response.text}")
+
+    if pms == "hostaway":
+        return response.json().get("result", [])
+    else:
+        return response.json().get("properties", [])
+
+
+def save_to_airtable(properties, account_id, pmc_record_id):
+    """Write fetched property records to Airtable."""
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    pmc_lookup = fetch_pmc_lookup()
-    pmc_record = pmc_lookup.get(account_id)
-    pmc_record_id = pmc_record["record_id"] if pmc_record else None
     count = 0
-
     for prop in properties:
+        prop_id = str(prop.get("id"))
+        name = prop.get("internalListingName") or prop.get("name")
+
         payload = {
             "fields": {
-                "Property Name": prop.get("internalListingName") or prop.get("name"),
-                "PMS Property ID": str(prop.get("id")),
-                "PMS Account ID": account_id,
-                "PMC": [pmc_record_id] if pmc_record_id else [],
-                "Notes": prop.get("name"),
+                "Property Name": name,
+                "Property External ID": prop_id,
+                "Account ID": account_id,
+                "PMC": [pmc_record_id],
                 "Active": True,
                 "Last Synced": datetime.utcnow().isoformat(),
-                "PMS Integration": pms
+                "Notes": prop.get("name")  # Optional: Keep internal label
             }
         }
 
@@ -101,43 +101,40 @@ def save_to_airtable(properties: list, account_id: str, pms: str):
         if res.status_code in (200, 201):
             count += 1
         else:
-            print(f"[ERROR] Failed to save property {prop.get('name')}: {res.text}")
+            print(f"[ERROR] Failed to save property {name}: {res.text}")
 
-    print(f"[INFO] ✅ Saved {count} properties to Airtable")
     return count
 
 
 def sync_properties(account_id: str):
-    """Syncs properties for a single PMC given account_id."""
-    pmc_lookup = fetch_pmc_lookup()
-    pmc = pmc_lookup.get(account_id)
+    """Sync a single PMC by account ID."""
+    pmcs = fetch_pmc_lookup()
+    if account_id not in pmcs:
+        raise Exception(f"PMC not found for account ID: {account_id}")
 
-    if not pmc:
-        raise Exception(f"No PMC found for account_id: {account_id}")
+    pmc = pmcs[account_id]
+    token = get_access_token(account_id, pmc["client_secret"], pmc["base_url"])
+    properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
+    count = save_to_airtable(properties, account_id, pmc["record_id"])
 
-    token = get_access_token(pmc["pms"], account_id, pmc["client_secret"])
-    properties = fetch_properties(pmc["pms"], token)
-    print(f"[INFO] Retrieved {len(properties)} properties from {pmc['pms']}")
-    return save_to_airtable(properties, account_id, pmc["pms"])
+    print(f"[SYNC] ✅ Saved {count} properties for {account_id}")
+    return count
 
 
 def sync_all_pmcs():
-    """Syncs properties for all PMCs in Airtable."""
-    pmc_lookup = fetch_pmc_lookup()
+    """Loop through all PMCs in Airtable and sync their properties."""
     total = 0
-
-    for account_id in pmc_lookup:
-        print(f"[SYNC] 🔄 Syncing properties for PMC Account: {account_id}")
+    pmcs = fetch_pmc_lookup()
+    for account_id in pmcs.keys():
+        print(f"[SYNC] 🔄 Syncing PMC {account_id}")
         try:
-            count = sync_properties(account_id)
-            total += count
+            total += sync_properties(account_id)
         except Exception as e:
-            print(f"[ERROR] Failed syncing for {account_id}: {e}")
-
-    print(f"[SYNC] ✅ Total properties synced across all PMCs: {total}")
+            print(f"[ERROR] Failed syncing {account_id}: {e}")
+    print(f"[SYNC] ✅ Total properties synced: {total}")
     return total
 
 
-# Optional CLI usage
+# For local test
 if __name__ == "__main__":
     sync_all_pmcs()
