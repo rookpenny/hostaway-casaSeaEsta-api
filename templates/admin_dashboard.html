@@ -126,18 +126,22 @@
               </select>
             </td>
             <td>
-              <form action="/admin/sync-properties/{{ f.get('PMS Client ID') }}" method="post">
-                <button
-                  class="sync-one"
-                  type="submit"
-                  {% if not f.get("PMS Client ID") %}
-                    disabled
-                    title="Missing PMS Client ID"
-                  {% endif %}
-                >
-                  🔄 Sync
-                </button>
-              </form>
+              {% if f.get("PMS Integration", "").lower() == "hostaway" %}
+                <form action="/admin/sync-properties/{{ f.get('Hostaway Account ID') }}" method="post">
+                  <button
+                    class="sync-one"
+                    type="submit"
+                    {% if not f.get("Hostaway Account ID") %}
+                      disabled
+                      title="Missing Hostaway Account ID"
+                    {% endif %}
+                  >
+                    🔄 Sync
+                  </button>
+                </form>
+              {% else %}
+                <span style="color: #aaa;">—</span>
+              {% endif %}
             </td>
           </tr>
         {% endfor %}
