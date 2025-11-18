@@ -1,6 +1,7 @@
 import os
 import requests
 from datetime import datetime
+from utils.pms_sync import sync_properties
 
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
