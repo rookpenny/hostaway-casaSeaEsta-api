@@ -4,6 +4,9 @@ from fastapi.templating import Jinja2Templates
 import os
 import requests
 from utils.pms_sync import sync_properties, sync_all_pmcs
+from starlette.status import HTTP_303_SEE_OTHER
+
+
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -57,9 +60,31 @@ def show_new_pmc_form(request: Request):
     })
 
 
+def get_next_pms_account_id():
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    params = {
+        "sort[0][field]": "PMS Account ID",
+        "sort[0][direction]": "desc",
+        "maxRecords": 1
+    }
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}"
+    }
+
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    records = response.json().get("records", [])
+
+    if records:
+        last_id = int(records[0]["fields"].get("PMS Account ID", 10000))
+        return last_id + 1
+    else:
+        return 10000  # Start from 10000 if empty
+
+
 # ✅ Add a New PMC
-@admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
+    request: Request,
     pmc_name: str = Form(...),
     contact_email: str = Form(...),
     main_contact: str = Form(...),
@@ -69,70 +94,38 @@ def add_pmc_to_airtable(
     pms_secret: str = Form(...),
     active: bool = Form(False)
 ):
-    # Airtable endpoint
-    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
-        "Content-Type": "application/json"
-    }
-
-    # Step 1: Fetch all current PMS Account IDs
     try:
-        existing_ids = []
-        offset = None
-        while True:
-            params = {"fields[]": ["PMS Account ID"]}
-            if offset:
-                params["offset"] = offset
+        new_account_id = get_next_pms_account_id()
 
-            res = requests.get(url, headers=headers, params=params)
-            res.raise_for_status()
-            records = res.json().get("records", [])
-
-            for rec in records:
-                fields = rec.get("fields", {})
-                account_id = fields.get("PMS Account ID")
-                if account_id:
-                    try:
-                        existing_ids.append(int(account_id))
-                    except:
-                        pass
-
-            offset = res.json().get("offset")
-            if not offset:
-                break
-
-        # Step 2: Determine the next available account ID
-        next_account_id = max(existing_ids, default=1000) + 1
-
-    except Exception as e:
-        print("[ERROR] Failed to determine next account ID:", e)
-        return RedirectResponse(url="/admin?status=error", status_code=303)
-
-    # Step 3: Build payload with auto-generated PMS Account ID
-    payload = {
-        "fields": {
-            "PMC Name": pmc_name,
-            "Email": contact_email,
-            "Main Contact": main_contact,
-            "Subscription Plan": subscription_plan,
-            "PMS Integration": pms_integration,
-            "PMS Client ID": pms_client_id,
-            "PMS Secret": pms_secret,
-            "PMS Account ID": str(next_account_id),
-            "Active": active,
-            "Sync Enabled": True
+        payload = {
+            "fields": {
+                "PMC Name": pmc_name,
+                "Contact Email": contact_email,
+                "Main Contact": main_contact,
+                "Subscription Plan": subscription_plan,
+                "PMS Integration": pms_integration,
+                "PMS Client ID": pms_client_id,
+                "PMS Secret": pms_secret,
+                "PMS Account ID": new_account_id,
+                "Sync Enabled": active,
+                "Active": active
+            }
         }
-    }
 
-    # Step 4: Send to Airtable
-    try:
+        url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
-        return RedirectResponse(url="/admin?status=success", status_code=303)
+
+        return RedirectResponse(url="/admin?status=success", status_code=HTTP_303_SEE_OTHER)
+
     except Exception as e:
-        print("[ERROR] Failed to create PMC:", e)
-        return RedirectResponse(url="/admin?status=error", status_code=303)
+        print(f"[ERROR] Failed to add PMC: {e}")
+        return RedirectResponse(url="/admin?status=error", status_code=HTTP_303_SEE_OTHER)
 
 
 # 🔁 Sync All PMCs
