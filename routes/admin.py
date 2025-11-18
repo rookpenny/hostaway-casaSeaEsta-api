@@ -82,6 +82,7 @@ def get_next_pms_account_id():
         return 10000
 
 # ✅ Add New PMC
+# ✅ Add New PMC
 @admin_router.post("/add-pmc")
 async def add_pmc(
     pmc_name: str = Form(...),
@@ -93,66 +94,50 @@ async def add_pmc(
     pms_secret: str = Form(...),
     active: bool = Form(False)
 ):
-    return add_pmc_to_airtable(
-        pmc_name, contact_email, main_contact,
-        subscription_plan, pms_integration,
-        pms_client_id, pms_secret, active
-    )
-
-
-
-
-
-
-
-
-        
-
-@admin_router.post("/add-pmc")
-def add_pmc_to_airtable(
-    pmc_name: str = Form(...),
-    contact_email: str = Form(...),
-    main_contact: str = Form(...),
-    subscription_plan: str = Form(...),
-    pms_integration: str = Form(...),
-    pms_client_id: str = Form(...),
-    pms_secret: str = Form(...),
-    active: bool = Form(False)
-):
     print("[DEBUG] Received POST /admin/add-pmc")
 
-    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
-        "Content-Type": "application/json"
-    }
+    try:
+        new_account_id = get_next_pms_account_id()
+        print(f"[DEBUG] Next PMS Account ID: {new_account_id}")
 
-    payload = {
-        "fields": {
-            "PMC Name": pmc_name,
-            "Email": contact_email,
-            "Main Contact": main_contact,
-            "Subscription Plan": subscription_plan,
-            "PMS Integration": pms_integration,
-            "PMS Client ID": pms_client_id,
-            "PMS Secret": pms_secret,
-            "PMS Account ID": new_account_id,
-            "Active": active,
-            "Sync Enabled": active
+        airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+            "Content-Type": "application/json"
         }
-    }
 
-    print("[DEBUG] Airtable Payload:", payload)
+        payload = {
+            "fields": {
+                "PMC Name": pmc_name,
+                "Email": contact_email,
+                "Main Contact": main_contact,
+                "Subscription Plan": subscription_plan,
+                "PMS Integration": pms_integration,
+                "PMS Client ID": pms_client_id,
+                "PMS Secret": pms_secret,
+                "PMS Account ID": new_account_id,
+                "Active": active,
+                "Sync Enabled": active
+            }
+        }
 
-    res = requests.post(airtable_url, json=payload, headers=headers)
+        print("[DEBUG] Airtable POST URL:", airtable_url)
+        print("[DEBUG] Airtable Headers:", headers)
+        print("[DEBUG] Payload to Airtable:\n", json.dumps(payload, indent=2))
 
-    if res.status_code not in (200, 201):
-        print(f"[ERROR] Failed to create PMC: {res.status_code} - {res.reason}")
-        print(f"[DEBUG] Airtable response body: {res.text}")
+        res = requests.post(airtable_url, json=payload, headers=headers)
+
+        if res.status_code not in (200, 201):
+            print(f"[ERROR] Failed to create PMC: {res.status_code} - {res.reason}")
+            print(f"[DEBUG] Airtable response body: {res.text}")
+            return RedirectResponse(url="/admin?status=error", status_code=303)
+
+        print("[DEBUG] Airtable success response:", res.json())
+        return RedirectResponse(url="/admin?status=success", status_code=303)
+
+    except Exception as e:
+        print(f"[ERROR] Exception while creating PMC: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
-
-    print("[DEBUG] Airtable success response:", res.json())
-    return RedirectResponse(url="/admin?status=success", status_code=303)
 
 
 # 🔁 Sync All PMCs
