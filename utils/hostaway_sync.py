@@ -117,10 +117,10 @@ def save_to_airtable(properties, account_id):
 
 def sync_hostaway_properties(account_id: str):
     client_id = account_id
-    client_secret = os.getenv("HOSTAWAY_SECRET")  # ✅ make sure this is set in your .env
+    client_secret = os.getenv("HOSTAWAY_CLIENT_SECRET")  # ✅ make sure this is set in your .env
 
     if not client_secret:
-        raise Exception("Missing HOSTAWAY_SECRET in environment")
+        raise Exception("Missing HOSTAWAY_CLIENT_SECRET in environment")
 
     token = get_hostaway_access_token(client_id, client_secret)
 
