@@ -127,7 +127,7 @@
             </td>
             <td>
               {% if f.get("PMS Integration", "").lower() == "hostaway" %}
-                <form action="/admin/sync-properties/{{ f.get('Hostaway Account ID') }}" method="post">
+                <form action="/admin/sync-properties/{{ f.get('PMS Account ID') }}" method="post">
                   <button
                     class="sync-one"
                     type="submit"
