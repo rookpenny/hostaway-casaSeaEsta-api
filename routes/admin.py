@@ -43,6 +43,7 @@ def admin_dashboard(request: Request):
         "status": request.query_params.get("status", "")
     })
 
+
 # ➕ Show New PMC Form
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
@@ -55,6 +56,7 @@ def show_new_pmc_form(request: Request):
         "subscription_plans": subscription_plans
     })
 
+
 # ✅ Add a New PMC
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
@@ -65,6 +67,7 @@ def add_pmc_to_airtable(
     pms_integration: str = Form(...),
     pms_client_id: str = Form(...),
     pms_secret: str = Form(...),
+    pms_account_id: str = Form(...),
     active: bool = Form(False)
 ):
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
@@ -82,7 +85,7 @@ def add_pmc_to_airtable(
             "PMS Integration": pms_integration,
             "PMS Client ID": pms_client_id,
             "PMS Secret": pms_secret,
-            "PMS Account ID": pms_client_id,  # 👈 universal, replaces Hostaway-specific naming
+            "PMS Account ID": pms_account_id,
             "Active": active,
             "Sync Enabled": True
         }
@@ -96,6 +99,7 @@ def add_pmc_to_airtable(
         print("[ERROR] Failed to create PMC:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
+
 # 🔁 Sync All PMCs
 @admin_router.post("/sync-all")
 def manual_sync_all():
@@ -106,6 +110,7 @@ def manual_sync_all():
         print("[ERROR] Sync failed:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
+
 # 🔁 Sync One PMC by Account ID
 @admin_router.post("/sync-properties/{account_id}")
 def sync_properties_for_pmc(account_id: str):
@@ -115,6 +120,7 @@ def sync_properties_for_pmc(account_id: str):
     except Exception as e:
         print(f"[ERROR] Failed syncing for Account ID {account_id}: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
+
 
 # ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
