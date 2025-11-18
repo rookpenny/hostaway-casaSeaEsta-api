@@ -15,7 +15,6 @@ AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Confirm this matches Airtable
 
-
 # 🧭 Admin Dashboard
 @admin_router.get("", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
@@ -46,7 +45,6 @@ def admin_dashboard(request: Request):
         "status": request.query_params.get("status", "")
     })
 
-
 # ➕ Show New PMC Form
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
@@ -58,7 +56,6 @@ def show_new_pmc_form(request: Request):
         "pms_integrations": pms_integrations,
         "subscription_plans": subscription_plans
     })
-
 
 def get_next_pms_account_id():
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
@@ -81,7 +78,6 @@ def get_next_pms_account_id():
     else:
         return 10000
 
-
 # ✅ Add New PMC
 @admin_router.post("/add-pmc")
 async def add_pmc(
@@ -100,8 +96,16 @@ async def add_pmc(
         pms_client_id, pms_secret, active
     )
 
-
-def add_pmc_to_airtable(...):
+def add_pmc_to_airtable(
+    pmc_name: str,
+    contact_email: str,
+    main_contact: str,
+    subscription_plan: str,
+    pms_integration: str,
+    pms_client_id: str,
+    pms_secret: str,
+    active: bool
+):
     try:
         new_account_id = get_next_pms_account_id()
 
@@ -118,10 +122,9 @@ def add_pmc_to_airtable(...):
             "Sync Enabled": active
         }
 
-        # Optional fields - only include if non-empty
+        # Optional fields
         if "API_BASE_URL" in os.environ:
             fields["API Base URL"] = os.environ["API_BASE_URL"]
-
         if "API_VERSION" in os.environ:
             fields["API Version"] = os.environ["API_VERSION"]
 
@@ -146,7 +149,6 @@ def add_pmc_to_airtable(...):
         print(f"[ERROR] Failed to add PMC: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=HTTP_303_SEE_OTHER)
 
-
 # 🔁 Sync All PMCs
 @admin_router.post("/sync-all")
 def manual_sync_all():
@@ -157,7 +159,6 @@ def manual_sync_all():
         print("[ERROR] Sync failed:", e)
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
-
 # 🔁 Sync Properties for One PMC
 @admin_router.post("/sync-properties/{account_id}")
 def sync_properties_for_pmc(account_id: str):
@@ -167,7 +168,6 @@ def sync_properties_for_pmc(account_id: str):
     except Exception as e:
         print(f"[ERROR] Failed syncing for Account ID {account_id}: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
-
 
 # ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
