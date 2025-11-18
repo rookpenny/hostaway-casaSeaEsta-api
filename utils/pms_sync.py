@@ -20,20 +20,30 @@ def fetch_pmc_lookup():
     records = response.json().get("records", [])
     lookup = {}
 
+    def default_base_url(pms):
+        pms = pms.lower()
+        return {
+            "hostaway": "https://api.hostaway.com/v1",
+            "guesty": "https://open-api.guesty.com/v1",
+            "lodgify": "https://api.lodgify.com/v1"
+        }.get(pms, "https://api.example.com/v1")  # fallback for future
+
     for record in records:
         fields = record.get("fields", {})
         client_id = str(fields.get("PMS Client ID", "")).strip()
         client_secret = str(fields.get("PMS Secret", "")).strip()
-        pms = fields.get("PMS Integration", "").strip()
-        base_url = fields.get("API Base URL", "").strip() or "https://api.hostaway.com/v1"
-        version = fields.get("API Version", "").strip()
+        pms = fields.get("PMS Integration", "").strip().lower()
         sync_enabled = fields.get("Sync Enabled", True)
+
+        # Use override if present, otherwise default for that PMS
+        base_url = fields.get("API Base URL", "").strip() or default_base_url(pms)
+        version = fields.get("API Version", "").strip()
 
         if client_id and client_secret and sync_enabled:
             lookup[client_id] = {
                 "record_id": record["id"],
                 "client_secret": client_secret,
-                "pms": pms.lower(),
+                "pms": pms,
                 "base_url": base_url,
                 "version": version,
             }
@@ -93,7 +103,7 @@ def save_to_airtable(properties, account_id, pmc_record_id):
                 "PMC": [pmc_record_id],
                 "Active": True,
                 "Last Synced": datetime.utcnow().isoformat(),
-                "Notes": prop.get("name")  # Optional: Keep internal label
+                "Notes": prop.get("name")  # Optional internal label
             }
         }
 
