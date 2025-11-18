@@ -133,6 +133,17 @@ def sync_all_pmcs():
     print(f"[SYNC COMPLETE] ✅ Total properties synced: {total}")
     return total
 
+def sync_all_pmc_properties():
+    pmc_lookup = fetch_pmc_lookup()
+    total = 0
+
+    for account_id in pmc_lookup.keys():
+        print(f"[SYNC] 🔄 Syncing properties for PMC: {account_id}")
+        total += sync_hostaway_properties(account_id)
+
+    print(f"[SYNC] ✅ Total properties synced across all PMCs: {total}")
+    return total
+
 # 🧪 Local test
 if __name__ == "__main__":
     sync_all_pmcs()
