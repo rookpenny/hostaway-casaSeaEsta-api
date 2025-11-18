@@ -68,16 +68,6 @@
 </head>
 <body>
 
-  {% if request.query_params.get("status") == "error" %}
-    <div class="message">
-      ❌ Failed to load or sync PMC. Check logs for details.
-    </div>
-  {% elif request.query_params.get("status") == "success" %}
-    <div class="message" style="background-color: #d4edda; color: #155724; border-color: #c3e6cb;">
-      ✅ Operation completed successfully.
-    </div>
-  {% endif %}
-
   {% if debug_info %}
   <div class="message error" style="white-space: pre-wrap; background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; margin-top: 2rem;">
     <h3>⚠️ Debug Info</h3>
