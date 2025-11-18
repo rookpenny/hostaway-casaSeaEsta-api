@@ -1,5 +1,3 @@
-# routes/admin.py
-
 from fastapi import APIRouter, Request, Form, Body
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -10,11 +8,13 @@ from utils.pms_sync import sync_properties, sync_all_pmcs
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
 
+# Airtable Settings
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # PMC table ID
 
 
+# 🧭 Admin Dashboard
 @admin_router.get("", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     pmcs = []
@@ -45,6 +45,7 @@ def admin_dashboard(request: Request):
     })
 
 
+# ➕ Show New PMC Form
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
     pms_integrations = ["Hostaway", "Guesty", "Lodgify", "Other"]
@@ -57,6 +58,7 @@ def show_new_pmc_form(request: Request):
     })
 
 
+# ✅ Add a New PMC
 @admin_router.post("/add-pmc")
 def add_pmc_to_airtable(
     pmc_name: str = Form(...),
@@ -83,8 +85,8 @@ def add_pmc_to_airtable(
             "PMS Integration": pms_integration,
             "PMS Client ID": pms_client_id,
             "PMS Secret": pms_secret,
-            "PMS Account ID": pms_client_id,
-            "Active": active
+            "Active": active,
+            "Sync Enabled": True
         }
     }
 
@@ -97,6 +99,7 @@ def add_pmc_to_airtable(
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
+# 🔁 Sync All PMCs
 @admin_router.post("/sync-all")
 def manual_sync_all():
     try:
@@ -107,18 +110,18 @@ def manual_sync_all():
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
+# 🔁 Sync One PMC by Account ID
 @admin_router.post("/sync-properties/{account_id}")
 def sync_properties_for_pmc(account_id: str):
     try:
-        print(f"[INFO] Syncing for PMC with PMS Account ID: {account_id}")
-        synced_count = sync_properties(account_id=account_id)
-        print(f"[INFO] ✅ Synced {synced_count} properties")
+        synced = sync_properties(account_id=account_id)
         return RedirectResponse(url="/admin?status=success", status_code=303)
     except Exception as e:
-        print(f"[ERROR] Failed syncing for PMS Account ID {account_id}: {e}")
+        print(f"[ERROR] Failed syncing for Account ID {account_id}: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
 
+# ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
 def update_pmc_status(payload: dict = Body(...)):
     record_id = payload.get("record_id")
