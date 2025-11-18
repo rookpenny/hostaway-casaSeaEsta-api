@@ -101,35 +101,31 @@ async def add_pmc(
     )
 
 
-def add_pmc_to_airtable(
-    pmc_name: str,
-    contact_email: str,
-    main_contact: str,
-    subscription_plan: str,
-    pms_integration: str,
-    pms_client_id: str,
-    pms_secret: str,
-    active: bool
-):
+def add_pmc_to_airtable(...):
     try:
         new_account_id = get_next_pms_account_id()
 
-        payload = {
-            "fields": {
-                "PMC Name": pmc_name,
-                "Email": contact_email,
-                "Main Contact": main_contact,
-                "Subscription Plan": subscription_plan,
-                "PMS Integration": pms_integration,
-                "PMS Client ID": pms_client_id,
-                "PMS Secret": pms_secret,
-                "PMS Account ID": new_account_id,
-                "Active": active,
-                "Sync Enabled": active,
-                "API Base URL": "",     # You can modify this if needed
-                "API Version": ""       # You can modify this if needed
-            }
+        fields = {
+            "PMC Name": pmc_name,
+            "Email": contact_email,
+            "Main Contact": main_contact,
+            "Subscription Plan": subscription_plan,
+            "PMS Integration": pms_integration,
+            "PMS Client ID": pms_client_id,
+            "PMS Secret": pms_secret,
+            "PMS Account ID": new_account_id,
+            "Active": active,
+            "Sync Enabled": active
         }
+
+        # Optional fields - only include if non-empty
+        if "API_BASE_URL" in os.environ:
+            fields["API Base URL"] = os.environ["API_BASE_URL"]
+
+        if "API_VERSION" in os.environ:
+            fields["API Version"] = os.environ["API_VERSION"]
+
+        payload = { "fields": fields }
 
         url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
         headers = {
@@ -137,9 +133,9 @@ def add_pmc_to_airtable(
             "Content-Type": "application/json"
         }
 
-        print(f"[DEBUG] Airtable POST URL: {url}")
-        print(f"[DEBUG] Airtable Headers: {headers}")
-        print(f"[DEBUG] Payload to Airtable:\n{json.dumps(payload, indent=2)}")
+        print("[DEBUG] Airtable POST URL:", url)
+        print("[DEBUG] Airtable Headers:", headers)
+        print("[DEBUG] Payload to Airtable:\n", json.dumps(payload, indent=2))
 
         response = requests.post(url, headers=headers, json=payload)
         response.raise_for_status()
