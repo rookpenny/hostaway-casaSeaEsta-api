@@ -119,6 +119,7 @@ def save_to_airtable(properties, account_id, pmc_record_id):
 def sync_properties(account_id: str):
     """Sync a single PMC by account ID."""
     pmcs = fetch_pmc_lookup()
+    print(f"[DEBUG] Fetched PMCs: {list(pmcs.keys())}")
     if account_id not in pmcs:
         raise Exception(f"PMC not found for account ID: {account_id}")
 
