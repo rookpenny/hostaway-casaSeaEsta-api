@@ -31,22 +31,24 @@ def fetch_pmc_lookup():
     for record in records:
         fields = record.get("fields", {})
         account_id = str(fields.get("PMS Account ID", "")).strip()
+        client_id = str(fields.get("PMS Client ID", "")).strip()  # ✅ ADDED
         client_secret = str(fields.get("PMS Secret", "")).strip()
         pms = fields.get("PMS Integration", "").strip().lower()
         sync_enabled = fields.get("Sync Enabled", True)
 
-        # Use override if present, otherwise default for that PMS
         base_url = fields.get("API Base URL", "").strip() or default_base_url(pms)
         version = fields.get("API Version", "").strip()
 
-        if account_id and client_secret and sync_enabled:
+        if account_id and client_id and client_secret and sync_enabled:
             lookup[account_id] = {
                 "record_id": record["id"],
+                "client_id": client_id,  # ✅ ADDED
                 "client_secret": client_secret,
                 "pms": pms,
                 "base_url": base_url,
                 "version": version,
             }
+
     return lookup
 
 
