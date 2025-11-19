@@ -146,7 +146,7 @@ def sync_properties(account_id: str):
         pmc["pms"]
     )
     properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
-    count = save_to_airtable(properties, account_id, pmc["record_id"])
+    count = save_to_airtable(properties, account_id, pmc["record_id"], pmc["pms"])
 
     print(f"[SYNC] ✅ Saved {count} properties for {account_id}")
     return count
