@@ -136,7 +136,12 @@ def sync_properties(account_id: str):
         raise Exception(f"PMC not found for account ID: {account_id}")
 
     pmc = pmcs[account_id]
-    token = get_access_token(account_id, pmc["client_secret"], pmc["base_url"], pmc["pms"])
+    token = get_access_token(
+        pmc["client_id"],       # ✅ FIXED: use correct client ID
+        pmc["client_secret"],
+        pmc["base_url"],
+        pmc["pms"]
+    )
     properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
     count = save_to_airtable(properties, account_id, pmc["record_id"])
 
