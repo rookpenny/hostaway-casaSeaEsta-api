@@ -97,8 +97,8 @@ def fetch_properties(access_token: str, base_url: str, pms: str):
         return response.json().get("properties", [])
 
 
-def save_to_airtable(properties, account_id, pmc_record_id):
-    """Write fetched property records to Airtable."""
+def save_to_airtable(properties, account_id, pmc_record_id, pms):
+    """Write fetched property records to Airtable using correct field names."""
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
@@ -113,12 +113,12 @@ def save_to_airtable(properties, account_id, pmc_record_id):
         payload = {
             "fields": {
                 "Property Name": name,
-                "Property External ID": prop_id,
-                "Account ID": account_id,
-                "PMC": [pmc_record_id],
-                "Active": True,
+                "PMS Property ID": prop_id,
+                "PMC Record ID": account_id,
+                "PMS Integration": pms,
+                "Sync Enabled": True,
                 "Last Synced": datetime.utcnow().isoformat(),
-                "Notes": prop.get("name")  # Optional internal label
+                "Sandy Enabled": True
             }
         }
 
