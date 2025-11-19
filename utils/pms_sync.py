@@ -52,7 +52,7 @@ def fetch_pmc_lookup():
     return lookup
 
 
-ddef get_access_token(client_id: str, client_secret: str, base_url: str, pms: str) -> str:
+def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str) -> str:
     if pms == "hostaway":
         token_url = f"{base_url}/accessTokens"
         payload = {
@@ -71,7 +71,6 @@ ddef get_access_token(client_id: str, client_secret: str, base_url: str, pms: st
     else:
         raise Exception(f"Unsupported PMS for auth: {pms}")
 
-    # ✅ Correctly handle content-type: form vs JSON
     if headers["Content-Type"] == "application/json":
         response = requests.post(token_url, json=payload, headers=headers)
     else:
