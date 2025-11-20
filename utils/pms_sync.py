@@ -110,6 +110,9 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
         prop_id = str(prop.get("id"))
         name = prop.get("internalListingName") or prop.get("name")
 
+        # ✅ Create property folder and default files
+        ensure_pmc_structure(pmc_name=account_id, property_id=prop_id, property_name=name)
+
         payload = {
             "fields": {
                 "Property Name": name,
@@ -165,6 +168,27 @@ def sync_all_pmcs():
     print(f"[SYNC] ✅ Total properties synced: {total}")
     return total
 
+def ensure_pmc_structure(pmc_name: str, property_id: str, property_name: str):
+    # Clean folder names for filesystem safety
+    safe_pmc_name = pmc_name.replace(" ", "_")
+    safe_prop_name = property_name.replace(" ", "_").replace("/", "-")
+    base_dir = f"data/{safe_pmc_name}/{property_id}_{safe_prop_name}"
+
+    os.makedirs(base_dir, exist_ok=True)
+
+    # Create empty config and manual if missing
+    config_path = os.path.join(base_dir, "config.json")
+    manual_path = os.path.join(base_dir, "manual.txt")
+
+    if not os.path.exists(config_path):
+        with open(config_path, "w") as f:
+            f.write("{}")
+
+    if not os.path.exists(manual_path):
+        with open(manual_path, "w") as f:
+            f.write("")
+
+    return base_dir
 
 # For local test
 if __name__ == "__main__":
