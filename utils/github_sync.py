@@ -4,11 +4,11 @@ from git import Repo
 from datetime import datetime
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_REPO = "stayhub/stayhub-data"
+GITHUB_REPO = "rookpenny/hostscout_data"
 BRANCH = "main"
-LOCAL_CLONE_PATH = "/tmp/stayhub-data"
+LOCAL_CLONE_PATH = "/tmp/hostscout_data"
 COMMIT_AUTHOR = os.getenv("COMMIT_AUTHOR", "PMS Sync Bot")
-COMMIT_EMAIL = os.getenv("COMMIT_EMAIL", "syncbot@stayhub.io")
+COMMIT_EMAIL = os.getenv("COMMIT_EMAIL", "syncbot@hostscout.io")
 
 def github_url_with_token():
     if not GITHUB_TOKEN:
