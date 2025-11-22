@@ -124,9 +124,12 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
         config_path = os.path.join(base_dir, "config.json")
         manual_path = os.path.join(base_dir, "manual.txt")
 
-        updated_files[os.path.relpath(config_path, start=LOCAL_CLONE_PATH)] = config_path
-        updated_files[os.path.relpath(manual_path, start=LOCAL_CLONE_PATH)] = manual_path
+        # ✅ Build destination-relative paths for GitHub
+        rel_config = os.path.join("data", str(account_id), prop_id, "config.json")
+        rel_manual = os.path.join("data", str(account_id), prop_id, "manual.txt")
 
+        updated_files[rel_config] = config_path
+        updated_files[rel_manual] = manual_path
 
         payload = {
             "fields": {
@@ -154,6 +157,7 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
         print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
 
     return count
+
 
 
 
