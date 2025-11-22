@@ -135,7 +135,7 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
             "fields": {
                 "Property Name": name,
                 "PMS Property ID": prop_id,
-                "PMC Record ID": pmc_record_id,
+                "PMC Record ID": [pmc_record_id], # must be a list
                 "PMS Integration": pms,
                 "Sync Enabled": True,
                 "Last Synced": datetime.utcnow().isoformat(),
