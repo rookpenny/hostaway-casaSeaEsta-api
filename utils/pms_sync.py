@@ -125,8 +125,8 @@ def save_to_airtable(properties, client_id, pmc_record_id, pms):
         manual_path = os.path.join(base_dir, "manual.txt")
 
         # ✅ Build destination-relative paths for GitHub
-        rel_config = os.path.join("data", str(account_id), prop_id, "config.json")
-        rel_manual = os.path.join("data", str(account_id), prop_id, "manual.txt")
+        rel_config = os.path.join("data", str(client_id), prop_id, "config.json")
+        rel_manual = os.path.join("data", str(client_id), prop_id, "manual.txt")
 
         payload = {
             "fields": {
