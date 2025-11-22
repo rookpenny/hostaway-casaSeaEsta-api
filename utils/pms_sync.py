@@ -122,8 +122,9 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
         config_path = os.path.join(base_dir, "config.json")
         manual_path = os.path.join(base_dir, "manual.txt")
 
-        updated_files[os.path.relpath(config_path)] = config_path
-        updated_files[os.path.relpath(manual_path)] = manual_path
+        updated_files[os.path.relpath(config_path, start=LOCAL_CLONE_PATH)] = config_path
+        updated_files[os.path.relpath(manual_path, start=LOCAL_CLONE_PATH)] = manual_path
+
 
         payload = {
             "fields": {
