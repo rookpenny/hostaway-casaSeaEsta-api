@@ -113,18 +113,32 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
         prop_id = str(prop.get("id"))
         name = prop.get("internalListingName") or prop.get("name")
 
-        # ✅ Create property folder and default files
-        ensure_pmc_structure(pmc_name=account_id, property_id=prop_id, property_name=name)
+        # ✅ Folder path: data/<PMC>/<PropertyID>
+        dest_folder_path = f"data/{account_id}/{prop_id}"
 
+        # ✅ Create property folder and default files
+        os.makedirs(dest_folder_path, exist_ok=True)
+        config_path = os.path.join(dest_folder_path, "config.json")
+        manual_path = os.path.join(dest_folder_path, "manual.txt")
+
+        if not os.path.exists(config_path):
+            with open(config_path, "w") as f:
+                f.write("{}")
+        if not os.path.exists(manual_path):
+            with open(manual_path, "w") as f:
+                f.write("")
+
+        # ✅ Save to Airtable
         payload = {
             "fields": {
                 "Property Name": name,
                 "PMS Property ID": prop_id,
-                "PMC Record ID": [pmc_record_id],  # must be a list
+                "PMC Record ID": [pmc_record_id],
                 "PMS Integration": pms,
                 "Sync Enabled": True,
                 "Last Synced": datetime.utcnow().isoformat(),
-                "Sandy Enabled": True
+                "Sandy Enabled": True,
+                "Data Folder Path": dest_folder_path  # ✅ No property name here
             }
         }
 
