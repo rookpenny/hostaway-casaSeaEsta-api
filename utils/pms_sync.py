@@ -147,7 +147,7 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
 
 
 def sync_properties(account_id: str):
-    """Sync a single PMC by account ID."""
+    """Sync a single PMC by account ID and push created folders/files to GitHub."""
     pmcs = fetch_pmc_lookup()
     print(f"[DEBUG] Fetched PMCs: {list(pmcs.keys())}")
     if account_id not in pmcs:
@@ -155,22 +155,26 @@ def sync_properties(account_id: str):
 
     pmc = pmcs[account_id]
     token = get_access_token(
-        pmc["client_id"],       # ✅ FIXED: use correct client ID
+        pmc["client_id"],
         pmc["client_secret"],
         pmc["base_url"],
         pmc["pms"]
     )
     properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
-    count = save_to_airtable(properties, account_id, pmc["record_id"], pmc["pms"])
 
-    # 🔁 GitHub Push
+    # ⬇️ Get property folders + file paths from Airtable save
+    results = save_to_airtable(properties, account_id, pmc["record_id"], pmc["pms"])
+
+    # 🔁 GitHub Push: push each property folder separately
     try:
-        sync_pmc_to_github(account_id)
+        for res in results:
+            sync_pmc_to_github(res["folder"], res["files"])
     except Exception as e:
         print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
 
-    print(f"[SYNC] ✅ Saved {count} properties for {account_id}")
-    return count
+    print(f"[SYNC] ✅ Saved {len(results)} properties for {account_id}")
+    return len(results)
+
     
     
 
