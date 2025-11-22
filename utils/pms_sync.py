@@ -198,7 +198,7 @@ def ensure_pmc_structure(pmc_name: str, property_id: str, property_name: str):
     # Clean folder names for filesystem safety
     safe_pmc_name = pmc_name.replace(" ", "_")
     safe_prop_name = property_name.replace(" ", "_").replace("/", "-")
-    base_dir = f"data/{safe_pmc_name}/{property_id}_{safe_prop_name}"
+    base_dir = f"data/{safe_pmc_name}/{property_id}"
 
     os.makedirs(base_dir, exist_ok=True)
 
