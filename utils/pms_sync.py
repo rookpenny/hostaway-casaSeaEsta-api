@@ -1,7 +1,7 @@
 import os
 import requests
 from datetime import datetime
-from github_push import sync_pmc_to_github
+from github_sync import sync_pmc_to_github
 
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
