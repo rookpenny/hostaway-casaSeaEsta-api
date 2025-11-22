@@ -101,43 +101,22 @@ def fetch_properties(access_token: str, base_url: str, pms: str):
 
 
 def save_to_airtable(properties, account_id, pmc_record_id, pms):
-    """Write fetched property records to Airtable and push folders to GitHub."""
+    """Write fetched property records to Airtable and prepare local file structure for GitHub."""
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    count = 0
+    results = []
     for prop in properties:
         prop_id = str(prop.get("id"))
         name = prop.get("internalListingName") or prop.get("name")
 
-        # ✅ Folder path (no property name)
-        dest_folder_path = f"data/{account_id}/{prop_id}"
-        os.makedirs(dest_folder_path, exist_ok=True)
+        # ✅ Create property folder and default files
+        folder_path = ensure_pmc_structure(pmc_name=account_id, property_id=prop_id, property_name=name)
 
-        config_path = os.path.join(dest_folder_path, "config.json")
-        manual_path = os.path.join(dest_folder_path, "manual.txt")
-
-        if not os.path.exists(config_path):
-            with open(config_path, "w") as f:
-                f.write("{}")
-
-        if not os.path.exists(manual_path):
-            with open(manual_path, "w") as f:
-                f.write("")
-
-        # ✅ Push to GitHub
-        try:
-            sync_pmc_to_github(dest_folder_path, {
-                "config.json": config_path,
-                "manual.txt": manual_path,
-            })
-        except Exception as e:
-            print(f"[GITHUB] ⚠️ Failed to push {dest_folder_path}: {e}")
-
-        # ✅ Save record in Airtable
+        # ✅ Save Data Folder Path to Airtable
         payload = {
             "fields": {
                 "Property Name": name,
@@ -147,17 +126,24 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
                 "Sync Enabled": True,
                 "Last Synced": datetime.utcnow().isoformat(),
                 "Sandy Enabled": True,
-                "Data Folder Path": dest_folder_path  # ✅ Used in frontend
+                "Data Folder Path": folder_path  # ✅ Include path in Airtable
             }
         }
 
         res = requests.post(airtable_url, json=payload, headers=headers)
         if res.status_code in (200, 201):
-            count += 1
+            results.append({
+                "folder": folder_path,
+                "files": {
+                    "config.json": os.path.join(folder_path, "config.json"),
+                    "manual.txt": os.path.join(folder_path, "manual.txt")
+                }
+            })
         else:
             print(f"[ERROR] Failed to save property {name}: {res.text}")
 
-    return count
+    return results
+
 
 
 def sync_properties(account_id: str):
