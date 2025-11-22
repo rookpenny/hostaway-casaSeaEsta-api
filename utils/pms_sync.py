@@ -101,7 +101,7 @@ def fetch_properties(access_token: str, base_url: str, pms: str):
 
 
 def save_to_airtable(properties, account_id, pmc_record_id, pms):
-    """Write fetched property records to Airtable."""
+    """Write fetched property records to Airtable and push folders to GitHub."""
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
@@ -113,22 +113,31 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
         prop_id = str(prop.get("id"))
         name = prop.get("internalListingName") or prop.get("name")
 
-        # ✅ Folder path: data/<PMC>/<PropertyID>
+        # ✅ Folder path (no property name)
         dest_folder_path = f"data/{account_id}/{prop_id}"
-
-        # ✅ Create property folder and default files
         os.makedirs(dest_folder_path, exist_ok=True)
+
         config_path = os.path.join(dest_folder_path, "config.json")
         manual_path = os.path.join(dest_folder_path, "manual.txt")
 
         if not os.path.exists(config_path):
             with open(config_path, "w") as f:
                 f.write("{}")
+
         if not os.path.exists(manual_path):
             with open(manual_path, "w") as f:
                 f.write("")
 
-        # ✅ Save to Airtable
+        # ✅ Push to GitHub
+        try:
+            sync_pmc_to_github(dest_folder_path, {
+                "config.json": config_path,
+                "manual.txt": manual_path,
+            })
+        except Exception as e:
+            print(f"[GITHUB] ⚠️ Failed to push {dest_folder_path}: {e}")
+
+        # ✅ Save record in Airtable
         payload = {
             "fields": {
                 "Property Name": name,
@@ -138,7 +147,7 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
                 "Sync Enabled": True,
                 "Last Synced": datetime.utcnow().isoformat(),
                 "Sandy Enabled": True,
-                "Data Folder Path": dest_folder_path  # ✅ No property name here
+                "Data Folder Path": dest_folder_path  # ✅ Used in frontend
             }
         }
 
