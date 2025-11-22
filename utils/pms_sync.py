@@ -111,49 +111,47 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
     }
 
     count = 0
+    updated_files = {}
+
     for prop in properties:
-        try:
-            prop_id = str(prop.get("id"))
-            name = prop.get("internalListingName") or prop.get("name") or "Unnamed"
+        prop_id = str(prop.get("id"))
+        name = prop.get("internalListingName") or prop.get("name")
 
-            # ✅ Create property folder and default files (name excluded from path)
-            base_dir = f"data/{account_id}/{prop_id}"
-            os.makedirs(base_dir, exist_ok=True)
+        # ✅ Create folder and collect paths
+        base_dir = ensure_pmc_structure(pmc_name=account_id, property_id=prop_id, property_name=name)
+        config_path = os.path.join(base_dir, "config.json")
+        manual_path = os.path.join(base_dir, "manual.txt")
 
-            config_path = os.path.join(base_dir, "config.json")
-            manual_path = os.path.join(base_dir, "manual.txt")
+        updated_files[os.path.relpath(config_path)] = config_path
+        updated_files[os.path.relpath(manual_path)] = manual_path
 
-            if not os.path.exists(config_path):
-                with open(config_path, "w") as f:
-                    f.write("{}")
-
-            if not os.path.exists(manual_path):
-                with open(manual_path, "w") as f:
-                    f.write("")
-
-            payload = {
-                "fields": {
-                    "Property Name": name,
-                    "PMS Property ID": prop_id,
-                    "PMC Record ID": [pmc_record_id],
-                    "PMS Integration": pms,
-                    "Sync Enabled": True,
-                    "Sandy Enabled": True,
-                    "Last Synced": datetime.utcnow().isoformat(),
-                    "Data Folder Path": base_dir  # ✅ Set data folder path
-                }
+        payload = {
+            "fields": {
+                "Property Name": name,
+                "PMS Property ID": prop_id,
+                "PMC Record ID": [pmc_record_id],
+                "PMS Integration": pms,
+                "Sync Enabled": True,
+                "Last Synced": datetime.utcnow().isoformat(),
+                "Sandy Enabled": True,
+                "Data Folder Path": base_dir  # ✅ Sets the path in Airtable
             }
+        }
 
-            res = requests.post(airtable_url, json=payload, headers=headers)
-            if res.status_code in (200, 201):
-                count += 1
-            else:
-                print(f"[AIRTABLE] ❌ Failed to save property {name}: {res.text}")
+        res = requests.post(airtable_url, json=payload, headers=headers)
+        if res.status_code in (200, 201):
+            count += 1
+        else:
+            print(f"[ERROR] Failed to save property {name}: {res.text}")
 
-        except Exception as e:
-            print(f"[SYNC] ⚠️ Error processing property {prop.get('id')}: {e}")
+    # ✅ Push created/updated files to GitHub
+    try:
+        sync_pmc_to_github(account_id, updated_files)
+    except Exception as e:
+        print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
 
     return count
+
 
 
 
