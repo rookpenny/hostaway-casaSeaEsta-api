@@ -3,6 +3,8 @@ import requests
 from datetime import datetime
 from utils.github_sync import sync_pmc_to_github
 from dotenv import load_dotenv
+from config import LOCAL_CLONE_PATH
+
 load_dotenv()
 
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
