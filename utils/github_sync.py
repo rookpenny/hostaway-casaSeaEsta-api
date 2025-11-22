@@ -1,12 +1,12 @@
 import os
 import shutil
-from git import Repo
+from git import Repo, Actor
 from datetime import datetime
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
-GITHUB_REPO = "rookpenny/hostscout_data"  # ✅ Updated repo
+GITHUB_REPO = "rookpenny/hostscout_data"
 BRANCH = "main"
-LOCAL_CLONE_PATH = "/tmp/hostscout-data"  # ✅ Updated path
+LOCAL_CLONE_PATH = "/tmp/hostscout-data"
 COMMIT_AUTHOR = os.getenv("COMMIT_AUTHOR", "PMS Sync Bot")
 COMMIT_EMAIL = os.getenv("COMMIT_EMAIL", "syncbot@hostscout.io")
 
@@ -33,7 +33,8 @@ def sync_pmc_to_github(dest_folder_path: str, updated_files: dict):
     repo.git.add(A=True)
     if repo.is_dirty():
         commit_message = f"Sync update to {dest_folder_path} @ {datetime.utcnow().isoformat()}"
-        repo.index.commit(commit_message, author=repo.config_writer().config.get_value("user", "name", COMMIT_AUTHOR))
+        author = Actor(COMMIT_AUTHOR, COMMIT_EMAIL)
+        repo.index.commit(commit_message, author=author)
         repo.remote(name='origin').push()
         print(f"[GITHUB] ✅ Changes pushed to {dest_folder_path}")
     else:
