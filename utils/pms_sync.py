@@ -105,15 +105,14 @@ def fetch_properties(access_token: str, base_url: str, pms: str):
 
 
 def save_to_airtable(properties, account_id, pmc_record_id, pms):
-    """Write fetched property records to Airtable."""
+    """Write fetched property records to Airtable and prepare GitHub sync info."""
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    count = 0
-    updated_files = {}
+    results = []  # ⬅️ make results iterable
 
     for prop in properties:
         prop_id = str(prop.get("id"))
@@ -128,35 +127,32 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
         rel_config = os.path.join("data", str(account_id), prop_id, "config.json")
         rel_manual = os.path.join("data", str(account_id), prop_id, "manual.txt")
 
-        updated_files[rel_config] = config_path
-        updated_files[rel_manual] = manual_path
-
         payload = {
             "fields": {
                 "Property Name": name,
                 "PMS Property ID": prop_id,
-                "PMC Record ID": [pmc_record_id], # must be a list
+                "PMC Record ID": [pmc_record_id],  # must be a list
                 "PMS Integration": pms,
                 "Sync Enabled": True,
                 "Last Synced": datetime.utcnow().isoformat(),
                 "Sandy Enabled": True,
-                "Data Folder Path": base_dir  # ✅ Sets the path in Airtable
+                "Data Folder Path": base_dir
             }
         }
 
         res = requests.post(airtable_url, json=payload, headers=headers)
         if res.status_code in (200, 201):
-            count += 1
+            results.append({
+                "folder": base_dir,
+                "files": {
+                    rel_config: config_path,
+                    rel_manual: manual_path
+                }
+            })
         else:
             print(f"[ERROR] Failed to save property {name}: {res.text}")
 
-    # ✅ Push created/updated files to GitHub
-    try:
-        sync_pmc_to_github(account_id, updated_files)
-    except Exception as e:
-        print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
-
-    return count
+    return results  # ⬅️ now correctly returns a list of result dicts
 
 
 
