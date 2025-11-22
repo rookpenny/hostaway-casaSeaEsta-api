@@ -20,26 +20,21 @@ def clone_repo():
         shutil.rmtree(LOCAL_CLONE_PATH)
     return Repo.clone_from(github_url_with_token(), LOCAL_CLONE_PATH, branch=BRANCH)
 
-def sync_pmc_to_github(pmc_name: str):
+def sync_pmc_to_github(pms_client_id: str, pms_property_id: str, updated_files: dict):
     repo = clone_repo()
-    source_path = os.path.join("data", pmc_name)
-    dest_path = os.path.join(LOCAL_CLONE_PATH, "data", pmc_name)
 
-    print(f"[GITHUB] Copying files from {source_path} to {dest_path}")
-    if os.path.exists(dest_path):
-        shutil.rmtree(dest_path)
-    shutil.copytree(source_path, dest_path)
+    dest_path = os.path.join(LOCAL_CLONE_PATH, "data", f"pmc_{pms_client_id}", f"property_{pms_property_id}")
+    os.makedirs(dest_path, exist_ok=True)
+
+    for filename, local_source_path in updated_files.items():
+        print(f"[GITHUB] Copying {filename} to {dest_path}")
+        shutil.copy(local_source_path, os.path.join(dest_path, filename))
 
     repo.git.add(A=True)
     if repo.is_dirty():
-        commit_message = f"Sync properties for PMC {pmc_name} @ {datetime.utcnow().isoformat()}"
+        commit_message = f"Sync property {pms_property_id} under PMC {pms_client_id} @ {datetime.utcnow().isoformat()}"
         repo.index.commit(commit_message, author=repo.config_writer().config.get_value("user", "name", COMMIT_AUTHOR))
-        origin = repo.remote(name='origin')
-        origin.push()
-        print(f"[GITHUB] ✅ Changes pushed for PMC {pmc_name}")
+        repo.remote(name='origin').push()
+        print(f"[GITHUB] ✅ Changes pushed for PMC {pms_client_id}, Property {pms_property_id}")
     else:
-        print(f"[GITHUB] No changes to push for PMC {pmc_name}")
-
-# For local testing
-if __name__ == "__main__":
-    sync_pmc_to_github("coastal_villas")
+        print(f"[GITHUB] No changes to push for PMC {pms_client_id}, Property {pms_property_id}")
