@@ -175,7 +175,7 @@ def sync_properties(account_id: str):
     properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
 
     # ⬇️ Get property folders + file paths from Airtable save
-    results = save_to_airtable(properties, account_id, pmc["record_id"], pmc["pms"])
+    results = save_to_airtable(properties, account_id, pmc["client_id"], pmc["pms"])
 
     # 🔁 GitHub Push: push each property folder separately
     try:
