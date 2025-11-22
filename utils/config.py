@@ -2,6 +2,8 @@ import os
 import requests
 import json
 from functools import lru_cache
+LOCAL_CLONE_PATH = os.getenv("LOCAL_CLONE_PATH", "/tmp/hostscout-data")
+
 
 @lru_cache(maxsize=128)
 def load_property_config(slug: str) -> dict:
