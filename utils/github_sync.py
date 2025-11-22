@@ -1,6 +1,6 @@
 import os
 import shutil
-from git import Repo, GitCommandError
+from git import Repo, Actor  # Add this import at the top
 from datetime import datetime
 
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
@@ -20,6 +20,7 @@ def clone_repo():
         shutil.rmtree(LOCAL_CLONE_PATH)
     return Repo.clone_from(github_url_with_token(), LOCAL_CLONE_PATH, branch=BRANCH)
 
+
 def sync_pmc_to_github(dest_folder_path: str, updated_files: dict):
     repo = clone_repo()
 
@@ -33,9 +34,9 @@ def sync_pmc_to_github(dest_folder_path: str, updated_files: dict):
 
     if repo.is_dirty():
         commit_message = f"Sync update to {dest_folder_path} @ {datetime.utcnow().isoformat()}"
-        repo.index.commit(commit_message, author=repo.config_writer().get_value("user", "name", COMMIT_AUTHOR))
+        author = Actor(COMMIT_AUTHOR, COMMIT_EMAIL)
+        repo.index.commit(commit_message, author=author)
         repo.remote(name="origin").push()
         print(f"[GITHUB] ✅ Changes pushed to {dest_folder_path}")
     else:
         print(f"[GITHUB] No changes to push for {dest_folder_path}")
-
