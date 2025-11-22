@@ -5,6 +5,7 @@ from utils.github_sync import sync_pmc_to_github
 from dotenv import load_dotenv
 from utils.config import LOCAL_CLONE_PATH
 
+
 load_dotenv()
 
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
@@ -104,7 +105,7 @@ def fetch_properties(access_token: str, base_url: str, pms: str):
         return response.json().get("properties", [])
 
 
-def save_to_airtable(properties, account_id, pmc_record_id, pms):
+def save_to_airtable(properties, client_id, pmc_record_id, pms):
     """Write fetched property records to Airtable and prepare GitHub sync info."""
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
@@ -119,7 +120,7 @@ def save_to_airtable(properties, account_id, pmc_record_id, pms):
         name = prop.get("internalListingName") or prop.get("name")
 
         # ✅ Create folder and collect paths
-        base_dir = ensure_pmc_structure(pmc_name=account_id, property_id=prop_id, property_name=name)
+        base_dir = ensure_pmc_structure(pmc_name=client_id, property_id=prop_id, property_name=name)
         config_path = os.path.join(base_dir, "config.json")
         manual_path = os.path.join(base_dir, "manual.txt")
 
@@ -175,7 +176,7 @@ def sync_properties(account_id: str):
     properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
 
     # ⬇️ Get property folders + file paths from Airtable save
-    results = save_to_airtable(properties, account_id, pmc["client_id"], pmc["pms"])
+    results = save_to_airtable(properties, pmc["client_id"], pmc["record_id"], pmc["pms"])
 
     # 🔁 GitHub Push: push each property folder separately
     try:
