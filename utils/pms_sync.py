@@ -103,48 +103,57 @@ def fetch_properties(access_token: str, base_url: str, pms: str):
 
 
 def save_to_airtable(properties, account_id, pmc_record_id, pms):
-    """Write fetched property records to Airtable and prepare local file structure for GitHub."""
+    """Write fetched property records to Airtable."""
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
     headers = {
         "Authorization": f"Bearer {AIRTABLE_API_KEY}",
         "Content-Type": "application/json"
     }
 
-    results = []
+    count = 0
     for prop in properties:
-        prop_id = str(prop.get("id"))
-        name = prop.get("internalListingName") or prop.get("name")
+        try:
+            prop_id = str(prop.get("id"))
+            name = prop.get("internalListingName") or prop.get("name") or "Unnamed"
 
-        # ✅ Create property folder and default files
-        folder_path = ensure_pmc_structure(pmc_name=account_id, property_id=prop_id, property_name=name)
+            # ✅ Create property folder and default files (name excluded from path)
+            base_dir = f"data/{account_id}/{prop_id}"
+            os.makedirs(base_dir, exist_ok=True)
 
-        # ✅ Save Data Folder Path to Airtable
-        payload = {
-            "fields": {
-                "Property Name": name,
-                "PMS Property ID": prop_id,
-                "PMC Record ID": [pmc_record_id],
-                "PMS Integration": pms,
-                "Sync Enabled": True,
-                "Last Synced": datetime.utcnow().isoformat(),
-                "Sandy Enabled": True,
-                "Data Folder Path": folder_path  # ✅ Include path in Airtable
-            }
-        }
+            config_path = os.path.join(base_dir, "config.json")
+            manual_path = os.path.join(base_dir, "manual.txt")
 
-        res = requests.post(airtable_url, json=payload, headers=headers)
-        if res.status_code in (200, 201):
-            results.append({
-                "folder": folder_path,
-                "files": {
-                    "config.json": os.path.join(folder_path, "config.json"),
-                    "manual.txt": os.path.join(folder_path, "manual.txt")
+            if not os.path.exists(config_path):
+                with open(config_path, "w") as f:
+                    f.write("{}")
+
+            if not os.path.exists(manual_path):
+                with open(manual_path, "w") as f:
+                    f.write("")
+
+            payload = {
+                "fields": {
+                    "Property Name": name,
+                    "PMS Property ID": prop_id,
+                    "PMC Record ID": [pmc_record_id],
+                    "PMS Integration": pms,
+                    "Sync Enabled": True,
+                    "Sandy Enabled": True,
+                    "Last Synced": datetime.utcnow().isoformat(),
+                    "Data Folder Path": base_dir  # ✅ Set data folder path
                 }
-            })
-        else:
-            print(f"[ERROR] Failed to save property {name}: {res.text}")
+            }
 
-    return results
+            res = requests.post(airtable_url, json=payload, headers=headers)
+            if res.status_code in (200, 201):
+                count += 1
+            else:
+                print(f"[AIRTABLE] ❌ Failed to save property {name}: {res.text}")
+
+        except Exception as e:
+            print(f"[SYNC] ⚠️ Error processing property {prop.get('id')}: {e}")
+
+    return count
 
 
 
