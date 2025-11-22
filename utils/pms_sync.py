@@ -1,11 +1,14 @@
 import os
 import requests
 from datetime import datetime
+from github_push import sync_pmc_to_github
 
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
+
+
 
 
 def fetch_pmc_lookup():
@@ -151,8 +154,16 @@ def sync_properties(account_id: str):
     properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
     count = save_to_airtable(properties, account_id, pmc["record_id"], pmc["pms"])
 
+    # 🔁 GitHub Push
+    try:
+        sync_pmc_to_github(account_id)
+    except Exception as e:
+        print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
+
     print(f"[SYNC] ✅ Saved {count} properties for {account_id}")
     return count
+    
+    
 
 
 def sync_all_pmcs():
@@ -189,6 +200,9 @@ def ensure_pmc_structure(pmc_name: str, property_id: str, property_name: str):
             f.write("")
 
     return base_dir
+
+
+
 
 # For local test
 if __name__ == "__main__":
