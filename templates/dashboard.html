@@ -1,0 +1,19 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>PMC Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; padding: 2rem; }
+    h1 { color: #2b7a78; }
+    .logout { margin-top: 2rem; }
+  </style>
+</head>
+<body>
+  <h1>Welcome, {{ user.name }} 👋</h1>
+  <p>Email: {{ user.email }}</p>
+
+  <div class="logout">
+    <a href="/auth/logout">Log out</a>
+  </div>
+</body>
+</html>
