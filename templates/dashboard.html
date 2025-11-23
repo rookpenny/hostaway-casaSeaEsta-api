@@ -5,12 +5,23 @@
   <style>
     body { font-family: Arial, sans-serif; padding: 2rem; }
     h1 { color: #2b7a78; }
+    ul { margin-top: 1rem; }
+    li { padding: 0.5rem 0; }
     .logout { margin-top: 2rem; }
   </style>
 </head>
 <body>
   <h1>Welcome, {{ user.name }} 👋</h1>
   <p>Email: {{ user.email }}</p>
+
+  <h2>Your Properties</h2>
+  <ul>
+    {% for prop in properties %}
+      <li><strong>{{ prop.fields['Name'] }}</strong></li>
+    {% else %}
+      <li>No properties found for your account.</li>
+    {% endfor %}
+  </ul>
 
   <div class="logout">
     <a href="/auth/logout">Log out</a>
