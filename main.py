@@ -33,7 +33,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from uuid import uuid4
 import uvicorn
 
-from routes import pmc_auth
+from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
+from routes import admin, pmc_auth  # ✅ make sure these match your folder/filenames
+
 app.include_router(pmc_auth.router)
 
 
@@ -45,6 +48,15 @@ AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 # --- Init ---
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
+
+
+# Mount templates/static if needed
+app.mount("/static", StaticFiles(directory="static"), name="static")
+
+# Register routes
+app.include_router(admin.admin_router)
+app.include_router(pmc_auth.router)  # ✅ this line should come after `app = FastAPI()`
+
 
 # --- Middleware ---
 app.add_middleware(
