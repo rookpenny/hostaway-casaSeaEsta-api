@@ -1,7 +1,11 @@
 <body>
   <h1>Welcome, {{ user.name }} 👋</h1>
   <p>Email: {{ user.email }}</p>
-
+{% if request.query_params.get("status") == "success" %}
+  <div style="background-color: #d4edda; color: #155724; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+    ✅ Your changes have been saved to GitHub.
+  </div>
+{% endif %}
   <h2>Your Properties</h2>
 
   {% if properties %}
