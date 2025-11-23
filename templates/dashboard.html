@@ -75,11 +75,11 @@
           </div>
           <div class="actions">
             <form method="get" action="/admin/edit-config" style="display:inline;">
-              <input type="hidden" name="path" value="{{ prop.fields['Data Folder Path'] }}" />
+              <input type="hidden" name="file" value="{{ prop.fields['Data Folder Path'] }}/config.json" />
               <button type="submit">config.json</button>
             </form>
             <form method="get" action="/admin/edit-housemanual" style="display:inline;">
-              <input type="hidden" name="path" value="{{ prop.fields['Data Folder Path'] }}" />
+              <input type="hidden" name="file" value="{{ prop.fields['Data Folder Path'] }}/manual.txt" />
               <button type="submit">House manual</button>
             </form>
           </div>
