@@ -23,9 +23,15 @@
             </p>
 
             <!-- Edit Buttons -->
-            {% set base_path = prop.fields["Data Folder Path"] %}
-            <a href="/admin/edit-config?file={{ base_path }}/config.json" style="margin-right: 1rem; background-color: #007bff; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">Edit Config</a>
-            <a href="/admin/edit-manual?file={{ base_path }}/manual.txt" style="background-color: #28a745; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">Edit Manual</a>
+{% set base_path = prop.fields["Data Folder Path"] %}
+<a href="/admin/edit-file?file={{ base_path }}/config.json"
+   style="margin-right: 1rem; background-color: #007bff; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
+  Edit Config
+</a>
+<a href="/admin/edit-file?file={{ base_path }}/manual.txt"
+   style="background-color: #28a745; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
+  Edit Manual
+</a>
           </div>
         </div>
       {% endfor %}
