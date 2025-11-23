@@ -6,6 +6,7 @@ import os
 import requests
 import json
 from utils.pms_sync import sync_properties, sync_all_pmcs
+from pathlib import Path
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -14,6 +15,28 @@ templates = Jinja2Templates(directory="templates")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
+
+from fastapi.responses import HTMLResponse
+from pathlib import Path
+
+@admin_router.get("/edit-config", response_class=HTMLResponse)
+@admin_router.get("/edit-housemanual", response_class=HTMLResponse)
+def edit_file(request: Request, file: str):
+    try:
+        file_path = Path(file)
+        if not file_path.exists():
+            return HTMLResponse(f"<h2>File not found: {file}</h2>", status_code=404)
+
+        content = file_path.read_text(encoding='utf-8')
+
+        return templates.TemplateResponse("editor.html", {
+            "request": request,
+            "file_path": file,
+            "content": content
+        })
+    except Exception as e:
+        return HTMLResponse(f"<h2>Error reading file: {e}</h2>", status_code=500)
+
 
 # 🧭 Admin Dashboard
 @admin_router.get("", response_class=HTMLResponse)
