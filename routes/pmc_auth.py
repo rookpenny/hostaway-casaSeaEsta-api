@@ -33,6 +33,14 @@ def is_pmc_email_valid(email: str) -> bool:
     records = table.all()
     return any(record['fields'].get('Email') == email for record in records)
 
+from utils.airtable_client import get_properties_table
+
+def get_properties_for_pmc(email: str):
+    table = get_properties_table()
+    records = table.all()
+    return [r for r in records if r['fields'].get('PMC Email') == email]
+
+
 # 🔐 Login with Google
 @router.get("/login")
 async def login(request: Request):
