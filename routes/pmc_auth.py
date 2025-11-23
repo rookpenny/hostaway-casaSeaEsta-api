@@ -3,6 +3,7 @@
 from fastapi import APIRouter, Request, Form
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from utils.airtable_client import get_pmcs_table
 import os
 import requests
 import hashlib
@@ -26,6 +27,14 @@ def show_login_form(request: Request):
         "request": request,
         "error": request.query_params.get("error", "")
     })
+
+
+
+def is_pmc_email_valid(email: str) -> bool:
+    table = get_pmcs_table()
+    records = table.all()
+    return any(record['fields'].get('Email') == email for record in records)
+
 
 # ✅ Process login form
 @router.post("/login")
