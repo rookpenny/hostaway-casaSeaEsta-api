@@ -402,6 +402,47 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
     except Exception as e:
         return HTMLResponse(f"<h2>Exception while saving: {e}</h2>", status_code=500)
 
+@admin_router.post("/admin/save-github-file")
+def save_github_file(file_path: str = Form(...), content: str = Form(...)):
+    import base64
+
+    try:
+        repo_owner = "rookpenny"
+        repo_name = "hostscout_data"
+        github_token = os.getenv("GITHUB_TOKEN")
+        github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file_path}"
+
+        headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        # 🔍 Get current file SHA
+        get_response = requests.get(github_api_url, headers=headers)
+        if get_response.status_code != 200:
+            return HTMLResponse(f"<h2>GitHub Fetch Error: {get_response.status_code}<br>{get_response.text}</h2>", status_code=404)
+
+        sha = get_response.json()["sha"]
+
+        encoded_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
+        commit_message = f"Update file: {file_path}"
+
+        payload = {
+            "message": commit_message,
+            "content": encoded_content,
+            "sha": sha
+        }
+
+        put_response = requests.put(github_api_url, headers=headers, json=payload)
+
+        if put_response.status_code in (200, 201):
+            return HTMLResponse(f"<h2>File saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
+        else:
+            return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
+
+    except Exception as e:
+        return HTMLResponse(f"<h2>Exception while saving: {e}</h2>", status_code=500)
+
 
 # ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
