@@ -35,6 +35,18 @@ def is_pmc_email_valid(email: str) -> bool:
     records = table.all()
     return any(record['fields'].get('Email') == email for record in records)
 
+@router.get("/callback")
+async def auth_callback(request: Request):
+    token = await oauth.google.authorize_access_token(request)
+    user = await oauth.google.parse_id_token(request, token)
+
+    email = user.get("email")
+    
+    if not is_pmc_email_valid(email):
+        return HTMLResponse("<h2>Access denied: Unauthorized email</h2>", status_code=403)
+
+    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
+
 
 # ✅ Process login form
 @router.post("/login")
