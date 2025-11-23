@@ -33,6 +33,10 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from uuid import uuid4
 import uvicorn
 
+from routers import pmc_auth
+app.include_router(pmc_auth.router)
+
+
 # --- Config ---
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
