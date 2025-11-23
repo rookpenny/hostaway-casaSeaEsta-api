@@ -83,6 +83,22 @@ def logout(request: Request):
 def show_login_form(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
+from authlib.integrations.starlette_client import OAuth
+
+oauth = OAuth()
+oauth.register(
+    name='google',
+    client_id=os.getenv("GOOGLE_CLIENT_ID"),
+    client_secret=os.getenv("GOOGLE_CLIENT_SECRET"),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'}
+)
+
+@router.get("/login/google")
+async def login_with_google(request: Request):
+    redirect_uri = request.url_for('auth_callback')
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
 
 # 👤 Check login status
 @router.get("/dashboard")
