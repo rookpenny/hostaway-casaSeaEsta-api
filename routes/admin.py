@@ -302,6 +302,37 @@ def save_config_file(file_path: str = Form(...), content: str = Form(...)):
         return HTMLResponse(f"<h2>Exception while saving: {e}</h2>", status_code=500)
 
 
+@admin_router.get("/edit-config", response_class=HTMLResponse)
+def edit_config_file(request: Request, file: str):
+    import base64
+
+    try:
+        repo_owner = "rookpenny"
+        repo_name = "hostscout_data"
+        github_token = os.getenv("GITHUB_TOKEN")
+        github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
+
+        headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        response = requests.get(github_api_url, headers=headers)
+        if response.status_code != 200:
+            return HTMLResponse(f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>", status_code=404)
+
+        data = response.json()
+        content = base64.b64decode(data['content']).decode('utf-8')
+
+        return templates.TemplateResponse("editor.html", {
+            "request": request,
+            "file_path": file,
+            "content": content
+        })
+    except Exception as e:
+        return HTMLResponse(f"<h2>Error loading config file: {e}</h2>", status_code=500)
+
+
 # ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
 def update_pmc_status(payload: dict = Body(...)):
