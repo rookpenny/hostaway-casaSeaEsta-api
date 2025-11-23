@@ -11,3 +11,4 @@ apscheduler
 python-multipart
 GitPython>=3.1.0
 authlib
+httpx
