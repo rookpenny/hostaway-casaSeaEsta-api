@@ -81,4 +81,10 @@ def dashboard(request: Request):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/auth/login")
-    return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
+
+    properties = get_properties_for_pmc(user["email"])
+    return templates.TemplateResponse("dashboard.html", {
+        "request": request,
+        "user": user,
+        "properties": properties
+    })
