@@ -36,9 +36,17 @@ def is_pmc_email_valid(email: str) -> bool:
 
 # --- Fetch Properties for This PMC ---
 def get_properties_for_pmc(email: str):
-    table = get_properties_table()
-    records = table.all()
-    return [r for r in records if r['fields'].get('PMC Email') == email]
+    pmcs = get_pmcs_table().all()
+    pmc_name = next(
+        (r['fields']['PMC Name'] for r in pmcs if r['fields'].get('Email') == email), 
+        None
+    )
+    if not pmc_name:
+        return []
+    
+    properties = get_properties_table().all()
+    return [p for p in properties if p['fields'].get('PMC') == pmc_name]
+
 
 # --- Login Page (manual access)
 @router.get("/login", response_class=HTMLResponse)
