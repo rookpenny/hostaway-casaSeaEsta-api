@@ -75,6 +75,11 @@ def logout(request: Request):
     request.session.clear()
     return RedirectResponse(url="/")
 
+@router.get("/login", response_class=HTMLResponse)
+def show_login_form(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
+
 # 👤 Check login status
 @router.get("/dashboard")
 def dashboard(request: Request):
