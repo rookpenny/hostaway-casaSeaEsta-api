@@ -42,18 +42,24 @@ async def login(request: Request):
 # 🎯 Callback from Google
 @router.get("/callback")
 async def auth_callback(request: Request):
-    token = await oauth.google.authorize_access_token(request)
-    user = await oauth.google.parse_id_token(request, token)
-    email = user.get("email")
+    try:
+        token = await oauth.google.authorize_access_token(request)
+        user = await oauth.google.parse_id_token(request, token)
+        email = user.get("email")
 
-    if not is_pmc_email_valid(email):
-        return HTMLResponse("<h2>Access denied: Unauthorized email</h2>", status_code=403)
+        if not is_pmc_email_valid(email):
+            return HTMLResponse("<h2>Access denied: Unauthorized email</h2>", status_code=403)
 
-    request.session['user'] = {
-        "email": email,
-        "name": user.get("name")
-    }
-    return RedirectResponse(url="/dashboard")
+        request.session['user'] = {
+            "email": email,
+            "name": user.get("name")
+        }
+
+        return RedirectResponse(url="/auth/dashboard")
+
+    except Exception as e:
+        print("[OAuth Error]", e)
+        return HTMLResponse(f"<h2>OAuth Error: {e}</h2>", status_code=500)
 
 # 🚪 Logout
 @router.get("/logout")
