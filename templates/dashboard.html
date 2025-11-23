@@ -2,12 +2,61 @@
 <html>
 <head>
   <title>PMC Dashboard</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body { font-family: Arial, sans-serif; padding: 2rem; }
-    h1 { color: #2b7a78; }
-    ul { margin-top: 1rem; }
-    li { padding: 0.5rem 0; }
-    .logout { margin-top: 2rem; }
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f4f4;
+      padding: 2rem;
+    }
+    h1 {
+      text-align: center;
+    }
+    .property-card {
+      display: flex;
+      background: white;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+    .property-image {
+      width: 150px;
+      height: 100px;
+      object-fit: cover;
+      border-radius: 6px;
+      margin-right: 1rem;
+    }
+    .property-details {
+      flex: 1;
+    }
+    .property-name {
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    .status {
+      margin-top: 0.5rem;
+      color: green;
+    }
+    .status.offline {
+      color: red;
+    }
+    .actions {
+      margin-top: 1rem;
+    }
+    .actions button {
+      margin-right: 1rem;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 4px;
+      background-color: #2d72d9;
+      color: white;
+      cursor: pointer;
+    }
+    .actions button:hover {
+      background-color: #1a4ca0;
+    }
   </style>
 </head>
 <body>
@@ -15,16 +64,30 @@
   <p>Email: {{ user.email }}</p>
 
   <h2>Your Properties</h2>
-  <ul>
+  {% if properties %}
     {% for prop in properties %}
-      <li><strong>{{ prop.fields['Name'] }}</strong></li>
-    {% else %}
-      <li>No properties found for your account.</li>
+      <div class="property-card">
+        <img class="property-image" src="/static/images/properties/{{ prop.fields['PMS Property ID'] }}.jpg" alt="Property Image" />
+        <div class="property-details">
+          <div class="property-name">{{ prop.fields['Property Name'] }}</div>
+          <div class="status {% if not prop.fields['Sandy Enabled'] %}offline{% endif %}">
+            Current status: {{ "LIVE" if prop.fields['Sandy Enabled'] else "OFFLINE" }}
+          </div>
+          <div class="actions">
+            <form method="get" action="/admin/edit-config" style="display:inline;">
+              <input type="hidden" name="path" value="{{ prop.fields['Data Folder Path'] }}" />
+              <button type="submit">config.json</button>
+            </form>
+            <form method="get" action="/admin/edit-housemanual" style="display:inline;">
+              <input type="hidden" name="path" value="{{ prop.fields['Data Folder Path'] }}" />
+              <button type="submit">House manual</button>
+            </form>
+          </div>
+        </div>
+      </div>
     {% endfor %}
-  </ul>
-
-  <div class="logout">
-    <a href="/auth/logout">Log out</a>
-  </div>
+  {% else %}
+    <p>No properties found for your account.</p>
+  {% endif %}
 </body>
 </html>
