@@ -5,21 +5,15 @@ from starlette.status import HTTP_303_SEE_OTHER
 import os
 import requests
 import json
-import secrets
-import hashlib
 from utils.pms_sync import sync_properties, sync_all_pmcs
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
 
-# Hashing function for passwords
-def hash_password(password: str) -> str:
-    return hashlib.sha256(password.encode()).hexdigest()
-
 # Airtable Settings
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # Confirm this matches Airtable
+AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 
 # 🧭 Admin Dashboard
 @admin_router.get("", response_class=HTMLResponse)
@@ -82,7 +76,7 @@ def get_next_pms_account_id():
         return last_id + 1
     return 10000
 
-# ✅ Add New PMC
+# ✅ Add New PMC (no password)
 @admin_router.post("/add-pmc")
 async def add_pmc(
     pmc_name: str = Form(...),
@@ -98,10 +92,6 @@ async def add_pmc(
     try:
         new_account_id = get_next_pms_account_id()
         print(f"[DEBUG] Next PMS Account ID: {new_account_id}")
-
-        # 🔐 Generate initial password
-        random_password = secrets.token_urlsafe(12)
-        hashed_pw = hash_password(random_password)
 
         airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
         headers = {
@@ -120,8 +110,7 @@ async def add_pmc(
                 "PMS Secret": pms_secret,
                 "PMS Account ID": new_account_id,
                 "Active": active,
-                "Sync Enabled": active,
-                "Password": hashed_pw  # ✅ NEW FIELD
+                "Sync Enabled": active
             }
         }
 
