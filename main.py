@@ -37,7 +37,7 @@ from fastapi import FastAPI
 from fastapi.staticfiles import StaticFiles
 from routes import admin, pmc_auth  # ✅ make sure these match your folder/filenames
 
-app.include_router(pmc_auth.router)
+
 
 
 # --- Config ---
@@ -53,7 +53,10 @@ templates = Jinja2Templates(directory="templates")
 # Mount templates/static if needed
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+
+
 # Register routes
+app.include_router(pmc_auth.router)
 app.include_router(admin.admin_router)
 app.include_router(pmc_auth.router)  # ✅ this line should come after `app = FastAPI()`
 
