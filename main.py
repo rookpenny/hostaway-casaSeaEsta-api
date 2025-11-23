@@ -33,7 +33,7 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from uuid import uuid4
 import uvicorn
 
-from routers import pmc_auth
+from routes import pmc_auth
 app.include_router(pmc_auth.router)
 
 
