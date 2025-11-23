@@ -10,5 +10,5 @@ pyairtable
 apscheduler
 python-multipart
 GitPython>=3.1.0
-authlib
-httpx
+authlib==1.2.1
+httpx==0.27.0
