@@ -3,28 +3,55 @@
 <head>
   <title>Edit File</title>
   <style>
-    body { font-family: sans-serif; padding: 2rem; }
-    textarea {
-      width: 100%;
+    body {
+      font-family: sans-serif;
+      padding: 2rem;
+      background-color: #f9f9f9;
+    }
+    h1 {
+      margin-bottom: 1rem;
+    }
+    #editor {
       height: 500px;
-      font-family: monospace;
-      font-size: 1rem;
-      padding: 1rem;
+      width: 100%;
+      border: 1px solid #ccc;
       border-radius: 6px;
+      font-size: 1rem;
     }
     button {
       margin-top: 1rem;
       padding: 0.5rem 1rem;
       font-size: 1rem;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background-color: #45a049;
     }
   </style>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.32.6/ace.js"></script>
 </head>
 <body>
   <h1>Editing: {{ file_path }}</h1>
-  <form method="post" action="/admin/save-file">
+  <form method="post" action="/admin/save-file" onsubmit="syncContent()">
     <input type="hidden" name="file_path" value="{{ file_path }}" />
-    <textarea name="content">{{ content }}</textarea><br />
+    <textarea name="content" id="content" hidden>{{ content }}</textarea>
+    <div id="editor">{{ content }}</div>
     <button type="submit">💾 Save</button>
   </form>
+
+  <script>
+    const editor = ace.edit("editor");
+    editor.setTheme("ace/theme/textmate");
+    editor.session.setMode("ace/mode/{{ file_path.endswith('.json') and 'json' or 'html' }}");
+    editor.setOptions({ fontSize: "14px", wrap: true });
+
+    function syncContent() {
+      document.getElementById("content").value = editor.getValue();
+    }
+  </script>
 </body>
 </html>
