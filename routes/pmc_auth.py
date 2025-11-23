@@ -40,6 +40,10 @@ def get_properties_for_pmc(email: str):
     records = table.all()
     return [r for r in records if r['fields'].get('PMC Email') == email]
 
+@router.get("/login", response_class=HTMLResponse)
+def login_page(request: Request):
+    return templates.TemplateResponse("login.html", {"request": request})
+
 
 # 🔐 Login with Google
 @router.get("/login")
