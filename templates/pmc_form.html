@@ -73,6 +73,7 @@
 
     <label for="contact_email">Contact Email</label>
     <input type="email" name="contact_email" id="contact_email" placeholder="e.g. info@example.com" required />
+    <small style="color: gray;">This email must be used by the PMC to sign in with Google.</small>
 
     <label for="main_contact">Main Contact</label>
     <input type="text" name="main_contact" id="main_contact" placeholder="e.g. Jane Doe" required />
@@ -99,12 +100,6 @@
 
     <label for="pms_secret" id="secret_label">Secret</label>
     <input type="password" name="pms_secret" id="pms_secret" placeholder="Enter API Secret" required />
-
-    <!-- PMS Account ID is now auto-generated on the backend -->
-    <!--
-    <label for="pms_account_id">PMS Account ID</label>
-    <input type="text" name="pms_account_id" id="pms_account_id" placeholder="e.g. 63652" />
-    -->
 
     <label>
       <input type="checkbox" name="active" id="active" />
@@ -138,4 +133,5 @@
   </script>
 
 </body>
+
 </html>
