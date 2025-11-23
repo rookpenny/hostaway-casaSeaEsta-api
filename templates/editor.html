@@ -36,7 +36,7 @@
 </head>
 <body>
   <h1>Editing: {{ file_path }}</h1>
-  <form method="post" action="/admin/save-file" onsubmit="syncContent()">
+ <form method="post" action="{{ '/admin/save-config' if file_path.endswith('config.json') else '/admin/save-manual' }}" onsubmit="syncContent()">
     <input type="hidden" name="file_path" value="{{ file_path }}" />
     <textarea name="content" id="content" hidden>{{ content }}</textarea>
     <div id="editor">{{ content }}</div>
