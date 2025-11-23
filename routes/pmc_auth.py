@@ -62,8 +62,8 @@ def logout(request: Request):
     return RedirectResponse(url="/")
 
 # 👤 Check login status
-@router.get("/me")
-def get_current_user(request: Request):
+@router.get("/dashboard")
+def dashboard(request: Request):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/auth/login")
