@@ -57,11 +57,8 @@ async def auth_callback(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
 
-        if "id_token" not in token:
-            print("[OAuth Error] id_token missing from token:", token)
-            return HTMLResponse("<h2>OAuth Error: Missing ID Token</h2>", status_code=500)
-
-        user = await oauth.google.parse_id_token(request, token)
+        # SAFER: Use userinfo endpoint instead of id_token
+        user = await oauth.google.userinfo(token=token)
         email = user.get("email")
 
         if not is_pmc_email_valid(email):
@@ -77,6 +74,7 @@ async def auth_callback(request: Request):
     except Exception as e:
         print("[OAuth Error]", e)
         return HTMLResponse(f"<h2>OAuth Error: {e}</h2>", status_code=500)
+
 
 # --- Dashboard
 @router.get("/dashboard")
