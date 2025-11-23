@@ -16,8 +16,6 @@ AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 
-from fastapi.responses import HTMLResponse
-from pathlib import Path
 
 @admin_router.get("/edit-config", response_class=HTMLResponse)
 @admin_router.get("/edit-housemanual", response_class=HTMLResponse)
@@ -36,6 +34,16 @@ def edit_file(request: Request, file: str):
         })
     except Exception as e:
         return HTMLResponse(f"<h2>Error reading file: {e}</h2>", status_code=500)
+
+
+@admin_router.post("/admin/save-file")
+def save_file(file_path: str = Form(...), content: str = Form(...)):
+    try:
+        path = Path(file_path)
+        path.write_text(content, encoding='utf-8')
+        return HTMLResponse(f"<h2>File saved successfully.</h2><a href='/admin'>Back to Admin</a>")
+    except Exception as e:
+        return HTMLResponse(f"<h2>Failed to save file: {e}</h2>", status_code=500)
 
 
 # 🧭 Admin Dashboard
