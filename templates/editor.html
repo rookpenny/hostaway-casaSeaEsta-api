@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Edit File</title>
+  <style>
+    body { font-family: sans-serif; padding: 2rem; }
+    textarea {
+      width: 100%;
+      height: 500px;
+      font-family: monospace;
+      font-size: 1rem;
+      padding: 1rem;
+      border-radius: 6px;
+    }
+    button {
+      margin-top: 1rem;
+      padding: 0.5rem 1rem;
+      font-size: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Editing: {{ file_path }}</h1>
+  <form method="post" action="/admin/save-file">
+    <input type="hidden" name="file_path" value="{{ file_path }}" />
+    <textarea name="content">{{ content }}</textarea><br />
+    <button type="submit">💾 Save</button>
+  </form>
+</body>
+</html>
