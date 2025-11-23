@@ -8,13 +8,11 @@ import json
 import secrets
 import hashlib
 from utils.pms_sync import sync_properties, sync_all_pmcs
-from uuid import uuid4
-
-from fastapi import APIRouter, Form
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
 
+# Hashing function for passwords
 def hash_password(password: str) -> str:
     return hashlib.sha256(password.encode()).hexdigest()
 
@@ -65,6 +63,7 @@ def show_new_pmc_form(request: Request):
         "subscription_plans": subscription_plans
     })
 
+# Helper to determine next PMS Account ID
 def get_next_pms_account_id():
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
     params = {
@@ -72,9 +71,7 @@ def get_next_pms_account_id():
         "sort[0][direction]": "desc",
         "maxRecords": 1
     }
-    headers = {
-        "Authorization": f"Bearer {AIRTABLE_API_KEY}"
-    }
+    headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
 
     response = requests.get(url, headers=headers, params=params)
     response.raise_for_status()
@@ -83,10 +80,8 @@ def get_next_pms_account_id():
     if records:
         last_id = int(records[0]["fields"].get("PMS Account ID", 10000))
         return last_id + 1
-    else:
-        return 10000
+    return 10000
 
-# ✅ Add New PMC
 # ✅ Add New PMC
 @admin_router.post("/add-pmc")
 async def add_pmc(
@@ -98,15 +93,15 @@ async def add_pmc(
     pms_client_id: str = Form(...),
     pms_secret: str = Form(...),
     active: bool = Form(False)
-    random_password = secrets.token_urlsafe(12)
-    hashed_pw = hash_password(random_password)
-
 ):
     print("[DEBUG] Received POST /admin/add-pmc")
-
     try:
         new_account_id = get_next_pms_account_id()
         print(f"[DEBUG] Next PMS Account ID: {new_account_id}")
+
+        # 🔐 Generate initial password
+        random_password = secrets.token_urlsafe(12)
+        hashed_pw = hash_password(random_password)
 
         airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
         headers = {
@@ -126,12 +121,11 @@ async def add_pmc(
                 "PMS Account ID": new_account_id,
                 "Active": active,
                 "Sync Enabled": active,
-                "Password": hashed_pw,  # new
+                "Password": hashed_pw  # ✅ NEW FIELD
             }
         }
 
         print("[DEBUG] Airtable POST URL:", airtable_url)
-        print("[DEBUG] Airtable Headers:", headers)
         print("[DEBUG] Payload to Airtable:\n", json.dumps(payload, indent=2))
 
         res = requests.post(airtable_url, json=payload, headers=headers)
@@ -147,7 +141,6 @@ async def add_pmc(
     except Exception as e:
         print(f"[ERROR] Exception while creating PMC: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
-
 
 # 🔁 Sync All PMCs
 @admin_router.post("/sync-all")
