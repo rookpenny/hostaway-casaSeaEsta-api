@@ -1,8 +1,9 @@
-<!-- templates/login.html -->
 <!DOCTYPE html>
 <html>
 <head>
-  <title>Login</title>
+  <title>Login – Casa Sea Esta</title>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -17,6 +18,7 @@
       text-decoration: none;
       border-radius: 5px;
       font-size: 1rem;
+      transition: background-color 0.3s ease;
     }
     .google-btn:hover {
       background-color: #3367D6;
@@ -25,6 +27,8 @@
 </head>
 <body>
   <h1>Welcome to Casa Sea Esta PMC Login</h1>
-  <a class="google-btn" href="/auth/login/google">Sign in with Google</a>
+  <a class="google-btn" href="/auth/login/google" title="Sign in securely with Google">
+    Sign in with Google
+  </a>
 </body>
 </html>
