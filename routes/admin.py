@@ -397,7 +397,8 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
         put_response = requests.put(github_api_url, headers=headers, json=payload)
 
         if put_response.status_code in (200, 201):
-            return HTMLResponse(f"<h2>File saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
+            return RedirectResponse(url="/auth/dashboard?status=success", status_code=303)
+            #return HTMLResponse(f"<h2>File saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
         else:
             return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
 
