@@ -1,71 +1,70 @@
-# routes/pmc_auth.py
-
-from fastapi import APIRouter, Request, Form
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi import APIRouter, Request
+from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
-from utils.airtable_client import get_pmcs_table
+from starlette.config import Config
+from authlib.integrations.starlette_client import OAuth
 import os
-import requests
-import hashlib
+
+from utils.airtable_client import get_pmcs_table
 
 router = APIRouter(prefix="/auth")
 templates = Jinja2Templates(directory="templates")
 
-# Environment variables
-AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"  # ✅ Confirm correct
+# Load from environment
+config = Config(environ={
+    "GOOGLE_CLIENT_ID": os.getenv("GOOGLE_CLIENT_ID"),
+    "GOOGLE_CLIENT_SECRET": os.getenv("GOOGLE_CLIENT_SECRET")
+})
 
-def hash_password(password: str) -> str:
-    """Returns a SHA-256 hashed password"""
-    return hashlib.sha256(password.encode()).hexdigest()
+# Register OAuth
+oauth = OAuth(config)
 
-# ➕ Render login form
-@router.get("/login", response_class=HTMLResponse)
-def show_login_form(request: Request):
-    return templates.TemplateResponse("login.html", {
-        "request": request,
-        "error": request.query_params.get("error", "")
-    })
+oauth.register(
+    name='google',
+    client_id=config('GOOGLE_CLIENT_ID'),
+    client_secret=config('GOOGLE_CLIENT_SECRET'),
+    server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email profile'}
+)
 
-
-
+# ✅ Airtable check for authorized email
 def is_pmc_email_valid(email: str) -> bool:
     table = get_pmcs_table()
     records = table.all()
     return any(record['fields'].get('Email') == email for record in records)
 
+# 🔐 Login with Google
+@router.get("/login")
+async def login(request: Request):
+    redirect_uri = request.url_for('auth_callback')
+    return await oauth.google.authorize_redirect(request, redirect_uri)
+
+# 🎯 Callback from Google
 @router.get("/callback")
 async def auth_callback(request: Request):
     token = await oauth.google.authorize_access_token(request)
     user = await oauth.google.parse_id_token(request, token)
-
     email = user.get("email")
-    
+
     if not is_pmc_email_valid(email):
         return HTMLResponse("<h2>Access denied: Unauthorized email</h2>", status_code=403)
 
+    request.session['user'] = {
+        "email": email,
+        "name": user.get("name")
+    }
+    return RedirectResponse(url="/dashboard")
+
+# 🚪 Logout
+@router.get("/logout")
+def logout(request: Request):
+    request.session.clear()
+    return RedirectResponse(url="/")
+
+# 👤 Check login status
+@router.get("/me")
+def get_current_user(request: Request):
+    user = request.session.get("user")
+    if not user:
+        return RedirectResponse(url="/auth/login")
     return templates.TemplateResponse("dashboard.html", {"request": request, "user": user})
-
-
-# ✅ Process login form
-@router.post("/login")
-def process_login(request: Request, email: str = Form(...), password: str = Form(...)):
-    hashed_pw = hash_password(password)
-
-    airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-    headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
-    params = {"filterByFormula": f"{{Email}} = '{email}'"}
-
-    response = requests.get(airtable_url, headers=headers, params=params)
-
-    if response.status_code == 200:
-        records = response.json().get("records", [])
-        if records:
-            stored_hash = records[0]["fields"].get("Password")
-            if stored_hash and stored_hash == hashed_pw:
-                # TODO: Set secure session here (JWT, cookie, etc.)
-                return RedirectResponse(url="/dashboard", status_code=303)
-
-    # ❌ Failed login
-    return RedirectResponse(url="/auth/login?error=Invalid credentials", status_code=303)
