@@ -2,21 +2,29 @@
 <!DOCTYPE html>
 <html>
 <head>
-  <title>PMC Login</title>
+  <title>Login</title>
   <style>
-    body { font-family: Arial, sans-serif; padding: 2rem; }
-    h1 { color: #2b7a78; }
-    .button { margin-top: 1rem; padding: 0.6rem 1.2rem; background-color: #4285F4; color: white; text-decoration: none; border-radius: 4px; display: inline-block; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      text-align: center;
+    }
+    .google-btn {
+      display: inline-block;
+      background-color: #4285F4;
+      color: white;
+      padding: 0.75rem 1.5rem;
+      text-decoration: none;
+      border-radius: 5px;
+      font-size: 1rem;
+    }
+    .google-btn:hover {
+      background-color: #3367D6;
+    }
   </style>
 </head>
 <body>
-  <h1>Welcome to the PMC Portal</h1>
-  <p>To continue, please log in using your Google account:</p>
-
-  <a class="button" href="/auth/login/google">Sign in with Google</a>
-
-  {% if request.query_params.get("error") %}
-    <p style="color:red;">Invalid login credentials</p>
-  {% endif %}
+  <h1>Welcome to Casa Sea Esta PMC Login</h1>
+  <a class="google-btn" href="/auth/login/google">Sign in with Google</a>
 </body>
 </html>
