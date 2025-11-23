@@ -36,26 +36,22 @@ def is_pmc_email_valid(email: str) -> bool:
 
 # --- Fetch Properties for This PMC ---
 def get_properties_for_pmc(email: str):
-    # Step 1: Find the matching PMC
-    pmc_table = get_pmcs_table()
-    pmc_records = pmc_table.all()
-    matching_pmc = next((r for r in pmc_records if r['fields'].get('Email') == email), None)
-    
-    if not matching_pmc:
+    pmcs = get_pmcs_table().all()
+    properties = get_properties_table().all()
+
+    # Step 1: Find the PMC record using the email
+    pmc_record = next((r for r in pmcs if r['fields'].get('Email') == email), None)
+    if not pmc_record:
         return []
 
-    pmc_name = matching_pmc['fields'].get('PMC Name')
-    if not pmc_name:
-        return []
+    pmc_id = pmc_record['id']  # This is the Airtable record ID
 
-    # Step 2: Get properties linked to this PMC Name
-    properties_table = get_properties_table()
-    properties = properties_table.all()
-
+    # Step 2: Match properties that link to this PMC record via 'PMC Record ID'
     return [
-        p for p in properties
-        if pmc_name in p['fields'].get('PMC Record ID', [])
+        prop for prop in properties
+        if pmc_id in prop['fields'].get('PMC Record ID', [])
     ]
+
 
 
 # --- Login Page (manual access)
