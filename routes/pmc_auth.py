@@ -28,7 +28,6 @@ oauth.register(
     }
 )
 
-
 # --- Email Authorization Check ---
 def is_pmc_email_valid(email: str) -> bool:
     table = get_pmcs_table()
@@ -57,6 +56,11 @@ async def login_with_google(request: Request):
 async def auth_callback(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
+
+        if "id_token" not in token:
+            print("[OAuth Error] id_token missing from token:", token)
+            return HTMLResponse("<h2>OAuth Error: Missing ID Token</h2>", status_code=500)
+
         user = await oauth.google.parse_id_token(request, token)
         email = user.get("email")
 
