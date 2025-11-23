@@ -5,6 +5,8 @@ from starlette.status import HTTP_303_SEE_OTHER
 import os
 import requests
 import json
+import secrets
+import hashlib
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from uuid import uuid4
 
@@ -12,6 +14,9 @@ from fastapi import APIRouter, Form
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
+
+def hash_password(password: str) -> str:
+    return hashlib.sha256(password.encode()).hexdigest()
 
 # Airtable Settings
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
@@ -93,6 +98,9 @@ async def add_pmc(
     pms_client_id: str = Form(...),
     pms_secret: str = Form(...),
     active: bool = Form(False)
+    random_password = secrets.token_urlsafe(12)
+    hashed_pw = hash_password(random_password)
+
 ):
     print("[DEBUG] Received POST /admin/add-pmc")
 
@@ -117,7 +125,8 @@ async def add_pmc(
                 "PMS Secret": pms_secret,
                 "PMS Account ID": new_account_id,
                 "Active": active,
-                "Sync Enabled": active
+                "Sync Enabled": active,
+                "Password": hashed_pw,  # new
             }
         }
 
