@@ -162,6 +162,40 @@ async def add_pmc(
         print(f"[ERROR] Exception while creating PMC: {e}")
         return RedirectResponse(url="/admin?status=error", status_code=303)
 
+
+import base64
+
+@admin_router.get("/edit-manual", response_class=HTMLResponse)
+def edit_manual_file(request: Request, file: str):
+    try:
+        # Convert local-style path to GitHub path
+        repo_owner = "rookpenny"
+        repo_name = "hostscout_data"
+        github_token = os.getenv("GITHUB_TOKEN")
+        github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
+
+        headers = {
+            "Authorization": f"Bearer {github_token}",
+            "Accept": "application/vnd.github+json"
+        }
+
+        response = requests.get(github_api_url, headers=headers)
+        if response.status_code != 200:
+            return HTMLResponse(f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>", status_code=404)
+
+        data = response.json()
+        content = base64.b64decode(data['content']).decode('utf-8')
+
+        return templates.TemplateResponse("editor.html", {
+            "request": request,
+            "file_path": file,
+            "content": content
+        })
+    except Exception as e:
+        return HTMLResponse(f"<h2>Error loading file: {e}</h2>", status_code=500)
+
+
+
 # 🔁 Sync All PMCs
 @admin_router.post("/sync-all")
 def manual_sync_all():
