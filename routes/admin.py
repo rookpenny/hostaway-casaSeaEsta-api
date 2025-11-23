@@ -362,7 +362,7 @@ def edit_file_from_github(request: Request, file: str):
     except Exception as e:
         return HTMLResponse(f"<h2>Error loading file: {e}</h2>", status_code=500)
 
-@admin_router.post("/admin/save-file")
+@admin_router.post("/save-github-file")
 def save_github_file(file_path: str = Form(...), content: str = Form(...)):
     import base64
 
@@ -377,14 +377,16 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
             "Accept": "application/vnd.github+json"
         }
 
+        # Get current SHA of the file
         get_response = requests.get(github_api_url, headers=headers)
         if get_response.status_code != 200:
             return HTMLResponse(f"<h2>GitHub Fetch Error: {get_response.status_code}<br>{get_response.text}</h2>", status_code=404)
 
         sha = get_response.json()["sha"]
 
+        # Encode the updated content
         encoded_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
-        commit_message = f"Update file: {file_path}"
+        commit_message = f"Update {file_path}"
 
         payload = {
             "message": commit_message,
@@ -395,7 +397,7 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
         put_response = requests.put(github_api_url, headers=headers, json=payload)
 
         if put_response.status_code in (200, 201):
-            return HTMLResponse(f"<h2>File saved successfully to GitHub.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
+            return HTMLResponse(f"<h2>File saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
         else:
             return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
 
