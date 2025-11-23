@@ -49,6 +49,10 @@ AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 app = FastAPI()
 templates = Jinja2Templates(directory="templates")
 
+from starlette.middleware.sessions import SessionMiddleware
+app.add_middleware(SessionMiddleware, secret_key=os.getenv("SESSION_SECRET"))
+
+SESSION_SECRET=some_long_random_string
 
 # Mount templates/static if needed
 app.mount("/static", StaticFiles(directory="static"), name="static")
