@@ -36,16 +36,26 @@ def is_pmc_email_valid(email: str) -> bool:
 
 # --- Fetch Properties for This PMC ---
 def get_properties_for_pmc(email: str):
-    pmcs = get_pmcs_table().all()
-    pmc_name = next(
-        (r['fields']['PMC Name'] for r in pmcs if r['fields'].get('Email') == email), 
-        None
-    )
+    # Step 1: Find the matching PMC
+    pmc_table = get_pmcs_table()
+    pmc_records = pmc_table.all()
+    matching_pmc = next((r for r in pmc_records if r['fields'].get('Email') == email), None)
+    
+    if not matching_pmc:
+        return []
+
+    pmc_name = matching_pmc['fields'].get('PMC Name')
     if not pmc_name:
         return []
-    
-    properties = get_properties_table().all()
-    return [p for p in properties if p['fields'].get('PMC') == pmc_name]
+
+    # Step 2: Get properties linked to this PMC Name
+    properties_table = get_properties_table()
+    properties = properties_table.all()
+
+    return [
+        p for p in properties
+        if pmc_name in p['fields'].get('PMC Record ID', [])
+    ]
 
 
 # --- Login Page (manual access)
