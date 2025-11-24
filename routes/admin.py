@@ -452,7 +452,7 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
 def chat_ui(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
-@app.get("/chat", response_class=HTMLResponse)
+@admin_router.get("/chat", response_class=HTMLResponse)
 def chat_page(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
