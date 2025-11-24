@@ -480,6 +480,28 @@ async def chat_api(payload: dict):
 def chat_ui(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
+@admin_router.api_route("/chat", methods=["GET", "POST"])
+async def chat_combined(request: Request):
+    if request.method == "GET":
+        return templates.TemplateResponse("chat.html", {"request": request})
+    else:
+        data = await request.json()
+        user_message = data.get("message", "")
+        if not user_message:
+            return {"reply": "Please say something!"}
+
+        import openai
+        openai.api_key = os.getenv("OPENAI_API_KEY")
+
+        response = openai.ChatCompletion.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are Sandy, a helpful and funny assistant."},
+                {"role": "user", "content": user_message}
+            ]
+        )
+        return {"reply": response.choices[0].message["content"]}
+
 
 # ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
