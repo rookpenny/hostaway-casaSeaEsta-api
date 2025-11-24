@@ -7,7 +7,7 @@ import requests
 import json
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from pathlib import Path
-from openai import OpenAI
+import openai
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -496,7 +496,7 @@ async def chat_combined(request: Request):
         if not user_message:
             return {"reply": "Please say something!"}
 
-        import openai
+        #import openai
         openai.api_key = os.getenv("OPENAI_API_KEY")
 
         response = openai.ChatCompletion.create(
