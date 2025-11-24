@@ -456,7 +456,7 @@ def chat_ui(request: Request):
 def chat_page(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
-@app.post("/chat")
+@admin_router.post("/chat")
 async def chat_api(payload: dict):
     user_message = payload.get("message", "")
     if not user_message:
