@@ -454,38 +454,39 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
 def chat_ui(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
-@admin_router.get("/chat", response_class=HTMLResponse)
-def chat_page(request: Request):
-    return templates.TemplateResponse("chat.html", {"request": request})
+#@admin_router.get("/chat", response_class=HTMLResponse)
+#def chat_page(request: Request):
+#    return templates.TemplateResponse("chat.html", {"request": request})
 
 # ✅ Serve the chat interface HTML
-@admin_router.get("/chat", response_class=HTMLResponse)
-def chat_interface(request: Request):
-    return templates.TemplateResponse("chat.html", {"request": request})
+#@admin_router.get("/chat", response_class=HTMLResponse)
+#def chat_interface(request: Request):
+#    return templates.TemplateResponse("chat.html", {"request": request})
 
 # ✅ POST endpoint that receives a user message and sends it to ChatGPT
-@admin_router.post("/chat")
-async def chat_api(payload: dict):
-    user_message = payload.get("message", "")
-    if not user_message:
-        return {"reply": "Please say something!"}
+#@admin_router.post("/chat")
+#async def chat_api(payload: dict):
+#    user_message = payload.get("message", "")
+ #   if not user_message:
+ #       return {"reply": "Please say something!"}
 
-    try:
-        response = client.chat.completions.create(
-            model="gpt-4",
-            messages=[
-                {"role": "system", "content": "You are Sandy, a helpful and funny assistant."},
-                {"role": "user", "content": user_message}
-            ]
-        )
-        reply = response.choices[0].message.content
-        return {"reply": reply}
+ #   try:
+  #      response = client.chat.completions.create(
+ #           model="gpt-4",
+#            messages=[
+#                {"role": "system", "content": "You are Sandy, a helpful and funny assistant."},
+#                {"role": "user", "content": user_message}
+#            ]
+#        )
+#        reply = response.choices[0].message.content
+#        return {"reply": reply}
 
-    except Exception as e:
-        return {"reply": f"❌ Error contacting ChatGPT: {e}"}
-@admin_router.get("/chat", response_class=HTMLResponse)
-def chat_ui(request: Request):
-    return templates.TemplateResponse("chat.html", {"request": request})
+#    except Exception as e:
+#        return {"reply": f"❌ Error contacting ChatGPT: {e}"}
+
+#@admin_router.get("/chat", response_class=HTMLResponse)
+#def chat_ui(request: Request):
+#    return templates.TemplateResponse("chat.html", {"request": request})
 
 @admin_router.api_route("/chat", methods=["GET", "POST"])
 async def chat_combined(request: Request):
