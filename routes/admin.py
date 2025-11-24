@@ -474,7 +474,13 @@ async def chat_api(payload: dict):
     )
     reply = response.choices[0].message["content"]
     return {"reply": reply}
-    
+
+
+@admin_router.get("/chat", response_class=HTMLResponse)
+def chat_ui(request: Request):
+    return templates.TemplateResponse("chat.html", {"request": request})
+
+
 # ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
 def update_pmc_status(payload: dict = Body(...)):
