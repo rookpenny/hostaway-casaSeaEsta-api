@@ -30,7 +30,12 @@
 <body>
   <h1>Chat with Sandy 🤖</h1>
   <div id="chat-box"></div>
-  <input type="text" id="user-input" placeholder="Type your message..." />
+  <input
+    type="text"
+    id="user-input"
+    placeholder="Type your message..."
+    onkeypress="handleKey(event)"
+  />
   <button onclick="sendMessage()">Send</button>
 
   <script>
@@ -44,6 +49,10 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
+    function handleKey(e) {
+      if (e.key === "Enter") sendMessage();
+    }
+
     async function sendMessage() {
       const input = document.getElementById("user-input");
       const userMsg = input.value.trim();
@@ -52,7 +61,7 @@
       addMessage(userMsg, "user");
       input.value = "";
 
-      const res = await fetch("/chat", {
+      const res = await fetch("/admin/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg })
