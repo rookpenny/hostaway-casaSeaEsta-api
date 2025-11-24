@@ -447,6 +447,10 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
     except Exception as e:
         return HTMLResponse(f"<h2>Exception while saving: {e}</h2>", status_code=500)
 
+@app.get("/chat-ui", response_class=HTMLResponse)
+def chat_ui(request: Request):
+    return templates.TemplateResponse("chat.html", {"request": request})
+
 
 # ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
