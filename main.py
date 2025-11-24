@@ -4,6 +4,8 @@ import json
 import time
 import logging
 import requests
+import openai
+
 
 from fastapi import (
     FastAPI, Request, Query, Path, HTTPException, Header, Form,
@@ -44,6 +46,8 @@ from starlette.middleware.sessions import SessionMiddleware
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
+openai.api_key = os.getenv("OPENAI_API_KEY")
+
 
 # --- Init ---
 app = FastAPI()
@@ -110,6 +114,21 @@ def list_routes():
 
 # Additional routes (e.g., /properties, /guests, /guest-message, etc.)
 # are handled and correct as provided in your current file
+
+class ChatRequest(BaseModel):
+    message: str
+
+@app.post("/chat")
+def chat(request: ChatRequest):
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # or "gpt-3.5-turbo"
+            messages=[{"role": "user", "content": request.message}]
+        )
+        return {"response": response["choices"][0]["message"]["content"]}
+    except Exception as e:
+        return {"error": str(e)}
+
 
 # --- Start Server ---
 if __name__ == "__main__":
