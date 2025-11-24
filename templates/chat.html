@@ -61,14 +61,14 @@
       addMessage(userMsg, "user");
       input.value = "";
 
-      const res = await fetch("/admin/chat", {
+      const res = await fetch("/chat", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ message: userMsg })
       });
 
       const data = await res.json();
-      addMessage(data.reply, "bot");
+      addMessage(data.response, "bot");
     }
   </script>
 </body>
