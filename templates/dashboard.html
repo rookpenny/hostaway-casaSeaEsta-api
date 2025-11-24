@@ -3,7 +3,11 @@
   <p>Email: {{ user.email }}</p>
 {% if request.query_params.get("status") == "success" %}
   <div style="background-color: #d4edda; color: #155724; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
-    ✅ Your changes have been saved!
+    ✅ Your changes have been saved to GitHub.
+  </div>
+{% elif request.query_params.get("status") == "error" %}
+  <div style="background-color: #f8d7da; color: #721c24; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+    ❌ There was an error saving your changes. Please try again.
   </div>
 {% endif %}
   <h2>Your Properties</h2>
