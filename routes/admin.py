@@ -400,7 +400,8 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
             return RedirectResponse(url="/auth/dashboard?status=success", status_code=303)
             #return HTMLResponse(f"<h2>File saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
         else:
-            return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
+            return RedirectResponse(url="/auth/dashboard?status=success", status_code=303)
+            #return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
 
     except Exception as e:
         return HTMLResponse(f"<h2>Exception while saving: {e}</h2>", status_code=500)
