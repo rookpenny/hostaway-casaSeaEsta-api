@@ -18,6 +18,7 @@ AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 openai.api_key = os.getenv("OPENAI_API_KEY")
 
+client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @admin_router.get("/edit-config", response_class=HTMLResponse)
 @admin_router.get("/edit-housemanual", response_class=HTMLResponse)
@@ -467,21 +468,21 @@ def chat_interface(request: Request):
 async def chat_api(payload: dict):
     user_message = payload.get("message", "")
     if not user_message:
-        return JSONResponse({"reply": "Please say something!"})
+        return {"reply": "Please say something!"}
 
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",  # You can change to "gpt-3.5-turbo" if desired
+        response = client.chat.completions.create(
+            model="gpt-4",
             messages=[
-                {"role": "system", "content": "You are Sandy, a helpful, witty assistant."},
+                {"role": "system", "content": "You are Sandy, a helpful and funny assistant."},
                 {"role": "user", "content": user_message}
             ]
         )
-        reply = response.choices[0].message["content"]
-        return JSONResponse({"reply": reply})
-    except Exception as e:
-        return JSONResponse({"reply": f"❌ Error contacting ChatGPT: {str(e)}"})
+        reply = response.choices[0].message.content
+        return {"reply": reply}
 
+    except Exception as e:
+        return {"reply": f"❌ Error contacting ChatGPT: {e}"}
 @admin_router.get("/chat", response_class=HTMLResponse)
 def chat_ui(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
