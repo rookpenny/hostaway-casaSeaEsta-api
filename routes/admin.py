@@ -7,6 +7,7 @@ import requests
 import json
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from pathlib import Path
+from openai import OpenAI
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -451,7 +452,29 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
 def chat_ui(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
+@app.get("/chat", response_class=HTMLResponse)
+def chat_page(request: Request):
+    return templates.TemplateResponse("chat.html", {"request": request})
 
+@app.post("/chat")
+async def chat_api(payload: dict):
+    user_message = payload.get("message", "")
+    if not user_message:
+        return {"reply": "Please say something!"}
+
+    # Replace this with your actual OpenAI call
+    import openai
+    openai.api_key = os.getenv("OPENAI_API_KEY")
+    response = openai.ChatCompletion.create(
+        model="gpt-4",
+        messages=[
+            {"role": "system", "content": "You are Sandy, a helpful and funny assistant."},
+            {"role": "user", "content": user_message}
+        ]
+    )
+    reply = response.choices[0].message["content"]
+    return {"reply": reply}
+    
 # ✅ Toggle PMC Active Status
 @admin_router.post("/update-status")
 def update_pmc_status(payload: dict = Body(...)):
