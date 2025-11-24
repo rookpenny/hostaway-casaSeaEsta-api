@@ -16,6 +16,7 @@ templates = Jinja2Templates(directory="templates")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 @admin_router.get("/edit-config", response_class=HTMLResponse)
@@ -456,25 +457,30 @@ def chat_ui(request: Request):
 def chat_page(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
+# ✅ Serve the chat interface HTML
+@admin_router.get("/chat", response_class=HTMLResponse)
+def chat_interface(request: Request):
+    return templates.TemplateResponse("chat.html", {"request": request})
+
+# ✅ POST endpoint that receives a user message and sends it to ChatGPT
 @admin_router.post("/chat")
 async def chat_api(payload: dict):
     user_message = payload.get("message", "")
     if not user_message:
-        return {"reply": "Please say something!"}
+        return JSONResponse({"reply": "Please say something!"})
 
-    # Replace this with your actual OpenAI call
-    import openai
-    openai.api_key = os.getenv("OPENAI_API_KEY")
-    response = openai.ChatCompletion.create(
-        model="gpt-4",
-        messages=[
-            {"role": "system", "content": "You are Sandy, a helpful and funny assistant."},
-            {"role": "user", "content": user_message}
-        ]
-    )
-    reply = response.choices[0].message["content"]
-    return {"reply": reply}
-
+    try:
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # You can change to "gpt-3.5-turbo" if desired
+            messages=[
+                {"role": "system", "content": "You are Sandy, a helpful, witty assistant."},
+                {"role": "user", "content": user_message}
+            ]
+        )
+        reply = response.choices[0].message["content"]
+        return JSONResponse({"reply": reply})
+    except Exception as e:
+        return JSONResponse({"reply": f"❌ Error contacting ChatGPT: {str(e)}"})
 
 @admin_router.get("/chat", response_class=HTMLResponse)
 def chat_ui(request: Request):
