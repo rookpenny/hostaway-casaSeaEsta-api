@@ -5,8 +5,8 @@
   <title>AI Assistant - Casa Sea Esta</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-/* Base layout */
 
+    /* Base layout */
 body {
   margin: 0;
   padding: 1.5rem;
@@ -15,7 +15,6 @@ body {
   color: #333;
   overflow-x: hidden;
 }
-
 body.dark {
   background: linear-gradient(to bottom, #1e1e1e, #2a2a2a);
   color: #eee;
@@ -26,12 +25,10 @@ h1, h2 {
   text-align: center;
   margin: 0.2rem 0;
 }
-
 h1 {
   font-size: 1.8rem;
   font-weight: bold;
 }
-
 h2 {
   font-size: 1rem;
   color: #d63384;
@@ -50,7 +47,6 @@ h2 {
   color: #fff;
   cursor: pointer;
 }
-
 body.dark #dark-toggle {
   background: #eee;
   color: #000;
@@ -64,7 +60,6 @@ body.dark #dark-toggle {
   justify-content: center;
   margin: 1rem 0 2rem;
 }
-
 .tag {
   background-color: white;
   border: 1px solid #ddd;
@@ -73,7 +68,6 @@ body.dark #dark-toggle {
   font-size: 0.85rem;
   cursor: pointer;
 }
-
 body.dark .tag {
   background: #444;
   color: #fff;
@@ -97,7 +91,6 @@ body.dark .tag {
   margin: 1rem 0;
   position: relative;
 }
-
 .msg.user {
   flex-direction: row-reverse;
 }
@@ -118,7 +111,6 @@ body.dark .tag {
   margin-bottom: -10px;
   transform: rotate(45deg);
 }
-
 .msg.bot .bubble::after {
   content: "";
   position: absolute;
@@ -156,16 +148,13 @@ body.dark .tag {
   font-size: 1rem;
   position: relative;
 }
-
 .msg.bot .bubble {
   background: #f0f0f0;
 }
-
 body.dark .bubble {
   background: #333;
   color: #fff;
 }
-
 body.dark .msg.bot .bubble {
   background: #444;
 }
@@ -191,7 +180,6 @@ body.dark .msg.bot .bubble {
   justify-content: center;
   border-top: 1px solid #ccc;
 }
-
 .chat-input-wrapper {
   display: flex;
   align-items: center;
@@ -202,7 +190,6 @@ body.dark .msg.bot .bubble {
   width: 100%;
   max-width: 700px;
 }
-
 .chat-plus {
   background: transparent;
   border: none;
@@ -213,7 +200,6 @@ body.dark .msg.bot .bubble {
   margin-right: 0.5rem;
   cursor: pointer;
 }
-
 .chat-input-wrapper input[type="text"] {
   flex: 1;
   padding: 0.6rem 0;
@@ -236,7 +222,6 @@ body.dark .msg.bot .bubble {
   width: 2rem;
   text-align: left;
 }
-
 .typing-dots span {
   display: inline-block;
   width: 0.4rem;
@@ -246,7 +231,6 @@ body.dark .msg.bot .bubble {
   margin: 0 0.1rem;
   animation: blinkDots 1.2s infinite ease-in-out both;
 }
-
 .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
 .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
 
@@ -261,7 +245,6 @@ body.dark .msg.bot .bubble {
   overflow: hidden;
   margin-bottom: 1.5rem;
 }
-
 .carousel {
   display: flex;
   overflow-x: hidden;
@@ -269,7 +252,6 @@ body.dark .msg.bot .bubble {
   gap: 1rem;
   padding: 1rem;
 }
-
 .card {
   background-color: white;
   border-radius: 12px;
@@ -278,7 +260,6 @@ body.dark .msg.bot .bubble {
   box-shadow: 0 2px 10px rgba(0,0,0,0.05);
   flex-shrink: 0;
 }
-
 .carousel-button {
   position: absolute;
   top: 50%;
@@ -292,14 +273,14 @@ body.dark .msg.bot .bubble {
   border-radius: 50%;
   cursor: pointer;
 }
-
 .carousel-button.left {
   left: 0.5rem;
 }
-
 .carousel-button.right {
   right: 0.5rem;
 }
+
+    
   </style>
 </head>
 <body>
