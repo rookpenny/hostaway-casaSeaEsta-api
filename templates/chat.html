@@ -7,12 +7,11 @@
   <style>
     body {
       margin: 0;
+      padding: 1.5rem;
       font-family: 'Segoe UI', sans-serif;
       background: linear-gradient(to bottom, #f9e0e8, #fef6f9);
       color: #333;
-      display: flex;
-      flex-direction: column;
-      height: 100vh;
+      overflow-x: hidden;
     }
 
     h1, h2 {
@@ -35,7 +34,7 @@
       flex-wrap: wrap;
       gap: 0.5rem;
       justify-content: center;
-      margin: 1rem 0;
+      margin: 1rem 0 2rem;
     }
 
     .tag {
@@ -45,80 +44,23 @@
       padding: 0.5rem 0.8rem;
       font-size: 0.85rem;
       cursor: pointer;
-      transition: background 0.2s;
     }
 
-    .tag:hover {
-      background-color: #eaeaea;
-    }
-
-    .chat-container {
-      flex: 1;
+    .chat-box {
+      margin-bottom: 120px;
       overflow-y: auto;
-      padding: 1rem;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .trend-wrapper {
-      margin-top: 1rem;
-    }
-
-    .carousel-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5rem;
-    }
-
-    .trend-carousel {
-      display: flex;
-      overflow-x: auto;
-      scroll-behavior: smooth;
-      gap: 1rem;
-    }
-
-    .card {
-      background-color: white;
-      border-radius: 12px;
-      padding: 1rem;
-      min-width: 160px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-      flex: 0 0 auto;
-    }
-
-    .card img {
-      width: 100%;
-      height: auto;
-      border-radius: 8px;
-      margin-bottom: 0.5rem;
-    }
-
-    .card-title {
-      font-weight: bold;
-      margin-bottom: 0.3rem;
+      max-height: 70vh;
     }
 
     .msg {
       display: flex;
       align-items: flex-end;
-      margin-bottom: 0.75rem;
+      margin: 1rem 0;
+      padding: 0 1rem;
     }
 
     .msg.user {
-      justify-content: flex-end;
-    }
-
-    .msg.bot {
-      justify-content: flex-start;
-    }
-
-    .bubble {
-      background: white;
-      padding: 0.6rem 1rem;
-      border-radius: 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-      max-width: 70%;
+      flex-direction: row-reverse;
     }
 
     .avatar {
@@ -127,26 +69,48 @@
       border-radius: 50%;
       background-color: #ccc;
       margin: 0 0.5rem;
-      background-size: cover;
-      background-position: center;
     }
 
-    .msg.user .avatar {
-      order: 2;
-      background-image: url('https://via.placeholder.com/32/0000FF/FFFFFF?text=U');
+    .msg .bubble {
+      background: #fff;
+      padding: 0.6rem 1rem;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      max-width: 70%;
+      white-space: pre-wrap;
     }
 
-    .msg.bot .avatar {
-      background-image: url('https://via.placeholder.com/32/FF69B4/FFFFFF?text=S');
+    .msg.bot .bubble {
+      background: #f1f1f1;
+    }
+
+    .bubble .timestamp {
+      display: block;
+      font-size: 0.7rem;
+      color: #888;
+      margin-top: 0.3rem;
+      text-align: right;
+    }
+
+    .feedback {
+      margin-top: 0.4rem;
+      font-size: 1rem;
+      text-align: right;
+      color: #666;
+      cursor: pointer;
     }
 
     .chat-input-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: white;
       padding: 0.8rem 1rem;
       display: flex;
       align-items: center;
       gap: 0.5rem;
       border-top: 1px solid #ccc;
-      background: white;
     }
 
     .chat-input-bar input[type="text"] {
@@ -172,18 +136,60 @@
       cursor: pointer;
     }
 
-    .carousel-arrow {
-      cursor: pointer;
-      font-size: 1.2rem;
-      padding: 0.2rem 0.5rem;
+    .carousel-wrapper {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
     }
 
-    #file-upload {
-      display: none;
+    .carousel {
+      display: flex;
+      overflow-x: auto;
+      scroll-behavior: smooth;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .card {
+      background-color: white;
+      border-radius: 12px;
+      padding: 1rem;
+      min-width: 180px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+    }
+
+    .card img {
+      width: 100%;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+
+    .carousel-button {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.5rem;
+      background: #fff;
+      border: none;
+      box-shadow: 0 0 4px rgba(0,0,0,0.2);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .carousel-button.left {
+      left: 0.5rem;
+    }
+
+    .carousel-button.right {
+      right: 0.5rem;
     }
   </style>
 </head>
 <body>
+
   <h1>Ready to bring new life<br>to your social media?</h1>
   <h2>SMM model ⟲</h2>
 
@@ -195,34 +201,28 @@
     <div class="tag">Throwback Remix</div>
   </div>
 
-  <div class="chat-container" id="chat-box">
-    <div class="trend-wrapper">
-      <div class="carousel-header">
-        <h3>Ride the trend</h3>
-        <div>
-          <span class="carousel-arrow" onclick="scrollCarousel(-1)">&#8592;</span>
-          <span class="carousel-arrow" onclick="scrollCarousel(1)">&#8594;</span>
-        </div>
+  <div class="carousel-wrapper">
+    <button class="carousel-button left" onclick="scrollCarousel(-1)">‹</button>
+    <div class="carousel" id="trend-carousel">
+      <div class="card">
+        <img src="https://via.placeholder.com/150" alt="No-Buy 2025" />
+        <div><strong>No-Buy 2025</strong></div>
+        <div>A trend encouraging minimal spending on non-essentials.</div>
       </div>
-      <div class="trend-carousel" id="carousel">
-        <div class="card">
-          <img src="https://via.placeholder.com/150" />
-          <div class="card-title">No-Buy 2025</div>
-          <div class="card-desc">A growing trend among Gen Z encouraging minimal spending on non-essentials.</div>
-        </div>
-        <div class="card">
-          <img src="https://via.placeholder.com/150" />
-          <div class="card-title">Digital Detox</div>
-          <div class="card-desc">Ask subscribers about their ways of unplugging from digital distractions.</div>
-        </div>
-        <!-- Add more cards as needed -->
+      <div class="card">
+        <img src="https://via.placeholder.com/150" alt="Digital Detox" />
+        <div><strong>Digital Detox</strong></div>
+        <div>Ways of unplugging from digital distractions.</div>
       </div>
     </div>
+    <button class="carousel-button right" onclick="scrollCarousel(1)">›</button>
   </div>
+
+  <div class="chat-box" id="chat-box"></div>
 
   <div class="chat-input-bar">
     <button class="chat-plus" onclick="document.getElementById('file-upload').click()">+</button>
-    <input type="file" id="file-upload" accept="image/*" />
+    <input type="file" id="file-upload" accept="image/*" style="display:none;" />
     <input type="text" id="user-input" placeholder="Type a message here..." onkeypress="handleKey(event)" />
   </div>
 
@@ -230,8 +230,16 @@
     const chatBox = document.getElementById("chat-box");
     const inputField = document.getElementById("user-input");
 
-    function scrollToBottom() {
-      chatBox.scrollTop = chatBox.scrollHeight;
+    document.querySelectorAll('.tag').forEach(tag => {
+      tag.addEventListener('click', () => {
+        inputField.value = tag.textContent;
+        sendMessage();
+      });
+    });
+
+    function scrollCarousel(direction) {
+      const el = document.getElementById("trend-carousel");
+      el.scrollLeft += direction * 200;
     }
 
     function addMessage(text, sender) {
@@ -243,18 +251,24 @@
 
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-      bubble.innerHTML = text;
+      bubble.innerHTML = formatMessage(text);
 
-      if (sender === "user") {
-        msg.appendChild(bubble);
-        msg.appendChild(avatar);
-      } else {
-        msg.appendChild(avatar);
-        msg.appendChild(bubble);
+      const timestamp = document.createElement("span");
+      timestamp.className = "timestamp";
+      timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      bubble.appendChild(timestamp);
+
+      if (sender === "bot") {
+        const feedback = document.createElement("div");
+        feedback.className = "feedback";
+        feedback.innerHTML = "👍 👎";
+        bubble.appendChild(feedback);
       }
 
+      msg.appendChild(avatar);
+      msg.appendChild(bubble);
       chatBox.appendChild(msg);
-      scrollToBottom();
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
 
     function handleKey(e) {
@@ -268,7 +282,7 @@
       addMessage(userMsg, "user");
       inputField.value = "";
 
-      addTyping();
+      addMessage("Sandy is thinking...", "bot");
 
       try {
         const res = await fetch("/chat", {
@@ -280,46 +294,27 @@
         });
 
         const data = await res.json();
-        removeTyping();
-        addMessage(data.response || "Hmm, I didn't catch that — could you try again? 🌴", "bot");
+        chatBox.lastChild.remove(); // remove typing msg
+        addMessage(data.response || "Hmm, I didn’t catch that — try again? 🌴", "bot");
       } catch {
-        removeTyping();
+        chatBox.lastChild.remove();
         addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
       }
     }
 
-    function addTyping() {
-      const typing = document.createElement("div");
-      typing.className = "msg bot typing";
-      typing.id = "typing";
-      typing.innerHTML = `
-        <div class="avatar"></div>
-        <div class="bubble">Sandy is typing<span class="dots">...</span></div>`;
-      chatBox.appendChild(typing);
-      scrollToBottom();
+    function formatMessage(text) {
+      const urlPattern = /https?:\/\/[^\s]+/g;
+      const phonePattern = /(\+?\d[\d -]{7,}\d)/g;
+      const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z]{2,}\b/gi;
+      const mapPattern = /map\((.*?)\)/gi;
+
+      return text
+        .replace(urlPattern, match => `<a href="${match}" target="_blank">${match}</a>`)
+        .replace(phonePattern, match => `📞 <a href="tel:${match}">${match}</a>`)
+        .replace(emailPattern, match => `📧 <a href="mailto:${match}">${match}</a>`)
+        .replace(mapPattern, (match, p1) => `🗺️ <a href="https://maps.google.com/?q=${encodeURIComponent(p1)}" target="_blank">${p1}</a>`)
+        .replace(/\n/g, "<br>");
     }
-
-    function removeTyping() {
-      const typing = document.getElementById("typing");
-      if (typing) typing.remove();
-    }
-
-    function scrollCarousel(dir) {
-      const carousel = document.getElementById("carousel");
-      carousel.scrollBy({ left: dir * 180, behavior: "smooth" });
-    }
-
-    document.querySelectorAll('.tag').forEach(tag => {
-      tag.addEventListener('click', () => {
-        inputField.value = tag.textContent;
-        sendMessage();
-      });
-    });
-
-    document.getElementById('file-upload').addEventListener('change', function () {
-      const fileName = this.files[0]?.name;
-      if (fileName) addMessage("📸 Uploaded: " + fileName, "user");
-    });
   </script>
 </body>
 </html>
