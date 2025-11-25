@@ -6,60 +6,67 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
 </head>
 <body>
-  <h1>Welcome, {{ user.name }} 👋</h1>
-  <p>Email: {{ user.email }}</p>
-{% if request.query_params.get("status") == "success" %}
-  <div style="background-color: #d4edda; color: #155724; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
-    ✅ Your changes have been saved to GitHub.
-  </div>
-{% elif request.query_params.get("status") == "error" %}
-  <div style="background-color: #f8d7da; color: #721c24; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
-    ❌ There was an error saving your changes. Please try again.
-  </div>
-{% endif %}
-  <h2>Your Properties</h2>
+  <header>
+    <h1>Welcome, {{ user.name }} 👋</h1>
+    <p>Email: {{ user.email }}</p>
+  </header>
 
-  {% if properties %}
-    <div style="display: flex; flex-direction: column; gap: 2rem;">
-      {% for prop in properties %}
-        <div style="display: flex; align-items: flex-start; background: #f5f5f5; padding: 1rem; border-radius: 8px;">
-          <!-- Placeholder Image -->
-          <img src="https://via.placeholder.com/120x90?text=Property" alt="Property Image" style="margin-right: 1rem; border-radius: 6px;">
-
-          <!-- Property Details -->
-          <div style="flex: 1;">
-            <h3>{{ prop.fields["Property Name"] }}</h3>
-            <p><strong>Current Status:</strong>
-              {% if prop.fields["Sandy Enabled"] %}
-                <span style="color: green;">LIVE</span>
-              {% else %}
-                <span style="color: red;">OFFLINE</span>
-              {% endif %}
-            </p>
-
-            <!-- Edit Buttons -->
-{% set base_path = prop.fields["Data Folder Path"] %}
-<a href="/admin/edit-file?file={{ base_path }}/config.json"
-   title="Edit the configuration file for {{ prop.fields['Property Name'] }}"
-   aria-label="Edit Config for {{ prop.fields['Property Name'] }}"
-   style="margin-right: 1rem; background-color: #007bff; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
-  Edit Config
-</a>
-
-<a href="/admin/edit-file?file={{ base_path }}/manual.txt"
-   title="Edit the house manual for {{ prop.fields['Property Name'] }}"
-   aria-label="Edit Manual for {{ prop.fields['Property Name'] }}"
-   style="background-color: #28a745; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
-  Edit Manual
-</a>
-          </div>
-        </div>
-      {% endfor %}
+  {% if request.query_params.get("status") == "success" %}
+    <div role="alert" aria-live="polite" style="background-color: #d4edda; color: #155724; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+      ✅ Your changes have been saved to GitHub.
     </div>
-  {% else %}
-    <p>No properties found for your account.</p>
+  {% elif request.query_params.get("status") == "error" %}
+    <div role="alert" aria-live="assertive" style="background-color: #f8d7da; color: #721c24; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;">
+      ❌ There was an error saving your changes. Please try again.
+    </div>
   {% endif %}
 
-  <p><a href="/auth/logout">Log out</a></p>
+  <main>
+    <h2>Your Properties</h2>
+
+    {% if properties %}
+      <section style="display: flex; flex-direction: column; gap: 2rem;" aria-label="Property list">
+        {% for prop in properties %}
+          <article style="display: flex; align-items: flex-start; background: #f5f5f5; padding: 1rem; border-radius: 8px;" aria-labelledby="prop-{{ loop.index }}">
+            <img src="https://via.placeholder.com/120x90?text=Property"
+                 alt="Image for {{ prop.fields['Property Name'] }}"
+                 style="margin-right: 1rem; border-radius: 6px;">
+
+            <div style="flex: 1;">
+              <h3 id="prop-{{ loop.index }}">{{ prop.fields["Property Name"] }}</h3>
+              <p><strong>Current Status:</strong>
+                {% if prop.fields["Sandy Enabled"] %}
+                  <span style="color: green;">LIVE</span>
+                {% else %}
+                  <span style="color: red;">OFFLINE</span>
+                {% endif %}
+              </p>
+
+              {% set base_path = prop.fields["Data Folder Path"] %}
+              <a href="/admin/edit-file?file={{ base_path }}/config.json"
+                 title="Edit the configuration file for {{ prop.fields['Property Name'] }}"
+                 aria-label="Edit Config for {{ prop.fields['Property Name'] }}"
+                 style="margin-right: 1rem; background-color: #007bff; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
+                Edit Config
+              </a>
+
+              <a href="/admin/edit-file?file={{ base_path }}/manual.txt"
+                 title="Edit the house manual for {{ prop.fields['Property Name'] }}"
+                 aria-label="Edit Manual for {{ prop.fields['Property Name'] }}"
+                 style="background-color: #28a745; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
+                Edit Manual
+              </a>
+            </div>
+          </article>
+        {% endfor %}
+      </section>
+    {% else %}
+      <p>No properties found for your account.</p>
+    {% endif %}
+  </main>
+
+  <footer>
+    <p><a href="/auth/logout">Log out</a></p>
+  </footer>
 </body>
 </html>
