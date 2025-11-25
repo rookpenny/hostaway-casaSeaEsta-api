@@ -26,8 +26,8 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 # 📝 Edit Local Config or Manual File (Locally Rendered)
-@admin_router.get("/edit-config", response_class=HTMLResponse)
-@admin_router.get("/edit-housemanual", response_class=HTMLResponse)
+@router.get("/edit-config", response_class=HTMLResponse)
+@router.get("/edit-housemanual", response_class=HTMLResponse)
 def edit_file(request: Request, file: str):
     try:
         file_path = Path(file)
@@ -66,7 +66,7 @@ def save_file(file_path: str = Form(...), content: str = Form(...)):
 
 
 # Save Manual File to GitHub
-@admin_router.post("/admin/save-manual")
+@router.post("/admin/save-manual")
 def save_manual_file(file_path: str = Form(...), content: str = Form(...)):
     import base64
 
@@ -162,7 +162,7 @@ def add_pmc(
 
 
 # 📖 Edit Manual File from GitHub
-@admin_router.get("/edit-manual", response_class=HTMLResponse)
+@router.get("/edit-manual", response_class=HTMLResponse)
 def edit_manual_file(request: Request, file: str):
     try:
         # Convert local-style path to GitHub path
@@ -247,7 +247,7 @@ def sync_properties_for_pmc(account_id: str):
 
 
 # 💾 Save updated config content back to GitHub
-@admin_router.post("/admin/save-config")
+@router.post("/admin/save-config")
 def save_config_file(file_path: str = Form(...), content: str = Form(...)):
     import base64
 
@@ -300,7 +300,7 @@ def save_config_file(file_path: str = Form(...), content: str = Form(...)):
 
 
 # ⚙️ Load a GitHub-hosted config file into the web editor
-@admin_router.get("/edit-config", response_class=HTMLResponse)
+@router.get("/edit-config", response_class=HTMLResponse)
 def edit_config_file(request: Request, file: str):
     import base64
 
@@ -339,7 +339,7 @@ def edit_config_file(request: Request, file: str):
 
 
 # 📝 Edit a GitHub-hosted file by loading its contents into the editor
-@admin_router.get("/edit-file", response_class=HTMLResponse)
+@router.get("/edit-file", response_class=HTMLResponse)
 def edit_file_from_github(request: Request, file: str):
     import base64
 
@@ -378,7 +378,7 @@ def edit_file_from_github(request: Request, file: str):
 
 
 # 🔧 Save a file to GitHub using the GitHub API
-@admin_router.post("/admin/save-github-file")
+@router.post("/admin/save-github-file")
 def save_github_file(file_path: str = Form(...), content: str = Form(...)):
     import base64
 
@@ -423,7 +423,7 @@ def save_github_file(file_path: str = Form(...), content: str = Form(...)):
 
 
 #💬 Chat UI Route Only (GET Request) This route only serves the HTML page for the chat UI
-@admin_router.get("/chat-ui", response_class=HTMLResponse)
+@router.get("/chat-ui", response_class=HTMLResponse)
 def chat_ui(request: Request):
     return templates.TemplateResponse("chat.html", {"request": request})
 
