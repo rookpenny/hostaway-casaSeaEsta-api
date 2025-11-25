@@ -1,7 +1,9 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+  <meta charset="UTF-8">
   <title>Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -85,7 +87,7 @@
     <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
   </div>
 
-  {% if pmcs %}
+  {% if pmc %}
     <table>
       <thead>
         <tr>
@@ -100,27 +102,26 @@
         </tr>
       </thead>
       <tbody>
-        {% for record in pmcs %}
-          {% set f = record %}
+        {% for p in pmc %}
           <tr>
-            <td>{{ f.get("PMC Name", "N/A") }}</td>
-            <td>{{ f.get("Hostaway Account ID", "—") }}</td>
-            <td>{{ f.get("Main Contact", "—") }}</td>
-            <td>{{ f.get("Email", "—") }}</td>
-            <td>{{ f.get("Subscription Plan", "—") }}</td>
-            <td>{{ f.get("PMS Integration", "—") }}</td>
+            <td>{{ p.pmc_name }}</td>
+            <td>{{ p.hostaway_account_id }}</td>
+            <td>{{ p.main_contact }}</td>
+            <td>{{ p.email }}</td>
+            <td>{{ p.subscription_plan }}</td>
+            <td>{{ p.pms_integration }}</td>
             <td>
-              <select class="status-select" data-record-id="{{ record.id }}">
-                <option value="true" {% if f.get("Active") %}selected{% endif %}>✅ Active</option>
-                <option value="false" {% if not f.get("Active") %}selected{% endif %}>❌ Inactive</option>
+              <select class="status-select" data-record-id="{{ p.id }}">
+                <option value="true" {% if p.active %}selected{% endif %}>✅ Active</option>
+                <option value="false" {% if not p.active %}selected{% endif %}>❌ Inactive</option>
               </select>
             </td>
             <td>
-              <form action="/admin/sync-properties/{{ f.get('PMS Account ID') }}" method="post">
+              <form action="/admin/sync-properties/{{ p.pms_account_id }}" method="post">
                 <button
                   class="sync-one"
                   type="submit"
-                  {% if not f.get("PMS Account ID") %}
+                  {% if not p.pms_account_id %}
                     disabled
                     title="Missing PMS Account ID"
                   {% endif %}
