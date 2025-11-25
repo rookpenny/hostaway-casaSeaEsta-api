@@ -9,10 +9,11 @@ from utils.pms_sync import sync_properties, sync_all_pmcs
 from pathlib import Path
 from openai import OpenAI  # ✅ updated
 
+from sqlalchemy.orm import Session
 from database import SessionLocal
-from sqlalchemy import text
+from models import PMC  # Assuming you have a PMC SQLAlchemy model
 
-admin_router = APIRouter(prefix="/admin")
+router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 # Airtable Settings
@@ -124,33 +125,13 @@ def admin_dashboard(request: Request):
         "status": request.query_params.get("status", "")
     })'''
 
-@admin_router.get("", response_class=HTMLResponse)
+@router.get("/admin/dashboard")
 def admin_dashboard(request: Request):
-    pmcs = []
-    debug_info = {
-        "AIRTABLE_API_KEY": "✅ SET" if AIRTABLE_API_KEY else "❌ MISSING",
-        "AIRTABLE_BASE_ID": AIRTABLE_BASE_ID or "❌ MISSING",
-        "AIRTABLE_PMC_TABLE_ID": AIRTABLE_PMC_TABLE_ID
-    }
-
-    try:
-        airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-        headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
-        response = requests.get(airtable_url, headers=headers)
-
-        if response.status_code == 200:
-            pmcs = response.json().get("records", [])
-        else:
-            debug_info["Airtable Response Code"] = response.status_code
-            debug_info["Airtable Response"] = response.text
-    except Exception as e:
-        debug_info["Exception"] = str(e)
-
+    db: Session = SessionLocal()
+    pmc_list = db.query(PMC).all()
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
-        "pmcs": pmcs,
-        "debug_info": debug_info,
-        "status": request.query_params.get("status", "")
+        "pmc": pmc_list
     })
 
 
