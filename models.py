@@ -4,7 +4,7 @@ from sqlalchemy.ext.declarative import declarative_base
 Base = declarative_base()
 
 class PMC(Base):
-    __tablename__ = "pmcs"
+    __tablename__ = "pmc"
 
     id = Column(Integer, primary_key=True, index=True)
     pmc_name = Column(String, nullable=False)
