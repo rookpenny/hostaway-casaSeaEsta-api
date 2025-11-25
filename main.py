@@ -6,7 +6,15 @@ import logging
 import requests
 #import openai
 
+
+
 from database import SessionLocal
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
+from database import engine
+
+
+
 from fastapi import (
     FastAPI, Request, Query, Path, HTTPException, Header, Form,
     APIRouter
@@ -88,6 +96,15 @@ def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(sync_all_pmc_properties, 'interval', hours=24)
     scheduler.start()
+
+# --- DB Connection Test ---
+try:
+    with engine.connect() as conn:
+        conn.execute(text("SELECT 1"))
+        print("✅ Database connected successfully.")
+except SQLAlchemyError as e:
+    print(f"❌ Database connection failed: {e}")
+
 
 start_scheduler()
 
