@@ -41,7 +41,13 @@ def edit_file(request: Request, file: str):
     except Exception as e:
         return HTMLResponse(f"<h2>Error reading file: {e}</h2>", status_code=500)
 
-
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+        
 @admin_router.post("/admin/save-file")
 def save_file(file_path: str = Form(...), content: str = Form(...)):
     try:
