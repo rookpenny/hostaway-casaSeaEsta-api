@@ -5,60 +5,39 @@
   <title>AI Assistant - Casa Sea Esta</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    /* Base layout */
     body {
       margin: 0;
-      padding: 1.5rem;
       font-family: 'Segoe UI', sans-serif;
       background: linear-gradient(to bottom, #f9e0e8, #fef6f9);
       color: #333;
-      overflow-x: hidden;
-    }
-    body.dark {
-      background: linear-gradient(to bottom, #1e1e1e, #2a2a2a);
-      color: #eee;
+      display: flex;
+      flex-direction: column;
+      height: 100vh;
     }
 
-    /* Headings */
     h1, h2 {
       text-align: center;
       margin: 0.2rem 0;
     }
+
     h1 {
       font-size: 1.8rem;
       font-weight: bold;
     }
+
     h2 {
       font-size: 1rem;
       color: #d63384;
     }
 
-    /* Toggle */
-    #dark-toggle {
-      position: absolute;
-      top: 1rem;
-      right: 1rem;
-      padding: 0.4rem 0.8rem;
-      font-size: 0.85rem;
-      border-radius: 999px;
-      border: none;
-      background: #333;
-      color: #fff;
-      cursor: pointer;
-    }
-    body.dark #dark-toggle {
-      background: #eee;
-      color: #000;
-    }
-
-    /* Tags */
     .tag-group {
       display: flex;
       flex-wrap: wrap;
       gap: 0.5rem;
       justify-content: center;
-      margin: 1rem 0 2rem;
+      margin: 1rem 0;
     }
+
     .tag {
       background-color: white;
       border: 1px solid #ddd;
@@ -66,222 +45,145 @@
       padding: 0.5rem 0.8rem;
       font-size: 0.85rem;
       cursor: pointer;
-    }
-    body.dark .tag {
-      background: #444;
-      color: #fff;
-      border-color: #555;
+      transition: background 0.2s;
     }
 
-    /* Chat window */
-    .chat-box {
-      margin-bottom: 120px;
+    .tag:hover {
+      background-color: #eaeaea;
+    }
+
+    .chat-container {
+      flex: 1;
       overflow-y: auto;
-      max-height: 70vh;
-      padding: 0 1rem;
-      border: none;
-      box-shadow: none;
+      padding: 1rem;
+      display: flex;
+      flex-direction: column;
     }
 
-    /* Messages */
+    .trend-wrapper {
+      margin-top: 1rem;
+    }
+
+    .carousel-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+
+    .trend-carousel {
+      display: flex;
+      overflow-x: auto;
+      scroll-behavior: smooth;
+      gap: 1rem;
+    }
+
+    .card {
+      background-color: white;
+      border-radius: 12px;
+      padding: 1rem;
+      min-width: 160px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      flex: 0 0 auto;
+    }
+
+    .card img {
+      width: 100%;
+      height: auto;
+      border-radius: 8px;
+      margin-bottom: 0.5rem;
+    }
+
+    .card-title {
+      font-weight: bold;
+      margin-bottom: 0.3rem;
+    }
+
     .msg {
       display: flex;
       align-items: flex-end;
-      margin: 1rem 0;
-      position: relative;
+      margin-bottom: 0.75rem;
     }
+
     .msg.user {
-      flex-direction: row-reverse;
+      justify-content: flex-end;
     }
 
-    /* Bubble arrow */
-    .msg.user .bubble::after {
-      content: "";
-      position: absolute;
-      right: 50px;
-      bottom: 0;
-      width: 0;
-      height: 0;
-      border: 10px solid transparent;
-      border-top-color: #fff;
-      border-bottom: 0;
-      border-right: 0;
-      margin-left: -5px;
-      margin-bottom: -10px;
-      transform: rotate(45deg);
-    }
-    .msg.bot .bubble::after {
-      content: "";
-      position: absolute;
-      left: 50px;
-      bottom: 0;
-      width: 0;
-      height: 0;
-      border: 10px solid transparent;
-      border-top-color: #f0f0f0;
-      border-bottom: 0;
-      border-left: 0;
-      margin-right: -5px;
-      margin-bottom: -10px;
-      transform: rotate(-45deg);
+    .msg.bot {
+      justify-content: flex-start;
     }
 
-    /* Avatar */
+    .bubble {
+      background: white;
+      padding: 0.6rem 1rem;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      max-width: 70%;
+    }
+
     .avatar {
       width: 32px;
       height: 32px;
       border-radius: 50%;
       background-color: #ccc;
       margin: 0 0.5rem;
+      background-size: cover;
+      background-position: center;
     }
 
-    /* Bubble */
-    .msg .bubble {
-      background: #fff;
-      padding: 0.8rem 1.2rem;
-      border-radius: 1.2rem;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      max-width: 70%;
-      white-space: pre-wrap;
-      line-height: 1.6;
-      font-size: 1rem;
-      position: relative;
-    }
-    .msg.bot .bubble {
-      background: #f0f0f0;
-    }
-    body.dark .bubble {
-      background: #333;
-      color: #fff;
-    }
-    body.dark .msg.bot .bubble {
-      background: #444;
+    .msg.user .avatar {
+      order: 2;
+      background-image: url('https://via.placeholder.com/32/0000FF/FFFFFF?text=U');
     }
 
-    /* Timestamp */
-    .bubble .timestamp {
-      display: block;
-      font-size: 0.7rem;
-      color: #888;
-      margin-top: 0.3rem;
-      text-align: right;
+    .msg.bot .avatar {
+      background-image: url('https://via.placeholder.com/32/FF69B4/FFFFFF?text=S');
     }
 
-    /* Chat input */
     .chat-input-bar {
-      position: fixed;
-      bottom: 0;
-      left: 0;
-      width: 100%;
-      background: white;
-      padding: 1rem;
-      display: flex;
-      justify-content: center;
-      border-top: 1px solid #ccc;
-    }
-    .chat-input-wrapper {
+      padding: 0.8rem 1rem;
       display: flex;
       align-items: center;
-      background: #fff;
-      border-radius: 999px;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-      padding: 0.5rem 1rem;
-      width: 100%;
-      max-width: 700px;
+      gap: 0.5rem;
+      border-top: 1px solid #ccc;
+      background: white;
     }
-    .chat-plus {
-      background: transparent;
-      border: none;
-      width: 2rem;
-      height: 2rem;
-      font-size: 1.2rem;
-      color: #999;
-      margin-right: 0.5rem;
-      cursor: pointer;
-    }
-    .chat-input-wrapper input[type="text"] {
+
+    .chat-input-bar input[type="text"] {
       flex: 1;
-      padding: 0.6rem 0;
+      padding: 0.8rem 1rem;
       border: none;
+      border-radius: 999px;
+      background: #f5f5f5;
       font-size: 1rem;
-      background: transparent;
       outline: none;
     }
 
-    /* Image */
-    .msg img {
-      margin-top: 0.5rem;
-      border-radius: 0.5rem;
-      max-width: 100%;
-    }
-
-    /* Typing animation */
-    .typing-dots {
-      display: inline-block;
-      width: 2rem;
-      text-align: left;
-    }
-    .typing-dots span {
-      display: inline-block;
-      width: 0.4rem;
-      height: 0.4rem;
-      background: #999;
-      border-radius: 50%;
-      margin: 0 0.1rem;
-      animation: blinkDots 1.2s infinite ease-in-out both;
-    }
-    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
-    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
-
-    @keyframes blinkDots {
-      0%, 80%, 100% { transform: scale(0); }
-      40% { transform: scale(1); }
-    }
-
-    /* Carousel */
-    .carousel-wrapper {
-      position: relative;
-      overflow: hidden;
-      margin-bottom: 1.5rem;
-    }
-    .carousel {
-      display: flex;
-      overflow-x: hidden;
-      scroll-behavior: smooth;
-      gap: 1rem;
-      padding: 1rem;
-    }
-    .card {
-      background-color: white;
-      border-radius: 12px;
-      padding: 1rem;
-      min-width: 180px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-      flex-shrink: 0;
-    }
-    .carousel-button {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 1.5rem;
-      background: #fff;
+    .chat-plus {
+      background: #f5f5f5;
       border: none;
-      box-shadow: 0 0 4px rgba(0,0,0,0.2);
-      width: 32px;
-      height: 32px;
+      width: 2.5rem;
+      height: 2.5rem;
+      font-size: 1.2rem;
       border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
       cursor: pointer;
     }
-    .carousel-button.left {
-      left: 0.5rem;
+
+    .carousel-arrow {
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0.2rem 0.5rem;
     }
-    .carousel-button.right {
-      right: 0.5rem;
+
+    #file-upload {
+      display: none;
     }
   </style>
 </head>
 <body>
-  <button id="dark-toggle" onclick="toggleDarkMode()">Dark Mode</button>
   <h1>Ready to bring new life<br>to your social media?</h1>
   <h2>SMM model ⟲</h2>
 
@@ -293,66 +195,66 @@
     <div class="tag">Throwback Remix</div>
   </div>
 
-  <div class="chat-box" id="chat-box">
-    <div class="carousel-wrapper">
-      <button class="carousel-button left" onclick="scrollCarousel(-1)">‹</button>
-      <div class="carousel" id="trend-carousel">
-        <div class="card">
-          <img src="https://via.placeholder.com/150" alt="No-Buy 2025" />
-          <div><strong>No-Buy 2025</strong></div>
-          <div>A trend encouraging minimal spending on non-essentials.</div>
-        </div>
-        <div class="card">
-          <img src="https://via.placeholder.com/150" alt="Digital Detox" />
-          <div><strong>Digital Detox</strong></div>
-          <div>Ways of unplugging from digital distractions.</div>
+  <div class="chat-container" id="chat-box">
+    <div class="trend-wrapper">
+      <div class="carousel-header">
+        <h3>Ride the trend</h3>
+        <div>
+          <span class="carousel-arrow" onclick="scrollCarousel(-1)">&#8592;</span>
+          <span class="carousel-arrow" onclick="scrollCarousel(1)">&#8594;</span>
         </div>
       </div>
-      <button class="carousel-button right" onclick="scrollCarousel(1)">›</button>
+      <div class="trend-carousel" id="carousel">
+        <div class="card">
+          <img src="https://via.placeholder.com/150" />
+          <div class="card-title">No-Buy 2025</div>
+          <div class="card-desc">A growing trend among Gen Z encouraging minimal spending on non-essentials.</div>
+        </div>
+        <div class="card">
+          <img src="https://via.placeholder.com/150" />
+          <div class="card-title">Digital Detox</div>
+          <div class="card-desc">Ask subscribers about their ways of unplugging from digital distractions.</div>
+        </div>
+        <!-- Add more cards as needed -->
+      </div>
     </div>
   </div>
 
   <div class="chat-input-bar">
-    <div class="chat-input-wrapper">
-      <button class="chat-plus" onclick="document.getElementById('file-upload').click()">+</button>
-      <input type="file" id="file-upload" accept="image/*" style="display:none;" />
-      <input type="text" id="user-input" placeholder="Type a message here..." onkeypress="handleKey(event)" />
-    </div>
+    <button class="chat-plus" onclick="document.getElementById('file-upload').click()">+</button>
+    <input type="file" id="file-upload" accept="image/*" />
+    <input type="text" id="user-input" placeholder="Type a message here..." onkeypress="handleKey(event)" />
   </div>
-
-  <audio id="chat-sound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_1e0b6c9cd7.mp3?filename=click-pop-18530.mp3" preload="auto"></audio>
 
   <script>
     const chatBox = document.getElementById("chat-box");
     const inputField = document.getElementById("user-input");
-    const fileUpload = document.getElementById("file-upload");
-    const chatSound = document.getElementById("chat-sound");
-    let uploadedImage = null;
 
-    function toggleDarkMode() {
-      document.body.classList.toggle("dark");
-      const toggleBtn = document.getElementById("dark-toggle");
-      toggleBtn.textContent = document.body.classList.contains("dark") ? "Light Mode" : "Dark Mode";
+    function scrollToBottom() {
+      chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    function scrollCarousel(direction) {
-      const el = document.getElementById("trend-carousel");
-      el.scrollLeft += direction * 200;
-    }
-
-    function addMessage(content, sender) {
+    function addMessage(text, sender) {
       const msg = document.createElement("div");
       msg.className = `msg ${sender}`;
+
       const avatar = document.createElement("div");
       avatar.className = "avatar";
+
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-      bubble.innerHTML = content;
-      msg.appendChild(avatar);
-      msg.appendChild(bubble);
+      bubble.innerHTML = text;
+
+      if (sender === "user") {
+        msg.appendChild(bubble);
+        msg.appendChild(avatar);
+      } else {
+        msg.appendChild(avatar);
+        msg.appendChild(bubble);
+      }
+
       chatBox.appendChild(msg);
-      chatBox.scrollTop = chatBox.scrollHeight;
-      if (sender === "bot") chatSound.play();
+      scrollToBottom();
     }
 
     function handleKey(e) {
@@ -361,42 +263,62 @@
 
     async function sendMessage() {
       const userMsg = inputField.value.trim();
-      if (!userMsg && !uploadedImage) return;
+      if (!userMsg) return;
 
-      let content = "";
-      if (userMsg) content += `<div>${userMsg}</div>`;
-      if (uploadedImage) content += `<img src="${uploadedImage}" alt="uploaded image">`;
-      addMessage(content, "user");
+      addMessage(userMsg, "user");
       inputField.value = "";
 
-      addMessage(`<i>Sandy is thinking...</i><br><div class='typing-dots'><span></span><span></span><span></span></div>`, "bot");
+      addTyping();
 
       try {
         const res = await fetch("/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ message: userMsg })
+          body: JSON.stringify({
+            message: `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. Stay friendly, helpful, and local. Respond to the user like you're a sunny, laid-back expert assistant. Message from guest: "${userMsg}"`
+          })
         });
-        const data = await res.json();
-        chatBox.lastChild.remove();
-        addMessage(data.response || "Hmm, not sure what that is 🌴", "bot");
-      } catch {
-        chatBox.lastChild.remove();
-        addMessage("Something went wrong. Try again later. 🐚", "bot");
-      }
 
-      uploadedImage = null;
+        const data = await res.json();
+        removeTyping();
+        addMessage(data.response || "Hmm, I didn't catch that — could you try again? 🌴", "bot");
+      } catch {
+        removeTyping();
+        addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
+      }
     }
 
-    fileUpload.addEventListener("change", (e) => {
-      const file = e.target.files[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        uploadedImage = event.target.result;
-        inputField.focus();
-      };
-      reader.readAsDataURL(file);
+    function addTyping() {
+      const typing = document.createElement("div");
+      typing.className = "msg bot typing";
+      typing.id = "typing";
+      typing.innerHTML = `
+        <div class="avatar"></div>
+        <div class="bubble">Sandy is typing<span class="dots">...</span></div>`;
+      chatBox.appendChild(typing);
+      scrollToBottom();
+    }
+
+    function removeTyping() {
+      const typing = document.getElementById("typing");
+      if (typing) typing.remove();
+    }
+
+    function scrollCarousel(dir) {
+      const carousel = document.getElementById("carousel");
+      carousel.scrollBy({ left: dir * 180, behavior: "smooth" });
+    }
+
+    document.querySelectorAll('.tag').forEach(tag => {
+      tag.addEventListener('click', () => {
+        inputField.value = tag.textContent;
+        sendMessage();
+      });
+    });
+
+    document.getElementById('file-upload').addEventListener('change', function () {
+      const fileName = this.files[0]?.name;
+      if (fileName) addMessage("📸 Uploaded: " + fileName, "user");
     });
   </script>
 </body>
