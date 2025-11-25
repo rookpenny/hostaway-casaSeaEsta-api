@@ -7,7 +7,7 @@ import requests
 import json
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from pathlib import Path
-import openai
+from openai import OpenAI  # ✅ updated
 
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
@@ -16,9 +16,8 @@ templates = Jinja2Templates(directory="templates")
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
-openai.api_key = os.getenv("OPENAI_API_KEY")
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-client = openai.OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 @admin_router.get("/edit-config", response_class=HTMLResponse)
 @admin_router.get("/edit-housemanual", response_class=HTMLResponse)
@@ -501,7 +500,7 @@ async def chat_combined(request: Request):
         #import openai
         openai.api_key = os.getenv("OPENAI_API_KEY")
 
-        response = openai.ChatCompletion.create(
+        response = client.chat.completions.create(
             model="gpt-4",
             messages=[
                 {"role": "system", "content": "You are Sandy, a helpful and funny assistant."},
