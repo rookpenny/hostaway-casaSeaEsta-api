@@ -101,7 +101,7 @@
       </thead>
       <tbody>
         {% for record in pmcs %}
-          {% set f = record["fields"] %}
+          {% set f = record %}
           <tr>
             <td>{{ f.get("PMC Name", "N/A") }}</td>
             <td>{{ f.get("Hostaway Account ID", "—") }}</td>
