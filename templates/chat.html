@@ -18,15 +18,8 @@
       margin: 0.2rem 0;
     }
 
-    h1 {
-      font-size: 1.8rem;
-      font-weight: bold;
-    }
-
-    h2 {
-      font-size: 1rem;
-      color: #d63384;
-    }
+    h1 { font-size: 1.8rem; font-weight: bold; }
+    h2 { font-size: 1rem; color: #d63384; }
 
     .tag-group {
       display: flex;
@@ -46,9 +39,7 @@
       transition: background 0.2s;
     }
 
-    .tag:hover {
-      background-color: #eaeaea;
-    }
+    .tag:hover { background-color: #eaeaea; }
 
     .trend-section {
       display: flex;
@@ -79,8 +70,8 @@
     }
 
     .chat-box {
-      margin-bottom: 100px;
-      max-height: 300px;
+      margin-bottom: 120px;
+      max-height: 60vh;
       overflow-y: auto;
     }
 
@@ -89,13 +80,8 @@
       padding: 0.5rem;
     }
 
-    .msg.user {
-      justify-content: flex-end;
-    }
-
-    .msg.bot {
-      justify-content: flex-start;
-    }
+    .msg.user { justify-content: flex-end; }
+    .msg.bot { justify-content: flex-start; }
 
     .bubble {
       background: #fff;
@@ -127,6 +113,7 @@
       align-items: center;
       gap: 0.5rem;
       border-top: 1px solid #ccc;
+      z-index: 10;
     }
 
     .chat-input-bar input[type="text"] {
@@ -154,6 +141,15 @@
 
     #file-upload {
       display: none;
+    }
+
+    a {
+      color: #2d72d9;
+      text-decoration: underline;
+    }
+
+    @media (max-width: 600px) {
+      body { padding: 1rem; }
     }
   </style>
 </head>
@@ -193,6 +189,8 @@
     <button class="chat-mic" onclick="startSpeechToText()">🎤</button>
   </div>
 
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
   <script>
     const chatBox = document.getElementById("chat-box");
     const inputField = document.getElementById("user-input");
@@ -215,7 +213,9 @@
 
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-      bubble.textContent = text;
+
+      // Markdown support
+      bubble.innerHTML = marked.parse(text);
 
       msg.appendChild(bubble);
       chatBox.appendChild(msg);
@@ -226,7 +226,7 @@
       const typing = document.createElement("div");
       typing.className = "msg bot typing";
       typing.id = "typing";
-      typing.innerHTML = '<div class="bubble">Sandy is thinking</div>';
+      typing.innerHTML = '<div class="bubble">Sandy is thinking<span class="dots">...</span></div>';
       chatBox.appendChild(typing);
       chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -254,7 +254,7 @@
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            message: `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. Stay friendly, helpful, and local. Respond to the user like you're a sunny, laid-back expert assistant. Message from guest: "${userMsg}"`
+            message: `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. Stay friendly, helpful, and local. Respond with markdown formatting, emojis, links, and calls-to-action. Message from guest: "${userMsg}"`
           })
         });
 
