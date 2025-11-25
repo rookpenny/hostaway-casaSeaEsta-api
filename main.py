@@ -52,17 +52,17 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 from routes import admin
 
 
-# Routes
-app.include_router(admin.router)
-app.include_router(pmc_auth.router)
 
 # --- Config ---
 #openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 # --- Init ---
-app = FastAPI()
+app = FastAPI()  # ✅ Define app before using it
 
+# Routes
+app.include_router(admin.router)
+app.include_router(pmc_auth.router)
 
 
 # Middleware
