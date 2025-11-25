@@ -49,12 +49,14 @@ from starlette.middleware.sessions import SessionMiddleware
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+from routes import admin
 
+
+# Routes
+app.include_router(admin.router)
+app.include_router(pmc_auth.router)
 
 # --- Config ---
-AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 #openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
@@ -81,9 +83,8 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-# Routes
-app.include_router(pmc_auth.router)
-app.include_router(admin.router)
+
+
 
 # --- Routers ---
 from routes.admin import router
