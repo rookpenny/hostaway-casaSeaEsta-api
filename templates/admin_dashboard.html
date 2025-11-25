@@ -102,36 +102,33 @@
         </tr>
       </thead>
       <tbody>
-        {% for p in pmc %}
-          <tr>
-            <td>{{ p.pmc_name }}</td>
-            <td>{{ p.hostaway_account_id }}</td>
-            <td>{{ p.main_contact }}</td>
-            <td>{{ p.email }}</td>
-            <td>{{ p.subscription_plan }}</td>
-            <td>{{ p.pms_integration }}</td>
-            <td>
-              <select class="status-select" data-record-id="{{ p.id }}">
-                <option value="true" {% if p.active %}selected{% endif %}>✅ Active</option>
-                <option value="false" {% if not p.active %}selected{% endif %}>❌ Inactive</option>
-              </select>
-            </td>
-            <td>
-              <form action="/admin/sync-properties/{{ p.pms_account_id }}" method="post">
-                <button
-                  class="sync-one"
-                  type="submit"
-                  {% if not p.pms_account_id %}
-                    disabled
-                    title="Missing PMS Account ID"
-                  {% endif %}
-                >
-                  🔄 Sync
-                </button>
-              </form>
-            </td>
-          </tr>
-        {% endfor %}
+        {% for record in pmc %}
+  <tr>
+    <td>{{ record.pmc_name }}</td>
+    <td>{{ record.hostaway_account_id }}</td>
+    <td>{{ record.main_contact }}</td>
+    <td>{{ record.email }}</td>
+    <td>{{ record.subscription_plan }}</td>
+    <td>{{ record.pms_integration }}</td>
+    <td>
+      <select class="status-select" data-record-id="{{ record.id }}">
+        <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
+        <option value="false" {% if not record.active %}selected{% endif %}>❌ Inactive</option>
+      </select>
+    </td>
+    <td>
+      <form action="/admin/sync-properties/{{ record.pms_account_id }}" method="post">
+        <button class="sync-one" type="submit"
+          {% if not record.pms_account_id %}
+            disabled title="Missing PMS Account ID"
+          {% endif %}>
+          🔄 Sync
+        </button>
+      </form>
+    </td>
+  </tr>
+{% endfor %}
+
       </tbody>
     </table>
   {% else %}
