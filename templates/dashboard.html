@@ -1,3 +1,10 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>User Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+</head>
 <body>
   <h1>Welcome, {{ user.name }} 👋</h1>
   <p>Email: {{ user.email }}</p>
@@ -33,10 +40,15 @@
             <!-- Edit Buttons -->
 {% set base_path = prop.fields["Data Folder Path"] %}
 <a href="/admin/edit-file?file={{ base_path }}/config.json"
+   title="Edit the configuration file for {{ prop.fields['Property Name'] }}"
+   aria-label="Edit Config for {{ prop.fields['Property Name'] }}"
    style="margin-right: 1rem; background-color: #007bff; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
   Edit Config
 </a>
+
 <a href="/admin/edit-file?file={{ base_path }}/manual.txt"
+   title="Edit the house manual for {{ prop.fields['Property Name'] }}"
+   aria-label="Edit Manual for {{ prop.fields['Property Name'] }}"
    style="background-color: #28a745; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
   Edit Manual
 </a>
@@ -50,3 +62,4 @@
 
   <p><a href="/auth/logout">Log out</a></p>
 </body>
+</html>
