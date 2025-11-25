@@ -115,7 +115,7 @@ def admin_dashboard(request: Request):
     pmc_list = db.query(PMC).all()
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
-        "pmcs": pmc_list  # Use 'pmcs' to match the template context
+        "pmc": pmc_list  # Use 'pmcs' to match the template context
     })
 
 
