@@ -176,111 +176,47 @@
       left: 0;
       width: 100%;
       background: white;
-      padding: 0.8rem 1rem;
+      padding: 1rem;
       display: flex;
-      align-items: center;
-      gap: 0.5rem;
+      justify-content: center;
       border-top: 1px solid #ccc;
     }
 
-    body.dark .chat-input-bar {
-      background: #222;
-      border-color: #444;
-    }
-
-    .chat-input-bar input[type="text"] {
-      flex: 1;
-      padding: 0.8rem 1rem;
-      border: none;
-      border-top-right-radius: 999px;
-      border-bottom-right-radius: 999px;
-      background: #f5f5f5;
-      font-size: 1rem;
-      outline: none;
-    }
-
-    body.dark .chat-input-bar input[type="text"] {
-      background: #333;
-      color: #eee;
+    .chat-input-wrapper {
+      display: flex;
+      align-items: center;
+      background: #fff;
+      border-radius: 999px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+      padding: 0.5rem 1rem;
+      width: 100%;
+      max-width: 700px;
     }
 
     .chat-plus {
-      background: #f5f5f5;
+      background: transparent;
       border: none;
-      width: 2.5rem;
-      height: 2.5rem;
+      width: 2rem;
+      height: 2rem;
       font-size: 1.2rem;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
+      color: #999;
+      margin-right: 0.5rem;
       cursor: pointer;
     }
 
-    body.dark .chat-plus {
-      background: #333;
-      color: #fff;
-    }
-
-    .carousel-wrapper {
-      position: relative;
-      overflow: hidden;
-      margin-bottom: 1.5rem;
-    }
-
-    .carousel {
-      display: flex;
-      overflow-x: hidden;
-      scroll-behavior: smooth;
-      gap: 1rem;
-      padding: 1rem;
-    }
-
-    .card {
-      background-color: white;
-      border-radius: 12px;
-      padding: 1rem;
-      min-width: 180px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
-      flex-shrink: 0;
-    }
-
-    body.dark .card {
-      background: #444;
-      color: #fff;
-    }
-
-    .card img {
-      width: 100%;
-      border-radius: 8px;
-      margin-bottom: 0.5rem;
-    }
-
-    .carousel-button {
-      position: absolute;
-      top: 50%;
-      transform: translateY(-50%);
-      font-size: 1.5rem;
-      background: #fff;
+    .chat-input-wrapper input[type="text"] {
+      flex: 1;
+      padding: 0.6rem 0;
       border: none;
-      box-shadow: 0 0 4px rgba(0,0,0,0.2);
-      width: 32px;
-      height: 32px;
-      border-radius: 50%;
-      cursor: pointer;
+      font-size: 1rem;
+      background: transparent;
+      outline: none;
     }
 
-    body.dark .carousel-button {
-      background: #333;
-      color: #fff;
-    }
-
-    .carousel-button.left {
-      left: 0.5rem;
-    }
-
-    .carousel-button.right {
-      right: 0.5rem;
+    .msg img {
+      margin-top: 0.5rem;
+      border-radius: 0.5rem;
+      max-width: 100%;
     }
 
     .typing-dots {
@@ -306,12 +242,55 @@
       0%, 80%, 100% { transform: scale(0); }
       40% { transform: scale(1); }
     }
+
+    .carousel-wrapper {
+      position: relative;
+      overflow: hidden;
+      margin-bottom: 1.5rem;
+    }
+
+    .carousel {
+      display: flex;
+      overflow-x: hidden;
+      scroll-behavior: smooth;
+      gap: 1rem;
+      padding: 1rem;
+    }
+
+    .card {
+      background-color: white;
+      border-radius: 12px;
+      padding: 1rem;
+      min-width: 180px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+      flex-shrink: 0;
+    }
+
+    .carousel-button {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 1.5rem;
+      background: #fff;
+      border: none;
+      box-shadow: 0 0 4px rgba(0,0,0,0.2);
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      cursor: pointer;
+    }
+
+    .carousel-button.left {
+      left: 0.5rem;
+    }
+
+    .carousel-button.right {
+      right: 0.5rem;
+    }
   </style>
 </head>
 <body>
-
   <button id="dark-toggle" onclick="toggleDarkMode()">Dark Mode</button>
-
   <h1>Ready to bring new life<br>to your social media?</h1>
   <h2>SMM model ⟲</h2>
 
@@ -343,9 +322,11 @@
   </div>
 
   <div class="chat-input-bar">
-    <button class="chat-plus" onclick="document.getElementById('file-upload').click()">+</button>
-    <input type="file" id="file-upload" accept="image/*" style="display:none;" />
-    <input type="text" id="user-input" placeholder="Type a message here..." onkeypress="handleKey(event)" />
+    <div class="chat-input-wrapper">
+      <button class="chat-plus" onclick="document.getElementById('file-upload').click()">+</button>
+      <input type="file" id="file-upload" accept="image/*" style="display:none;" />
+      <input type="text" id="user-input" placeholder="Type a message here..." onkeypress="handleKey(event)" />
+    </div>
   </div>
 
   <audio id="chat-sound" src="https://cdn.pixabay.com/download/audio/2022/03/15/audio_1e0b6c9cd7.mp3?filename=click-pop-18530.mp3" preload="auto"></audio>
@@ -353,58 +334,34 @@
   <script>
     const chatBox = document.getElementById("chat-box");
     const inputField = document.getElementById("user-input");
+    const fileUpload = document.getElementById("file-upload");
     const chatSound = document.getElementById("chat-sound");
+    let uploadedImage = null;
 
-    document.querySelectorAll('.tag').forEach(tag => {
-      tag.addEventListener('click', () => {
-        inputField.value = tag.textContent;
-        sendMessage();
-      });
-    });
+    function toggleDarkMode() {
+      document.body.classList.toggle("dark");
+      const toggleBtn = document.getElementById("dark-toggle");
+      toggleBtn.textContent = document.body.classList.contains("dark") ? "Light Mode" : "Dark Mode";
+    }
 
     function scrollCarousel(direction) {
       const el = document.getElementById("trend-carousel");
       el.scrollLeft += direction * 200;
     }
 
-    function toggleDarkMode() {
-      document.body.classList.toggle("dark");
-      const toggleBtn = document.getElementById("dark-toggle");
-      toggleBtn.textContent = document.body.classList.contains("dark")
-        ? "Light Mode"
-        : "Dark Mode";
-    }
-
-    function addMessage(text, sender, isLoading = false) {
+    function addMessage(content, sender) {
       const msg = document.createElement("div");
       msg.className = `msg ${sender}`;
-
       const avatar = document.createElement("div");
       avatar.className = "avatar";
-
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-
-      if (isLoading) {
-        bubble.innerHTML = `<span>Sandy is thinking...</span><br><div class="typing-dots"><span></span><span></span><span></span></div>`;
-      } else {
-        bubble.innerHTML = formatMessage(text);
-        if (sender !== "user") {
-          const timestamp = document.createElement("span");
-          timestamp.className = "timestamp";
-          timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          bubble.appendChild(timestamp);
-        }
-      }
-
+      bubble.innerHTML = content;
       msg.appendChild(avatar);
       msg.appendChild(bubble);
       chatBox.appendChild(msg);
       chatBox.scrollTop = chatBox.scrollHeight;
-
-      if (!isLoading && sender === "bot") {
-        chatSound.play();
-      }
+      if (sender === "bot") chatSound.play();
     }
 
     function handleKey(e) {
@@ -413,44 +370,42 @@
 
     async function sendMessage() {
       const userMsg = inputField.value.trim();
-      if (!userMsg) return;
-
-      addMessage(userMsg, "user");
+      if (!userMsg && !uploadedImage) return;
+      let content = "";
+      if (userMsg) content += `<div>${userMsg}</div>`;
+      if (uploadedImage) content += `<img src="${uploadedImage}" alt="uploaded image">`;
+      addMessage(content, "user");
       inputField.value = "";
 
-      addMessage("", "bot", true);
+      addMessage(`<i>Sandy is thinking...</i><br><div class='typing-dots'><span></span><span></span><span></span></div>`, "bot");
 
       try {
         const res = await fetch("/chat", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. Stay friendly, helpful, and local. Respond to the user like you're a sunny, laid-back expert assistant. Message from guest: "${userMsg}"`
-          })
+          body: JSON.stringify({ message: userMsg })
         });
-
         const data = await res.json();
-        document.querySelector(".typing")?.parentElement.remove();
-        addMessage(data.response || "Hmm, I didn’t catch that — try again? 🌴", "bot");
+        chatBox.lastChild.remove();
+        addMessage(data.response || "Hmm, not sure what that is 🌴", "bot");
       } catch {
-        document.querySelector(".typing")?.parentElement.remove();
-        addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
+        chatBox.lastChild.remove();
+        addMessage("Something went wrong. Try again later. 🐚", "bot");
       }
+
+      uploadedImage = null;
     }
 
-    function formatMessage(text) {
-      const urlPattern = /https?:\/\/[^\s]+/g;
-      const phonePattern = /(\+?\d[\d -]{7,}\d)/g;
-      const emailPattern = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z]{2,}\b/gi;
-      const mapPattern = /map\((.*?)\)/gi;
-
-      return text
-        .replace(urlPattern, match => `<a href="${match}" target="_blank">${match}</a>`)
-        .replace(phonePattern, match => `📞 <a href="tel:${match}">${match}</a>`)
-        .replace(emailPattern, match => `📧 <a href="mailto:${match}">${match}</a>`)
-        .replace(mapPattern, (match, p1) => `🗺️ <a href="https://maps.google.com/?q=${encodeURIComponent(p1)}" target="_blank">${p1}</a>`)
-        .replace(/\n/g, "<br>");
-    }
+    fileUpload.addEventListener("change", (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        uploadedImage = event.target.result;
+        inputField.focus();
+      };
+      reader.readAsDataURL(file);
+    });
   </script>
 </body>
 </html>
