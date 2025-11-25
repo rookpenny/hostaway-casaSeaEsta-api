@@ -50,6 +50,7 @@
       margin-bottom: 120px;
       overflow-y: auto;
       max-height: 70vh;
+      padding-right: 1rem;
     }
 
     .msg {
@@ -73,15 +74,18 @@
 
     .msg .bubble {
       background: #fff;
-      padding: 0.6rem 1rem;
-      border-radius: 1rem;
-      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      padding: 0.8rem 1.2rem;
+      border-radius: 1.2rem;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.1);
       max-width: 70%;
       white-space: pre-wrap;
+      line-height: 1.6;
+      font-size: 1rem;
     }
 
     .msg.bot .bubble {
-      background: #f1f1f1;
+      background: #f0f0f0;
+      border-left: 4px solid #d63384;
     }
 
     .bubble .timestamp {
@@ -90,14 +94,6 @@
       color: #888;
       margin-top: 0.3rem;
       text-align: right;
-    }
-
-    .feedback {
-      margin-top: 0.4rem;
-      font-size: 1rem;
-      text-align: right;
-      color: #666;
-      cursor: pointer;
     }
 
     .chat-input-bar {
@@ -144,7 +140,7 @@
 
     .carousel {
       display: flex;
-      overflow-x: auto;
+      overflow-x: hidden; /* disable free scroll */
       scroll-behavior: smooth;
       gap: 1rem;
       padding: 1rem;
@@ -257,13 +253,6 @@
       timestamp.className = "timestamp";
       timestamp.textContent = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       bubble.appendChild(timestamp);
-
-      if (sender === "bot") {
-        const feedback = document.createElement("div");
-        feedback.className = "feedback";
-        feedback.innerHTML = "👍 👎";
-        bubble.appendChild(feedback);
-      }
 
       msg.appendChild(avatar);
       msg.appendChild(bubble);
