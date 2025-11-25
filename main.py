@@ -4,7 +4,7 @@ import json
 import time
 import logging
 import requests
-import openai
+#import openai
 
 
 from fastapi import (
@@ -38,7 +38,8 @@ import uvicorn
 
 from routes import admin, pmc_auth  # ✅ make sure these match your folder/filenames
 from starlette.middleware.sessions import SessionMiddleware
-
+from openai import OpenAI
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
 
@@ -46,7 +47,7 @@ from starlette.middleware.sessions import SessionMiddleware
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
-openai.api_key = os.getenv("OPENAI_API_KEY")
+#openai.api_key = os.getenv("OPENAI_API_KEY")
 
 
 # --- Init ---
@@ -115,20 +116,23 @@ def list_routes():
 # Additional routes (e.g., /properties, /guests, /guest-message, etc.)
 # are handled and correct as provided in your current file
 
+# --- Chat Endpoint ---
 class ChatRequest(BaseModel):
     message: str
 
 @app.post("/chat")
 def chat(request: ChatRequest):
     try:
-        response = openai.ChatCompletion.create(
-            model="gpt-4",  # or "gpt-3.5-turbo"
-            messages=[{"role": "user", "content": request.message}]
+        response = client.chat.completions.create(
+            model="gpt-4",
+            messages=[
+                {"role": "system", "content": "You are a helpful assistant."},
+                {"role": "user", "content": request.message}
+            ]
         )
-        return {"response": response["choices"][0]["message"]["content"]}
+        return {"response": response.choices[0].message.content}
     except Exception as e:
         return {"error": str(e)}
-
 
 # --- Start Server ---
 if __name__ == "__main__":
