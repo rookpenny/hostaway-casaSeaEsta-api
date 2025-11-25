@@ -43,6 +43,12 @@
       padding: 0.5rem 0.8rem;
       font-size: 0.85rem;
       box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    
+    .tag:hover {
+      background-color: #f1f1f1;
     }
 
     h3 {
@@ -137,13 +143,13 @@
   <h1>Ready to bring new life<br>to your social media?</h1>
   <h2>SMM model ⟲</h2>
 
-  <div class="tag-group">
-    <div class="tag">Engagement Post</div>
-    <div class="tag">Trending Memes</div>
-    <div class="tag">Object Showcase</div>
-    <div class="tag">Behind-the-Scenes Snippets</div>
-    <div class="tag">Throwback Remix</div>
-  </div>
+<div class="tag-group">
+  <button class="tag" onclick="quickSend('Engagement Post')">Engagement Post</button>
+  <button class="tag" onclick="quickSend('Trending Memes')">Trending Memes</button>
+  <button class="tag" onclick="quickSend('Object Showcase')">Object Showcase</button>
+  <button class="tag" onclick="quickSend('Behind-the-Scenes Snippets')">Behind-the-Scenes Snippets</button>
+  <button class="tag" onclick="quickSend('Throwback Remix')">Throwback Remix</button>
+</div>
 
   <h3>Ride the trend</h3>
   <div class="trend-section">
@@ -168,6 +174,12 @@
   <script>
     const chatBox = document.getElementById("chat-box");
 
+    function quickSend(text) {
+      const input = document.querySelector('.chat-input-bar input');
+      input.value = text;
+      sendMessage();
+    }
+    
     function addMessage(text, sender) {
       const msg = document.createElement("div");
       msg.className = `msg ${sender}`;
