@@ -5,6 +5,11 @@ from utils.github_sync import sync_pmc_to_github
 from dotenv import load_dotenv
 from utils.config import LOCAL_CLONE_PATH
 
+from sqlalchemy import create_engine, text
+# Set up PostgreSQL connection (via Render or your environment variable)
+DATABASE_URL = os.getenv("DATABASE_URL")  # should be in form: postgresql://user:pass@host:port/dbname
+engine = create_engine(DATABASE_URL)
+
 
 load_dotenv()
 
@@ -13,9 +18,52 @@ AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
 
+def fetch_pmc_lookup():
+    """Fetch PMC configs from PostgreSQL and return a dict of account_id -> credentials."""
+    lookup = {}
 
+    query = text("""
+        SELECT 
+            "PMS Account ID" AS account_id,
+            "PMS Client ID" AS client_id,
+            "PMS Secret" AS client_secret,
+            "PMS Integration" AS pms,
+            "API Base URL" AS base_url,
+            "API Version" AS version,
+            "Sync Enabled" AS sync_enabled,
+            id AS record_id
+        FROM pmcs
+        WHERE "PMS Account ID" IS NOT NULL
+          AND "PMS Client ID" IS NOT NULL
+          AND "PMS Secret" IS NOT NULL
+          AND "Sync Enabled" = TRUE;
+    """)
 
+    with engine.connect() as conn:
+        result = conn.execute(query).fetchall()
 
+        for row in result:
+            base_url = row.base_url or default_base_url(row.pms)
+            lookup[str(row.account_id)] = {
+                "record_id": row.record_id,
+                "client_id": row.client_id,
+                "client_secret": row.client_secret,
+                "pms": row.pms.lower(),
+                "base_url": base_url,
+                "version": row.version,
+            }
+
+    return lookup
+
+def default_base_url(pms):
+    pms = pms.lower()
+    return {
+        "hostaway": "https://api.hostaway.com/v1",
+        "guesty": "https://open-api.guesty.com/v1",
+        "lodgify": "https://api.lodgify.com/v1"
+    }.get(pms, "https://api.example.com/v1")
+
+''' THIS IS AIRTABLE LOOK UP CODE
 def fetch_pmc_lookup():
     """Fetch PMC configs from Airtable and return a dict of client_id -> credentials."""
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
@@ -58,7 +106,7 @@ def fetch_pmc_lookup():
             }
 
     return lookup
-
+'''
 
 def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str) -> str:
     if pms == "hostaway":
