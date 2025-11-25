@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>AI Assistant - Casa Sea Esta</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
     body {
       margin: 0;
@@ -13,19 +13,19 @@
       color: #333;
     }
 
-    h1 {
+    h1, h2 {
       text-align: center;
+      margin: 0.2rem 0;
+    }
+
+    h1 {
       font-size: 1.8rem;
       font-weight: bold;
-      margin-bottom: 0.3rem;
     }
 
     h2 {
-      text-align: center;
       font-size: 1rem;
       color: #d63384;
-      margin-top: 0;
-      margin-bottom: 1rem;
     }
 
     .tag-group {
@@ -33,7 +33,7 @@
       flex-wrap: wrap;
       gap: 0.5rem;
       justify-content: center;
-      margin-bottom: 2rem;
+      margin: 1rem 0 2rem;
     }
 
     .tag {
@@ -42,18 +42,12 @@
       border-radius: 999px;
       padding: 0.5rem 0.8rem;
       font-size: 0.85rem;
-      box-shadow: 0 1px 2px rgba(0,0,0,0.05);
       cursor: pointer;
       transition: background 0.2s;
     }
-    
-    .tag:hover {
-      background-color: #f1f1f1;
-    }
 
-    h3 {
-      font-size: 1.1rem;
-      margin-bottom: 1rem;
+    .tag:hover {
+      background-color: #eaeaea;
     }
 
     .trend-section {
@@ -84,58 +78,83 @@
       margin-bottom: 0.3rem;
     }
 
-  .chat-input-bar {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    background: white;
-    padding: 0.8rem 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-top: 1px solid #ccc;
-    box-shadow: 0 -2px 8px rgba(0,0,0,0.04);
-  }
+    .chat-box {
+      margin-bottom: 100px;
+      max-height: 300px;
+      overflow-y: auto;
+    }
 
-  .chat-input-bar input {
-    flex: 1;
-    padding: 0.8rem 1rem;
-    border: none;
-    border-radius: 999px;
-    background: #f5f5f5;
-    font-size: 1rem;
-    outline: none;
-  }
-
-  .chat-input-bar .chat-plus,
-  .chat-input-bar .chat-mic {
-    background: #f5f5f5;
-    border: none;
-    width: 2.5rem;
-    height: 2.5rem;
-    font-size: 1.2rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-  }
-
-  .chat-input-bar .chat-plus:hover,
-  .chat-input-bar .chat-mic:hover {
-    background: #e0e0e0;
-  }
-
-  @media (max-width: 600px) {
-    .chat-input-bar {
+    .msg {
+      display: flex;
       padding: 0.5rem;
     }
 
-    .chat-input-bar input {
-      font-size: 0.9rem;
+    .msg.user {
+      justify-content: flex-end;
     }
-  }
+
+    .msg.bot {
+      justify-content: flex-start;
+    }
+
+    .bubble {
+      background: #fff;
+      padding: 0.6rem 1rem;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+      max-width: 70%;
+    }
+
+    .typing .bubble::after {
+      content: "...";
+      animation: dots 1s steps(3, end) infinite;
+    }
+
+    @keyframes dots {
+      0%, 20% { content: "."; }
+      40% { content: ".."; }
+      60% { content: "..."; }
+    }
+
+    .chat-input-bar {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      width: 100%;
+      background: white;
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-top: 1px solid #ccc;
+    }
+
+    .chat-input-bar input[type="text"] {
+      flex: 1;
+      padding: 0.8rem 1rem;
+      border: none;
+      border-radius: 999px;
+      background: #f5f5f5;
+      font-size: 1rem;
+      outline: none;
+    }
+
+    .chat-plus, .chat-mic {
+      background: #f5f5f5;
+      border: none;
+      width: 2.5rem;
+      height: 2.5rem;
+      font-size: 1.2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+
+    #file-upload {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -143,62 +162,62 @@
   <h1>Ready to bring new life<br>to your social media?</h1>
   <h2>SMM model ⟲</h2>
 
-<div class="tag-group">
-  <button class="tag" onclick="quickSend('Engagement Post')">Engagement Post</button>
-  <button class="tag" onclick="quickSend('Trending Memes')">Trending Memes</button>
-  <button class="tag" onclick="quickSend('Object Showcase')">Object Showcase</button>
-  <button class="tag" onclick="quickSend('Behind-the-Scenes Snippets')">Behind-the-Scenes Snippets</button>
-  <button class="tag" onclick="quickSend('Throwback Remix')">Throwback Remix</button>
-</div>
+  <div class="tag-group">
+    <div class="tag">Engagement Post</div>
+    <div class="tag">Trending Memes</div>
+    <div class="tag">Object Showcase</div>
+    <div class="tag">Behind-the-Scenes Snippets</div>
+    <div class="tag">Throwback Remix</div>
+  </div>
 
   <h3>Ride the trend</h3>
   <div class="trend-section">
     <div class="card">
-      <img src="https://via.placeholder.com/150" alt="No-Buy 2025">
+      <img src="https://via.placeholder.com/150" />
       <div class="card-title">No-Buy 2025</div>
       <div class="card-desc">A growing trend among Gen Z encouraging minimal spending on non-essentials.</div>
     </div>
     <div class="card">
-      <img src="https://via.placeholder.com/150" alt="Digital Detox">
+      <img src="https://via.placeholder.com/150" />
       <div class="card-title">Digital Detox</div>
       <div class="card-desc">Ask subscribers about their ways of unplugging from digital distractions.</div>
     </div>
   </div>
 
- <div class="chat-input-bar">
-  <button class="chat-plus">+</button>
-  <input type="text" placeholder="Type a message here..." />
-  <button class="chat-mic">🎤</button>
-</div>
+  <div class="chat-box" id="chat-box"></div>
+
+  <div class="chat-input-bar">
+    <button class="chat-plus" onclick="document.getElementById('file-upload').click()">+</button>
+    <input type="file" id="file-upload" accept="image/*" />
+    <input type="text" id="user-input" placeholder="Type a message here..." onkeypress="handleKey(event)" />
+    <button class="chat-mic" onclick="startSpeechToText()">🎤</button>
+  </div>
 
   <script>
     const chatBox = document.getElementById("chat-box");
+    const inputField = document.getElementById("user-input");
 
-    function quickSend(text) {
-      const input = document.querySelector('.chat-input-bar input');
-      input.value = text;
-      sendMessage();
-    }
-    
+    document.querySelectorAll('.tag').forEach(tag => {
+      tag.addEventListener('click', () => {
+        inputField.value = tag.textContent;
+        sendMessage();
+      });
+    });
+
+    document.getElementById('file-upload').addEventListener('change', function() {
+      const fileName = this.files[0]?.name;
+      if (fileName) addMessage("📸 Uploaded: " + fileName, "user");
+    });
+
     function addMessage(text, sender) {
       const msg = document.createElement("div");
       msg.className = `msg ${sender}`;
-
-      const avatar = document.createElement("div");
-      avatar.className = "avatar";
 
       const bubble = document.createElement("div");
       bubble.className = "bubble";
       bubble.textContent = text;
 
-      if (sender === "user") {
-        msg.appendChild(bubble);
-        msg.appendChild(avatar);
-      } else {
-        msg.appendChild(avatar);
-        msg.appendChild(bubble);
-      }
-
+      msg.appendChild(bubble);
       chatBox.appendChild(msg);
       chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -207,7 +226,7 @@
       const typing = document.createElement("div");
       typing.className = "msg bot typing";
       typing.id = "typing";
-      typing.innerHTML = '<div class="avatar"></div><div class="bubble">Sandy is typing...</div>';
+      typing.innerHTML = '<div class="bubble">Sandy is thinking</div>';
       chatBox.appendChild(typing);
       chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -222,12 +241,11 @@
     }
 
     async function sendMessage() {
-      const input = document.getElementById("user-input");
-      const userMsg = input.value.trim();
+      const userMsg = inputField.value.trim();
       if (!userMsg) return;
 
       addMessage(userMsg, "user");
-      input.value = "";
+      inputField.value = "";
 
       addTyping();
 
@@ -243,10 +261,30 @@
         const data = await res.json();
         removeTyping();
         addMessage(data.response || "Hmm, I didn't catch that — could you try again? 🌴", "bot");
-      } catch (err) {
+      } catch {
         removeTyping();
         addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
       }
+    }
+
+    function startSpeechToText() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (!SpeechRecognition) return alert("Speech recognition not supported.");
+
+      const recognition = new SpeechRecognition();
+      recognition.lang = 'en-US';
+      recognition.interimResults = false;
+
+      recognition.onresult = event => {
+        inputField.value = event.results[0][0].transcript;
+        sendMessage();
+      };
+
+      recognition.onerror = err => {
+        alert("Mic error: " + err.error);
+      };
+
+      recognition.start();
     }
   </script>
 </body>
