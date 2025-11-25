@@ -6,7 +6,7 @@ import logging
 import requests
 #import openai
 
-
+from database import SessionLocal
 from fastapi import (
     FastAPI, Request, Query, Path, HTTPException, Header, Form,
     APIRouter
