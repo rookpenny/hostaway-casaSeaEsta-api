@@ -16,6 +16,10 @@
     .msg { margin: 0.5rem 0; }
     .user { text-align: right; color: blue; }
     .bot { text-align: left; color: green; }
+    .typing {
+      font-style: italic;
+      color: gray;
+    }
     input[type="text"] {
       width: 80%;
       padding: 0.5rem;
@@ -49,6 +53,20 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
+    function addTyping() {
+      const typing = document.createElement("div");
+      typing.className = "msg bot typing";
+      typing.id = "typing";
+      typing.textContent = "Sandy is typing...";
+      chatBox.appendChild(typing);
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function removeTyping() {
+      const typing = document.getElementById("typing");
+      if (typing) typing.remove();
+    }
+
     function handleKey(e) {
       if (e.key === "Enter") sendMessage();
     }
@@ -61,14 +79,24 @@
       addMessage(userMsg, "user");
       input.value = "";
 
-      const res = await fetch("/chat", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ message: userMsg })
-      });
+      addTyping();
 
-      const data = await res.json();
-      addMessage(data.response, "bot");
+      try {
+        const res = await fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            message: `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. Stay friendly, helpful, and local. Respond to the user like you're a sunny, laid-back expert assistant. Message from guest: "${userMsg}"`
+          })
+        });
+
+        const data = await res.json();
+        removeTyping();
+        addMessage(data.response || "Hmm, I didn't catch that — could you try again? 🌴", "bot");
+      } catch (err) {
+        removeTyping();
+        addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
+      }
     }
   </script>
 </body>
