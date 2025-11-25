@@ -9,6 +9,9 @@ from utils.pms_sync import sync_properties, sync_all_pmcs
 from pathlib import Path
 from openai import OpenAI  # ✅ updated
 
+from database import SessionLocal
+from sqlalchemy import text
+
 admin_router = APIRouter(prefix="/admin")
 templates = Jinja2Templates(directory="templates")
 
@@ -90,8 +93,37 @@ def save_manual_file(file_path: str = Form(...), content: str = Form(...)):
         return HTMLResponse(f"<h2>Exception while saving: {e}</h2>", status_code=500)
 
 
-
+'''
 # 🧭 Admin Dashboard
+@admin_router.get("", response_class=HTMLResponse)
+def admin_dashboard(request: Request):
+    pmcs = []
+    debug_info = {
+        "AIRTABLE_API_KEY": "✅ SET" if AIRTABLE_API_KEY else "❌ MISSING",
+        "AIRTABLE_BASE_ID": AIRTABLE_BASE_ID or "❌ MISSING",
+        "AIRTABLE_PMC_TABLE_ID": AIRTABLE_PMC_TABLE_ID
+    }
+
+    try:
+        airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+        headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
+        response = requests.get(airtable_url, headers=headers)
+
+        if response.status_code == 200:
+            pmcs = response.json().get("records", [])
+        else:
+            debug_info["Airtable Response Code"] = response.status_code
+            debug_info["Airtable Response"] = response.text
+    except Exception as e:
+        debug_info["Exception"] = str(e)
+
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "pmcs": pmcs,
+        "debug_info": debug_info,
+        "status": request.query_params.get("status", "")
+    })'''
+
 @admin_router.get("", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     pmcs = []
@@ -121,6 +153,7 @@ def admin_dashboard(request: Request):
         "status": request.query_params.get("status", "")
     })
 
+
 # ➕ Show New PMC Form
 @admin_router.get("/new-pmc", response_class=HTMLResponse)
 def show_new_pmc_form(request: Request):
@@ -132,7 +165,7 @@ def show_new_pmc_form(request: Request):
         "pms_integrations": pms_integrations,
         "subscription_plans": subscription_plans
     })
-
+'''
 # Helper to determine next PMS Account ID
 def get_next_pms_account_id():
     url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
@@ -151,7 +184,27 @@ def get_next_pms_account_id():
         last_id = int(records[0]["fields"].get("PMS Account ID", 10000))
         return last_id + 1
     return 10000
+'''
+def get_next_pms_account_id():
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+    params = {
+        "sort[0][field]": "PMS Account ID",
+        "sort[0][direction]": "desc",
+        "maxRecords": 1
+    }
+    headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
 
+    response = requests.get(url, headers=headers, params=params)
+    response.raise_for_status()
+    records = response.json().get("records", [])
+
+    if records:
+        last_id = int(records[0]["fields"].get("PMS Account ID", 10000))
+        return last_id + 1
+    return 10000
+
+
+'''
 # ✅ Add New PMC (no password)
 @admin_router.post("/add-pmc")
 async def add_pmc(
@@ -201,6 +254,53 @@ async def add_pmc(
             return RedirectResponse(url="/admin?status=error", status_code=303)
 
         print("[DEBUG] Airtable success response:", res.json())
+        return RedirectResponse(url="/admin?status=success", status_code=303)
+
+    except Exception as e:
+        print(f"[ERROR] Exception while creating PMC: {e}")
+        return RedirectResponse(url="/admin?status=error", status_code=303)
+'''
+
+@admin_router.post("/add-pmc")
+async def add_pmc(
+    pmc_name: str = Form(...),
+    contact_email: str = Form(...),
+    main_contact: str = Form(...),
+    subscription_plan: str = Form(...),
+    pms_integration: str = Form(...),
+    pms_client_id: str = Form(...),
+    pms_secret: str = Form(...),
+    active: bool = Form(False)
+):
+    try:
+        new_account_id = get_next_pms_account_id()
+
+        airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
+        headers = {
+            "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "fields": {
+                "PMC Name": pmc_name,
+                "Email": contact_email,
+                "Main Contact": main_contact,
+                "Subscription Plan": subscription_plan,
+                "PMS Integration": pms_integration,
+                "PMS Client ID": pms_client_id,
+                "PMS Secret": pms_secret,
+                "PMS Account ID": new_account_id,
+                "Active": active,
+                "Sync Enabled": active
+            }
+        }
+
+        res = requests.post(airtable_url, json=payload, headers=headers)
+
+        if res.status_code not in (200, 201):
+            return RedirectResponse(url="/admin?status=error", status_code=303)
+
         return RedirectResponse(url="/admin?status=success", status_code=303)
 
     except Exception as e:
@@ -509,8 +609,32 @@ async def chat_combined(request: Request):
         )
         return {"reply": response.choices[0].message["content"]}
 
-
+'''
 # ✅ Toggle PMC Active Status
+@admin_router.post("/update-status")
+def update_pmc_status(payload: dict = Body(...)):
+    record_id = payload.get("record_id")
+    active = payload.get("active", False)
+
+    if not record_id:
+        return JSONResponse(status_code=400, content={"error": "Missing record_id"})
+
+    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}/{record_id}"
+    headers = {
+        "Authorization": f"Bearer {AIRTABLE_API_KEY}",
+        "Content-Type": "application/json"
+    }
+    data = {"fields": {"Active": active}}
+
+    try:
+        response = requests.patch(url, headers=headers, json=data)
+        if response.status_code in (200, 201):
+            return {"success": True}
+        else:
+            return JSONResponse(status_code=500, content={"error": response.text})
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"error": str(e)})
+'''
 @admin_router.post("/update-status")
 def update_pmc_status(payload: dict = Body(...)):
     record_id = payload.get("record_id")
