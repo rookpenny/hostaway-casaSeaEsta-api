@@ -83,11 +83,11 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Routes
 app.include_router(pmc_auth.router)
-app.include_router(admin.admin_router)
+app.include_router(admin.router)
 
 # --- Routers ---
-from routes.admin import admin_router
-app.include_router(admin_router)
+from routes.admin import router
+app.include_router(router)
 app.include_router(prearrival_router)
 app.include_router(prearrival_debug_router)
 
