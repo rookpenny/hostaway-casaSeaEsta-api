@@ -423,19 +423,21 @@ async function sendMessage() {
   const isEventStyle = userMsg.length > 200 || userMsg.includes('\n');
 
   // Build dynamic, multilingual-aware prompt
-  const formattedPrompt = isEventStyle
-    ? `The user may be writing in any language. Mirror their language in your response.
+const formattedPrompt = `
+You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta.
 
-Format the following message in a helpful, friendly, beachy tone using markdown. Include:
+The guest may write in any language — always mirror their language in your reply.
+
+Always format your response using markdown. Use:
 - Bold headers
 - Bullet points
 - Line breaks
 - Emojis
-- Google Maps links if places are mentioned
+- Google Maps links for any location mentioned
 
-Message:
-"""${userMsg}"""`
-    : `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. The guest may write in any language — always respond in their language. Be friendly, helpful, and sound like a local expert. Message from guest: "${userMsg}"`;
+Guest message:
+"""${userMsg}"""
+`;
 
   try {
     const res = await fetch("/chat", {
