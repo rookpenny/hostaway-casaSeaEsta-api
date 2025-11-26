@@ -85,95 +85,56 @@
 
   </style>
 </head>
-<body>
-{% if request.query_params.get('status') == 'error' %}
-  <div class="message error">❌ Sync failed. Please check logs.</div>
-{% endif %}
-
-{% if debug_info %}
-  <div class="message">
-    <h3>🛠 Airtable Debug Info</h3>
-    <ul>
-      {% for key, value in debug_info.items() %}
-        <li><strong>{{ key }}:</strong> {{ value }}</li>
-      {% endfor %}
-    </ul>
-  </div>
-{% endif %}
-
-<h1>PMC Dashboard</h1>
-
-<div class="top-bar">
-  <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
-  <button id="sync-all" class="button">🔁 Sync All</button>
-</div>
-<div id="sync-progress" style="display:none; margin-top: 1rem; text-align: right; font-weight: bold;"></div>
-<input type="text" id="search" placeholder="🔍 Search by name or PMS..." style="padding: 0.5rem; width: 100%; margin-bottom: 1rem; border-radius: 6px; border: 1px solid #ccc;">
-{% if pmc %}
-<table>
-  <thead>
-    <tr>
-      <th>PMC Name</th>
-      <th>Hostaway ID</th>
-      <th>Main Contact</th>
-      <th>Email</th>
-      <th>Plan</th>
-      <th>PMS</th>
-      <th>Status</th>
-      <th>Sync</th>
-      <th>Last Synced</th>
-      <th>Result</th>
-    </tr>
-  </thead>
-  <tbody>
-        {% for record in pmc %}
-        {% if not record.pms_client_id or not record.pms_secret %}
-    <tr style="background-color: #f8d7da;">
-      <td colspan="10" style="color: #721c24;">
-        ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials.
-        Please provide both <code>Client ID</code> and <code>Secret</code> to enable sync.
-      </td>
-    </tr>
+<tbody>
+  {% for record in pmc %}
+    {% if not record.pms_client_id or not record.pms_secret %}
+      <tr style="background-color: #f8d7da;">
+        <td colspan="10" style="color: #721c24;">
+          ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials.
+          Please provide both <code>Client ID</code> and <code>Secret</code> to enable sync.
+        </td>
+      </tr>
     {% else %}
-    <tr>
-      <td>{{ record.pmc_name }}</td>
-      <td>{{ record.pms_client_id }}</td>
-      <td>{{ record.main_contact }}</td>
-      <td>{{ record.email }}</td>
-      <td>{{ record.subscription_plan }}</td>
-      <td>{{ record.pms_integration }}</td>
-      <td>
-        <select class="status-select" data-record-id="{{ record.id }}">
-          <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
-          <option value="false" {% if not record.active %}selected{% endif %}>❌ Inactive</option>
-        </select>
-      </td>
-      <td>
-        <button
-          class="sync-one"
-          data-account-id="{{ record.pms_account_id }}"
-          {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}
-        >
-          🔄 Sync
-        </button>
-        <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
-      </td>
-      <td>
-        <span class="last-synced" id="last-{{ record.pms_account_id }}">
-          {% if record.last_synced_at %}
-            {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
-          {% else %}
-            Never
-          {% endif %}
-        </span>
-      </td>
-      <td>
-        <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
-      </td>
-    </tr>
+      <tr>
+        <td>{{ record.pmc_name }}</td>
+        <td>{{ record.pms_client_id }}</td>
+        <td>{{ record.main_contact }}</td>
+        <td>{{ record.email }}</td>
+        <td>{{ record.subscription_plan }}</td>
+        <td>{{ record.pms_integration }}</td>
+        <td>
+          <select class="status-select" data-record-id="{{ record.id }}">
+            <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
+            <option value="false" {% if not record.active %}selected{% endif %}>❌ Inactive</option>
+          </select>
+        </td>
+        <td>
+          <button
+            class="sync-one"
+            data-account-id="{{ record.pms_account_id }}"
+            {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}
+          >
+            🔄 Sync
+          </button>
+          <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
+        </td>
+        <td>
+          <span class="last-synced" id="last-{{ record.pms_account_id }}">
+            {% if record.last_synced_at %}
+              {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
+            {% else %}
+              Never
+            {% endif %}
+          </span>
+        </td>
+        <td>
+          <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
+        </td>
+      </tr>
     {% endif %}
+  {% endfor %}
+</tbody>
 
-  </tbody>
 </table>
 {% else %}
   <p>No PMCs found. Add one to get started!</p>
