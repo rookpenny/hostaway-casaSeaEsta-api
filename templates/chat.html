@@ -162,13 +162,15 @@
   }
 }
 
-    .msg {
-animation: fadeInUp 0.35s ease-out;
-      display: flex;
-      align-items: flex-end;
-      margin-bottom: 0.75rem;
-    }
+.msg {
+  display: flex;
+  align-items: flex-end;
+  margin-bottom: 0.75rem;
 
+  /* Animation */
+  animation: fadeInUp 0.35s ease-out;
+  animation-fill-mode: both;
+}
     .msg.user {
       justify-content: flex-end;
     }
