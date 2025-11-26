@@ -139,19 +139,31 @@
 
     .message-text p {
   margin: 0.5rem 0;
-  line-height: 1.4;
+  line-height: 1.5;
 }
 
 .message-text ul {
-  padding-left: 1.2rem;
   margin: 0.5rem 0;
+  padding-left: 1.2rem;
 }
 
 .message-text li {
   margin-bottom: 0.3rem;
-  line-height: 1.4;
 }
+
+    @keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
     .msg {
+animation: fadeInUp 0.35s ease-out;
       display: flex;
       align-items: flex-end;
       margin-bottom: 0.75rem;
@@ -230,17 +242,15 @@
       padding: 0.2rem 0.5rem;
     }
 
-    .message-text a {
+ .message-text a {
   color: #d63384;
   text-decoration: none;
-  font-weight: 500;
   word-break: break-word;
 }
 
 .message-text a:hover {
   text-decoration: underline;
 }
-
 .message-text strong {
   font-weight: bold;
 }
@@ -257,7 +267,6 @@
   border-radius: 8px;
   font-size: 0.85rem;
 }
-
 
     #file-upload {
       display: none;
@@ -344,17 +353,23 @@
   scrollToBottom();
 }
 
-
+function handleKey(e) {
+  if (e.key === "Enter" && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+}
+    
 function formatMessage(text) {
-  // Escape HTML tags first
+  // Escape HTML first
   let escaped = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // Split into chunks on double line breaks for paragraph blocks
+  // Break into paragraph blocks
   const blocks = escaped.split(/\n\s*\n/).map(block => {
-    // Handle bullet points
+    // Bullet points (lines starting with -)
     if (/^\s*-\s+/m.test(block)) {
       const items = block
         .split('\n')
@@ -364,28 +379,33 @@ function formatMessage(text) {
       return `<ul>${items}</ul>`;
     }
 
-    // Apply bold and italic
+    // Bold **text**
     block = block.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+    // Italic *text*
     block = block.replace(/\*(.*?)\*/g, '<em>$1</em>');
 
-    // Convert Google Maps links first (pretty format)
+    // Google Maps links
     block = block.replace(
       /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
       '<a class="gmap-link" href="$1" target="_blank" rel="noopener noreferrer">📍 View on Google Maps</a>'
     );
 
-    // Then generic URLs
+    // Normal links
     block = block.replace(
       /(https?:\/\/[^\s]+)/g,
       '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
     );
 
-    // Return as a paragraph
+    // Line breaks inside block
+    block = block.replace(/\n/g, '<br>');
+
     return `<p>${block}</p>`;
   });
 
   return blocks.join('');
 }
+
 
 
 
