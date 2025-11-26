@@ -5,21 +5,67 @@
   <title>Admin Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    /* Your existing styles (kept as-is) */
-    body { font-family: Arial, sans-serif; padding: 2rem; background: #f4f4f4; }
-    h1 { text-align: center; }
-    .top-bar { display: flex; justify-content: space-between; margin-bottom: 2rem; }
-    table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-    th, td { padding: 1rem; border-bottom: 1px solid #ddd; text-align: left; }
-    th { background-color: #f0f0f0; }
-    a.button, button.sync-one { background: #2d72d9; color: white; border-radius: 6px; border: none; padding: 0.6rem 1rem; cursor: pointer; text-decoration: none; }
-    button.sync-one { padding: 0.4rem 0.6rem; }
-    button.sync-one:disabled { opacity: 0.5; cursor: not-allowed; }
-    select.status-select { padding: 0.3rem; border-radius: 4px; }
-    .message { background-color: #f8d7da; color: #721c24; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #f5c6cb; border-radius: 6px; text-align: center; }
-    .sync-result { font-size: 0.9rem; }
-    .sync-result.success { color: #27ae60; }
-    .sync-result.error { color: #c0392b; }
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 1rem;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    .button {
+      background: #2d72d9;
+      color: white;
+      padding: 0.6rem 1rem;
+      border-radius: 6px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+    }
+    .button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .message {
+      background-color: #f8d7da;
+      color: #721c24;
+      padding: 1rem;
+      margin-bottom: 1.5rem;
+      border: 1px solid #f5c6cb;
+      border-radius: 6px;
+      text-align: center;
+    }
+    .sync-result {
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .sync-result.success {
+      color: #27ae60;
+    }
+    .sync-result.error {
+      color: #c0392b;
+    }
   </style>
 </head>
 <body>
@@ -31,7 +77,7 @@
   <button id="sync-all" class="button">🔁 Sync All</button>
 </div>
 
-<div id="sync-progress" style="display:none; text-align: right; font-weight: bold; margin-bottom: 1rem;"></div>
+<div id="sync-progress" style="display:none; margin-bottom: 1rem; font-weight: bold;"></div>
 
 <input type="text" id="search" placeholder="🔍 Search by name or PMS..." style="padding: 0.5rem; width: 100%; margin-bottom: 1rem; border-radius: 6px; border: 1px solid #ccc;">
 
@@ -40,11 +86,9 @@
   <thead>
     <tr>
       <th>PMC Name</th>
-      <th>Hostaway ID</th>
-      <th>Main Contact</th>
+      <th>API Key</th>
+      <th>Account ID</th>
       <th>Email</th>
-      <th>Plan</th>
-      <th>PMS</th>
       <th>Status</th>
       <th>Sync</th>
       <th>Last Synced</th>
@@ -53,21 +97,18 @@
   </thead>
   <tbody>
     {% for record in pmc %}
-      {% if not record.pms_client_id or not record.pms_secret %}
+      {% if not record.pms_api_key or not record.pms_account_id %}
         <tr style="background-color: #f8d7da;">
-          <td colspan="10" style="color: #721c24;">
-            ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials.
-            Provide <code>Client ID</code> and <code>Secret</code> to enable sync.
+          <td colspan="8" style="color: #721c24;">
+            ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials. Please provide both <code>API Key</code> and <code>Account ID</code> to enable sync.
           </td>
         </tr>
       {% else %}
         <tr>
           <td>{{ record.pmc_name }}</td>
-          <td>{{ record.pms_client_id }}</td>
-          <td>{{ record.main_contact }}</td>
+          <td>{{ record.pms_api_key }}</td>
+          <td>{{ record.pms_account_id }}</td>
           <td>{{ record.email }}</td>
-          <td>{{ record.subscription_plan }}</td>
-          <td>{{ record.pms_integration }}</td>
           <td>
             <select class="status-select" data-record-id="{{ record.id }}">
               <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
@@ -75,17 +116,11 @@
             </select>
           </td>
           <td>
-            <button
-              class="sync-one"
-              data-account-id="{{ record.pms_account_id }}"
-              {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}
-            >
-              🔄 Sync
-            </button>
+            <button class="button sync-one" data-account-id="{{ record.pms_account_id }}">🔄 Sync</button>
             <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
           </td>
           <td>
-            <span class="last-synced" id="last-{{ record.pms_account_id }}">
+            <span id="last-{{ record.pms_account_id }}">
               {% if record.last_synced_at %}
                 {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
               {% else %}
@@ -104,7 +139,6 @@
 {% endif %}
 
 <script>
-
   async function syncPMC(accountId) {
     const statusSpan = document.getElementById(`status-${accountId}`);
     const resultSpan = document.getElementById(`result-${accountId}`);
@@ -124,8 +158,7 @@
       if (res.ok && data.success) {
         statusSpan.textContent = "✅";
         resultSpan.textContent = data.message || "Synced";
-        resultSpan.className = "sync-result success"; // ✅ add this line
-
+        resultSpan.className = "sync-result success";
         if (lastSyncedSpan && data.synced_at) {
           const date = new Date(data.synced_at);
           lastSyncedSpan.textContent = `${date.toLocaleString('en-US', { timeZone: 'UTC' })} UTC`;
@@ -137,14 +170,12 @@
       console.error(`[SYNC ERROR] ${accountId}`, err);
       statusSpan.textContent = "❌";
       resultSpan.textContent = `Error: ${err.message || "Unknown error"}`;
-      resultSpan.className = "sync-result error"; // ✅ add this line
+      resultSpan.className = "sync-result error";
     }
 
-    // Reset status icon after 5 seconds
     setTimeout(() => statusSpan.textContent = "", 5000);
   }
 
-  // 🚀 Wire up per-PMC sync buttons
   document.querySelectorAll(".sync-one").forEach(button => {
     button.addEventListener("click", async (e) => {
       e.preventDefault();
@@ -155,28 +186,25 @@
     });
   });
 
-  // 🔁 Sync All Button
   document.getElementById("sync-all")?.addEventListener("click", async () => {
     const buttons = document.querySelectorAll(".sync-one:not([disabled])");
     const progress = document.getElementById("sync-progress");
-  
+
     let count = 0;
     progress.style.display = "block";
     progress.textContent = `🔄 Syncing 0 of ${buttons.length}...`;
-  
+
     for (const button of buttons) {
       const accountId = button.dataset.accountId;
       count++;
       progress.textContent = `🔄 Syncing ${count} of ${buttons.length}...`;
       await syncPMC(accountId);
     }
-  
+
     progress.textContent = "✅ All PMCs synced.";
     setTimeout(() => (progress.style.display = "none"), 4000);
   });
 
-
-  // ✅ Toggle PMC Active Status
   document.querySelectorAll('.status-select').forEach(select => {
     select.addEventListener('change', async (e) => {
       const recordId = e.target.dataset.recordId;
@@ -198,24 +226,19 @@
       }
     });
   });
+
   document.getElementById("search")?.addEventListener("input", function (e) {
-  const query = e.target.value.toLowerCase();
-  const rows = document.querySelectorAll("tbody tr");
+    const query = e.target.value.toLowerCase();
+    const rows = document.querySelectorAll("tbody tr");
 
-  rows.forEach(row => {
-    const name = row.cells[0]?.textContent.toLowerCase() || "";
-    const pms = row.cells[5]?.textContent.toLowerCase() || "";
+    rows.forEach(row => {
+      const name = row.cells[0]?.textContent.toLowerCase() || "";
+      const pms = row.cells[2]?.textContent.toLowerCase() || ""; // Account ID column
 
-    if (name.includes(query) || pms.includes(query)) {
-      row.style.display = "";
-    } else {
-      row.style.display = "none";
-    }
+      row.style.display = name.includes(query) || pms.includes(query) ? "" : "none";
+    });
   });
-});
-
 </script>
-
 
 </body>
 </html>
