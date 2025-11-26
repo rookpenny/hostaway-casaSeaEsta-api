@@ -18,3 +18,17 @@ class PMC(Base):
     active = Column(Boolean, default=False)
     sync_enabled = Column(Boolean, default=False)
     last_synced_at = Column(DateTime, nullable=True)  # ✅ new column
+
+
+class Property(Base):
+    __tablename__ = "properties"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    property_name = Column(String)
+    pms_property_id = Column(String, unique=True, nullable=False)  # ✅ Must be unique
+    pms_account_id = Column(String)
+    pms_integration = Column(String)
+    sandy_enabled = Column(Boolean, default=False)
+    data_folder_path = Column(String)
+    pmc_record_id = Column(String, ForeignKey("pmc.pms_client_id"))  # FK to PMC
+    last_synced = Column(DateTime)
