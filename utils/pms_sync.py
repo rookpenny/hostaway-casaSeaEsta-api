@@ -18,27 +18,29 @@ AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
 
+
 def fetch_pmc_lookup():
     """Fetch PMC configs from PostgreSQL and return a dict of account_id -> credentials."""
     lookup = {}
 
-query = text("""
-    SELECT
-        pms_account_id AS account_id,
-        pms_client_id AS client_id,
-        pms_secret AS client_secret,
-        pms_integration AS pms,
-        NULL AS base_url,  -- or a real column if exists
-        NULL AS version,   -- or a real column if exists
-        sync_enabled AS sync_enabled,
-        id AS record_id
-    FROM pmc
-    WHERE pms_account_id IS NOT NULL
-        AND pms_client_id IS NOT NULL
-        AND pms_secret IS NOT NULL
-        AND sync_enabled = TRUE;
-""")
+    query = text("""
+        SELECT 
+            pms_account_id AS account_id,
+            pms_client_id AS client_id,
+            pms_secret AS client_secret,
+            pms_integration AS pms,
+            'https://api.hostaway.com/v1' AS base_url,
+            'v1' AS version,
+            sync_enabled,
+            id AS record_id
+        FROM pmc
+        WHERE pms_account_id IS NOT NULL
+          AND pms_client_id IS NOT NULL
+          AND pms_secret IS NOT NULL
+          AND sync_enabled = TRUE;
+    """)
 
+    # ⬇️ THIS INDENTATION MUST MATCH THE LEVEL ABOVE
     with engine.connect() as conn:
         result = conn.execute(query).fetchall()
 
@@ -54,6 +56,9 @@ query = text("""
             }
 
     return lookup
+
+
+
 
 def default_base_url(pms):
     pms = pms.lower()
