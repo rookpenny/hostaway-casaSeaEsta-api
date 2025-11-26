@@ -2,6 +2,8 @@ from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
 
+Base = declarative_base()
+
 class PMC(Base):
     __tablename__ = "pmc"
 
