@@ -575,3 +575,22 @@ def update_pmc(payload: dict = Body(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
         db.close()
+
+
+# 🗑️ Delete PMC
+@router.delete("/admin/delete-pmc/{pmc_id}")
+def delete_pmc(pmc_id: int):
+    db = SessionLocal()
+    try:
+        pmc = db.query(PMC).filter(PMC.id == pmc_id).first()
+        if not pmc:
+            return JSONResponse(status_code=404, content={"error": "PMC not found"})
+        db.delete(pmc)
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    finally:
+        db.close()
+
