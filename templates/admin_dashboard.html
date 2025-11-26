@@ -72,99 +72,143 @@
 {% if request.query_params.get('status') == 'error' %}
   <div class="message error">❌ Sync failed. Please check logs.</div>
 {% endif %}
-  {% if debug_info %}
-    <div class="message">
-      <h3>🛠 Airtable Debug Info</h3>
-      <ul>
-        {% for key, value in debug_info.items() %}
-          <li><strong>{{ key }}:</strong> {{ value }}</li>
-        {% endfor %}
-      </ul>
-    </div>
-  {% endif %}
 
-  <h1>PMC Dashboard</h1>
-
-  <div class="top-bar">
-    <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
+{% if debug_info %}
+  <div class="message">
+    <h3>🛠 Airtable Debug Info</h3>
+    <ul>
+      {% for key, value in debug_info.items() %}
+        <li><strong>{{ key }}:</strong> {{ value }}</li>
+      {% endfor %}
+    </ul>
   </div>
+{% endif %}
 
-    <div class="top-bar">
+<h1>PMC Dashboard</h1>
+
+<div class="top-bar">
   <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
   <button id="sync-all" class="button">🔁 Sync All</button>
 </div>
-  {% if pmc %}
-    <table>
-      <thead>
-        <tr>
-          <th>PMC Name</th>
-          <th>Hostaway ID</th>
-          <th>Main Contact</th>
-          <th>Email</th>
-          <th>Plan</th>
-          <th>PMS</th>
-          <th>Status</th>
-          <th>Sync</th>
-          <th>Result</th>  <!-- ✅ new column -->
-          <th>Last Synced</th>
-        </tr>
-      </thead>
-      <tbody>
-        {% for record in pmc %}
-  <tr>
-    <td>{{ record.pmc_name }}</td>
-    <td>{{ record.pms_client_id }}</td>
-    <td>{{ record.main_contact }}</td>
-    <td>{{ record.email }}</td>
-    <td>{{ record.subscription_plan }}</td>
-    <td>{{ record.pms_integration }}</td>
-    <td>
-      <select class="status-select" data-record-id="{{ record.id }}">
-        <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
-        <option value="false" {% if not record.active %}selected{% endif %}>❌ Inactive</option>
-      </select>
-    </td>
-    <td>
-      <form action="/admin/sync-properties/{{ record.pms_account_id }}" method="post">
-        <button class="sync-one" data-account-id="{{ record.pms_account_id }}"
-  {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}>
-  🔄 Sync
-</button>
-<span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
 
-      </form>
-    </td>
-    <td>
-  <span class="last-synced" data-id="{{ record.pms_account_id }}">
-    {% if record.last_synced_at %}
-      {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
-    {% else %}
-      Never
-    {% endif %}
-  </span>
-</td>
-<td>
-  <button
-    class="sync-one"
-    data-account-id="{{ record.pms_account_id }}"
-    {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}
-  >
-    🔄 Sync
-  </button>
-  <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
-</td>
-<td>
-  <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
-</td>
+{% if pmc %}
+<table>
+  <thead>
+    <tr>
+      <th>PMC Name</th>
+      <th>Hostaway ID</th>
+      <th>Main Contact</th>
+      <th>Email</th>
+      <th>Plan</th>
+      <th>PMS</th>
+      <th>Status</th>
+      <th>Sync</th>
+      <th>Last Synced</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for record in pmc %}
+    <tr>
+      <td>{{ record.pmc_name }}</td>
+      <td>{{ record.pms_client_id }}</td>
+      <td>{{ record.main_contact }}</td>
+      <td>{{ record.email }}</td>
+      <td>{{ record.subscription_plan }}</td>
+      <td>{{ record.pms_integration }}</td>
+      <td>
+        <select class="status-select" data-record-id="{{ record.id }}">
+          <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
+          <option value="false" {% if not record.active %}selected{% endif %}>❌ Inactive</option>
+        </select>
+      </td>
+      <td>
+        <button
+          class="sync-one"
+          data-account-id="{{ record.pms_account_id }}"
+          {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}
+        >
+          🔄 Sync
+        </button>
+        <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
+      </td>
+      <td>
+        <span class="last-synced" id="last-{{ record.pms_account_id }}">
+          {% if record.last_synced_at %}
+            {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
+          {% else %}
+            Never
+          {% endif %}
+        </span>
+      </td>
+      <td>
+        <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+  <p>No PMCs found. Add one to get started!</p>
+{% endif %}
 
-  </tr>
-{% endfor %}
+<script>
+  // Sync one PMC
+  document.querySelectorAll(".sync-one").forEach(button => {
+    button.addEventListener("click", async (e) => {
+      e.preventDefault();
 
-      </tbody>
-    </table>
-  {% else %}
-    <p>No PMCs found. Add one to get started!</p>
-  {% endif %}
+      const accountId = button.dataset.accountId;
+      const statusSpan = document.getElementById(`status-${accountId}`);
+      const resultSpan = document.getElementById(`result-${accountId}`);
+      const lastSynced = document.getElementById(`last-${accountId}`);
+
+      statusSpan.textContent = "⏳";
+      resultSpan.textContent = "…";
+
+      try {
+        const res = await fetch(`/admin/sync-properties/${accountId}`, {
+          method: "POST"
+        });
+
+        const data = await res.json();
+        if (data.success) {
+          statusSpan.textContent = "✅";
+          resultSpan.textContent = `${data.count} properties`;
+          lastSynced.textContent = data.last_synced_at || "Just now";
+        } else {
+          throw new Error("Sync failed");
+        }
+      } catch (err) {
+        statusSpan.textContent = "❌";
+        resultSpan.textContent = "Error";
+        console.error(err);
+      }
+    });
+  });
+
+  // Sync all PMCs
+  document.getElementById("sync-all").addEventListener("click", async () => {
+    const button = document.getElementById("sync-all");
+    button.disabled = true;
+    button.textContent = "⏳ Syncing...";
+
+    try {
+      const res = await fetch("/admin/sync-all-ajax", {
+        method: "POST"
+      });
+
+      const data = await res.json();
+      alert(`✅ Synced ${data.total} properties`);
+      window.location.reload();
+    } catch (err) {
+      alert("❌ Sync All failed");
+    } finally {
+      button.disabled = false;
+      button.textContent = "🔁 Sync All";
+    }
+  });
+</script>
 
   <script>
     document.querySelectorAll('.status-select').forEach(select => {
