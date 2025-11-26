@@ -32,7 +32,7 @@ def fetch_pmc_lookup():
             "API Version" AS version,
             "Sync Enabled" AS sync_enabled,
             id AS record_id
-        FROM pmcs
+        FROM pmc
         WHERE "PMS Account ID" IS NOT NULL
           AND "PMS Client ID" IS NOT NULL
           AND "PMS Secret" IS NOT NULL
