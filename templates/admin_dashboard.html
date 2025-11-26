@@ -66,6 +66,23 @@
       border-radius: 6px;
       text-align: center;
     }
+    .sync-result {
+      font-size: 0.9rem;
+      color: #555;
+    }
+    .sync-result.error {
+      color: #c0392b;
+    }
+    .sync-result.success {
+      color: #27ae60;
+    }
+    .sync-result.success {
+      color: #27ae60; /* green */
+    }
+    .sync-result.error {
+      color: #c0392b; /* red */
+    }
+
   </style>
 </head>
 <body>
@@ -90,7 +107,8 @@
   <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
   <button id="sync-all" class="button">🔁 Sync All</button>
 </div>
-
+<div id="sync-progress" style="display:none; margin-top: 1rem; text-align: right; font-weight: bold;"></div>
+<input type="text" id="search" placeholder="🔍 Search by name or PMS..." style="padding: 0.5rem; width: 100%; margin-bottom: 1rem; border-radius: 6px; border: 1px solid #ccc;">
 {% if pmc %}
 <table>
   <thead>
@@ -108,7 +126,15 @@
     </tr>
   </thead>
   <tbody>
-    {% for record in pmc %}
+        {% for record in pmc %}
+        {% if not record.pms_client_id or not record.pms_secret %}
+    <tr style="background-color: #f8d7da;">
+      <td colspan="10" style="color: #721c24;">
+        ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials.
+        Please provide both <code>Client ID</code> and <code>Secret</code> to enable sync.
+      </td>
+    </tr>
+    {% else %}
     <tr>
       <td>{{ record.pmc_name }}</td>
       <td>{{ record.pms_client_id }}</td>
@@ -145,7 +171,8 @@
         <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
       </td>
     </tr>
-    {% endfor %}
+    {% endif %}
+
   </tbody>
 </table>
 {% else %}
@@ -172,6 +199,7 @@
       if (res.ok && data.success) {
         statusSpan.textContent = "✅";
         resultSpan.textContent = data.message || "Synced";
+        resultSpan.className = "sync-result success"; // ✅ add this line
 
         if (lastSyncedSpan && data.synced_at) {
           const date = new Date(data.synced_at);
@@ -184,6 +212,7 @@
       console.error(`[SYNC ERROR] ${accountId}`, err);
       statusSpan.textContent = "❌";
       resultSpan.textContent = `Error: ${err.message || "Unknown error"}`;
+      resultSpan.className = "sync-result error"; // ✅ add this line
     }
 
     // Reset status icon after 5 seconds
@@ -204,12 +233,23 @@
   // 🔁 Sync All Button
   document.getElementById("sync-all")?.addEventListener("click", async () => {
     const buttons = document.querySelectorAll(".sync-one:not([disabled])");
+    const progress = document.getElementById("sync-progress");
+  
+    let count = 0;
+    progress.style.display = "block";
+    progress.textContent = `🔄 Syncing 0 of ${buttons.length}...`;
+  
     for (const button of buttons) {
       const accountId = button.dataset.accountId;
+      count++;
+      progress.textContent = `🔄 Syncing ${count} of ${buttons.length}...`;
       await syncPMC(accountId);
     }
-    alert("✅ Sync complete.");
+  
+    progress.textContent = "✅ All PMCs synced.";
+    setTimeout(() => (progress.style.display = "none"), 4000);
   });
+
 
   // ✅ Toggle PMC Active Status
   document.querySelectorAll('.status-select').forEach(select => {
@@ -233,6 +273,22 @@
       }
     });
   });
+  document.getElementById("search")?.addEventListener("input", function (e) {
+  const query = e.target.value.toLowerCase();
+  const rows = document.querySelectorAll("tbody tr");
+
+  rows.forEach(row => {
+    const name = row.cells[0]?.textContent.toLowerCase() || "";
+    const pms = row.cells[5]?.textContent.toLowerCase() || "";
+
+    if (name.includes(query) || pms.includes(query)) {
+      row.style.display = "";
+    } else {
+      row.style.display = "none";
+    }
+  });
+});
+
 </script>
 
 
