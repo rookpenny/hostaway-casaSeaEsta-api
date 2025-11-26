@@ -137,6 +137,20 @@
 }
 
 
+    .message-text p {
+  margin: 0.5rem 0;
+  line-height: 1.4;
+}
+
+.message-text ul {
+  padding-left: 1.2rem;
+  margin: 0.5rem 0;
+}
+
+.message-text li {
+  margin-bottom: 0.3rem;
+  line-height: 1.4;
+}
     .msg {
       display: flex;
       align-items: flex-end;
@@ -331,42 +345,48 @@
 }
 
 
-    function handleKey(e) {
-      if (e.key === "Enter") sendMessage();
-    }
-
-    function formatMessage(text) {
-  // First, escape HTML
+function formatMessage(text) {
+  // Escape HTML tags first
   let escaped = text
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
     .replace(/>/g, "&gt;");
 
-  // Apply formatting rules
+  // Split into chunks on double line breaks for paragraph blocks
+  const blocks = escaped.split(/\n\s*\n/).map(block => {
+    // Handle bullet points
+    if (/^\s*-\s+/m.test(block)) {
+      const items = block
+        .split('\n')
+        .filter(line => line.trim().startsWith('-'))
+        .map(line => `<li>${line.replace(/^\s*-\s*/, '')}</li>`)
+        .join('');
+      return `<ul>${items}</ul>`;
+    }
 
-  // Bold (**text**)
-  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    // Apply bold and italic
+    block = block.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+    block = block.replace(/\*(.*?)\*/g, '<em>$1</em>');
 
-  // Italics (*text*)
-  escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
+    // Convert Google Maps links first (pretty format)
+    block = block.replace(
+      /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
+      '<a class="gmap-link" href="$1" target="_blank" rel="noopener noreferrer">📍 View on Google Maps</a>'
+    );
 
-  // Line breaks
-  escaped = escaped.replace(/\n/g, '<br>');
+    // Then generic URLs
+    block = block.replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
 
-  // Google Maps links → pretty display
-  escaped = escaped.replace(
-    /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
-    '<a class="gmap-link" href="$1" target="_blank" rel="noopener noreferrer">📍 View on Google Maps</a>'
-  );
+    // Return as a paragraph
+    return `<p>${block}</p>`;
+  });
 
-  // Regular URLs → linkified
-  escaped = escaped.replace(
-    /(https?:\/\/[^\s]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
-
-  return escaped;
+  return blocks.join('');
 }
+
 
 
 
