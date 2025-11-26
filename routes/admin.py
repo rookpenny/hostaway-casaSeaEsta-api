@@ -435,7 +435,7 @@ async def chat_combined(request: Request):
         return templates.TemplateResponse("chat.html", {"request": request})
 
     data = await request.json()
-    user_message = data.get("message", "")
+    user_message = data.get("message", "").strip()
 
     if not user_message:
         return {"reply": "Please say something!"}
@@ -443,14 +443,34 @@ async def chat_combined(request: Request):
     try:
         response = client.chat.completions.create(
             model="gpt-4",
+            temperature=0.85,
             messages=[
-                {"role": "system", "content": "You are Sandy, a helpful and funny assistant."},
-                {"role": "user", "content": user_message}
+                {
+                    "role": "system",
+                    "content": (
+                        "You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta.\n\n"
+                        "Always reply in the **same language** the guest uses.\n"
+                        "Use **markdown formatting** to structure responses with:\n"
+                        "- **Bold headers**\n"
+                        "- *Italics where helpful*\n"
+                        "- Bullet points\n"
+                        "- Line breaks between sections\n"
+                        "- Emojis to keep things friendly 🌞\n"
+                        "- Google Maps links if places are mentioned\n\n"
+                        "Keep replies warm, fun, and helpful — never robotic."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": user_message
+                }
             ]
         )
-        return {"reply": response.choices[0].message.content}
+        reply = response.choices[0].message.content
+        return {"reply": reply}
+
     except Exception as e:
-        return {"reply": f"❌ ChatGPT Error: {e}"}
+        return {"reply": f"❌ ChatGPT Error: {str(e)}"}
 
 
 #This replaces the Airtable patch call and updates the active status in your SQL database using SQLAlchemy.
