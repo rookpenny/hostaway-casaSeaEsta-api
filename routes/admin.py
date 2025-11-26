@@ -236,14 +236,33 @@ def update_status(payload: dict = Body(...)):
 
 
 # 🔁 Trigger sync for one PMC by PMS Account ID
+
 @router.post("/admin/sync-properties/{account_id}")
 def sync_properties_for_pmc(account_id: str):
+    from database import SessionLocal
+    from models import PMC
+    from utils.pms_sync import sync_properties
+
+    db = SessionLocal()
     try:
-        sync_properties(account_id)
-        return RedirectResponse(url="/admin/dashboard", status_code=303)
+        count = sync_properties(account_id)
+
+        pmc = db.query(PMC).filter(PMC.pms_account_id == int(account_id)).first()
+        synced_at = pmc.last_synced_at.isoformat() if pmc and pmc.last_synced_at else None
+
+        return JSONResponse({
+            "success": True,
+            "message": f"Synced {count} properties",
+            "synced_at": synced_at
+        })
     except Exception as e:
         print(f"[ERROR] Failed to sync: {e}")
-        return RedirectResponse(url="/admin/dashboard?status=error", status_code=303)
+        return JSONResponse({
+            "success": False,
+            "error": str(e)
+        }, status_code=500)
+    finally:
+        db.close()
 
 
 # 💾 Save updated config content back to GitHub
