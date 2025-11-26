@@ -410,9 +410,7 @@ function formatMessage(text) {
 
 
 
-
-
-   async function sendMessage() {
+async function sendMessage() {
   const userMsg = inputField.value.trim();
   if (!userMsg) return;
 
@@ -424,18 +422,20 @@ function formatMessage(text) {
   // Check for multi-line or long text
   const isEventStyle = userMsg.length > 200 || userMsg.includes('\n');
 
-  // Build dynamic prompt
+  // Build dynamic, multilingual-aware prompt
   const formattedPrompt = isEventStyle
-    ? `Format this message in a friendly, beachy tone using markdown. Add:
+    ? `The user may be writing in any language. Mirror their language in your response.
+
+Format the following message in a helpful, friendly, beachy tone using markdown. Include:
 - Bold headers
 - Bullet points
 - Line breaks
 - Emojis
-- Google Maps links (if places are mentioned)
+- Google Maps links if places are mentioned
 
 Message:
 """${userMsg}"""`
-    : `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. Stay friendly, helpful, and local. Respond to the user like you're a sunny, laid-back expert assistant. Message from guest: "${userMsg}"`;
+    : `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. The guest may write in any language — always respond in their language. Be friendly, helpful, and sound like a local expert. Message from guest: "${userMsg}"`;
 
   try {
     const res = await fetch("/chat", {
@@ -452,6 +452,7 @@ Message:
     addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
   }
 }
+
 
     function addTyping() {
         const typing = document.createElement("div");
