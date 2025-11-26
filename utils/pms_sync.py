@@ -138,46 +138,52 @@ def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str
     return response.json()["access_token"]
 
 def save_to_postgres(properties, client_id, pmc_record_id, pms, account_id):
-    """Insert or update properties in the SQL properties table."""
-    from sqlalchemy import insert, Table, MetaData
-    from sqlalchemy.dialects.postgresql import insert as pg_insert
-    import sqlalchemy
+    """Save property records to the PostgreSQL 'properties' table."""
+    from sqlalchemy import text
 
-    metadata = MetaData()
-    metadata.reflect(bind=engine)
-
-    table = metadata.tables.get("properties")
-    if not table:
-        raise Exception("❌ 'properties' table not found in database")
-
-    values = []
-
-    for prop in properties:
-        prop_id = str(prop.get("id"))
-        name = prop.get("internalListingName") or prop.get("name")
-        base_dir = ensure_pmc_structure(pmc_name=client_id, property_id=prop_id, property_name=name)
-
-        values.append({
-            "property_name": name,
-            "pms_integration": pms,
-            "pms_property_id": prop_id,
-            "pms_account_id": account_id,
-            "sandy_enabled": True,
-            "data_folder_path": base_dir,
-            "pmc_record_id": pmc_record_id,
-            "last_synced": datetime.utcnow()
-        })
+    insert_stmt = text("""
+        INSERT INTO properties (
+            property_name,
+            pms_property_id,
+            pms_account_id,
+            pms_integration,
+            sandy_enabled,
+            data_folder_path,
+            pmc_record_id,
+            last_synced
+        ) VALUES (
+            :property_name,
+            :pms_property_id,
+            :pms_account_id,
+            :pms_integration,
+            :sandy_enabled,
+            :data_folder_path,
+            :pmc_record_id,
+            :last_synced
+        )
+        ON CONFLICT (pms_property_id) DO UPDATE SET
+            property_name = EXCLUDED.property_name,
+            last_synced = EXCLUDED.last_synced,
+            sandy_enabled = EXCLUDED.sandy_enabled,
+            data_folder_path = EXCLUDED.data_folder_path;
+    """)
 
     with engine.begin() as conn:
-        for row in values:
-            stmt = pg_insert(table).values(**row)
-            stmt = stmt.on_conflict_do_update(
-                index_elements=["pms_property_id", "pms_account_id"],
-                set_={key: row[key] for key in row if key != "pms_property_id" and key != "pms_account_id"}
-            )
-            conn.execute(stmt)
+        for prop in properties:
+            prop_id = str(prop.get("id"))
+            name = prop.get("internalListingName") or prop.get("name")
+            folder = ensure_pmc_structure(pmc_name=client_id, property_id=prop_id, property_name=name)
 
-    return values
+            conn.execute(insert_stmt, {
+                "property_name": name,
+                "pms_property_id": prop_id,
+                "pms_account_id": account_id,
+                "pms_integration": pms,
+                "sandy_enabled": True,
+                "data_folder_path": folder,
+                "pmc_record_id": pmc_record_id,
+                "last_synced": datetime.utcnow()
+            })
 
 
 def fetch_properties(access_token: str, base_url: str, pms: str):
@@ -253,41 +259,37 @@ def sync_properties(account_id: str):
     """Sync a single PMC by account ID and push created folders/files to GitHub."""
     pmcs = fetch_pmc_lookup()
     print(f"[DEBUG] Fetched PMCs: {list(pmcs.keys())}")
-    
+
     if account_id not in pmcs:
         raise Exception(f"PMC not found for account ID: {account_id}")
 
     pmc = pmcs[account_id]
-
-    # 🪪 Step 1: Get PMS Access Token
     token = get_access_token(
         pmc["client_id"],
         pmc["client_secret"],
         pmc["base_url"],
         pmc["pms"]
     )
-
-    # 🏡 Step 2: Fetch Properties from PMS
     properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
 
-    # 💾 Step 3: Save to Postgres
-    results = save_to_postgres(
-        properties=properties,
+    # ✅ Save to PostgreSQL instead of Airtable
+    save_to_postgres(
+        properties,
         client_id=pmc["client_id"],
         pmc_record_id=pmc["record_id"],
         pms=pmc["pms"],
         account_id=account_id
     )
 
-    # 📁 Step 4: GitHub Push (optional, based on file structure)
+    # 🔁 Optional GitHub sync (can keep or disable)
     try:
         for prop in properties:
-            prop_id = str(prop.get("id"))
             name = prop.get("internalListingName") or prop.get("name")
+            prop_id = str(prop.get("id"))
             base_dir = ensure_pmc_structure(pmc_name=pmc["client_id"], property_id=prop_id, property_name=name)
 
-            rel_config = os.path.join("data", str(pmc["client_id"]), prop_id, "config.json")
-            rel_manual = os.path.join("data", str(pmc["client_id"]), prop_id, "manual.txt")
+            rel_config = os.path.join("data", pmc["client_id"], prop_id, "config.json")
+            rel_manual = os.path.join("data", pmc["client_id"], prop_id, "manual.txt")
 
             sync_pmc_to_github(base_dir, {
                 rel_config: os.path.join(base_dir, "config.json"),
@@ -296,8 +298,8 @@ def sync_properties(account_id: str):
     except Exception as e:
         print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
 
-    print(f"[SYNC] ✅ Saved {len(results)} properties for {account_id}")
-    return len(results)
+    print(f"[SYNC] ✅ Saved {len(properties)} properties for {account_id}")
+    return len(properties)
 
     
   def save_properties_to_db(properties, client_id, pmc_record_id, pms):
