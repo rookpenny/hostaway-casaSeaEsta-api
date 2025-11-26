@@ -1,146 +1,110 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="UTF-8" />
   <title>Admin Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 2rem;
-      background: #f4f4f4;
-    }
-    h1 {
-      text-align: center;
-    }
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 2rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    th, td {
-      padding: 1rem;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
-    }
-    th {
-      background-color: #f0f0f0;
-    }
-    a.button {
-      background: #2d72d9;
-      color: white;
-      padding: 0.6rem 1rem;
-      border-radius: 6px;
-      text-decoration: none;
-    }
-    button.sync-one {
-      background: #2d72d9;
-      color: white;
-      padding: 0.4rem 0.6rem;
-      border-radius: 6px;
-      border: none;
-      cursor: pointer;
-    }
-    button.sync-one:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    select.status-select {
-      padding: 0.3rem;
-      border-radius: 4px;
-    }
-    .message {
-      background-color: #f8d7da;
-      color: #721c24;
-      padding: 1rem;
-      margin-bottom: 1.5rem;
-      border: 1px solid #f5c6cb;
-      border-radius: 6px;
-      text-align: center;
-    }
-    .sync-result {
-      font-size: 0.9rem;
-      color: #555;
-    }
-    .sync-result.error {
-      color: #c0392b;
-    }
-    .sync-result.success {
-      color: #27ae60;
-    }
-    .sync-result.success {
-      color: #27ae60; /* green */
-    }
-    .sync-result.error {
-      color: #c0392b; /* red */
-    }
-
+    /* Your existing styles (kept as-is) */
+    body { font-family: Arial, sans-serif; padding: 2rem; background: #f4f4f4; }
+    h1 { text-align: center; }
+    .top-bar { display: flex; justify-content: space-between; margin-bottom: 2rem; }
+    table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    th, td { padding: 1rem; border-bottom: 1px solid #ddd; text-align: left; }
+    th { background-color: #f0f0f0; }
+    a.button, button.sync-one { background: #2d72d9; color: white; border-radius: 6px; border: none; padding: 0.6rem 1rem; cursor: pointer; text-decoration: none; }
+    button.sync-one { padding: 0.4rem 0.6rem; }
+    button.sync-one:disabled { opacity: 0.5; cursor: not-allowed; }
+    select.status-select { padding: 0.3rem; border-radius: 4px; }
+    .message { background-color: #f8d7da; color: #721c24; padding: 1rem; margin-bottom: 1.5rem; border: 1px solid #f5c6cb; border-radius: 6px; text-align: center; }
+    .sync-result { font-size: 0.9rem; }
+    .sync-result.success { color: #27ae60; }
+    .sync-result.error { color: #c0392b; }
   </style>
 </head>
-<tbody>
-  {% for record in pmc %}
-    {% if not record.pms_client_id or not record.pms_secret %}
-      <tr style="background-color: #f8d7da;">
-        <td colspan="10" style="color: #721c24;">
-          ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials.
-          Please provide both <code>Client ID</code> and <code>Secret</code> to enable sync.
-        </td>
-      </tr>
-    {% else %}
-      <tr>
-        <td>{{ record.pmc_name }}</td>
-        <td>{{ record.pms_client_id }}</td>
-        <td>{{ record.main_contact }}</td>
-        <td>{{ record.email }}</td>
-        <td>{{ record.subscription_plan }}</td>
-        <td>{{ record.pms_integration }}</td>
-        <td>
-          <select class="status-select" data-record-id="{{ record.id }}">
-            <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
-            <option value="false" {% if not record.active %}selected{% endif %}>❌ Inactive</option>
-          </select>
-        </td>
-        <td>
-          <button
-            class="sync-one"
-            data-account-id="{{ record.pms_account_id }}"
-            {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}
-          >
-            🔄 Sync
-          </button>
-          <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
-        </td>
-        <td>
-          <span class="last-synced" id="last-{{ record.pms_account_id }}">
-            {% if record.last_synced_at %}
-              {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
-            {% else %}
-              Never
-            {% endif %}
-          </span>
-        </td>
-        <td>
-          <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
-        </td>
-      </tr>
-    {% endif %}
-  {% endfor %}
-</tbody>
+<body>
 
+<h1>PMC Dashboard</h1>
+
+<div class="top-bar">
+  <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
+  <button id="sync-all" class="button">🔁 Sync All</button>
+</div>
+
+<div id="sync-progress" style="display:none; text-align: right; font-weight: bold; margin-bottom: 1rem;"></div>
+
+<input type="text" id="search" placeholder="🔍 Search by name or PMS..." style="padding: 0.5rem; width: 100%; margin-bottom: 1rem; border-radius: 6px; border: 1px solid #ccc;">
+
+{% if pmc %}
+<table>
+  <thead>
+    <tr>
+      <th>PMC Name</th>
+      <th>Hostaway ID</th>
+      <th>Main Contact</th>
+      <th>Email</th>
+      <th>Plan</th>
+      <th>PMS</th>
+      <th>Status</th>
+      <th>Sync</th>
+      <th>Last Synced</th>
+      <th>Result</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for record in pmc %}
+      {% if not record.pms_client_id or not record.pms_secret %}
+        <tr style="background-color: #f8d7da;">
+          <td colspan="10" style="color: #721c24;">
+            ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials.
+            Provide <code>Client ID</code> and <code>Secret</code> to enable sync.
+          </td>
+        </tr>
+      {% else %}
+        <tr>
+          <td>{{ record.pmc_name }}</td>
+          <td>{{ record.pms_client_id }}</td>
+          <td>{{ record.main_contact }}</td>
+          <td>{{ record.email }}</td>
+          <td>{{ record.subscription_plan }}</td>
+          <td>{{ record.pms_integration }}</td>
+          <td>
+            <select class="status-select" data-record-id="{{ record.id }}">
+              <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
+              <option value="false" {% if not record.active %}selected{% endif %}>❌ Inactive</option>
+            </select>
+          </td>
+          <td>
+            <button
+              class="sync-one"
+              data-account-id="{{ record.pms_account_id }}"
+              {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}
+            >
+              🔄 Sync
+            </button>
+            <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
+          </td>
+          <td>
+            <span class="last-synced" id="last-{{ record.pms_account_id }}">
+              {% if record.last_synced_at %}
+                {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
+              {% else %}
+                Never
+              {% endif %}
+            </span>
+          </td>
+          <td><span class="sync-result" id="result-{{ record.pms_account_id }}">—</span></td>
+        </tr>
+      {% endif %}
+    {% endfor %}
+  </tbody>
 </table>
 {% else %}
   <p>No PMCs found. Add one to get started!</p>
 {% endif %}
 
 <script>
+
   async function syncPMC(accountId) {
     const statusSpan = document.getElementById(`status-${accountId}`);
     const resultSpan = document.getElementById(`result-${accountId}`);
