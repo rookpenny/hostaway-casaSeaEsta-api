@@ -69,7 +69,9 @@
   </style>
 </head>
 <body>
-
+{% if request.query_params.get('status') == 'error' %}
+  <div class="message error">❌ Sync failed. Please check logs.</div>
+{% endif %}
   {% if debug_info %}
     <div class="message">
       <h3>🛠 Airtable Debug Info</h3>
