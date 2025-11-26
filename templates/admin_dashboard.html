@@ -1,9 +1,9 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Admin Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -34,31 +34,25 @@
     th {
       background-color: #f0f0f0;
     }
-    .button {
+    a.button, button.sync-one {
       background: #2d72d9;
       color: white;
-      padding: 0.6rem 1rem;
+      padding: 0.5rem 1rem;
       border-radius: 6px;
       text-decoration: none;
       border: none;
       cursor: pointer;
     }
-    .button:disabled {
+    button.sync-one:disabled {
       opacity: 0.5;
       cursor: not-allowed;
     }
-    .message {
-      background-color: #f8d7da;
-      color: #721c24;
-      padding: 1rem;
-      margin-bottom: 1.5rem;
-      border: 1px solid #f5c6cb;
-      border-radius: 6px;
-      text-align: center;
+    .status-select {
+      padding: 0.4rem;
     }
-    .sync-result {
-      font-size: 0.9rem;
-      color: #555;
+    .warning-row {
+      background-color: #fff3cd;
+      color: #856404;
     }
     .sync-result.success {
       color: #27ae60;
@@ -66,58 +60,67 @@
     .sync-result.error {
       color: #c0392b;
     }
+    #sync-progress {
+      margin: 1rem 0;
+      font-style: italic;
+    }
   </style>
 </head>
 <body>
 
-<h1>PMC Dashboard</h1>
+<h1>🛠️ Admin Dashboard</h1>
 
 <div class="top-bar">
-  <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
-  <button id="sync-all" class="button">🔁 Sync All</button>
+  <input type="text" id="search" placeholder="Search PMCs..." />
+  <button id="sync-all">🔄 Sync All</button>
 </div>
 
-<div id="sync-progress" style="display:none; margin-bottom: 1rem; font-weight: bold;"></div>
+<div id="sync-progress" style="display:none;"></div>
 
-<input type="text" id="search" placeholder="🔍 Search by name or PMS..." style="padding: 0.5rem; width: 100%; margin-bottom: 1rem; border-radius: 6px; border: 1px solid #ccc;">
-
-{% if pmc %}
 <table>
   <thead>
     <tr>
-      <th>PMC Name</th>
+      <th>PMC</th>
+      <th>PMS Account ID</th>
       <th>API Key</th>
-      <th>Account ID</th>
-      <th>Email</th>
-      <th>Status</th>
+      <th>Contact</th>
+      <th>Integration</th>
+      <th>Active</th>
       <th>Sync</th>
       <th>Last Synced</th>
-      <th>Result</th>
+      <th>Status</th>
     </tr>
   </thead>
   <tbody>
     {% for record in pmc %}
-      {% if not record.pms_api_key or not record.pms_account_id %}
-        <tr style="background-color: #f8d7da;">
-          <td colspan="8" style="color: #721c24;">
-            ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials. Please provide both <code>API Key</code> and <code>Account ID</code> to enable sync.
+      {% if not record.pms_account_id or not record.pms_api_key %}
+        <tr class="warning-row">
+          <td colspan="9">
+            ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials (API key or Account ID).
           </td>
         </tr>
       {% else %}
         <tr>
           <td>{{ record.pmc_name }}</td>
-          <td>{{ record.pms_api_key }}</td>
           <td>{{ record.pms_account_id }}</td>
+          <td>{{ record.pms_api_key }}</td>
           <td>{{ record.email }}</td>
+          <td>{{ record.pms_integration }}</td>
           <td>
             <select class="status-select" data-record-id="{{ record.id }}">
-              <option value="true" {% if record.active %}selected{% endif %}>✅ Active</option>
-              <option value="false" {% if not record.active %}selected{% endif %}>❌ Inactive</option>
+              <option value="true" {% if record.active %}selected{% endif %}>✅</option>
+              <option value="false" {% if not record.active %}selected{% endif %}>❌</option>
             </select>
           </td>
           <td>
-            <button class="button sync-one" data-account-id="{{ record.pms_account_id }}">🔄 Sync</button>
-            <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
+            <button
+              class="sync-one"
+              data-account-id="{{ record.pms_account_id }}"
+              {% if not record.pms_account_id %}disabled{% endif %}
+            >
+              🔄 Sync
+            </button>
+            <span id="status-{{ record.pms_account_id }}"></span>
           </td>
           <td>
             <span id="last-{{ record.pms_account_id }}">
@@ -128,114 +131,92 @@
               {% endif %}
             </span>
           </td>
-          <td><span class="sync-result" id="result-{{ record.pms_account_id }}">—</span></td>
+          <td>
+            <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
+          </td>
         </tr>
       {% endif %}
     {% endfor %}
   </tbody>
 </table>
-{% else %}
-  <p>No PMCs found. Add one to get started!</p>
-{% endif %}
 
 <script>
   async function syncPMC(accountId) {
-    const statusSpan = document.getElementById(`status-${accountId}`);
-    const resultSpan = document.getElementById(`result-${accountId}`);
-    const lastSyncedSpan = document.getElementById(`last-${accountId}`);
+    const status = document.getElementById(`status-${accountId}`);
+    const result = document.getElementById(`result-${accountId}`);
+    const last = document.getElementById(`last-${accountId}`);
 
-    statusSpan.textContent = "⏳";
-    resultSpan.textContent = "Syncing...";
+    status.textContent = "⏳";
+    result.textContent = "Syncing...";
 
     try {
-      const res = await fetch(`/admin/sync-properties/${accountId}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" }
-      });
-
+      const res = await fetch(`/admin/sync-properties/${accountId}`, { method: "POST" });
       const data = await res.json();
 
       if (res.ok && data.success) {
-        statusSpan.textContent = "✅";
-        resultSpan.textContent = data.message || "Synced";
-        resultSpan.className = "sync-result success";
-        if (lastSyncedSpan && data.synced_at) {
-          const date = new Date(data.synced_at);
-          lastSyncedSpan.textContent = `${date.toLocaleString('en-US', { timeZone: 'UTC' })} UTC`;
+        status.textContent = "✅";
+        result.textContent = data.message;
+        result.className = "sync-result success";
+        if (data.synced_at) {
+          const dt = new Date(data.synced_at);
+          last.textContent = `${dt.toLocaleString('en-US', { timeZone: 'UTC' })} UTC`;
         }
       } else {
         throw new Error(data.error || "Sync failed");
       }
     } catch (err) {
-      console.error(`[SYNC ERROR] ${accountId}`, err);
-      statusSpan.textContent = "❌";
-      resultSpan.textContent = `Error: ${err.message || "Unknown error"}`;
-      resultSpan.className = "sync-result error";
+      status.textContent = "❌";
+      result.textContent = `Error: ${err.message}`;
+      result.className = "sync-result error";
     }
 
-    setTimeout(() => statusSpan.textContent = "", 5000);
+    setTimeout(() => status.textContent = "", 5000);
   }
 
-  document.querySelectorAll(".sync-one").forEach(button => {
-    button.addEventListener("click", async (e) => {
-      e.preventDefault();
-      const accountId = button.dataset.accountId;
-      if (accountId) {
-        await syncPMC(accountId);
-      }
+  document.querySelectorAll(".sync-one").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.accountId;
+      syncPMC(id);
     });
   });
 
   document.getElementById("sync-all")?.addEventListener("click", async () => {
-    const buttons = document.querySelectorAll(".sync-one:not([disabled])");
     const progress = document.getElementById("sync-progress");
+    const buttons = document.querySelectorAll(".sync-one:not([disabled])");
+    progress.style.display = "block";
 
     let count = 0;
-    progress.style.display = "block";
-    progress.textContent = `🔄 Syncing 0 of ${buttons.length}...`;
-
-    for (const button of buttons) {
-      const accountId = button.dataset.accountId;
+    for (const btn of buttons) {
       count++;
       progress.textContent = `🔄 Syncing ${count} of ${buttons.length}...`;
-      await syncPMC(accountId);
+      await syncPMC(btn.dataset.accountId);
     }
 
-    progress.textContent = "✅ All PMCs synced.";
-    setTimeout(() => (progress.style.display = "none"), 4000);
+    progress.textContent = "✅ All synced";
+    setTimeout(() => progress.style.display = "none", 4000);
   });
 
-  document.querySelectorAll('.status-select').forEach(select => {
-    select.addEventListener('change', async (e) => {
-      const recordId = e.target.dataset.recordId;
-      const isActive = e.target.value === 'true';
-
-      try {
-        const res = await fetch('/admin/update-status', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ record_id: recordId, active: isActive }),
-        });
-
-        if (!res.ok) {
-          alert("❌ Failed to update status");
-        }
-      } catch (err) {
-        console.error(err);
-        alert("❌ Error updating status");
-      }
+  document.querySelectorAll(".status-select").forEach(select => {
+    select.addEventListener("change", async e => {
+      const id = e.target.dataset.recordId;
+      const isActive = e.target.value === "true";
+      await fetch("/admin/update-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record_id: id, active: isActive })
+      });
     });
   });
 
   document.getElementById("search")?.addEventListener("input", function (e) {
     const query = e.target.value.toLowerCase();
-    const rows = document.querySelectorAll("tbody tr");
-
-    rows.forEach(row => {
+    document.querySelectorAll("tbody tr").forEach(row => {
       const name = row.cells[0]?.textContent.toLowerCase() || "";
-      const pms = row.cells[2]?.textContent.toLowerCase() || ""; // Account ID column
-
-      row.style.display = name.includes(query) || pms.includes(query) ? "" : "none";
+      if (name.includes(query)) {
+        row.style.display = "";
+      } else {
+        row.style.display = "none";
+      }
     });
   });
 </script>
