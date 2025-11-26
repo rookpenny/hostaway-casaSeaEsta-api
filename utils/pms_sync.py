@@ -22,22 +22,22 @@ def fetch_pmc_lookup():
     """Fetch PMC configs from PostgreSQL and return a dict of account_id -> credentials."""
     lookup = {}
 
-    query = text("""
-        SELECT 
-            "PMS Account ID" AS account_id,
-            "PMS Client ID" AS client_id,
-            "PMS Secret" AS client_secret,
-            "PMS Integration" AS pms,
-            "API Base URL" AS base_url,
-            "API Version" AS version,
-            "Sync Enabled" AS sync_enabled,
-            id AS record_id
-        FROM pmc
-        WHERE "PMS Account ID" IS NOT NULL
-          AND "PMS Client ID" IS NOT NULL
-          AND "PMS Secret" IS NOT NULL
-          AND "Sync Enabled" = TRUE;
-    """)
+query = text("""
+    SELECT
+        pms_account_id AS account_id,
+        pms_client_id AS client_id,
+        pms_secret AS client_secret,
+        pms_integration AS pms,
+        NULL AS base_url,  -- or a real column if exists
+        NULL AS version,   -- or a real column if exists
+        sync_enabled AS sync_enabled,
+        id AS record_id
+    FROM pmc
+    WHERE pms_account_id IS NOT NULL
+        AND pms_client_id IS NOT NULL
+        AND pms_secret IS NOT NULL
+        AND sync_enabled = TRUE;
+""")
 
     with engine.connect() as conn:
         result = conn.execute(query).fetchall()
