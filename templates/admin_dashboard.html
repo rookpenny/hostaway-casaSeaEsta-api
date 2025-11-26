@@ -89,6 +89,10 @@
     <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
   </div>
 
+    <div class="top-bar">
+  <a href="/admin/new-pmc" class="button">➕ Add New PMC</a>
+  <button id="sync-all" class="button">🔁 Sync All</button>
+</div>
   {% if pmc %}
     <table>
       <thead>
@@ -101,6 +105,7 @@
           <th>PMS</th>
           <th>Status</th>
           <th>Sync</th>
+          <th>Result</th>  <!-- ✅ new column -->
           <th>Last Synced</th>
         </tr>
       </thead>
@@ -138,6 +143,19 @@
     {% endif %}
   </span>
 </td>
+<td>
+  <button
+    class="sync-one"
+    data-account-id="{{ record.pms_account_id }}"
+    {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}
+  >
+    🔄 Sync
+  </button>
+  <span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
+</td>
+<td>
+  <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
+</td>
 
   </tr>
 {% endfor %}
@@ -173,7 +191,7 @@
       });
     });
 
-    <script>
+
   document.querySelectorAll('.sync-one').forEach(button => {
     button.addEventListener('click', async (e) => {
       e.preventDefault();
@@ -210,7 +228,65 @@
       setTimeout(() => statusSpan.textContent = "", 5000);
     });
   });
-</script>
+
+    async function syncPMC(accountId) {
+    const statusSpan = document.getElementById(`status-${accountId}`);
+    const resultSpan = document.getElementById(`result-${accountId}`);
+    const lastSyncedSpan = document.querySelector(`.last-synced[data-id="${accountId}"]`);
+
+    statusSpan.textContent = "⏳";
+    resultSpan.textContent = "Syncing...";
+
+    try {
+      const res = await fetch(`/admin/sync-properties/${accountId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" }
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        statusSpan.textContent = "✅";
+        resultSpan.textContent = data.message || "Synced";
+
+        if (lastSyncedSpan && data.synced_at) {
+          const date = new Date(data.synced_at);
+          lastSyncedSpan.textContent = date.toLocaleString('en-US', { timeZone: 'UTC' }) + " UTC";
+        }
+      } else {
+        statusSpan.textContent = "❌";
+        resultSpan.textContent = "Failed";
+      }
+    } catch (err) {
+      console.error(err);
+      statusSpan.textContent = "❌";
+      resultSpan.textContent = "Error";
+    }
+
+    setTimeout(() => {
+      statusSpan.textContent = "";
+    }, 5000);
+  }
+
+  // ✅ Per-PMC sync button
+  document.querySelectorAll('.sync-one').forEach(button => {
+    button.addEventListener('click', (e) => {
+      e.preventDefault();
+      const accountId = button.dataset.accountId;
+      syncPMC(accountId);
+    });
+  });
+
+  // ✅ Sync All button
+  document.getElementById("sync-all").addEventListener("click", async () => {
+    const buttons = document.querySelectorAll(".sync-one:not([disabled])");
+
+    for (const button of buttons) {
+      const accountId = button.dataset.accountId;
+      await syncPMC(accountId);
+    }
+  });
+
 
   </script>
 
