@@ -517,3 +517,37 @@ def update_pmc_status(payload: dict = Body(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
         db.close()
+
+#edit PMC form
+@router.post("/admin/update-pmc", response_class=RedirectResponse)
+def update_pmc(
+    id: int = Form(...),
+    pmc_name: str = Form(...),
+    contact_email: str = Form(...),
+    main_contact: str = Form(...),
+    subscription_plan: str = Form(...),
+    pms_integration: str = Form(...),
+    pms_account_id: str = Form(...),
+    pms_api_key: str = Form(...),
+    pms_secret: str = Form(...),
+    active: str = Form("false")  # passed as string from form
+):
+    db: Session = SessionLocal()
+    pmc = db.query(PMC).filter_by(id=id).first()
+
+    if not pmc:
+        return RedirectResponse(url="/admin/dashboard?error=notfound", status_code=303)
+
+    pmc.pmc_name = pmc_name
+    pmc.email = contact_email
+    pmc.main_contact = main_contact
+    pmc.subscription_plan = subscription_plan
+    pmc.pms_integration = pms_integration
+    pmc.pms_account_id = pms_account_id
+    pmc.pms_api_key = pms_api_key
+    pmc.pms_secret = pms_secret
+    pmc.active = (active.lower() == "true")
+
+    db.commit()
+    return RedirectResponse(url="/admin/dashboard", status_code=303)
+
