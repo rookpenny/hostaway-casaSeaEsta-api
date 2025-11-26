@@ -80,6 +80,7 @@
 <table>
   <thead>
     <tr>
+      <th>✏️ Edit</th>
       <th>PMC</th>
       <th>PMS Account ID</th>
       <th>API Key</th>
@@ -133,6 +134,9 @@
           </td>
           <td>
             <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
+          </td>
+          <td>
+            <button class="edit-pmc-btn" data-pmc='{{ record | tojson | safe }}'>✏️ Edit</button>
           </td>
         </tr>
       {% endif %}
@@ -219,7 +223,89 @@
       }
     });
   });
+
+  function closeModal() {
+  document.getElementById("editModal").style.display = "none";
+}
+
+document.querySelectorAll(".edit-pmc-btn").forEach(button => {
+  button.addEventListener("click", () => {
+    const data = JSON.parse(button.dataset.pmc);
+    document.getElementById("edit-id").value = data.id;
+    document.getElementById("edit-name").value = data.pmc_name || "";
+    document.getElementById("edit-email").value = data.email || "";
+    document.getElementById("edit-contact").value = data.main_contact || "";
+    document.getElementById("edit-subscription").value = data.subscription_plan || "";
+    document.getElementById("edit-integration").value = data.pms_integration || "";
+    document.getElementById("edit-client-id").value = data.pms_client_id || "";
+    document.getElementById("edit-secret").value = data.pms_secret || "";
+    document.getElementById("edit-active").checked = !!data.active;
+
+    document.getElementById("editModal").style.display = "flex";
+  });
+});
+
+document.getElementById("editPmcForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+
+  const payload = {
+    id: document.getElementById("edit-id").value,
+    pmc_name: document.getElementById("edit-name").value.trim(),
+    email: document.getElementById("edit-email").value.trim(),
+    main_contact: document.getElementById("edit-contact").value.trim(),
+    subscription_plan: document.getElementById("edit-subscription").value.trim(),
+    pms_integration: document.getElementById("edit-integration").value.trim(),
+    pms_client_id: document.getElementById("edit-client-id").value.trim(),
+    pms_secret: document.getElementById("edit-secret").value.trim(),
+    active: document.getElementById("edit-active").checked,
+  };
+
+  if (!payload.pmc_name || !payload.pms_client_id || !payload.pms_secret) {
+    alert("Name, Client ID, and Secret are required.");
+    return;
+  }
+
+  try {
+    const res = await fetch("/admin/update-pmc", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      alert("✅ PMC updated successfully!");
+      location.reload();
+    } else {
+      const err = await res.json();
+      alert("❌ Update failed: " + (err.error || "Unknown error"));
+    }
+  } catch (error) {
+    console.error("Error updating PMC:", error);
+    alert("❌ Error submitting form");
+  }
+});
+
 </script>
+<div id="editModal" style="display:none; position:fixed; inset:0; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+  <div style="background:#fff; padding:2rem; border-radius:8px; width:90%; max-width:500px; position:relative;">
+    <h3>Edit PMC</h3>
+    <form id="editPmcForm">
+      <input type="hidden" id="edit-id">
+      <label>Name:<br><input type="text" id="edit-name" required></label><br><br>
+      <label>Email:<br><input type="email" id="edit-email"></label><br><br>
+      <label>Main Contact:<br><input type="text" id="edit-contact"></label><br><br>
+      <label>Subscription Plan:<br><input type="text" id="edit-subscription"></label><br><br>
+      <label>PMS Integration:<br><input type="text" id="edit-integration"></label><br><br>
+      <label>Client ID:<br><input type="text" id="edit-client-id" required></label><br><br>
+      <label>Secret:<br><input type="text" id="edit-secret" required></label><br><br>
+      <label>Active:
+        <input type="checkbox" id="edit-active">
+      </label><br><br>
+      <button type="submit">💾 Save</button>
+      <button type="button" onclick="closeModal()">❌ Cancel</button>
+    </form>
+  </div>
+</div>
 
 </body>
 </html>
