@@ -1,6 +1,7 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from datetime import datetime
+from database import Base
 
 Base = declarative_base()
 
@@ -20,15 +21,16 @@ class PMC(Base):
     last_synced_at = Column(DateTime, nullable=True)  # ✅ new column
 
 
+
+
 class Property(Base):
     __tablename__ = "properties"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
+    pms_property_id = Column(String, primary_key=True)  # 👈 make this the PK
     property_name = Column(String)
-    pms_property_id = Column(String, unique=True, nullable=False)  # ✅ Must be unique
-    pms_account_id = Column(String)
+    pms_account_id = Column(Integer)
     pms_integration = Column(String)
-    sandy_enabled = Column(Boolean, default=False)
+    sandy_enabled = Column(Boolean)
     data_folder_path = Column(String)
-    pmc_record_id = Column(String, ForeignKey("pmc.pms_client_id"))  # FK to PMC
+    pmc_record_id = Column(String)
     last_synced = Column(DateTime)
