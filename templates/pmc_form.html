@@ -1,25 +1,26 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="UTF-8">
   <title>Add New PMC</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="viewport" content="width=device-width, initial-scale=1">
   <style>
     body {
       font-family: Arial, sans-serif;
       padding: 2rem;
-      background: #f4f4f4;
-    }
-    h1 {
-      text-align: center;
+      background: #f9f9f9;
     }
     form {
       max-width: 600px;
-      margin: 0 auto;
+      margin: auto;
       background: white;
       padding: 2rem;
-      border-radius: 8px;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+      border-radius: 10px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h2 {
+      text-align: center;
+      margin-bottom: 1.5rem;
     }
     label {
       display: block;
@@ -28,66 +29,73 @@
     }
     input, select {
       width: 100%;
-      padding: 0.5rem;
+      padding: 0.6rem;
       margin-top: 0.3rem;
-      border: 1px solid #ccc;
       border-radius: 6px;
+      border: 1px solid #ccc;
     }
     button {
       margin-top: 2rem;
-      background: #2d72d9;
+      width: 100%;
+      padding: 0.8rem;
+      background-color: #2d72d9;
       color: white;
-      padding: 0.6rem 1rem;
-      border-radius: 6px;
       border: none;
+      border-radius: 6px;
+      font-size: 1rem;
       cursor: pointer;
+    }
+    button:hover {
+      background-color: #1e5bbf;
     }
   </style>
 </head>
 <body>
 
-<h1>Add New PMC</h1>
+  <form method="POST" action="/admin/add-pmc">
+    <h2>➕ Add New PMC</h2>
 
-<form method="post" action="/admin/new-pmc">
-  <label for="pmc_name">PMC Name</label>
-  <input type="text" id="pmc_name" name="pmc_name" required />
+    <label for="pmc_name">PMC Name</label>
+    <input type="text" id="pmc_name" name="pmc_name" required>
 
-  <label for="email">Email</label>
-  <input type="email" id="email" name="email" />
+    <label for="main_contact">Main Contact</label>
+    <input type="text" id="main_contact" name="main_contact">
 
-  <label for="main_contact">Main Contact</label>
-  <input type="text" id="main_contact" name="main_contact" />
+    <label for="contact_email">Contact Email</label>
+    <input type="email" id="contact_email" name="contact_email">
 
-  <label for="subscription_plan">Subscription Plan</label>
-  <select id="subscription_plan" name="subscription_plan">
-    <option value="">-- Select --</option>
-    <option value="free">Free</option>
-    <option value="pro">Pro</option>
-    <option value="enterprise">Enterprise</option>
-  </select>
+    <label for="pms_integration">PMS Integration</label>
+    <select id="pms_integration" name="pms_integration">
+      <option value="Hostaway">Hostaway</option>
+      <option value="Guesty">Guesty</option>
+      <option value="Lodgify">Lodgify</option>
+      <option value="Other">Other</option>
+    </select>
 
-  <label for="pms_integration">PMS Integration</label>
-  <select id="pms_integration" name="pms_integration" required>
-    <option value="">-- Select --</option>
-    <option value="hostaway">Hostaway</option>
-    <option value="hostfully">Hostfully</option>
-    <option value="guesty">Guesty</option>
-  </select>
+    <label for="subscription_plan">Subscription Plan</label>
+    <select id="subscription_plan" name="subscription_plan">
+      <option value="Free">Free</option>
+      <option value="Pro">Pro</option>
+      <option value="Enterprise">Enterprise</option>
+    </select>
 
-  <label for="pms_api_key">PMS API Key</label>
-  <input type="text" id="pms_api_key" name="pms_api_key" required />
+    <label for="pms_account_id">PMS Account ID</label>
+    <input type="text" id="pms_account_id" name="pms_account_id" required>
 
-  <label for="pms_account_id">PMS Account ID</label>
-  <input type="text" id="pms_account_id" name="pms_account_id" required />
+    <label for="pms_api_key">PMS API Key</label>
+    <input type="text" id="pms_api_key" name="pms_api_key" required>
 
-  <label for="active">Active</label>
-  <select id="active" name="active">
-    <option value="true">✅ Active</option>
-    <option value="false">❌ Inactive</option>
-  </select>
+    <label for="pms_secret">PMS Secret</label>
+    <input type="text" id="pms_secret" name="pms_secret">
 
-  <button type="submit">Save PMC</button>
-</form>
+    <label for="active">Active</label>
+    <select id="active" name="active">
+      <option value="true">Yes</option>
+      <option value="false">No</option>
+    </select>
+
+    <button type="submit">Save PMC</button>
+  </form>
 
   <script>
     const integrationSelect = document.getElementById("pms_integration");
