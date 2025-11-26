@@ -302,7 +302,7 @@ def sync_properties(account_id: str):
     return len(properties)
 
     
-  def save_properties_to_db(properties, client_id, pmc_record_id, pms):
+def save_properties_to_db(properties, client_id, pmc_record_id, pms):
     from sqlalchemy import insert
     from sqlalchemy.dialects.postgresql import insert as pg_insert
     from database import SessionLocal
