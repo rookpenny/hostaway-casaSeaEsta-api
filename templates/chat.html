@@ -412,32 +412,46 @@ function formatMessage(text) {
 
 
 
-    async function sendMessage() {
-      const userMsg = inputField.value.trim();
-      if (!userMsg) return;
+   async function sendMessage() {
+  const userMsg = inputField.value.trim();
+  if (!userMsg) return;
 
-      addMessage(userMsg, "user");
-      inputField.value = "";
+  addMessage(userMsg, "user");
+  inputField.value = "";
 
-      addTyping();
+  addTyping();
 
-      try {
-        const res = await fetch("/chat", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            message: `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. Stay friendly, helpful, and local. Respond to the user like you're a sunny, laid-back expert assistant. Message from guest: "${userMsg}"`
-          })
-        });
+  // Check for multi-line or long text
+  const isEventStyle = userMsg.length > 200 || userMsg.includes('\n');
 
-        const data = await res.json();
-        removeTyping();
-        addMessage(data.response || "Hmm, I didn't catch that — could you try again? 🌴", "bot");
-      } catch {
-        removeTyping();
-        addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
-      }
-    }
+  // Build dynamic prompt
+  const formattedPrompt = isEventStyle
+    ? `Format this message in a friendly, beachy tone using markdown. Add:
+- Bold headers
+- Bullet points
+- Line breaks
+- Emojis
+- Google Maps links (if places are mentioned)
+
+Message:
+"""${userMsg}"""`
+    : `You are Sandy, a beachy, upbeat AI concierge for a vacation rental called Casa Sea Esta. Stay friendly, helpful, and local. Respond to the user like you're a sunny, laid-back expert assistant. Message from guest: "${userMsg}"`;
+
+  try {
+    const res = await fetch("/chat", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ message: formattedPrompt })
+    });
+
+    const data = await res.json();
+    removeTyping();
+    addMessage(data.response || "Hmm, I didn’t catch that — could you try again? 🌴", "bot");
+  } catch {
+    removeTyping();
+    addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
+  }
+}
 
     function addTyping() {
         const typing = document.createElement("div");
