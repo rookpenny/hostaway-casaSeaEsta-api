@@ -144,6 +144,22 @@
   </tbody>
 </table>
 
+  <!-- ✅ Toast Notification -->
+<div id="toast" style="
+  position: fixed;
+  bottom: 2rem;
+  right: 2rem;
+  background: #333;
+  color: #fff;
+  padding: 1rem 1.5rem;
+  border-radius: 8px;
+  font-size: 1rem;
+  opacity: 0;
+  transition: opacity 0.4s ease;
+  z-index: 9999;
+  pointer-events: none;
+"></div>
+
   <!-- 🔧 Edit PMC Modal -->
 <div id="editModal" style="display:none; position:fixed; inset:0; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
   <div style="background:#fff; padding:2rem; border-radius:8px; width:90%; max-width:500px; position:relative;">
@@ -292,7 +308,7 @@
     };
 
     if (!payload.pmc_name || !payload.pms_client_id || !payload.pms_secret) {
-      showError("Name, Client ID, and Secret are required.");
+      showToast("❌ Name, Client ID, and Secret are required.", "error");
       return;
     }
 
@@ -307,14 +323,18 @@
 
       const result = await res.json();
       if (res.ok && result.success) {
-        showSuccess();
+        hideSpinner();
+        closeModal();
+        showToast("✅ PMC updated!");
         setTimeout(() => location.reload(), 1000);
       } else {
-        showError(result.error || "Update failed.");
+        hideSpinner();
+        showToast(result.error || "❌ Update failed.", "error")
       }
     } catch (error) {
+      hideSpinner();
       console.error("Error:", error);
-      showError("❌ Error submitting form.");
+      showToast("❌ Error submitting form.", "error");
     }
   });
 
@@ -331,22 +351,37 @@
       });
 
       if (res.ok) {
-        showSuccess("Deleted");
+        showToast("🗑️ Deleted!", "success");
         setTimeout(() => location.reload(), 1000);
       } else {
         const result = await res.json();
-        showError(result.error || "Failed to delete.");
+        hideSpinner();
+        showToast(result.error || "❌ Message here", "error");
       }
     } catch (err) {
-      showError("❌ Error deleting.");
+      hideSpinner();
+      showToast("❌ Message here", "error");
     }
   });
 
-  function showSpinner() {
-    document.getElementById("edit-spinner").style.display = "block";
-    document.getElementById("edit-success").style.display = "none";
-    document.getElementById("edit-error").style.display = "none";
-  }
+  function showToast(message, type = "success") {
+  const toast = document.getElementById("toast");
+  toast.textContent = message;
+  toast.style.backgroundColor = type === "error" ? "#c0392b" : "#2ecc71";
+  toast.style.opacity = "1";
+
+  setTimeout(() => {
+    toast.style.opacity = "0";
+  }, 3000);
+}
+
+function showSpinner() {
+  document.getElementById("edit-spinner").style.display = "block";
+}
+
+function hideSpinner() {
+  document.getElementById("edit-spinner").style.display = "none";
+}
 
   function showSuccess(msg = "✅ Saved!") {
     document.getElementById("edit-spinner").style.display = "none";
