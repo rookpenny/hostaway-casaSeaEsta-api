@@ -76,8 +76,12 @@
       overflow-x: auto;
       scroll-behavior: smooth;
       gap: 1rem;
+      scrollbar-width: none; /* Firefox */
     }
-
+    
+    .trend-carousel::-webkit-scrollbar {
+      display: none; /* Chrome/Safari */
+    }
     .card {
       background-color: white;
       border-radius: 12px;
@@ -98,6 +102,40 @@
       font-weight: bold;
       margin-bottom: 0.3rem;
     }
+
+    .timestamp {
+      font-size: 0.65rem;
+      color: #888;
+      margin-top: 0.3rem;
+      text-align: right;
+    }
+
+    .dots-anim {
+  display: inline-block;
+}
+
+.dots-anim span {
+  font-size: 1.5rem;
+  animation: blink 1.4s infinite both;
+  opacity: 0.3;
+}
+
+.dots-anim span:nth-child(1) {
+  animation-delay: 0s;
+}
+.dots-anim span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+.dots-anim span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes blink {
+  0% { opacity: 0.3; }
+  20% { opacity: 1; }
+  100% { opacity: 0.3; }
+}
+
 
     .msg {
       display: flex;
@@ -237,14 +275,17 @@
     function addMessage(text, sender) {
       const msg = document.createElement("div");
       msg.className = `msg ${sender}`;
-
+    
       const avatar = document.createElement("div");
       avatar.className = "avatar";
-
+    
       const bubble = document.createElement("div");
       bubble.className = "bubble";
-      bubble.innerHTML = text;
-
+      bubble.innerHTML = `
+        <div>${text}</div>
+        <div class="timestamp">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+      `;
+    
       if (sender === "user") {
         msg.appendChild(bubble);
         msg.appendChild(avatar);
@@ -252,7 +293,7 @@
         msg.appendChild(avatar);
         msg.appendChild(bubble);
       }
-
+    
       chatBox.appendChild(msg);
       scrollToBottom();
     }
@@ -289,15 +330,19 @@
     }
 
     function addTyping() {
-      const typing = document.createElement("div");
-      typing.className = "msg bot typing";
-      typing.id = "typing";
-      typing.innerHTML = `
-        <div class="avatar"></div>
-        <div class="bubble">Sandy is typing<span class="dots">...</span></div>`;
-      chatBox.appendChild(typing);
-      scrollToBottom();
-    }
+        const typing = document.createElement("div");
+        typing.className = "msg bot typing";
+        typing.id = "typing";
+        typing.innerHTML = `
+          <div class="avatar"></div>
+          <div class="bubble">
+            <span class="dots-anim">
+              <span>.</span><span>.</span><span>.</span>
+            </span>
+          </div>`;
+        chatBox.appendChild(typing);
+        scrollToBottom();
+      }
 
     function removeTyping() {
       const typing = document.getElementById("typing");
