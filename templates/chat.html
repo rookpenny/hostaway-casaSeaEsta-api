@@ -216,6 +216,34 @@
       padding: 0.2rem 0.5rem;
     }
 
+    .message-text a {
+  color: #d63384;
+  text-decoration: none;
+  font-weight: 500;
+}
+
+.message-text a:hover {
+  text-decoration: underline;
+}
+
+.message-text strong {
+  font-weight: bold;
+}
+
+.message-text em {
+  font-style: italic;
+}
+
+.gmap-link {
+  display: inline-block;
+  margin-top: 0.3rem;
+  background-color: #fff0f5;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+
+
     #file-upload {
       display: none;
     }
@@ -282,9 +310,10 @@
       const bubble = document.createElement("div");
       bubble.className = "bubble";
       bubble.innerHTML = `
-        <div>${text}</div>
+        <div class="message-text">${formatMessage(text)}</div>
         <div class="timestamp">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
       `;
+
     
       if (sender === "user") {
         msg.appendChild(bubble);
@@ -301,6 +330,36 @@
     function handleKey(e) {
       if (e.key === "Enter") sendMessage();
     }
+
+    function formatMessage(text) {
+  // Escape HTML
+  const escaped = text
+    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+  // Bold (**text**)
+  let formatted = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+
+  // Italics (*text*)
+  formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+
+  // Line breaks
+  formatted = formatted.replace(/\n/g, '<br>');
+
+  // URLs to clickable links
+  formatted = formatted.replace(
+    /(https?:\/\/[^\s]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+  );
+
+  // Optional: Detect Google Maps links and pretty them
+  formatted = formatted.replace(
+    /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
+    '<a class="gmap-link" href="$1" target="_blank" rel="noopener noreferrer">📍 View on Google Maps</a>'
+  );
+
+  return formatted;
+}
+
 
     async function sendMessage() {
       const userMsg = inputField.value.trim();
