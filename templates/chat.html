@@ -220,6 +220,7 @@
   color: #d63384;
   text-decoration: none;
   font-weight: 500;
+  word-break: break-word;
 }
 
 .message-text a:hover {
@@ -300,65 +301,73 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    function addMessage(text, sender) {
-      const msg = document.createElement("div");
-      msg.className = `msg ${sender}`;
-    
-      const avatar = document.createElement("div");
-      avatar.className = "avatar";
-    
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      bubble.innerHTML = `
-        <div class="message-text">${formatMessage(text)}</div>
-        <div class="timestamp">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
-      `;
+    function addMessage(rawText, sender) {
+  const msg = document.createElement("div");
+  msg.className = `msg ${sender}`;
 
-    
-      if (sender === "user") {
-        msg.appendChild(bubble);
-        msg.appendChild(avatar);
-      } else {
-        msg.appendChild(avatar);
-        msg.appendChild(bubble);
-      }
-    
-      chatBox.appendChild(msg);
-      scrollToBottom();
-    }
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  const messageHTML = `
+    <div class="message-text">${formatMessage(rawText)}</div>
+    <div class="timestamp">${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
+  `;
+
+  bubble.innerHTML = messageHTML;
+
+  if (sender === "user") {
+    msg.appendChild(bubble);
+    msg.appendChild(avatar);
+  } else {
+    msg.appendChild(avatar);
+    msg.appendChild(bubble);
+  }
+
+  chatBox.appendChild(msg);
+  scrollToBottom();
+}
+
 
     function handleKey(e) {
       if (e.key === "Enter") sendMessage();
     }
 
     function formatMessage(text) {
-  // Escape HTML
-  const escaped = text
-    .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  // First, escape HTML
+  let escaped = text
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+
+  // Apply formatting rules
 
   // Bold (**text**)
-  let formatted = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  escaped = escaped.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
 
   // Italics (*text*)
-  formatted = formatted.replace(/\*(.*?)\*/g, '<em>$1</em>');
+  escaped = escaped.replace(/\*(.*?)\*/g, '<em>$1</em>');
 
   // Line breaks
-  formatted = formatted.replace(/\n/g, '<br>');
+  escaped = escaped.replace(/\n/g, '<br>');
 
-  // URLs to clickable links
-  formatted = formatted.replace(
-    /(https?:\/\/[^\s]+)/g,
-    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-  );
-
-  // Optional: Detect Google Maps links and pretty them
-  formatted = formatted.replace(
+  // Google Maps links → pretty display
+  escaped = escaped.replace(
     /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
     '<a class="gmap-link" href="$1" target="_blank" rel="noopener noreferrer">📍 View on Google Maps</a>'
   );
 
-  return formatted;
+  // Regular URLs → linkified
+  escaped = escaped.replace(
+    /(https?:\/\/[^\s]+)/g,
+    '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+  );
+
+  return escaped;
 }
+
 
 
     async function sendMessage() {
