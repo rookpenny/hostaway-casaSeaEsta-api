@@ -551,3 +551,27 @@ def update_pmc(
     db.commit()
     return RedirectResponse(url="/admin/dashboard", status_code=303)
 
+#model update PMC
+@router.post("/admin/update-pmc")
+def update_pmc(payload: dict = Body(...)):
+    db: Session = SessionLocal()
+    try:
+        pmc = db.query(PMC).filter(PMC.id == payload.get("id")).first()
+        if not pmc:
+            return JSONResponse(status_code=404, content={"error": "PMC not found"})
+
+        pmc.pmc_name = payload.get("pmc_name", pmc.pmc_name)
+        pmc.email = payload.get("email", pmc.email)
+        pmc.main_contact = payload.get("main_contact", pmc.main_contact)
+        pmc.subscription_plan = payload.get("subscription_plan", pmc.subscription_plan)
+        pmc.pms_integration = payload.get("pms_integration", pmc.pms_integration)
+        pmc.pms_client_id = payload.get("pms_client_id", pmc.pms_client_id)
+        pmc.pms_secret = payload.get("pms_secret", pmc.pms_secret)
+        pmc.active = payload.get("active", pmc.active)
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+    finally:
+        db.close()
