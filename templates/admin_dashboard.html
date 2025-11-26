@@ -101,6 +101,7 @@
           <th>PMS</th>
           <th>Status</th>
           <th>Sync</th>
+          <th>Last Synced</th>
         </tr>
       </thead>
       <tbody>
@@ -120,14 +121,24 @@
     </td>
     <td>
       <form action="/admin/sync-properties/{{ record.pms_account_id }}" method="post">
-        <button class="sync-one" type="submit"
-          {% if not record.pms_account_id %}
-            disabled title="Missing PMS Account ID"
-          {% endif %}>
-          🔄 Sync
-        </button>
+        <button class="sync-one" data-account-id="{{ record.pms_account_id }}"
+  {% if not record.pms_account_id %}disabled title="Missing PMS Account ID"{% endif %}>
+  🔄 Sync
+</button>
+<span class="sync-status" id="status-{{ record.pms_account_id }}"></span>
+
       </form>
     </td>
+    <td>
+  <span class="last-synced" data-id="{{ record.pms_account_id }}">
+    {% if record.last_synced_at %}
+      {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
+    {% else %}
+      Never
+    {% endif %}
+  </span>
+</td>
+
   </tr>
 {% endfor %}
 
@@ -161,6 +172,46 @@
         }
       });
     });
+
+    <script>
+  document.querySelectorAll('.sync-one').forEach(button => {
+    button.addEventListener('click', async (e) => {
+      e.preventDefault();
+
+      const accountId = button.dataset.accountId;
+      const statusSpan = document.getElementById(`status-${accountId}`);
+      const lastSyncedSpan = document.querySelector(`.last-synced[data-id="${accountId}"]`);
+
+      statusSpan.textContent = "⏳";
+
+      try {
+        const response = await fetch(`/admin/sync-properties/${accountId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" }
+        });
+
+        const data = await response.json();
+
+        if (data.success) {
+          statusSpan.textContent = "✅";
+
+          if (lastSyncedSpan && data.synced_at) {
+            const date = new Date(data.synced_at);
+            lastSyncedSpan.textContent = date.toLocaleString('en-US', { timeZone: 'UTC' }) + " UTC";
+          }
+        } else {
+          statusSpan.textContent = "❌";
+        }
+      } catch (err) {
+        console.error(err);
+        statusSpan.textContent = "❌";
+      }
+
+      setTimeout(() => statusSpan.textContent = "", 5000);
+    });
+  });
+</script>
+
   </script>
 
 </body>
