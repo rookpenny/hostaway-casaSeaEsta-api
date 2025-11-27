@@ -140,6 +140,7 @@
           </td>
           <td>
             <button class="edit-pmc-btn" data-pmc='{{ record | tojson | safe }}'>✏️ Edit</button>
+            <button class="edit-properties-btn" onclick='openPropertiesModal({{ record | tojson | safe }})'>🏘️ Properties</button>
           </td>
         </tr>
       {% endif %}
@@ -188,8 +189,94 @@
     </form>
   </div>
 </div>
-  
+  <!-- 🏘️ Edit PMC Properties Modal -->
+<div id="propertiesModal" style="display:none; position:fixed; inset:0; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
+  <div style="background:#fff; padding:2rem; border-radius:8px; width:90%; max-width:600px; position:relative;">
+    <h3>Edit Properties for <span id="propertiesModalTitle"></span></h3>
+    <form id="propertiesForm">
+      <div id="propertiesList" style="max-height:300px; overflow-y:auto; margin-bottom:1rem;"></div>
+      <div id="properties-spinner" style="display:none;">🌀 Saving...</div>
+      <div id="properties-success" style="display:none; color:green;">✅ Saved!</div>
+      <div id="properties-error" style="display:none; color:red;"></div>
+      <button type="submit">💾 Save</button>
+      <button type="button" onclick="closePropertiesModal()">❌ Cancel</button>
+    </form>
+  </div>
+</div>
+
 <script>
+
+  function openPropertiesModal(pmc) {
+  document.getElementById("propertiesModalTitle").textContent = pmc.pmc_name;
+  document.getElementById("propertiesModal").style.display = "flex";
+
+  fetch(`/admin/pmc-properties/${pmc.id}`)
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("propertiesList");
+      container.innerHTML = "";
+
+      data.properties.forEach(prop => {
+        const row = document.createElement("div");
+        row.innerHTML = `
+          <label>
+            <input type="checkbox" name="sandy_enabled" data-id="${prop.id}" ${prop.sandy_enabled ? 'checked' : ''}>
+            ${prop.property_name} (${prop.pms_property_id})
+          </label>`;
+        container.appendChild(row);
+      });
+    })
+    .catch(err => {
+      showToast("❌ Failed to load properties", "error");
+      closePropertiesModal();
+    });
+}
+
+function closePropertiesModal() {
+  document.getElementById("propertiesModal").style.display = "none";
+  document.getElementById("properties-spinner").style.display = "none";
+  document.getElementById("properties-success").style.display = "none";
+  document.getElementById("properties-error").style.display = "none";
+}
+
+document.getElementById("propertiesForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  showPropertiesSpinner();
+
+  const checkboxes = document.querySelectorAll("#propertiesList input[name='sandy_enabled']");
+  const payload = Array.from(checkboxes).map(cb => ({
+    id: cb.dataset.id,
+    sandy_enabled: cb.checked
+  }));
+
+  try {
+    const res = await fetch("/admin/update-properties", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      hidePropertiesSpinner();
+      showToast("✅ Properties updated!");
+      closePropertiesModal();
+    } else {
+      throw new Error("Server returned error");
+    }
+  } catch (err) {
+    hidePropertiesSpinner();
+    showToast("❌ Update failed", "error");
+  }
+});
+
+function showPropertiesSpinner() {
+  document.getElementById("properties-spinner").style.display = "block";
+}
+function hidePropertiesSpinner() {
+  document.getElementById("properties-spinner").style.display = "none";
+}
+
+  
   async function syncPMC(accountId) {
     const status = document.getElementById(`status-${accountId}`);
     const result = document.getElementById(`result-${accountId}`);
