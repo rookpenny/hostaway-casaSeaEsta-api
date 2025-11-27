@@ -21,19 +21,18 @@ AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
 '''
 
 def fetch_pmc_lookup():
-    """Fetch PMC configs from PostgreSQL and return a dict of account_id -> credentials."""
     lookup = {}
 
     query = text("""
         SELECT 
+            id,  -- ✅ This is the actual primary key used as ForeignKey in Property
             pms_account_id AS account_id,
             pms_api_key AS client_id,
             pms_api_secret AS client_secret,
             pms_integration AS pms,
             'https://api.hostaway.com/v1' AS base_url,
             'v1' AS version,
-            sync_enabled,
-            pms_api_key AS record_id
+            sync_enabled
         FROM pmc
         WHERE pms_account_id IS NOT NULL
           AND pms_api_key IS NOT NULL
@@ -41,14 +40,13 @@ def fetch_pmc_lookup():
           AND sync_enabled = TRUE;
     """)
 
-    # ⬇️ THIS INDENTATION MUST MATCH THE LEVEL ABOVE
     with engine.connect() as conn:
         result = conn.execute(query).fetchall()
 
         for row in result:
             base_url = row.base_url or default_base_url(row.pms)
             lookup[str(row.account_id)] = {
-                "record_id": row.id,  # ✅ Now using PMC.id for foreign key
+                "record_id": row.id,  # ✅ Now works correctly
                 "client_id": row.client_id,
                 "client_secret": row.client_secret,
                 "pms": row.pms.lower(),
@@ -57,8 +55,6 @@ def fetch_pmc_lookup():
             }
 
     return lookup
-
-
 
 
 def default_base_url(pms):
