@@ -224,6 +224,12 @@
         <input type="text" id="edit-secret" required class="mt-1 w-full border rounded px-3 py-2" required/>
       </div>
 
+      <div>
+        <label class="block text-sm font-medium">PMS Account ID</label>
+        <input type="text" id="edit-account-id" class="mt-1 w-full border rounded px-3 py-2" placeholder="e.g. 10000" />
+        <small class="text-xs text-gray-500">Required for syncing. For Hostaway, this is the same as the API Key.</small>
+      </div>
+
       <div class="flex items-center">
         <input type="checkbox" id="edit-active" class="mr-2" />
         <label for="edit-active" class="text-sm">Active</label>
@@ -277,6 +283,7 @@
   document.getElementById("edit-integration").value = data.pms_integration || "";
   document.getElementById("edit-client-id").value = data.pms_api_key || "";
   document.getElementById("edit-secret").value = data.pms_api_secret || "";
+  document.getElementById("edit-account-id").value = data.pms_account_id || "";
   document.getElementById("edit-active").checked = !!data.active;
 
   document.getElementById("editModal").classList.remove("hidden");
@@ -455,6 +462,7 @@ document.getElementById("add-pmc-btn").addEventListener("click", () => {
   document.getElementById("edit-integration").value = "";
   document.getElementById("edit-client-id").value = "";
   document.getElementById("edit-secret").value = "";
+  document.getElementById("edit-account-id").value = "";
   document.getElementById("edit-active").checked = true;
 
   document.getElementById("editModal").style.display = "flex";
@@ -476,6 +484,7 @@ const payload = {
   pms_integration: document.getElementById("edit-integration").value || null,
   pms_api_key: document.getElementById("edit-client-id").value.trim(),
   pms_api_secret: document.getElementById("edit-secret").value.trim(),
+  pms_account_id: document.getElementById("edit-account-id").value.trim(),
   active: document.getElementById("edit-active").checked
 };
 
