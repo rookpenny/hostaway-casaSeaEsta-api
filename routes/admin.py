@@ -571,6 +571,7 @@ class PMCUpdateRequest(BaseModel):
 
 @router.post("/admin/update-pmc")
 def update_pmc(payload: PMCUpdateRequest):
+    logging.warning("Received payload: %s", payload)
     db: Session = SessionLocal()
     try:
         print("🟡 Incoming payload:", payload)
