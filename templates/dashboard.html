@@ -140,7 +140,15 @@
             <div class="mt-2 text-sm text-gray-500 dark:text-gray-400">
               <p><strong>ID:</strong> {{ prop.id }}</p>
               <p><strong>PMS ID:</strong> {{ prop.pms_property_id }}</p>
+              <p><strong>Last Synced:</strong>
+                {% if prop.last_synced %}
+                  {{ (now - prop.last_synced).total_seconds() // 3600 | int }} hours ago
+                {% else %}
+                  —
+                {% endif %}
+              </p>
             </div>
+
           
             <div class="mt-4 flex gap-2 flex-wrap">
               <a
