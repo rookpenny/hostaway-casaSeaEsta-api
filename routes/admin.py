@@ -1,28 +1,19 @@
-import logging
-import os
-import requests
-import json
-
-from fastapi import APIRouter, Request, Form, Body, status, FastAPI
+from fastapi import APIRouter, Request, Form, Body, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.exceptions import RequestValidationError
 from fastapi.templating import Jinja2Templates
+from fastapi.exceptions import RequestValidationError
 
-from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-
+import os, logging, requests, json
 from pathlib import Path
+
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from database import SessionLocal
 from models import PMC
-from openai import OpenAI  # ✅ Updated OpenAI import
+from openai import OpenAI
 
-from routes import admin, pmc_auth
-app.include_router(admin.router)
-
-app = FastAPI()
 
 # 🚏 Router & Templates
 router = APIRouter()
@@ -33,15 +24,18 @@ logging.basicConfig(level=logging.INFO)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-@router.exception_handler(RequestValidationError)
+@app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     print("❌ Validation Error:")
-    print("➡️ Body:", await request.body())
+    print("➡️ Raw body:", await request.body())
     print("➡️ Errors:", exc.errors())
     return JSONResponse(
         status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
         content={"detail": exc.errors()}
     )
+
+app.include_router(admin.router)
+app.include_router(pmc_auth.router)
 
 # 📝 Edit Local Config or Manual File (Locally Rendered)
 @router.get("/edit-config", response_class=HTMLResponse)
