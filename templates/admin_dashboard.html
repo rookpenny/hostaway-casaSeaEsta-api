@@ -192,13 +192,27 @@
 
       <div>
         <label class="block text-sm font-medium">Subscription Plan</label>
-        <input type="text" id="edit-subscription" class="mt-1 w-full border rounded px-3 py-2" />
+        <select id="edit-subscription" class="mt-1 w-full border rounded px-3 py-2 bg-white">
+          <option value="">-- Select a plan --</option>
+          <option value="basic">Basic</option>
+          <option value="pro">Pro</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
       </div>
+
 
       <div>
         <label class="block text-sm font-medium">PMS Integration</label>
-        <input type="text" id="edit-integration" class="mt-1 w-full border rounded px-3 py-2" />
+        <select id="edit-integration" class="mt-1 w-full border rounded px-3 py-2 bg-white">
+          <option value="">-- Select PMS --</option>
+          <option value="hostaway">Hostaway</option>
+          <option value="hostfully">Hostfully</option>
+          <option value="guesty">Guesty</option>
+          <option value="uplisting">Uplisting</option>
+          <option value="other">Other</option>
+        </select>
       </div>
+
 
       <div>
         <label class="block text-sm font-medium">Client ID</label>
