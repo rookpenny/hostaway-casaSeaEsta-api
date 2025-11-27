@@ -139,7 +139,7 @@ def add_pmc(
     main_contact: str = Form(...),
     subscription_plan: str = Form(...),
     pms_integration: str = Form(...),
-    pms_client_id: str = Form(...),
+    pms_api_key: str = Form(...),
     pms_secret: str = Form(...),
     active: bool = Form(False)
 ):
@@ -150,7 +150,7 @@ def add_pmc(
         main_contact=main_contact,
         subscription_plan=subscription_plan,
         pms_integration=pms_integration,
-        pms_client_id=pms_client_id,
+        pms_api_key=pms_api_key,
         pms_secret=pms_secret,
         pms_account_id=get_next_account_id(db),
         active=active,
@@ -565,7 +565,7 @@ def update_pmc(payload: dict = Body(...)):
         pmc.main_contact = payload.get("main_contact", pmc.main_contact)
         pmc.subscription_plan = payload.get("subscription_plan", pmc.subscription_plan)
         pmc.pms_integration = payload.get("pms_integration", pmc.pms_integration)
-        pmc.pms_client_id = payload.get("pms_client_id", pmc.pms_client_id)
+        pmc.pms_api_key = payload.get("pms_api_key", pmc.pms_api_key)
         pmc.pms_secret = payload.get("pms_secret", pmc.pms_secret)
         pmc.active = payload.get("active", pmc.active)
         db.commit()
