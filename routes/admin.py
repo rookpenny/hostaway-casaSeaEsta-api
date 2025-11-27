@@ -120,11 +120,31 @@ def save_manual_file(file_path: str = Form(...), content: str = Form(...)):
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     db: Session = SessionLocal()
+
+    def serialize_pmc(pmc):
+        return {
+            "id": pmc.id,
+            "pmc_name": pmc.pmc_name,
+            "email": pmc.email,
+            "main_contact": pmc.main_contact,
+            "subscription_plan": pmc.subscription_plan,
+            "pms_integration": pmc.pms_integration,
+            "pms_api_key": pmc.pms_api_key,
+            "pms_api_secret": pmc.pms_api_secret,
+            "pms_account_id": pmc.pms_account_id,
+            "active": pmc.active,
+            "sync_enabled": pmc.sync_enabled,
+            "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None
+        }
+
     pmc_list = db.query(PMC).all()
+    pmc_data = [serialize_pmc(p) for p in pmc_list]
+
     return templates.TemplateResponse("admin_dashboard.html", {
         "request": request,
-        "pmc": pmc_list  # Use 'pmcs' to match the template context
+        "pmc": pmc_data  # ✅ Now it's safe to use `tojson` in the template
     })
+
 
 
 # ➕ Show New PMC Form
