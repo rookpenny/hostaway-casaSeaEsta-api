@@ -1,26 +1,35 @@
+import logging
+import os
+import requests
+import json
+import base64
+
 from fastapi import APIRouter, Request, Form, Body, status
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
+from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-import os, logging, requests, json
 from pathlib import Path
 
-from utils.pms_sync import sync_properties, sync_all_pmcs
 from database import SessionLocal
 from models import PMC
+from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
 
-
-# 🚏 Router & Templates
+# ✅ Create the router object (do NOT create FastAPI app here)
 router = APIRouter()
+
+# ✅ Set up templates
 templates = Jinja2Templates(directory="templates")
+
+# ✅ Logging config
 logging.basicConfig(level=logging.INFO)
 
-# 🤖 OpenAI Client Setup
+# ✅ OpenAI client (optional)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
