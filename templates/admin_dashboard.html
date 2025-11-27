@@ -134,7 +134,7 @@
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-600" id="last-{{ record.pms_account_id }}">
                   {% if record.last_synced_at %}
-                    {{ record.last_synced_at.strftime('%b %d, %H:%M') }} UTC
+                    <span class="last-synced" data-ts="{{ record.last_synced_at }}"></span>
                   {% else %}
                     Never
                   {% endif %}
@@ -296,6 +296,20 @@
   const checkboxes = document.querySelectorAll("#propertiesList input[name='sandy_enabled']");
   checkboxes.forEach(cb => cb.checked = checked);
   }
+
+
+  document.querySelectorAll(".last-synced").forEach(el => {
+  const ts = el.dataset.ts;
+  const dt = new Date(ts);
+  el.textContent = dt.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }) + " (your time)";
+  });
+
 
   function openEditModal(button) {
   const data = JSON.parse(button.dataset.pmc);
