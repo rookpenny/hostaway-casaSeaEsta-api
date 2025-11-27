@@ -568,9 +568,6 @@ class PMCUpdateRequest(BaseModel):
     pms_api_secret: str
     active: bool
     
-@router.post("/admin/update-pmc")
-from fastapi.exceptions import RequestValidationError
-from fastapi.responses import JSONResponse
 
 @router.post("/admin/update-pmc")
 def update_pmc(payload: PMCUpdateRequest):
