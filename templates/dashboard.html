@@ -1,38 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
   <head>
-  <script>
-      // Apply dark mode as early as possible
-      (function() {
-        const savedTheme = localStorage.getItem("theme");
-        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-        if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-          document.documentElement.classList.add("dark");
-        } else {
-          document.documentElement.classList.remove("dark");
-        }
-      })();
-    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PMC Dashboard</title>
-    <!-- Tailwind config first -->
     <script>
       tailwind.config = {
-        darkMode: 'class'
+        darkMode: 'class' // still here in case you re-enable it later
       }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
   </head>
 
-  <body class="bg-gray-100 dark:bg-black text-gray-900 dark:text-white">
-
+  <body class="bg-gray-100 text-gray-900">
     <div class="flex min-h-screen">
       <!-- Sidebar -->
-      <aside
-        class="bg-white dark:bg-gray-800 w-64 flex-shrink-0 p-4 border-r dark:border-gray-700 hidden md:block"
-        id="sidebar"
-      >
+      <aside class="bg-white w-64 flex-shrink-0 p-4 border-r hidden md:block" id="sidebar">
         <div class="mb-8">
           <h2 class="text-xl font-bold">Casa Sea Esta</h2>
         </div>
@@ -47,31 +30,15 @@
       <!-- Main Content -->
       <div class="flex-1 flex flex-col">
         <!-- Top Bar -->
-        <header class="flex items-center justify-between px-4 py-3 bg-white dark:bg-gray-800 border-b dark:border-gray-700">
-          <!-- Hamburger -->
-          <button
-            class="md:hidden text-gray-700 dark:text-gray-200"
-            onclick="document.getElementById('mobileSidebar').classList.toggle('hidden')"
-          >
+        <header class="flex items-center justify-between px-4 py-3 bg-white border-b">
+          <button class="md:hidden text-gray-700" onclick="document.getElementById('mobileSidebar').classList.toggle('hidden')">
             ☰
           </button>
-
           <h1 class="text-lg font-bold">Your Dashboard</h1>
-
-          <!-- Dark Mode Toggle -->
-          <button
-            id="darkModeToggle"
-            class="bg-gray-200 dark:bg-gray-700 text-sm px-3 py-1 rounded"
-          >
-            🌓 Toggle Dark Mode
-          </button>
         </header>
 
         <!-- Mobile Sidebar -->
-        <aside
-          id="mobileSidebar"
-          class="md:hidden hidden bg-white dark:bg-gray-800 border-b dark:border-gray-700 p-4"
-        >
+        <aside id="mobileSidebar" class="md:hidden hidden bg-white border-b p-4">
           <nav class="space-y-4">
             <a href="/auth/dashboard" class="block hover:text-blue-600">🏠 Dashboard</a>
             <a href="#" class="block hover:text-blue-600">🏘️ Properties</a>
@@ -80,24 +47,20 @@
           </nav>
         </aside>
 
-        <!-- Stats -->
+        <!-- Stats Section -->
         <section class="p-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          <!-- Filters -->
           <div class="col-span-full mb-4 flex flex-col md:flex-row justify-between gap-4 items-start md:items-center">
-            <!-- Search -->
             <input
               type="text"
               id="searchInput"
               placeholder="Search properties..."
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded w-full md:w-1/3 dark:bg-gray-800"
+              class="px-4 py-2 border border-gray-300 rounded w-full md:w-1/3"
               oninput="filterProperties()"
             />
-          
-            <!-- Filter -->
             <select
               id="statusFilter"
               onchange="filterProperties()"
-              class="px-4 py-2 border border-gray-300 dark:border-gray-600 rounded dark:bg-gray-800"
+              class="px-4 py-2 border border-gray-300 rounded"
             >
               <option value="all">All Statuses</option>
               <option value="live">LIVE</option>
@@ -105,32 +68,29 @@
             </select>
           </div>
 
-          <!-- Chart -->
-          <div class="col-span-full bg-white dark:bg-gray-800 p-4 rounded shadow">
+          <div class="col-span-full bg-white p-4 rounded shadow">
             <h3 class="text-lg font-semibold mb-2">Status Overview</h3>
             <canvas id="statusChart" height="100"></canvas>
           </div>
 
-
-          
-          <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-            <p class="text-sm text-gray-500 dark:text-gray-400">Properties</p>
+          <div class="bg-white p-4 rounded shadow">
+            <p class="text-sm text-gray-500">Properties</p>
             <h3 class="text-2xl font-bold">{{ properties|length }}</h3>
           </div>
-          <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-            <p class="text-sm text-gray-500 dark:text-gray-400">Live</p>
+          <div class="bg-white p-4 rounded shadow">
+            <p class="text-sm text-gray-500">Live</p>
             <h3 class="text-2xl font-bold">
               {{ properties | selectattr('sandy_enabled') | list | length }}
             </h3>
           </div>
-          <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-            <p class="text-sm text-gray-500 dark:text-gray-400">Offline</p>
+          <div class="bg-white p-4 rounded shadow">
+            <p class="text-sm text-gray-500">Offline</p>
             <h3 class="text-2xl font-bold">
               {{ properties | rejectattr('sandy_enabled') | list | length }}
             </h3>
           </div>
-          <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
-            <p class="text-sm text-gray-500 dark:text-gray-400">Last Sync</p>
+          <div class="bg-white p-4 rounded shadow">
+            <p class="text-sm text-gray-500">Last Sync</p>
             <h3 class="text-lg">
               {{ properties[0]["last_synced_fmt"] if properties else "—" }}
             </h3>
@@ -140,7 +100,7 @@
         <!-- Properties Grid -->
         <section class="p-4 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {% for prop in properties %}
-          <div class="bg-white dark:bg-gray-800 p-4 rounded-lg shadow" data-property-card data-name="{{ prop.property_name }}" data-live="{{ prop.sandy_enabled }}">
+          <div class="bg-white p-4 rounded-lg shadow" data-property-card data-name="{{ prop.property_name }}" data-live="{{ prop.sandy_enabled }}">
             <div class="flex items-center justify-between">
               <h3 class="text-xl font-semibold">{{ prop.property_name }}</h3>
               {% if prop.sandy_enabled %}
@@ -149,187 +109,148 @@
                 <span class="text-red-500 font-bold">OFFLINE</span>
               {% endif %}
             </div>
-          
-            <div class="mt-2 text-sm text-gray-500 dark:text-gray-400">
+
+            <div class="mt-2 text-sm text-gray-500">
               <p><strong>ID:</strong> {{ prop.id }}</p>
               <p><strong>PMS ID:</strong> {{ prop.pms_property_id }}</p>
               <p><strong>Last Synced:</strong>
                 {% if prop.last_synced %}
                   {% set seconds = (now - prop.last_synced).total_seconds() %}
-                  {% if seconds < 60 %}
-                    just now
-                  {% elif seconds < 3600 %}
-                    {{ (seconds // 60)|int }} minutes ago
-                  {% elif seconds < 86400 %}
-                    {{ (seconds // 3600)|int }} hours ago
-                  {% else %}
-                    {{ (seconds // 86400)|int }} days ago
+                  {% if seconds < 60 %} just now
+                  {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+                  {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+                  {% else %} {{ (seconds // 86400)|int }} days ago
                   {% endif %}
                 {% else %}
                   —
                 {% endif %}
               </p>
-
             </div>
 
-          
             <div class="mt-4 flex gap-2 flex-wrap">
-              <a
-                href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json"
-                class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm"
-              >
-                Edit Config
-              </a>
-          
-              <a
-                href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm"
-              >
-                Edit Manual
-              </a>
-          
+              <a href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json" class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-1 rounded text-sm">Edit Config</a>
+              <a href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt" class="bg-green-600 hover:bg-green-700 text-white px-3 py-1 rounded text-sm">Edit Manual</a>
               <button onclick="syncProperty({{ prop.id }}, this)" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm">🔁 Sync</button>
-              <button onclick="toggleProperty({{ prop.id }}, this)" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm">{% if prop.sandy_enabled %}❌ Take Offline{% else %}✅ Go Live{% endif %}</button>
+              <button onclick="toggleProperty({{ prop.id }}, this)" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm">
+                {% if prop.sandy_enabled %}❌ Take Offline{% else %}✅ Go Live{% endif %}
+              </button>
               <span id="status-{{ prop.id }}" class="text-sm ml-2 text-gray-500"></span>
             </div>
           </div>
-
           {% endfor %}
         </section>
       </div>
     </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const toggle = document.getElementById("darkModeToggle");
-toggle?.addEventListener("click", () => {
-  const html = document.documentElement;
-  html.classList.toggle("dark");
-  const isDark = html.classList.contains("dark");
-  localStorage.setItem("theme", isDark ? "dark" : "light");
-});
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        // Chart rendering
+        const ctx = document.getElementById("statusChart");
+        if (ctx) {
+          new Chart(ctx, {
+            type: "bar",
+            data: {
+              labels: ["LIVE", "OFFLINE"],
+              datasets: [{
+                label: "Properties",
+                data: [
+                  {{ properties | selectattr("sandy_enabled") | list | length }},
+                  {{ properties | rejectattr("sandy_enabled") | list | length }}
+                ],
+                backgroundColor: ["#22c55e", "#ef4444"]
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: {
+                legend: { display: false }
+              },
+              scales: {
+                y: {
+                  beginAtZero: true,
+                  ticks: { stepSize: 1 }
+                }
+              }
+            }
+          });
+        }
 
-    // CHART RENDERING
-    const ctx = document.getElementById("statusChart");
-    if (ctx) {
-      new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: ["LIVE", "OFFLINE"],
-          datasets: [
-            {
-              label: "Properties",
-              data: [
-                {{ properties | selectattr("sandy_enabled") | list | length }},
-                {{ properties | rejectattr("sandy_enabled") | list | length }}
-              ],
-              backgroundColor: ["#22c55e", "#ef4444"]
-            }
-          ]
-        },
-        options: {
-          responsive: true,
-          plugins: {
-            legend: { display: false }
-          },
-          scales: {
-            y: {
-              beginAtZero: true,
-              ticks: { stepSize: 1 }
-            }
+        // Filter logic
+        const searchInput = document.getElementById("searchInput");
+        const statusFilter = document.getElementById("statusFilter");
+
+        function filterProperties() {
+          const search = searchInput.value.toLowerCase();
+          const status = statusFilter.value;
+          const cards = document.querySelectorAll("[data-property-card]");
+
+          cards.forEach((card) => {
+            const name = card.dataset.name.toLowerCase();
+            const live = card.dataset.live === "true";
+            const matchesSearch = name.includes(search);
+            const matchesStatus =
+              status === "all" ||
+              (status === "live" && live) ||
+              (status === "offline" && !live);
+
+            card.style.display = matchesSearch && matchesStatus ? "block" : "none";
+          });
+        }
+
+        searchInput?.addEventListener("input", filterProperties);
+        statusFilter?.addEventListener("change", filterProperties);
+
+        // Sync / Toggle buttons
+        window.syncProperty = async function (id, btn) {
+          btn.disabled = true;
+          const original = btn.innerHTML;
+          btn.innerHTML = "⏳ Syncing…";
+
+          try {
+            const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
+            const data = await res.json();
+            btn.innerHTML = data.status === "success" ? "✅ Synced!" : "❌ Failed";
+          } catch {
+            btn.innerHTML = "❌ Error";
           }
+
+          setTimeout(() => {
+            btn.innerHTML = original;
+            btn.disabled = false;
+          }, 1500);
+        }
+
+        window.toggleProperty = async function (id, btn) {
+          btn.disabled = true;
+          const original = btn.innerHTML;
+          btn.innerHTML = "⏳ Toggling…";
+
+          try {
+            const res = await fetch(`/auth/toggle-property/${id}`, { method: "POST" });
+            const data = await res.json();
+
+            if (data.status === "success") {
+              btn.innerHTML = data.new_status === "LIVE" ? "❌ Take Offline" : "✅ Go Live";
+              const card = btn.closest("[data-property-card]");
+              const badge = card.querySelector("span");
+              badge.innerText = data.new_status;
+              badge.className = data.new_status === "LIVE"
+                ? "text-green-500 font-bold"
+                : "text-red-500 font-bold";
+            } else {
+              btn.innerHTML = "❌ Failed";
+            }
+          } catch {
+            btn.innerHTML = "❌ Error";
+          }
+
+          setTimeout(() => {
+            btn.innerHTML = original;
+            btn.disabled = false;
+          }, 1500);
         }
       });
-    }
-
-    // SEARCH + FILTER
-    const searchInput = document.getElementById("searchInput");
-    const statusFilter = document.getElementById("statusFilter");
-
-    function filterProperties() {
-      const search = searchInput.value.toLowerCase();
-      const status = statusFilter.value;
-      const cards = document.querySelectorAll("[data-property-card]");
-
-      cards.forEach((card) => {
-        const name = card.dataset.name.toLowerCase();
-        const live = card.dataset.live === "true";
-
-        const matchesSearch = name.includes(search);
-        const matchesStatus =
-          status === "all" ||
-          (status === "live" && live) ||
-          (status === "offline" && !live);
-
-        card.style.display = matchesSearch && matchesStatus ? "block" : "none";
-      });
-    }
-
-    searchInput?.addEventListener("input", filterProperties);
-    statusFilter?.addEventListener("change", filterProperties);
-
-    // SYNC + TOGGLE PROPERTY BUTTONS
-    window.syncProperty = async function (id, btn) {
-      btn.disabled = true;
-      const original = btn.innerHTML;
-      btn.innerHTML = "⏳ Syncing…";
-
-      try {
-        const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
-        const data = await res.json();
-
-        if (data.status === "success") {
-          btn.innerHTML = "✅ Synced!";
-        } else {
-          btn.innerHTML = "❌ Failed";
-          console.error(data.message);
-        }
-      } catch (err) {
-        btn.innerHTML = "❌ Error";
-      }
-
-      setTimeout(() => {
-        btn.innerHTML = original;
-        btn.disabled = false;
-      }, 1500);
-    }
-
-    window.toggleProperty = async function (id, btn) {
-      btn.disabled = true;
-      const original = btn.innerHTML;
-      btn.innerHTML = "⏳ Toggling…";
-
-      try {
-        const res = await fetch(`/auth/toggle-property/${id}`, { method: "POST" });
-        const data = await res.json();
-
-        if (data.status === "success") {
-          btn.innerHTML = data.new_status === "LIVE" ? "❌ Take Offline" : "✅ Go Live";
-
-          // Update badge
-          const card = btn.closest("[data-property-card]");
-          const badge = card.querySelector("span");
-          badge.innerText = data.new_status;
-          badge.className =
-            data.new_status === "LIVE"
-              ? "text-green-500 font-bold"
-              : "text-red-500 font-bold";
-        } else {
-          btn.innerHTML = "❌ Failed";
-        }
-      } catch (err) {
-        btn.innerHTML = "❌ Error";
-      }
-
-      setTimeout(() => {
-        btn.innerHTML = original;
-        btn.disabled = false;
-      }, 1500);
-    }
-  });
-</script>
-
-
+    </script>
   </body>
 </html>
