@@ -112,7 +112,8 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user": user,
-        "properties": properties
+        "properties": properties,
+        "now": datetime.utcnow()
     })
 
 
