@@ -4,6 +4,7 @@ from fastapi.templating import Jinja2Templates
 from starlette.config import Config
 from authlib.integrations.starlette_client import OAuth
 import os
+from datetime import datetime
 
 from utils.airtable_client import get_pmcs_table, get_properties_table
 
@@ -98,6 +99,24 @@ def dashboard(request: Request):
         return RedirectResponse(url="/auth/login")
 
     properties = get_properties_for_pmc(user["email"])
+
+    # Format last_synced for template rendering
+    for prop in properties:
+        raw = prop.get("last_synced")
+        if raw:
+            if isinstance(raw, str):
+                try:
+                    parsed = datetime.fromisoformat(raw)
+                    prop["last_synced_fmt"] = parsed.strftime('%b %d, %H:%M')
+                except Exception:
+                    prop["last_synced_fmt"] = raw
+            elif isinstance(raw, datetime):
+                prop["last_synced_fmt"] = raw.strftime('%b %d, %H:%M')
+            else:
+                prop["last_synced_fmt"] = "—"
+        else:
+            prop["last_synced_fmt"] = "—"
+
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user": user,
