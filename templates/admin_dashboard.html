@@ -445,24 +445,6 @@ document.querySelectorAll(".edit-pmc-btn").forEach(button => {
   button.addEventListener("click", () => openEditModal(button));
 });
   
-// ✏️ Populate form and open modal
-  /*document.querySelectorAll(".edit-pmc-btn").forEach(button => {
-    button.addEventListener("click", () => {
-      const data = JSON.parse(button.dataset.pmc);
-      document.getElementById("edit-id").value = data.id;
-      document.getElementById("edit-name").value = data.pmc_name || "";
-      document.getElementById("edit-email").value = data.email || "";
-      document.getElementById("edit-contact").value = data.main_contact || "";
-      document.getElementById("edit-subscription").value = data.subscription_plan || "";
-      document.getElementById("edit-integration").value = data.pms_integration || "";
-      document.getElementById("edit-client-id").value = data.pms_api_key || "";
-      document.getElementById("edit-secret").value = data.pms_api_secret || "";
-      document.getElementById("edit-active").checked = !!data.active;
-
-      document.getElementById("editModal").style.display = "flex";
-    });
-  });*/
-
   // ➕ Add PMC
 document.getElementById("add-pmc-btn").addEventListener("click", () => {
   document.getElementById("edit-id").value = "";
