@@ -1,7 +1,6 @@
-from database import engine
 from models import Base
+from database import engine
 
-# This will create all tables based on your updated models.py
+print("Creating tables...")
 Base.metadata.create_all(bind=engine)
-
 print("✅ Database schema created.")
