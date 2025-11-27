@@ -16,7 +16,7 @@ from typing import Optional
 from pathlib import Path
 
 from database import SessionLocal
-from models import PMC
+from models import PMC, Property
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
 
