@@ -551,25 +551,33 @@ def update_pmc(
     db.commit()
     return RedirectResponse(url="/admin/dashboard", status_code=303)
 
-#model update PMC
+from fastapi import Body
+
 @router.post("/admin/update-pmc")
 def update_pmc(payload: dict = Body(...)):
     db: Session = SessionLocal()
     try:
-        pmc = db.query(PMC).filter(PMC.id == payload.get("id")).first()
-        if not pmc:
-            return JSONResponse(status_code=404, content={"error": "PMC not found"})
+        if payload.get("id"):  # Update existing
+            pmc = db.query(PMC).filter(PMC.id == payload.get("id")).first()
+            if not pmc:
+                return JSONResponse(status_code=404, content={"error": "PMC not found"})
+        else:  # Create new
+            pmc = PMC()
 
-        pmc.pmc_name = payload.get("pmc_name", pmc.pmc_name)
-        pmc.email = payload.get("email", pmc.email)
-        pmc.main_contact = payload.get("main_contact", pmc.main_contact)
-        pmc.subscription_plan = payload.get("subscription_plan", pmc.subscription_plan)
-        pmc.pms_integration = payload.get("pms_integration", pmc.pms_integration)
-        pmc.pms_api_key = payload.get("pms_api_key", pmc.pms_api_key)
-        pmc.pms_api_secret = payload.get("pms_api_secret", pmc.pms_api_secret)
-        pmc.active = payload.get("active", pmc.active)
+        pmc.pmc_name = payload.get("pmc_name")
+        pmc.email = payload.get("email")
+        pmc.main_contact = payload.get("main_contact")
+        pmc.subscription_plan = payload.get("subscription_plan")
+        pmc.pms_integration = payload.get("pms_integration")
+        pmc.pms_api_key = payload.get("pms_api_key")
+        pmc.pms_api_secret = payload.get("pms_api_secret")
+        pmc.active = payload.get("active", False)
+
+        db.add(pmc)
         db.commit()
-        return {"success": True}
+        db.refresh(pmc)
+
+        return {"success": True, "id": pmc.id}
     except Exception as e:
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
