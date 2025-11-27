@@ -1,18 +1,19 @@
-from fastapi import APIRouter, Request, Form, Body
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
-from fastapi.templating import Jinja2Templates
-from starlette.status import HTTP_303_SEE_OTHER
-from sqlalchemy.orm import Session
-from pydantic import BaseModel
-from typing import Optional
-from fastapi.exceptions import RequestValidationError
-
 import logging
 import os
 import requests
 import json
-from pathlib import Path
 
+from fastapi import APIRouter, Request, Form, Body, status
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.templating import Jinja2Templates
+
+from starlette.status import HTTP_303_SEE_OTHER
+from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Optional
+
+from pathlib import Path
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from database import SessionLocal
 from models import PMC
@@ -22,12 +23,18 @@ from openai import OpenAI  # ✅ Updated OpenAI import
 # 🚏 Router & Templates
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
-
 logging.basicConfig(level=logging.INFO)
 
 # 🤖 OpenAI Client Setup
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+
+@router.exception_handler(RequestValidationError)
+async def validation_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors(), "body": exc.body},
+    )
 
 
 # 📝 Edit Local Config or Manual File (Locally Rendered)
