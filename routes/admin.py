@@ -4,7 +4,7 @@ import requests
 import json
 import base64
 
-from fastapi import APIRouter, Request, Form, Body, status
+from fastapi import APIRouter, Depends, Request, Form, Body, status 
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
