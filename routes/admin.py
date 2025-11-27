@@ -572,6 +572,8 @@ class PMCUpdateRequest(BaseModel):
     active: bool
     
 
+from fastapi import HTTPException
+
 @router.post("/admin/update-pmc")
 def update_pmc(payload: PMCUpdateRequest):
     logging.warning("Received payload: %s", payload)
@@ -584,7 +586,11 @@ def update_pmc(payload: PMCUpdateRequest):
             if not pmc:
                 return JSONResponse(status_code=404, content={"error": "PMC not found"})
         else:
-            pmc = PMC()  # create new
+            pmc = PMC()
+            # ✅ assign account ID for new PMC
+            last = db.query(PMC).order_by(PMC.pms_account_id.desc()).first()
+            pmc.pms_account_id = (last.pms_account_id + 1) if last else 10000
+            pmc.sync_enabled = True
 
         pmc.pmc_name = payload.pmc_name
         pmc.email = payload.email
@@ -602,6 +608,7 @@ def update_pmc(payload: PMCUpdateRequest):
         return JSONResponse(status_code=422, content={"error": ve.errors()})
     except Exception as e:
         db.rollback()
+        logging.exception("🔥 Exception during PMC update")
         return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
         db.close()
