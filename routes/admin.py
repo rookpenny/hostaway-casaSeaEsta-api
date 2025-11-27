@@ -18,12 +18,11 @@ from models import PMC
 from openai import OpenAI  # ✅ Updated OpenAI import
 
 
-logging.basicConfig(level=logging.INFO)
-
 # 🚏 Router & Templates
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
+logging.basicConfig(level=logging.INFO)
 
 # 🤖 OpenAI Client Setup
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -557,18 +556,17 @@ def update_pmc(
     return RedirectResponse(url="/admin/dashboard", status_code=303)
 
 
-
 class PMCUpdateRequest(BaseModel):
-    id: Optional[int]
+    id: int
     pmc_name: str
-    email: Optional[str]
-    main_contact: Optional[str]
-    subscription_plan: Optional[str]
-    pms_integration: Optional[str]
+    email: str | None
+    main_contact: str | None
+    subscription_plan: str | None
+    pms_integration: str | None
     pms_api_key: str
     pms_api_secret: str
-    active: Optional[bool] = False
-
+    active: bool
+    
 @router.post("/admin/update-pmc")
 def update_pmc(payload: PMCUpdateRequest):
     db: Session = SessionLocal()
