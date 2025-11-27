@@ -1,11 +1,15 @@
 import os
 import requests
+from models import PMC
+from database import SessionLocal
 from datetime import datetime
 from utils.github_sync import sync_pmc_to_github
 from dotenv import load_dotenv
 from utils.config import LOCAL_CLONE_PATH
 
+
 from sqlalchemy import create_engine, text
+
 # Set up PostgreSQL connection (via Render or your environment variable)
 DATABASE_URL = os.getenv("DATABASE_URL")  # should be in form: postgresql://user:pass@host:port/dbname
 engine = create_engine(DATABASE_URL)
@@ -280,7 +284,7 @@ def sync_properties(account_id: str):
         account_id=account_id
     )
 
-    # 🔁 Optional GitHub sync (can keep or disable)
+    # 🔁 Optional GitHub sync
     try:
         for prop in properties:
             name = prop.get("internalListingName") or prop.get("name")
@@ -297,9 +301,22 @@ def sync_properties(account_id: str):
     except Exception as e:
         print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
 
+    # ✅ Update last_synced_at in the database
+    db = SessionLocal()
+    try:
+        db_pmc = db.query(PMC).filter(PMC.pms_account_id == str(account_id)).first()
+        if db_pmc:
+            db_pmc.last_synced_at = datetime.utcnow()
+            db.commit()
+            print(f"[SYNC] ✅ Updated last_synced_at for PMC {account_id}")
+    except Exception as db_err:
+        db.rollback()
+        print(f"[DB] ❌ Failed to update last_synced_at: {db_err}")
+    finally:
+        db.close()
+
     print(f"[SYNC] ✅ Saved {len(properties)} properties for {account_id}")
     return len(properties)
-
     
 def save_properties_to_db(properties, client_id, pmc_id, pms):
     from sqlalchemy.dialects.postgresql import insert as pg_insert
