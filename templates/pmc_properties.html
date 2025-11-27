@@ -1,0 +1,33 @@
+
+{% extends "layout.html" %}
+
+{% block content %}
+  <h2>Properties for PMC {{ pmc_id }}</h2>
+
+  {% if properties %}
+    <table>
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Property Name</th>
+          <th>PMS Property ID</th>
+          <th>Integration</th>
+          <th>Last Synced</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for prop in properties %}
+          <tr>
+            <td>{{ prop.id }}</td>
+            <td>{{ prop.property_name }}</td>
+            <td>{{ prop.pms_property_id }}</td>
+            <td>{{ prop.pms_integration }}</td>
+            <td>{{ prop.last_synced }}</td>
+          </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  {% else %}
+    <p>No properties found for this PMC.</p>
+  {% endif %}
+{% endblock %}
