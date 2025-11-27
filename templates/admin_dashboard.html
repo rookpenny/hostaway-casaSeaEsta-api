@@ -216,12 +216,12 @@
 
       <div>
         <label class="block text-sm font-medium">Client ID</label>
-        <input type="text" id="edit-client-id" required class="mt-1 w-full border rounded px-3 py-2" />
+        <input type="text" id="edit-client-id" required class="mt-1 w-full border rounded px-3 py-2" required/>
       </div>
 
       <div>
         <label class="block text-sm font-medium">Secret</label>
-        <input type="text" id="edit-secret" required class="mt-1 w-full border rounded px-3 py-2" />
+        <input type="text" id="edit-secret" required class="mt-1 w-full border rounded px-3 py-2" required/>
       </div>
 
       <div class="flex items-center">
@@ -266,6 +266,22 @@
 
 <script>
 
+
+  function openEditModal(button) {
+  const data = JSON.parse(button.dataset.pmc);
+  document.getElementById("edit-id").value = data.id || "";
+  document.getElementById("edit-name").value = data.pmc_name || "";
+  document.getElementById("edit-email").value = data.email || "";
+  document.getElementById("edit-contact").value = data.main_contact || "";
+  document.getElementById("edit-subscription").value = data.subscription_plan || "";
+  document.getElementById("edit-integration").value = data.pms_integration || "";
+  document.getElementById("edit-client-id").value = data.pms_api_key || "";
+  document.getElementById("edit-secret").value = data.pms_api_secret || "";
+  document.getElementById("edit-active").checked = !!data.active;
+
+  document.getElementById("editModal").classList.remove("hidden");
+}
+  
   function openPropertiesModal(pmc) {
   document.getElementById("propertiesModalTitle").textContent = pmc.pmc_name;
   document.getElementById("propertiesModal").style.display = "flex";
@@ -417,14 +433,20 @@ function hidePropertiesSpinner() {
   });
 
   function closeModal() {
-    document.getElementById("editModal").style.display = "none";
+    document.getElementById("editModal").classList.add("hidden");
+  /*  document.getElementById("editModal").style.display = "none";
     document.getElementById("edit-spinner").style.display = "none";
     document.getElementById("edit-success").style.display = "none";
-    document.getElementById("edit-error").style.display = "none";
+    document.getElementById("edit-error").style.display = "none";*/
   }
 
+  // Attach click listeners to all edit buttons
+document.querySelectorAll(".edit-pmc-btn").forEach(button => {
+  button.addEventListener("click", () => openEditModal(button));
+});
+  
 // ✏️ Populate form and open modal
-  document.querySelectorAll(".edit-pmc-btn").forEach(button => {
+  /*document.querySelectorAll(".edit-pmc-btn").forEach(button => {
     button.addEventListener("click", () => {
       const data = JSON.parse(button.dataset.pmc);
       document.getElementById("edit-id").value = data.id;
@@ -439,7 +461,7 @@ function hidePropertiesSpinner() {
 
       document.getElementById("editModal").style.display = "flex";
     });
-  });
+  });*/
 
   // ➕ Add PMC
 document.getElementById("add-pmc-btn").addEventListener("click", () => {
@@ -460,51 +482,37 @@ document.getElementById("add-pmc-btn").addEventListener("click", () => {
 
 
 // 💾 Submit form with inline feedback
-  document.getElementById("editPmcForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
+document.getElementById("editPmcForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
 
-    const payload = {
-      id: document.getElementById("edit-id").value,
-      pmc_name: document.getElementById("edit-name").value.trim(),
-      email: document.getElementById("edit-email").value.trim(),
-      main_contact: document.getElementById("edit-contact").value.trim(),
-      subscription_plan: document.getElementById("edit-subscription").value.trim(),
-      pms_integration: document.getElementById("edit-integration").value.trim(),
-      pms_api_key: document.getElementById("edit-client-id").value.trim(),
-      pms_api_secret: document.getElementById("edit-secret").value.trim(),
-      active: document.getElementById("edit-active").checked,
-    };
+  const payload = {
+    id: document.getElementById("edit-id").value,
+    pmc_name: document.getElementById("edit-name").value.trim(),
+    email: document.getElementById("edit-email").value.trim(),
+    main_contact: document.getElementById("edit-contact").value.trim(),
+    subscription_plan: document.getElementById("edit-subscription").value.trim(),
+    pms_integration: document.getElementById("edit-integration").value.trim(),
+    pms_api_key: document.getElementById("edit-client-id").value.trim(),
+    pms_api_secret: document.getElementById("edit-secret").value.trim(),
+    active: document.getElementById("edit-active").checked,
+  };
 
-    if (!payload.pmc_name || !payload.pms_api_key || !payload.pms_api_secret) {
-      showToast("❌ Name, Client ID, and Secret are required.", "error");
-      return;
-    }
-
-    showSpinner();
-
-    try {
-      const res = await fetch("/admin/update-pmc", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-
-      const result = await res.json();
-      if (res.ok && result.success) {
-        hideSpinner();
-        closeModal();
-        showToast("✅ PMC updated!");
-        setTimeout(() => location.reload(), 1000);
-      } else {
-        hideSpinner();
-        showToast(result.error || "❌ Update failed.", "error")
-      }
-    } catch (error) {
-      hideSpinner();
-      console.error("Error:", error);
-      showToast("❌ Error submitting form.", "error");
-    }
+  const response = await fetch("/admin/update-pmc", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
   });
+
+  const result = await response.json();
+
+  if (response.ok && result.success) {
+    alert("✅ PMC updated!");
+    closeModal();
+    location.reload();
+  } else {
+    alert("❌ Failed to update: " + (result.error || "Unknown error"));
+  }
+});
 
   // 🗑️ Delete PMC
   document.getElementById("delete-btn").addEventListener("click", async () => {
