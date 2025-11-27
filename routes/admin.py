@@ -145,7 +145,20 @@ def admin_dashboard(request: Request):
         "pmc": pmc_data  # ✅ Now it's safe to use `tojson` in the template
     })
 
+# ✅ Add this new route here:
+@router.get("/admin/pmc-properties/{pmc_id}", response_class=HTMLResponse)
+def pmc_properties(request: Request, pmc_id: int):
+    db: Session = SessionLocal()
+    properties = db.query(Property).filter(Property.pmc_id == pmc_id).all()
 
+    if not properties:
+        raise HTTPException(status_code=404, detail="No properties found for this PMC")
+
+    return templates.TemplateResponse("pmc_properties.html", {
+        "request": request,
+        "properties": properties,
+        "pmc_id": pmc_id
+    })
 
 # ➕ Show New PMC Form
 @router.get("/admin/new-pmc", response_class=HTMLResponse)
