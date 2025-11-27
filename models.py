@@ -16,7 +16,7 @@ class PMC(Base):
     pms_integration = Column(String)
     pms_api_key = Column(String)  # ✅ instead of pms_client_id
     pms_account_id = Column(String)
-    pms_secret = Column(String)
+    pms_api_secret = Column(String)
     active = Column(Boolean, default=True)
     sync_enabled = Column(Boolean, default=True)
     last_synced_at = Column(DateTime)
