@@ -151,20 +151,18 @@ def save_to_postgres(properties, client_id, pmc_record_id, pms, account_id):
         INSERT INTO properties (
             property_name,
             pms_property_id,
-            pms_account_id,
+            pmc_id,
             pms_integration,
             sandy_enabled,
             data_folder_path,
-            pmc_record_id,
             last_synced
         ) VALUES (
             :property_name,
             :pms_property_id,
-            :pms_account_id,
+            :pmc_id,
             :pms_integration,
             :sandy_enabled,
             :data_folder_path,
-            :pmc_record_id,
             :last_synced
         )
         ON CONFLICT (pms_property_id) DO UPDATE SET
@@ -183,11 +181,10 @@ def save_to_postgres(properties, client_id, pmc_record_id, pms, account_id):
             conn.execute(insert_stmt, {
                 "property_name": name,
                 "pms_property_id": prop_id,
-                "pms_account_id": account_id,
+                "pmc_id": pmc_record_id,  # ✅ Use the correct foreign key column
                 "pms_integration": pms,
                 "sandy_enabled": True,
                 "data_folder_path": folder,
-                "pmc_record_id": pmc_record_id,
                 "last_synced": datetime.utcnow()
             })
 
