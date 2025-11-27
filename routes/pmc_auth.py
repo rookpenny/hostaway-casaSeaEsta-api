@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Request, Depends
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.config import Config
 from authlib.integrations.starlette_client import OAuth
@@ -37,6 +37,30 @@ def is_pmc_email_valid(email: str) -> bool:
     table = get_pmcs_table()
     records = table.all()
     return any(record['fields'].get('Email') == email for record in records)
+
+
+
+@router.post("/sync-property/{property_id}")
+def sync_single_property(request: Request, property_id: int, db: Session = Depends(get_db)):
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    # Fetch property by ID and check ownership
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        return JSONResponse({"status": "error", "message": "Property not found"}, status_code=404)
+
+    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id, PMC.email == user["email"]).first()
+    if not pmc:
+        return JSONResponse({"status": "error", "message": "Unauthorized"}, status_code=403)
+
+    try:
+        sync_properties(pmc.pms_account_id)  # already defined
+        return JSONResponse({"status": "success", "message": "Synced!"})
+    except Exception as e:
+        return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
 
 # --- Fetch Properties for This PMC ---
 def get_properties_for_pmc(email: str):
