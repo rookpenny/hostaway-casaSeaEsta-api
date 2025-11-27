@@ -497,6 +497,8 @@ const payload = {
   active: document.getElementById("edit-active").checked
 };
 
+  console.log("📦 Submitting payload:", payload); // ✅ LOG THE PAYLOAD
+  
   const response = await fetch("/admin/update-pmc", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -505,13 +507,15 @@ const payload = {
 
   const result = await response.json();
 
-  if (response.ok && result.success) {
-    alert("✅ PMC updated!");
-    closeModal();
-    location.reload();
-  } else {
-    alert("❌ Failed to update: " + (result.error || "Unknown error"));
-  }
+if (response.ok && result.success) {
+  showToast("✅ PMC updated!", "success");
+  closeModal();
+  setTimeout(() => location.reload(), 500);
+} else {
+  const message = result.error || "❌ Unknown error";
+  showToast(`❌ Failed to update: ${message}`, "error");
+}
+
 });
 
   // 🗑️ Delete PMC
