@@ -4,6 +4,7 @@
   <meta charset="UTF-8">
   <title>Admin Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
   <style>
     body {
       font-family: Arial, sans-serif;
@@ -66,143 +67,188 @@
     }
   </style>
 </head>
-<body>
+<body class="bg-gray-100 text-gray-800">
 
-<h1>🛠️ Admin Dashboard</h1>
+ <div class="max-w-7xl mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-center mb-6">🛠️ Admin Dashboard</h1>
 
-<div class="top-bar">
-  <input type="text" id="search" placeholder="Search PMCs..." />
-  <div>
-    <button id="add-pmc-btn">➕ Add New PMC</button>
-    <button id="sync-all">🔄 Sync All</button>
-  </div>
-</div>
 
-<div id="sync-progress" style="display:none;"></div>
+ <!-- Top Bar -->
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
+      <input type="text" id="search" placeholder="Search PMCs..." class="w-full sm:w-1/3 px-3 py-2 border rounded shadow-sm" />
+      <div class="flex gap-2">
+        <button id="add-pmc-btn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow">➕ Add PMC</button>
+        <button id="sync-all" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow">🔄 Sync All</button>
+      </div>
+    </div>
 
-<table>
-  <thead>
-    <tr>
-      <th>✏️ Edit</th>
-      <th>PMC</th>
-      <th>PMS Account ID</th>
-      <th>API Key</th>
-      <th>Contact</th>
-      <th>Integration</th>
-      <th>Active</th>
-      <th>Sync</th>
-      <th>Last Synced</th>
-      <th>Status</th>
-    </tr>
-  </thead>
-  <tbody>
+<!-- Sync Progress -->
+    <div id="sync-progress" class="italic text-sm text-gray-600 mb-2 hidden"></div>
+
+
+  <div class="overflow-x-auto bg-white shadow-md rounded-lg">
+<table class="min-w-full text-sm">
+        <thead class="bg-gray-100 text-left">
+          <tr>
+            <th class="px-4 py-3">PMC</th>
+            <th class="px-4 py-3">Account ID</th>
+            <th class="px-4 py-3">API Key</th>
+            <th class="px-4 py-3">Contact</th>
+            <th class="px-4 py-3">Integration</th>
+            <th class="px-4 py-3">Active</th>
+            <th class="px-4 py-3">Sync</th>
+            <th class="px-4 py-3">Last Synced</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
     {% for record in pmc %}
-      {% if not record.pms_account_id or not record.pms_api_key %}
-        <tr class="warning-row">
-          <td colspan="9">
-            ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials (API key or Account ID).
-          </td>
-        </tr>
-      {% else %}
-        <tr>
-          <td>{{ record.pmc_name }}</td>
-          <td>{{ record.pms_account_id }}</td>
-          <td>{{ record.pms_api_key }}</td>
-          <td>{{ record.email }}</td>
-          <td>{{ record.pms_integration }}</td>
-          <td>
-            <select class="status-select" data-record-id="{{ record.id }}">
-              <option value="true" {% if record.active %}selected{% endif %}>✅</option>
-              <option value="false" {% if not record.active %}selected{% endif %}>❌</option>
-            </select>
-          </td>
-          <td>
-            <button
-              class="sync-one"
-              data-account-id="{{ record.pms_account_id }}"
-              {% if not record.pms_account_id %}disabled{% endif %}
-            >
-              🔄 Sync
-            </button>
-            <span id="status-{{ record.pms_account_id }}"></span>
-          </td>
-          <td>
-            <span id="last-{{ record.pms_account_id }}">
-              {% if record.last_synced_at %}
-                {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
-              {% else %}
-                Never
-              {% endif %}
-            </span>
-          </td>
-          <td>
-            <span class="sync-result" id="result-{{ record.pms_account_id }}">—</span>
-          </td>
-          <td>
-            <button class="edit-pmc-btn" data-pmc='{{ record | tojson | safe }}'>✏️ Edit</button>
-            <button class="edit-properties-btn" onclick='openPropertiesModal({{ record | tojson | safe }})'>🏘️ Properties</button>
-          </td>
-        </tr>
-      {% endif %}
-    {% endfor %}
+            {% if not record.pms_account_id or not record.pms_api_key %}
+              <tr class="bg-yellow-100 text-yellow-800">
+                <td colspan="10" class="px-4 py-3">
+                  ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials (API key or Account ID).
+                </td>
+              </tr>
+            {% else %}
+              <tr class="border-t hover:bg-gray-50">
+                <td class="px-4 py-3 font-medium">{{ record.pmc_name }}</td>
+                <td class="px-4 py-3">{{ record.pms_account_id }}</td>
+                <td class="px-4 py-3">{{ record.pms_api_key }}</td>
+                <td class="px-4 py-3">{{ record.email }}</td>
+                <td class="px-4 py-3">{{ record.pms_integration }}</td>
+                <td class="px-4 py-3">
+                  <select class="status-select border rounded px-2 py-1" data-record-id="{{ record.id }}">
+                    <option value="true" {% if record.active %}selected{% endif %}>✅</option>
+                    <option value="false" {% if not record.active %}selected{% endif %}>❌</option>
+                  </select>
+                </td>
+                <td class="px-4 py-3">
+                  <button
+                    class="sync-one bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs"
+                    data-account-id="{{ record.pms_account_id }}"
+                    {% if not record.pms_account_id %}disabled{% endif %}>
+                    🔄 Sync
+                  </button>
+                  <span id="status-{{ record.pms_account_id }}" class="ml-1 text-sm"></span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-600" id="last-{{ record.pms_account_id }}">
+                  {% if record.last_synced_at %}
+                    {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
+                  {% else %}
+                    Never
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                  <span class="sync-result text-sm" id="result-{{ record.pms_account_id }}">—</span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-col sm:flex-row gap-2">
+                    <button 
+                      class="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1 rounded text-xs"
+                      data-pmc='{{ record | tojson | safe }}'
+                      onclick="openEditModal(this)">
+                      ✏️ Edit
+                    </button>
+                    <button 
+                      class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded text-xs"
+                      onclick='openPropertiesModal({{ record | tojson | safe }})'>
+                      🏘️ Properties
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
+          {% endfor %}
   </tbody>
 </table>
-
+</div>
+  </div>
   <!-- ✅ Toast Notification -->
-<div id="toast" style="
-  position: fixed;
-  bottom: 2rem;
-  right: 2rem;
-  background: #333;
-  color: #fff;
-  padding: 1rem 1.5rem;
-  border-radius: 8px;
-  font-size: 1rem;
-  opacity: 0;
-  transition: opacity 0.4s ease;
-  z-index: 9999;
-  pointer-events: none;
-"></div>
+<div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-sm"></div>
 
-  <!-- 🔧 Edit PMC Modal -->
-<div id="editModal" style="display:none; position:fixed; inset:0; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
-  <div style="background:#fff; padding:2rem; border-radius:8px; width:90%; max-width:500px; position:relative;">
-    <h3>Edit PMC</h3>
-    <form id="editPmcForm">
+
+ <!-- 🔧 Edit PMC Modal -->
+<div id="editModal" class="fixed inset-0 hidden bg-black bg-opacity-50 z-50 flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
+    <h3 class="text-xl font-semibold mb-4">Edit PMC</h3>
+    <form id="editPmcForm" class="space-y-4">
       <input type="hidden" id="edit-id">
-      <label>Name:<br><input type="text" id="edit-name" required></label><br><br>
-      <label>Email:<br><input type="email" id="edit-email"></label><br><br>
-      <label>Main Contact:<br><input type="text" id="edit-contact"></label><br><br>
-      <label>Subscription Plan:<br><input type="text" id="edit-subscription"></label><br><br>
-      <label>PMS Integration:<br><input type="text" id="edit-integration"></label><br><br>
-      <label>Client ID:<br><input type="text" id="edit-client-id" required></label><br><br>
-      <label>Secret:<br><input type="text" id="edit-secret" required></label><br><br>
-      <label>Active: <input type="checkbox" id="edit-active"></label><br><br>
 
-      <div id="edit-spinner" style="display:none;">🌀 Saving...</div>
-      <div id="edit-success" style="display:none; color:green;">✅ Saved!</div>
-      <div id="edit-error" style="display:none; color:red;"></div>
+      <div>
+        <label class="block text-sm font-medium">Name</label>
+        <input type="text" id="edit-name" required class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
 
-      <button type="submit">💾 Save</button>
-      <button type="button" onclick="closeModal()">❌ Cancel</button>
-      <button type="button" id="delete-btn" style="float:right; color:red;">🗑️ Delete</button>
+      <div>
+        <label class="block text-sm font-medium">Email</label>
+        <input type="email" id="edit-email" class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Main Contact</label>
+        <input type="text" id="edit-contact" class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Subscription Plan</label>
+        <input type="text" id="edit-subscription" class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">PMS Integration</label>
+        <input type="text" id="edit-integration" class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Client ID</label>
+        <input type="text" id="edit-client-id" required class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Secret</label>
+        <input type="text" id="edit-secret" required class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div class="flex items-center">
+        <input type="checkbox" id="edit-active" class="mr-2" />
+        <label for="edit-active" class="text-sm">Active</label>
+      </div>
+
+      <div id="edit-spinner" class="text-sm text-blue-600 hidden">🌀 Saving...</div>
+      <div id="edit-success" class="text-sm text-green-600 hidden">✅ Saved!</div>
+      <div id="edit-error" class="text-sm text-red-600 hidden"></div>
+
+      <div class="flex justify-between mt-4">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">💾 Save</button>
+        <button type="button" onclick="closeModal()" class="text-gray-600 hover:underline">❌ Cancel</button>
+        <button type="button" id="delete-btn" class="text-red-600 hover:underline">🗑️ Delete</button>
+      </div>
     </form>
   </div>
 </div>
-  <!-- 🏘️ Edit PMC Properties Modal -->
-<div id="propertiesModal" style="display:none; position:fixed; inset:0; background-color:rgba(0,0,0,0.5); z-index:1000; justify-content:center; align-items:center;">
-  <div style="background:#fff; padding:2rem; border-radius:8px; width:90%; max-width:600px; position:relative;">
-    <h3>Edit Properties for <span id="propertiesModalTitle"></span></h3>
-    <form id="propertiesForm">
-      <div id="propertiesList" style="max-height:300px; overflow-y:auto; margin-bottom:1rem;"></div>
-      <div id="properties-spinner" style="display:none;">🌀 Saving...</div>
-      <div id="properties-success" style="display:none; color:green;">✅ Saved!</div>
-      <div id="properties-error" style="display:none; color:red;"></div>
-      <button type="submit">💾 Save</button>
-      <button type="button" onclick="closePropertiesModal()">❌ Cancel</button>
+
+<!-- 🏘️ Edit PMC Properties Modal -->
+<div id="propertiesModal" class="fixed inset-0 hidden bg-black bg-opacity-50 z-50 flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 relative">
+    <h3 class="text-xl font-semibold mb-4">Edit Properties for <span id="propertiesModalTitle"></span></h3>
+    <form id="propertiesForm" class="space-y-4">
+      <div id="propertiesList" class="max-h-64 overflow-y-auto border rounded p-3 space-y-2 text-sm">
+        <!-- Dynamically populated -->
+      </div>
+
+      <div id="properties-spinner" class="text-blue-600 hidden">🌀 Saving...</div>
+      <div id="properties-success" class="text-green-600 hidden">✅ Saved!</div>
+      <div id="properties-error" class="text-red-600 hidden"></div>
+
+      <div class="flex justify-between mt-4">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">💾 Save</button>
+        <button type="button" onclick="closePropertiesModal()" class="text-gray-600 hover:underline">❌ Cancel</button>
+      </div>
     </form>
   </div>
 </div>
+
 
 <script>
 
@@ -472,16 +518,13 @@ document.getElementById("add-pmc-btn").addEventListener("click", () => {
     }
   });
 
-  function showToast(message, type = "success") {
-  const toast = document.getElementById("toast");
-  toast.textContent = message;
-  toast.style.backgroundColor = type === "error" ? "#c0392b" : "#2ecc71";
-  toast.style.opacity = "1";
-
-  setTimeout(() => {
-    toast.style.opacity = "0";
-  }, 3000);
-}
+function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.style.backgroundColor = type === "error" ? "#c0392b" : "#2ecc71";
+      toast.style.opacity = "1";
+      setTimeout(() => toast.style.opacity = "0", 3000);
+    }
 
 function showSpinner() {
   document.getElementById("edit-spinner").style.display = "block";
