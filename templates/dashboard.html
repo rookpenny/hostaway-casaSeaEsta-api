@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en" class="dark">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -188,8 +188,82 @@
 
     <!-- Dark Mode Script -->
    
-      <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
+  // DARK MODE — Apply before page load
+  const savedTheme = localStorage.getItem("theme");
+  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+  if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+    document.documentElement.classList.add("dark");
+  } else {
+    document.documentElement.classList.remove("dark");
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    // Dark mode toggle handler
+    const toggle = document.getElementById("darkModeToggle");
+    toggle?.addEventListener("click", () => {
+      const html = document.documentElement;
+      html.classList.toggle("dark");
+      const isDark = html.classList.contains("dark");
+      localStorage.setItem("theme", isDark ? "dark" : "light");
+    });
+
+    // Sync buttons
+    document.querySelectorAll('.sync-button').forEach(button => {
+      button.addEventListener('click', async () => {
+        const accountId = button.dataset.accountId;
+        const statusSpan = document.getElementById(button.dataset.syncStatusId);
+
+        statusSpan.textContent = '⏳ Syncing...';
+        button.disabled = true;
+
+        try {
+          const res = await fetch(`/admin/sync-properties/${accountId}`, {
+            method: 'POST'
+          });
+
+          const data = await res.json();
+
+          if (data.success) {
+            const time = data.synced_at
+              ? new Date(data.synced_at).toLocaleTimeString()
+              : '';
+            statusSpan.textContent = `✅ Synced ${time}`;
+          } else {
+            statusSpan.textContent = `❌ ${data.error || 'Sync failed'}`;
+          }
+        } catch (err) {
+          statusSpan.textContent = '❌ Network error';
+        } finally {
+          button.disabled = false;
+        }
+      });
+    });
+  });
+
+  // Filter properties
+  function filterProperties() {
+    const search = document.getElementById("searchInput")?.value.toLowerCase() || "";
+    const status = document.getElementById("statusFilter")?.value || "all";
+    const cards = document.querySelectorAll("[data-property-card]");
+
+    cards.forEach((card) => {
+      const name = card.dataset.name.toLowerCase();
+      const live = card.dataset.live === "true";
+
+      const matchesSearch = name.includes(search);
+      const matchesStatus =
+        status === "all" ||
+        (status === "live" && live) ||
+        (status === "offline" && !live);
+
+      card.style.display = matchesSearch && matchesStatus ? "block" : "none";
+    });
+  }
+
+  // Toggle live status
   async function toggleProperty(id, btn) {
     btn.disabled = true;
     const original = btn.innerHTML;
@@ -231,6 +305,8 @@
       }, 3000);
     }
   }
+
+  // Sync single property
   async function syncProperty(id, btn) {
     btn.disabled = true;
     const original = btn.innerHTML;
@@ -242,73 +318,28 @@
 
       if (data.status === "success") {
         btn.innerHTML = "✅ Synced!";
-        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1500);
+        setTimeout(() => {
+          btn.innerHTML = original;
+          btn.disabled = false;
+        }, 1500);
       } else {
         btn.innerHTML = "❌ Failed";
         console.error(data.message);
-        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 3000);
+        setTimeout(() => {
+          btn.innerHTML = original;
+          btn.disabled = false;
+        }, 3000);
       }
     } catch (err) {
       btn.innerHTML = "❌ Error";
-      setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 3000);
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.disabled = false;
+      }, 3000);
     }
   }
 
-  
-  const searchInput = document.getElementById("searchInput");
-  const statusFilter = document.getElementById("statusFilter");
-
-  document.querySelectorAll('.sync-button').forEach(button => {
-    button.addEventListener('click', async () => {
-      const accountId = button.dataset.accountId;
-      const statusSpan = document.getElementById(button.dataset.syncStatusId);
-
-      statusSpan.textContent = '⏳ Syncing...';
-      button.disabled = true;
-
-      try {
-        const res = await fetch(`/admin/sync-properties/${accountId}`, {
-          method: 'POST'
-        });
-
-        const data = await res.json();
-
-        if (data.success) {
-          const time = data.synced_at
-            ? new Date(data.synced_at).toLocaleTimeString()
-            : '';
-          statusSpan.textContent = `✅ Synced ${time}`;
-        } else {
-          statusSpan.textContent = `❌ ${data.error || 'Sync failed'}`;
-        }
-      } catch (err) {
-        statusSpan.textContent = '❌ Network error';
-      } finally {
-        button.disabled = false;
-      }
-    });
-  });
-
-  function filterProperties() {
-    const search = searchInput.value.toLowerCase();
-    const status = statusFilter.value;
-    const cards = document.querySelectorAll("[data-property-card]");
-
-    cards.forEach((card) => {
-      const name = card.dataset.name.toLowerCase();
-      const live = card.dataset.live === "true";
-
-      const matchesSearch = name.includes(search);
-      const matchesStatus =
-        status === "all" ||
-        (status === "live" && live) ||
-        (status === "offline" && !live);
-
-      card.style.display = matchesSearch && matchesStatus ? "block" : "none";
-    });
-  }
-
-  // Chart
+  // Chart rendering
   const statusChart = new Chart(document.getElementById("statusChart"), {
     type: "bar",
     data: {
@@ -337,13 +368,7 @@
       }
     }
   });
-      const toggle = document.getElementById("darkModeToggle");
-      toggle.addEventListener("click", () => {
-        const html = document.documentElement;
-        html.classList.toggle("dark");
-        const isDark = html.classList.contains("dark");
-        localStorage.setItem("theme", isDark ? "dark" : "light");
-      });
-    </script>
+</script>
+
   </body>
 </html>
