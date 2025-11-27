@@ -134,7 +134,7 @@
                 </td>
                 <td class="px-4 py-3 text-sm text-gray-600" id="last-{{ record.pms_account_id }}">
                   {% if record.last_synced_at %}
-                    {{ record.last_synced_at.strftime('%Y-%m-%d %H:%M UTC') }}
+                    {{ record.last_synced_at.strftime('%b %d, %H:%M') }} UTC
                   {% else %}
                     Never
                   {% endif %}
@@ -403,8 +403,16 @@ function hidePropertiesSpinner() {
         result.className = "sync-result success";
         if (data.synced_at) {
           const dt = new Date(data.synced_at);
-          last.textContent = `${dt.toLocaleString('en-US', { timeZone: 'UTC' })} UTC`;
+          const formatted = dt.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit"
+          });
+          last.textContent = `${formatted} (your time)`;
         }
+
       } else {
         throw new Error(data.error || "Sync failed");
       }
