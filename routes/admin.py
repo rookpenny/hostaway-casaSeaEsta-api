@@ -5,6 +5,7 @@ from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
+import logging
 
 import os
 import requests
@@ -16,6 +17,8 @@ from database import SessionLocal
 from models import PMC
 from openai import OpenAI  # ✅ Updated OpenAI import
 
+
+logging.basicConfig(level=logging.INFO)
 
 # 🚏 Router & Templates
 router = APIRouter()
