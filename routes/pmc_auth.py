@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends
+from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.config import Config
@@ -37,6 +37,34 @@ def is_pmc_email_valid(email: str) -> bool:
     table = get_pmcs_table()
     records = table.all()
     return any(record['fields'].get('Email') == email for record in records)
+
+
+@router.post("/toggle-property/{property_id}")
+def toggle_property(
+    request: Request,
+    property_id: int,
+    db: Session = Depends(get_db)
+):
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id, PMC.email == user["email"]).first()
+    if not pmc:
+        raise HTTPException(status_code=403, detail="Unauthorized")
+
+    # Flip the status
+    prop.sandy_enabled = not prop.sandy_enabled
+    db.commit()
+
+    return JSONResponse({
+        "status": "success",
+        "new_status": "LIVE" if prop.sandy_enabled else "OFFLINE"
+    })
 
 
 
