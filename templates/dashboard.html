@@ -1,26 +1,28 @@
-<script>
-  const savedTheme = localStorage.getItem("theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-  if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-    document.documentElement.classList.add("dark");
-  } else {
-    document.documentElement.classList.remove("dark");
-  }
-  </script>
-    
 <!DOCTYPE html>
 <html lang="en">
   <head>
-    
+  <script>
+      // Apply dark mode as early as possible
+      (function() {
+        const savedTheme = localStorage.getItem("theme");
+        const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+          document.documentElement.classList.add("dark");
+        } else {
+          document.documentElement.classList.remove("dark");
+        }
+      })();
+    </script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PMC Dashboard</title>
+    <!-- Tailwind config first -->
     <script>
-  tailwind.config = {
-    darkMode: 'class'
-  }
-</script>
-<script src="https://cdn.tailwindcss.com"></script>
+      tailwind.config = {
+        darkMode: 'class'
+      }
+    </script>
+    <script src="https://cdn.tailwindcss.com"></script>
   </head>
 
   <body class="bg-gray-100 dark:bg-black text-gray-900 dark:text-white">
