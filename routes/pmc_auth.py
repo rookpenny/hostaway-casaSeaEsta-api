@@ -1,12 +1,15 @@
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Request, Depends
 from fastapi.responses import RedirectResponse, HTMLResponse
 from fastapi.templating import Jinja2Templates
 from starlette.config import Config
 from authlib.integrations.starlette_client import OAuth
 import os
 from datetime import datetime
+from sqlalchemy.orm import Session
+from database import SessionLocal
+from models import PMC
 
-from utils.airtable_client import get_pmcs_table, get_properties_table
+#from utils.airtable_client import get_pmcs_table, get_properties_table
 
 router = APIRouter(prefix="/auth")
 templates = Jinja2Templates(directory="templates")
@@ -37,21 +40,13 @@ def is_pmc_email_valid(email: str) -> bool:
 
 # --- Fetch Properties for This PMC ---
 def get_properties_for_pmc(email: str):
-    pmcs = get_pmcs_table().all()
-    properties = get_properties_table().all()
-
-    # Step 1: Find the PMC record using the email
-    pmc_record = next((r for r in pmcs if r['fields'].get('Email') == email), None)
-    if not pmc_record:
+    db: Session = SessionLocal()
+    pmc = db.query(PMC).filter(PMC.email == email).first()
+    if not pmc:
         return []
 
-    pmc_id = pmc_record['id']  # This is the Airtable record ID
-
-    # Step 2: Match properties that link to this PMC record via 'PMC Record ID'
-    return [
-        prop for prop in properties
-        if pmc_id in prop['fields'].get('PMC Record ID', [])
-    ]
+    # Properties are accessed via relationship
+    return pmc.properties
 
 
 
@@ -92,36 +87,34 @@ async def auth_callback(request: Request):
 
 
 # --- Dashboard
+
+
+def get_db():
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
 @router.get("/dashboard")
-def dashboard(request: Request):
+def dashboard(request: Request, db: Session = Depends(get_db)):
     user = request.session.get("user")
     if not user:
         return RedirectResponse(url="/auth/login")
 
-    properties = get_properties_for_pmc(user["email"])
+    # 🔍 Find PMC record in the database using email
+    pmc = db.query(PMC).filter(PMC.email == user["email"]).first()
+    if not pmc:
+        return HTMLResponse("<h2>No PMC found for this email</h2>", status_code=404)
 
-    # Format last_synced for template rendering
-    for prop in properties:
-        raw = prop.get("last_synced")
-        if raw:
-            if isinstance(raw, str):
-                try:
-                    parsed = datetime.fromisoformat(raw)
-                    prop["last_synced_fmt"] = parsed.strftime('%b %d, %H:%M')
-                except Exception:
-                    prop["last_synced_fmt"] = raw
-            elif isinstance(raw, datetime):
-                prop["last_synced_fmt"] = raw.strftime('%b %d, %H:%M')
-            else:
-                prop["last_synced_fmt"] = "—"
-        else:
-            prop["last_synced_fmt"] = "—"
+    properties = pmc.properties
 
     return templates.TemplateResponse("dashboard.html", {
         "request": request,
         "user": user,
         "properties": properties
     })
+
 
 # --- Logout
 @router.get("/logout")
