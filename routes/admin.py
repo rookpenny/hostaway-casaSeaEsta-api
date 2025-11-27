@@ -34,8 +34,6 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
         content={"detail": exc.errors()}
     )
 
-app.include_router(admin.router)
-app.include_router(pmc_auth.router)
 
 # 📝 Edit Local Config or Manual File (Locally Rendered)
 @router.get("/edit-config", response_class=HTMLResponse)
