@@ -8,7 +8,7 @@ from datetime import datetime
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, get_db  # ✅ Correct import
-from models import PMC
+from models import PMC, Property
 
 
 #from utils.airtable_client import get_pmcs_table, get_properties_table
