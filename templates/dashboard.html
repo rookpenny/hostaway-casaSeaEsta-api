@@ -119,7 +119,7 @@
           <div class="bg-white dark:bg-gray-800 p-4 rounded shadow">
             <p class="text-sm text-gray-500 dark:text-gray-400">Last Sync</p>
             <h3 class="text-lg">
-              {{ properties[0].last_synced.strftime('%b %d, %H:%M') if properties else '—' }}
+              {{ properties[0]["last_synced_fmt"] if properties else "—" }}
             </h3>
           </div>
         </section>
