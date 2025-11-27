@@ -632,6 +632,7 @@ def update_pmc(payload: PMCUpdateRequest):
         pmc.pms_integration = payload.pms_integration
         pmc.pms_api_key = payload.pms_api_key
         pmc.pms_api_secret = payload.pms_api_secret
+        pmc.pms_account_id = payload.pms_account_id  # ✅ add this to support form input
         pmc.active = payload.active
 
         db.add(pmc)
