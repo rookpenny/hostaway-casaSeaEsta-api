@@ -140,7 +140,7 @@ def add_pmc(
     subscription_plan: str = Form(...),
     pms_integration: str = Form(...),
     pms_api_key: str = Form(...),
-    pms_secret: str = Form(...),
+    pms_api_secret: str = Form(...),
     active: bool = Form(False)
 ):
     db: Session = SessionLocal()
@@ -151,7 +151,7 @@ def add_pmc(
         subscription_plan=subscription_plan,
         pms_integration=pms_integration,
         pms_api_key=pms_api_key,
-        pms_secret=pms_secret,
+        pms_api_secret=pms_api_secret,
         pms_account_id=get_next_account_id(db),
         active=active,
         sync_enabled=active
@@ -529,7 +529,7 @@ def update_pmc(
     pms_integration: str = Form(...),
     pms_account_id: str = Form(...),
     pms_api_key: str = Form(...),
-    pms_secret: str = Form(...),
+    pms_api_secret: str = Form(...),
     active: str = Form("false")  # passed as string from form
 ):
     db: Session = SessionLocal()
@@ -545,7 +545,7 @@ def update_pmc(
     pmc.pms_integration = pms_integration
     pmc.pms_account_id = pms_account_id
     pmc.pms_api_key = pms_api_key
-    pmc.pms_secret = pms_secret
+    pmc.pms_api_secret = pms_api_secret
     pmc.active = (active.lower() == "true")
 
     db.commit()
@@ -566,7 +566,7 @@ def update_pmc(payload: dict = Body(...)):
         pmc.subscription_plan = payload.get("subscription_plan", pmc.subscription_plan)
         pmc.pms_integration = payload.get("pms_integration", pmc.pms_integration)
         pmc.pms_api_key = payload.get("pms_api_key", pmc.pms_api_key)
-        pmc.pms_secret = payload.get("pms_secret", pmc.pms_secret)
+        pmc.pms_api_secret = payload.get("pms_api_secret", pmc.pms_api_secret)
         pmc.active = payload.get("active", pmc.active)
         db.commit()
         return {"success": True}
