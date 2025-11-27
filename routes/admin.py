@@ -146,14 +146,9 @@ def admin_dashboard(request: Request):
     })
 
 # ✅ Add this new route here:
-@router.get("/admin/pmc-properties/{pmc_id}", response_class=HTMLResponse)
-def pmc_properties(request: Request, pmc_id: int):
-    db: Session = SessionLocal()
+@router.get("/admin/pmc-properties/{pmc_id}")
+def pmc_properties(request: Request, pmc_id: int, db: Session = Depends(get_db)):
     properties = db.query(Property).filter(Property.pmc_id == pmc_id).all()
-
-    if not properties:
-        raise HTTPException(status_code=404, detail="No properties found for this PMC")
-
     return templates.TemplateResponse("pmc_properties.html", {
         "request": request,
         "properties": properties,
