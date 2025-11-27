@@ -251,27 +251,51 @@
 <!-- 🏘️ Edit PMC Properties Modal -->
 <div id="propertiesModal" class="fixed inset-0 hidden bg-black bg-opacity-50 z-50 flex items-center justify-center">
   <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 relative">
-    <h3 class="text-xl font-semibold mb-4">Edit Properties for <span id="propertiesModalTitle"></span></h3>
+    
+    <h3 class="text-xl font-semibold mb-2">
+      Enable Sandy for Properties in <span id="propertiesModalTitle" class="font-bold text-blue-700"></span>
+    </h3>
+    <p class="text-sm text-gray-600 mb-2">
+      ✅ Checked = Sandy will be enabled for this property<br>
+      ❌ Unchecked = This property will be ignored by Sandy
+    </p>
+
+    <!-- 🧩 Select All / None Toggle -->
+    <div class="flex justify-end text-sm text-blue-600 font-medium mb-2 gap-4">
+      <button type="button" onclick="selectAllProperties(true)" class="hover:underline">✅ Select All</button>
+      <button type="button" onclick="selectAllProperties(false)" class="hover:underline">❌ Deselect All</button>
+    </div>
+
     <form id="propertiesForm" class="space-y-4">
-      <div id="propertiesList" class="max-h-64 overflow-y-auto border rounded p-3 space-y-2 text-sm">
-        <!-- Dynamically populated -->
+      <!-- Property Checkbox List -->
+      <div id="propertiesList" class="max-h-64 overflow-y-auto border rounded p-3 space-y-2 text-sm bg-gray-50">
+        <!-- Dynamically populated by JS -->
       </div>
 
+      <!-- Save Feedback -->
       <div id="properties-spinner" class="text-blue-600 hidden">🌀 Saving...</div>
       <div id="properties-success" class="text-green-600 hidden">✅ Saved!</div>
       <div id="properties-error" class="text-red-600 hidden"></div>
 
+      <!-- Buttons -->
       <div class="flex justify-between mt-4">
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">💾 Save</button>
-        <button type="button" onclick="closePropertiesModal()" class="text-gray-600 hover:underline">❌ Cancel</button>
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow flex items-center gap-1">
+          💾 <span>Save</span>
+        </button>
+        <button type="button" onclick="closePropertiesModal()" class="text-red-600 hover:underline flex items-center gap-1">
+          ❌ <span>Cancel</span>
+        </button>
       </div>
     </form>
   </div>
 </div>
 
-
 <script>
 
+  function selectAllProperties(checked) {
+  const checkboxes = document.querySelectorAll("#propertiesList input[name='sandy_enabled']");
+  checkboxes.forEach(cb => cb.checked = checked);
+  }
 
   function openEditModal(button) {
   const data = JSON.parse(button.dataset.pmc);
@@ -301,11 +325,12 @@
 
       data.properties.forEach(prop => {
         const row = document.createElement("div");
-        row.innerHTML = `
-          <label>
-            <input type="checkbox" name="sandy_enabled" data-id="${prop.id}" ${prop.sandy_enabled ? 'checked' : ''}>
-            ${prop.property_name} (${prop.pms_property_id})
-          </label>`;
+          row.innerHTML = `
+            <label class="flex items-center gap-2">
+              <input type="checkbox" name="sandy_enabled" data-id="${prop.id}" ${prop.sandy_enabled ? 'checked' : ''}>
+              <span class="text-gray-800">${prop.property_name} <span class="text-gray-400 text-xs">(${prop.pms_property_id})</span></span>
+            </label>`;
+
         container.appendChild(row);
       });
     })
@@ -341,7 +366,7 @@ document.getElementById("propertiesForm").addEventListener("submit", async (e) =
 
     if (res.ok) {
       hidePropertiesSpinner();
-      showToast("✅ Properties updated!");
+      showToast("✅ Properties updated!", "success");
       closePropertiesModal();
     } else {
       throw new Error("Server returned error");
