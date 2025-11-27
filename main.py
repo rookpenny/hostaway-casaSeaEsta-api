@@ -13,6 +13,9 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from database import engine
 
+from routes import admin, pmc_auth
+
+
 
 
 from fastapi import (
