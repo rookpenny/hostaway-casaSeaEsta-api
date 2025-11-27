@@ -26,16 +26,16 @@ def fetch_pmc_lookup():
     query = text("""
         SELECT 
             pms_account_id AS account_id,
-            pms_client_id AS client_id,
+            pms_api_key AS client_id,
             pms_secret AS client_secret,
             pms_integration AS pms,
             'https://api.hostaway.com/v1' AS base_url,
             'v1' AS version,
             sync_enabled,
-            pms_client_id AS record_id
+            pms_api_key AS record_id
         FROM pmc
         WHERE pms_account_id IS NOT NULL
-          AND pms_client_id IS NOT NULL
+          AND pms_api_key IS NOT NULL
           AND pms_secret IS NOT NULL
           AND sync_enabled = TRUE;
     """)
