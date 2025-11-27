@@ -288,7 +288,7 @@ def sync_properties_for_pmc(account_id: str):
     try:
         count = sync_properties(account_id)
 
-        pmc = db.query(PMC).filter(PMC.pms_account_id == int(account_id)).first()
+        pmc = db.query(PMC).filter(PMC.pms_account_id == str(account_id)).first()
         synced_at = pmc.last_synced_at.isoformat() if pmc and pmc.last_synced_at else None
 
         return JSONResponse({
