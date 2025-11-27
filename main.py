@@ -13,10 +13,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from database import engine
 
-from routes import admin, pmc_auth
-
-
-
 
 from fastapi import (
     FastAPI, Request, Query, Path, HTTPException, Header, Form,
@@ -46,8 +42,6 @@ from apscheduler.schedulers.background import BackgroundScheduler
 from uuid import uuid4
 import uvicorn
 
-
-from routes import admin, pmc_auth  # ✅ make sure these match your folder/filenames
 from starlette.middleware.sessions import SessionMiddleware
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -90,8 +84,10 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
 # --- Routers ---
-from routes.admin import router
-app.include_router(router)
+from routes import admin, pmc_auth
+
+app.include_router(admin.router)
+app.include_router(pmc_auth.router)
 app.include_router(prearrival_router)
 app.include_router(prearrival_debug_router)
 
