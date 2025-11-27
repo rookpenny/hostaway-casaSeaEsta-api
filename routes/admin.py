@@ -602,6 +602,7 @@ class PMCUpdateRequest(BaseModel):
     pms_integration: str | None
     pms_api_key: str
     pms_api_secret: str
+    pms_account_id: Optional[str]  # ✅ <-- ADD THIS LINE
     active: bool
     
 
