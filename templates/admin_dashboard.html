@@ -293,7 +293,7 @@
   document.getElementById("propertiesModalTitle").textContent = pmc.pmc_name;
   document.getElementById("propertiesModal").style.display = "flex";
 
-  fetch(`/admin/pmc-properties/${pmc.id}`)
+  fetch(`/admin/pmc-properties-json/${pmc.id}`)
     .then(res => res.json())
     .then(data => {
       const container = document.getElementById("propertiesList");
