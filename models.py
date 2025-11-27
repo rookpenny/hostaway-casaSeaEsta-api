@@ -1,10 +1,10 @@
 from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
-from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship
 from datetime import datetime
-from database import Base
 
-Base = declarative_base()
+from database import Base  # ✅ Use the shared Base from database.py
+
+#Base = declarative_base()
 
 class PMC(Base):
     __tablename__ = "pmc"
