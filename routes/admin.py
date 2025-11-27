@@ -3,6 +3,8 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
+from typing import Optional
 
 import os
 import requests
@@ -551,33 +553,42 @@ def update_pmc(
     db.commit()
     return RedirectResponse(url="/admin/dashboard", status_code=303)
 
-from fastapi import Body
+
+
+class PMCUpdateRequest(BaseModel):
+    id: Optional[int]
+    pmc_name: str
+    email: Optional[str]
+    main_contact: Optional[str]
+    subscription_plan: Optional[str]
+    pms_integration: Optional[str]
+    pms_api_key: str
+    pms_api_secret: str
+    active: Optional[bool] = False
 
 @router.post("/admin/update-pmc")
-def update_pmc(payload: dict = Body(...)):
+def update_pmc(payload: PMCUpdateRequest):
     db: Session = SessionLocal()
     try:
-        if payload.get("id"):  # Update existing
-            pmc = db.query(PMC).filter(PMC.id == payload.get("id")).first()
+        if payload.id:
+            pmc = db.query(PMC).filter(PMC.id == payload.id).first()
             if not pmc:
                 return JSONResponse(status_code=404, content={"error": "PMC not found"})
-        else:  # Create new
-            pmc = PMC()
+        else:
+            pmc = PMC()  # create new
 
-        pmc.pmc_name = payload.get("pmc_name")
-        pmc.email = payload.get("email")
-        pmc.main_contact = payload.get("main_contact")
-        pmc.subscription_plan = payload.get("subscription_plan")
-        pmc.pms_integration = payload.get("pms_integration")
-        pmc.pms_api_key = payload.get("pms_api_key")
-        pmc.pms_api_secret = payload.get("pms_api_secret")
-        pmc.active = payload.get("active", False)
+        pmc.pmc_name = payload.pmc_name
+        pmc.email = payload.email
+        pmc.main_contact = payload.main_contact
+        pmc.subscription_plan = payload.subscription_plan
+        pmc.pms_integration = payload.pms_integration
+        pmc.pms_api_key = payload.pms_api_key
+        pmc.pms_api_secret = payload.pms_api_secret
+        pmc.active = payload.active
 
         db.add(pmc)
         db.commit()
-        db.refresh(pmc)
-
-        return {"success": True, "id": pmc.id}
+        return {"success": True}
     except Exception as e:
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
