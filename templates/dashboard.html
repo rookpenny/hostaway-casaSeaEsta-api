@@ -142,11 +142,21 @@
               <p><strong>PMS ID:</strong> {{ prop.pms_property_id }}</p>
               <p><strong>Last Synced:</strong>
                 {% if prop.last_synced %}
-                  {{ (now - prop.last_synced).total_seconds() // 3600 | int }} hours ago
+                  {% set seconds = (now - prop.last_synced).total_seconds() %}
+                  {% if seconds < 60 %}
+                    just now
+                  {% elif seconds < 3600 %}
+                    {{ (seconds // 60)|int }} minutes ago
+                  {% elif seconds < 86400 %}
+                    {{ (seconds // 3600)|int }} hours ago
+                  {% else %}
+                    {{ (seconds // 86400)|int }} days ago
+                  {% endif %}
                 {% else %}
                   —
                 {% endif %}
               </p>
+
             </div>
 
           
