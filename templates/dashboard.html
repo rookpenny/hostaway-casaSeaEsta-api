@@ -5,17 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>PMC Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-      // Enable Tailwind dark mode based on local storage
-      const savedTheme = localStorage.getItem("theme");
-      const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    
-      if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-        document.documentElement.classList.add("dark");
-      } else {
-        document.documentElement.classList.remove("dark");
-      }
-    </script>
   </head>
 
   <body class="bg-gray-100 dark:bg-gray-900 text-gray-900 dark:text-gray-100">
@@ -191,21 +180,19 @@
       </div>
     </div>
 
-   
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
-
-  const savedTheme = localStorage.getItem("theme");
-  const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-
-  if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
-    document.documentElement.classList.add("dark");
-  } else {
-    document.documentElement.classList.remove("dark");
-  }
-
   document.addEventListener("DOMContentLoaded", () => {
-    // ✅ Dark mode toggle
+    // DARK MODE LOGIC
+    const savedTheme = localStorage.getItem("theme");
+    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+
+    if (savedTheme === "dark" || (!savedTheme && prefersDark)) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+
     const toggle = document.getElementById("darkModeToggle");
     toggle?.addEventListener("click", () => {
       const html = document.documentElement;
@@ -214,173 +201,126 @@
       localStorage.setItem("theme", isDark ? "dark" : "light");
     });
 
-    // ✅ Mobile menu toggle (optional, already in your button onclick)
-    // document.getElementById("hamburger").addEventListener("click", () => {
-    //   document.getElementById("mobileSidebar").classList.toggle("hidden");
-    // });
-
-    // ✅ You can add more logic here later (e.g., sync buttons, chart updates, etc.)
-  });
-
-    // Sync buttons
-    document.querySelectorAll('.sync-button').forEach(button => {
-      button.addEventListener('click', async () => {
-        const accountId = button.dataset.accountId;
-        const statusSpan = document.getElementById(button.dataset.syncStatusId);
-
-        statusSpan.textContent = '⏳ Syncing...';
-        button.disabled = true;
-
-        try {
-          const res = await fetch(`/admin/sync-properties/${accountId}`, {
-            method: 'POST'
-          });
-
-          const data = await res.json();
-
-          if (data.success) {
-            const time = data.synced_at
-              ? new Date(data.synced_at).toLocaleTimeString()
-              : '';
-            statusSpan.textContent = `✅ Synced ${time}`;
-          } else {
-            statusSpan.textContent = `❌ ${data.error || 'Sync failed'}`;
+    // CHART RENDERING
+    const ctx = document.getElementById("statusChart");
+    if (ctx) {
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["LIVE", "OFFLINE"],
+          datasets: [
+            {
+              label: "Properties",
+              data: [
+                {{ properties | selectattr("sandy_enabled") | list | length }},
+                {{ properties | rejectattr("sandy_enabled") | list | length }}
+              ],
+              backgroundColor: ["#22c55e", "#ef4444"]
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { display: false }
+          },
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: { stepSize: 1 }
+            }
           }
-        } catch (err) {
-          statusSpan.textContent = '❌ Network error';
-        } finally {
-          button.disabled = false;
         }
       });
-    });
-  });
+    }
 
-  // Filter properties
-  function filterProperties() {
-    const search = document.getElementById("searchInput")?.value.toLowerCase() || "";
-    const status = document.getElementById("statusFilter")?.value || "all";
-    const cards = document.querySelectorAll("[data-property-card]");
+    // SEARCH + FILTER
+    const searchInput = document.getElementById("searchInput");
+    const statusFilter = document.getElementById("statusFilter");
 
-    cards.forEach((card) => {
-      const name = card.dataset.name.toLowerCase();
-      const live = card.dataset.live === "true";
+    function filterProperties() {
+      const search = searchInput.value.toLowerCase();
+      const status = statusFilter.value;
+      const cards = document.querySelectorAll("[data-property-card]");
 
-      const matchesSearch = name.includes(search);
-      const matchesStatus =
-        status === "all" ||
-        (status === "live" && live) ||
-        (status === "offline" && !live);
+      cards.forEach((card) => {
+        const name = card.dataset.name.toLowerCase();
+        const live = card.dataset.live === "true";
 
-      card.style.display = matchesSearch && matchesStatus ? "block" : "none";
-    });
-  }
+        const matchesSearch = name.includes(search);
+        const matchesStatus =
+          status === "all" ||
+          (status === "live" && live) ||
+          (status === "offline" && !live);
 
-  // Toggle live status
-  async function toggleProperty(id, btn) {
-    btn.disabled = true;
-    const original = btn.innerHTML;
-    btn.innerHTML = "⏳ Toggling…";
-
-    try {
-      const res = await fetch(`/auth/toggle-property/${id}`, {
-        method: "POST",
+        card.style.display = matchesSearch && matchesStatus ? "block" : "none";
       });
-      const data = await res.json();
+    }
 
-      if (data.status === "success") {
-        btn.innerHTML = data.new_status === "LIVE" ? "❌ Take Offline" : "✅ Go Live";
+    searchInput?.addEventListener("input", filterProperties);
+    statusFilter?.addEventListener("change", filterProperties);
 
-        // Update status badge in card
-        const card = btn.closest("[data-property-card]");
-        const badge = card.querySelector("span");
-        badge.innerText = data.new_status;
-        badge.className =
-          data.new_status === "LIVE"
-            ? "text-green-500 font-bold"
-            : "text-red-500 font-bold";
+    // SYNC + TOGGLE PROPERTY BUTTONS
+    window.syncProperty = async function (id, btn) {
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = "⏳ Syncing…";
 
-        setTimeout(() => {
-          btn.disabled = false;
-        }, 1000);
-      } else {
-        btn.innerHTML = "❌ Failed";
-        setTimeout(() => {
-          btn.innerHTML = original;
-          btn.disabled = false;
-        }, 3000);
+      try {
+        const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
+        const data = await res.json();
+
+        if (data.status === "success") {
+          btn.innerHTML = "✅ Synced!";
+        } else {
+          btn.innerHTML = "❌ Failed";
+          console.error(data.message);
+        }
+      } catch (err) {
+        btn.innerHTML = "❌ Error";
       }
-    } catch (err) {
-      btn.innerHTML = "❌ Error";
+
       setTimeout(() => {
         btn.innerHTML = original;
         btn.disabled = false;
-      }, 3000);
+      }, 1500);
     }
-  }
 
-  // Sync single property
-  async function syncProperty(id, btn) {
-    btn.disabled = true;
-    const original = btn.innerHTML;
-    btn.innerHTML = "⏳ Syncing…";
+    window.toggleProperty = async function (id, btn) {
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = "⏳ Toggling…";
 
-    try {
-      const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
-      const data = await res.json();
+      try {
+        const res = await fetch(`/auth/toggle-property/${id}`, { method: "POST" });
+        const data = await res.json();
 
-      if (data.status === "success") {
-        btn.innerHTML = "✅ Synced!";
-        setTimeout(() => {
-          btn.innerHTML = original;
-          btn.disabled = false;
-        }, 1500);
-      } else {
-        btn.innerHTML = "❌ Failed";
-        console.error(data.message);
-        setTimeout(() => {
-          btn.innerHTML = original;
-          btn.disabled = false;
-        }, 3000);
+        if (data.status === "success") {
+          btn.innerHTML = data.new_status === "LIVE" ? "❌ Take Offline" : "✅ Go Live";
+
+          // Update badge
+          const card = btn.closest("[data-property-card]");
+          const badge = card.querySelector("span");
+          badge.innerText = data.new_status;
+          badge.className =
+            data.new_status === "LIVE"
+              ? "text-green-500 font-bold"
+              : "text-red-500 font-bold";
+        } else {
+          btn.innerHTML = "❌ Failed";
+        }
+      } catch (err) {
+        btn.innerHTML = "❌ Error";
       }
-    } catch (err) {
-      btn.innerHTML = "❌ Error";
+
       setTimeout(() => {
         btn.innerHTML = original;
         btn.disabled = false;
-      }, 3000);
-    }
-  }
-
-  // Chart rendering
-  const statusChart = new Chart(document.getElementById("statusChart"), {
-    type: "bar",
-    data: {
-      labels: ["LIVE", "OFFLINE"],
-      datasets: [
-        {
-          label: "Properties",
-          data: [
-            {{ properties | selectattr("sandy_enabled") | list | length }},
-            {{ properties | rejectattr("sandy_enabled") | list | length }}
-          ],
-          backgroundColor: ["#22c55e", "#ef4444"]
-        }
-      ]
-    },
-    options: {
-      responsive: true,
-      plugins: {
-        legend: { display: false }
-      },
-      scales: {
-        y: {
-          beginAtZero: true,
-          ticks: { stepSize: 1 }
-        }
-      }
+      }, 1500);
     }
   });
 </script>
+
 
   </body>
 </html>
