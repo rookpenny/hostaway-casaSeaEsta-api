@@ -305,8 +305,7 @@ def sync_properties(account_id: str):
     return len(properties)
 
     
-def save_properties_to_db(properties, client_id, pmc_record_id, pms):
-    from sqlalchemy import insert
+def save_properties_to_db(properties, client_id, pmc_id, pms):
     from sqlalchemy.dialects.postgresql import insert as pg_insert
     from database import SessionLocal
     from models import Property
@@ -320,17 +319,17 @@ def save_properties_to_db(properties, client_id, pmc_record_id, pms):
             name = prop.get("internalListingName") or prop.get("name")
 
             stmt = pg_insert(Property).values(
-                pmc_id=pmc_record_id,
+                pmc_id=pmc_id,
                 pms_integration=pms,
                 pms_property_id=prop_id,
-                name=name,
+                property_name=name,
                 sync_enabled=True,
                 sandy_enabled=True,
                 last_synced=datetime.utcnow()
             ).on_conflict_do_update(
-                index_elements=["pms_property_id"],  # or ["pmc_id", "pms_property_id"] if composite key
+                index_elements=["pms_property_id"],
                 set_={
-                    "name": name,
+                    "property_name": name,
                     "last_synced": datetime.utcnow(),
                     "sync_enabled": True,
                     "sandy_enabled": True
