@@ -21,6 +21,8 @@ from fastapi import (
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
+from fastapi.exceptions import RequestValidationError
+
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from datetime import datetime, timedelta
@@ -46,8 +48,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-from routes import admin
-
+from routes import admin, pmc_auth
 
 
 # --- Config ---
@@ -57,10 +58,12 @@ from routes import admin
 # --- Init ---
 app = FastAPI()  # ✅ Define app before using it
 
-# Routes
+
+# --- Routers ---
 app.include_router(admin.router)
 app.include_router(pmc_auth.router)
-
+app.include_router(prearrival_router)
+app.include_router(prearrival_debug_router)
 
 # Middleware
 app.add_middleware(
@@ -80,17 +83,16 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
-
-
-
-# --- Routers ---
-from routes import admin, pmc_auth
-
-app.include_router(admin.router)
-app.include_router(pmc_auth.router)
-app.include_router(prearrival_router)
-app.include_router(prearrival_debug_router)
-
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    print("❌ Validation Error:")
+    print("➡️ Raw body:", await request.body())
+    print("➡️ Errors:", exc.errors())
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()}
+    )
+    
 # --- Startup Jobs ---
 def start_scheduler():
     scheduler = BackgroundScheduler()
