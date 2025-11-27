@@ -13,11 +13,12 @@ engine = create_engine(DATABASE_URL)
 
 load_dotenv()
 
+'''
 AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
 AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
 AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
-
+'''
 
 def fetch_pmc_lookup():
     """Fetch PMC configs from PostgreSQL and return a dict of account_id -> credentials."""
