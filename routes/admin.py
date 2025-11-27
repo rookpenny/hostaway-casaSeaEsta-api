@@ -3,7 +3,7 @@ import os
 import requests
 import json
 
-from fastapi import APIRouter, Request, Form, Body, status
+from fastapi import APIRouter, Request, Form, Body, status, FastAPI
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.exceptions import RequestValidationError
 from fastapi.templating import Jinja2Templates
@@ -19,6 +19,10 @@ from database import SessionLocal
 from models import PMC
 from openai import OpenAI  # ✅ Updated OpenAI import
 
+from routes import admin, pmc_auth
+app.include_router(admin.router)
+
+app = FastAPI()
 
 # 🚏 Router & Templates
 router = APIRouter()
