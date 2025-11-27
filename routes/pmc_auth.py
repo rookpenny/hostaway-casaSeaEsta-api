@@ -1,3 +1,4 @@
+from dependencies import get_db  # Make sure this matches your actual path
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
