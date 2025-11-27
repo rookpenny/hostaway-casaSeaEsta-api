@@ -1,76 +1,90 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta charset="UTF-8">
   <title>PMC Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+  <!-- Tailwind CSS CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
-<body class="bg-gray-100 text-gray-900">
+<body class="bg-gray-100 text-gray-800">
 
   <div class="flex min-h-screen">
+
     <!-- Sidebar -->
-    <aside class="w-16 sm:w-64 bg-white border-r shadow-sm">
-      <div class="h-16 flex items-center justify-center sm:justify-start px-4 border-b">
-        <span class="hidden sm:block text-xl font-semibold">🏠 Casa Sea Esta</span>
-        <i class="fa-solid fa-bars sm:hidden"></i>
-      </div>
-      <nav class="mt-6 flex flex-col gap-4 px-4 sm:px-6">
-        <a href="#" class="flex items-center gap-3 text-blue-600 font-medium">
-          <i class="fa-solid fa-gauge"></i>
-          <span class="hidden sm:inline">Dashboard</span>
-        </a>
-        <a href="#" class="flex items-center gap-3 text-gray-600 hover:text-blue-600">
-          <i class="fa-solid fa-building"></i>
-          <span class="hidden sm:inline">Properties</span>
-        </a>
-        <a href="#" class="flex items-center gap-3 text-gray-600 hover:text-blue-600">
-          <i class="fa-solid fa-gear"></i>
-          <span class="hidden sm:inline">Settings</span>
-        </a>
-        <a href="/auth/logout" class="mt-auto flex items-center gap-3 text-gray-500 hover:text-red-500">
-          <i class="fa-solid fa-right-from-bracket"></i>
-          <span class="hidden sm:inline">Logout</span>
-        </a>
+    <aside class="w-64 bg-white shadow-md p-4 hidden md:block">
+      <h2 class="text-xl font-semibold mb-6">🏡 PMC Portal</h2>
+
+      <nav class="flex flex-col gap-4 text-gray-700">
+        <a href="#" class="hover:text-blue-500">📊 Dashboard</a>
+        <a href="#" class="hover:text-blue-500">🏘️ Properties</a>
+        <a href="#" class="hover:text-blue-500">⚙️ Settings</a>
+        <a href="/auth/logout" class="text-red-500 hover:underline mt-8">🚪 Logout</a>
       </nav>
     </aside>
 
     <!-- Main Content -->
     <main class="flex-1 p-6">
-      <div class="mb-6">
-        <h1 class="text-2xl font-bold">Welcome, {{ user.name or user.email }}</h1>
-        <p class="text-gray-500">Here’s a summary of your properties.</p>
+
+      <!-- Header -->
+      <div class="flex justify-between items-center mb-6">
+        <div>
+          <h1 class="text-2xl font-bold">Welcome, {{ user.name or 'PMC User' }}</h1>
+          <p class="text-sm text-gray-500">PMC Email: {{ user.email }}</p>
+        </div>
       </div>
 
+      <!-- Stats Summary -->
+      <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
+        <div class="bg-white p-4 rounded-xl shadow">
+          <p class="text-gray-500">Total Properties</p>
+          <h2 class="text-2xl font-bold">{{ properties|length }}</h2>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow">
+          <p class="text-gray-500">Live</p>
+          <h2 class="text-2xl font-bold">
+            {{ properties | selectattr("sandy_enabled") | list | length }}
+          </h2>
+        </div>
+        <div class="bg-white p-4 rounded-xl shadow">
+          <p class="text-gray-500">Offline</p>
+          <h2 class="text-2xl font-bold">
+            {{ properties | rejectattr("sandy_enabled") | list | length }}
+          </h2>
+        </div>
+      </div>
+
+      <!-- Property List -->
+      <h2 class="text-xl font-semibold mb-4">Your Properties</h2>
+
       {% if properties %}
-        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {% for prop in properties %}
-            <div class="bg-white shadow rounded-xl p-4">
-              <div class="flex items-center gap-4">
-                <img src="https://via.placeholder.com/80x60" alt="{{ prop.property_name }}" class="rounded-md w-20 h-14 object-cover" />
-                <div>
-                  <h3 class="text-lg font-semibold">{{ prop.property_name }}</h3>
-                  <p class="text-sm text-gray-500">ID: {{ prop.pms_property_id }}</p>
-                </div>
+            <div class="bg-white rounded-xl shadow p-4 flex flex-col">
+              <div class="flex justify-between items-center mb-2">
+                <h3 class="text-lg font-semibold">{{ prop.property_name }}</h3>
+                <span class="text-sm px-2 py-1 rounded-full 
+                    {% if prop.sandy_enabled %}bg-green-100 text-green-700{% else %}bg-red-100 text-red-700{% endif %}">
+                  {% if prop.sandy_enabled %}LIVE{% else %}OFFLINE{% endif %}
+                </span>
               </div>
 
-              <div class="mt-4 flex justify-between items-center">
-                <span class="text-sm font-medium {% if prop.sandy_enabled %}text-green-600{% else %}text-red-500{% endif %}">
-                  {% if prop.sandy_enabled %} LIVE {% else %} OFFLINE {% endif %}
-                </span>
-                <div class="flex gap-2">
-                  <a href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json"
-                     class="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">Edit Config</a>
-                  <a href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                     class="text-xs bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">Edit Manual</a>
-                </div>
+              <div class="mt-2 flex flex-col gap-2">
+                <a href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json"
+                   class="text-sm bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">
+                  Edit Config
+                </a>
+                <a href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+                   class="text-sm bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">
+                  Edit Manual
+                </a>
               </div>
             </div>
           {% endfor %}
         </div>
       {% else %}
-        <p class="text-gray-600">You don’t have any properties yet.</p>
+        <p class="text-gray-600">No properties found for this PMC.</p>
       {% endif %}
     </main>
   </div>
