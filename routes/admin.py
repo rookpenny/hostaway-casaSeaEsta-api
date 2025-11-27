@@ -5,8 +5,9 @@ from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
 from pydantic import BaseModel
 from typing import Optional
-import logging
+from fastapi.exceptions import RequestValidationError
 
+import logging
 import os
 import requests
 import json
@@ -568,9 +569,15 @@ class PMCUpdateRequest(BaseModel):
     active: bool
     
 @router.post("/admin/update-pmc")
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
+
+@router.post("/admin/update-pmc")
 def update_pmc(payload: PMCUpdateRequest):
     db: Session = SessionLocal()
     try:
+        print("🟡 Incoming payload:", payload)
+
         if payload.id:
             pmc = db.query(PMC).filter(PMC.id == payload.id).first()
             if not pmc:
@@ -590,6 +597,8 @@ def update_pmc(payload: PMCUpdateRequest):
         db.add(pmc)
         db.commit()
         return {"success": True}
+    except RequestValidationError as ve:
+        return JSONResponse(status_code=422, content={"error": ve.errors()})
     except Exception as e:
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
