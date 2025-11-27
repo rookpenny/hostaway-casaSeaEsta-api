@@ -609,7 +609,7 @@ def update_pmc(payload: PMCUpdateRequest):
             pmc = PMC()
             # ✅ assign account ID for new PMC
             last = db.query(PMC).order_by(PMC.pms_account_id.desc()).first()
-            pmc.pms_account_id = (last.pms_account_id + 1) if last else 10000
+            pmc.pms_account_id = (int(last.pms_account_id) + 1) if last and last.pms_account_id else 10000
             pmc.sync_enabled = True
 
         pmc.pmc_name = payload.pmc_name
