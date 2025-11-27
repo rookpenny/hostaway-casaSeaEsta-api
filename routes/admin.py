@@ -661,3 +661,32 @@ def delete_pmc(pmc_id: int):
     finally:
         db.close()
 
+@router.post("/admin/update-properties")
+def update_properties(payload: list[dict], db: Session = Depends(get_db)):
+    try:
+        for item in payload:
+            prop = db.query(Property).filter(Property.id == item["id"]).first()
+            if prop:
+                prop.sandy_enabled = item["sandy_enabled"]
+        db.commit()
+        return {"success": True}
+    except Exception as e:
+        db.rollback()
+        return JSONResponse(status_code=500, content={"error": str(e)})
+
+
+@router.get("/admin/pmc-properties-json/{pmc_id}")
+def get_pmc_properties_json(pmc_id: int, db: Session = Depends(get_db)):
+    properties = db.query(Property).filter(Property.pmc_id == pmc_id).all()
+    return {
+        "properties": [
+            {
+                "id": p.id,
+                "property_name": p.property_name,
+                "pms_property_id": p.pms_property_id,
+                "sandy_enabled": p.sandy_enabled,
+            }
+            for p in properties
+        ]
+    }
+
