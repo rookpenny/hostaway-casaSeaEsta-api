@@ -485,17 +485,17 @@ document.getElementById("add-pmc-btn").addEventListener("click", () => {
 document.getElementById("editPmcForm").addEventListener("submit", async function (e) {
   e.preventDefault();
 
-  const payload = {
-    id: document.getElementById("edit-id").value,
-    pmc_name: document.getElementById("edit-name").value.trim(),
-    email: document.getElementById("edit-email").value.trim(),
-    main_contact: document.getElementById("edit-contact").value.trim(),
-    subscription_plan: document.getElementById("edit-subscription").value.trim(),
-    pms_integration: document.getElementById("edit-integration").value.trim(),
-    pms_api_key: document.getElementById("edit-client-id").value.trim(),
-    pms_api_secret: document.getElementById("edit-secret").value.trim(),
-    active: document.getElementById("edit-active").checked,
-  };
+const payload = {
+  id: Number(document.getElementById("edit-id").value || 0),
+  pmc_name: document.getElementById("edit-name").value.trim(),
+  email: document.getElementById("edit-email").value.trim() || null,
+  main_contact: document.getElementById("edit-contact").value.trim() || null,
+  subscription_plan: document.getElementById("edit-subscription").value || null,
+  pms_integration: document.getElementById("edit-integration").value || null,
+  pms_api_key: document.getElementById("edit-client-id").value.trim(),
+  pms_api_secret: document.getElementById("edit-secret").value.trim(),
+  active: document.getElementById("edit-active").checked
+};
 
   const response = await fetch("/admin/update-pmc", {
     method: "POST",
