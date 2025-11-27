@@ -538,7 +538,7 @@ def update_pmc_status(payload: dict = Body(...)):
         db.close()
 
 #edit PMC form
-@router.post("/admin/update-pmc", response_class=RedirectResponse)
+'''@router.post("/admin/update-pmc", response_class=RedirectResponse)
 def update_pmc(
     id: int = Form(...),
     pmc_name: str = Form(...),
@@ -569,7 +569,7 @@ def update_pmc(
 
     db.commit()
     return RedirectResponse(url="/admin/dashboard", status_code=303)
-
+'''
 
 class PMCUpdateRequest(BaseModel):
     id: int
