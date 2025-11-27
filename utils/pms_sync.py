@@ -48,7 +48,7 @@ def fetch_pmc_lookup():
         for row in result:
             base_url = row.base_url or default_base_url(row.pms)
             lookup[str(row.account_id)] = {
-                "record_id": row.record_id,
+                "record_id": row.id,  # ✅ Now using PMC.id for foreign key
                 "client_id": row.client_id,
                 "client_secret": row.client_secret,
                 "pms": row.pms.lower(),
