@@ -6,7 +6,7 @@
     <title>PMC Dashboard</title>
     <script>
       tailwind.config = {
-        darkMode: 'class' // still here in case you re-enable it later
+        darkMode: 'class'
       }
     </script>
     <script src="https://cdn.tailwindcss.com"></script>
@@ -201,17 +201,25 @@
         searchInput?.addEventListener("input", filterProperties);
         statusFilter?.addEventListener("change", filterProperties);
 
-        // Sync / Toggle buttons
+        // Sync button
         window.syncProperty = async function (id, btn) {
+          console.log("Syncing property ID:", id);
           btn.disabled = true;
           const original = btn.innerHTML;
           btn.innerHTML = "⏳ Syncing…";
 
           try {
-            const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
+            const res = await fetch(`/auth/sync-property/${id}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              }
+            });
             const data = await res.json();
+            console.log("Sync response:", data);
             btn.innerHTML = data.status === "success" ? "✅ Synced!" : "❌ Failed";
-          } catch {
+          } catch (err) {
+            console.error("Sync error:", err);
             btn.innerHTML = "❌ Error";
           }
 
@@ -219,16 +227,24 @@
             btn.innerHTML = original;
             btn.disabled = false;
           }, 1500);
-        }
+        };
 
+        // Toggle button
         window.toggleProperty = async function (id, btn) {
+          console.log("Toggling property ID:", id);
           btn.disabled = true;
           const original = btn.innerHTML;
           btn.innerHTML = "⏳ Toggling…";
 
           try {
-            const res = await fetch(`/auth/toggle-property/${id}`, { method: "POST" });
+            const res = await fetch(`/auth/toggle-property/${id}`, {
+              method: "POST",
+              headers: {
+                "Content-Type": "application/json"
+              }
+            });
             const data = await res.json();
+            console.log("Toggle response:", data);
 
             if (data.status === "success") {
               btn.innerHTML = data.new_status === "LIVE" ? "❌ Take Offline" : "✅ Go Live";
@@ -241,7 +257,8 @@
             } else {
               btn.innerHTML = "❌ Failed";
             }
-          } catch {
+          } catch (err) {
+            console.error("Toggle error:", err);
             btn.innerHTML = "❌ Error";
           }
 
@@ -249,7 +266,7 @@
             btn.innerHTML = original;
             btn.disabled = false;
           }, 1500);
-        }
+        };
       });
     </script>
   </body>
