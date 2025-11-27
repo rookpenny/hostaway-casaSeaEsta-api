@@ -33,17 +33,6 @@ logging.basicConfig(level=logging.INFO)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    print("❌ Validation Error:")
-    print("➡️ Raw body:", await request.body())
-    print("➡️ Errors:", exc.errors())
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors()}
-    )
-
-
 # 📝 Edit Local Config or Manual File (Locally Rendered)
 @router.get("/edit-config", response_class=HTMLResponse)
 @router.get("/edit-housemanual", response_class=HTMLResponse)
