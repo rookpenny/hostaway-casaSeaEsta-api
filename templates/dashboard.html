@@ -175,14 +175,8 @@
                 Edit Manual
               </a>
           
-              <button
-                class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 text-sm rounded shadow transition sync-button"
-                data-account-id="{{ prop.pms_account_id }}"
-                data-sync-status-id="status-{{ prop.id }}"
-              >
-                🔄 Sync
-              </button>
-          
+              <button onclick="syncProperty({{ prop.id }}, this)" class="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded text-sm">🔁 Sync</button>
+              <button onclick="toggleProperty({{ prop.id }}, this)" class="bg-purple-500 hover:bg-purple-600 text-white px-3 py-1 rounded text-sm">{% if prop.sandy_enabled %}❌ Take Offline{% else %}✅ Go Live{% endif %}</button>
               <span id="status-{{ prop.id }}" class="text-sm ml-2 text-gray-500"></span>
             </div>
           </div>
@@ -195,8 +189,70 @@
     <!-- Dark Mode Script -->
    
       <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <script>
+  async function toggleProperty(id, btn) {
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = "⏳ Toggling…";
+
+    try {
+      const res = await fetch(`/auth/toggle-property/${id}`, {
+        method: "POST",
+      });
+      const data = await res.json();
+
+      if (data.status === "success") {
+        btn.innerHTML = data.new_status === "LIVE" ? "❌ Take Offline" : "✅ Go Live";
+
+        // Update status badge in card
+        const card = btn.closest("[data-property-card]");
+        const badge = card.querySelector("span");
+        badge.innerText = data.new_status;
+        badge.className =
+          data.new_status === "LIVE"
+            ? "text-green-500 font-bold"
+            : "text-red-500 font-bold";
+
+        setTimeout(() => {
+          btn.disabled = false;
+        }, 1000);
+      } else {
+        btn.innerHTML = "❌ Failed";
+        setTimeout(() => {
+          btn.innerHTML = original;
+          btn.disabled = false;
+        }, 3000);
+      }
+    } catch (err) {
+      btn.innerHTML = "❌ Error";
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.disabled = false;
+      }, 3000);
+    }
+  }
+  async function syncProperty(id, btn) {
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = "⏳ Syncing…";
+
+    try {
+      const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
+      const data = await res.json();
+
+      if (data.status === "success") {
+        btn.innerHTML = "✅ Synced!";
+        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1500);
+      } else {
+        btn.innerHTML = "❌ Failed";
+        console.error(data.message);
+        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 3000);
+      }
+    } catch (err) {
+      btn.innerHTML = "❌ Error";
+      setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 3000);
+    }
+  }
 
   
   const searchInput = document.getElementById("searchInput");
