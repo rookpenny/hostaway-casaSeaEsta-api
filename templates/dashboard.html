@@ -1,67 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>PMC Property List</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PMC Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" />
 </head>
-<body>
-  <header>
-    <h1>PMC Property List</h1>
-    <p>PMC ID: {{ pmc_id }}</p>
-  </header>
+<body class="bg-gray-100 text-gray-900">
 
-  {% if request.query_params.get("status") == "success" %}
-    <div role="alert" style="background-color: #d4edda; color: #155724; padding: 1rem; border-radius: 6px;">
-      ✅ Your changes have been saved to GitHub.
-    </div>
-  {% elif request.query_params.get("status") == "error" %}
-    <div role="alert" style="background-color: #f8d7da; color: #721c24; padding: 1rem; border-radius: 6px;">
-      ❌ There was an error saving your changes.
-    </div>
-  {% endif %}
+  <div class="flex min-h-screen">
+    <!-- Sidebar -->
+    <aside class="w-16 sm:w-64 bg-white border-r shadow-sm">
+      <div class="h-16 flex items-center justify-center sm:justify-start px-4 border-b">
+        <span class="hidden sm:block text-xl font-semibold">🏠 Casa Sea Esta</span>
+        <i class="fa-solid fa-bars sm:hidden"></i>
+      </div>
+      <nav class="mt-6 flex flex-col gap-4 px-4 sm:px-6">
+        <a href="#" class="flex items-center gap-3 text-blue-600 font-medium">
+          <i class="fa-solid fa-gauge"></i>
+          <span class="hidden sm:inline">Dashboard</span>
+        </a>
+        <a href="#" class="flex items-center gap-3 text-gray-600 hover:text-blue-600">
+          <i class="fa-solid fa-building"></i>
+          <span class="hidden sm:inline">Properties</span>
+        </a>
+        <a href="#" class="flex items-center gap-3 text-gray-600 hover:text-blue-600">
+          <i class="fa-solid fa-gear"></i>
+          <span class="hidden sm:inline">Settings</span>
+        </a>
+        <a href="/auth/logout" class="mt-auto flex items-center gap-3 text-gray-500 hover:text-red-500">
+          <i class="fa-solid fa-right-from-bracket"></i>
+          <span class="hidden sm:inline">Logout</span>
+        </a>
+      </nav>
+    </aside>
 
-  <main>
-    <h2>Your Properties</h2>
+    <!-- Main Content -->
+    <main class="flex-1 p-6">
+      <div class="mb-6">
+        <h1 class="text-2xl font-bold">Welcome, {{ user.name or user.email }}</h1>
+        <p class="text-gray-500">Here’s a summary of your properties.</p>
+      </div>
 
-    {% if properties %}
-      <section style="display: flex; flex-direction: column; gap: 2rem;">
-        {% for prop in properties %}
-          <article style="display: flex; align-items: flex-start; background: #f5f5f5; padding: 1rem; border-radius: 8px;">
-            <img src="https://via.placeholder.com/120x90?text=Property"
-                 alt="Image for {{ prop.property_name }}"
-                 style="margin-right: 1rem; border-radius: 6px;">
+      {% if properties %}
+        <div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+          {% for prop in properties %}
+            <div class="bg-white shadow rounded-xl p-4">
+              <div class="flex items-center gap-4">
+                <img src="https://via.placeholder.com/80x60" alt="{{ prop.property_name }}" class="rounded-md w-20 h-14 object-cover" />
+                <div>
+                  <h3 class="text-lg font-semibold">{{ prop.property_name }}</h3>
+                  <p class="text-sm text-gray-500">ID: {{ prop.pms_property_id }}</p>
+                </div>
+              </div>
 
-            <div>
-              <h3>{{ prop.property_name }}</h3>
-              <p><strong>Status:</strong>
-                {% if prop.sandy_enabled %}
-                  <span style="color: green;">LIVE</span>
-                {% else %}
-                  <span style="color: red;">OFFLINE</span>
-                {% endif %}
-              </p>
-
-              <a href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json"
-                 style="margin-right: 1rem; background-color: #007bff; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
-                Edit Config
-              </a>
-
-              <a href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                 style="background-color: #28a745; color: white; padding: 0.5rem 1rem; text-decoration: none; border-radius: 4px;">
-                Edit Manual
-              </a>
+              <div class="mt-4 flex justify-between items-center">
+                <span class="text-sm font-medium {% if prop.sandy_enabled %}text-green-600{% else %}text-red-500{% endif %}">
+                  {% if prop.sandy_enabled %} LIVE {% else %} OFFLINE {% endif %}
+                </span>
+                <div class="flex gap-2">
+                  <a href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json"
+                     class="text-xs bg-blue-500 text-white px-3 py-1 rounded hover:bg-blue-600">Edit Config</a>
+                  <a href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+                     class="text-xs bg-green-500 text-white px-3 py-1 rounded hover:bg-green-600">Edit Manual</a>
+                </div>
+              </div>
             </div>
-          </article>
-        {% endfor %}
-      </section>
-    {% else %}
-      <p>No properties found for this PMC.</p>
-    {% endif %}
-  </main>
+          {% endfor %}
+        </div>
+      {% else %}
+        <p class="text-gray-600">You don’t have any properties yet.</p>
+      {% endif %}
+    </main>
+  </div>
 
-  <footer>
-    <p><a href="/auth/logout">Log out</a></p>
-  </footer>
 </body>
 </html>
