@@ -24,11 +24,12 @@ class PMC(Base):
 class Property(Base):
     __tablename__ = "properties"
 
-    pms_property_id = Column(String, primary_key=True)  # 👈 make this the PK
-    property_name = Column(String)
-    pms_account_id = Column(Integer)
+    id = Column(Integer, primary_key=True)
+    name = Column(String)
+    pms_property_id = Column(String, unique=True, index=True)
     pms_integration = Column(String)
-    sandy_enabled = Column(Boolean)
+    pmc_id = Column(Integer, ForeignKey("pmc.id"))
+    sandy_enabled = Column(Boolean, default=True)
     data_folder_path = Column(String)
-    pmc_record_id = Column(String)
     last_synced = Column(DateTime)
+
