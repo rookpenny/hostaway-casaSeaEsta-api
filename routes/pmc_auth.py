@@ -1,4 +1,3 @@
-from dependencies import get_db  # Make sure this matches your actual path
 from fastapi import APIRouter, Request, Depends, Form
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -7,8 +6,10 @@ from authlib.integrations.starlette_client import OAuth
 import os
 from datetime import datetime
 from sqlalchemy.orm import Session
-from database import SessionLocal
+
+from database import SessionLocal, get_db  # ✅ Correct import
 from models import PMC
+
 
 #from utils.airtable_client import get_pmcs_table, get_properties_table
 
