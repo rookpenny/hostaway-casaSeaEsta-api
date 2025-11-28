@@ -7,6 +7,7 @@ import requests
 import uvicorn
 import re
 
+from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -193,22 +194,24 @@ if __name__ == "__main__":
         print(f"Error: {e}")
 
 
-from pydantic import BaseModel
-
 class PropertyChatRequest(BaseModel):
     message: str
-    session_id: int | None = None
+    session_id: Optional[int] = None  # optional from frontend
 
 class ChatRequest(BaseModel):
     message: str
 
 
 @app.post("/properties/{property_id}/chat")
-def property_chat(property_id: int, message: ChatMessageIn, db: Session = Depends(get_db)):
+def property_chat(
+    property_id: int,
+    payload: PropertyChatRequest,
+    db: Session = Depends(get_db)
+):
     now = datetime.utcnow()
 
     # 0️⃣ Extract and validate user message
-    user_message = (message.message or "").strip()
+    user_message = (payload.message or "").strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
@@ -228,22 +231,38 @@ def property_chat(property_id: int, message: ChatMessageIn, db: Session = Depend
             )
         }
 
-    # 2️⃣ Create or reuse a ChatSession (last 4 hours)
-    recent_cutoff = now - timedelta(hours=4)
-    session = (
-        db.query(ChatSession)
-        .filter(
-            ChatSession.property_id == property_id,
-            ChatSession.last_activity_at >= recent_cutoff,
-        )
-        .order_by(ChatSession.last_activity_at.desc())
-        .first()
-    )
+    # 2️⃣ Create or reuse a ChatSession
+    session: Optional[ChatSession] = None
 
+    # Try to reuse explicit session_id from client if provided
+    if payload.session_id:
+        session = (
+            db.query(ChatSession)
+            .filter(
+                ChatSession.id == payload.session_id,
+                ChatSession.property_id == property_id,
+            )
+            .first()
+        )
+
+    # If none, fall back to last 4 hours
+    if not session:
+        recent_cutoff = now - timedelta(hours=4)
+        session = (
+            db.query(ChatSession)
+            .filter(
+                ChatSession.property_id == property_id,
+                ChatSession.last_activity_at >= recent_cutoff,
+            )
+            .order_by(ChatSession.last_activity_at.desc())
+            .first()
+        )
+
+    # If still none, create a new one
     if not session:
         session = ChatSession(
             property_id=property_id,
-            source="guest_web",   # or "web_chat" – just be consistent
+            source="guest_web",
             is_verified=False,
             created_at=now,
             last_activity_at=now,
@@ -252,19 +271,13 @@ def property_chat(property_id: int, message: ChatMessageIn, db: Session = Depend
         db.commit()
         db.refresh(session)
 
-    # 3️⃣ PMS: attach phone_last4 / reservation info to THIS session
-    ensure_pms_data(db, session)
+    # 3️⃣ Attach PMS data (phone_last4 + reservation_id) for this session
+    ensure_pms_data(db, session)  # -> updates ChatSession in Postgres
 
-    # 4️⃣ Log guest message with simple intelligence
+    # 4️⃣ Log guest message with intelligence fields
     category = classify_category(user_message)
     log_type = detect_log_types(user_message)
-
-    if any(word in lowered for word in ["angry", "upset", "terrible", "horrible", "bad", "not happy"]):
-        sentiment = "negative"
-    elif any(word in lowered for word in ["love", "great", "amazing", "awesome", "perfect", "thank you"]):
-        sentiment = "positive"
-    else:
-        sentiment = "neutral"
+    sentiment = simple_sentiment(user_message)
 
     guest_msg = ChatMessage(
         session_id=session.id,
@@ -280,37 +293,111 @@ def property_chat(property_id: int, message: ChatMessageIn, db: Session = Depend
     db.commit()
     db.refresh(session)
 
-    # 5️⃣ PMS-based access control (your existing logic continues here)
-    code_keywords = ["door code", "access code", "entry code", "pin", "key code"]
+    # 5️⃣ Door code logic (door code == last 4 of reservation phone)
+
+    code_keywords = [
+        "door code", "access code", "entry code", "pin", "key code", "lock code"
+    ]
     is_code_request = any(k in lowered for k in code_keywords)
 
-    # simple default check-in time while we don't pull it from PMS/config yet
-    checkin_time = "16:00"
+    # extract any 4-digit block they might have sent
+    code_match = re.search(r"\b(\d{4})\b", user_message)
+    provided_last4 = code_match.group(1) if code_match else None
+
+    pms_last4 = session.phone_last4  # filled by ensure_pms_data (Hostaway)
+
+    if is_code_request:
+        # ✅ PMS has phone_last4 and guest provided matching last 4
+        if pms_last4 and provided_last4 and provided_last4 == pms_last4:
+            door_code = pms_last4  # by design: door code == last 4 digits of reservation phone
+            reply_text = (
+                f"**Your door code** 🔐\n\n"
+                f"- Entry code: **{door_code}**\n"
+                f"- This matches the last 4 digits of the phone number on your reservation.\n\n"
+                "If the lock gives any trouble, try the code slowly and firmly, "
+                "and contact your host if it still doesn’t work."
+            )
+
+        # 🔒 PMS has last4 but guest hasn’t proven it yet
+        elif pms_last4 and not provided_last4:
+            reply_text = (
+                "I can help with your door code 🔐\n\n"
+                "For security, please reply with the **last 4 digits of the phone number** "
+                "on your reservation, and I’ll confirm your entry code."
+            )
+
+        # ❌ No PMS reservation / no phone_last4 available
+        else:
+            reply_text = (
+                "I’m not seeing an active reservation linked to this chat yet, "
+                "so I can’t safely share an access code. 😕\n\n"
+                "Please double-check that you’re using the phone number on the booking, "
+                "or contact your host directly for access help."
+            )
+
+        # Log assistant message for door-code branch
+        assistant_msg = ChatMessage(
+            session_id=session.id,
+            sender="assistant",
+            content=reply_text,
+            created_at=datetime.utcnow(),
+        )
+        db.add(assistant_msg)
+        db.commit()
+
+        return {
+            "response": reply_text,
+            "session_id": session.id,
+        }
+
+    # 6️⃣ General LLM flow for non door-code messages
+
+    # Load property-specific context from config/manual
+    context = load_property_context(prop)
+    system_prompt = build_system_prompt(prop, pmc, context)
+
+    # Rebuild conversation history from DB
+    history = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+
+    messages = [{"role": "system", "content": system_prompt}]
+    for m in history:
+        role = "assistant" if m.sender == "assistant" else "user"
+        messages.append({"role": role, "content": m.content})
+
     try:
-        checkin_hour = int(checkin_time.split(":")[0])
-    except Exception:
-        checkin_hour = 16
+        ai_response = client.chat.completions.create(
+            model="gpt-4",
+            temperature=0.7,
+            messages=messages,
+        )
+        reply_text = ai_response.choices[0].message.content
+    except Exception as e:
+        print("[LLM ERROR in /properties/{property_id}/chat]:", e)
+        reply_text = (
+            "Oops, I ran into a technical issue while answering just now. 🐚\n\n"
+            "Please try again in a moment, or contact your host directly if it’s urgent."
+        )
 
-    phone_last4: str | None = None
-    door_code: str | None = None
+    # Log assistant message for general replies
+    assistant_msg = ChatMessage(
+        session_id=session.id,
+        sender="assistant",
+        content=reply_text,
+        created_at=datetime.utcnow(),
+    )
+    db.add(assistant_msg)
+    db.commit()
 
-    # 👇 from here down, you can keep whatever door-code / LLM logic
-    # you already had, but now use **session** for PMS fields:
-    #
-    #   session.phone_last4
-    #   session.pms_reservation_id
-    #
-    # and `user_message` / `lowered` for the guest content.
-    #
-    # e.g.:
-    #
-    # if is_code_request:
-    #     if session.phone_last4 and session.phone_last4 in user_message:
-    #         # allowed, give code
-    #     else:
-    #         # ask them for last 4 digits, etc.
-    #
-    # finally return {"response": reply_text}
+    # 7️⃣ Response shape expected by chat.html
+    return {
+        "response": reply_text,
+        "session_id": session.id,
+    }
 
 
 def simple_sentiment(message: str) -> str:
