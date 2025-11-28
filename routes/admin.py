@@ -527,7 +527,7 @@ async def chat_combined(request: Request):
     except Exception as e:
         return {"reply": f"❌ ChatGPT Error: {str(e)}"}
 
-
+'''
 #This replaces the Airtable patch call and updates the active status in your SQL database using SQLAlchemy.
 @router.post("/admin/update-status")
 def update_pmc_status(payload: dict = Body(...)):
@@ -553,6 +553,7 @@ def update_pmc_status(payload: dict = Body(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
         db.close()
+'''
 
 #edit PMC form
 '''@router.post("/admin/update-pmc", response_class=RedirectResponse)
