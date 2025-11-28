@@ -34,6 +34,8 @@ from routes import admin, pmc_auth
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.pms_access import get_pms_access_info
+from utils.hostaway import get_upcoming_phone_for_listing
+
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from openai import OpenAI
@@ -445,37 +447,6 @@ def property_chat(
 
 
 
-def get_pms_access_info(pmc: PMC, prop: Property):
-    """
-    Fetch access info (phone_last4, door_code, reservation_id) for this property
-    from the configured PMS.
-
-    Right now we implement Hostaway; others can be added later.
-    Door code = last 4 digits of the guest's phone number.
-    """
-    try:
-        pms = (pmc.pms_integration or "").lower()
-
-        if pms == "hostaway":
-            listing_id = prop.pms_property_id
-            if not listing_id:
-                return None, None, None
-
-            phone_last4, full_phone, reservation_id = get_upcoming_phone_for_listing(listing_id)
-
-            if not phone_last4:
-                return None, None, None
-
-            # Door code is the last 4 digits of the phone
-            door_code = phone_last4
-            return phone_last4, door_code, reservation_id
-
-        # TODO: add Guesty / other PMS later
-        return None, None, None
-
-    except Exception as e:
-        logging.exception("Error fetching PMS access info: %s", e)
-        return None, None, None
 
 
 def simple_sentiment(message: str) -> str:
