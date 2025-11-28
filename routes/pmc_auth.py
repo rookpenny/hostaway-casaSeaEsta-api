@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Request, Depends, Form
+from fastapi import APIRouter, Request, Depends, Form, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from starlette.config import Config
@@ -7,9 +7,9 @@ import os
 from datetime import datetime
 from sqlalchemy.orm import Session
 
-from database import SessionLocal, get_db  # ✅ Correct import
+from database import SessionLocal, get_db
 from models import PMC, Property
-
+from utils.pms_sync import sync_properties  # ⬅️ used in sync_single_property
 
 #from utils.airtable_client import get_pmcs_table, get_properties_table
 
@@ -34,11 +34,17 @@ oauth.register(
     }
 )
 
-# --- Email Authorization Check ---
+# --- Email Authorization Check (Postgres-based) ---
 def is_pmc_email_valid(email: str) -> bool:
-    table = get_pmcs_table()
-    records = table.all()
-    return any(record['fields'].get('Email') == email for record in records)
+    """
+    Returns True if there is an ACTIVE PMC with this email.
+    Adjust later if you add a separate PMC user table.
+    """
+    db = SessionLocal()
+    try:
+        return db.query(PMC).filter(PMC.email == email, PMC.active == True).first() is not None
+    finally:
+        db.close()
 
 
 @router.post("/toggle-property/{property_id}")
@@ -121,9 +127,11 @@ async def auth_callback(request: Request):
     try:
         token = await oauth.google.authorize_access_token(request)
 
-        # SAFER: Use userinfo endpoint instead of id_token
         user = await oauth.google.userinfo(token=token)
         email = user.get("email")
+
+        if not email:
+            return HTMLResponse("<h2>Access denied: No email returned from Google</h2>", status_code=400)
 
         if not is_pmc_email_valid(email):
             return HTMLResponse("<h2>Access denied: Unauthorized email</h2>", status_code=403)
@@ -140,15 +148,6 @@ async def auth_callback(request: Request):
         return HTMLResponse(f"<h2>OAuth Error: {e}</h2>", status_code=500)
 
 
-# --- Dashboard
-
-
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
 
 @router.get("/dashboard")
 def dashboard(request: Request, db: Session = Depends(get_db)):
