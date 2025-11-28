@@ -6,7 +6,6 @@ import logging
 import requests
 
 from datetime import datetime, timedelta
-
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -27,7 +26,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
 from models import Property, ChatSession, ChatMessage, PMC
 from utils.message_helpers import classify_category, smart_response, detect_log_types
-
+from utils.pms_sync import sync_properties, sync_all_pmcs
 from routes import admin, pmc_auth
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
