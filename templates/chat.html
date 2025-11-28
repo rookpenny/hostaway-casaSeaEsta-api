@@ -274,6 +274,13 @@
       display: none;
     }
   </style>
+
+  <script>
+  window.PROPERTY_ID = {{ property_id | default("null") }};
+  window.PROPERTY_NAME = {{ property_name | tojson | default("null") }};
+  window.SANDY_LIVE = {{ "true" if is_live else "false" }};
+</script>
+  
 </head>
 <body>
   <h1>Ready to bring new life<br>to your social media?</h1>
@@ -408,11 +415,16 @@ function formatMessage(text) {
   return blocks.join('');
 }
 
-
+let currentSessionId = null;
 
 async function sendMessage() {
   const userMsg = inputField.value.trim();
   if (!userMsg) return;
+
+  if (window.SANDY_LIVE === "false") {
+    addMessage("Sandy is currently offline for this property. Please contact your host directly. 🙏", "bot");
+    return;
+  }
 
   addMessage(userMsg, "user");
   inputField.value = "";
@@ -440,16 +452,27 @@ Guest message:
 `;
 
   try {
-    const res = await fetch("/chat", {
+    const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ message: formattedPrompt })
+      body: JSON.stringify({
+        message: userMsg,
+        session_id: currentSessionId
+      })
     });
 
     const data = await res.json();
     removeTyping();
-    addMessage(data.response || "Hmm, I didn’t catch that — could you try again? 🌴", "bot");
-  } catch {
+
+    if (data.error) {
+      addMessage(data.error, "bot");
+    } else {
+      if (data.session_id && !currentSessionId) {
+        currentSessionId = data.session_id;
+      }
+      addMessage(data.response || "Hmm, I didn’t catch that — could you try again? 🌴", "bot");
+    }
+  } catch (err) {
     removeTyping();
     addMessage("Oops! Something went wrong. Try again later. 🐚", "bot");
   }
