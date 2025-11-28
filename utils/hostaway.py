@@ -1,6 +1,6 @@
 import os
 import requests
-from datetime import datetime
+from datetime import datetime, timedelta
 from calendar import monthrange
 from functools import lru_cache
 from dotenv import load_dotenv
@@ -39,29 +39,39 @@ def cached_token():
     """Return a cached token to avoid repeat API calls."""
     return get_token()
 
-def fetch_reservations(listing_id, token):
-    """Get all reservations for the current month for a given listing ID"""
-    today = datetime.today()
-    year, month = today.year, today.month
-    last_day = monthrange(year, month)[1]
 
-    date_range_start = today.replace(day=1).strftime("%Y-%m-%d")
-    date_range_end = today.replace(day=last_day).strftime("%Y-%m-%d")
+def fetch_reservations(listing_id: str, token: str):
+    """
+    Fetch reservations for a listing in a rolling window:
+    30 days in the past to 60 days in the future.
+    This covers:
+      - current in-house stays that started last month
+      - upcoming reservations in the near future
+    """
+    today = datetime.utcnow().date()
+    date_from = (today - timedelta(days=30)).strftime("%Y-%m-%d")
+    date_to = (today + timedelta(days=60)).strftime("%Y-%m-%d")
 
     resp = requests.get(
         f"{HOSTAWAY_BASE_URL}/reservations",
         headers={"Authorization": f"Bearer {token}"},
         params={
             "listingId": listing_id,
-            "dateFrom": date_range_start,
-            "dateTo": date_range_end
-        }
+            "dateFrom": date_from,
+            "dateTo": date_to,
+        },
     )
-
     if not resp.ok:
+        print("[Hostaway] Error fetching reservations:", resp.status_code, resp.text)
         raise Exception("Error fetching reservations from Hostaway")
 
-    return resp.json().get("result", [])
+    data = resp.json()
+    result = data.get("result", [])
+    print(
+        f"[Hostaway] fetched {len(result)} reservations for listing {listing_id} "
+        f"between {date_from} and {date_to}"
+    )
+    return result
 
 def calculate_extra_nights(next_start_date):
     """
