@@ -5,6 +5,7 @@ import time
 import logging
 import requests
 import uvicorn
+import re
 
 from datetime import datetime, timedelta
 from sqlalchemy import text
@@ -189,100 +190,222 @@ class PropertyChatRequest(BaseModel):
     message: str
     session_id: int | None = None
 
+class ChatRequest(BaseModel):
+    message: str
+
 
 @app.post("/properties/{property_id}/chat")
-def property_chat(property_id: int, payload: PropertyChatRequest, db: Session = Depends(get_db)):
-    # 1) Load property & check Sandy status
+def property_chat(
+    property_id: int,
+    payload: ChatRequest,
+    db: Session = Depends(get_db)
+):
+    user_message = (payload.message or "").strip()
+    if not user_message:
+        raise HTTPException(status_code=400, detail="Message is required")
+
+    # 1️⃣ Look up property + PMC, enforce "Sandy enabled"
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    pmc = prop.pmc
-    if not (prop.sandy_enabled and pmc and pmc.active):
-        return {"error": "Chat is offline for this property."}
+    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
 
-    user_message = payload.message.strip()
-    if not user_message:
-        return {"error": "Empty message."}
+    if not pmc or not pmc.active or not prop.sandy_enabled:
+        # Graceful "offline" message for this property
+        return {
+            "response": (
+                "Sandy is currently offline for this property 🌙\n\n"
+                "Please contact your host directly for assistance."
+            )
+        }
 
-    # 🔍 classify message
-    category = classify_category(user_message)
-    log_type = detect_log_types(user_message)
-    sentiment = simple_sentiment(user_message)
+    # 2️⃣ Load property config (door code, phone last4, check-in, etc.)
+    try:
+        # Adjust this to match your actual load_property_config signature
+        # For now we assume it can take a Property or property_id
+        ctx_config = load_property_config(property_id)
+    except Exception:
+        ctx_config = {}
 
-    # 2) Get or create chat session
-    session: ChatSession | None = None
-    if payload.session_id:
-        session = db.query(ChatSession).filter(
-            ChatSession.id == payload.session_id,
-            ChatSession.property_id == prop.id
-        ).first()
+    door_code = ctx_config.get("door_code")
+    expected_phone_last4 = ctx_config.get("guest_phone_last4")
+    checkin_time = ctx_config.get("checkin_time", "16:00")  # "HH:MM"
+    checkout_time = ctx_config.get("checkout_time", "11:00")
+
+    # 3️⃣ Find or create a ChatSession for this property
+    now = datetime.utcnow()
+
+    # Reuse most recent session within the last 4 hours
+    recent_cutoff = now - timedelta(hours=4)
+    session = (
+        db.query(ChatSession)
+        .filter(
+            ChatSession.property_id == property_id,
+            ChatSession.last_activity_at >= recent_cutoff
+        )
+        .order_by(ChatSession.last_activity_at.desc())
+        .first()
+    )
 
     if not session:
         session = ChatSession(
-            property_id=prop.id,
-            source="guest_web",
+            property_id=property_id,
+            source="web_chat",
+            is_verified=False,
+            created_at=now,
+            last_activity_at=now,
         )
         db.add(session)
-        db.flush()  # to get session.id
+        db.commit()
+        db.refresh(session)
 
-    session.last_activity_at = datetime.utcnow()
+    # 4️⃣ Log the guest's message with basic categorisation
+    category = classify_category(user_message)
+    log_type = detect_log_types(user_message)
 
-    # 3) Build context + prompt
-    ctx = load_property_context(prop)
-    system_prompt = build_system_prompt(prop, pmc, ctx)
+    # Very simple sentiment stub; you can replace with a real model later
+    lowered = user_message.lower()
+    if any(word in lowered for word in ["angry", "upset", "terrible", "horrible", "bad", "not happy"]):
+        sentiment = "negative"
+    elif any(word in lowered for word in ["love", "great", "amazing", "awesome", "perfect", "thank you"]):
+        sentiment = "positive"
+    else:
+        sentiment = "neutral"
 
-    messages = [
-        {"role": "system", "content": system_prompt},
-        {"role": "user", "content": user_message},
-    ]
+    guest_msg = ChatMessage(
+        session_id=session.id,
+        sender="guest",
+        content=user_message,
+        category=category,
+        log_type=log_type,
+        sentiment=sentiment,
+        created_at=now,
+    )
+    db.add(guest_msg)
+    session.last_activity_at = now
+    db.commit()
+
+    # 5️⃣ Special handling: access code + verification flow
+    code_keywords = ["door code", "access code", "entry code", "pin", "key code"]
+    is_code_request = any(k in lowered for k in code_keywords)
+
+    # 5a) If user is asking for the code but not verified yet → prompt for last 4 digits
+    if is_code_request and not session.is_verified:
+        return {
+            "response": (
+                "For security, I can only share your access code after I confirm your identity. 🔐\n\n"
+                "**What are the last 4 digits of the phone number** on your reservation? 📱"
+            ),
+            "session_id": session.id
+        }
+
+    # 5b) If the message looks like exactly 4 digits and session not verified yet → treat as verification attempt
+    four_digits = re.fullmatch(r"\d{4}", user_message)
+    if four_digits and not session.is_verified:
+        if expected_phone_last4 and expected_phone_last4 == user_message:
+            session.is_verified = True
+            session.phone_last4 = user_message
+            session.last_activity_at = now
+            db.commit()
+            return {
+                "response": (
+                    "Thank you! You're verified 🎉\n\n"
+                    "You can now ask me for your **door code** or anything else you need."
+                ),
+                "session_id": session.id
+            }
+        else:
+            return {
+                "response": (
+                    "Hmm, that doesn’t match what I have on file. 😕\n\n"
+                    "Please double-check the **last 4 digits** of the phone number on your reservation, "
+                    "or reach out to your host directly if you think there’s an issue."
+                ),
+                "session_id": session.id
+            }
+
+    # 5c) If guest is verified and asks for the code → check timing & reveal or upsell early check-in
+    if is_code_request and session.is_verified:
+        if not door_code:
+            # No code configured → fail safe
+            return {
+                "response": (
+                    "You're verified 🎉 but I don't have an access code configured for this property yet.\n\n"
+                    "Please contact your host directly so they can share it with you."
+                ),
+                "session_id": session.id
+            }
+
+        # Very simple time gating: compare current UTC hour with configured check-in hour
+        try:
+            checkin_hour = int(checkin_time.split(":")[0])
+        except Exception:
+            checkin_hour = 16  # default 4pm
+
+        now_hour = now.hour  # later you can adjust for property timezone
+
+        if now_hour < checkin_hour:
+            # Too early – offer early check-in
+            return {
+                "response": (
+                    "You're verified 🎉 but it's a bit early for check-in.\n\n"
+                    f"Your standard check-in time is **{checkin_time}**.\n\n"
+                    "🌟 If you'd like, I can check on **early check-in** options for you."
+                ),
+                "session_id": session.id
+            }
+
+        # OK to reveal the code
+        return {
+            "response": f"You're all set! 🎉\n\nYour access code is: **{door_code}** 🔓",
+            "session_id": session.id
+        }
+
+    # 6️⃣ Fallback to normal Sandy AI reply for everything else
+    # Build system prompt with property context
+    system_prompt = (
+        "You are Sandy, a beachy, upbeat AI concierge for a vacation rental.\n"
+        "Always respond in the same language as the guest.\n"
+        "Use markdown with:\n"
+        "- Bold section headings\n"
+        "- Bullet points\n"
+        "- Short paragraphs\n"
+        "- Emojis where helpful\n\n"
+        f"This message is for property: {prop.property_name} (ID: {prop.id})."
+    )
 
     try:
         ai_response = client.chat.completions.create(
             model="gpt-4",
-            temperature=0.7,
-            messages=messages,
+            temperature=0.8,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
         )
-        reply = ai_response.choices[0].message.content
+        reply_text = ai_response.choices[0].message.content.strip()
     except Exception as e:
-        db.add(ChatMessage(
-            session=session,
-            sender="guest",
-            content=user_message,
-            category=category,
-            log_type=log_type,
-            sentiment=sentiment,
-        ))
-        db.commit()
-        return {"error": f"Sandy had an issue replying: {str(e)}"}
+        reply_text = (
+            "Oops, I had a little trouble thinking just now 🧠💭\n\n"
+            "Please try again in a moment, or contact your host directly if it's urgent."
+        )
+        logging.exception("Error calling OpenAI in property_chat: %s", e)
 
-    # 4) Save messages
-    db.add_all([
-        ChatMessage(
-            session=session,
-            sender="guest",
-            content=user_message,
-            category=category,
-            log_type=log_type,
-            sentiment=sentiment,
-        ),
-        ChatMessage(
-            session=session,
-            sender="assistant",
-            content=reply,
-            category=None,
-            log_type=None,
-            sentiment="neutral",
-        ),
-    ])
+    # 7️⃣ Log assistant reply
+    assistant_msg = ChatMessage(
+        session_id=session.id,
+        sender="assistant",
+        content=reply_text,
+        created_at=datetime.utcnow(),
+    )
+    db.add(assistant_msg)
+    session.last_activity_at = datetime.utcnow()
     db.commit()
 
     return {
-        "response": reply,
-        "session_id": session.id,
-        "category": category,
-        "log_type": log_type,
-        "sentiment": sentiment,
+        "response": reply_text,
+        "session_id": session.id
     }
 
 
