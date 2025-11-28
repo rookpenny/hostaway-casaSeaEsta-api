@@ -22,19 +22,17 @@ from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
+from routes import admin, pmc_auth
 
 from starlette.middleware.sessions import SessionMiddleware
-
 from database import SessionLocal, engine, get_db
 from models import Property, ChatSession, ChatMessage, PMC
+
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 from utils.pms_sync import sync_properties, sync_all_pmcs
-from utils.pms_access import get_pms_access_info
-
-from routes import admin, pmc_auth
+from utils.pms_access import ensure_pms_data
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
-from utils.pms_access import get_pms_access_info
 from utils.hostaway import get_upcoming_phone_for_listing
 
 
@@ -297,7 +295,7 @@ def property_chat(
         if phone_last4 is not None and door_code is not None:
             return
 
-        pl4, code, reservation_id = get_pms_access_info(pmc, prop)
+        pl4, code, reservation_id = ensure_pms_data(pmc, prop)
 
         phone_last4 = pl4
         door_code = code
