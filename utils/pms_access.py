@@ -3,7 +3,7 @@
 from __future__ import annotations
 from typing import Tuple, Optional
 
-from models import PMC, Property, ChatSessionv
+from models import PMC, Property, ChatSession
 from utils.hostaway import get_upcoming_phone_for_listing
 from sqlalchemy.orm import Session
 
