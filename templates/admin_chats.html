@@ -20,6 +20,7 @@
               <th class="px-4 py-2 text-left">Property</th>
               <th class="px-4 py-2 text-left">Source</th>
               <th class="px-4 py-2 text-left">Verified</th>
+              <th class="px-4 py-2 text-left">Priority</th>
               <th class="px-4 py-2 text-left">Last Activity</th>
               <th class="px-4 py-2 text-left">Snippet</th>
               <th class="px-4 py-2 text-left"></th>
@@ -39,6 +40,21 @@
                     <span class="text-green-600 font-semibold">Yes</span>
                   {% else %}
                     <span class="text-gray-500">No</span>
+                  {% endif %}
+                </td>
+                <td class="px-4 py-2 text-xs">
+                  {% if s.has_urgent %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold mr-1">
+                      🔥 Urgent
+                    </span>
+                  {% endif %}
+                  {% if s.has_negative %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-700 font-semibold">
+                      😟 Unhappy
+                    </span>
+                  {% endif %}
+                  {% if not s.has_urgent and not s.has_negative %}
+                    <span class="text-gray-400">Normal</span>
                   {% endif %}
                 </td>
                 <td class="px-4 py-2 text-xs text-gray-700">
