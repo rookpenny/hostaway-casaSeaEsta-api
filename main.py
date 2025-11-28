@@ -3,39 +3,28 @@ import json
 import time
 import logging
 import requests
-#import openai
 
-from database import SessionLocal
+from datetime import datetime, timedelta
+
+from database import SessionLocal, engine, get_db
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
-from database import engine, get_db
+from sqlalchemy.orm import Session
 
-from fastapi import FastAPI, Request, Query, Path, HTTPException, Header, Form, APIRouter, Depends
-
+from fastapi import (
+    FastAPI, Request, Query, Path, HTTPException, Header, Form,
+    APIRouter, Depends
+)
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
-
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from datetime import datetime, timedelta
 
-from utils.config import load_property_config
-from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest_by_code
+from models import Property, ChatSession, ChatMessage, PMC
 from utils.message_helpers import classify_category, smart_response, detect_log_types
-from utils.prearrival import prearrival_router
-from utils.prearrival_debug import prearrival_debug_router
-from utils.pms_sync import sync_all_pmcs
-from apscheduler.schedulers.background import BackgroundScheduler
-from uuid import uuid4
-import uvicorn
 
-from starlette.middleware.sessions import SessionMiddleware
-from openai import OpenAI
-from routes import admin, pmc_auth
-from sqlalchemy.orm import Session
-from models import Property, ChatSession, ChatMessage
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -167,6 +156,7 @@ def guest_chat_ui(request: Request, property_id: int, db: Session = Depends(get_
             "is_live": is_live,
         },
     )
+
 
 
 # --- Start Server ---
