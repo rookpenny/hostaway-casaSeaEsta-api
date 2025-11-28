@@ -3,9 +3,9 @@
 from __future__ import annotations
 from typing import Tuple, Optional
 
-from models import PMC, Property
+from models import PMC, Property, ChatSessionv
 from utils.hostaway import get_upcoming_phone_for_listing
-
+from sqlalchemy.orm import Session
 
 def get_pms_access_info(
     pmc: PMC,
@@ -26,6 +26,36 @@ def get_pms_access_info(
         print("[PMS] No PMS integration configured for PMC/property")
         return None, None, None
 
+
+    from sqlalchemy.orm import Session
+from models import Property, ChatSession
+
+
+def ensure_pms_data(db: Session, chat_session: ChatSession) -> None:
+    from utils.pms_access import get_pms_access_info  # or just use it directly if same file
+
+    prop = db.query(Property).filter(Property.id == chat_session.property_id).first()
+    if not prop:
+        print(f"[PMS] No property found for chat_session.id={chat_session.id}")
+        return
+
+    pmc = prop.pmc
+    if not pmc:
+        print(f"[PMS] No PMC found for property.id={prop.id}")
+        return
+
+    phone_last4, door_code, reservation_id = get_pms_access_info(pmc, prop)
+
+    if not reservation_id:
+        return
+
+    chat_session.phone_last4 = phone_last4
+    chat_session.pms_reservation_id = reservation_id
+    db.add(chat_session)
+    db.commit()
+
+    
+    
     # --- Hostaway integration -----------------------------------------------
     if integration == "hostaway":
         listing_id = prop.pms_property_id
