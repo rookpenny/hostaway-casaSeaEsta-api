@@ -32,7 +32,7 @@ from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
-from utils.hostaway_sync import sync_all_pmc_properties
+from utils.pms_sync import sync_all_pmcs
 from apscheduler.schedulers.background import BackgroundScheduler
 from uuid import uuid4
 import uvicorn
@@ -89,7 +89,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # --- Startup Jobs ---
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(sync_all_pmc_properties, 'interval', hours=24)
+    scheduler.add_job(sync_all_pmcs, "interval", hours=24)
     scheduler.start()
 
 # --- DB Connection Test ---
@@ -107,10 +107,17 @@ start_scheduler()
 @app.post("/admin/sync-properties")
 def manual_sync():
     try:
-        sync_all_pmc_properties()
-        return HTMLResponse("<h2>Sync completed successfully!</h2><a href='/admin'>Back to Dashboard</a>")
+        count = sync_all_pmcs()
+        return HTMLResponse(
+            f"<h2>Synced {count} properties across all PMCs.</h2>"
+            "<a href='/admin/dashboard'>Back to Dashboard</a>"
+        )
     except Exception as e:
-        return HTMLResponse(f"<h2>Sync failed: {str(e)}</h2><a href='/admin'>Back to Dashboard</a>", status_code=500)
+        return HTMLResponse(
+            f"<h2>Sync failed: {str(e)}</h2>"
+            "<a href='/admin/dashboard'>Back to Dashboard</a>",
+            status_code=500
+        )
 
 # --- Root Health Check ---
 @app.get("/")
