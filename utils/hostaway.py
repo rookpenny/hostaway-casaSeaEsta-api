@@ -5,11 +5,10 @@ from calendar import monthrange
 from functools import lru_cache
 from dotenv import load_dotenv
 from utils.airtable import upsert_airtable_record
+from typing import Optional, Tuple
 
 HOSTAWAY_API_KEY = os.getenv("HOSTAWAY_API_KEY")
 HOSTAWAY_ACCOUNT_ID = os.getenv("HOSTAWAY_ACCOUNT_ID")
-AIRTABLE_PROPERTIES_TABLE = "Properties"  # Airtable table name
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
 
 load_dotenv()
 
@@ -139,3 +138,57 @@ def get_hostaway_properties():
 
     return response.json().get("result", [])
 
+
+
+
+def get_upcoming_phone_for_listing(listing_id: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+    """
+    Given a Hostaway listing_id, find the next upcoming or current reservation
+    and return:
+      - phone_last4: str | None
+      - full_phone: str | None
+      - reservation_id: str | None
+    """
+    try:
+        token = cached_token()
+        reservations = fetch_reservations(listing_id, token)
+
+        today = datetime.today().date()
+
+        best_res = None
+        best_checkin = None
+
+        for r in reservations:
+            checkin_str = r.get("arrivalDate")
+            if not checkin_str:
+                continue
+
+            try:
+                checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
+            except ValueError:
+                continue
+
+            # Only consider stays today or in the future
+            if checkin < today:
+                continue
+
+            # Keep the soonest upcoming one
+            if best_checkin is None or checkin < best_checkin:
+                best_checkin = checkin
+                best_res = r
+
+        if not best_res:
+            return None, None, None
+
+        # --- Phone extraction ---
+        phone = best_res.get("phone") or best_res.get("guestPhone") or ""
+        digits = "".join(ch for ch in phone if ch.isdigit())
+        phone_last4 = digits[-4:] if len(digits) >= 4 else None
+
+        reservation_id = str(best_res.get("id") or best_res.get("reservationId") or "")
+
+        return phone_last4, (phone or None), (reservation_id or None)
+
+    except Exception as e:
+        print(f"[Hostaway] Error in get_upcoming_phone_for_listing: {e}")
+        return None, None, None
