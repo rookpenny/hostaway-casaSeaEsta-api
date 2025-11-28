@@ -31,7 +31,7 @@ from utils.message_helpers import classify_category, smart_response, detect_log_
 from routes import admin, pmc_auth
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
-
+from apscheduler.schedulers.background import BackgroundScheduler
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
