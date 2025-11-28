@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Chat #{{ session.id }} – Admin</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 text-gray-900">
+  <div class="max-w-3xl mx-auto px-4 py-6">
+    <a href="/admin/chats" class="text-sm text-blue-600 hover:underline">← Back to Chats</a>
+
+    <h1 class="text-2xl font-bold mt-2 mb-1">Chat #{{ session.id }}</h1>
+    <p class="text-sm text-gray-600 mb-4">
+      Property:
+      <span class="font-semibold">
+        {{ property.property_name if property else "Unknown property" }}
+      </span>
+      (ID: {{ session.property_id }})<br />
+      Source: {{ session.source }} •
+      Verified:
+      {% if session.is_verified %}
+        <span class="text-green-600 font-semibold">Yes</span>
+      {% else %}
+        <span class="text-gray-500">No</span>
+      {% endif %}
+    </p>
+
+    <div class="bg-white rounded-lg shadow p-4 space-y-3">
+      {% for msg in messages %}
+        <div class="flex {{ 'justify-end' if msg.sender == 'assistant' else 'justify-start' }}">
+          <div class="max-w-[80%] rounded-lg px-3 py-2 text-sm
+            {% if msg.sender == 'assistant' %}
+              bg-blue-50 border border-blue-100
+            {% elif msg.sender == 'guest' %}
+              bg-gray-50 border border-gray-200
+            {% else %}
+              bg-yellow-50 border border-yellow-200
+            {% endif %}
+          ">
+            <div class="text-xs font-semibold mb-1 text-gray-600">
+              {{ msg.sender|capitalize }}
+              <span class="text-gray-400">• {{ msg.created_at }}</span>
+            </div>
+            <div class="whitespace-pre-wrap text-gray-800">{{ msg.content }}</div>
+
+            {% if msg.sender == 'guest' %}
+              <div class="mt-1 text-[11px] text-gray-500">
+                Category: {{ msg.category or '—' }} •
+                Log: {{ msg.log_type or '—' }} •
+                Sentiment: {{ msg.sentiment or '—' }}
+              </div>
+            {% endif %}
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>
