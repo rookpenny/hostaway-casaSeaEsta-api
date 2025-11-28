@@ -246,30 +246,6 @@ def get_next_account_id(db: Session):
     last = db.query(PMC).order_by(PMC.pms_account_id.desc()).first()
     return (last.pms_account_id + 1) if last else 10000
 
- '''   
-# ✅ Update PMC Active Status (local DB only)
-@router.post("/admin/update-status")
-def update_status(payload: dict = Body(...)):
-    record_id = payload.get("record_id")
-    active = payload.get("active", False)
-
-    if not record_id:
-        return JSONResponse(status_code=400, content={"error": "Missing record_id"})
-
-    db: Session = SessionLocal()
-    try:
-        pmc = db.query(PMC).filter_by(id=record_id).first()
-
-        if not pmc:
-            return JSONResponse(status_code=404, content={"error": "PMC not found"})
-
-        pmc.active = active
-        db.commit()
-        return {"success": True}
-    finally:
-        db.close()
-'''
-
 
 # 🔁 Trigger sync for one PMC by PMS Account ID
 
