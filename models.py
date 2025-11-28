@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -41,3 +41,38 @@ class Property(Base):
     # ✅ Back-reference to PMC
     pmc = relationship("PMC", back_populates="properties")
 
+
+class ChatSession(Base):
+    __tablename__ = "chat_sessions"
+
+    id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), index=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    last_activity_at = Column(DateTime, default=datetime.utcnow)
+    source = Column(String, default="guest_web")  # e.g. guest_web, widget, admin_test
+
+    # for future guest verification
+    is_verified = Column(Boolean, default=False)
+    phone_last4 = Column(String, nullable=True)
+    pms_reservation_id = Column(String, nullable=True)
+    language = Column(String, nullable=True)
+
+    property = relationship("Property", backref="chat_sessions")
+    messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+
+
+class ChatMessage(Base):
+    __tablename__ = "chat_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"), index=True, nullable=False)
+    sender = Column(String, nullable=False)  # 'guest' | 'assistant' | 'system'
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+
+    # Intelligence fields
+    category = Column(String, nullable=True)   # urgent, maintenance, cleaning, etc.
+    log_type = Column(String, nullable=True)   # Prearrival Interest, Extension, General, etc.
+    sentiment = Column(String, nullable=True)  # positive, neutral, negative
+
+    session = relationship("ChatSession", back_populates="messages")
