@@ -30,7 +30,7 @@ from models import Property, ChatSession, ChatMessage, PMC
 
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 from utils.pms_sync import sync_properties, sync_all_pmcs
-from utils.pms_access import ensure_pms_data
+from utils.pms_access import get_pms_access_info
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing
@@ -290,26 +290,37 @@ def property_chat(
     phone_last4: str | None = None
     door_code: str | None = None
 
-    def ensure_pms_data():
-        nonlocal phone_last4, door_code
-        if phone_last4 is not None and door_code is not None:
-            return
+def ensure_pms_data(db: Session, chat_session: ChatSession) -> None:
+    """
+    Make sure this chat session has PMS info attached (phone_last4 + reservation_id)
+    for the property's current/upcoming guest.
+    """
+    # Get the property for this chat session
+    prop = db.query(Property).filter(Property.id == chat_session.property_id).first()
+    if not prop:
+        print(f"[PMS] No property found for chat_session.id={chat_session.id}")
+        return
 
-        pl4, code, reservation_id = ensure_pms_data(pmc, prop)
+    pmc = prop.pmc
+    if not pmc:
+        print(f"[PMS] No PMC found for property.id={prop.id}")
+        return
 
-        phone_last4 = pl4
-        door_code = code
+    phone_last4, door_code, reservation_id = get_pms_access_info(pmc, prop)
 
-        if reservation_id:
-            session.pms_reservation_id = reservation_id
-        if pl4:
-            session.phone_last4 = pl4
+    if not reservation_id:
+        # No active/upcoming reservation – nothing to attach
+        return
 
-        db.commit()
+    # Persist PMS info on the chat session
+    chat_session.phone_last4 = phone_last4
+    chat_session.pms_reservation_id = reservation_id
+    db.add(chat_session)
+    db.commit()
 
     # 🔐 4a) Asking for door code but not verified → start verification flow
     if is_code_request and not session.is_verified:
-        ensure_pms_data()
+        ensure_pms_data(db, chat_session)
 
         if not phone_last4:
             return {
