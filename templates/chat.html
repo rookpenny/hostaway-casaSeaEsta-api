@@ -340,7 +340,7 @@
     const inputField = document.getElementById("user-input");
 
     window.PROPERTY_ID = {{ property_id | default("null") }};
-    window.PROPERTY_NAME = {{ property_name | tojson | default("null") }};
+    window.PROPERTY_NAME = {{ (property_name | default("Admin Chat")) | tojson }};
     window.SANDY_LIVE = {{ "true" if is_live else "false" if is_live is defined else "null" }};
 
 
