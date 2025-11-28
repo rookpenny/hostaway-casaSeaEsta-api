@@ -42,7 +42,9 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- Init ---
 app = FastAPI()  # ✅ Define app before using it
-
+class ChatMessageIn(BaseModel):
+    message: str
+    
 # --- Routers ---
 app.include_router(admin.router)
 app.include_router(pmc_auth.router)
