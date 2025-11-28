@@ -11,8 +11,6 @@ from database import SessionLocal, get_db
 from models import PMC, Property
 from utils.pms_sync import sync_properties  # ⬅️ used in sync_single_property
 
-#from utils.airtable_client import get_pmcs_table, get_properties_table
-
 router = APIRouter(prefix="/auth")
 templates = Jinja2Templates(directory="templates")
 
