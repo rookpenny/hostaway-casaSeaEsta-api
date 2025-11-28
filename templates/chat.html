@@ -275,11 +275,21 @@
     }
   </style>
 
-  <script>
+<script>
+  // If rendered via /guest/{property_id}, these will be real values.
+  // If rendered via /admin/chat, they'll fall back to "admin" context.
   window.PROPERTY_ID = {{ property_id | default("null") }};
-  window.PROPERTY_NAME = {{ property_name | tojson | default("null") }};
-  window.SANDY_LIVE = {{ "true" if is_live else "false" }};
+
+  window.PROPERTY_NAME = {{ (property_name | default("Admin Chat")) | tojson }};
+
+  // We'll use string values "true"/"false"/"null" to keep JS logic simple
+  window.SANDY_LIVE = {{ (
+    "true" if is_live is defined and is_live
+    else "false" if is_live is defined and not is_live
+    else "null"
+  ) | tojson }};
 </script>
+
   
 </head>
 <body>
