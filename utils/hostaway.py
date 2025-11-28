@@ -140,23 +140,25 @@ def get_hostaway_properties():
 
 
 
+# ... your existing constants + functions here ...
+# HOSTAWAY_BASE_URL, CLIENT_ID, CLIENT_SECRET, get_token, cached_token, fetch_reservations, etc.
 
-def get_upcoming_phone_for_listing(listing_id: str) -> Tuple[Optional[str], Optional[str], Optional[str]]:
+def get_upcoming_phone_for_listing(listing_id: str):
     """
-    Given a Hostaway listing_id, find the next upcoming or current reservation
-    and return:
-      - phone_last4: str | None
-      - full_phone: str | None
-      - reservation_id: str | None
+    For a given Hostaway listing ID, find the nearest upcoming reservation
+    (arrivalDate between today and +20 days), and return:
+
+        (phone_last4, full_phone, reservation_id)
+
+    If nothing is found, returns (None, None, None).
     """
     try:
         token = cached_token()
         reservations = fetch_reservations(listing_id, token)
-
         today = datetime.today().date()
 
         best_res = None
-        best_checkin = None
+        best_days = None
 
         for r in reservations:
             checkin_str = r.get("arrivalDate")
@@ -165,29 +167,32 @@ def get_upcoming_phone_for_listing(listing_id: str) -> Tuple[Optional[str], Opti
 
             try:
                 checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
-            except ValueError:
+            except Exception:
                 continue
 
-            # Only consider stays today or in the future
-            if checkin < today:
+            days_until = (checkin - today).days
+            # Only consider reservations from today to 20 days out
+            if days_until < 0 or days_until > 20:
                 continue
 
-            # Keep the soonest upcoming one
-            if best_checkin is None or checkin < best_checkin:
-                best_checkin = checkin
+            phone = (r.get("phone") or "").strip()
+            if len(phone) < 4:
+                continue
+
+            if best_res is None or days_until < best_days:
                 best_res = r
+                best_days = days_until
 
         if not best_res:
+            print("[Hostaway] No upcoming reservation within 20 days for listing", listing_id)
             return None, None, None
 
-        # --- Phone extraction ---
-        phone = best_res.get("phone") or best_res.get("guestPhone") or ""
-        digits = "".join(ch for ch in phone if ch.isdigit())
-        phone_last4 = digits[-4:] if len(digits) >= 4 else None
+        full_phone = (best_res.get("phone") or "").strip()
+        phone_last4 = full_phone[-4:] if len(full_phone) >= 4 else None
+        reservation_id = str(best_res.get("id")) if best_res.get("id") is not None else None
 
-        reservation_id = str(best_res.get("id") or best_res.get("reservationId") or "")
-
-        return phone_last4, (phone or None), (reservation_id or None)
+        print(f"[Hostaway] Using reservation id={reservation_id}, phone={full_phone}, last4={phone_last4}")
+        return phone_last4, full_phone, reservation_id
 
     except Exception as e:
         print(f"[Hostaway] Error in get_upcoming_phone_for_listing: {e}")
