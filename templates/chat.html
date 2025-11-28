@@ -329,6 +329,11 @@
     const chatBox = document.getElementById("chat-box");
     const inputField = document.getElementById("user-input");
 
+    window.PROPERTY_ID = {{ property_id | default("null") }};
+    window.PROPERTY_NAME = {{ property_name | tojson | default("null") }};
+    window.SANDY_LIVE = {{ "true" if is_live else "false" if is_live is defined else "null" }};
+
+
     function scrollToBottom() {
       chatBox.scrollTop = chatBox.scrollHeight;
     }
@@ -451,14 +456,29 @@ Guest message:
 """${userMsg}"""
 `;
 
-  try {
-    const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+try {
+    let url;
+    let body;
+
+    if (window.PROPERTY_ID && window.PROPERTY_ID !== "null") {
+      // Guest-facing, property-aware route
+      url = `/properties/${window.PROPERTY_ID}/chat`;
+      body = JSON.stringify({
         message: userMsg,
         session_id: currentSessionId
-      })
+      });
+    } else {
+      // Admin test route fallback (old behavior)
+      url = "/chat";
+      body = JSON.stringify({
+        message: userMsg
+      });
+    }
+
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body
     });
 
     const data = await res.json();
