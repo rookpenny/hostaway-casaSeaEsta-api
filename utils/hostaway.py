@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from calendar import monthrange
 from functools import lru_cache
 from dotenv import load_dotenv
-from utils.airtable import upsert_airtable_record
+#from utils.airtable import upsert_airtable_record
 from typing import Optional, Tuple
 
 HOSTAWAY_API_KEY = os.getenv("HOSTAWAY_API_KEY")
