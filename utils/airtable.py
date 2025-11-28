@@ -1,4 +1,4 @@
-import requests
+'''import requests
 import os
 import sys
 
@@ -73,3 +73,4 @@ def save_properties_to_airtable(properties, pmc_id):
         else:
             print(f"[DEBUG] ✅ Synced property {prop.get('Property Name', '[No Name]')}")
 
+'''
