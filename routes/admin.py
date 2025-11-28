@@ -91,12 +91,27 @@ def admin_chats(request: Request, db: Session = Depends(get_db)):
     items = []
     for s in sessions:
         prop = s.property
+
         last_msg = (
             db.query(ChatMessage)
             .filter(ChatMessage.session_id == s.id)
             .order_by(ChatMessage.created_at.desc())
             .first()
         )
+
+        # 🔎 Check if this session has urgent or negative guest messages
+        has_urgent = db.query(ChatMessage).filter(
+            ChatMessage.session_id == s.id,
+            ChatMessage.sender == "guest",
+            ChatMessage.category == "urgent",
+        ).first() is not None
+
+        has_negative = db.query(ChatMessage).filter(
+            ChatMessage.session_id == s.id,
+            ChatMessage.sender == "guest",
+            ChatMessage.sentiment == "negative",
+        ).first() is not None
+
         items.append({
             "id": s.id,
             "property_name": prop.property_name if prop else "Unknown property",
@@ -105,6 +120,8 @@ def admin_chats(request: Request, db: Session = Depends(get_db)):
             "source": s.source,
             "is_verified": s.is_verified,
             "last_snippet": (last_msg.content[:120] + "…") if last_msg else "",
+            "has_urgent": has_urgent,
+            "has_negative": has_negative,
         })
 
     return templates.TemplateResponse(
