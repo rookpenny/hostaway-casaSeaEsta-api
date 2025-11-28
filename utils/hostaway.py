@@ -142,9 +142,6 @@ def get_hostaway_properties():
 
 
 
-# ... your existing constants + functions here ...
-# HOSTAWAY_BASE_URL, CLIENT_ID, CLIENT_SECRET, get_token, cached_token, fetch_reservations, etc.
-
 def get_upcoming_phone_for_listing(
     listing_id: str,
     client_id: str,
@@ -181,7 +178,6 @@ def get_upcoming_phone_for_listing(
                 continue
 
             days_until_checkin = (checkin - today).days
-            # Only consider reservations in [0, 20] days
             if 0 <= days_until_checkin <= 20:
                 if best_res is None or days_until_checkin < best_days:
                     best_res = r
