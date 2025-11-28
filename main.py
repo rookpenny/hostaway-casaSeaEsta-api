@@ -27,13 +27,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from datetime import datetime, timedelta
 
-from utils.airtable_client import (
-    get_properties_table,
-    get_pmcs_table,
-    get_guests_table,
-    get_messages_table
-)
-
 from utils.config import load_property_config
 from utils.hostaway import cached_token, fetch_reservations, find_upcoming_guest_by_code
 from utils.message_helpers import classify_category, smart_response, detect_log_types
