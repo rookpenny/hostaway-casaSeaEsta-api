@@ -246,7 +246,7 @@ def get_next_account_id(db: Session):
     last = db.query(PMC).order_by(PMC.pms_account_id.desc()).first()
     return (last.pms_account_id + 1) if last else 10000
 
-    
+ '''   
 # ✅ Update PMC Active Status (local DB only)
 @router.post("/admin/update-status")
 def update_status(payload: dict = Body(...)):
@@ -268,7 +268,7 @@ def update_status(payload: dict = Body(...)):
         return {"success": True}
     finally:
         db.close()
-
+'''
 
 
 # 🔁 Trigger sync for one PMC by PMS Account ID
@@ -527,7 +527,7 @@ async def chat_combined(request: Request):
     except Exception as e:
         return {"reply": f"❌ ChatGPT Error: {str(e)}"}
 
-'''
+
 #This replaces the Airtable patch call and updates the active status in your SQL database using SQLAlchemy.
 @router.post("/admin/update-status")
 def update_pmc_status(payload: dict = Body(...)):
@@ -553,7 +553,7 @@ def update_pmc_status(payload: dict = Body(...)):
         return JSONResponse(status_code=500, content={"error": str(e)})
     finally:
         db.close()
-'''
+
 
 #edit PMC form
 '''@router.post("/admin/update-pmc", response_class=RedirectResponse)
