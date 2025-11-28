@@ -16,21 +16,23 @@ HOSTAWAY_BASE_URL = "https://api.hostaway.com/v1"
 CLIENT_ID = os.getenv("HOSTAWAY_CLIENT_ID")
 CLIENT_SECRET = os.getenv("HOSTAWAY_CLIENT_SECRET")
 
-def get_token():
-    """Retrieve OAuth access token from Hostaway"""
+def get_token_for_pmc(client_id: str, client_secret: str) -> str:
+    """Get a Hostaway access token using *per PMC* credentials."""
     resp = requests.post(
         f"{HOSTAWAY_BASE_URL}/accessTokens",
         headers={"Content-Type": "application/x-www-form-urlencoded"},
         data={
             "grant_type": "client_credentials",
-            "client_id": CLIENT_ID,
-            "client_secret": CLIENT_SECRET,
-            "scope": "general"
-        }
+            "client_id": client_id,
+            "client_secret": client_secret,
+            "scope": "general",
+        },
     )
     if not resp.ok:
+        print("[Hostaway] Auth failed:", resp.status_code, resp.text)
         raise Exception("Hostaway authentication failed.")
     return resp.json().get("access_token")
+
 
 @lru_cache(maxsize=1)
 def cached_token():
@@ -143,24 +145,32 @@ def get_hostaway_properties():
 # ... your existing constants + functions here ...
 # HOSTAWAY_BASE_URL, CLIENT_ID, CLIENT_SECRET, get_token, cached_token, fetch_reservations, etc.
 
-def get_upcoming_phone_for_listing(listing_id: str):
+def get_upcoming_phone_for_listing(
+    listing_id: str,
+    client_id: str,
+    client_secret: str,
+) -> tuple[str | None, str | None, str | None]:
     """
-    For a given Hostaway listing ID, find the nearest upcoming reservation
-    (arrivalDate between today and +20 days), and return:
+    Look up the next upcoming reservation for a Hostaway listing.
 
+    Returns:
         (phone_last4, full_phone, reservation_id)
-
-    If nothing is found, returns (None, None, None).
+        or (None, None, None) on failure / no match.
     """
     try:
-        token = cached_token()
+        token = get_token_for_pmc(client_id, client_secret)
         reservations = fetch_reservations(listing_id, token)
-        today = datetime.today().date()
+
+        today = datetime.utcnow().date()
 
         best_res = None
         best_days = None
 
         for r in reservations:
+            phone = r.get("phone", "")
+            if not phone:
+                continue
+
             checkin_str = r.get("arrivalDate")
             if not checkin_str:
                 continue
@@ -170,30 +180,25 @@ def get_upcoming_phone_for_listing(listing_id: str):
             except Exception:
                 continue
 
-            days_until = (checkin - today).days
-            # Only consider reservations from today to 20 days out
-            if days_until < 0 or days_until > 20:
-                continue
-
-            phone = (r.get("phone") or "").strip()
-            if len(phone) < 4:
-                continue
-
-            if best_res is None or days_until < best_days:
-                best_res = r
-                best_days = days_until
+            days_until_checkin = (checkin - today).days
+            # Only consider reservations in [0, 20] days
+            if 0 <= days_until_checkin <= 20:
+                if best_res is None or days_until_checkin < best_days:
+                    best_res = r
+                    best_days = days_until_checkin
 
         if not best_res:
-            print("[Hostaway] No upcoming reservation within 20 days for listing", listing_id)
             return None, None, None
 
-        full_phone = (best_res.get("phone") or "").strip()
-        phone_last4 = full_phone[-4:] if len(full_phone) >= 4 else None
-        reservation_id = str(best_res.get("id")) if best_res.get("id") is not None else None
+        full_phone = best_res.get("phone")
+        if not full_phone:
+            return None, None, None
 
-        print(f"[Hostaway] Using reservation id={reservation_id}, phone={full_phone}, last4={phone_last4}")
+        phone_last4 = full_phone[-4:]
+        reservation_id = str(best_res.get("id") or best_res.get("reservationId") or "")
+
         return phone_last4, full_phone, reservation_id
 
     except Exception as e:
-        print(f"[Hostaway] Error in get_upcoming_phone_for_listing: {e}")
+        print("[Hostaway] Error in get_upcoming_phone_for_listing:", e)
         return None, None, None
