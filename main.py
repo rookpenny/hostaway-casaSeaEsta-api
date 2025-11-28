@@ -33,6 +33,8 @@ from utils.pms_sync import sync_properties, sync_all_pmcs
 from routes import admin, pmc_auth
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
+from utils.pms_access import get_pms_access_info
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
