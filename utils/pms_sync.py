@@ -17,13 +17,6 @@ engine = create_engine(DATABASE_URL)
 
 load_dotenv()
 
-'''
-AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"  # Properties table ID
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"         # PMC table ID
-'''
-
 def fetch_pmc_lookup():
     lookup = {}
 
@@ -69,50 +62,7 @@ def default_base_url(pms):
         "lodgify": "https://api.lodgify.com/v1"
     }.get(pms, "https://api.example.com/v1")
 
-''' THIS IS AIRTABLE LOOK UP CODE
-def fetch_pmc_lookup():
-    """Fetch PMC configs from Airtable and return a dict of client_id -> credentials."""
-    url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PMC_TABLE_ID}"
-    headers = {"Authorization": f"Bearer {AIRTABLE_API_KEY}"}
 
-    response = requests.get(url, headers=headers)
-    if response.status_code != 200:
-        raise Exception(f"Failed to fetch PMC records: {response.text}")
-
-    records = response.json().get("records", [])
-    lookup = {}
-
-    def default_base_url(pms):
-        pms = pms.lower()
-        return {
-            "hostaway": "https://api.hostaway.com/v1",
-            "guesty": "https://open-api.guesty.com/v1",
-            "lodgify": "https://api.lodgify.com/v1"
-        }.get(pms, "https://api.example.com/v1")  # fallback for future
-
-    for record in records:
-        fields = record.get("fields", {})
-        account_id = str(fields.get("PMS Account ID", "")).strip()
-        client_id = str(fields.get("PMS Client ID", "")).strip()  # ✅ ADDED
-        client_secret = str(fields.get("PMS Secret", "")).strip()
-        pms = fields.get("PMS Integration", "").strip().lower()
-        sync_enabled = fields.get("Sync Enabled", True)
-
-        base_url = fields.get("API Base URL", "").strip() or default_base_url(pms)
-        version = fields.get("API Version", "").strip()
-
-        if account_id and client_id and client_secret and sync_enabled:
-            lookup[account_id] = {
-                "record_id": record["id"],
-                "client_id": client_id,  # ✅ ADDED
-                "client_secret": client_secret,
-                "pms": pms,
-                "base_url": base_url,
-                "version": version,
-            }
-
-    return lookup
-'''
 
 def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str) -> str:
     if pms == "hostaway":
@@ -203,7 +153,7 @@ def fetch_properties(access_token: str, base_url: str, pms: str):
     else:
         return response.json().get("properties", [])
 
-
+''' REMOVE THIS CODE
 def save_to_airtable(properties, client_id, pmc_record_id, pms):
     """Write fetched property records to Airtable and prepare GitHub sync info."""
     airtable_url = f"https://api.airtable.com/v0/{AIRTABLE_BASE_ID}/{AIRTABLE_PROPERTIES_TABLE_ID}"
@@ -253,7 +203,7 @@ def save_to_airtable(properties, client_id, pmc_record_id, pms):
             print(f"[ERROR] Failed to save property {name}: {res.text}")
 
     return results  # ⬅️ now correctly returns a list of result dicts
-
+'''
 
 
 
