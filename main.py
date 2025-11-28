@@ -179,6 +179,10 @@ def guest_chat_ui(request: Request, property_id: int, db: Session = Depends(get_
 
 
 # --- Start Server ---
+
+class ChatRequest(BaseModel):
+    message: str
+    
 if __name__ == "__main__":
     try:
         uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
@@ -206,15 +210,16 @@ def property_chat(
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
-    # 1️⃣ Look up property + PMC, enforce "Sandy enabled"
+    lowered = user_message.lower()
+    now = datetime.utcnow()
+
+    # 1️⃣ Look up property + PMC, enforce Sandy enabled
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
     pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
-
     if not pmc or not pmc.active or not prop.sandy_enabled:
-        # Graceful "offline" message for this property
         return {
             "response": (
                 "Sandy is currently offline for this property 🌙\n\n"
@@ -222,29 +227,13 @@ def property_chat(
             )
         }
 
-    # 2️⃣ Load property config (door code, phone last4, check-in, etc.)
-    try:
-        # Adjust this to match your actual load_property_config signature
-        # For now we assume it can take a Property or property_id
-        ctx_config = load_property_config(property_id)
-    except Exception:
-        ctx_config = {}
-
-    door_code = ctx_config.get("door_code")
-    expected_phone_last4 = ctx_config.get("guest_phone_last4")
-    checkin_time = ctx_config.get("checkin_time", "16:00")  # "HH:MM"
-    checkout_time = ctx_config.get("checkout_time", "11:00")
-
-    # 3️⃣ Find or create a ChatSession for this property
-    now = datetime.utcnow()
-
-    # Reuse most recent session within the last 4 hours
+    # 2️⃣ Create or reuse a ChatSession (last 4 hours)
     recent_cutoff = now - timedelta(hours=4)
     session = (
         db.query(ChatSession)
         .filter(
             ChatSession.property_id == property_id,
-            ChatSession.last_activity_at >= recent_cutoff
+            ChatSession.last_activity_at >= recent_cutoff,
         )
         .order_by(ChatSession.last_activity_at.desc())
         .first()
@@ -262,12 +251,10 @@ def property_chat(
         db.commit()
         db.refresh(session)
 
-    # 4️⃣ Log the guest's message with basic categorisation
+    # 3️⃣ Log guest message with simple intelligence
     category = classify_category(user_message)
     log_type = detect_log_types(user_message)
 
-    # Very simple sentiment stub; you can replace with a real model later
-    lowered = user_message.lower()
     if any(word in lowered for word in ["angry", "upset", "terrible", "horrible", "bad", "not happy"]):
         sentiment = "negative"
     elif any(word in lowered for word in ["love", "great", "amazing", "awesome", "perfect", "thank you"]):
@@ -288,84 +275,131 @@ def property_chat(
     session.last_activity_at = now
     db.commit()
 
-    # 5️⃣ Special handling: access code + verification flow
+    # 4️⃣ PMS-based access control (phone last4 + door code)
     code_keywords = ["door code", "access code", "entry code", "pin", "key code"]
     is_code_request = any(k in lowered for k in code_keywords)
 
-    # 5a) If user is asking for the code but not verified yet → prompt for last 4 digits
+    # simple default check-in time while we don't pull it from PMS/config yet
+    checkin_time = "16:00"
+    try:
+        checkin_hour = int(checkin_time.split(":")[0])
+    except Exception:
+        checkin_hour = 16
+
+    phone_last4: str | None = None
+    door_code: str | None = None
+
+    def ensure_pms_data():
+        nonlocal phone_last4, door_code
+        if phone_last4 is not None and door_code is not None:
+            return
+
+        pl4, code, reservation_id = get_pms_access_info(pmc, prop)
+
+        phone_last4 = pl4
+        door_code = code
+
+        if reservation_id:
+            session.pms_reservation_id = reservation_id
+        if pl4:
+            session.phone_last4 = pl4
+
+        db.commit()
+
+    # 🔐 4a) Asking for door code but not verified → start verification flow
     if is_code_request and not session.is_verified:
+        ensure_pms_data()
+
+        if not phone_last4:
+            return {
+                "response": (
+                    "I’m not seeing an active reservation with a phone number for this property right now. 🤔\n\n"
+                    "Please double-check that you’re using the correct link, or contact your host directly "
+                    "so they can share your code."
+                ),
+                "session_id": session.id,
+            }
+
         return {
             "response": (
                 "For security, I can only share your access code after I confirm your identity. 🔐\n\n"
-                "**What are the last 4 digits of the phone number** on your reservation? 📱"
+                "What are the **last 4 digits of the phone number** on your reservation? 📱"
             ),
-            "session_id": session.id
+            "session_id": session.id,
         }
 
-    # 5b) If the message looks like exactly 4 digits and session not verified yet → treat as verification attempt
+    # 🔐 4b) 4-digit message & not verified → treat as verification attempt
     four_digits = re.fullmatch(r"\d{4}", user_message)
     if four_digits and not session.is_verified:
-        if expected_phone_last4 and expected_phone_last4 == user_message:
+        ensure_pms_data()
+
+        if not phone_last4:
+            return {
+                "response": (
+                    "I’m not seeing a phone number on file for your reservation, so I can’t verify you automatically. 😕\n\n"
+                    "Please contact your host directly and they’ll share your code."
+                ),
+                "session_id": session.id,
+            }
+
+        if phone_last4 == user_message:
             session.is_verified = True
             session.phone_last4 = user_message
             session.last_activity_at = now
             db.commit()
+
             return {
                 "response": (
                     "Thank you! You're verified 🎉\n\n"
                     "You can now ask me for your **door code** or anything else you need."
                 ),
-                "session_id": session.id
+                "session_id": session.id,
             }
         else:
             return {
                 "response": (
-                    "Hmm, that doesn’t match what I have on file. 😕\n\n"
+                    "Hmm, that doesn’t match the phone number I have on file. 😕\n\n"
                     "Please double-check the **last 4 digits** of the phone number on your reservation, "
-                    "or reach out to your host directly if you think there’s an issue."
+                    "or contact your host directly if you think there’s an issue."
                 ),
-                "session_id": session.id
+                "session_id": session.id,
             }
 
-    # 5c) If guest is verified and asks for the code → check timing & reveal or upsell early check-in
+    # 🔐 4c) Verified & asking for code → time-gated reveal
     if is_code_request and session.is_verified:
+        ensure_pms_data()
+
         if not door_code:
-            # No code configured → fail safe
             return {
                 "response": (
-                    "You're verified 🎉 but I don't have an access code configured for this property yet.\n\n"
+                    "You're verified 🎉 but I don’t see a door code configured for this reservation in the PMS.\n\n"
                     "Please contact your host directly so they can share it with you."
                 ),
-                "session_id": session.id
+                "session_id": session.id,
             }
 
-        # Very simple time gating: compare current UTC hour with configured check-in hour
-        try:
-            checkin_hour = int(checkin_time.split(":")[0])
-        except Exception:
-            checkin_hour = 16  # default 4pm
-
-        now_hour = now.hour  # later you can adjust for property timezone
+        now_hour = now.hour  # TODO: adjust for property timezone later
 
         if now_hour < checkin_hour:
-            # Too early – offer early check-in
             return {
                 "response": (
                     "You're verified 🎉 but it's a bit early for check-in.\n\n"
                     f"Your standard check-in time is **{checkin_time}**.\n\n"
                     "🌟 If you'd like, I can check on **early check-in** options for you."
                 ),
-                "session_id": session.id
+                "session_id": session.id,
             }
 
-        # OK to reveal the code
         return {
-            "response": f"You're all set! 🎉\n\nYour access code is: **{door_code}** 🔓",
-            "session_id": session.id
+            "response": (
+                "You're all set! 🎉\n\n"
+                "Your access code (based on the phone number on your reservation) is:\n\n"
+                f"➡️ **{door_code}** 🔓"
+            ),
+            "session_id": session.id,
         }
 
-    # 6️⃣ Fallback to normal Sandy AI reply for everything else
-    # Build system prompt with property context
+    # 5️⃣ Everything else → normal Sandy GPT reply
     system_prompt = (
         "You are Sandy, a beachy, upbeat AI concierge for a vacation rental.\n"
         "Always respond in the same language as the guest.\n"
@@ -388,13 +422,12 @@ def property_chat(
         )
         reply_text = ai_response.choices[0].message.content.strip()
     except Exception as e:
+        logging.exception("Error calling OpenAI in property_chat: %s", e)
         reply_text = (
             "Oops, I had a little trouble thinking just now 🧠💭\n\n"
             "Please try again in a moment, or contact your host directly if it's urgent."
         )
-        logging.exception("Error calling OpenAI in property_chat: %s", e)
 
-    # 7️⃣ Log assistant reply
     assistant_msg = ChatMessage(
         session_id=session.id,
         sender="assistant",
@@ -407,8 +440,9 @@ def property_chat(
 
     return {
         "response": reply_text,
-        "session_id": session.id
+        "session_id": session.id,
     }
+
 
 
 def get_pms_access_info(pmc: PMC, prop: Property):
