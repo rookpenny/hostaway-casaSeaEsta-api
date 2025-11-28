@@ -16,7 +16,7 @@ from typing import Optional
 from pathlib import Path
 
 from database import SessionLocal
-from models import PMC, Property
+from models import PMC, Property, ChatSession, ChatMessage
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
 
@@ -71,6 +71,77 @@ def save_file(file_path: str = Form(...), content: str = Form(...)):
         return HTMLResponse("<h2>File saved successfully.</h2><a href='/admin'>Back to Admin</a>")
     except Exception as e:
         return HTMLResponse(f"<h2>Failed to save file: {e}</h2>", status_code=500)
+
+
+from sqlalchemy.orm import Session
+from fastapi import Depends, Request
+from fastapi.responses import HTMLResponse
+
+# 💬 Recent Chats Overview
+@router.get("/admin/chats", response_class=HTMLResponse)
+def admin_chats(request: Request, db: Session = Depends(get_db)):
+    # Latest sessions first
+    sessions = (
+        db.query(ChatSession)
+        .order_by(ChatSession.last_activity_at.desc())
+        .limit(100)
+        .all()
+    )
+
+    items = []
+    for s in sessions:
+        prop = s.property
+        last_msg = (
+            db.query(ChatMessage)
+            .filter(ChatMessage.session_id == s.id)
+            .order_by(ChatMessage.created_at.desc())
+            .first()
+        )
+        items.append({
+            "id": s.id,
+            "property_name": prop.property_name if prop else "Unknown property",
+            "property_id": s.property_id,
+            "last_activity_at": s.last_activity_at,
+            "source": s.source,
+            "is_verified": s.is_verified,
+            "last_snippet": (last_msg.content[:120] + "…") if last_msg else "",
+        })
+
+    return templates.TemplateResponse(
+        "admin_chats.html",
+        {
+            "request": request,
+            "sessions": items,
+        }
+    )
+
+
+# 💬 Single Chat Conversation View
+@router.get("/admin/chats/{session_id}", response_class=HTMLResponse)
+def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not session:
+        return HTMLResponse("<h2>Chat session not found</h2>", status_code=404)
+
+    prop = session.property
+
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        "admin_chat_detail.html",
+        {
+            "request": request,
+            "session": session,
+            "property": prop,
+            "messages": messages,
+        }
+    )
+
 
 
 # Save Manual File to GitHub
