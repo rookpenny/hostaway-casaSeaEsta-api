@@ -202,17 +202,15 @@ class ChatRequest(BaseModel):
 
 
 @app.post("/properties/{property_id}/chat")
-def property_chat(
-    property_id: int,
-    payload: ChatRequest,
-    db: Session = Depends(get_db)
-):
-    user_message = (payload.message or "").strip()
+def property_chat(property_id: int, message: ChatMessageIn, db: Session = Depends(get_db)):
+    now = datetime.utcnow()
+
+    # 0️⃣ Extract and validate user message
+    user_message = (message.message or "").strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
     lowered = user_message.lower()
-    now = datetime.utcnow()
 
     # 1️⃣ Look up property + PMC, enforce Sandy enabled
     prop = db.query(Property).filter(Property.id == property_id).first()
@@ -243,7 +241,7 @@ def property_chat(
     if not session:
         session = ChatSession(
             property_id=property_id,
-            source="web_chat",
+            source="guest_web",   # or "web_chat" – just be consistent
             is_verified=False,
             created_at=now,
             last_activity_at=now,
@@ -252,7 +250,10 @@ def property_chat(
         db.commit()
         db.refresh(session)
 
-    # 3️⃣ Log guest message with simple intelligence
+    # 3️⃣ PMS: attach phone_last4 / reservation info to THIS session
+    ensure_pms_data(db, session)
+
+    # 4️⃣ Log guest message with simple intelligence
     category = classify_category(user_message)
     log_type = detect_log_types(user_message)
 
@@ -275,8 +276,9 @@ def property_chat(
     db.add(guest_msg)
     session.last_activity_at = now
     db.commit()
+    db.refresh(session)
 
-    # 4️⃣ PMS-based access control (phone last4 + door code)
+    # 5️⃣ PMS-based access control (your existing logic continues here)
     code_keywords = ["door code", "access code", "entry code", "pin", "key code"]
     is_code_request = any(k in lowered for k in code_keywords)
 
@@ -289,6 +291,24 @@ def property_chat(
 
     phone_last4: str | None = None
     door_code: str | None = None
+
+    # 👇 from here down, you can keep whatever door-code / LLM logic
+    # you already had, but now use **session** for PMS fields:
+    #
+    #   session.phone_last4
+    #   session.pms_reservation_id
+    #
+    # and `user_message` / `lowered` for the guest content.
+    #
+    # e.g.:
+    #
+    # if is_code_request:
+    #     if session.phone_last4 and session.phone_last4 in user_message:
+    #         # allowed, give code
+    #     else:
+    #         # ask them for last 4 digits, etc.
+    #
+    # finally return {"response": reply_text}
 
 
 def simple_sentiment(message: str) -> str:
