@@ -25,6 +25,7 @@ from pydantic import BaseModel
 from models import Property, ChatSession, ChatMessage, PMC
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 
+from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
