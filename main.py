@@ -140,6 +140,19 @@ def chat(request: ChatRequest):
     except Exception as e:
         return {"error": str(e)}
 
+@app.get("/debug/properties")
+def debug_properties(db: Session = Depends(get_db)):
+    props = db.query(Property).all()
+    return [
+        {
+            "id": p.id,
+            "property_name": p.property_name,
+            "pms_property_id": p.pms_property_id,
+            "sandy_enabled": p.sandy_enabled,
+            "pmc_id": p.pmc_id,
+        }
+        for p in props
+    ]
 
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_chat_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
