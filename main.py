@@ -252,9 +252,16 @@ def verify_json(
             status_code=400
         )
 
-    # get PMS-linked last 4 digits from Hostaway
+    # get PMS-linked last 4 digits + guest info from Hostaway
     try:
-        phone_last4, door_code, reservation_id = get_pms_access_info(pmc, prop)
+        (
+            phone_last4,
+            door_code,
+            reservation_id,
+            guest_name,
+            arrival_date,
+            departure_date,
+        ) = get_pms_access_info(pmc, prop)
     except Exception as e:
         print("[VERIFY PMS ERROR]", e)
         return JSONResponse(
@@ -279,14 +286,23 @@ def verify_json(
     # correct! mark this browser as verified
     request.session[f"guest_verified_{property_id}"] = True
 
-    return {"success": True}
+    # 🔹 also return guest + stay info so the UI can show:
+    # "Welcome to Casa X, [guest_name]!" and dates
+    return {
+        "success": True,
+        "guest_name": guest_name,
+        "arrival_date": arrival_date,
+        "departure_date": departure_date,
+    }
 
 
 
 
 class PropertyChatRequest(BaseModel):
     message: str
-    session_id: Optional[int] = None  # optional from frontend
+    session_id: Optional[int] = None
+    language: Optional[str] = None
+
 
 
 @app.get("/manifest/{property_id}.webmanifest")
@@ -406,6 +422,11 @@ def property_chat(
     )
     db.add(guest_msg)
     session.last_activity_at = now
+  
+    # after ensure_pms_data(db, session)
+    if payload.language and payload.language != "auto":
+    session.language = payload.language
+    
     db.commit()
     db.refresh(session)
 
