@@ -1,6 +1,6 @@
 {
-  "name": "Casa Sea Esta",
-  "short_name": "SeaEsta",
+  "name": "Casa {{ property_name }}",
+  "short_name": "{{ property_name }}",
   "start_url": "/guest/{{ property_id }}",
   "display": "standalone",
   "background_color": "#020617",
