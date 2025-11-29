@@ -171,5 +171,12 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 # --- Logout
 @router.get("/logout")
 def logout(request: Request):
+    property_id = request.session.get("last_property")
     request.session.clear()
-    return RedirectResponse(url="/")
+
+    if property_id:
+        return RedirectResponse(url=f"/guest/{property_id}")
+
+    # fallback if nothing stored
+    return RedirectResponse(url="/guest/1")  # or pick a default
+
