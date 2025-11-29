@@ -574,7 +574,18 @@ def load_property_context(prop: Property) -> dict:
     return {"config": config, "manual": manual_text}
 
 
-def build_system_prompt(prop: Property, pmc, context: dict) -> str:
+def build_system_prompt(
+    prop: Property,
+    pmc,
+    context: dict,
+    session_language: str | None = None
+) -> str:
+    """
+    Build a property-aware system prompt for Sandy.
+    Adds support for session.language (preferred language) while
+    keeping your original tone, formatting rules, and property data.
+    """
+
     config = context.get("config", {})
     manual = context.get("manual", "")
 
@@ -586,31 +597,50 @@ def build_system_prompt(prop: Property, pmc, context: dict) -> str:
 
     emergency_phone = config.get("emergency_phone") or (pmc.main_contact if pmc else "")
 
+    # 🔤 Normalize session_language
+    # - None or "" or "auto" → auto-detect mirror mode
+    # - Otherwise → enforce that language
+    lang_code = (session_language or "").strip().lower()
+
+    if lang_code in ("", "auto", None):
+        language_instruction = "Always answer in the SAME language the guest uses."
+        lang_label = "auto"
+    else:
+        # enforce a specific language, e.g. 'es' or 'fr'
+        lang_label = lang_code
+        language_instruction = (
+            f"Always answer in **{lang_code.upper()}**, unless the guest clearly switches languages."
+        )
+
     return f"""
-You are Sandy, a beachy, upbeat AI concierge for a vacation rental called "{prop.property_name}".
+        You are Sandy, a beachy, upbeat AI concierge for a vacation rental called "{prop.property_name}".
+        
+        Property host/manager: {pmc.pmc_name if pmc else "Unknown PMC"}.
+        Emergency or urgent issues should be directed to: {emergency_phone} (phone).
+        
+        Guest preferred language setting: **{lang_label}**  
+        {language_instruction}
+        
+        Always:
+        - Use a clear, friendly, warm tone with light emojis.
+        - Use markdown formatting: **bold headers**, bullet points, and line breaks.
+        - Keep replies concise but helpful.
+        - If you reference locations, include Google Maps links when possible.
+        
+        Important property info:
+        - House rules: {house_rules}
+        - WiFi: {wifi_info}
+        - Other details from the house manual are below.
+        
+        House manual:
+        \"\"\"
+        {manual}
+        \"\"\"
+        
+        If you don't know something, say you aren't sure and suggest the guest contact the host.
+        Never make up access codes or sensitive details that are not explicitly in the config/manual.
+        """.strip()
 
-Property host/manager: {pmc.pmc_name if pmc else "Unknown PMC"}.
-Emergency or urgent issues should be directed to: {emergency_phone} (phone).
-
-Always:
-- Answer in the SAME language the guest uses.
-- Use clear, friendly, warm tone with light emojis.
-- Use markdown formatting: **bold headers**, bullet points, and line breaks.
-- If you reference locations, include Google Maps links when possible.
-
-Important property info:
-- House rules: {house_rules}
-- WiFi: {wifi_info}
-- Other details from the house manual are below.
-
-House manual:
-\"\"\"
-{manual}
-\"\"\"
-
-If you don't know something, say you aren't sure and suggest the guest contact the host.
-Never make up access codes or sensitive details that are not explicitly in the config/manual.
-""".strip()
 
 
 # --- Start Server ---
