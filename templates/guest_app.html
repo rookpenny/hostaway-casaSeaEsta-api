@@ -1,0 +1,546 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ property_name }} – Guest Experience</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- Tailwind CDN for now -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <script>
+    // Injected from FastAPI/Jinja
+    window.PROPERTY_ID = {{ property_id | tojson }};
+    window.PROPERTY_NAME = {{ property_name | tojson }};
+    window.SANDY_LIVE = {{ ("true" if is_live else "false") | tojson }};
+    // If you add server-side verification later, you can set this to true
+    window.INITIAL_VERIFIED = {{ ( "true" if is_verified else "false") | tojson if is_verified is defined else "false" }};
+  </script>
+</head>
+<body class="min-h-screen bg-black text-slate-50 flex items-center justify-center">
+  <!-- Phone frame -->
+  <div class="relative w-full max-w-sm bg-slate-950 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
+    <!-- Content area -->
+    <div class="h-[700px] flex flex-col">
+
+      <!-- Top header: property & language -->
+      <header class="relative">
+        <div class="h-40 w-full relative">
+          {% if hero_image_url %}
+            <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
+          {% else %}
+            <div class="w-full h-full bg-slate-800"></div>
+          {% endif %}
+          <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-black/80 to-slate-950"></div>
+
+          <div class="absolute inset-x-0 top-0 px-5 pt-5 flex justify-between items-start">
+            <div>
+              <p class="text-xs text-slate-300 uppercase tracking-wide">Welcome to</p>
+              <h1 class="text-xl font-semibold">{{ property_name }}</h1>
+            </div>
+            <div class="flex items-center gap-1 bg-black/60 border border-slate-700 rounded-full px-3 py-1 text-xs">
+              <span>English</span>
+              <svg class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Screens -->
+      <main id="screen-container" class="flex-1 overflow-y-auto px-5 pt-4 pb-3 space-y-4">
+        <!-- WELCOME / UNLOCK -->
+        <section id="screen-welcome" class="space-y-4">
+          <div class="space-y-2">
+            <h2 class="text-2xl font-semibold">Unlock your stay</h2>
+            <p class="text-sm text-slate-300">
+              Enter the <span class="font-semibold">last 4 digits of the phone number</span> on your booking
+              to unlock your personalized trip details, chat with Sandy, and explore local experiences.
+            </p>
+          </div>
+
+          <div class="bg-slate-900/70 border border-slate-800 rounded-2xl p-4 space-y-3">
+            <label for="unlock-code" class="block text-xs font-medium text-slate-300 mb-1">
+              Last 4 digits
+            </label>
+            <input
+              id="unlock-code"
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+              placeholder="1234"
+              class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+            <button
+              id="unlock-button"
+              class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-sm font-semibold text-slate-950 py-2.5 transition">
+              <span>Unlock experience</span>
+              <span id="unlock-spinner" class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
+            </button>
+            <p id="unlock-error" class="text-xs text-rose-400 min-h-[1.125rem]"></p>
+            <p class="text-[11px] text-slate-400">
+              For security, we only verify the last 4 digits. If you’re not sure which number is on the booking,
+              check your confirmation email or message your host.
+            </p>
+          </div>
+
+          <div class="mt-3 text-xs text-slate-400 flex items-center gap-2">
+            {% if is_live %}
+              <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+              <span>Sandy is live for this property 🌊</span>
+            {% else %}
+              <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+              <span>Sandy is currently offline – you can still view trip details.</span>
+            {% endif %}
+          </div>
+        </section>
+
+        <!-- HOME -->
+        <section id="screen-home" class="space-y-4 hidden">
+          <div class="space-y-1">
+            <h2 class="text-2xl font-semibold">Your stay</h2>
+            <p class="text-sm text-slate-300">All your key details in one place.</p>
+          </div>
+
+          <div class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="h-36 w-full relative">
+              {% if hero_image_url %}
+                <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
+              {% else %}
+                <div class="w-full h-full bg-slate-800"></div>
+              {% endif %}
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+              <div class="absolute bottom-3 left-3 right-3">
+                <h3 class="text-lg font-semibold">{{ property_name }}</h3>
+                {% if property_address %}
+                  <p class="text-xs text-slate-200">{{ property_address }}</p>
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="p-4 space-y-4 text-sm">
+              <!-- WiFi -->
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Wi-Fi Network</p>
+                  <p class="font-medium">
+                    {{ wifi_ssid if wifi_ssid is defined else "Blueshore-5G" }}
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Password</p>
+                  <p class="font-medium">
+                    {{ wifi_password if wifi_password is defined else "Shore6345" }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Times -->
+              <div class="flex items-start justify-between gap-4 border-t border-slate-800 pt-3">
+                <div>
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Check-in</p>
+                  <p class="font-medium">
+                    {{ checkin_time if checkin_time is defined else "3:00 PM" }}
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Check-out</p>
+                  <p class="font-medium">
+                    {{ checkout_time if checkout_time is defined else "11:00 AM" }}
+                  </p>
+                </div>
+              </div>
+
+              <!-- Dates -->
+              {% if arrival_date or departure_date %}
+              <div class="flex items-center justify-between border-t border-slate-800 pt-3">
+                <div>
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Arrival</p>
+                  <p class="font-medium">{{ arrival_date }}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Departure</p>
+                  <p class="font-medium">{{ departure_date }}</p>
+                </div>
+              </div>
+              {% endif %}
+            </div>
+          </div>
+
+          <button
+            class="w-full inline-flex justify-center items-center gap-2 rounded-2xl bg-slate-100 text-slate-950 font-semibold text-sm py-3">
+            <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M3 13.5l8.25-8.25L21 13.5M4.5 12h15v8.25a.75.75 0 01-.75.75H5.25a.75.75 0 01-.75-.75V12z"/>
+            </svg>
+            <span>Check-in instructions</span>
+          </button>
+        </section>
+
+        <!-- CHAT -->
+        <section id="screen-chat" class="space-y-3 hidden">
+          <div class="flex items-center justify-between">
+            <div>
+              <h2 class="text-2xl font-semibold">Chat with Sandy</h2>
+              <p class="text-xs text-slate-300">Ask anything about your stay.</p>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center gap-1">
+              <span class="h-2 w-2 rounded-full"
+                    :class="{}"></span>
+            </div>
+          </div>
+
+          <div class="flex flex-col bg-slate-900/70 border border-slate-800 rounded-2xl h-[360px] overflow-hidden">
+            <!-- Messages -->
+            <div id="chat-box" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm">
+              <!-- Messages will be injected here -->
+            </div>
+
+            <!-- Input -->
+            <div class="border-t border-slate-800 bg-slate-950/80 px-3 py-2 flex items-center gap-2">
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="Ask about Wi-Fi, parking, or anything else..."
+                class="flex-1 bg-slate-900 border border-slate-700 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+                />
+              <button
+                id="chat-send"
+                class="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 w-9 h-9 text-xs font-semibold">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M5 12h14M5 12l6-6m-6 6l6 6"/>
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <!-- EXPERIENCES -->
+        <section id="screen-experiences" class="space-y-4 hidden">
+          <div class="space-y-1">
+            <h2 class="text-2xl font-semibold">Experiences</h2>
+            <p class="text-sm text-slate-300">Local guides, upgrades, and more.</p>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <!-- Example big feature card -->
+            <article class="col-span-2 bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
+              <div class="h-28 relative">
+                {% if feature_image_url %}
+                  <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
+                {% else %}
+                  <div class="w-full h-full bg-slate-800"></div>
+                {% endif %}
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+                <div class="absolute bottom-3 left-3 right-3">
+                  <h3 class="text-base font-semibold">Our Story</h3>
+                  <p class="text-[11px] text-slate-200 line-clamp-2">
+                    In the heart of {{ city_name or "our favorite coastal town" }}, this place came to life…
+                  </p>
+                </div>
+              </div>
+            </article>
+
+            <!-- Smaller cards (you can loop over real data later) -->
+            <article class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
+              <div class="h-24 bg-slate-800">
+                {% if family_image_url %}
+                  <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
+                {% endif %}
+              </div>
+              <div class="p-3 space-y-1">
+                <h3 class="text-sm font-semibold">Fun Family Activities</h3>
+                <p class="text-[11px] text-slate-300 line-clamp-2">
+                  Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
+                </p>
+              </div>
+            </article>
+
+            <article class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
+              <div class="h-24 bg-slate-800">
+                {% if foodie_image_url %}
+                  <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
+                {% endif %}
+              </div>
+              <div class="p-3 space-y-1">
+                <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
+                <p class="text-[11px] text-slate-300 line-clamp-2">
+                  Coffee, brunch, seafood, and dessert spots we genuinely love.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
+      </main>
+
+      <!-- Bottom nav -->
+      <nav class="h-16 bg-slate-950/95 border-t border-slate-800 flex items-center justify-around text-[11px]">
+        <button data-screen="welcome" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
+          <span class="w-6 h-6 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center text-xs font-semibold">✦</span>
+          <span>Welcome</span>
+        </button>
+        <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+          <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M3 12l9-9 9 9M4.5 10.5V21h15V10.5"/>
+            </svg>
+          </span>
+          <span>Home</span>
+        </button>
+        <button data-screen="chat" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+          <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M7 8h10M7 12h5m-9 2.25V7a2 2 0 012-2h12a2 2 0 012 2v7.25a2 2 0 01-2 2h-5.586a1 1 0 00-.707.293L9.5 20.75 9 19.25"/>
+            </svg>
+          </span>
+          <span>Chat</span>
+        </button>
+        <button data-screen="experiences" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+          <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M4.5 6.75h15M4.5 12h15M4.5 17.25h8.25"/>
+            </svg>
+          </span>
+          <span>Guides</span>
+        </button>
+      </nav>
+    </div>
+  </div>
+
+  <!-- JS: navigation, unlock, chat -->
+  <script>
+    // ---------- Screen Navigation ----------
+    const screens = {
+      welcome: document.getElementById('screen-welcome'),
+      home: document.getElementById('screen-home'),
+      chat: document.getElementById('screen-chat'),
+      experiences: document.getElementById('screen-experiences'),
+    };
+
+    let isUnlocked = (window.INITIAL_VERIFIED === "true");
+    const navButtons = document.querySelectorAll('button.nav-item');
+
+    function showScreen(name) {
+      for (const [key, el] of Object.entries(screens)) {
+        if (!el) continue;
+        if (key === name) {
+          el.classList.remove('hidden');
+        } else {
+          el.classList.add('hidden');
+        }
+      }
+
+      navButtons.forEach(btn => {
+        const target = btn.getAttribute('data-screen');
+        if (target === name) {
+          btn.classList.remove('text-slate-400');
+          btn.classList.add('text-slate-50');
+        } else {
+          btn.classList.add('text-slate-400');
+          btn.classList.remove('text-slate-50');
+        }
+      });
+    }
+
+    navButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const target = btn.getAttribute('data-screen');
+        if (!isUnlocked && target !== 'welcome') {
+          // soft guard – the real security should still be on the backend
+          const err = document.getElementById('unlock-error');
+          err.textContent = "Please unlock your stay first with the last 4 digits of your booking phone number.";
+          showScreen('welcome');
+          return;
+        }
+        showScreen(target);
+      });
+    });
+
+    // default screen
+    showScreen(isUnlocked ? 'home' : 'welcome');
+
+    // ---------- Unlock Flow ----------
+    const unlockBtn = document.getElementById('unlock-button');
+    const unlockCodeInput = document.getElementById('unlock-code');
+    const unlockError = document.getElementById('unlock-error');
+    const unlockSpinner = document.getElementById('unlock-spinner');
+
+    async function attemptUnlock() {
+      const code = (unlockCodeInput.value || "").trim();
+      unlockError.textContent = "";
+
+      if (!/^\d{4}$/.test(code)) {
+        unlockError.textContent = "Please enter exactly 4 digits.";
+        return;
+      }
+
+      unlockBtn.disabled = true;
+      unlockSpinner.classList.remove('hidden');
+
+      try {
+        // You’ll want a small JSON endpoint like POST /guest/{property_id}/verify-json
+        const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code })
+        });
+
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
+          unlockError.textContent = data.error || "We couldn’t verify that code. Please double-check or contact your host.";
+          return;
+        }
+
+        isUnlocked = true;
+        unlockError.textContent = "";
+        unlockCodeInput.value = "";
+        showScreen('home');
+      } catch (err) {
+        console.error(err);
+        unlockError.textContent = "Something went wrong while verifying. Please try again.";
+      } finally {
+        unlockBtn.disabled = false;
+        unlockSpinner.classList.add('hidden');
+      }
+    }
+
+    unlockBtn.addEventListener('click', attemptUnlock);
+    unlockCodeInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        attemptUnlock();
+      }
+    });
+
+    // ---------- Chat Logic ----------
+    const chatBox = document.getElementById("chat-box");
+    const chatInput = document.getElementById("chat-input");
+    const chatSend = document.getElementById("chat-send");
+    let currentSessionId = null;
+
+    function scrollChatToBottom() {
+      if (!chatBox) return;
+      chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    function renderMessage(text, sender) {
+      if (!chatBox) return;
+      const wrapper = document.createElement('div');
+      wrapper.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+
+      const bubble = document.createElement('div');
+      bubble.className = `max-w-[80%] rounded-2xl px-3 py-2 mb-1 text-xs leading-relaxed ${
+        sender === 'user'
+          ? 'bg-emerald-500 text-slate-950 rounded-br-sm'
+          : 'bg-slate-800 text-slate-50 rounded-bl-sm'
+      }`;
+      bubble.innerHTML = formatMessage(text);
+
+      wrapper.appendChild(bubble);
+      chatBox.appendChild(wrapper);
+      scrollChatToBottom();
+    }
+
+    function addTyping() {
+      if (!chatBox) return;
+      const el = document.createElement('div');
+      el.id = "typing-indicator";
+      el.className = "flex justify-start";
+      el.innerHTML = `
+        <div class="max-w-[70%] rounded-2xl px-3 py-2 mb-1 text-xs bg-slate-800 text-slate-50 rounded-bl-sm inline-flex items-center gap-1">
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:150ms]"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:300ms]"></span>
+        </div>`;
+      chatBox.appendChild(el);
+      scrollChatToBottom();
+    }
+
+    function removeTyping() {
+      const el = document.getElementById('typing-indicator');
+      if (el) el.remove();
+    }
+
+    function formatMessage(text) {
+      // very light markdown handling: paragraphs + links
+      let escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      // links
+      escaped = escaped.replace(
+        /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">📍 View on Google Maps</a>'
+      );
+      escaped = escaped.replace(
+        /(https?:\/\/[^\s]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">$1</a>'
+      );
+
+      // simple line breaks
+      return escaped.replace(/\n/g, "<br>");
+    }
+
+    async function sendChat() {
+      const text = (chatInput.value || "").trim();
+      if (!text) return;
+
+      if (window.SANDY_LIVE === "false") {
+        renderMessage("Sandy is currently offline for this property. Please contact your host directly. 🙏", "bot");
+        return;
+      }
+
+      renderMessage(text, "user");
+      chatInput.value = "";
+      addTyping();
+
+      try {
+        const body = {
+          message: text,
+          session_id: currentSessionId,
+        };
+
+        const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+
+        const data = await res.json();
+        removeTyping();
+
+        if (data.session_id && !currentSessionId) {
+          currentSessionId = data.session_id;
+        }
+
+        if (data.error) {
+          renderMessage(data.error, "bot");
+        } else {
+          renderMessage(data.response || "Hmm, I didn’t catch that — could you try again? 🌴", "bot");
+        }
+      } catch (err) {
+        console.error(err);
+        removeTyping();
+        renderMessage("Oops! Something went wrong. Please try again in a moment. 🐚", "bot");
+      }
+    }
+
+    if (chatSend && chatInput) {
+      chatSend.addEventListener('click', sendChat);
+      chatInput.addEventListener('keypress', (e) => {
+        if (e.key === 'Enter' && !e.shiftKey) {
+          e.preventDefault();
+          sendChat();
+        }
+      });
+    }
+  </script>
+</body>
+</html>
