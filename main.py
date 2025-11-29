@@ -264,15 +264,24 @@ class PropertyChatRequest(BaseModel):
 
 
 @app.get("/manifest/{property_id}.webmanifest")
-def dynamic_manifest(property_id: int, request: Request):
+from fastapi import Response
+
+@app.get("/manifest/{property_id}.webmanifest")
+def dynamic_manifest(property_id: int, request: Request, db: Session = Depends(get_db)):
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
     return templates.TemplateResponse(
         "manifest.webmanifest",
         {
             "request": request,
             "property_id": property_id,
+            "property_name": prop.property_name,
         },
         media_type="application/manifest+json",
     )
+
     
 @app.post("/properties/{property_id}/chat")
 def property_chat(
