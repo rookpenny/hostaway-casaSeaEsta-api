@@ -245,28 +245,29 @@
     </section>
 
     <!-- CHAT (full screen: header hidden, no logout/language) -->
-    <section id="screen-chat" class="hidden flex-1 flex flex-col">
-      <div class="flex-1 flex flex-col bg-slate-900/95 rounded-2xl overflow-hidden border border-slate-800">
-        <div id="chat-box" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm"></div>
+<section id="screen-chat" class="hidden flex-1 flex flex-col">
+  <div class="flex-1 flex flex-col bg-slate-900">
+    <div id="chat-box" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm"></div>
 
-        <div class="border-t border-slate-800 bg-slate-950/90 px-3 py-2 flex items-center gap-2">
-          <input
-            id="chat-input"
-            type="text"
-            placeholder="Ask about Wi-Fi, parking, house rules, or anything else..."
-            class="flex-1 bg-slate-900 border border-slate-700 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
-          />
-          <button
-            id="chat-send"
-            class="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 w-9 h-9 text-xs font-semibold">
-            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M5 12h14M5 12l6-6m-6 6l6 6"/>
-            </svg>
-          </button>
-        </div>
-      </div>
-    </section>
+    <div class="bg-slate-950 px-3 py-2 flex items-center gap-2">
+      <input
+        id="chat-input"
+        type="text"
+        placeholder="Ask about Wi-Fi, parking, house rules, or anything else..."
+        class="flex-1 bg-slate-900 border border-slate-700 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+      />
+      <button
+        id="chat-send"
+        class="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 w-9 h-9 text-xs font-semibold">
+        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                d="M5 12h14M5 12l6-6m-6 6l6 6"/>
+        </svg>
+      </button>
+    </div>
+  </div>
+</section>
+
 
     <!-- GUIDES -->
     <section id="screen-experiences" class="hidden flex flex-col gap-4">
