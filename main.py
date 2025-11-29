@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 
 from fastapi import (
     FastAPI, Request, Query, Path, HTTPException, Header, Form,
-    APIRouter, Depends
+    APIRouter, Depends, status   # 👈 added status
 )
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -36,16 +36,13 @@ from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing
 
-
 from apscheduler.schedulers.background import BackgroundScheduler
 from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- Init ---
-app = FastAPI()  # ✅ Define app before using it
-class ChatMessageIn(BaseModel):
-    message: str
-    
+app = FastAPI()
+
 # --- Routers ---
 app.include_router(admin.router)
 app.include_router(pmc_auth.router)
@@ -198,27 +195,72 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         },
     )
 
+class VerifyRequest(BaseModel):
+    code: str
 
+@app.post("/guest/{property_id}/verify-json")
+def verify_json(
+    property_id: int,
+    payload: VerifyRequest,
+    request: Request,
+    db: Session = Depends(get_db)
+):
+    code = (payload.code or "").strip()
 
+    # quick format check
+    if not code.isdigit() or len(code) != 4:
+        return JSONResponse(
+            {"success": False, "error": "Please enter exactly 4 digits."},
+            status_code=400
+        )
 
-# --- Start Server ---
+    # load property + PMC
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
 
-class ChatRequest(BaseModel):
-    message: str
-    
-if __name__ == "__main__":
+    pmc = prop.pmc
+    if not pmc:
+        return JSONResponse(
+            {"success": False, "error": "This property is not linked to a PMS."},
+            status_code=400
+        )
+
+    # get PMS-linked last 4 digits from Hostaway
     try:
-        uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+        phone_last4, door_code, reservation_id = get_pms_access_info(pmc, prop)
     except Exception as e:
-        print(f"Error: {e}")
+        print("[VERIFY PMS ERROR]", e)
+        return JSONResponse(
+            {"success": False, "error": "Could not verify your reservation. Please try again."},
+            status_code=500
+        )
+
+    # no reservation/phone found
+    if not phone_last4 or not reservation_id:
+        return JSONResponse(
+            {"success": False, "error": "No active reservation found for this property."},
+            status_code=400
+        )
+
+    # wrong code → deny access
+    if code != phone_last4:
+        return JSONResponse(
+            {"success": False, "error": "That code does not match the reservation phone number."},
+            status_code=403
+        )
+
+    # correct! mark this browser as verified
+    request.session[f"guest_verified_{property_id}"] = True
+
+    return {"success": True}
+
+
 
 
 class PropertyChatRequest(BaseModel):
     message: str
     session_id: Optional[int] = None  # optional from frontend
-
-class ChatRequest(BaseModel):
-    message: str
 
 
 @app.post("/properties/{property_id}/chat")
@@ -495,3 +537,11 @@ If you don't know something, say you aren't sure and suggest the guest contact t
 Never make up access codes or sensitive details that are not explicitly in the config/manual.
 """.strip()
 
+
+# --- Start Server ---
+
+if __name__ == "__main__":
+    try:
+        uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
+    except Exception as e:
+        print(f"Error: {e}")
