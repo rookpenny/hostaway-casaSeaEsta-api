@@ -93,11 +93,13 @@
             type="text"
             inputmode="numeric"
             maxlength="4"
-            placeholder="1234"
-            class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
-          />
+            placeholder="••••"
+            class="w-24 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-center text-lg tracking-[0.3em] shadow-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300"
+    />
           <button
             id="unlock-button"
+            type="button"
+            data-property-id="{{ property_id }}"
             class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-sm font-semibold text-slate-950 py-2.5 transition">
             <span>Unlock experience</span>
             <span id="unlock-spinner" class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
