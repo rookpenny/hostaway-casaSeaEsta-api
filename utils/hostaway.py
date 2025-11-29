@@ -156,15 +156,22 @@ def get_upcoming_phone_for_listing(
     listing_id: str,
     client_id: str,
     client_secret: str,
-) -> tuple[str | None, str | None, str | None]:
+) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None]:
     """
     Look up the phone for either:
       1) The CURRENT in-house reservation for a Hostaway listing (today between arrival & departure), or
       2) The NEXT upcoming reservation (arrival >= today, closest arrival date).
 
     Returns:
-        (phone_last4, full_phone, reservation_id)
-        or (None, None, None) on failure / no match.
+        (
+            phone_last4,
+            full_phone,
+            reservation_id,
+            guest_name,
+            arrival_date,
+            departure_date,
+        )
+        or (None, None, None, None, None, None) on failure / no match.
     """
     try:
         token = get_token_for_pmc(client_id, client_secret)
@@ -217,7 +224,7 @@ def get_upcoming_phone_for_listing(
         # Prefer a current stay if we found one
         best_res = current_stay or upcoming_res
         if not best_res:
-            return None, None, None
+            return None, None, None, None, None, None
 
         full_phone = (
             best_res.get("phone")
@@ -225,7 +232,7 @@ def get_upcoming_phone_for_listing(
             or best_res.get("guestPhoneNumber")
         )
         if not full_phone:
-            return None, None, None
+            return None, None, None, None, None, None
 
         phone_last4 = full_phone[-4:]
         reservation_id = str(
@@ -235,10 +242,19 @@ def get_upcoming_phone_for_listing(
         )
 
         if not reservation_id:
-            return None, None, None
+            return None, None, None, None, None, None
 
-        return phone_last4, full_phone, reservation_id
+        # 🔹 New fields
+        guest_name = (
+            best_res.get("guestName")
+            or best_res.get("name")
+            or None
+        )
+        arrival_date = best_res.get("arrivalDate")
+        departure_date = best_res.get("departureDate")
+
+        return phone_last4, full_phone, reservation_id, guest_name, arrival_date, departure_date
 
     except Exception as e:
         print("[Hostaway] Error in get_upcoming_phone_for_listing:", e)
-        return None, None, None
+        return None, None, None, None, None, None
