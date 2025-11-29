@@ -246,7 +246,7 @@
       </div>
     </section>
 
-    <!-- CHAT (full screen: header hidden, no logout/language) -->
+
 <!-- CHAT (full screen: header hidden, no logout/language) -->
 <section
   id="screen-chat"
@@ -258,38 +258,43 @@
       class="flex-1 overflow-y-auto px-3 py-4 space-y-2 text-sm"
     ></div>
 
-    <div class="bg-slate-950 px-3 py-3">
-      <div class="flex items-center gap-2 rounded-full bg-slate-800 px-3 py-2">
-        <button
-          type="button"
-          class="flex items-center justify-center w-7 h-7 rounded-full bg-slate-900/80 text-slate-200 text-base leading-none"
-        >
-          +
-        </button>
+<div class="bg-slate-950 px-3 py-3">
+  <div class="flex items-center gap-2 rounded-full bg-slate-800 px-3 py-2">
+    <!-- + button (left) -->
+    <button
+      type="button"
+      class="flex items-center justify-center w-7 h-7 rounded-full bg-slate-900/80 text-slate-200 text-base leading-none"
+    >
+      +
+    </button>
 
-        <input
-          id="chat-input"
-          type="text"
-          placeholder="Type a message here..."
-          class="flex-1 bg-transparent border-0 text-sm text-slate-50 placeholder:text-slate-400 focus:outline-none focus:ring-0"
+    <!-- text input -->
+    <input
+      id="chat-input"
+      type="text"
+      placeholder="Type a message here..."
+      class="flex-1 bg-transparent border-0 text-[13px] text-slate-50 placeholder:text-slate-400 focus:outline-none focus:ring-0"
+    />
+
+    <!-- send button (up arrow) -->
+    <button
+      id="chat-send"
+      type="button"
+      class="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold"
+    >
+      <!-- up arrow icon -->
+      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+        <path
+          stroke-linecap="round"
+          stroke-linejoin="round"
+          stroke-width="1.6"
+          d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
         />
+      </svg>
+    </button>
+  </div>
+</div>
 
-        <button
-          id="chat-send"
-          type="button"
-          class="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold"
-        >
-          <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.5"
-              d="M5 12h14M5 12l6-6m-6 6l6 6"
-            />
-          </svg>
-        </button>
-      </div>
-    </div>
   </div>
 </section>
 
