@@ -654,459 +654,521 @@
   
   <!-- JS -->
   <script>
-    const screens = {
-      home: document.getElementById('screen-home'),
-      chat: document.getElementById('screen-chat'),
-      experiences: document.getElementById('screen-experiences'),
-    };
+  const screens = {
+    home: document.getElementById("screen-home"),
+    chat: document.getElementById("screen-chat"),
+    experiences: document.getElementById("screen-experiences"),
+  };
 
-    let isUnlocked = (window.INITIAL_VERIFIED === "true");
-    let lastUnlockCode = null;
+  const navButtons = document.querySelectorAll("button.nav-item");
+  const homeLogin = document.getElementById("home-login");
+  const homeStay = document.getElementById("home-stay");
+  const headerEl = document.getElementById("app-header");
+  const languageBar = document.getElementById("language-bar");
 
-    const navButtons = document.querySelectorAll('button.nav-item');
-    const homeLogin = document.getElementById('home-login');
-    const homeStay = document.getElementById('home-stay');
-    const headerEl = document.getElementById('app-header');
-    const languageBar = document.getElementById('language-bar');
+  // 🔐 Global state
+  let isUnlocked = window.INITIAL_VERIFIED === "true";
+  let lastUnlockCode = null;
+  let currentSessionId = null;
 
-    function updateHomeState() {
-      if (isUnlocked) {
-        homeLogin?.classList.add('hidden');
-        homeStay?.classList.remove('hidden');
-      } else {
-        homeLogin?.classList.remove('hidden');
-        homeStay?.classList.add('hidden');
-      }
+  // 🔐 Persisted guest state (per property)
+  const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
+
+  function saveGuestState(extra = {}) {
+    try {
+      const state = {
+        isUnlocked,
+        lastUnlockCode,
+        sessionId: currentSessionId,
+        ...extra,
+      };
+      window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn("Unable to save guest state:", e);
     }
-
-    function showScreen(name) {
-      Object.entries(screens).forEach(([key, el]) => {
-        if (!el) return;
-        if (key === name) el.classList.remove('hidden');
-        else el.classList.add('hidden');
-      });
-
-      // header + language/logout: hide on chat, show otherwise
-      if (name === 'chat') {
-        headerEl?.classList.add('hidden');
-      } else {
-        headerEl?.classList.remove('hidden');
-      }
-
-      navButtons.forEach(btn => {
-        const target = btn.getAttribute('data-screen');
-        if (target === name) {
-          btn.classList.remove('text-slate-400');
-          btn.classList.add('text-slate-50');
-        } else {
-          btn.classList.add('text-slate-400');
-          btn.classList.remove('text-slate-50');
-        }
-      });
-    }
-
-    navButtons.forEach(btn => {
-      btn.addEventListener('click', () => {
-        const target = btn.getAttribute('data-screen');
-        if (!isUnlocked && target !== 'home') {
-          const err = document.getElementById('unlock-error');
-          if (err) {
-            err.textContent = "Please unlock your stay first with the last 4 digits of your booking phone number.";
-          }
-          showScreen('home');
-          return;
-        }
-        showScreen(target);
-      });
-    });
-
-    updateHomeState();
-    showScreen('home');
-
-    // Logout
-    /*
-    const logoutButton = document.getElementById('logout-button');
-    if (logoutButton) {
-      logoutButton.addEventListener('click', () => {
-        window.location.href = '/auth/logout';
-      });
-    }*/
-
-    // Language – store in localStorage, used for chat
-    const langSelect = document.getElementById('language-select');
-    function getSelectedLanguage() {
-      if (!langSelect) return 'auto';
-      return langSelect.value || 'auto';
-    }
-    if (langSelect) {
-      const saved = window.localStorage.getItem('guest_language');
-      if (saved) {
-        langSelect.value = saved;
-      }
-      langSelect.addEventListener('change', () => {
-        window.localStorage.setItem('guest_language', langSelect.value);
-      });
-    }
-
-    // Unlock flow
-    const unlockBtn = document.getElementById('unlock-button');
-    const unlockCodeInput = document.getElementById('unlock-code');
-    const unlockError = document.getElementById('unlock-error');
-    const unlockSpinner = document.getElementById('unlock-spinner');
-
-    // --- Press Enter to unlock ---
-    if (unlockCodeInput) {
-      unlockCodeInput.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          attemptUnlock();
-        }
-      });
-    }
-  
-    // --- Clicking the unlock button ---
-    if (unlockBtn) {
-      unlockBtn.addEventListener("click", attemptUnlock);
-    }
-
-/*
-    function getCurrentPropertyId() {
-      if (unlockSubmit && unlockSubmit.dataset.propertyId) {
-        return unlockSubmit.dataset.propertyId;
-      }
-      // Fallback if something goes wrong
-      return "{{ property_id }}";
-    }
-*/        
-    async function attemptUnlock() {
-  const code = (unlockCodeInput?.value || "").trim();
-  if (unlockError) unlockError.textContent = "";
-
-  if (!/^\d{4}$/.test(code)) {
-    if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
-    return;
   }
 
-  if (unlockBtn) unlockBtn.disabled = true;
-  unlockSpinner?.classList.remove("hidden");
+  function loadGuestState() {
+    try {
+      const raw = window.localStorage.getItem(GUEST_STATE_KEY);
+      if (!raw) return null;
+      return JSON.parse(raw);
+    } catch (e) {
+      console.warn("Unable to load guest state:", e);
+      return null;
+    }
+  }
 
-  try {
-    const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ code }),
+  // Try to restore from localStorage
+  const storedState = loadGuestState();
+  if (storedState) {
+    if (!isUnlocked && storedState.isUnlocked) {
+      isUnlocked = true;
+    }
+    if (storedState.lastUnlockCode) {
+      lastUnlockCode = storedState.lastUnlockCode;
+    }
+    if (storedState.sessionId) {
+      currentSessionId = storedState.sessionId;
+    }
+
+    if (storedState.guestName) {
+      const nameEl = document.getElementById("guest-name-span");
+      if (nameEl) nameEl.textContent = storedState.guestName;
+    }
+    if (storedState.arrivalDate) {
+      const arrEl = document.getElementById("arrival-date-span");
+      if (arrEl) arrEl.textContent = storedState.arrivalDate;
+    }
+    if (storedState.departureDate) {
+      const depEl = document.getElementById("departure-date-span");
+      if (depEl) depEl.textContent = storedState.departureDate;
+    }
+  }
+
+  function updateHomeState() {
+    if (isUnlocked) {
+      homeLogin?.classList.add("hidden");
+      homeStay?.classList.remove("hidden");
+    } else {
+      homeLogin?.classList.remove("hidden");
+      homeStay?.classList.add("hidden");
+    }
+  }
+
+  function showScreen(name) {
+    Object.entries(screens).forEach(([key, el]) => {
+      if (!el) return;
+      if (key === name) el.classList.remove("hidden");
+      else el.classList.add("hidden");
     });
-    const data = await res.json();
 
-    if (!res.ok || !data.success) {
-      if (unlockError) {
-        unlockError.textContent =
-          data.error ||
-          "We couldn’t verify that code. Please double-check or contact your host.";
+    // header + language/logout: hide on chat, show otherwise
+    if (name === "chat") {
+      headerEl?.classList.add("hidden");
+    } else {
+      headerEl?.classList.remove("hidden");
+    }
+
+    navButtons.forEach((btn) => {
+      const target = btn.getAttribute("data-screen");
+      if (target === name) {
+        btn.classList.remove("text-slate-400");
+        btn.classList.add("text-slate-50");
+      } else {
+        btn.classList.add("text-slate-400");
+        btn.classList.remove("text-slate-50");
       }
+    });
+  }
+
+  navButtons.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const target = btn.getAttribute("data-screen");
+      if (!isUnlocked && target !== "home") {
+        const err = document.getElementById("unlock-error");
+        if (err) {
+          err.textContent =
+            "Please unlock your stay first with the last 4 digits of your booking phone number.";
+        }
+        showScreen("home");
+        return;
+      }
+      showScreen(target);
+    });
+  });
+
+  updateHomeState();
+  showScreen("home");
+
+  // 🌍 Language – store in localStorage, used for chat
+  const langSelect = document.getElementById("language-select");
+  function getSelectedLanguage() {
+    if (!langSelect) return "auto";
+    return langSelect.value || "auto";
+  }
+  if (langSelect) {
+    const saved = window.localStorage.getItem("guest_language");
+    if (saved) {
+      langSelect.value = saved;
+    }
+    langSelect.addEventListener("change", () => {
+      window.localStorage.setItem("guest_language", langSelect.value);
+    });
+  }
+
+  // 🔓 Unlock flow
+  const unlockBtn = document.getElementById("unlock-button");
+  const unlockCodeInput = document.getElementById("unlock-code");
+  const unlockError = document.getElementById("unlock-error");
+  const unlockSpinner = document.getElementById("unlock-spinner");
+
+  if (unlockCodeInput) {
+    unlockCodeInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        attemptUnlock();
+      }
+    });
+  }
+
+  if (unlockBtn) {
+    unlockBtn.addEventListener("click", attemptUnlock);
+  }
+
+  async function attemptUnlock() {
+    const code = (unlockCodeInput?.value || "").trim();
+    if (unlockError) unlockError.textContent = "";
+
+    if (!/^\d{4}$/.test(code)) {
+      if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
       return;
     }
 
-    // ✅ Unlocked!
-    isUnlocked = true;
-    lastUnlockCode = code;
-    if (unlockError) unlockError.textContent = "";
-    if (unlockCodeInput) unlockCodeInput.value = "";
+    if (unlockBtn) unlockBtn.disabled = true;
+    unlockSpinner?.classList.remove("hidden");
 
-    // 🔹 Update guest name + dates in the UI if provided
     try {
-      if (data.guest_name) {
-        const nameEl = document.getElementById("guest-name-span");
-        if (nameEl) nameEl.textContent = data.guest_name;
-      }
-      if (data.arrival_date) {
-        const arrEl = document.getElementById("arrival-date-span");
-        if (arrEl) arrEl.textContent = data.arrival_date;
-      }
-      if (data.departure_date) {
-        const depEl = document.getElementById("departure-date-span");
-        if (depEl) depEl.textContent = data.departure_date;
-      }
-    } catch (e) {
-      console.warn("Error applying PMS guest info to UI:", e);
-    }
-
-    updateHomeState();
-    showScreen("home");
-  } catch (err) {
-    console.error(err);
-    if (unlockError) {
-      unlockError.textContent =
-        "Something went wrong while verifying. Please try again.";
-    }
-  } finally {
-    if (unlockBtn) unlockBtn.disabled = false;
-    unlockSpinner?.classList.add("hidden");
-  }
-}
-
-
-    // Check-in modal
-    const checkinButton = document.getElementById('checkin-button');
-    const upgradesButton = document.getElementById('upgrades-button');
-    const checkinModal = document.getElementById('checkin-modal');
-    const checkinClose = document.getElementById('checkin-close');
-    const checkinCodeEl = document.getElementById('checkin-code');
-
-    function openCheckinModal() {
-      if (!checkinModal) return;
-      const code = lastUnlockCode || '----';
-      if (checkinCodeEl) checkinCodeEl.textContent = code;
-      checkinModal.classList.remove('hidden');
-      checkinModal.classList.add('flex');
-    }
-
-    function closeCheckinModal() {
-      if (!checkinModal) return;
-      checkinModal.classList.add('hidden');
-      checkinModal.classList.remove('flex');
-    }
-
-    if (checkinButton) {
-      checkinButton.addEventListener('click', openCheckinModal);
-    }
-    if (checkinClose) {
-      checkinClose.addEventListener('click', closeCheckinModal);
-    }
-    if (checkinModal) {
-      checkinModal.addEventListener('click', (e) => {
-        if (e.target === checkinModal) closeCheckinModal();
+      const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
       });
-    }
+      const data = await res.json();
 
-    // Upgrades → Guides
-    if (upgradesButton) {
-      upgradesButton.addEventListener('click', () => {
-        if (!isUnlocked) return;
-        showScreen('experiences');
-      });
-    }
-
-    // Chat logic
-    const chatBox = document.getElementById("chat-box");
-    const chatInput = document.getElementById("chat-input");
-    const chatSend = document.getElementById("chat-send");
-    let currentSessionId = null;
-
-    function scrollChatToBottom() {
-      if (!chatBox) return;
-      chatBox.scrollTop = chatBox.scrollHeight;
-    }
-
-function formatTime(date) {
-  let hours = date.getHours();
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  const ampm = hours >= 12 ? "PM" : "AM";
-  hours = hours % 12;
-  if (hours === 0) hours = 12;
-  return `${hours.toString().padStart(2, "0")}:${minutes} ${ampm}`;
-}
-
-function renderMessage(text, sender) {
-  if (!chatBox) return;
-
-  const isUser = sender === "user";
-  const ts = formatTime(new Date());
-
-  // Outer row
-  const row = document.createElement("div");
-  row.className = "msg " + (isUser ? "user" : "bot");
-
-  // Avatar
-  const avatar = document.createElement("div");
-  avatar.className = "avatar";
-  // For Sandy, show an "S" in the green circle
-  if (!isUser) {
-    avatar.textContent = "S";
-  }
-
-  // Column that holds bubble + timestamp
-  const column = document.createElement("div");
-
-  // Bubble
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
-
-  // Timecode
-  const time = document.createElement("div");
-  time.className = "timestamp";
-  time.textContent = ts;
-
-  column.appendChild(bubble);
-  column.appendChild(time);
-
-  // Order: bot = avatar left, user = avatar right
-  if (isUser) {
-    row.appendChild(column);
-    row.appendChild(avatar);
-  } else {
-    row.appendChild(avatar);
-    row.appendChild(column);
-  }
-
-  chatBox.appendChild(row);
-  scrollChatToBottom();
-}
-
-
-
-    function addTyping() {
-      if (!chatBox) return;
-      const el = document.createElement('div');
-      el.id = "typing-indicator";
-      el.className = "flex justify-start";
-      el.innerHTML = `
-        <div class="max-w-[70%] rounded-2xl px-3 py-2 mb-1 text-xs bg-slate-800 text-slate-50 rounded-bl-sm inline-flex items-center gap-1">
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span>
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" style="animation-delay:150ms;"></span>
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" style="animation-delay:300ms;"></span>
-        </div>`;
-      chatBox.appendChild(el);
-      scrollChatToBottom();
-    }
-
-    function removeTyping() {
-      const el = document.getElementById('typing-indicator');
-      if (el) el.remove();
-    }
-
-    function formatMessage(text) {
-      let escaped = text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-
-      escaped = escaped.replace(
-        /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
-        '<a href="$1" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">📍 View on Google Maps</a>'
-      );
-      escaped = escaped.replace(
-        /(https?:\/\/[^\s]+)/g,
-        '<a href="$1" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">$1</a>'
-      );
-
-      return escaped.replace(/\n/g, "<br>");
-    }
-
-    async function sendChat() {
-      const text = (chatInput?.value || "").trim();
-      if (!text) return;
-
-      if (window.SANDY_LIVE === "false") {
-        renderMessage("Sandy is currently offline for this property. Please contact your host directly. 🙏", "bot");
+      if (!res.ok || !data.success) {
+        if (unlockError) {
+          unlockError.textContent =
+            data.error ||
+            "We couldn’t verify that code. Please double-check or contact your host.";
+        }
         return;
       }
 
-      renderMessage(text, "user");
-      if (chatInput) chatInput.value = "";
-      addTyping();
+      // ✅ Unlocked!
+      isUnlocked = true;
+      lastUnlockCode = code;
+      if (unlockError) unlockError.textContent = "";
+      if (unlockCodeInput) unlockCodeInput.value = "";
 
+      // 🔹 Update guest name + dates in the UI if provided
       try {
-        const body = {
-          message: text,
-          session_id: currentSessionId,
-          language: getSelectedLanguage()
-        };
-
-        const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body)
-        });
-
-        const data = await res.json();
-        removeTyping();
-
-        if (data.session_id) currentSessionId = data.session_id;
-
-        if (data.error) {
-          renderMessage(data.error, "bot");
-        } else {
-          renderMessage(data.response || "Hmm, I didn’t catch that — could you try again? 🌴", "bot");
+        if (data.guest_name) {
+          const nameEl = document.getElementById("guest-name-span");
+          if (nameEl) nameEl.textContent = data.guest_name;
         }
-      } catch (err) {
-        console.error(err);
-        removeTyping();
-        renderMessage("Oops! Something went wrong. Please try again in a moment. 🐚", "bot");
+        if (data.arrival_date) {
+          const arrEl = document.getElementById("arrival-date-span");
+          if (arrEl) arrEl.textContent = data.arrival_date;
+        }
+        if (data.departure_date) {
+          const depEl = document.getElementById("departure-date-span");
+          if (depEl) depEl.textContent = data.departure_date;
+        }
+      } catch (e) {
+        console.warn("Error applying PMS guest info to UI:", e);
       }
-    }
 
-    if (chatSend && chatInput) {
-      chatSend.addEventListener('click', sendChat);
-      chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter' && !e.shiftKey) {
-          e.preventDefault();
-          sendChat();
-        }
+      // 💾 Save everything for future refreshes
+      saveGuestState({
+        guestName: data.guest_name || null,
+        arrivalDate: data.arrival_date || null,
+        departureDate: data.departure_date || null,
       });
+
+      updateHomeState();
+      showScreen("home");
+    } catch (err) {
+      console.error(err);
+      if (unlockError) {
+        unlockError.textContent =
+          "Something went wrong while verifying. Please try again.";
+      }
+    } finally {
+      if (unlockBtn) unlockBtn.disabled = false;
+      unlockSpinner?.classList.add("hidden");
+    }
+  }
+
+  // 🔑 Check-in modal
+  const checkinButton = document.getElementById("checkin-button");
+  const upgradesButton = document.getElementById("upgrades-button");
+  const checkinModal = document.getElementById("checkin-modal");
+  const checkinClose = document.getElementById("checkin-close");
+  const checkinCodeEl = document.getElementById("checkin-code");
+
+  function openCheckinModal() {
+    if (!checkinModal) return;
+    const code = lastUnlockCode || "----";
+    if (checkinCodeEl) checkinCodeEl.textContent = code;
+    checkinModal.classList.remove("hidden");
+    checkinModal.classList.add("flex");
+  }
+
+  function closeCheckinModal() {
+    if (!checkinModal) return;
+    checkinModal.classList.add("hidden");
+    checkinModal.classList.remove("flex");
+  }
+
+  if (checkinButton) {
+    checkinButton.addEventListener("click", openCheckinModal);
+  }
+  if (checkinClose) {
+    checkinClose.addEventListener("click", closeCheckinModal);
+  }
+  if (checkinModal) {
+    checkinModal.addEventListener("click", (e) => {
+      if (e.target === checkinModal) closeCheckinModal();
+    });
+  }
+
+  // Upgrades → Guides
+  if (upgradesButton) {
+    upgradesButton.addEventListener("click", () => {
+      if (!isUnlocked) return;
+      showScreen("experiences");
+    });
+  }
+
+  // 💬 Chat logic
+  const chatBox = document.getElementById("chat-box");
+  const chatInput = document.getElementById("chat-input");
+  const chatSend = document.getElementById("chat-send");
+
+  function scrollChatToBottom() {
+    if (!chatBox) return;
+    chatBox.scrollTop = chatBox.scrollHeight;
+  }
+
+  function formatTime(date) {
+    let hours = date.getHours();
+    const minutes = date.getMinutes().toString().padStart(2, "0");
+    const ampm = hours >= 12 ? "PM" : "AM";
+    hours = hours % 12;
+    if (hours === 0) hours = 12;
+    return `${hours.toString().padStart(2, "0")}:${minutes} ${ampm}`;
+  }
+
+  function renderMessage(text, sender) {
+    if (!chatBox) return;
+
+    const isUser = sender === "user";
+    const ts = formatTime(new Date());
+
+    const row = document.createElement("div");
+    row.className = "msg " + (isUser ? "user" : "bot");
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    if (!isUser) {
+      avatar.textContent = "S";
     }
 
-    // 🔐 Logout modal wiring
-const logoutButton = document.getElementById("logout-button");
-const logoutModal = document.getElementById("logout-modal");
-const logoutClose = document.getElementById("logout-close");
-const logoutCancel = document.getElementById("logout-cancel");
-const logoutConfirm = document.getElementById("logout-confirm");
+    const column = document.createElement("div");
 
-function openLogoutModal() {
-  if (logoutModal) {
-    logoutModal.classList.remove("hidden");
-    logoutModal.classList.add("flex");
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+
+    const time = document.createElement("div");
+    time.className = "timestamp";
+    time.textContent = ts;
+
+    column.appendChild(bubble);
+    column.appendChild(time);
+
+    if (isUser) {
+      row.appendChild(column);
+      row.appendChild(avatar);
+    } else {
+      row.appendChild(avatar);
+      row.appendChild(column);
+    }
+
+    chatBox.appendChild(row);
+    scrollChatToBottom();
   }
-}
 
-function closeLogoutModal() {
-  if (logoutModal) {
-    logoutModal.classList.add("hidden");
-    logoutModal.classList.remove("flex");
+  function addTyping() {
+    if (!chatBox || document.getElementById("typing-indicator")) return;
+
+    const row = document.createElement("div");
+    row.id = "typing-indicator";
+    row.className = "msg bot";
+
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    avatar.textContent = "S";
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = `
+      <span class="dots-anim">
+        <span>.</span><span>.</span><span>.</span>
+      </span>
+    `;
+
+    const column = document.createElement("div");
+    column.appendChild(bubble);
+
+    row.appendChild(avatar);
+    row.appendChild(column);
+
+    chatBox.appendChild(row);
+    scrollChatToBottom();
   }
-}
 
-if (logoutButton) {
-  logoutButton.addEventListener("click", (e) => {
-    e.preventDefault();
-    openLogoutModal();
-  });
-}
+  function removeTyping() {
+    const el = document.getElementById("typing-indicator");
+    if (el) el.remove();
+  }
 
-if (logoutClose) {
-  logoutClose.addEventListener("click", (e) => {
-    e.preventDefault();
-    closeLogoutModal();
-  });
-}
+  function formatMessage(text) {
+    let escaped = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
 
-if (logoutCancel) {
-  logoutCancel.addEventListener("click", (e) => {
-    e.preventDefault();
-    closeLogoutModal();
-  });
-}
+    escaped = escaped.replace(
+      /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" class="gmap-link">📍 View on Google Maps</a>'
+    );
+    escaped = escaped.replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
 
-// Confirm → hit backend logout route
-if (logoutConfirm) {
-  logoutConfirm.addEventListener("click", (e) => {
-    e.preventDefault();
-    // This will clear session and redirect to /guest/{property_id}
-    window.location.href = "/auth/logout";
-  });
-}
+    return escaped.replace(/\n/g, "<br>");
+  }
 
-// Optional: click on backdrop to close
-if (logoutModal) {
-  logoutModal.addEventListener("click", (e) => {
-    if (e.target === logoutModal) {
+  async function sendChat() {
+    const text = (chatInput?.value || "").trim();
+    if (!text) return;
+
+    if (window.SANDY_LIVE === "false") {
+      renderMessage(
+        "Sandy is currently offline for this property. Please contact your host directly. 🙏",
+        "bot"
+      );
+      return;
+    }
+
+    renderMessage(text, "user");
+    if (chatInput) chatInput.value = "";
+    addTyping();
+
+    try {
+      const body = {
+        message: text,
+        session_id: currentSessionId,
+        language: getSelectedLanguage(),
+      };
+
+      const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+
+      const data = await res.json();
+      removeTyping();
+
+      if (data.session_id) {
+        currentSessionId = data.session_id;
+        saveGuestState(); // persist updated sessionId + flags
+      }
+
+      if (data.error) {
+        renderMessage(data.error, "bot");
+      } else {
+        renderMessage(
+          data.response || "Hmm, I didn’t catch that — could you try again? 🌴",
+          "bot"
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      removeTyping();
+      renderMessage(
+        "Oops! Something went wrong. Please try again in a moment. 🐚",
+        "bot"
+      );
+    }
+  }
+
+  if (chatSend && chatInput) {
+    chatSend.addEventListener("click", sendChat);
+    chatInput.addEventListener("keypress", (e) => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendChat();
+      }
+    });
+  }
+
+  // 🔐 Logout modal wiring
+  const logoutButton = document.getElementById("logout-button");
+  const logoutModal = document.getElementById("logout-modal");
+  const logoutClose = document.getElementById("logout-close");
+  const logoutCancel = document.getElementById("logout-cancel");
+  const logoutConfirm = document.getElementById("logout-confirm");
+
+  function openLogoutModal() {
+    if (logoutModal) {
+      logoutModal.classList.remove("hidden");
+      logoutModal.classList.add("flex");
+    }
+  }
+
+  function closeLogoutModal() {
+    if (logoutModal) {
+      logoutModal.classList.add("hidden");
+      logoutModal.classList.remove("flex");
+    }
+  }
+
+  if (logoutButton) {
+    logoutButton.addEventListener("click", (e) => {
+      e.preventDefault();
+      openLogoutModal();
+    });
+  }
+
+  if (logoutClose) {
+    logoutClose.addEventListener("click", (e) => {
+      e.preventDefault();
       closeLogoutModal();
-    }
-  });
-}
+    });
+  }
 
-  </script>
+  if (logoutCancel) {
+    logoutCancel.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeLogoutModal();
+    });
+  }
+
+  if (logoutConfirm) {
+    logoutConfirm.addEventListener("click", (e) => {
+      e.preventDefault();
+      try {
+        window.localStorage.removeItem(GUEST_STATE_KEY);
+      } catch (err) {
+        console.warn("Unable to clear guest state:", err);
+      }
+      window.location.href = "/auth/logout";
+    });
+  }
+
+  if (logoutModal) {
+    logoutModal.addEventListener("click", (e) => {
+      if (e.target === logoutModal) {
+        closeLogoutModal();
+      }
+    });
+  }
+</script>
+
 </body>
 </html>
