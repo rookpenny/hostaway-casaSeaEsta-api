@@ -4,6 +4,19 @@
   <meta charset="UTF-8" />
   <title>{{ property_name }} – Guest Experience</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+ 
+  <!-- Enable iOS standalone mode -->
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  
+  <!-- PWA manifest -->
+  <link rel="manifest" href="/static/manifest.webmanifest" />
+  
+  <!-- Theme color for Android Chrome top bar -->
+  <meta name="theme-color" content="#020617" />
+  
+  <!-- Icons for iOS & Android -->
+  <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
@@ -657,6 +670,11 @@
         }
       });
     }
-  </script>
+ 
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/static/service-worker.js")
+      .catch(err => console.error("SW registration failed:", err));
+  }
+</script>
 </body>
 </html>
