@@ -57,6 +57,11 @@ class ChatSession(Base):
     pms_reservation_id = Column(String, nullable=True)
     language = Column(String, nullable=True)
 
+    # 🔹 NEW FIELDS
+    guest_name = Column(String, nullable=True)
+    arrival_date = Column(String, nullable=True)     # store as "YYYY-MM-DD" from Hostaway
+    departure_date = Column(String, nullable=True)
+
     property = relationship("Property", backref="chat_sessions")
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
 
