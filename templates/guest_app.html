@@ -255,7 +255,7 @@
   <div class="flex-1 flex flex-col bg-slate-900">
     <div
       id="chat-box"
-      class="flex-1 overflow-y-auto px-3 py-4 space-y-2 text-sm"
+      class="flex-1 overflow-y-auto px-4 py-4 space-y-1 text-sm"
     ></div>
 
 <div class="bg-slate-950 px-3 py-3">
@@ -710,23 +710,82 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-    function renderMessage(text, sender) {
-      if (!chatBox) return;
-      const wrapper = document.createElement('div');
-      wrapper.className = `flex ${sender === 'user' ? 'justify-end' : 'justify-start'}`;
+   function formatTime(date) {
+  let hours = date.getHours();
+  const minutes = date.getMinutes().toString().padStart(2, "0");
+  const ampm = hours >= 12 ? "PM" : "AM";
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+  return `${hours.toString().padStart(2, "0")}:${minutes} ${ampm}`;
+}
 
-      const bubble = document.createElement('div');
-      bubble.className = `max-w-[80%] rounded-2xl px-3 py-2 mb-1 text-xs leading-relaxed ${
-        sender === 'user'
-          ? 'bg-emerald-500 text-slate-950 rounded-br-sm'
-          : 'bg-slate-800 text-slate-50 rounded-bl-sm'
-      }`;
-      bubble.innerHTML = formatMessage(text);
+function renderMessage(text, sender) {
+  if (!chatBox) return;
 
-      wrapper.appendChild(bubble);
-      chatBox.appendChild(wrapper);
-      scrollChatToBottom();
-    }
+  const ts = formatTime(new Date());
+  const isUser = sender === "user";
+
+  // Outer row
+  const row = document.createElement("div");
+  row.className = `flex items-end gap-2 mb-4 ${
+    isUser ? "justify-end" : "justify-start"
+  }`;
+
+  // Avatar
+  const avatar = document.createElement("div");
+  avatar.className =
+    "w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0";
+  if (isUser) {
+    avatar.classList.add("bg-slate-300", "text-[11px]", "text-slate-800");
+    avatar.textContent = "You".slice(0, 1); // simple user avatar
+  } else {
+    avatar.classList.add("bg-emerald-500", "text-[11px]", "text-slate-950");
+    avatar.textContent = "S"; // Sandy avatar
+  }
+
+  // Bubble + time container
+  const msgColumn = document.createElement("div");
+  msgColumn.className = "max-w-[260px]";
+
+  const bubble = document.createElement("div");
+  bubble.className =
+    "inline-block w-full rounded-2xl px-3 py-2 text-[13px] leading-relaxed";
+  if (isUser) {
+    bubble.classList.add(
+      "bg-emerald-500",
+      "text-slate-950",
+      "rounded-br-sm"
+    );
+  } else {
+    bubble.classList.add(
+      "bg-slate-800",
+      "text-slate-50",
+      "rounded-bl-sm"
+    );
+  }
+  bubble.innerHTML = formatMessage(text); // preserves emojis, links, newlines
+
+  const timeRow = document.createElement("div");
+  timeRow.className = "mt-1 text-[11px] text-slate-400 text-right";
+  timeRow.textContent = ts;
+
+  msgColumn.appendChild(bubble);
+  msgColumn.appendChild(timeRow);
+
+  if (isUser) {
+    // bubble then avatar (right side)
+    row.appendChild(msgColumn);
+    row.appendChild(avatar);
+  } else {
+    // avatar then bubble (left side)
+    row.appendChild(avatar);
+    row.appendChild(msgColumn);
+  }
+
+  chatBox.appendChild(row);
+  scrollChatToBottom();
+}
+
 
     function addTyping() {
       if (!chatBox) return;
