@@ -171,12 +171,15 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
 # --- Logout
 @router.get("/logout")
 def logout(request: Request):
+    # Grab the last property before clearing the session
     property_id = request.session.get("last_property")
+
+    # This clears guest_verified_{property_id} and everything else
     request.session.clear()
 
     if property_id:
+        # 🔁 Send them back to the guest login screen for that property
         return RedirectResponse(url=f"/guest/{property_id}")
 
-    # fallback if nothing stored
-    return RedirectResponse(url="/guest/1")  # or pick a default
-
+    # Fallback: no property found, go to a neutral page
+    return RedirectResponse(url="/")
