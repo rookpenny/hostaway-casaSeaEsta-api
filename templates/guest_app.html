@@ -15,6 +15,195 @@
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
 
+  <style>
+  /* CHAT STYLES ONLY – no global body changes */
+  #chat-box {
+    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  }
+
+  .msg {
+    display: flex;
+    align-items: flex-end;
+    margin-bottom: 0.75rem;
+    animation: fadeInUp 0.35s ease-out;
+    animation-fill-mode: both;
+  }
+
+  .msg.user {
+    justify-content: flex-end;
+  }
+
+  .msg.bot {
+    justify-content: flex-start;
+  }
+
+  .bubble {
+    padding: 0.6rem 1rem;
+    border-radius: 1rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+    max-width: 70%;
+    font-size: 0.95rem;
+    line-height: 1.5;
+  }
+
+  .avatar {
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    margin: 0 0.5rem;
+    background-size: cover;
+    background-position: center;
+    flex-shrink: 0;
+  }
+
+  .msg.user .avatar {
+    background-color: #e5e7eb; /* light gray */
+  }
+
+  .msg.bot .avatar {
+    background-color: #22c55e; /* emerald-ish for Sandy */
+    color: #022c22;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.75rem;
+    font-weight: 600;
+  }
+
+  .timestamp {
+    font-size: 0.65rem;
+    color: #9ca3af;
+    margin-top: 0.25rem;
+    text-align: right;
+  }
+
+  .message-text p {
+    margin: 0.5rem 0;
+  }
+
+  .message-text ul {
+    margin: 0.5rem 0;
+    padding-left: 1.2rem;
+  }
+
+  .message-text li {
+    margin-bottom: 0.3rem;
+  }
+
+  .message-text a {
+    color: #22c55e;
+    text-decoration: none;
+    word-break: break-word;
+  }
+
+  .message-text a:hover {
+    text-decoration: underline;
+  }
+
+  .message-text strong {
+    font-weight: 600;
+  }
+
+  .message-text em {
+    font-style: italic;
+  }
+
+  /* Typing dots animation (optional) */
+  .dots-anim {
+    display: inline-block;
+  }
+
+  .dots-anim span {
+    font-size: 1.25rem;
+    animation: blink 1.4s infinite both;
+    opacity: 0.3;
+  }
+
+  .dots-anim span:nth-child(1) {
+    animation-delay: 0s;
+  }
+  .dots-anim span:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .dots-anim span:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+
+  @keyframes blink {
+    0% { opacity: 0.3; }
+    20% { opacity: 1; }
+    100% { opacity: 0.3; }
+  }
+
+  @keyframes fadeInUp {
+    from {
+      opacity: 0;
+      transform: translateY(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  /* Input bar sizing like old chat */
+  .chat-input-bar {
+    padding: 0.8rem 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-top: 1px solid #1f2937;
+    background: #020617;
+  }
+
+  .chat-input-inner {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    border-radius: 999px;
+    background: #0f172a;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .chat-input-bar input[type="text"] {
+    flex: 1;
+    border: none;
+    background: transparent;
+    font-size: 1rem;
+    outline: none;
+    color: #e5e7eb;
+  }
+
+  .chat-plus {
+    background: #0b1120;
+    border: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    font-size: 1.2rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #e5e7eb;
+  }
+
+  .send-button {
+    background: #22c55e;
+    border: none;
+    width: 2.5rem;
+    height: 2.5rem;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    color: #022c22;
+  }
+</style>
+
+
   <script>
     window.PROPERTY_ID = {{ property_id | tojson }};
     window.PROPERTY_NAME = {{ property_name | tojson }};
@@ -248,55 +437,54 @@
 
 
 <!-- CHAT (full screen: header hidden, no logout/language) -->
-<section
-  id="screen-chat"
-  class="hidden flex-1 flex flex-col -mx-4 -mt-3"
->
-  <div class="flex-1 flex flex-col bg-slate-900">
+<section id="screen-chat" class="hidden flex-1 flex flex-col -mx-4 -mt-3">
+  <div class="flex-1 flex flex-col bg-slate-950">
+    <!-- Messages -->
     <div
       id="chat-box"
-      class="flex-1 overflow-y-auto px-4 py-4 space-y-1 text-sm"
+      class="flex-1 overflow-y-auto px-4 py-4 space-y-2"
     ></div>
 
-<div class="bg-slate-950 px-3 py-3">
-  <div class="flex items-center gap-2 rounded-full bg-slate-800 px-3 py-2">
-    <!-- + button (left) -->
-    <button
-      type="button"
-      class="flex items-center justify-center w-7 h-7 rounded-full bg-slate-900/80 text-slate-200 text-base leading-none"
-    >
-      +
-    </button>
+    <!-- Input bar -->
+    <div class="chat-input-bar">
+      <div class="chat-input-inner">
+        <!-- + button -->
+        <button type="button" class="chat-plus">
+          +
+        </button>
 
-    <!-- text input -->
-    <input
-      id="chat-input"
-      type="text"
-      placeholder="Type a message here..."
-      class="flex-1 bg-transparent border-0 text-[13px] text-slate-50 placeholder:text-slate-400 focus:outline-none focus:ring-0"
-    />
-
-    <!-- send button (up arrow) -->
-    <button
-      id="chat-send"
-      type="button"
-      class="flex items-center justify-center w-8 h-8 rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 text-xs font-semibold"
-    >
-      <!-- up arrow icon -->
-      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <path
-          stroke-linecap="round"
-          stroke-linejoin="round"
-          stroke-width="1.6"
-          d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
+        <!-- text input -->
+        <input
+          id="chat-input"
+          type="text"
+          placeholder="Type a message here..."
         />
-      </svg>
-    </button>
-  </div>
-</div>
 
+        <!-- send (up arrow) -->
+        <button
+          id="chat-send"
+          type="button"
+          class="send-button"
+        >
+          <svg
+            class="w-4 h-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+          >
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.6"
+              d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
+            />
+          </svg>
+        </button>
+      </div>
+    </div>
   </div>
 </section>
+
 
 
 
@@ -710,7 +898,7 @@
       chatBox.scrollTop = chatBox.scrollHeight;
     }
 
-   function formatTime(date) {
+function formatTime(date) {
   let hours = date.getHours();
   const minutes = date.getMinutes().toString().padStart(2, "0");
   const ampm = hours >= 12 ? "PM" : "AM";
@@ -722,69 +910,50 @@
 function renderMessage(text, sender) {
   if (!chatBox) return;
 
-  const ts = formatTime(new Date());
   const isUser = sender === "user";
+  const ts = formatTime(new Date());
 
   // Outer row
   const row = document.createElement("div");
-  row.className = `flex items-end gap-2 mb-4 ${
-    isUser ? "justify-end" : "justify-start"
-  }`;
+  row.className = "msg " + (isUser ? "user" : "bot");
 
   // Avatar
   const avatar = document.createElement("div");
-  avatar.className =
-    "w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0";
-  if (isUser) {
-    avatar.classList.add("bg-slate-300", "text-[11px]", "text-slate-800");
-    avatar.textContent = "You".slice(0, 1); // simple user avatar
-  } else {
-    avatar.classList.add("bg-emerald-500", "text-[11px]", "text-slate-950");
-    avatar.textContent = "S"; // Sandy avatar
+  avatar.className = "avatar";
+  // For Sandy, show an "S" in the green circle
+  if (!isUser) {
+    avatar.textContent = "S";
   }
 
-  // Bubble + time container
-  const msgColumn = document.createElement("div");
-  msgColumn.className = "max-w-[260px]";
+  // Column that holds bubble + timestamp
+  const column = document.createElement("div");
 
+  // Bubble
   const bubble = document.createElement("div");
-  bubble.className =
-    "inline-block w-full rounded-2xl px-3 py-2 text-[13px] leading-relaxed";
+  bubble.className = "bubble";
+  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+
+  // Timecode
+  const time = document.createElement("div");
+  time.className = "timestamp";
+  time.textContent = ts;
+
+  column.appendChild(bubble);
+  column.appendChild(time);
+
+  // Order: bot = avatar left, user = avatar right
   if (isUser) {
-    bubble.classList.add(
-      "bg-emerald-500",
-      "text-slate-950",
-      "rounded-br-sm"
-    );
-  } else {
-    bubble.classList.add(
-      "bg-slate-800",
-      "text-slate-50",
-      "rounded-bl-sm"
-    );
-  }
-  bubble.innerHTML = formatMessage(text); // preserves emojis, links, newlines
-
-  const timeRow = document.createElement("div");
-  timeRow.className = "mt-1 text-[11px] text-slate-400 text-right";
-  timeRow.textContent = ts;
-
-  msgColumn.appendChild(bubble);
-  msgColumn.appendChild(timeRow);
-
-  if (isUser) {
-    // bubble then avatar (right side)
-    row.appendChild(msgColumn);
+    row.appendChild(column);
     row.appendChild(avatar);
   } else {
-    // avatar then bubble (left side)
     row.appendChild(avatar);
-    row.appendChild(msgColumn);
+    row.appendChild(column);
   }
 
   chatBox.appendChild(row);
   scrollChatToBottom();
 }
+
 
 
     function addTyping() {
