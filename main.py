@@ -425,7 +425,7 @@ def property_chat(
   
     # after ensure_pms_data(db, session)
     if payload.language and payload.language != "auto":
-    session.language = payload.language
+        session.language = payload.language
     
     db.commit()
     db.refresh(session)
