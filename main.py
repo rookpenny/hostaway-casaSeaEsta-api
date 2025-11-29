@@ -331,7 +331,7 @@ def property_chat(
 ):
     now = datetime.utcnow()
 
-     # 🔐 optional: enforce unlock server-side
+    # 🔐 optional: enforce unlock server-side
     verified_flag = request.session.get(f"guest_verified_{property_id}", False)
     if not verified_flag:
         # you can choose how strict you want this message to be
@@ -341,7 +341,7 @@ def property_chat(
                 "of the phone number on your reservation, then try again. 🔐"
             )
         }
-    
+
     # 0️⃣ Extract and validate user message
     user_message = (payload.message or "").strip()
     if not user_message:
@@ -403,7 +403,7 @@ def property_chat(
         db.commit()
         db.refresh(session)
 
-    # 3️⃣ Attach PMS data (phone_last4 + reservation_id) for this session
+    # 3️⃣ Attach PMS data (phone_last4 + reservation_id + guest info) for this session
     ensure_pms_data(db, session)  # -> updates ChatSession in Postgres
 
     # 4️⃣ Log guest message with intelligence fields
@@ -422,16 +422,15 @@ def property_chat(
     )
     db.add(guest_msg)
     session.last_activity_at = now
-  
-    # after ensure_pms_data(db, session)
-    if payload.language and payload.language != "auto":
+
+    # 🔤 Save preferred language onto session (if set)
+    if getattr(payload, "language", None) and payload.language != "auto":
         session.language = payload.language
-    
+
     db.commit()
     db.refresh(session)
 
     # 5️⃣ Door code logic (door code == last 4 of reservation phone)
-
     code_keywords = [
         "door code", "access code", "entry code", "pin", "key code", "lock code"
     ]
@@ -491,7 +490,7 @@ def property_chat(
 
     # Load property-specific context from config/manual
     context = load_property_context(prop)
-    system_prompt = build_system_prompt(prop, pmc, context)
+    system_prompt = build_system_prompt(prop, pmc, context, session.language)
 
     # Rebuild conversation history from DB
     history = (
@@ -514,7 +513,7 @@ def property_chat(
         )
         reply_text = ai_response.choices[0].message.content
     except Exception as e:
-        print("[LLM ERROR in /properties/{property_id}/chat]:", e)
+        print(f"[LLM ERROR in /properties/{property_id}/chat]:", e)
         reply_text = (
             "Oops, I ran into a technical issue while answering just now. 🐚\n\n"
             "Please try again in a moment, or contact your host directly if it’s urgent."
