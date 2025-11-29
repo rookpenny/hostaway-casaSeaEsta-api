@@ -264,9 +264,6 @@ class PropertyChatRequest(BaseModel):
 
 
 @app.get("/manifest/{property_id}.webmanifest")
-from fastapi import Response
-
-@app.get("/manifest/{property_id}.webmanifest")
 def dynamic_manifest(property_id: int, request: Request, db: Session = Depends(get_db)):
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
