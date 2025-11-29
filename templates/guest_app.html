@@ -46,12 +46,6 @@
     line-height: 1.5;
   }
 
-    .msg.bot .bubble {
-  background: #ffffff;
-  color: #333;
-  border: 1px solid #e5e7eb;
-}
-
   .avatar {
     width: 32px;
     height: 32px;
@@ -67,7 +61,7 @@
   }
 
   .msg.bot .avatar {
-    background-color: #10b981; /* emerald-500 */
+    background-color: #22c55e; /* emerald-ish for Sandy */
     color: #022c22;
     display: flex;
     align-items: center;
@@ -75,10 +69,6 @@
     font-size: 0.75rem;
     font-weight: 600;
   }
-    .msg.user .bubble {
-  background: #d1fae5;
-  color: #065f46;
-}
 
   .timestamp {
     font-size: 0.65rem;
@@ -221,8 +211,7 @@
     window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
   </script>
 </head>
-<body class="min-h-screen bg-gray-50 text-gray-900 flex flex-col">
-
+<body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
 
   <!-- Top hero (hidden on chat screen) -->
   <header id="app-header" class="relative w-full">
@@ -232,8 +221,7 @@
       {% else %}
         <div class="w-full h-full bg-slate-900"></div>
       {% endif %}
-      <div class="absolute inset-0 bg-gradient-to-b from-white/20 via-white/40 to-gray-50"></div>
-
+      <div class="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-slate-950"></div>
 
       <!-- language + logout (only for non-chat screens) -->
       <div id="language-bar" class="absolute top-4 right-4">
@@ -290,8 +278,7 @@
           </p>
         </div>
 
-        <div class="bg-white rounded-2xl p-4 shadow space-y-3">
-
+        <div class="bg-slate-900/80 rounded-2xl p-4 space-y-3">
           <label for="unlock-code" class="block text-xs font-medium text-slate-300 mb-1">
             Last 4 digits
           </label>
@@ -301,7 +288,7 @@
                 inputmode="numeric"
                 maxlength="4"
                 placeholder="1234"
-                class="w-full rounded-xl bg-white border border-gray-300 px-3 py-2 text-sm focus:ring-2 focus:ring-emerald-400"
+                class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
               />
           <button
             id="unlock-button"
@@ -330,8 +317,7 @@
 
       <!-- UNLOCKED HOME CARD -->
       <div id="home-stay" class="space-y-4 hidden">
-        <div class="rounded-2xl overflow-hidden bg-white shadow">
-
+        <div class="rounded-2xl overflow-hidden bg-black shadow-xl">
           <!-- hero card -->
           <div class="h-44 w-full relative">
             {% if hero_image_url %}
@@ -376,8 +362,7 @@
               {% endif %}
             </div>
 
-            <div class="border-t border-gray-200 my-2"></div>
-
+            <div class="border-t border-slate-800 my-2"></div>
 
             <!-- wifi row -->
             <div class="flex items-start justify-between gap-4">
@@ -395,8 +380,7 @@
               </div>
             </div>
 
-            <div class="border-t border-gray-200 my-2"></div>
-
+            <div class="border-t border-slate-800 my-2"></div>
 
             <!-- check-in/out -->
             <div class="flex items-start justify-between gap-4">
@@ -454,15 +438,15 @@
 
 <!-- CHAT (full screen: header hidden, no logout/language) -->
 <section id="screen-chat" class="hidden flex-1 flex flex-col -mx-4 -mt-3">
-  <div class="flex-1 flex flex-col bg-gray-50">
-
+  <div class="flex-1 flex flex-col bg-slate-950">
     <!-- Messages -->
-    <div id="chat-box" class="flex-1 overflow-y-auto px-4 py-4 space-y-2 bg-gray-50">
-
+    <div
+      id="chat-box"
+      class="flex-1 overflow-y-auto px-4 py-4 space-y-2"
+    ></div>
 
     <!-- Input bar -->
-    <div class="chat-input-inner bg-gray-100">
-
+    <div class="chat-input-bar">
       <div class="chat-input-inner">
         <!-- + button -->
         <button type="button" class="chat-plus">
@@ -480,7 +464,7 @@
         <button
           id="chat-send"
           type="button"
-           class="send-button bg-emerald-500 text-white shadow"
+          class="send-button"
         >
           <svg
             class="w-4 h-4"
@@ -525,7 +509,7 @@
 
       <!-- cards (same as before) -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <article class="sm:col-span-2 bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
           <div class="h-32 relative">
             {% if feature_image_url %}
               <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
@@ -542,7 +526,7 @@
           </div>
         </article>
 
-        <article class="bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
           <div class="h-24 bg-slate-800">
             {% if family_image_url %}
               <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
@@ -556,7 +540,7 @@
           </div>
         </article>
 
-        <article class="bg-white border border-gray-200 rounded-2xl shadow-sm">
+        <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
           <div class="h-24 bg-slate-800">
             {% if foodie_image_url %}
               <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
@@ -574,7 +558,7 @@
   </main>
 
   <!-- Bottom nav -->
-  <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 h-16 flex items-center justify-around text-[11px] backdrop-blur">
+  <nav class="fixed bottom-0 inset-x-0 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur">
     <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
       <span class="w-6 h-6 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center text-xs font-semibold">
         🏠
