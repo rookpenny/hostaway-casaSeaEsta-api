@@ -162,7 +162,7 @@ def debug_properties(db: Session = Depends(get_db)):
     ]
 
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
-def guest_chat_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
+def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -170,15 +170,34 @@ def guest_chat_ui(request: Request, property_id: int, db: Session = Depends(get_
     pmc = prop.pmc
     is_live = bool(prop.sandy_enabled and pmc and pmc.active)
 
+    # Optional: load config/manual for WiFi, times, images, etc.
+    context = load_property_context(prop)
+    cfg = context.get("config", {}) or {}
+    wifi = cfg.get("wifi") or {}
+
     return templates.TemplateResponse(
-        "chat.html",
+        "guest_app.html",
         {
             "request": request,
             "property_id": prop.id,
             "property_name": prop.property_name,
+            "property_address": cfg.get("address"),
+            "wifi_ssid": wifi.get("ssid"),
+            "wifi_password": wifi.get("password"),
+            "checkin_time": cfg.get("checkin_time"),
+            "checkout_time": cfg.get("checkout_time"),
+            "arrival_date": cfg.get("arrival_date"),
+            "departure_date": cfg.get("departure_date"),
+            "hero_image_url": cfg.get("hero_image_url"),
+            "feature_image_url": cfg.get("feature_image_url"),
+            "family_image_url": cfg.get("family_image_url"),
+            "foodie_image_url": cfg.get("foodie_image_url"),
+            "city_name": cfg.get("city_name"),
             "is_live": is_live,
+            "is_verified": request.session.get(f"guest_verified_{property_id}", False)
         },
     )
+
 
 
 
