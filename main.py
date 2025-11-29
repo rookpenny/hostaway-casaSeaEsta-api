@@ -265,12 +265,24 @@ class PropertyChatRequest(BaseModel):
 
 @app.post("/properties/{property_id}/chat")
 def property_chat(
+    request: Request,
     property_id: int,
     payload: PropertyChatRequest,
     db: Session = Depends(get_db)
 ):
     now = datetime.utcnow()
 
+     # 🔐 optional: enforce unlock server-side
+    verified_flag = request.session.get(f"guest_verified_{property_id}", False)
+    if not verified_flag:
+        # you can choose how strict you want this message to be
+        return {
+            "response": (
+                "For security, please unlock your stay first with the last 4 digits "
+                "of the phone number on your reservation, then try again. 🔐"
+            )
+        }
+    
     # 0️⃣ Extract and validate user message
     user_message = (payload.message or "").strip()
     if not user_message:
