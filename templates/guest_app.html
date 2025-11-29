@@ -660,6 +660,8 @@
     experiences: document.getElementById("screen-experiences"),
   };
 
+    
+
   const navButtons = document.querySelectorAll("button.nav-item");
   const homeLogin = document.getElementById("home-login");
   const homeStay = document.getElementById("home-stay");
@@ -670,23 +672,31 @@
   let isUnlocked = window.INITIAL_VERIFIED === "true";
   let lastUnlockCode = null;
   let currentSessionId = null;
+  
+  // Guest meta from PMS (for persistence)
+  let guestName = null;
+  let arrivalDate = null;
+  let departureDate = null;
 
   // 🔐 Persisted guest state (per property)
   const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
 
-  function saveGuestState(extra = {}) {
-    try {
-      const state = {
-        isUnlocked,
-        lastUnlockCode,
-        sessionId: currentSessionId,
-        ...extra,
-      };
-      window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
-    } catch (e) {
-      console.warn("Unable to save guest state:", e);
-    }
+function saveGuestState() {
+  try {
+    const state = {
+      isUnlocked,
+      lastUnlockCode,
+      sessionId: currentSessionId,
+      guestName,
+      arrivalDate,
+      departureDate,
+    };
+    window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
+  } catch (e) {
+    console.warn("Unable to save guest state:", e);
   }
+}
+
 
   function loadGuestState() {
     try {
@@ -699,32 +709,36 @@
     }
   }
 
-  // Try to restore from localStorage
-  const storedState = loadGuestState();
-  if (storedState) {
-    if (!isUnlocked && storedState.isUnlocked) {
-      isUnlocked = true;
-    }
-    if (storedState.lastUnlockCode) {
-      lastUnlockCode = storedState.lastUnlockCode;
-    }
-    if (storedState.sessionId) {
-      currentSessionId = storedState.sessionId;
-    }
-
-    if (storedState.guestName) {
-      const nameEl = document.getElementById("guest-name-span");
-      if (nameEl) nameEl.textContent = storedState.guestName;
-    }
-    if (storedState.arrivalDate) {
-      const arrEl = document.getElementById("arrival-date-span");
-      if (arrEl) arrEl.textContent = storedState.arrivalDate;
-    }
-    if (storedState.departureDate) {
-      const depEl = document.getElementById("departure-date-span");
-      if (depEl) depEl.textContent = storedState.departureDate;
-    }
+ const storedState = loadGuestState();
+if (storedState) {
+  if (!isUnlocked && storedState.isUnlocked) {
+    isUnlocked = true;
   }
+  if (storedState.lastUnlockCode) {
+    lastUnlockCode = storedState.lastUnlockCode;
+  }
+  if (storedState.sessionId) {
+    currentSessionId = storedState.sessionId;
+  }
+
+  // Restore guest meta into globals + DOM
+  if (storedState.guestName) {
+    guestName = storedState.guestName;
+    const nameEl = document.getElementById("guest-name-span");
+    if (nameEl) nameEl.textContent = guestName;
+  }
+  if (storedState.arrivalDate) {
+    arrivalDate = storedState.arrivalDate;
+    const arrEl = document.getElementById("arrival-date-span");
+    if (arrEl) arrEl.textContent = arrivalDate;
+  }
+  if (storedState.departureDate) {
+    departureDate = storedState.departureDate;
+    const depEl = document.getElementById("departure-date-span");
+    if (depEl) depEl.textContent = departureDate;
+  }
+}
+
 
   function updateHomeState() {
     if (isUnlocked) {
@@ -852,22 +866,30 @@
       if (unlockCodeInput) unlockCodeInput.value = "";
 
       // 🔹 Update guest name + dates in the UI if provided
-      try {
-        if (data.guest_name) {
-          const nameEl = document.getElementById("guest-name-span");
-          if (nameEl) nameEl.textContent = data.guest_name;
+
+        try {
+          if (data.guest_name) {
+            guestName = data.guest_name;
+            const nameEl = document.getElementById("guest-name-span");
+            if (nameEl) nameEl.textContent = guestName;
+          }
+          if (data.arrival_date) {
+            arrivalDate = data.arrival_date;
+            const arrEl = document.getElementById("arrival-date-span");
+            if (arrEl) arrEl.textContent = arrivalDate;
+          }
+          if (data.departure_date) {
+            departureDate = data.departure_date;
+            const depEl = document.getElementById("departure-date-span");
+            if (depEl) depEl.textContent = departureDate;
+          }
+        } catch (e) {
+          console.warn("Error applying PMS guest info to UI:", e);
         }
-        if (data.arrival_date) {
-          const arrEl = document.getElementById("arrival-date-span");
-          if (arrEl) arrEl.textContent = data.arrival_date;
-        }
-        if (data.departure_date) {
-          const depEl = document.getElementById("departure-date-span");
-          if (depEl) depEl.textContent = data.departure_date;
-        }
-      } catch (e) {
-        console.warn("Error applying PMS guest info to UI:", e);
-      }
+        
+        // 💾 Save for future refreshes
+        saveGuestState();
+
 
       // 💾 Save everything for future refreshes
       saveGuestState({
@@ -1075,9 +1097,10 @@
       removeTyping();
 
       if (data.session_id) {
-        currentSessionId = data.session_id;
-        saveGuestState(); // persist updated sessionId + flags
-      }
+          currentSessionId = data.session_id;
+          saveGuestState(); // will persist updated sessionId + flags
+        }
+
 
       if (data.error) {
         renderMessage(data.error, "bot");
