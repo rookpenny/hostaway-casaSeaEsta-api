@@ -531,77 +531,99 @@
     const unlockError = document.getElementById('unlock-error');
     const unlockSpinner = document.getElementById('unlock-spinner');
 
-    async function attemptUnlock() {
-      const code = (unlockCodeInput.value || "").trim();
-      if (unlockError) unlockError.textContent = "";
-
-      if (!/^\d{4}$/.test(code)) {
-        if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
-        return;
-      }
-
-      unlockBtn.disabled = true;
-      unlockSpinner?.classList.remove('hidden');
-
-      try {
-        const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ code })
-        });
-        const data = await res.json();
-
-        if (!res.ok || !data.success) {
-          if (unlockError) {
-            unlockError.textContent = data.error || "We couldn’t verify that code. Please double-check or contact your host.";
-          }
-          return;
-        }
-
-        // ✅ Unlocked!
-        isUnlocked = true;
-        lastUnlockCode = code;
-        if (unlockError) unlockError.textContent = "";
-        if (unlockCodeInput) unlockCodeInput.value = "";
-
-        // 🔹 Update guest name + dates in the UI if provided
-        try {
-          if (data.guest_name) {
-            const nameEl = document.getElementById('guest-name-span');
-            if (nameEl) nameEl.textContent = data.guest_name;
-          }
-          if (data.arrival_date) {
-            const arrEl = document.getElementById('arrival-date-span');
-            if (arrEl) arrEl.textContent = data.arrival_date;
-          }
-          if (data.departure_date) {
-            const depEl = document.getElementById('departure-date-span');
-            if (depEl) depEl.textContent = data.departure_date;
-          }
-        } catch (e) {
-          console.warn("Error applying PMS guest info to UI:", e);
-        }
-                
-        updateHomeState();
-        showScreen('home');
-      } catch (err) {
-        console.error(err);
-        if (unlockError) unlockError.textContent = "Something went wrong while verifying. Please try again.";
-      } finally {
-        unlockBtn.disabled = false;
-        unlockSpinner?.classList.add('hidden');
-      }
-    }
-
-    if (unlockBtn && unlockCodeInput) {
-      unlockBtn.addEventListener('click', attemptUnlock);
-      unlockCodeInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') {
+    // --- Press Enter to unlock ---
+    if (unlockCodeInput) {
+      unlockCodeInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
           e.preventDefault();
           attemptUnlock();
         }
       });
     }
+  
+    // --- Clicking the unlock button ---
+    if (unlockBtn) {
+      unlockBtn.addEventListener("click", attemptUnlock);
+    }
+
+    let isUnlocked = false;
+    let lastUnlockCode = null;
+
+    function getCurrentPropertyId() {
+      if (unlockSubmit && unlockSubmit.dataset.propertyId) {
+        return unlockSubmit.dataset.propertyId;
+      }
+      // Fallback if something goes wrong
+      return "{{ property_id }}";
+    }
+        
+    async function attemptUnlock() {
+  const code = (unlockCodeInput?.value || "").trim();
+  if (unlockError) unlockError.textContent = "";
+
+  if (!/^\d{4}$/.test(code)) {
+    if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
+    return;
+  }
+
+  if (unlockBtn) unlockBtn.disabled = true;
+  unlockSpinner?.classList.remove("hidden");
+
+  try {
+    const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      if (unlockError) {
+        unlockError.textContent =
+          data.error ||
+          "We couldn’t verify that code. Please double-check or contact your host.";
+      }
+      return;
+    }
+
+    // ✅ Unlocked!
+    isUnlocked = true;
+    lastUnlockCode = code;
+    if (unlockError) unlockError.textContent = "";
+    if (unlockCodeInput) unlockCodeInput.value = "";
+
+    // 🔹 Update guest name + dates in the UI if provided
+    try {
+      if (data.guest_name) {
+        const nameEl = document.getElementById("guest-name-span");
+        if (nameEl) nameEl.textContent = data.guest_name;
+      }
+      if (data.arrival_date) {
+        const arrEl = document.getElementById("arrival-date-span");
+        if (arrEl) arrEl.textContent = data.arrival_date;
+      }
+      if (data.departure_date) {
+        const depEl = document.getElementById("departure-date-span");
+        if (depEl) depEl.textContent = data.departure_date;
+      }
+    } catch (e) {
+      console.warn("Error applying PMS guest info to UI:", e);
+    }
+
+    updateHomeState();
+    showScreen("home");
+  } catch (err) {
+    console.error(err);
+    if (unlockError) {
+      unlockError.textContent =
+        "Something went wrong while verifying. Please try again.";
+    }
+  } finally {
+    if (unlockBtn) unlockBtn.disabled = false;
+    unlockSpinner?.classList.add("hidden");
+  }
+}
+
 
     // Check-in modal
     const checkinButton = document.getElementById('checkin-button');
