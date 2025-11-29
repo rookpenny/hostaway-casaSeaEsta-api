@@ -4,18 +4,12 @@
   <meta charset="UTF-8" />
   <title>{{ property_name }} – Guest Experience</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
- 
-  <!-- Enable iOS standalone mode -->
+
+  <!-- PWA / icons -->
+  <link rel="manifest" href="/manifest/{{ property_id }}.webmanifest" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-  
-  <!-- PWA manifest -->
-  <link rel="manifest" href="/manifest/{{ property_id }}.webmanifest" />
-  
-  <!-- Theme color for Android Chrome top bar -->
   <meta name="theme-color" content="#020617" />
-  
-  <!-- Icons for iOS & Android -->
   <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
 
   <!-- Tailwind CDN -->
@@ -30,9 +24,9 @@
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
 
-  <!-- Top hero -->
-  <header class="relative w-full">
-    <div class="h-32 w-full relative">
+  <!-- Top hero (hidden on chat screen) -->
+  <header id="app-header" class="relative w-full">
+    <div class="h-40 w-full relative">
       {% if hero_image_url %}
         <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
       {% else %}
@@ -40,8 +34,8 @@
       {% endif %}
       <div class="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-slate-950"></div>
 
-      <!-- language + logout (visible always at top right) -->
-      <div id="language-switcher" class="absolute top-4 right-4">
+      <!-- language + logout (only for non-chat screens) -->
+      <div id="language-bar" class="absolute top-4 right-4">
         <div class="flex items-center gap-2">
           <!-- logout icon -->
           <button
@@ -64,6 +58,7 @@
               id="language-select"
               class="bg-transparent text-xs text-slate-100 focus:outline-none"
             >
+              <option value="auto">Auto</option>
               <option value="en">English</option>
               <option value="es">Español</option>
               <option value="fr">Français</option>
@@ -76,10 +71,10 @@
   </header>
 
   <!-- Main content -->
-  <main id="screen-container" class="flex-1 overflow-y-auto px-4 pt-4 pb-24 space-y-4">
+  <main id="screen-container" class="flex-1 overflow-y-auto px-4 pt-3 pb-24 space-y-4">
 
     <!-- HOME -->
-    <section id="screen-home" class="flex flex-col gap-4">
+    <section id="screen-home" class="min-h-[calc(100vh-7rem)] flex flex-col justify-end gap-4">
       <!-- LOGIN STATE -->
       <div id="home-login" class="space-y-4">
         <div class="space-y-2">
@@ -128,7 +123,7 @@
       <!-- UNLOCKED HOME CARD -->
       <div id="home-stay" class="space-y-4 hidden">
         <div class="rounded-2xl overflow-hidden bg-black shadow-xl">
-          <!-- hero -->
+          <!-- hero card -->
           <div class="h-44 w-full relative">
             {% if hero_image_url %}
               <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
@@ -137,13 +132,9 @@
             {% endif %}
             <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
 
-            <div class="absolute bottom-4 left-4 right-4 space-y-1">
-              <p class="text-xs uppercase tracking-wide text-slate-300">
-                Welcome to Casa {{ property_name }},
-                {{ reservation_name or "Guest" }}!
-              </p>
-              <h1 class="text-2xl font-semibold">
-                {{ property_name }}
+            <div class="absolute bottom-4 left-4 right-4">
+              <h1 class="text-2xl font-semibold leading-tight">
+                Welcome to Casa {{ property_name }}, {{ reservation_name or "Guest" }}!
               </h1>
             </div>
           </div>
@@ -248,9 +239,9 @@
       </div>
     </section>
 
-    <!-- CHAT -->
-    <section id="screen-chat" class="hidden flex flex-col min-h-[60vh]">
-      <div class="flex-1 flex flex-col bg-slate-900/80 rounded-2xl overflow-hidden border border-slate-800">
+    <!-- CHAT (full screen: header hidden, no logout/language) -->
+    <section id="screen-chat" class="hidden flex flex-col min-h-[calc(100vh-4rem)]">
+      <div class="flex-1 flex flex-col bg-slate-900/95 rounded-2xl overflow-hidden border border-slate-800">
         <div id="chat-box" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm"></div>
 
         <div class="border-t border-slate-800 bg-slate-950/90 px-3 py-2 flex items-center gap-2">
@@ -272,7 +263,7 @@
       </div>
     </section>
 
-    <!-- GUIDES (Experiences) -->
+    <!-- GUIDES -->
     <section id="screen-experiences" class="hidden flex flex-col gap-4">
       <div class="h-32 w-full relative rounded-2xl overflow-hidden">
         {% if experiences_hero_url %}
@@ -291,6 +282,7 @@
         </div>
       </div>
 
+      <!-- cards (same as before) -->
       <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
           <div class="h-32 relative">
@@ -340,7 +332,7 @@
     </section>
   </main>
 
-  <!-- Bottom nav: Home / Chat / Guides -->
+  <!-- Bottom nav -->
   <nav class="fixed bottom-0 inset-x-0 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur">
     <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
       <span class="w-6 h-6 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center text-xs font-semibold">
@@ -362,7 +354,7 @@
     </button>
   </nav>
 
-  <!-- Fullscreen Check-in modal -->
+  <!-- Fullscreen Check-in modal (unchanged from last version) -->
   <div
     id="checkin-modal"
     class="fixed inset-0 z-40 bg-black/85 hidden items-center justify-center px-6">
@@ -399,6 +391,8 @@
     const navButtons = document.querySelectorAll('button.nav-item');
     const homeLogin = document.getElementById('home-login');
     const homeStay = document.getElementById('home-stay');
+    const headerEl = document.getElementById('app-header');
+    const languageBar = document.getElementById('language-bar');
 
     function updateHomeState() {
       if (isUnlocked) {
@@ -416,6 +410,13 @@
         if (key === name) el.classList.remove('hidden');
         else el.classList.add('hidden');
       });
+
+      // header + language/logout: hide on chat, show otherwise
+      if (name === 'chat') {
+        headerEl?.classList.add('hidden');
+      } else {
+        headerEl?.classList.remove('hidden');
+      }
 
       navButtons.forEach(btn => {
         const target = btn.getAttribute('data-screen');
@@ -447,11 +448,27 @@
     updateHomeState();
     showScreen('home');
 
-    // Logout → /auth/logout
+    // Logout
     const logoutButton = document.getElementById('logout-button');
     if (logoutButton) {
       logoutButton.addEventListener('click', () => {
         window.location.href = '/auth/logout';
+      });
+    }
+
+    // Language – store in localStorage, used for chat
+    const langSelect = document.getElementById('language-select');
+    function getSelectedLanguage() {
+      if (!langSelect) return 'auto';
+      return langSelect.value || 'auto';
+    }
+    if (langSelect) {
+      const saved = window.localStorage.getItem('guest_language');
+      if (saved) {
+        langSelect.value = saved;
+      }
+      langSelect.addEventListener('change', () => {
+        window.localStorage.setItem('guest_language', langSelect.value);
       });
     }
 
@@ -479,7 +496,6 @@
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code })
         });
-
         const data = await res.json();
 
         if (!res.ok || !data.success) {
@@ -490,7 +506,7 @@
         }
 
         isUnlocked = true;
-        lastUnlockCode = code;  // 🔐 store last 4 for modal
+        lastUnlockCode = code;
         unlockError.textContent = "";
         unlockCodeInput.value = "";
         updateHomeState();
@@ -547,7 +563,7 @@
       });
     }
 
-    // Upgrades → Guides tab
+    // Upgrades → Guides
     if (upgradesButton) {
       upgradesButton.addEventListener('click', () => {
         if (!isUnlocked) return;
@@ -555,7 +571,7 @@
       });
     }
 
-    // Chat logic (unchanged)
+    // Chat logic
     const chatBox = document.getElementById("chat-box");
     const chatInput = document.getElementById("chat-input");
     const chatSend = document.getElementById("chat-send");
@@ -623,7 +639,7 @@
     }
 
     async function sendChat() {
-      const text = (chatInput.value || "").trim();
+      const text = (chatInput?.value || "").trim();
       if (!text) return;
 
       if (window.SANDY_LIVE === "false") {
@@ -632,11 +648,15 @@
       }
 
       renderMessage(text, "user");
-      chatInput.value = "";
+      if (chatInput) chatInput.value = "";
       addTyping();
 
       try {
-        const body = { message: text, session_id: currentSessionId };
+        const body = {
+          message: text,
+          session_id: currentSessionId,
+          language: getSelectedLanguage()
+        };
 
         const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
           method: "POST",
@@ -670,11 +690,6 @@
         }
       });
     }
- 
-  if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("/static/service-worker.js")
-      .catch(err => console.error("SW registration failed:", err));
-  }
-</script>
+  </script>
 </body>
 </html>
