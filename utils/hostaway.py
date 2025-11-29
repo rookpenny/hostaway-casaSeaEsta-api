@@ -158,7 +158,9 @@ def get_upcoming_phone_for_listing(
     client_secret: str,
 ) -> tuple[str | None, str | None, str | None]:
     """
-    Look up the next upcoming reservation for a Hostaway listing.
+    Look up the phone for either:
+      1) The CURRENT in-house reservation for a Hostaway listing (today between arrival & departure), or
+      2) The NEXT upcoming reservation (arrival >= today, closest arrival date).
 
     Returns:
         (phone_last4, full_phone, reservation_id)
@@ -170,38 +172,70 @@ def get_upcoming_phone_for_listing(
 
         today = datetime.utcnow().date()
 
-        best_res = None
-        best_days = None
+        current_stay = None
+        current_arrival = None
+
+        upcoming_res = None
+        upcoming_days = None
 
         for r in reservations:
-            phone = r.get("phone", "")
+            # Try to get a usable phone field
+            phone = (
+                r.get("phone")
+                or r.get("guestPhone")
+                or r.get("guestPhoneNumber")
+            )
             if not phone:
                 continue
 
             checkin_str = r.get("arrivalDate")
-            if not checkin_str:
+            checkout_str = r.get("departureDate")
+            if not checkin_str or not checkout_str:
                 continue
 
             try:
                 checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
+                checkout = datetime.strptime(checkout_str, "%Y-%m-%d").date()
             except Exception:
                 continue
 
-            days_until_checkin = (checkin - today).days
-            if 0 <= days_until_checkin <= 20:
-                if best_res is None or days_until_checkin < best_days:
-                    best_res = r
-                    best_days = days_until_checkin
+            # 1️⃣ Current in-house stay: today between arrival & departure (inclusive)
+            if checkin <= today <= checkout:
+                # If multiple, prefer the one with the earliest arrival
+                if current_stay is None or checkin < current_arrival:
+                    current_stay = r
+                    current_arrival = checkin
+                continue
 
+            # 2️⃣ Future stay: arrival is after today
+            days_until_checkin = (checkin - today).days
+            if days_until_checkin >= 0:
+                if upcoming_res is None or days_until_checkin < upcoming_days:
+                    upcoming_res = r
+                    upcoming_days = days_until_checkin
+
+        # Prefer a current stay if we found one
+        best_res = current_stay or upcoming_res
         if not best_res:
             return None, None, None
 
-        full_phone = best_res.get("phone")
+        full_phone = (
+            best_res.get("phone")
+            or best_res.get("guestPhone")
+            or best_res.get("guestPhoneNumber")
+        )
         if not full_phone:
             return None, None, None
 
         phone_last4 = full_phone[-4:]
-        reservation_id = str(best_res.get("id") or best_res.get("reservationId") or "")
+        reservation_id = str(
+            best_res.get("id")
+            or best_res.get("reservationId")
+            or ""
+        )
+
+        if not reservation_id:
+            return None, None, None
 
         return phone_last4, full_phone, reservation_id
 
