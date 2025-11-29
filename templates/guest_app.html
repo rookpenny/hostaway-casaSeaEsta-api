@@ -41,16 +41,15 @@
           <button
             id="logout-button"
             type="button"
-            class="flex items-center justify-center w-7 h-7 rounded-full bg-black/60 border border-slate-700 text-slate-100 text-xs hover:bg-black/80"
-            title="Log out"
+            class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
           >
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M14.25 6.75V5.25a1.5 1.5 0 00-1.5-1.5H6.75A1.5 1.5 0 005.25 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5v-1.5" />
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M9.75 12h9m0 0L16.5 9.75M18.75 12L16.5 14.25" />
+            <!-- your logout SVG icon here -->
+            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
+                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M18 12H9.75M18 12l-2.25-2.25M18 12l-2.25 2.25" />
             </svg>
           </button>
+
 
           <!-- language select -->
           <div class="bg-black/60 border border-slate-700 rounded-full px-2 py-0.5 text-[11px]">
@@ -378,6 +377,57 @@
     </div>
   </div>
 
+
+  <!-- 🔐 Logout Confirmation Modal -->
+<div
+  id="logout-modal"
+  class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
+>
+  <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <h2 class="text-base font-semibold text-slate-900">Log out of your stay?</h2>
+        <p class="mt-1 text-sm text-slate-500">
+          You’ll need to enter the last 4 digits of your booking phone number again to unlock Casa
+          {{ property_name }}.
+        </p>
+      </div>
+      <button
+        id="logout-close"
+        type="button"
+        class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+      >
+        <span class="sr-only">Close</span>
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+          <path
+            fill-rule="evenodd"
+            d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z"
+            clip-rule="evenodd"
+          />
+        </svg>
+      </button>
+    </div>
+
+    <div class="mt-5 flex items-center justify-end gap-3">
+      <button
+        id="logout-cancel"
+        type="button"
+        class="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+      >
+        Cancel
+      </button>
+      <button
+        id="logout-confirm"
+        type="button"
+        class="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
+      >
+        Log out
+      </button>
+    </div>
+  </div>
+</div>
+
+  
   <!-- JS -->
   <script>
     const screens = {
@@ -711,6 +761,67 @@
         }
       });
     }
+
+    // 🔐 Logout modal wiring
+const logoutButton = document.getElementById("logout-button");
+const logoutModal = document.getElementById("logout-modal");
+const logoutClose = document.getElementById("logout-close");
+const logoutCancel = document.getElementById("logout-cancel");
+const logoutConfirm = document.getElementById("logout-confirm");
+
+function openLogoutModal() {
+  if (logoutModal) {
+    logoutModal.classList.remove("hidden");
+    logoutModal.classList.add("flex");
+  }
+}
+
+function closeLogoutModal() {
+  if (logoutModal) {
+    logoutModal.classList.add("hidden");
+    logoutModal.classList.remove("flex");
+  }
+}
+
+if (logoutButton) {
+  logoutButton.addEventListener("click", (e) => {
+    e.preventDefault();
+    openLogoutModal();
+  });
+}
+
+if (logoutClose) {
+  logoutClose.addEventListener("click", (e) => {
+    e.preventDefault();
+    closeLogoutModal();
+  });
+}
+
+if (logoutCancel) {
+  logoutCancel.addEventListener("click", (e) => {
+    e.preventDefault();
+    closeLogoutModal();
+  });
+}
+
+// Confirm → hit backend logout route
+if (logoutConfirm) {
+  logoutConfirm.addEventListener("click", (e) => {
+    e.preventDefault();
+    // This will clear session and redirect to /guest/{property_id}
+    window.location.href = "/auth/logout";
+  });
+}
+
+// Optional: click on backdrop to close
+if (logoutModal) {
+  logoutModal.addEventListener("click", (e) => {
+    if (e.target === logoutModal) {
+      closeLogoutModal();
+    }
+  });
+}
+
   </script>
 </body>
 </html>
