@@ -263,6 +263,17 @@ class PropertyChatRequest(BaseModel):
     session_id: Optional[int] = None  # optional from frontend
 
 
+@app.get("/manifest/{property_id}.webmanifest")
+def dynamic_manifest(property_id: int, request: Request):
+    return templates.TemplateResponse(
+        "manifest.webmanifest",
+        {
+            "request": request,
+            "property_id": property_id,
+        },
+        media_type="application/manifest+json",
+    )
+    
 @app.post("/properties/{property_id}/chat")
 def property_chat(
     request: Request,
