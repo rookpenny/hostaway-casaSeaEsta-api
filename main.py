@@ -160,6 +160,8 @@ def debug_properties(db: Session = Depends(get_db)):
 
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
+    # store the property ID so logout can redirect correctly
+    request.session["last_property"] = property_id
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
