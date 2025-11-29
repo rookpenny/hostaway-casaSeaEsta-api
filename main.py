@@ -172,28 +172,54 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     cfg = context.get("config", {}) or {}
     wifi = cfg.get("wifi") or {}
 
+    # 🔹 Pull latest ChatSession that has guest_name / dates from PMS, if any
+    latest_session = (
+        db.query(ChatSession)
+        .filter(ChatSession.property_id == prop.id)
+        .order_by(ChatSession.last_activity_at.desc())
+        .first()
+    )
+
+    reservation_name = latest_session.guest_name if latest_session and latest_session.guest_name else None
+    arrival_date_db = latest_session.arrival_date if latest_session and latest_session.arrival_date else None
+    departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
+
+    # Optional: build a Google Maps link from address
+    address = cfg.get("address")
+    city_name = cfg.get("city_name")
+    google_maps_link = None
+    if address or city_name:
+        from urllib.parse import quote_plus
+        q = " ".join(filter(None, [address, city_name]))
+        google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
+
     return templates.TemplateResponse(
         "guest_app.html",
         {
             "request": request,
             "property_id": prop.id,
             "property_name": prop.property_name,
-            "property_address": cfg.get("address"),
+            "reservation_name": reservation_name,  # 🔹 used for "Welcome to Casa X, Name!"
+            "property_address": address,
             "wifi_ssid": wifi.get("ssid"),
             "wifi_password": wifi.get("password"),
             "checkin_time": cfg.get("checkin_time"),
             "checkout_time": cfg.get("checkout_time"),
-            "arrival_date": cfg.get("arrival_date"),
-            "departure_date": cfg.get("departure_date"),
+            # PMS dates override config if present
+            "arrival_date": arrival_date_db or cfg.get("arrival_date"),
+            "departure_date": departure_date_db or cfg.get("departure_date"),
             "hero_image_url": cfg.get("hero_image_url"),
             "feature_image_url": cfg.get("feature_image_url"),
             "family_image_url": cfg.get("family_image_url"),
             "foodie_image_url": cfg.get("foodie_image_url"),
-            "city_name": cfg.get("city_name"),
+            "experiences_hero_url": cfg.get("experiences_hero_url"),
+            "city_name": city_name,
+            "google_maps_link": google_maps_link,
             "is_live": is_live,
-            "is_verified": request.session.get(f"guest_verified_{property_id}", False)
+            "is_verified": request.session.get(f"guest_verified_{property_id}", False),
         },
     )
+
 
 class VerifyRequest(BaseModel):
     code: str
