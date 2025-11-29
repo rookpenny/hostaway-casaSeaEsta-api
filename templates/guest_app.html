@@ -9,350 +9,333 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <script>
-    // Injected from FastAPI/Jinja
     window.PROPERTY_ID = {{ property_id | tojson }};
     window.PROPERTY_NAME = {{ property_name | tojson }};
     window.SANDY_LIVE = {{ ("true" if is_live else "false") | tojson }};
     window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
   </script>
 </head>
-<body class="min-h-screen bg-black text-slate-50 flex items-center justify-center">
-  <!-- Phone frame -->
-  <div class="relative w-full max-w-sm bg-slate-950 rounded-[2.5rem] border border-slate-800 overflow-hidden shadow-2xl">
-    <div class="h-[700px] flex flex-col">
+<body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
 
-      <!-- Top header: just hero image + language (login only) -->
-      <header class="relative">
-        <div class="h-28 w-full relative">
-          {% if hero_image_url %}
-            <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
-          {% else %}
-            <div class="w-full h-full bg-slate-800"></div>
-          {% endif %}
-          <div class="absolute inset-0 bg-gradient-to-b from-black/60 via-black/70 to-slate-950"></div>
+  <!-- Top hero (language + logout only before unlock) -->
+  <header class="relative w-full">
+    <div class="h-32 w-full relative">
+      {% if hero_image_url %}
+        <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
+      {% else %}
+        <div class="w-full h-full bg-slate-900"></div>
+      {% endif %}
+      <div class="absolute inset-0 bg-gradient-to-b from-black/70 via-black/60 to-slate-950"></div>
 
-          <!-- language shown only when locked (JS toggles hidden) -->
-          <div id="language-switcher" class="absolute top-4 right-4">
-            <div class="flex items-center gap-1 bg-black/60 border border-slate-700 rounded-full px-3 py-1 text-[11px]">
-              <span>English</span>
-              <svg class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
-                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
-              </svg>
-            </div>
+      <!-- language + logout (hidden after unlock) -->
+      <div id="language-switcher" class="absolute top-4 right-4">
+        <div class="flex items-center gap-2">
+          <!-- logout icon -->
+          <button
+            id="logout-button"
+            type="button"
+            class="flex items-center justify-center w-7 h-7 rounded-full bg-black/60 border border-slate-700 text-slate-100 text-xs hover:bg-black/80"
+            title="Log out"
+          >
+            <!-- simple door/logout icon -->
+            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M14.25 6.75V5.25a1.5 1.5 0 00-1.5-1.5H6.75A1.5 1.5 0 005.25 5.25v13.5a1.5 1.5 0 001.5 1.5h6a1.5 1.5 0 001.5-1.5v-1.5" />
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M9.75 12h9m0 0L16.5 9.75M18.75 12L16.5 14.25" />
+            </svg>
+          </button>
+
+          <!-- language pill -->
+          <div class="flex items-center gap-1 bg-black/60 border border-slate-700 rounded-full px-3 py-1 text-[11px]">
+            <span>English</span>
+            <svg class="w-3 h-3" viewBox="0 0 20 20" fill="currentColor">
+              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.25a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
+            </svg>
           </div>
         </div>
-      </header>
+      </div>
+    </div>
+  </header>
 
-      <!-- Screens -->
-      <main id="screen-container" class="flex-1 overflow-y-auto px-5 pt-4 pb-3 space-y-4">
-        <!-- WELCOME (login + your stay) -->
-        <section id="screen-welcome" class="flex flex-col gap-4 h-full">
-          <!-- LOGIN STATE -->
-          <div id="welcome-login" class="space-y-4">
-            <div class="space-y-2">
-              <h2 class="text-2xl font-semibold">Unlock your stay</h2>
-              <p class="text-sm text-slate-300">
-                Enter the <span class="font-semibold">last 4 digits of the phone number</span> on your booking
-                to unlock your trip details, chat with Sandy, and explore experiences.
-              </p>
+  <!-- Main content -->
+  <main id="screen-container" class="flex-1 overflow-y-auto px-4 pt-4 pb-24 space-y-4">
+
+    <!-- HOME -->
+    <section id="screen-home" class="flex flex-col gap-4">
+      <!-- LOGIN STATE -->
+      <div id="home-login" class="space-y-4">
+        <div class="space-y-2">
+          <h2 class="text-2xl font-semibold">Unlock your stay</h2>
+          <p class="text-sm text-slate-300">
+            Enter the <span class="font-semibold">last 4 digits of the phone number</span> on your booking
+            to unlock your trip details, chat with Sandy, and browse guides.
+          </p>
+        </div>
+
+        <div class="bg-slate-900/80 rounded-2xl p-4 space-y-3">
+          <label for="unlock-code" class="block text-xs font-medium text-slate-300 mb-1">
+            Last 4 digits
+          </label>
+          <input
+            id="unlock-code"
+            type="text"
+            inputmode="numeric"
+            maxlength="4"
+            placeholder="1234"
+            class="w-full rounded-xl bg-slate-950 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+          />
+          <button
+            id="unlock-button"
+            class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-sm font-semibold text-slate-950 py-2.5 transition">
+            <span>Unlock experience</span>
+            <span id="unlock-spinner" class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
+          </button>
+          <p id="unlock-error" class="text-xs text-rose-400 min-h-[1.125rem]"></p>
+          <p class="text-[11px] text-slate-400">
+            Not sure which number is on the booking? Check your confirmation email or message your host.
+          </p>
+        </div>
+
+        <div class="mt-1 text-xs text-slate-400 flex items-center gap-2">
+          {% if is_live %}
+            <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+            <span>Sandy is live for this property 🌊</span>
+          {% else %}
+            <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+            <span>Sandy is currently offline – you can still view trip details.</span>
+          {% endif %}
+        </div>
+      </div>
+
+      <!-- UNLOCKED HOME CARD -->
+      <div id="home-stay" class="space-y-4 hidden">
+        <div class="rounded-2xl overflow-hidden bg-black shadow-xl">
+          <!-- hero -->
+          <div class="h-44 w-full relative">
+            {% if hero_image_url %}
+              <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
+            {% else %}
+              <div class="w-full h-full bg-slate-800"></div>
+            {% endif %}
+            <div class="absolute inset-0 bg-gradient-to-t from-black via-black/40 to-transparent"></div>
+
+            <div class="absolute bottom-4 left-4 right-4">
+              <h1 class="text-2xl font-semibold">
+                {{ property_name }}
+              </h1>
             </div>
+          </div>
 
-            <div class="bg-slate-900/70 rounded-2xl p-4 space-y-3">
-              <label for="unlock-code" class="block text-xs font-medium text-slate-300 mb-1">
-                Last 4 digits
-              </label>
-              <input
-                id="unlock-code"
-                type="text"
-                inputmode="numeric"
-                maxlength="4"
-                placeholder="1234"
-                class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
-              />
-              <button
-                id="unlock-button"
-                class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-sm font-semibold text-slate-950 py-2.5 transition">
-                <span>Unlock experience</span>
-                <span id="unlock-spinner" class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
-              </button>
-              <p id="unlock-error" class="text-xs text-rose-400 min-h-[1.125rem]"></p>
-              <p class="text-[11px] text-slate-400">
-                If you’re not sure which number is on the booking, check your confirmation email
-                or message your host.
-              </p>
-            </div>
-
-            <div class="mt-3 text-xs text-slate-400 flex items-center gap-2">
-              {% if is_live %}
-                <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-                <span>Sandy is live for this property 🌊</span>
-              {% else %}
-                <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-                <span>Sandy is currently offline – you can still view trip details.</span>
+          <!-- body -->
+          <div class="px-4 py-4 space-y-4 text-sm">
+            <!-- address + map -->
+            <div class="flex items-start justify-between gap-3">
+              <div class="text-xs leading-snug text-slate-200">
+                <p>{{ property_address or "123 Any Street" }}</p>
+                <p>{{ city_name or "Anywhere, AB A0A 1A1" }}</p>
+                <p>Anyplace</p>
+              </div>
+              {% if property_address %}
+                {% if google_maps_link %}
+                  {% set maps_href = google_maps_link %}
+                {% else %}
+                  {% set maps_href = "#" %}
+                {% endif %}
+                <a href="{{ maps_href }}" target="_blank" rel="noopener noreferrer"
+                   class="inline-flex items-center justify-center rounded-full border border-slate-600 px-3 py-1 text-[11px] bg-slate-950/80">
+                  <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                          d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z"/>
+                    <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
+                  </svg>
+                  <span>Map</span>
+                </a>
               {% endif %}
             </div>
-          </div>
 
-          <!-- UNLOCKED: YOUR STAY -->
-          <div id="welcome-stay" class="space-y-4 hidden">
-            <div class="space-y-1">
-              <h2 class="text-2xl font-semibold">Your stay</h2>
-              <p class="text-sm text-slate-300">All your key details in one place.</p>
-            </div>
+            <div class="border-t border-slate-800 my-2"></div>
 
-            <!-- Image background card -->
-            <div class="rounded-2xl overflow-hidden relative">
-              <div class="h-44 w-full relative">
-                {% if hero_image_url %}
-                  <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
-                {% else %}
-                  <div class="w-full h-full bg-slate-800"></div>
-                {% endif %}
-                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-
-                <div class="absolute bottom-3 left-3 right-3 flex items-start justify-between gap-2">
-                  <div>
-                    <h3 class="text-sm font-semibold">
-                      {{ property_address or property_name }}
-                    </h3>
-                    {% if city_name %}
-                      <p class="text-[11px] text-slate-200">{{ city_name }}</p>
-                    {% endif %}
-                  </div>
-                  {% if property_address %}
-                    {% if google_maps_link %}
-                      {% set maps_href = google_maps_link %}
-                    {% else %}
-                      {% set maps_href = "#" %}
-                    {% endif %}
-                    <a href="{{ maps_href }}" target="_blank" rel="noopener noreferrer"
-                       class="inline-flex items-center justify-center rounded-full bg-black/70 px-2 py-1 text-[11px] border border-slate-600">
-                      <svg class="w-3.5 h-3.5 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                              d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z"/>
-                        <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
-                      </svg>
-                      <span>Map</span>
-                    </a>
-                  {% endif %}
-                </div>
+            <!-- wifi row -->
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-[11px] uppercase tracking-wide text-slate-400">WiFi Network</p>
+                <p class="text-base font-medium">
+                  {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
+                </p>
               </div>
-
-              <!-- Details on dark background (no border) -->
-              <div class="bg-slate-950/80 px-4 py-4 space-y-4 text-sm">
-                <!-- WiFi -->
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <p class="text-[11px] uppercase tracking-wide text-slate-400">Wi-Fi Network</p>
-                    <p class="font-medium">
-                      {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
-                    </p>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-[11px] uppercase tracking-wide text-slate-400">Password</p>
-                    <p class="font-medium">
-                      {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Times -->
-                <div class="flex items-start justify-between gap-4">
-                  <div>
-                    <p class="text-[11px] uppercase tracking-wide text-slate-400">Check-in</p>
-                    <p class="font-medium">
-                      {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
-                    </p>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-[11px] uppercase tracking-wide text-slate-400">Check-out</p>
-                    <p class="font-medium">
-                      {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
-                    </p>
-                  </div>
-                </div>
-
-                <!-- Dates, if present -->
-                {% if arrival_date or departure_date %}
-                <div class="flex items-start justify-between gap-4 text-xs text-slate-300">
-                  <div>
-                    <p class="text-[11px] uppercase tracking-wide text-slate-400">Arrival</p>
-                    <p class="font-medium">{{ arrival_date or "-" }}</p>
-                  </div>
-                  <div class="text-right">
-                    <p class="text-[11px] uppercase tracking-wide text-slate-400">Departure</p>
-                    <p class="font-medium">{{ departure_date or "-" }}</p>
-                  </div>
-                </div>
-                {% endif %}
+              <div class="text-right">
+                <p class="text-[11px] uppercase tracking-wide text-slate-400">Password</p>
+                <p class="text-base font-medium">
+                  {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
+                </p>
               </div>
             </div>
-          </div>
-        </section>
 
-        <!-- CHAT (full-height inside frame) -->
-        <section id="screen-chat" class="hidden flex flex-col h-full">
-          <!-- Pink-ish header with headline + quick chips -->
-          <div class="rounded-2xl bg-rose-100 text-slate-900 px-4 py-3 mb-3">
-            <h2 class="text-base font-semibold">Ready to make your stay easier?</h2>
-            <p class="text-xs text-slate-700 mt-1">
-              Ask Sandy anything about check-in, Wi-Fi, parking, or local tips.
-            </p>
-            <div class="flex flex-wrap gap-2 mt-3">
-              <button data-quick="What is the Wi-Fi name and password?"
-                      class="px-3 py-1 rounded-full bg-white text-[11px] border border-rose-200">
-                Wi-Fi details
-              </button>
-              <button data-quick="Where do I park and are there any parking rules?"
-                      class="px-3 py-1 rounded-full bg-white text-[11px] border border-rose-200">
-                Parking info
-              </button>
-              <button data-quick="Can you walk me through the check-in instructions?"
-                      class="px-3 py-1 rounded-full bg-white text-[11px] border border-rose-200">
-                Check-in steps
-              </button>
-              <button data-quick="What are some fun things to do nearby?"
-                      class="px-3 py-1 rounded-full bg-white text-[11px] border border-rose-200">
-                Things to do
-              </button>
-              <button data-quick="Is late check-out possible and are there any fees?"
-                      class="px-3 py-1 rounded-full bg-white text-[11px] border border-rose-200">
-                Late check-out?
-              </button>
-            </div>
-          </div>
+            <div class="border-t border-slate-800 my-2"></div>
 
-          <!-- Chat area fills the rest -->
-          <div class="flex-1 flex flex-col bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
-            <div id="chat-box" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm">
-              <!-- Messages injected by JS -->
+            <!-- check-in/out -->
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="text-[11px] uppercase tracking-wide text-slate-400">Check-in</p>
+                <p class="text-base font-medium">
+                  {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
+                </p>
+              </div>
+              <div class="text-right">
+                <p class="text-[11px] uppercase tracking-wide text-slate-400">Check-out</p>
+                <p class="text-base font-medium">
+                  {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
+                </p>
+              </div>
             </div>
 
-            <div class="border-t border-slate-800 bg-slate-950/80 px-3 py-2 flex items-center gap-2">
-              <input
-                id="chat-input"
-                type="text"
-                placeholder="Ask about Wi-Fi, parking, house rules, or anything else..."
-                class="flex-1 bg-slate-900 border border-slate-700 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
-              />
-              <button
-                id="chat-send"
-                class="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 w-9 h-9 text-xs font-semibold">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                        d="M5 12h14M5 12l6-6m-6 6l6 6"/>
-                </svg>
-              </button>
-            </div>
-          </div>
-        </section>
+            {% if arrival_date or departure_date %}
+              <div class="flex items-start justify-between gap-4 text-xs text-slate-300">
+                <div>
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Arrival</p>
+                  <p class="font-medium">{{ arrival_date or "-" }}</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[11px] uppercase tracking-wide text-slate-400">Departure</p>
+                  <p class="font-medium">{{ departure_date or "-" }}</p>
+                </div>
+              </div>
+            {% endif %}
 
-        <!-- EXPERIENCES -->
-        <section id="screen-experiences" class="hidden flex flex-col gap-4">
-          <!-- Hero with background image behind headline -->
-          <div class="h-28 w-full relative rounded-2xl overflow-hidden">
-            {% if experiences_hero_url %}
-              <img src="{{ experiences_hero_url }}" alt="Experiences" class="w-full h-full object-cover">
-            {% elif hero_image_url %}
-              <img src="{{ hero_image_url }}" alt="Experiences" class="w-full h-full object-cover">
+            <!-- Check-in button -->
+            <button class="mt-3 w-full inline-flex items-center justify-center gap-2 rounded-xl border border-slate-600 py-2.5 text-sm font-semibold bg-transparent">
+              <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                      d="M7 12h10M12 7l5 5-5 5"/>
+                <rect x="3.75" y="5.25" width="16.5" height="13.5" rx="2" ry="2" stroke-width="1.5"/>
+              </svg>
+              <span>Check-in</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- CHAT (no pink card, just full chat UI) -->
+    <section id="screen-chat" class="hidden flex flex-col min-h-[60vh]">
+      <div class="flex-1 flex flex-col bg-slate-900/80 rounded-2xl overflow-hidden border border-slate-800">
+        <div id="chat-box" class="flex-1 overflow-y-auto px-3 py-3 space-y-2 text-sm"></div>
+
+        <div class="border-t border-slate-800 bg-slate-950/90 px-3 py-2 flex items-center gap-2">
+          <input
+            id="chat-input"
+            type="text"
+            placeholder="Ask about Wi-Fi, parking, house rules, or anything else..."
+            class="flex-1 bg-slate-900 border border-slate-700 rounded-full px-3 py-2 text-xs focus:outline-none focus:ring-1 focus:ring-emerald-400 focus:border-emerald-400"
+          />
+          <button
+            id="chat-send"
+            class="inline-flex items-center justify-center rounded-full bg-emerald-500 hover:bg-emerald-400 text-slate-950 w-9 h-9 text-xs font-semibold">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                    d="M5 12h14M5 12l6-6m-6 6l6 6"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- GUIDES (formerly Experiences) -->
+    <section id="screen-experiences" class="hidden flex flex-col gap-4">
+      <div class="h-32 w-full relative rounded-2xl overflow-hidden">
+        {% if experiences_hero_url %}
+          <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
+        {% elif hero_image_url %}
+          <img src="{{ hero_image_url }}" alt="Guides" class="w-full h-full object-cover">
+        {% else %}
+          <div class="w-full h-full bg-slate-800"></div>
+        {% endif %}
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+        <div class="absolute bottom-3 left-3 right-3">
+          <h2 class="text-2xl font-semibold">Guides</h2>
+          <p class="text-sm text-slate-200">
+            Local guidebooks, ideas, and upgrades to make your stay extra special.
+          </p>
+        </div>
+      </div>
+
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="h-32 relative">
+            {% if feature_image_url %}
+              <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
             {% else %}
               <div class="w-full h-full bg-slate-800"></div>
             {% endif %}
             <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
             <div class="absolute bottom-3 left-3 right-3">
-              <h2 class="text-2xl font-semibold">Experiences</h2>
-              <p class="text-sm text-slate-200">
-                Local guides, upgrades, and ways to make your stay extra special.
+              <h3 class="text-base font-semibold">Our Story</h3>
+              <p class="text-[11px] text-slate-200 line-clamp-2">
+                In the heart of {{ city_name or "our favorite town" }}, this place came to life…
               </p>
             </div>
           </div>
+        </article>
 
-          <div class="grid grid-cols-2 gap-3">
-            <!-- Feature card -->
-            <article class="col-span-2 bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
-              <div class="h-28 relative">
-                {% if feature_image_url %}
-                  <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
-                {% else %}
-                  <div class="w-full h-full bg-slate-800"></div>
-                {% endif %}
-                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-                <div class="absolute bottom-3 left-3 right-3">
-                  <h3 class="text-base font-semibold">Our Story</h3>
-                  <p class="text-[11px] text-slate-200 line-clamp-2">
-                    In the heart of {{ city_name or "our favorite town" }}, this place came to life…
-                  </p>
-                </div>
-              </div>
-            </article>
-
-            <!-- Smaller experience cards -->
-            <article class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
-              <div class="h-24 bg-slate-800">
-                {% if family_image_url %}
-                  <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
-                {% endif %}
-              </div>
-              <div class="p-3 space-y-1">
-                <h3 class="text-sm font-semibold">Fun Family Activities</h3>
-                <p class="text-[11px] text-slate-300 line-clamp-2">
-                  Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
-                </p>
-              </div>
-            </article>
-
-            <article class="bg-slate-900/70 border border-slate-800 rounded-2xl overflow-hidden">
-              <div class="h-24 bg-slate-800">
-                {% if foodie_image_url %}
-                  <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
-                {% endif %}
-              </div>
-              <div class="p-3 space-y-1">
-                <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
-                <p class="text-[11px] text-slate-300 line-clamp-2">
-                  Coffee, brunch, seafood, and dessert spots we genuinely love.
-                </p>
-              </div>
-            </article>
+        <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="h-24 bg-slate-800">
+            {% if family_image_url %}
+              <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
+            {% endif %}
           </div>
-        </section>
-      </main>
+          <div class="p-3 space-y-1">
+            <h3 class="text-sm font-semibold">Fun Family Activities</h3>
+            <p class="text-[11px] text-slate-300 line-clamp-2">
+              Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
+            </p>
+          </div>
+        </article>
 
-      <!-- Bottom nav: Welcome / Chat / Experiences -->
-      <nav class="h-16 bg-slate-950/95 border-t border-slate-800 flex items-center justify-around text-[11px]">
-        <button data-screen="welcome" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
-          <span class="w-6 h-6 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center text-xs font-semibold">
-            ✦
-          </span>
-          <span>Welcome</span>
-        </button>
-        <button data-screen="chat" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
-          <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M7 8h10M7 12h5m-9 2.25V7a2 2 0 012-2h12a2 2 0 012 2v7.25a2 2 0 01-2 2h-5.586a1 1 0 00-.707.293L9.5 20.75 9 19.25"/>
-            </svg>
-          </span>
-          <span>Chat</span>
-        </button>
-        <button data-screen="experiences" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
-          <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
-            <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                    d="M4.5 6.75h15M4.5 12h15M4.5 17.25h8.25"/>
-            </svg>
-          </span>
-          <span>Experiences</span>
-        </button>
-      </nav>
-    </div>
-  </div>
+        <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+          <div class="h-24 bg-slate-800">
+            {% if foodie_image_url %}
+              <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
+            {% endif %}
+          </div>
+          <div class="p-3 space-y-1">
+            <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
+            <p class="text-[11px] text-slate-300 line-clamp-2">
+              Coffee, brunch, seafood, and dessert spots we genuinely love.
+            </p>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
 
-  <!-- JS: navigation, unlock, chat -->
+  <!-- Bottom nav: Home / Chat / Guides -->
+  <nav class="fixed bottom-0 inset-x-0 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur">
+    <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
+      <span class="w-6 h-6 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center text-xs font-semibold">
+        🏠
+      </span>
+      <span>Home</span>
+    </button>
+    <button data-screen="chat" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+      <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+        💬
+      </span>
+      <span>Chat</span>
+    </button>
+    <button data-screen="experiences" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+      <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+        📚
+      </span>
+      <span>Guides</span>
+    </button>
+  </nav>
+
+  <!-- JS: navigation, unlock, logout, chat -->
   <script>
-    // ---------- Screen Navigation ----------
+    // Screens
     const screens = {
-      welcome: document.getElementById('screen-welcome'),
+      home: document.getElementById('screen-home'),
       chat: document.getElementById('screen-chat'),
       experiences: document.getElementById('screen-experiences'),
     };
@@ -360,31 +343,28 @@
     let isUnlocked = (window.INITIAL_VERIFIED === "true");
     const navButtons = document.querySelectorAll('button.nav-item');
 
-    const welcomeLogin = document.getElementById('welcome-login');
-    const welcomeStay = document.getElementById('welcome-stay');
+    const homeLogin = document.getElementById('home-login');
+    const homeStay = document.getElementById('home-stay');
     const languageSwitcher = document.getElementById('language-switcher');
 
-    function updateWelcomeState() {
+    function updateHomeState() {
       if (isUnlocked) {
-        if (welcomeLogin) welcomeLogin.classList.add('hidden');
-        if (welcomeStay) welcomeStay.classList.remove('hidden');
-        if (languageSwitcher) languageSwitcher.classList.add('hidden');
+        homeLogin?.classList.add('hidden');
+        homeStay?.classList.remove('hidden');
+        languageSwitcher?.classList.add('hidden');  // hides language + logout after unlock
       } else {
-        if (welcomeLogin) welcomeLogin.classList.remove('hidden');
-        if (welcomeStay) welcomeStay.classList.add('hidden');
-        if (languageSwitcher) languageSwitcher.classList.remove('hidden');
+        homeLogin?.classList.remove('hidden');
+        homeStay?.classList.add('hidden');
+        languageSwitcher?.classList.remove('hidden');
       }
     }
 
     function showScreen(name) {
-      for (const [key, el] of Object.entries(screens)) {
-        if (!el) continue;
-        if (key === name) {
-          el.classList.remove('hidden');
-        } else {
-          el.classList.add('hidden');
-        }
-      }
+      Object.entries(screens).forEach(([key, el]) => {
+        if (!el) return;
+        if (key === name) el.classList.remove('hidden');
+        else el.classList.add('hidden');
+      });
 
       navButtons.forEach(btn => {
         const target = btn.getAttribute('data-screen');
@@ -401,23 +381,31 @@
     navButtons.forEach(btn => {
       btn.addEventListener('click', () => {
         const target = btn.getAttribute('data-screen');
-        if (!isUnlocked && target !== 'welcome') {
+        if (!isUnlocked && target !== 'home') {
           const err = document.getElementById('unlock-error');
           if (err) {
             err.textContent = "Please unlock your stay first with the last 4 digits of your booking phone number.";
           }
-          showScreen('welcome');
+          showScreen('home');
           return;
         }
         showScreen(target);
       });
     });
 
-    // initial state
-    updateWelcomeState();
-    showScreen('welcome');
+    // initial
+    updateHomeState();
+    showScreen('home');
 
-    // ---------- Unlock Flow ----------
+    // Logout button → /auth/logout
+    const logoutButton = document.getElementById('logout-button');
+    if (logoutButton) {
+      logoutButton.addEventListener('click', () => {
+        window.location.href = '/auth/logout';
+      });
+    }
+
+    // Unlock flow
     const unlockBtn = document.getElementById('unlock-button');
     const unlockCodeInput = document.getElementById('unlock-code');
     const unlockError = document.getElementById('unlock-error');
@@ -433,7 +421,7 @@
       }
 
       unlockBtn.disabled = true;
-      if (unlockSpinner) unlockSpinner.classList.remove('hidden');
+      unlockSpinner?.classList.remove('hidden');
 
       try {
         const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
@@ -452,16 +440,16 @@
         }
 
         isUnlocked = true;
-        if (unlockError) unlockError.textContent = "";
+        unlockError.textContent = "";
         unlockCodeInput.value = "";
-        updateWelcomeState();
-        showScreen('welcome');
+        updateHomeState();
+        showScreen('home');
       } catch (err) {
         console.error(err);
         if (unlockError) unlockError.textContent = "Something went wrong while verifying. Please try again.";
       } finally {
         unlockBtn.disabled = false;
-        if (unlockSpinner) unlockSpinner.classList.add('hidden');
+        unlockSpinner?.classList.add('hidden');
       }
     }
 
@@ -475,7 +463,7 @@
       });
     }
 
-    // ---------- Chat Logic ----------
+    // Chat logic
     const chatBox = document.getElementById("chat-box");
     const chatInput = document.getElementById("chat-input");
     const chatSend = document.getElementById("chat-send");
@@ -512,8 +500,8 @@
       el.innerHTML = `
         <div class="max-w-[70%] rounded-2xl px-3 py-2 mb-1 text-xs bg-slate-800 text-slate-50 rounded-bl-sm inline-flex items-center gap-1">
           <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse"></span>
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:150ms]"></span>
-          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse [animation-delay:300ms]"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" style="animation-delay:150ms;"></span>
+          <span class="w-1.5 h-1.5 rounded-full bg-slate-400 animate-pulse" style="animation-delay:300ms;"></span>
         </div>`;
       chatBox.appendChild(el);
       scrollChatToBottom();
@@ -530,12 +518,10 @@
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;");
 
-      // Google Maps links
       escaped = escaped.replace(
         /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
         '<a href="$1" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">📍 View on Google Maps</a>'
       );
-      // other links
       escaped = escaped.replace(
         /(https?:\/\/[^\s]+)/g,
         '<a href="$1" target="_blank" rel="noopener noreferrer" class="underline underline-offset-2">$1</a>'
@@ -558,10 +544,7 @@
       addTyping();
 
       try {
-        const body = {
-          message: text,
-          session_id: currentSessionId,
-        };
+        const body = { message: text, session_id: currentSessionId };
 
         const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
           method: "POST",
@@ -572,9 +555,7 @@
         const data = await res.json();
         removeTyping();
 
-        if (data.session_id && !currentSessionId) {
-          currentSessionId = data.session_id;
-        }
+        if (data.session_id) currentSessionId = data.session_id;
 
         if (data.error) {
           renderMessage(data.error, "bot");
@@ -597,18 +578,6 @@
         }
       });
     }
-
-    // Quick suggestion chips
-    document.querySelectorAll('[data-quick]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const text = btn.getAttribute('data-quick') || "";
-        if (!text) return;
-        if (chatInput) {
-          chatInput.value = text;
-        }
-        sendChat();
-      });
-    });
   </script>
 </body>
 </html>
