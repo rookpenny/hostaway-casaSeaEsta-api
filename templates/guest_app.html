@@ -502,12 +502,13 @@
     showScreen('home');
 
     // Logout
+    /*
     const logoutButton = document.getElementById('logout-button');
     if (logoutButton) {
       logoutButton.addEventListener('click', () => {
         window.location.href = '/auth/logout';
       });
-    }
+    }*/
 
     // Language – store in localStorage, used for chat
     const langSelect = document.getElementById('language-select');
@@ -546,9 +547,7 @@
       unlockBtn.addEventListener("click", attemptUnlock);
     }
 
-    let isUnlocked = false;
-    let lastUnlockCode = null;
-
+/*
     function getCurrentPropertyId() {
       if (unlockSubmit && unlockSubmit.dataset.propertyId) {
         return unlockSubmit.dataset.propertyId;
@@ -556,7 +555,7 @@
       // Fallback if something goes wrong
       return "{{ property_id }}";
     }
-        
+*/        
     async function attemptUnlock() {
   const code = (unlockCodeInput?.value || "").trim();
   if (unlockError) unlockError.textContent = "";
