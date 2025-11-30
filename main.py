@@ -174,7 +174,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     cfg = context.get("config", {}) or {}
     wifi = cfg.get("wifi") or {}
 
-        # Base values from config.json (if present)
+    # Base values from config.json (if present)
     address = cfg.get("address")
     city_name = cfg.get("city_name")
     hero_image_url = cfg.get("hero_image_url")
@@ -233,11 +233,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
 
     # Optional: build a Google Maps link from address
-    address = cfg.get("address")
-    city_name = cfg.get("city_name")
+    from urllib.parse import quote_plus
     google_maps_link = None
     if address or city_name:
-        from urllib.parse import quote_plus
         q = " ".join(filter(None, [address, city_name]))
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
