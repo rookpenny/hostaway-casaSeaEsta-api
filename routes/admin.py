@@ -33,24 +33,6 @@ logging.basicConfig(level=logging.INFO)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-# 📝 Edit Local Config or Manual File (Locally Rendered)
-@router.get("/edit-config", response_class=HTMLResponse)
-@router.get("/edit-housemanual", response_class=HTMLResponse)
-def edit_file(request: Request, file: str):
-    try:
-        file_path = Path(file)
-        if not file_path.exists():
-            return HTMLResponse(f"<h2>File not found: {file}</h2>", status_code=404)
-
-        content = file_path.read_text(encoding='utf-8')
-
-        return templates.TemplateResponse("editor.html", {
-            "request": request,
-            "file_path": file,
-            "content": content
-        })
-    except Exception as e:
-        return HTMLResponse(f"<h2>Error reading file: {e}</h2>", status_code=500)
 
 
 # 🔌 SQLAlchemy DB Session Dependency
@@ -62,23 +44,13 @@ def get_db():
         db.close()
 
 
-# 💾 Save Local File (Server-Side)
-@router.post("/admin/save-file")
-def save_file(file_path: str = Form(...), content: str = Form(...)):
-    try:
-        path = Path(file_path)
-        path.write_text(content, encoding='utf-8')
-        return HTMLResponse("<h2>File saved successfully.</h2><a href='/admin'>Back to Admin</a>")
-    except Exception as e:
-        return HTMLResponse(f"<h2>Failed to save file: {e}</h2>", status_code=500)
-
 
 from sqlalchemy.orm import Session
 from fastapi import Depends, Request
 from fastapi.responses import HTMLResponse
 
 # 💬 Recent Chats Overview
-@router.get("/admin/chats", response_class=HTMLResponse)
+/chats", response_class=HTMLResponse)
 def admin_chats(request: Request, db: Session = Depends(get_db)):
     # Latest sessions first
     sessions = (
@@ -112,10 +84,13 @@ def admin_chats(request: Request, db: Session = Depends(get_db)):
             ChatMessage.sentiment == "negative",
         ).first() is not None
 
-        items.append({
+       items.append({
             "id": s.id,
             "property_name": prop.property_name if prop else "Unknown property",
             "property_id": s.property_id,
+            "guest_name": s.guest_name,
+            "arrival_date": s.arrival_date,
+            "departure_date": s.departure_date,
             "last_activity_at": s.last_activity_at,
             "source": s.source,
             "is_verified": s.is_verified,
@@ -134,7 +109,7 @@ def admin_chats(request: Request, db: Session = Depends(get_db)):
 
 
 # 💬 Single Chat Conversation View
-@router.get("/admin/chats/{session_id}", response_class=HTMLResponse)
+/chats/{session_id}", response_class=HTMLResponse)
 def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(get_db)):
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
@@ -205,7 +180,7 @@ def save_manual_file(file_path: str = Form(...), content: str = Form(...)):
 
 
 # This route renders the admin dashboard with a list of all PMCs pulled from your new database.
-@router.get("/admin/dashboard", response_class=HTMLResponse)
+/dashboard", response_class=HTMLResponse)
 def admin_dashboard(request: Request):
     db: Session = SessionLocal()
 
