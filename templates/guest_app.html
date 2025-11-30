@@ -1139,12 +1139,17 @@
       function scrollChatToBottom() {
         if (!chatBox) return;
       
-        requestAnimationFrame(() => {
-          requestAnimationFrame(() => {
-            chatBox.scrollTop = chatBox.scrollHeight;
-          });
+        // scroll the LAST message into view inside the chat box
+        const lastMessage = chatBox.lastElementChild;
+        if (!lastMessage) return;
+      
+        // Use scrollIntoView on the scrollable parent (chatBox)
+        lastMessage.scrollIntoView({
+          behavior: "auto",    // change to "smooth" if you want animation
+          block: "end",
         });
       }
+
 
 
       function formatTime(date) {
@@ -1213,7 +1218,7 @@
       }
     
       chatBox.appendChild(row);
-      requestAnimationFrame(scrollChatToBottom);
+      scrollChatToBottom();
     }
 
 
@@ -1243,7 +1248,6 @@
         row.appendChild(avatar);
         row.appendChild(column);
 
-        chatBox.appendChild(row);
         scrollChatToBottom();
       }
 
