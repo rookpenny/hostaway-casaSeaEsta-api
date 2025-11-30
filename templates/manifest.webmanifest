@@ -1,11 +1,15 @@
 {
   "name": "Casa {{ property_name }}",
   "short_name": "{{ property_name }}",
-  "start_url": "/guest/{{ property_id }}",
+  "description": "Your personalized stay guide, chat assistant, check-in details, and local recommendations for {{ property_name }}.",
+  "start_url": "/guest/{{ property_id }}/",
+  "scope": "/guest/{{ property_id }}/",
   "display": "standalone",
   "background_color": "#020617",
   "theme_color": "#020617",
   "orientation": "portrait-primary",
+  "prefer_related_applications": false,
+  "categories": ["travel", "hospitality", "lifestyle"],
   "icons": [
     {
       "src": "/static/icons/app-icon-192.png",
@@ -16,6 +20,12 @@
       "src": "/static/icons/app-icon-512.png",
       "sizes": "512x512",
       "type": "image/png"
+    },
+    {
+      "src": "/static/icons/app-icon-512-maskable.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
     }
   ]
 }
