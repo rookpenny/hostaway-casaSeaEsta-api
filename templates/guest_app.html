@@ -736,12 +736,33 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+   let chatHasWelcome = false;
+
   function showScreen(name) {
     Object.entries(screens).forEach(([key, el]) => {
       if (!el) return;
       if (key === name) el.classList.remove("hidden");
       else el.classList.add("hidden");
     });
+
+      if (name === "chat") {
+      headerEl?.classList.add("hidden");
+
+      if (
+        window.SANDY_LIVE === "true" &&
+        chatBox &&
+        !chatHasWelcome &&
+        chatBox.children.length === 0
+      ) {
+        const intro = guestName
+          ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+          : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+        renderMessage(intro, "bot");
+        chatHasWelcome = true;
+      }
+    } else {
+      headerEl?.classList.remove("hidden");
+    }
 
     // hide header on chat
     if (name === "chat") {
@@ -933,7 +954,25 @@ document.addEventListener("DOMContentLoaded", function () {
   const chatBox = document.getElementById("chat-box");
   const chatInput = document.getElementById("chat-input");
   const chatSend = document.getElementById("chat-send");
+  const chatPlus = document.querySelector(".chat-plus");
 
+  // If Sandy is offline, show that immediately and disable inputs
+  if (window.SANDY_LIVE === "false") {
+    if (chatBox) {
+      renderMessage(
+        "Sandy is currently offline for this property 🌙\n\n" +
+          "For urgent questions, please contact your host directly via your booking app or email.",
+        "bot"
+      );
+    }
+    if (chatInput) {
+      chatInput.disabled = true;
+      chatInput.placeholder = "Sandy is offline for this property.";
+    }
+    if (chatSend) chatSend.disabled = true;
+    if (chatPlus) chatPlus.disabled = true;
+  }
+  
   function scrollChatToBottom() {
     if (!chatBox) return;
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -1004,6 +1043,24 @@ document.addEventListener("DOMContentLoaded", function () {
 
     chatBox.appendChild(row);
     scrollChatToBottom();
+  }
+
+  if (chatPlus && chatInput) {
+    chatPlus.addEventListener("click", () => {
+      const suggestions = [
+        "What time is check-in and how do I use the lock?",
+        "What’s the WiFi network and password?",
+        "Where do I park at the property?",
+        "Any recommendations for restaurants or coffee nearby?",
+      ];
+      const next = suggestions[Math.floor(Math.random() * suggestions.length)];
+      chatInput.value = next;
+      chatInput.focus();
+      chatInput.setSelectionRange(
+        chatInput.value.length,
+        chatInput.value.length
+      );
+    });
   }
 
   function addTyping() {
