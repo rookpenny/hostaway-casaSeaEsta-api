@@ -256,191 +256,191 @@
         </div>
       </div>
     </div>
-
-    <!-- welcome text over the image -->
-    <div class="absolute inset-x-0 bottom-4 px-4">
-      <h1 class="text-4xl font-semibold leading-tight">
-        <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe — you’ve made it.
-      </h1>
-    </div>
   </div>
 </header>
 
 
 
-<!-- Main content -->
-<main
+  <!-- Main content -->
+  <main
   id="screen-container"
   class="flex-1 flex flex-col overflow-y-auto px-4 pt-3 pb-24"
 >
-  <!-- HOME -->
-  <section
-    id="screen-home"
-    class="flex-1 flex flex-col justify-end gap-4 text-[0.95rem]"
-    style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
-  >
-    <!-- LOGIN STATE -->
-    <div id="home-login" class="space-y-4">
-      <div class="space-y-2">
-        <h2 class="font-semibold">Unlock your stay</h2>
-        <p class="text-slate-300">
-          Enter the <span class="font-semibold">last 4 digits of the phone number</span> on your booking
-          to unlock your trip details, chat with Sandy, and browse guides.
-        </p>
-      </div>
+<!-- HOME -->
+<section
+  id="screen-home"
+  class="flex-1 flex flex-col justify-end gap-4 text-[0.95rem]"
+  style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
+>
+  <!-- LOGIN STATE -->
+  <div id="home-login" class="space-y-4">
+    <div class="space-y-2">
+      <h2 class="font-semibold">Unlock your stay</h2>
+      <p class="text-slate-300">
+        Enter the <span class="font-semibold">last 4 digits of the phone number</span> on your booking
+        to unlock your trip details, chat with Sandy, and browse guides.
+      </p>
+    </div>
 
-      <div class="bg-slate-900/80 rounded-2xl p-4 space-y-3">
-        <label for="unlock-code" class="block font-medium text-slate-300 mb-1">
-          Last 4 digits
-        </label>
-        <input
-          id="unlock-code"
-          type="text"
-          inputmode="numeric"
-          maxlength="4"
-          placeholder="1234"
-          class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
-        />
-        <button
-          id="unlock-button"
-          type="button"
-          data-property-id="{{ property_id }}"
-          class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-slate-950 py-3 transition"
-        >
-          <span>Unlock experience</span>
-          <span
-            id="unlock-spinner"
-            class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"
-          ></span>
-        </button>
-        <p id="unlock-error" class="text-rose-400 min-h-[1.125rem]"></p>
-        <p class="text-slate-400">
-          Not sure which number is on the booking? Check your confirmation email or message your host.
-        </p>
-      </div>
+    <div class="bg-slate-900/80 rounded-2xl p-4 space-y-3">
+      <label for="unlock-code" class="block font-medium text-slate-300 mb-1">
+        Last 4 digits
+      </label>
+      <input
+        id="unlock-code"
+        type="text"
+        inputmode="numeric"
+        maxlength="4"
+        placeholder="1234"
+        class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+      />
+      <button
+        id="unlock-button"
+        type="button"
+        data-property-id="{{ property_id }}"
+        class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-slate-950 py-3 transition"
+      >
+        <span>Unlock experience</span>
+        <span
+          id="unlock-spinner"
+          class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"
+        ></span>
+      </button>
+      <p id="unlock-error" class="text-rose-400 min-h-[1.125rem]"></p>
+      <p class="text-slate-400">
+        Not sure which number is on the booking? Check your confirmation email or message your host.
+      </p>
+    </div>
 
-      <div class="mt-1 text-slate-400 flex items-center gap-2">
-        {% if is_live %}
-          <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-          <span>Sandy is live for this property 🌊</span>
-        {% else %}
-          <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-          <span>Sandy is currently offline – you can still view trip details.</span>
-        {% endif %}
+    <div class="mt-1 text-slate-400 flex items-center gap-2">
+      {% if is_live %}
+        <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+        <span>Sandy is live for this property 🌊</span>
+      {% else %}
+        <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+        <span>Sandy is currently offline – you can still view trip details.</span>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- UNLOCKED HOME CARD -->
+  <div id="home-stay" class="space-y-4 hidden">
+    <div class="rounded-2xl overflow-hidden shadow-xl">
+      <!-- Clean welcome header (no image background color here so image shows through) -->
+      <div class="px-4 pt-6 pb-2">
+        <h1 class="text-4xl font-semibold leading-tight">
+          <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe — you’ve made it.
+        </h1>
       </div>
     </div>
 
-    <!-- UNLOCKED HOME CONTENT -->
-    <div id="home-stay" class="space-y-4 hidden">
-      <!-- body (no extra header card now) -->
-      <div class="px-4 py-4 space-y-4">
-        <!-- address + map -->
-        <div class="flex items-start justify-between gap-3">
-          <div class="text-xs leading-snug text-slate-200">
-            <p>{{ property_address or "123 Any Street" }}</p>
-            <p>{{ city_name or "Anywhere, AB A0A 1A1" }}</p>
-          </div>
-          {% if property_address %}
-            {% if google_maps_link %}
-              {% set maps_href = google_maps_link %}
-            {% else %}
-              {% set maps_href = "#" %}
-            {% endif %}
-            <a
-              href="{{ maps_href }}"
-              target="_blank"
-              rel="noopener noreferrer"
-              class="inline-flex items-center justify-center rounded-full border border-slate-600 px-3 py-1 bg-slate-950/80"
-            >
-              <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.5"
-                  d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z"
-                />
-                <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
-              </svg>
-              <span>Map</span>
-            </a>
+    <!-- body -->
+    <div class="px-4 py-4 space-y-4">
+      <!-- address + map -->
+      <div class="flex items-start justify-between gap-3">
+        <div class="text-xs leading-snug text-slate-200">
+          <p>{{ property_address or "123 Any Street" }}</p>
+          <p>{{ city_name or "Anywhere, AB A0A 1A1" }}</p>
+        </div>
+        {% if property_address %}
+          {% if google_maps_link %}
+            {% set maps_href = google_maps_link %}
+          {% else %}
+            {% set maps_href = "#" %}
           {% endif %}
-        </div>
-
-        <div class="border-t border-slate-800 my-2"></div>
-
-        {% if arrival_date or departure_date %}
-          <!-- Arrival / Departure FIRST -->
-          <div class="flex items-start justify-between gap-4 text-slate-300">
-            <div>
-              <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Arrival</p>
-              <p class="font-medium" id="arrival-date-span">{{ arrival_date or "-" }}</p>
-            </div>
-            <div class="text-right">
-              <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Departure</p>
-              <p class="font-medium" id="departure-date-span">{{ departure_date or "-" }}</p>
-            </div>
-          </div>
-
-          <div class="border-t border-slate-800 my-2"></div>
+          <a
+            href="{{ maps_href }}"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="inline-flex items-center justify-center rounded-full border border-slate-600 px-3 py-1 bg-slate-950/80"
+          >
+            <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+              <path
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="1.5"
+                d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z"
+              />
+              <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
+            </svg>
+            <span>Map</span>
+          </a>
         {% endif %}
+      </div>
 
-        <!-- Check-in / Check-out SECOND -->
-        <div class="flex items-start justify-between gap-4">
+      <div class="border-t border-slate-800 my-2"></div>
+
+      {% if arrival_date or departure_date %}
+        <!-- Arrival / Departure FIRST -->
+        <div class="flex items-start justify-between gap-4 text-slate-300">
           <div>
-            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-in</p>
-            <p class="font-medium">
-              {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
-            </p>
+            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Arrival</p>
+            <p class="font-medium" id="arrival-date-span">{{ arrival_date or "-" }}</p>
           </div>
           <div class="text-right">
-            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-out</p>
-            <p class="font-medium">
-              {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
-            </p>
+            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Departure</p>
+            <p class="font-medium" id="departure-date-span">{{ departure_date or "-" }}</p>
           </div>
         </div>
 
         <div class="border-t border-slate-800 my-2"></div>
+      {% endif %}
 
-        <!-- WiFi THIRD -->
-        <div class="flex items-start justify-between gap-4">
-          <div>
-            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">WiFi Network</p>
-            <p class="font-medium">
-              {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
-            </p>
-          </div>
-          <div class="text-right">
-            <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Password</p>
-            <p class="font-medium">
-              {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
-            </p>
-          </div>
+      <!-- Check-in / Check-out SECOND -->
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-in</p>
+          <p class="font-medium">
+            {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
+          </p>
         </div>
-
-        <div class="border-t border-slate-800 my-2"></div>
-
-        <!-- Buttons: Check-in + Upgrades -->
-        <div class="mt-3 flex items-center gap-3">
-          <button
-            id="checkin-button"
-            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-600 py-3 font-semibold bg-transparent"
-          >
-            <span>Check-in</span>
-          </button>
-
-          <button
-            id="upgrades-button"
-            class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950"
-          >
-            <span>Upgrades</span>
-          </button>
+        <div class="text-right">
+          <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-out</p>
+          <p class="font-medium">
+            {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
+          </p>
         </div>
       </div>
-    </div>
-  </section>
-</main>
 
+      <div class="border-t border-slate-800 my-2"></div>
+
+      <!-- WiFi THIRD -->
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">WiFi Network</p>
+          <p class="font-medium">
+            {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
+          </p>
+        </div>
+        <div class="text-right">
+          <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Password</p>
+          <p class="font-medium">
+            {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
+          </p>
+        </div>
+      </div>
+
+      <div class="border-t border-slate-800 my-2"></div>
+
+      <!-- Buttons: Check-in + Upgrades -->
+      <div class="mt-3 flex items-center gap-3">
+        <button
+          id="checkin-button"
+          class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-slate-600 py-3 font-semibold bg-transparent"
+        >
+          <span>Check-in</span>
+        </button>
+
+        <button
+          id="upgrades-button"
+          class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950"
+        >
+          <span>Upgrades</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</section>
 
 
 
