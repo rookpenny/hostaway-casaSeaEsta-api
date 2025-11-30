@@ -271,12 +271,12 @@
     <!-- Main content area that swaps screens -->
     <main
       id="screen-container"
-      class="flex-1 flex flex-col px-4 pt-3 pb-20 overflow-y-auto"
+      class="flex-1 flex flex-col px-4 pt-3 pb-16 overflow-y-auto"
     >
       <!-- HOME -->
       <section
         id="screen-home"
-        class="flex flex-col justify-end gap-4 text-[0.95rem] min-h-[calc(100vh-4rem)]"
+        class="flex flex-col justify-end gap-4 text-[0.95rem] min-h-full"
         style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
       >
         <!-- LOGIN STATE -->
@@ -346,7 +346,7 @@
             <div class="flex items-start justify-between gap-3">
               <div class="text-xs leading-snug text-slate-200">
                 <p>{{ property_address or "123 Any Street" }}</p>
-                <p>{{ city_name or "Anywhere, AB A0A 1A1" }}</p>
+                
               </div>
               {% if property_address %}
                 {% if google_maps_link %}
@@ -448,7 +448,7 @@
       </section>
 
       <!-- CHAT -->
-      <section id="screen-chat" class="hidden flex flex-col min-h-[calc(100vh-4rem)] bg-slate-950">
+      <section id="screen-chat" class="hidden flex flex-col min-h-full bg-slate-950">
         <div class="flex-1 flex flex-col">
           <div
             id="chat-box"
@@ -490,7 +490,7 @@
       <!-- GUIDES -->
       <section
         id="screen-experiences"
-        class="hidden flex flex-col gap-4 min-h-[calc(100vh-4rem)] bg-slate-950 px-0 pt-4 pb-4"
+        class="hidden flex flex-col gap-4 min-h-full bg-slate-950 px-0 pt-4 pb-4"
       >
         <div class="h-32 w-full relative rounded-2xl overflow-hidden px-4">
           {% if experiences_hero_url %}
