@@ -151,6 +151,52 @@ def get_hostaway_properties():
     return response.json().get("result", [])
 
 
+from typing import Optional
+
+def get_listing_hero_image(
+    listing_id: str,
+    client_id: str,
+    client_secret: str,
+) -> Optional[str]:
+    """
+    Fetch a Hostaway listing and return a single 'hero' image URL.
+
+    - Uses per-PMC client_id / client_secret (same pattern as get_upcoming_phone_for_listing).
+    - Prefers the image with the lowest sortOrder in listingImages.
+    """
+
+    try:
+        token = get_token_for_pmc(client_id, client_secret)
+
+        resp = requests.get(
+            f"{HOSTAWAY_BASE_URL}/listings/{listing_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"includeResources": 1},  # ensures images are included
+            timeout=5,
+        )
+        if not resp.ok:
+            print("[Hostaway] Error fetching listing:", resp.status_code, resp.text)
+            return None
+
+        data = resp.json()
+        # Hostaway usually nests listing under "result"
+        listing = data.get("result") or data.get("listing") or {}
+
+        images = listing.get("listingImages") or []
+        if not images:
+            return None
+
+        # Prefer image with smallest sortOrder, fallback to first
+        primary = sorted(
+            images,
+            key=lambda img: img.get("sortOrder") if img.get("sortOrder") is not None else 9999,
+        )[0]
+
+        return primary.get("url")
+    except Exception as e:
+        print("[Hostaway] Error in get_listing_hero_image:", e)
+        return None
+
 
 def get_upcoming_phone_for_listing(
     listing_id: str,
