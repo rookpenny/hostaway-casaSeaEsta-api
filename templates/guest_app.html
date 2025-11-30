@@ -80,7 +80,7 @@
     }
 
     .msg.user .avatar {
-      background-color: #e5e7eb;
+      display: none !important;
     }
 
     .msg.bot .avatar {
@@ -1154,47 +1154,52 @@
         return escaped.replace(/\n/g, "<br>");
       }
 
-      function renderMessage(text, sender) {
-        if (!chatBox) return;
-      
-        const isUser = sender === "user";
-        const ts = formatTime(new Date());
-      
-        const row = document.createElement("div");
-        row.className = "msg " + (isUser ? "user" : "bot");
-      
-        // Avatar (only for Sandy / bot)
-        let avatar = null;
-        if (!isUser) {
-          avatar = document.createElement("div");
-          avatar.className = "avatar avatar-sandy";
-        }
-      
-        const column = document.createElement("div");
-      
-        const bubble = document.createElement("div");
-        bubble.className = "bubble";
-        bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
-      
-        const time = document.createElement("div");
-        time.className = "timestamp";
-        time.textContent = ts;
-      
-        column.appendChild(bubble);
-        column.appendChild(time);
-      
-        if (isUser) {
-          // user: bubble only, no avatar
-          row.appendChild(column);
-        } else {
-          // bot: avatar on the left, bubble on the right
-          row.appendChild(avatar);
-          row.appendChild(column);
-        }
-      
-        chatBox.appendChild(row);
-        setTimeout(scrollChatToBottom, 0);
-      }
+     function renderMessage(text, sender) {
+  if (!chatBox) return;
+
+  const isUser = sender === "user";
+  const ts = formatTime(new Date());
+
+  // outer row
+  const row = document.createElement("div");
+  row.className = "msg " + (isUser ? "user" : "bot");
+
+  // avatar (ONLY for Sandy/bot)
+  let avatar = null;
+  if (!isUser) {
+    avatar = document.createElement("div");
+    avatar.className = "avatar avatar-sandy"; // photo avatar
+  }
+
+  // column that holds bubble + timestamp
+  const column = document.createElement("div");
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+
+  const time = document.createElement("div");
+  time.className = "timestamp";
+  time.textContent = ts;
+
+  column.appendChild(bubble);
+  column.appendChild(time);
+
+  if (isUser) {
+    // user: bubble only
+    row.appendChild(column);
+  } else {
+    // bot: avatar on the left, bubble on the right
+    row.appendChild(avatar);
+    row.appendChild(column);
+  }
+
+  chatBox.appendChild(row);
+
+  // make sure latest message is visible
+  setTimeout(scrollChatToBottom, 0);
+}
+
 
 
       function addTyping() {
