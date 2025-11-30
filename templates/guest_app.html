@@ -1110,45 +1110,46 @@ document.addEventListener("DOMContentLoaded", function () {
     return escaped.replace(/\n/g, "<br>");
   }
 
-  function renderMessage(text, sender) {
-    if (!chatBox) return;
+ function renderMessage(text, sender) {
+  if (!chatBox) return;
 
-    const isUser = sender === "user";
-    const ts = formatTime(new Date());
+  const isUser = sender === "user";
+  const ts = formatTime(new Date());
 
-    const row = document.createElement("div");
-    row.className = "msg " + (isUser ? "user" : "bot");
+  const row = document.createElement("div");
+  row.className = "msg " + (isUser ? "user" : "bot");
 
-    const avatar = document.createElement("div");
-    avatar.className = "avatar";
-    if (!isUser) {
-      avatar.textContent = "S";
-    }
+  const avatar = document.createElement("div");
+  avatar.className = "avatar";
+  avatar.textContent = isUser ? "" : "S"; // you can replace with real image later
 
-    const column = document.createElement("div");
+  // Column holding bubble + timestamp
+  const column = document.createElement("div");
+  column.className = "msg-column";
 
-    const bubble = document.createElement("div");
-    bubble.className = "bubble";
-    bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
 
-    const time = document.createElement("div");
-    time.className = "timestamp";
-    time.textContent = ts;
+  const time = document.createElement("div");
+  time.className = "timestamp";
+  time.textContent = ts;
 
-    column.appendChild(bubble);
-    column.appendChild(time);
+  column.appendChild(bubble);
+  column.appendChild(time);
 
-    if (isUser) {
-      row.appendChild(column);
-      row.appendChild(avatar);
-    } else {
-      row.appendChild(avatar);
-      row.appendChild(column);
-    }
-
-    chatBox.appendChild(row);
-    scrollChatToBottom();
+  if (isUser) {
+    row.appendChild(column);
+    row.appendChild(avatar);
+  } else {
+    row.appendChild(avatar);
+    row.appendChild(column);
   }
+
+  chatBox.appendChild(row);
+  scrollChatToBottom();
+}
+
 
   if (chatPlus && chatInput) {
     chatPlus.addEventListener("click", () => {
