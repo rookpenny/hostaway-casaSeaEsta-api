@@ -1138,7 +1138,12 @@
 
       function scrollChatToBottom() {
         if (!chatBox) return;
-        chatBox.scrollTop = chatBox.scrollHeight;
+      
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            chatBox.scrollTop = chatBox.scrollHeight;
+          });
+        });
       }
 
 
@@ -1208,9 +1213,7 @@
       }
     
       chatBox.appendChild(row);
-    
-      // ensure latest message in view
-      setTimeout(scrollChatToBottom, 0);
+      requestAnimationFrame(scrollChatToBottom);
     }
 
 
