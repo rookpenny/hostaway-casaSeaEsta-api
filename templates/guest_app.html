@@ -20,6 +20,7 @@
     body {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 0.95rem;
+      height: 100%;
       overflow-x: hidden;
     }
 
@@ -38,6 +39,9 @@
     /* CHAT STYLES (scoped by IDs/classes where possible) */
     #chat-box {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      overflow-y: auto;
+      flex: 1;
+      min-height: 0; /* Required for flex scroll behaviors */
     }
 
     .msg {
@@ -251,6 +255,9 @@
     /* Light mode chat screen */
     #screen-chat {
       color: #1f2937;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
     }
 
     .msg.user .bubble {
@@ -1113,8 +1120,12 @@
 
       function scrollChatToBottom() {
         if (!chatBox) return;
-        chatBox.scrollTop = chatBox.scrollHeight;
+      
+        requestAnimationFrame(() => {
+          chatBox.scrollTop = chatBox.scrollHeight;
+        });
       }
+
 
       function formatTime(date) {
         let hours = date.getHours();
@@ -1145,62 +1156,46 @@
 
       function renderMessage(text, sender) {
         if (!chatBox) return;
-
+      
         const isUser = sender === "user";
         const ts = formatTime(new Date());
-
+      
         const row = document.createElement("div");
         row.className = "msg " + (isUser ? "user" : "bot");
-
-        const avatar = document.createElement("div");
+      
+        // Avatar (only for Sandy / bot)
+        let avatar = null;
+        if (!isUser) {
+          avatar = document.createElement("div");
           avatar.className = "avatar avatar-sandy";
-          if (!isUser) {
-            avatar.classList.add("avatar-sandy");
-            // no textContent, we use the photo instead
-          }
-
+        }
+      
         const column = document.createElement("div");
-
+      
         const bubble = document.createElement("div");
         bubble.className = "bubble";
         bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
-
+      
         const time = document.createElement("div");
         time.className = "timestamp";
         time.textContent = ts;
-
+      
         column.appendChild(bubble);
         column.appendChild(time);
-
+      
         if (isUser) {
+          // user: bubble only, no avatar
           row.appendChild(column);
-          row.appendChild(avatar);
         } else {
+          // bot: avatar on the left, bubble on the right
           row.appendChild(avatar);
           row.appendChild(column);
         }
-
+      
         chatBox.appendChild(row);
-        scrollChatToBottom();
+        setTimeout(scrollChatToBottom, 0);
       }
 
-      if (chatPlus && chatInput) {
-        chatPlus.addEventListener("click", () => {
-          const suggestions = [
-            "What time is check-in and how do I use the lock?",
-            "What’s the WiFi network and password?",
-            "Where do I park at the property?",
-            "Any recommendations for restaurants or coffee nearby?",
-          ];
-          const next = suggestions[Math.floor(Math.random() * suggestions.length)];
-          chatInput.value = next;
-          chatInput.focus();
-          chatInput.setSelectionRange(
-            chatInput.value.length,
-            chatInput.value.length
-          );
-        });
-      }
 
       function addTyping() {
         if (!chatBox || document.getElementById("typing-indicator")) return;
