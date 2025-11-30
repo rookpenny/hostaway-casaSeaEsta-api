@@ -34,7 +34,7 @@ from utils.pms_sync import sync_properties, sync_all_pmcs
 from utils.pms_access import get_pms_access_info, ensure_pms_data
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
-from utils.hostaway import get_upcoming_phone_for_listing, get_listing_hero_image
+from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from openai import OpenAI
@@ -174,14 +174,13 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     cfg = context.get("config", {}) or {}
     wifi = cfg.get("wifi") or {}
 
-    # 🎨 Hero images: config.json can override, but default to Hostaway hero if available
+        # Base values from config.json (if present)
+    address = cfg.get("address")
+    city_name = cfg.get("city_name")
     hero_image_url = cfg.get("hero_image_url")
     experiences_hero_url = cfg.get("experiences_hero_url")
 
-    # Only attempt Hostaway fetch if:
-    # - we have a PMC
-    # - this property is integrated with Hostaway
-    # - we have a Hostaway listing ID stored in pms_property_id
+    # If this is a Hostaway property and we have PMC creds, pull from Hostaway
     if (
         pmc
         and pmc.pms_integration
@@ -189,30 +188,35 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         and prop.pms_integration
         and prop.pms_integration.lower() == "hostaway"
         and prop.pms_property_id
+        and pmc.pms_api_key
+        and pmc.pms_api_secret
     ):
-        # Only call Hostaway if config didn't already specify a hero
-        if not hero_image_url:
-            try:
-                client_id = pmc.pms_api_key
-                client_secret = pmc.pms_api_secret
+        try:
+            hero, ha_address, ha_city = get_listing_overview(
+                listing_id=str(prop.pms_property_id),
+                client_id=pmc.pms_api_key,
+                client_secret=pmc.pms_api_secret,
+            )
 
-                if client_id and client_secret:
-                    hostaway_hero = get_listing_hero_image(
-                        listing_id=str(prop.pms_property_id),
-                        client_id=client_id,
-                        client_secret=client_secret,
-                    )
-                    if hostaway_hero:
-                        hero_image_url = hostaway_hero
-                        # If guides hero not set separately, reuse the same image
-                        if not experiences_hero_url:
-                            experiences_hero_url = hostaway_hero
-            except Exception as e:
-                print("[Hero image] Failed to fetch Hostaway hero:", e)
+            # Only override if config didn't already specify these
+            if hero and not hero_image_url:
+                hero_image_url = hero
+                if not experiences_hero_url:
+                    experiences_hero_url = hero
+
+            if ha_address and not address:
+                address = ha_address
+
+            if ha_city and not city_name:
+                city_name = ha_city
+
+        except Exception as e:
+            print("[Hostaway] Failed to fetch listing overview:", e)
 
     # Final fallback: if no separate guides hero, reuse main hero
     if not experiences_hero_url and hero_image_url:
         experiences_hero_url = hero_image_url
+
 
 
     
@@ -252,12 +256,13 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             # PMS dates override config if present
             "arrival_date": arrival_date_db or cfg.get("arrival_date"),
             "departure_date": departure_date_db or cfg.get("departure_date"),
-            "hero_image_url": hero_image_url,
             "feature_image_url": cfg.get("feature_image_url"),
             "family_image_url": cfg.get("family_image_url"),
             "foodie_image_url": cfg.get("foodie_image_url"),
-            "experiences_hero_url": experiences_hero_url,
+            "property_address": address,
             "city_name": city_name,
+            "hero_image_url": hero_image_url,
+            "experiences_hero_url": experiences_hero_url,
             "google_maps_link": google_maps_link,
             "is_live": is_live,
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
