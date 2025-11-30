@@ -162,8 +162,8 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      border-top: 1px solid #1f2937;
-      background: #020617;
+       background: #f8fafc;     /* light gray */
+  border-top: 1px solid #e2e8f0;
     
       /* NEW: pin it above the bottom nav */
       position: fixed;
@@ -179,7 +179,8 @@
       align-items: center;
       gap: 0.5rem;
       border-radius: 999px;
-      background: #0f172a;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
       padding: 0.6rem 0.75rem;
     }
 
@@ -189,7 +190,7 @@
       background: transparent;
       font-size: 1rem;
       outline: none;
-      color: #e5e7eb;
+      color: #1f2937;
     }
 
     .chat-plus {
@@ -218,6 +219,40 @@
       cursor: pointer;
       color: #022c22;
     }
+
+    /* --- Light Mode Chat Styles --- */
+
+      #screen-chat {
+        color: #1f2937;
+      }
+      
+      /* User bubble on white */
+      .msg.user .bubble {
+        background: #e5e7eb;          /* soft light gray bubble */
+        color: #111827;               /* dark slate text */
+      }
+      
+      /* Bot bubble on white */
+      .msg.bot .bubble {
+        background: #22c55e;          /* emerald */
+        color: #022c22;               /* deep forest green text */
+      }
+      
+      /* avatar */
+      .msg.user .avatar {
+        background-color: #cbd5e1;    /* lighter gray since white BG */
+      }
+      
+      .msg.bot .avatar {
+        background-color: #22c55e;
+        color: #022c22;
+      }
+      
+      /* Timestamps on light BG */
+      .timestamp {
+        color: #64748b;
+      }
+
   </style>
 
   <script>
@@ -461,12 +496,12 @@
       <!-- CHAT -->
       <section
         id="screen-chat"
-        class="hidden flex flex-col flex-1 bg-slate-950"
+        class="hidden flex flex-col flex-1 bg-white"
       >
         <div class="flex-1 flex flex-col">
           <div
             id="chat-box"
-            class="flex-1 overflow-y-auto px-4 pt-4 pb-32 space-y-2"
+            class="flex-1 overflow-y-auto px-4 pt-4 pb-32 space-y-2 bg-white text-slate-800"
           ></div>
 
           <div class="chat-input-bar">
