@@ -16,193 +16,192 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-  /* CHAT STYLES ONLY – no global body changes */
-  #chat-box {
-    font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  }
-
-  .msg {
-    display: flex;
-    align-items: flex-end;
-    margin-bottom: 0.75rem;
-    animation: fadeInUp 0.35s ease-out;
-    animation-fill-mode: both;
-  }
-
-  .msg.user {
-    justify-content: flex-end;
-  }
-
-  .msg.bot {
-    justify-content: flex-start;
-  }
-
-  .bubble {
-    padding: 0.6rem 1rem;
-    border-radius: 1rem;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-    max-width: 70%;
-    font-size: 0.95rem;
-    line-height: 1.5;
-  }
-
-  .avatar {
-    width: 32px;
-    height: 32px;
-    border-radius: 50%;
-    margin: 0 0.5rem;
-    background-size: cover;
-    background-position: center;
-    flex-shrink: 0;
-  }
-
-  .msg.user .avatar {
-    background-color: #e5e7eb; /* light gray */
-  }
-
-  .msg.bot .avatar {
-    background-color: #22c55e; /* emerald-ish for Sandy */
-    color: #022c22;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 0.75rem;
-    font-weight: 600;
-  }
-
-  .timestamp {
-    font-size: 0.65rem;
-    color: #9ca3af;
-    margin-top: 0.25rem;
-    text-align: right;
-  }
-
-  .message-text p {
-    margin: 0.5rem 0;
-  }
-
-  .message-text ul {
-    margin: 0.5rem 0;
-    padding-left: 1.2rem;
-  }
-
-  .message-text li {
-    margin-bottom: 0.3rem;
-  }
-
-  .message-text a {
-    color: #22c55e;
-    text-decoration: none;
-    word-break: break-word;
-  }
-
-  .message-text a:hover {
-    text-decoration: underline;
-  }
-
-  .message-text strong {
-    font-weight: 600;
-  }
-
-  .message-text em {
-    font-style: italic;
-  }
-
-  /* Typing dots animation (optional) */
-  .dots-anim {
-    display: inline-block;
-  }
-
-  .dots-anim span {
-    font-size: 1.25rem;
-    animation: blink 1.4s infinite both;
-    opacity: 0.3;
-  }
-
-  .dots-anim span:nth-child(1) {
-    animation-delay: 0s;
-  }
-  .dots-anim span:nth-child(2) {
-    animation-delay: 0.2s;
-  }
-  .dots-anim span:nth-child(3) {
-    animation-delay: 0.4s;
-  }
-
-  @keyframes blink {
-    0% { opacity: 0.3; }
-    20% { opacity: 1; }
-    100% { opacity: 0.3; }
-  }
-
-  @keyframes fadeInUp {
-    from {
-      opacity: 0;
-      transform: translateY(12px);
+    /* CHAT STYLES ONLY – no global body changes */
+    #chat-box {
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
     }
-    to {
-      opacity: 1;
-      transform: translateY(0);
+
+    .msg {
+      display: flex;
+      align-items: flex-end;
+      margin-bottom: 0.75rem;
+      animation: fadeInUp 0.35s ease-out;
+      animation-fill-mode: both;
     }
-  }
 
-  /* Input bar sizing like old chat */
-  .chat-input-bar {
-    padding: 0.8rem 1rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-top: 1px solid #1f2937;
-    background: #020617;
-  }
+    .msg.user {
+      justify-content: flex-end;
+    }
 
-  .chat-input-inner {
-    flex: 1;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    border-radius: 999px;
-    background: #0f172a;
-    padding: 0.6rem 0.75rem;
-  }
+    .msg.bot {
+      justify-content: flex-start;
+    }
 
-  .chat-input-bar input[type="text"] {
-    flex: 1;
-    border: none;
-    background: transparent;
-    font-size: 1rem;
-    outline: none;
-    color: #e5e7eb;
-  }
+    .bubble {
+      padding: 0.6rem 1rem;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      max-width: 70%;
+      font-size: 0.95rem;
+      line-height: 1.5;
+    }
 
-  .chat-plus {
-    background: #0b1120;
-    border: none;
-    width: 2.5rem;
-    height: 2.5rem;
-    font-size: 1.2rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: #e5e7eb;
-  }
+    .avatar {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      margin: 0 0.5rem;
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+    }
 
-  .send-button {
-    background: #22c55e;
-    border: none;
-    width: 2.5rem;
-    height: 2.5rem;
-    border-radius: 50%;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    color: #022c22;
-  }
-</style>
+    .msg.user .avatar {
+      background-color: #e5e7eb;
+    }
 
+    .msg.bot .avatar {
+      background-color: #22c55e;
+      color: #022c22;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .timestamp {
+      font-size: 0.65rem;
+      color: #9ca3af;
+      margin-top: 0.25rem;
+      text-align: right;
+    }
+
+    .message-text p {
+      margin: 0.5rem 0;
+    }
+
+    .message-text ul {
+      margin: 0.5rem 0;
+      padding-left: 1.2rem;
+    }
+
+    .message-text li {
+      margin-bottom: 0.3rem;
+    }
+
+    .message-text a {
+      color: #22c55e;
+      text-decoration: none;
+      word-break: break-word;
+    }
+
+    .message-text a:hover {
+      text-decoration: underline;
+    }
+
+    .message-text strong {
+      font-weight: 600;
+    }
+
+    .message-text em {
+      font-style: italic;
+    }
+
+    .dots-anim {
+      display: inline-block;
+    }
+
+    .dots-anim span {
+      font-size: 1.25rem;
+      animation: blink 1.4s infinite both;
+      opacity: 0.3;
+    }
+
+    .dots-anim span:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .dots-anim span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .dots-anim span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes blink {
+      0% { opacity: 0.3; }
+      20% { opacity: 1; }
+      100% { opacity: 0.3; }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chat-input-bar {
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-top: 1px solid #1f2937;
+      background: #020617;
+    }
+
+    .chat-input-inner {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 999px;
+      background: #0f172a;
+      padding: 0.6rem 0.75rem;
+    }
+
+    .chat-input-bar input[type="text"] {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 1rem;
+      outline: none;
+      color: #e5e7eb;
+    }
+
+    .chat-plus {
+      background: #0b1120;
+      border: none;
+      width: 2.5rem;
+      height: 2.5rem;
+      font-size: 1.2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #e5e7eb;
+    }
+
+    .send-button {
+      background: #22c55e;
+      border: none;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #022c22;
+    }
+  </style>
 
   <script>
     window.PROPERTY_ID = {{ property_id | tojson }};
@@ -211,25 +210,24 @@
     window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
   </script>
 </head>
-<body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
+<body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col overflow-x-hidden">
 
 <!-- App shell with shared background image + gradient -->
 <div
   id="app-shell"
-  class="relative min-h-screen w-full overflow-hidden flex flex-col"
+  class="relative min-h-screen w-full max-w-full flex flex-col"
   style="background-image: url('{{ hero_image_url or default_image_url }}'); background-size: cover; background-position: top;"
 >
-  <!-- Gradient overlay over the image -->
+  <!-- Gradient overlay -->
   <div class="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none"></div>
 
-  <!-- Foreground content sits above image+gradient -->
-  <div class="relative z-10">
-    <!-- Top hero (now just language/logout, no own background) -->
+  <!-- Foreground content -->
+  <div class="relative z-10 flex flex-col min-h-screen">
+    <!-- Top header -->
     <header id="app-header" class="relative w-full h-0">
-      <!-- language + logout (only for non-chat screens) -->
       <div id="language-bar" class="absolute top-4 right-4">
         <div class="flex items-center gap-2">
-          <!-- logout icon (power icon) -->
+          <!-- logout icon -->
           <button
             id="logout-button"
             type="button"
@@ -262,19 +260,17 @@
       </div>
     </header>
 
-    <!-- Main content -->
+    <!-- Main content area that swaps screens -->
     <main
       id="screen-container"
       class="flex-1 flex flex-col px-4 pt-3 pb-20 overflow-y-auto"
     >
-
       <!-- HOME -->
-       <section
-          id="screen-home"
-          class="flex flex-col justify-end gap-4 text-[0.95rem] min-h-[calc(100vh-4rem)]"
-          style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
-        >
-
+      <section
+        id="screen-home"
+        class="flex flex-col justify-end gap-4 text-[0.95rem] min-h-[calc(100vh-4rem)]"
+        style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
+      >
         <!-- LOGIN STATE -->
         <div id="home-login" class="space-y-4">
           <div class="space-y-2">
@@ -329,7 +325,6 @@
         <!-- UNLOCKED HOME CARD -->
         <div id="home-stay" class="space-y-4 hidden">
           <div class="rounded-2xl overflow-hidden shadow-xl">
-            <!-- welcome header (now shows image+gradient behind because wrapper has bg) -->
             <div class="px-4 pt-6 pb-2">
               <h1 class="text-4xl font-semibold leading-tight">
                 <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe — you’ve made it.
@@ -338,7 +333,7 @@
           </div>
 
           <!-- body -->
-          <div class="px-4 py-4 space-y-4">
+          <div class="px-4 py-4 space-y-4 bg-slate-950/70 rounded-2xl">
             <!-- address + map -->
             <div class="flex items-start justify-between gap-3">
               <div class="text-xs leading-snug text-slate-200">
@@ -374,7 +369,6 @@
             <div class="border-t border-slate-800 my-2"></div>
 
             {% if arrival_date or departure_date %}
-              <!-- Arrival / Departure FIRST -->
               <div class="flex items-start justify-between gap-4 text-slate-300">
                 <div>
                   <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Arrival</p>
@@ -389,7 +383,7 @@
               <div class="border-t border-slate-800 my-2"></div>
             {% endif %}
 
-            <!-- Check-in / Check-out SECOND -->
+            <!-- Check-in / Check-out -->
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-in</p>
@@ -407,7 +401,7 @@
 
             <div class="border-t border-slate-800 my-2"></div>
 
-            <!-- WiFi THIRD -->
+            <!-- WiFi -->
             <div class="flex items-start justify-between gap-4">
               <div>
                 <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">WiFi Network</p>
@@ -428,9 +422,9 @@
             <!-- Buttons: Check-in + Upgrades -->
             <div class="mt-3 flex items-center gap-3">
               <button
-                  id="checkin-button"
-                  class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white py-3 font-semibold bg-transparent text-white transition hover:bg-white hover:text-slate-900"
-                >
+                id="checkin-button"
+                class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white py-3 font-semibold bg-transparent text-white transition hover:bg-white hover:text-slate-900"
+              >
                 <span>Check-in</span>
               </button>
 
@@ -444,181 +438,166 @@
           </div>
         </div>
       </section>
+
+      <!-- CHAT -->
+      <section id="screen-chat" class="hidden flex flex-col min-h-[calc(100vh-4rem)] bg-slate-950 -mx-4">
+        <div class="flex-1 flex flex-col">
+          <div
+            id="chat-box"
+            class="flex-1 overflow-y-auto px-4 py-4 space-y-2"
+          ></div>
+
+          <div class="chat-input-bar">
+            <div class="chat-input-inner">
+              <button type="button" class="chat-plus">+</button>
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="Type a message here..."
+              />
+              <button
+                id="chat-send"
+                type="button"
+                class="send-button"
+              >
+                <svg
+                  class="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.6"
+                    d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- GUIDES -->
+      <section
+        id="screen-experiences"
+        class="hidden flex flex-col gap-4 min-h-[calc(100vh-4rem)] bg-slate-950 px-0 pt-4 pb-4"
+      >
+        <div class="h-32 w-full relative rounded-2xl overflow-hidden px-4">
+          {% if experiences_hero_url %}
+            <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
+          {% elif hero_image_url %}
+            <img src="{{ hero_image_url }}" alt="Guides" class="w-full h-full object-cover">
+          {% else %}
+            <div class="w-full h-full bg-slate-800"></div>
+          {% endif %}
+          <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+          <div class="absolute bottom-3 left-7 right-7">
+            <h2 class="text-2xl font-semibold">Guides</h2>
+            <p class="text-sm text-slate-200">
+              Local guidebooks, ideas, and upgrades to make your stay extra special.
+            </p>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 px-4">
+          <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="h-32 relative">
+              {% if feature_image_url %}
+                <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
+              {% else %}
+                <div class="w-full h-full bg-slate-800"></div>
+              {% endif %}
+              <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+              <div class="absolute bottom-3 left-3 right-3">
+                <h3 class="text-base font-semibold">Our Story</h3>
+                <p class="text-[11px] text-slate-200 line-clamp-2">
+                  In the heart of {{ city_name or "our favorite town" }}, this place came to life…
+                </p>
+              </div>
+            </div>
+          </article>
+
+          <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="h-24 bg-slate-800">
+              {% if family_image_url %}
+                <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
+              {% endif %}
+            </div>
+            <div class="p-3 space-y-1">
+              <h3 class="text-sm font-semibold">Fun Family Activities</h3>
+              <p class="text-[11px] text-slate-300 line-clamp-2">
+                Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
+              </p>
+            </div>
+          </article>
+
+          <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+            <div class="h-24 bg-slate-800">
+              {% if foodie_image_url %}
+                <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
+              {% endif %}
+            </div>
+            <div class="p-3 space-y-1">
+              <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
+              <p class="text-[11px] text-slate-300 line-clamp-2">
+                Coffee, brunch, seafood, and dessert spots we genuinely love.
+              </p>
+            </div>
+          </article>
+        </div>
+      </section>
     </main>
   </div>
 </div>
 
+<!-- Bottom nav -->
+<nav class="fixed bottom-0 inset-x-0 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur">
+  <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
+    <span class="w-6 h-6 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center text-xs font-semibold">
+      🏠
+    </span>
+    <span>Home</span>
+  </button>
+  <button data-screen="chat" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+    <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+      💬
+    </span>
+    <span>Chat</span>
+  </button>
+  <button data-screen="experiences" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+    <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+      📚
+    </span>
+    <span>Guides</span>
+  </button>
+</nav>
 
-
-
-<!-- CHAT (full screen: header hidden, no logout/language) -->
-<section id="screen-chat" class="hidden flex flex-col min-h-[calc(100vh-4rem)] bg-slate-950">
-  <div class="flex-1 flex flex-col">
-    <!-- Messages -->
-    <div
-      id="chat-box"
-      class="flex-1 overflow-y-auto px-4 py-4 space-y-2"
-    ></div>
-
-    <!-- Input bar -->
-    <div class="chat-input-bar">
-      <div class="chat-input-inner">
-        <!-- + button -->
-        <button type="button" class="chat-plus">
-          +
-        </button>
-
-        <!-- text input -->
-        <input
-          id="chat-input"
-          type="text"
-          placeholder="Type a message here..."
-        />
-
-        <!-- send (up arrow) -->
-        <button
-          id="chat-send"
-          type="button"
-          class="send-button"
-        >
-          <svg
-            class="w-4 h-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.6"
-              d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
-            />
-          </svg>
-        </button>
-      </div>
-    </div>
+<!-- Check-in modal -->
+<div
+  id="checkin-modal"
+  class="fixed inset-0 z-40 bg-black/85 hidden items-center justify-center px-6">
+  <div class="absolute top-4 right-4">
+    <button
+      id="checkin-close"
+      class="w-9 h-9 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-slate-100 text-xl leading-none">
+      ×
+    </button>
   </div>
-</section>
-
-
-
-
-    <!-- GUIDES -->
-    <section id="screen-experiences" class="hidden flex flex-col gap-4 min-h-[calc(100vh-4rem)] bg-slate-950 px-4 pt-4 pb-20">
-      <div class="h-32 w-full relative rounded-2xl overflow-hidden">
-        {% if experiences_hero_url %}
-          <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
-        {% elif hero_image_url %}
-          <img src="{{ hero_image_url }}" alt="Guides" class="w-full h-full object-cover">
-        {% else %}
-          <div class="w-full h-full bg-slate-800"></div>
-        {% endif %}
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-        <div class="absolute bottom-3 left-3 right-3">
-          <h2 class="text-2xl font-semibold">Guides</h2>
-          <p class="text-sm text-slate-200">
-            Local guidebooks, ideas, and upgrades to make your stay extra special.
-          </p>
-        </div>
-      </div>
-
-      <!-- cards (same as before) -->
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-          <div class="h-32 relative">
-            {% if feature_image_url %}
-              <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
-            {% else %}
-              <div class="w-full h-full bg-slate-800"></div>
-            {% endif %}
-            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-            <div class="absolute bottom-3 left-3 right-3">
-              <h3 class="text-base font-semibold">Our Story</h3>
-              <p class="text-[11px] text-slate-200 line-clamp-2">
-                In the heart of {{ city_name or "our favorite town" }}, this place came to life…
-              </p>
-            </div>
-          </div>
-        </article>
-
-        <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-          <div class="h-24 bg-slate-800">
-            {% if family_image_url %}
-              <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
-            {% endif %}
-          </div>
-          <div class="p-3 space-y-1">
-            <h3 class="text-sm font-semibold">Fun Family Activities</h3>
-            <p class="text-[11px] text-slate-300 line-clamp-2">
-              Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
-            </p>
-          </div>
-        </article>
-
-        <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-          <div class="h-24 bg-slate-800">
-            {% if foodie_image_url %}
-              <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
-            {% endif %}
-          </div>
-          <div class="p-3 space-y-1">
-            <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
-            <p class="text-[11px] text-slate-300 line-clamp-2">
-              Coffee, brunch, seafood, and dessert spots we genuinely love.
-            </p>
-          </div>
-        </article>
-      </div>
-    </section>
-  </main>
-
-  <!-- Bottom nav -->
-  <nav class="fixed bottom-0 inset-x-0 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur">
-    <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
-      <span class="w-6 h-6 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center text-xs font-semibold">
-        🏠
-      </span>
-      <span>Home</span>
-    </button>
-    <button data-screen="chat" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
-      <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
-        💬
-      </span>
-      <span>Chat</span>
-    </button>
-    <button data-screen="experiences" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
-      <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
-        📚
-      </span>
-      <span>Guides</span>
-    </button>
-  </nav>
-
-  <!-- Fullscreen Check-in modal (unchanged from last version) -->
-  <div
-    id="checkin-modal"
-    class="fixed inset-0 z-40 bg-black/85 hidden items-center justify-center px-6">
-    <div class="absolute top-4 right-4">
-      <button
-        id="checkin-close"
-        class="w-9 h-9 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-slate-100 text-xl leading-none">
-        ×
-      </button>
-    </div>
-    <div class="text-center space-y-4">
-      <p class="text-sm uppercase tracking-[0.2em] text-slate-300">Your door code</p>
-      <p id="checkin-code" class="text-5xl md:text-6xl font-semibold tracking-[0.25em]">
-        ----
-      </p>
-      <p class="text-xs text-slate-300 max-w-xs mx-auto">
-        This code matches the last 4 digits of the phone number on your reservation.
-        Enter it slowly on the keypad. If the lock gives you trouble, contact your host.
-      </p>
-    </div>
+  <div class="text-center space-y-4">
+    <p class="text-sm uppercase tracking-[0.2em] text-slate-300">Your door code</p>
+    <p id="checkin-code" class="text-5xl md:text-6xl font-semibold tracking-[0.25em]">
+      ----
+    </p>
+    <p class="text-xs text-slate-300 max-w-xs mx-auto">
+      This code matches the last 4 digits of the phone number on your reservation.
+      Enter it slowly on the keypad. If the lock gives you trouble, contact your host.
+    </p>
   </div>
+</div>
 
-
-  <!-- 🔐 Logout Confirmation Modal -->
+<!-- Logout modal -->
 <div
   id="logout-modal"
   class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
@@ -666,53 +645,44 @@
   </div>
 </div>
 
-  
-  <!-- JS -->
-  <script>
-  document.addEventListener("DOMContentLoaded", function () {
+<script>
+document.addEventListener("DOMContentLoaded", function () {
   const screens = {
     home: document.getElementById("screen-home"),
     chat: document.getElementById("screen-chat"),
     experiences: document.getElementById("screen-experiences"),
   };
 
-    
-
   const navButtons = document.querySelectorAll("button.nav-item");
   const homeLogin = document.getElementById("home-login");
   const homeStay = document.getElementById("home-stay");
   const headerEl = document.getElementById("app-header");
-  const languageBar = document.getElementById("language-bar");
 
-  // 🔐 Global state
   let isUnlocked = window.INITIAL_VERIFIED === "true";
   let lastUnlockCode = null;
   let currentSessionId = null;
-  
-  // Guest meta from PMS (for persistence)
+
   let guestName = null;
   let arrivalDate = null;
   let departureDate = null;
 
-  // 🔐 Persisted guest state (per property)
   const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
 
-function saveGuestState() {
-  try {
-    const state = {
-      isUnlocked,
-      lastUnlockCode,
-      sessionId: currentSessionId,
-      guestName,
-      arrivalDate,
-      departureDate,
-    };
-    window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
-  } catch (e) {
-    console.warn("Unable to save guest state:", e);
+  function saveGuestState() {
+    try {
+      const state = {
+        isUnlocked,
+        lastUnlockCode,
+        sessionId: currentSessionId,
+        guestName,
+        arrivalDate,
+        departureDate,
+      };
+      window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
+    } catch (e) {
+      console.warn("Unable to save guest state:", e);
+    }
   }
-}
-
 
   function loadGuestState() {
     try {
@@ -725,36 +695,34 @@ function saveGuestState() {
     }
   }
 
- const storedState = loadGuestState();
-if (storedState) {
-  if (!isUnlocked && storedState.isUnlocked) {
-    isUnlocked = true;
-  }
-  if (storedState.lastUnlockCode) {
-    lastUnlockCode = storedState.lastUnlockCode;
-  }
-  if (storedState.sessionId) {
-    currentSessionId = storedState.sessionId;
-  }
+  const storedState = loadGuestState();
+  if (storedState) {
+    if (!isUnlocked && storedState.isUnlocked) {
+      isUnlocked = true;
+    }
+    if (storedState.lastUnlockCode) {
+      lastUnlockCode = storedState.lastUnlockCode;
+    }
+    if (storedState.sessionId) {
+      currentSessionId = storedState.sessionId;
+    }
 
-  // Restore guest meta into globals + DOM
-  if (storedState.guestName) {
-    guestName = storedState.guestName;
-    const nameEl = document.getElementById("guest-name-span");
-    if (nameEl) nameEl.textContent = guestName;
+    if (storedState.guestName) {
+      guestName = storedState.guestName;
+      const nameEl = document.getElementById("guest-name-span");
+      if (nameEl) nameEl.textContent = guestName;
+    }
+    if (storedState.arrivalDate) {
+      arrivalDate = storedState.arrivalDate;
+      const arrEl = document.getElementById("arrival-date-span");
+      if (arrEl) arrEl.textContent = arrivalDate;
+    }
+    if (storedState.departureDate) {
+      departureDate = storedState.departureDate;
+      const depEl = document.getElementById("departure-date-span");
+      if (depEl) depEl.textContent = departureDate;
+    }
   }
-  if (storedState.arrivalDate) {
-    arrivalDate = storedState.arrivalDate;
-    const arrEl = document.getElementById("arrival-date-span");
-    if (arrEl) arrEl.textContent = arrivalDate;
-  }
-  if (storedState.departureDate) {
-    departureDate = storedState.departureDate;
-    const depEl = document.getElementById("departure-date-span");
-    if (depEl) depEl.textContent = departureDate;
-  }
-}
-
 
   function updateHomeState() {
     if (isUnlocked) {
@@ -773,7 +741,6 @@ if (storedState) {
       else el.classList.add("hidden");
     });
 
-    // header + language/logout: hide on chat, show otherwise
     if (name === "chat") {
       headerEl?.classList.add("hidden");
     } else {
@@ -811,7 +778,6 @@ if (storedState) {
   updateHomeState();
   showScreen("home");
 
-  // 🌍 Language – store in localStorage, used for chat
   const langSelect = document.getElementById("language-select");
   function getSelectedLanguage() {
     if (!langSelect) return "auto";
@@ -827,7 +793,6 @@ if (storedState) {
     });
   }
 
-  // 🔓 Unlock flow
   const unlockBtn = document.getElementById("unlock-button");
   const unlockCodeInput = document.getElementById("unlock-code");
   const unlockError = document.getElementById("unlock-error");
@@ -875,45 +840,32 @@ if (storedState) {
         return;
       }
 
-      // ✅ Unlocked!
       isUnlocked = true;
       lastUnlockCode = code;
       if (unlockError) unlockError.textContent = "";
       if (unlockCodeInput) unlockCodeInput.value = "";
 
-      // 🔹 Update guest name + dates in the UI if provided
-
-        try {
-          if (data.guest_name) {
-            guestName = data.guest_name;
-            const nameEl = document.getElementById("guest-name-span");
-            if (nameEl) nameEl.textContent = guestName;
-          }
-          if (data.arrival_date) {
-            arrivalDate = data.arrival_date;
-            const arrEl = document.getElementById("arrival-date-span");
-            if (arrEl) arrEl.textContent = arrivalDate;
-          }
-          if (data.departure_date) {
-            departureDate = data.departure_date;
-            const depEl = document.getElementById("departure-date-span");
-            if (depEl) depEl.textContent = departureDate;
-          }
-        } catch (e) {
-          console.warn("Error applying PMS guest info to UI:", e);
+      try {
+        if (data.guest_name) {
+          guestName = data.guest_name;
+          const nameEl = document.getElementById("guest-name-span");
+          if (nameEl) nameEl.textContent = guestName;
         }
-        
-        // 💾 Save for future refreshes
-        saveGuestState();
+        if (data.arrival_date) {
+          arrivalDate = data.arrival_date;
+          const arrEl = document.getElementById("arrival-date-span");
+          if (arrEl) arrEl.textContent = arrivalDate;
+        }
+        if (data.departure_date) {
+          departureDate = data.departure_date;
+          const depEl = document.getElementById("departure-date-span");
+          if (depEl) depEl.textContent = departureDate;
+        }
+      } catch (e) {
+        console.warn("Error applying PMS guest info to UI:", e);
+      }
 
-/*
-      // 💾 Save everything for future refreshes
-      saveGuestState({
-        guestName: data.guest_name || null,
-        arrivalDate: data.arrival_date || null,
-        departureDate: data.departure_date || null,
-      });
-*/
+      saveGuestState();
       updateHomeState();
       showScreen("home");
     } catch (err) {
@@ -928,7 +880,6 @@ if (storedState) {
     }
   }
 
-  // 🔑 Check-in modal
   const checkinButton = document.getElementById("checkin-button");
   const upgradesButton = document.getElementById("upgrades-button");
   const checkinModal = document.getElementById("checkin-modal");
@@ -961,7 +912,6 @@ if (storedState) {
     });
   }
 
-  // Upgrades → Guides
   if (upgradesButton) {
     upgradesButton.addEventListener("click", () => {
       if (!isUnlocked) return;
@@ -969,7 +919,6 @@ if (storedState) {
     });
   }
 
-  // 💬 Chat logic
   const chatBox = document.getElementById("chat-box");
   const chatInput = document.getElementById("chat-input");
   const chatSend = document.getElementById("chat-send");
@@ -986,6 +935,24 @@ if (storedState) {
     hours = hours % 12;
     if (hours === 0) hours = 12;
     return `${hours.toString().padStart(2, "0")}:${minutes} ${ampm}`;
+  }
+
+  function formatMessage(text) {
+    let escaped = text
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+    escaped = escaped.replace(
+      /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer" class="gmap-link">📍 View on Google Maps</a>'
+    );
+    escaped = escaped.replace(
+      /(https?:\/\/[^\s]+)/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
+
+    return escaped.replace(/\n/g, "<br>");
   }
 
   function renderMessage(text, sender) {
@@ -1062,24 +1029,6 @@ if (storedState) {
     if (el) el.remove();
   }
 
-  function formatMessage(text) {
-    let escaped = text
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;");
-
-    escaped = escaped.replace(
-      /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer" class="gmap-link">📍 View on Google Maps</a>'
-    );
-    escaped = escaped.replace(
-      /(https?:\/\/[^\s]+)/g,
-      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-    );
-
-    return escaped.replace(/\n/g, "<br>");
-  }
-
   async function sendChat() {
     const text = (chatInput?.value || "").trim();
     if (!text) return;
@@ -1113,10 +1062,9 @@ if (storedState) {
       removeTyping();
 
       if (data.session_id) {
-          currentSessionId = data.session_id;
-          saveGuestState(); // will persist updated sessionId + flags
-        }
-
+        currentSessionId = data.session_id;
+        saveGuestState();
+      }
 
       if (data.error) {
         renderMessage(data.error, "bot");
@@ -1146,7 +1094,6 @@ if (storedState) {
     });
   }
 
-  // 🔐 Logout modal wiring
   const logoutButton = document.getElementById("logout-button");
   const logoutModal = document.getElementById("logout-modal");
   const logoutClose = document.getElementById("logout-close");
@@ -1207,7 +1154,7 @@ if (storedState) {
       }
     });
   }
-    }); // end DOMContentLoaded
+});
 </script>
 
 </body>
