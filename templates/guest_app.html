@@ -440,7 +440,7 @@
       </section>
 
       <!-- CHAT -->
-      <section id="screen-chat" class="hidden flex flex-col min-h-[calc(100vh-4rem)] bg-slate-950 -mx-4">
+      <section id="screen-chat" class="hidden flex flex-col min-h-[calc(100vh-4rem)] bg-slate-950">
         <div class="flex-1 flex flex-col">
           <div
             id="chat-box"
@@ -647,17 +647,19 @@
 
 <script>
 document.addEventListener("DOMContentLoaded", function () {
+  // --- Screens + core elements ---
   const screens = {
     home: document.getElementById("screen-home"),
     chat: document.getElementById("screen-chat"),
     experiences: document.getElementById("screen-experiences"),
   };
 
-  const navButtons = document.querySelectorAll("button.nav-item");
+  const navButtons = document.querySelectorAll("nav .nav-item");
   const homeLogin = document.getElementById("home-login");
   const homeStay = document.getElementById("home-stay");
   const headerEl = document.getElementById("app-header");
 
+  // --- Global state ---
   let isUnlocked = window.INITIAL_VERIFIED === "true";
   let lastUnlockCode = null;
   let currentSessionId = null;
@@ -726,11 +728,11 @@ document.addEventListener("DOMContentLoaded", function () {
 
   function updateHomeState() {
     if (isUnlocked) {
-      homeLogin?.classList.add("hidden");
-      homeStay?.classList.remove("hidden");
+      if (homeLogin) homeLogin.classList.add("hidden");
+      if (homeStay) homeStay.classList.remove("hidden");
     } else {
-      homeLogin?.classList.remove("hidden");
-      homeStay?.classList.add("hidden");
+      if (homeLogin) homeLogin.classList.remove("hidden");
+      if (homeStay) homeStay.classList.add("hidden");
     }
   }
 
@@ -741,6 +743,7 @@ document.addEventListener("DOMContentLoaded", function () {
       else el.classList.add("hidden");
     });
 
+    // hide header on chat
     if (name === "chat") {
       headerEl?.classList.add("hidden");
     } else {
@@ -759,9 +762,12 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // 🧭 Nav buttons
   navButtons.forEach((btn) => {
     btn.addEventListener("click", () => {
       const target = btn.getAttribute("data-screen");
+      if (!target) return;
+
       if (!isUnlocked && target !== "home") {
         const err = document.getElementById("unlock-error");
         if (err) {
@@ -778,6 +784,7 @@ document.addEventListener("DOMContentLoaded", function () {
   updateHomeState();
   showScreen("home");
 
+  // 🌍 Language
   const langSelect = document.getElementById("language-select");
   function getSelectedLanguage() {
     if (!langSelect) return "auto";
@@ -793,6 +800,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // 🔓 Unlock flow
   const unlockBtn = document.getElementById("unlock-button");
   const unlockCodeInput = document.getElementById("unlock-code");
   const unlockError = document.getElementById("unlock-error");
@@ -880,6 +888,7 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
+  // 🔑 Check-in modal
   const checkinButton = document.getElementById("checkin-button");
   const upgradesButton = document.getElementById("upgrades-button");
   const checkinModal = document.getElementById("checkin-modal");
@@ -912,6 +921,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // Upgrades → Guides (this is why clicking Upgrades takes you to Guides)
   if (upgradesButton) {
     upgradesButton.addEventListener("click", () => {
       if (!isUnlocked) return;
@@ -919,6 +929,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // 💬 Chat logic
   const chatBox = document.getElementById("chat-box");
   const chatInput = document.getElementById("chat-input");
   const chatSend = document.getElementById("chat-send");
@@ -1094,6 +1105,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
+  // 🔐 Logout modal wiring
   const logoutButton = document.getElementById("logout-button");
   const logoutModal = document.getElementById("logout-modal");
   const logoutClose = document.getElementById("logout-close");
@@ -1156,6 +1168,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 });
 </script>
+
 
 </body>
 </html>
