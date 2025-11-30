@@ -1142,14 +1142,12 @@
       function scrollChatToBottom() {
         if (!chatBox) return;
       
-        // scroll the LAST message into view inside the chat box
         const lastMessage = chatBox.lastElementChild;
         if (!lastMessage) return;
       
-        // Use scrollIntoView on the scrollable parent (chatBox)
         lastMessage.scrollIntoView({
-          behavior: "auto",    // change to "smooth" if you want animation
-          block: "end",
+          block: "end",   // align to the virtual bottom
+          behavior: "auto"
         });
       }
 
