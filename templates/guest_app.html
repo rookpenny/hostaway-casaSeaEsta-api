@@ -555,19 +555,19 @@
 <!-- Bottom nav -->
 <nav class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur">
   <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
-    <span class="w-6 h-6 rounded-xl bg-slate-100 text-slate-900 flex items-center justify-center text-xs font-semibold">
+    <span class="nav-icon w-7 h-7 flex items-center justify-center rounded-xl transition-all duration-300">
       🏠
     </span>
     <span>Home</span>
   </button>
   <button data-screen="chat" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
-    <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+    <span class="nav-icon w-7 h-7 flex items-center justify-center rounded-xl transition-all duration-300">
       💬
     </span>
     <span>Chat</span>
   </button>
   <button data-screen="experiences" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
-    <span class="w-6 h-6 rounded-xl bg-slate-900 flex items-center justify-center">
+    <span class="nav-icon w-7 h-7 flex items-center justify-center rounded-xl transition-all duration-300">
       📚
     </span>
     <span>Guides</span>
@@ -740,49 +740,61 @@ document.addEventListener("DOMContentLoaded", function () {
    let chatHasWelcome = false;
 
   function showScreen(name) {
-    Object.entries(screens).forEach(([key, el]) => {
-      if (!el) return;
-      if (key === name) el.classList.remove("hidden");
-      else el.classList.add("hidden");
-    });
+  // --- Swap visible screen ---
+  Object.entries(screens).forEach(([key, el]) => {
+    if (!el) return;
+    if (key === name) el.classList.remove("hidden");
+    else el.classList.add("hidden");
+  });
 
-      if (name === "chat") {
-      headerEl?.classList.add("hidden");
+  // --- Header hide/show logic ---
+  if (name === "chat") {
+    headerEl?.classList.add("hidden");
 
-      if (
-        window.SANDY_LIVE === "true" &&
-        chatBox &&
-        !chatHasWelcome &&
-        chatBox.children.length === 0
-      ) {
-        const intro = guestName
-          ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-          : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
-        renderMessage(intro, "bot");
-        chatHasWelcome = true;
-      }
-    } else {
-      headerEl?.classList.remove("hidden");
+    if (
+      window.SANDY_LIVE === "true" &&
+      chatBox &&
+      !chatHasWelcome &&
+      chatBox.children.length === 0
+    ) {
+      const intro = guestName
+        ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+        : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+
+      renderMessage(intro, "bot");
+      chatHasWelcome = true;
     }
-
-    // hide header on chat
-    if (name === "chat") {
-      headerEl?.classList.add("hidden");
-    } else {
-      headerEl?.classList.remove("hidden");
-    }
-
-    navButtons.forEach((btn) => {
-      const target = btn.getAttribute("data-screen");
-      if (target === name) {
-        btn.classList.remove("text-slate-400");
-        btn.classList.add("text-slate-50");
-      } else {
-        btn.classList.add("text-slate-400");
-        btn.classList.remove("text-slate-50");
-      }
-    });
+  } else {
+    headerEl?.classList.remove("hidden");
   }
+
+  // --- Highlight active nav tab (NEW) ---
+  navButtons.forEach((btn) => {
+    const target = btn.getAttribute("data-screen");
+    const icon = btn.querySelector(".nav-icon");
+
+    if (target === name) {
+      // Active
+      btn.classList.remove("text-slate-400");
+      btn.classList.add("text-slate-50");
+
+      if (icon) {
+        icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
+        icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
+      }
+    } else {
+      // Inactive
+      btn.classList.add("text-slate-400");
+      btn.classList.remove("text-slate-50");
+
+      if (icon) {
+        icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
+        icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
+      }
+    }
+  });
+}
+
 
   // 🧭 Nav buttons
   navButtons.forEach((btn) => {
