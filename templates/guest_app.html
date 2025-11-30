@@ -61,6 +61,9 @@
         display: inline-flex;
         flex-direction: column;
         align-items: flex-end; /* bubble & timestamp align to right together */
+
+        /* NEW: keep last message above input bar + nav */
+        scroll-margin-bottom: 7rem; /* tweak to 8rem if needed */
       }
       
       /* Column that wraps bubble + timestamp for bot messages */
@@ -1248,6 +1251,7 @@
         row.appendChild(avatar);
         row.appendChild(column);
 
+        chatBox.appendChild(row);
         scrollChatToBottom();
       }
 
