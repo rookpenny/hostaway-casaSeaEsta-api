@@ -151,18 +151,20 @@ def get_hostaway_properties():
     return response.json().get("result", [])
 
 
-from typing import Optional
+from typing import Optional, Tuple
 
-def get_listing_hero_image(
+def get_listing_overview(
     listing_id: str,
     client_id: str,
     client_secret: str,
-) -> Optional[str]:
+) -> Tuple[Optional[str], Optional[str], Optional[str]]:
     """
-    Fetch a Hostaway listing and return a single 'hero' image URL.
+    Fetch a Hostaway listing once and return:
+      - hero_image_url
+      - address
+      - city
 
     Uses per-PMC client_id / client_secret (same pattern as get_upcoming_phone_for_listing).
-    Prefers the image with the lowest sortOrder in listingImages.
     """
     try:
         token = get_token_for_pmc(client_id, client_secret)
@@ -170,31 +172,35 @@ def get_listing_hero_image(
         resp = requests.get(
             f"{HOSTAWAY_BASE_URL}/listings/{listing_id}",
             headers={"Authorization": f"Bearer {token}"},
-            params={"includeResources": 1},  # ensures images are included
+            params={"includeResources": 1},  # includes listingImages
             timeout=5,
         )
         if not resp.ok:
             print("[Hostaway] Error fetching listing:", resp.status_code, resp.text)
-            return None
+            return None, None, None
 
         data = resp.json()
-        # Hostaway typically returns listing inside "result"
         listing = data.get("result") or data.get("listing") or {}
 
+        # ---- HERO IMAGE ----
         images = listing.get("listingImages") or []
-        if not images:
-            return None
+        hero_url = None
+        if images:
+            primary = sorted(
+                images,
+                key=lambda img: img.get("sortOrder") if img.get("sortOrder") is not None else 9999,
+            )[0]
+            hero_url = primary.get("url")
 
-        # Prefer the image with the smallest sortOrder; fallback to first
-        primary = sorted(
-            images,
-            key=lambda img: img.get("sortOrder") if img.get("sortOrder") is not None else 9999,
-        )[0]
+        # ---- ADDRESS FIELDS ----
+        address = listing.get("address")
+        city = listing.get("city") or listing.get("cityName")
 
-        return primary.get("url")
+        return hero_url, address, city
+
     except Exception as e:
-        print("[Hostaway] Error in get_listing_hero_image:", e)
-        return None
+        print("[Hostaway] Error in get_listing_overview:", e)
+        return None, None, None
 
 
 
