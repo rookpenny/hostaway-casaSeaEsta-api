@@ -38,7 +38,9 @@
     /* CHAT STYLES (scoped by IDs/classes where possible) */
    #chat-box {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      /* let the PAGE scroll, not this div */
+      flex: 1;
+      min-height: 0;
+      overflow-y: auto; /* chat scrolls, page doesn't */
     }
 
 
@@ -281,13 +283,13 @@
         /* DO NOT set display or height here so .hidden can control it */
       }
 
-    /* The inner wrapper <div class="flex-1 flex flex-col"> */
-      #screen-chat > .flex-1 {
-        flex: 1;
-        display: flex;
-        flex-direction: column;
-        min-height: 0; /* critical for flex scrolling */
-      }
+    #screen-chat > .flex-1 {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 
     .msg.user .bubble {
       background: #e5e7eb;
@@ -563,9 +565,10 @@
           aria-label="Chat"
         >
           <div
-              id="chat-box"
-              class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
-            ></div>
+  id="chat-box"
+  class="flex-1 overflow-y-auto px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
+></div>
+
 
 
             <div class="chat-input-bar">
@@ -819,6 +822,12 @@
       const homeStay = document.getElementById("home-stay");
       const headerEl = document.getElementById("app-header");
 
+      function isChatVisible() {
+  const chatScreen = screens.chat;
+  return chatScreen && !chatScreen.classList.contains("hidden");
+}
+
+
       // --- Global state ---
       let isUnlocked = window.INITIAL_VERIFIED === "true";
       let lastUnlockCode = null;
@@ -923,6 +932,7 @@
           }
            // 👇 new
            scrollChatToBottom();
+
         } else {
           headerEl?.classList.remove("hidden");
         }
@@ -1164,18 +1174,14 @@
       }
 
      function scrollChatToBottom() {
-  // wait one frame so DOM height is updated
-  requestAnimationFrame(() => {
-    const docEl = document.documentElement;
-    const body = document.body;
-    const fullHeight = Math.max(docEl.scrollHeight, body.scrollHeight);
+  if (!chatBox || !isChatVisible()) return;
 
-    window.scrollTo({
-      top: fullHeight,
-      behavior: "auto", // or "smooth" if you like
-    });
+  // Wait for the DOM to lay out the new message
+  requestAnimationFrame(() => {
+    chatBox.scrollTop = chatBox.scrollHeight;
   });
 }
+
 
 
 
@@ -1210,46 +1216,49 @@
       }
 
      function renderMessage(text, sender) {
-      if (!chatBox) return;
-    
-      const isUser = sender === "user";
-      const ts = formatTime(new Date());
-    
-      const row = document.createElement("div");
-      row.className = "msg " + (isUser ? "user" : "bot");
-    
-      // Avatar (Sandy only)
-      let avatar = null;
-      if (!isUser) {
-        avatar = document.createElement("div");
-        avatar.className = "avatar avatar-sandy";
-      }
-    
-      const column = document.createElement("div");
-    
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
-    
-      const time = document.createElement("div");
-      time.className = "timestamp";
-      time.textContent = ts;
-    
-      column.appendChild(bubble);
-      column.appendChild(time);
-    
-      if (isUser) {
-        // user: bubble only
-        row.appendChild(column);
-      } else {
-        // bot: avatar + bubble
-        row.appendChild(avatar);
-        row.appendChild(column);
-      }
-    
-      chatBox.appendChild(row);
-      scrollChatToBottom();
-    }
+  if (!chatBox) return;
+
+  const isUser = sender === "user";
+  const ts = formatTime(new Date());
+
+  const row = document.createElement("div");
+  row.className = "msg " + (isUser ? "user" : "bot");
+
+  // Avatar (Sandy only)
+  let avatar = null;
+  if (!isUser) {
+    avatar = document.createElement("div");
+    avatar.className = "avatar avatar-sandy";
+  }
+
+  const column = document.createElement("div");
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+
+  const time = document.createElement("div");
+  time.className = "timestamp";
+  time.textContent = ts;
+
+  column.appendChild(bubble);
+  column.appendChild(time);
+
+  if (isUser) {
+    // user: bubble only
+    row.appendChild(column);
+  } else {
+    // bot: avatar + bubble
+    row.appendChild(avatar);
+    row.appendChild(column);
+  }
+
+  chatBox.appendChild(row);
+
+  // 👇 only scroll if the chat screen is actually visible
+  scrollChatToBottom();
+}
+
 
 
 
@@ -1278,8 +1287,9 @@
         row.appendChild(avatar);
         row.appendChild(column);
 
-        chatBox.appendChild(row);
+       chatBox.appendChild(row);
         scrollChatToBottom();
+
       }
 
       function removeTyping() {
