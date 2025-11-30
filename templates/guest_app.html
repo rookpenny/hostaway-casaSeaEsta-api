@@ -563,11 +563,11 @@
           class="hidden flex flex-col flex-1 bg-white"
           aria-label="Chat"
         >
-          <div class="flex-1 flex flex-col">
-            <div
+          <div
               id="chat-box"
-              class="flex-1 overflow-y-auto px-4 pt-4 pb-48 space-y-2 bg-white text-slate-800"
+              class="flex-1 overflow-y-auto px-4 pt-4 space-y-2 bg-white text-slate-800"
             ></div>
+
 
             <div class="chat-input-bar">
               <div class="chat-input-inner">
@@ -1128,6 +1128,25 @@
       const chatInput = document.getElementById("chat-input");
       const chatSend = document.getElementById("chat-send");
       const chatPlus = document.querySelector(".chat-plus");
+      
+      // Elements that sit on top of the chat (fixed at bottom)
+      const chatInputBar = document.querySelector(".chat-input-bar");
+      const bottomNav = document.querySelector('nav[role="navigation"]');
+      
+      // Dynamically set bottom padding so last message sits above input + nav
+      function updateChatPadding() {
+        if (!chatBox) return;
+        const inputH = chatInputBar ? chatInputBar.offsetHeight : 0;
+        const navH = bottomNav ? bottomNav.offsetHeight : 0;
+        const extra = 16; // extra breathing room (px)
+      
+        chatBox.style.paddingBottom = inputH + navH + extra + "px";
+      }
+      
+      // Run once on load and again on resize (orientation changes, etc.)
+      updateChatPadding();
+      window.addEventListener("resize", updateChatPadding);
+
 
       if (window.SANDY_LIVE === "false") {
         if (chatBox) {
@@ -1148,15 +1167,12 @@
       function scrollChatToBottom() {
           if (!chatBox) return;
         
-          // wait for layout, then force scroll to bottom (twice)
+          // Wait for layout first, then scroll to the true bottom
           requestAnimationFrame(() => {
             chatBox.scrollTop = chatBox.scrollHeight;
-        
-            requestAnimationFrame(() => {
-              chatBox.scrollTop = chatBox.scrollHeight;
-            });
           });
         }
+
 
 
 
