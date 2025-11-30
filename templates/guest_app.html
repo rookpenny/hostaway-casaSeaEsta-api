@@ -78,9 +78,6 @@
       flex-shrink: 0;
     }
 
-    .msg.user .avatar {
-      display: none !important;
-    }
 
     .msg.bot .avatar {
       /*background-color: #22c55e;*/
@@ -251,13 +248,11 @@
       color: #022c22;
     }
 
-    /* Light mode chat screen */
-    #screen-chat {
-      color: #1f2937;
-      height: 100%;
-      display: flex;
-      flex-direction: column;
-    }
+      /* Light mode chat screen */
+      #screen-chat {
+        color: #1f2937;
+        /* DO NOT set display or height here so .hidden can control it */
+      }
 
     /* The inner wrapper <div class="flex-1 flex flex-col"> */
       #screen-chat > .flex-1 {
@@ -277,11 +272,8 @@
       color: #022c22;
     }
 
-    .msg.user .avatar {
-      display: none !important;
-    }
-
     .msg.bot .avatar {
+      display: none !important;
       background-color: #22c55e;
       color: #022c22;
     }
