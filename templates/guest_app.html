@@ -45,11 +45,15 @@
 
     .msg {
       display: flex;
-      align-items: flex-start; /* instead of flex-end */
+      align-items: flex-start;
       margin-bottom: 0.75rem;
       animation: fadeInUp 0.35s ease-out;
       animation-fill-mode: both;
+    
+      /* NEW: keep last message above input bar + nav */
+      scroll-margin-bottom: 7rem; /* tweak to 8rem if needed */
     }
+
 
     .msg.user {
       justify-content: flex-end;
