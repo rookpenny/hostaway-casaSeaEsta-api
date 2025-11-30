@@ -42,7 +42,7 @@
 
     .msg {
       display: flex;
-      align-items: flex-end;
+      align-items: flex-start; /* instead of flex-end */
       margin-bottom: 0.75rem;
       animation: fadeInUp 0.35s ease-out;
       animation-fill-mode: both;
@@ -66,9 +66,9 @@
     }
 
     .avatar {
-      width: 32px;
-      height: 32px;
-      border-radius: 10px; /* rounded square */
+      width: 44px;
+      height: 44px;
+      border-radius: 12px; /* rounded square */
       margin: 0 0.5rem;
       background-size: cover;
       background-position: center;
@@ -93,8 +93,21 @@
       font-size: 0.65rem;
       color: #9ca3af;
       margin-top: 0.25rem;
-      text-align: right;
+      width: 100%;
     }
+
+    /* Bot timestamps align left under the bubble */
+    .msg.bot .timestamp {
+      text-align: left;
+      padding-left: 4px; /* slight indent to match bubble padding */
+    }
+    
+    /* User timestamps align right under the bubble */
+    .msg.user .timestamp {
+      text-align: right;
+      padding-right: 4px; /* slight indent to match bubble padding */
+    }
+
 
     .message-text p {
       margin: 0.5rem 0;
@@ -251,7 +264,7 @@
     }
 
     .msg.user .avatar {
-      background-color: #cbd5e1;
+      display: none !important;
     }
 
     .msg.bot .avatar {
