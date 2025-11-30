@@ -55,18 +55,38 @@
       justify-content: flex-end;
     }
 
+    /* Column that wraps bubble + timestamp for user messages */
+      .msg.user > div {
+        max-width: 70%;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-end; /* bubble & timestamp align to right together */
+      }
+      
+      /* Column that wraps bubble + timestamp for bot messages */
+      .msg.bot > div:last-child {
+        max-width: 70%;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+
     .msg.bot {
       justify-content: flex-start;
     }
 
-    .bubble {
-      padding: 0.6rem 1rem;
-      border-radius: 1rem;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-      max-width: 70%;
-      font-size: 0.95rem;
-      line-height: 1.5;
-    }
+      .bubble {
+        display: inline-block;        /* hug contents */
+        padding: 0.6rem 1rem;
+        border-radius: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+        max-width: 100%;              /* let parent control width */
+        font-size: 0.95rem;
+        line-height: 1.5;
+        word-wrap: break-word;
+      }
+
 
     .avatar {
       width: 44px;
@@ -91,21 +111,22 @@
 
     .timestamp {
       font-size: 0.65rem;
-      color: #9ca3af;
+      color: #64748b;
       margin-top: 0.25rem;
-      width: 100%;
     }
 
-    /* Bot timestamps align left under the bubble */
+     /* Bot timestamps align left under the bubble */
     .msg.bot .timestamp {
       text-align: left;
-      padding-left: 4px; /* slight indent to match bubble padding */
+      align-self: flex-start;
+      padding-left: 4px;
     }
     
-    /* User timestamps align right under the bubble */
+    /* User timestamps align right, directly under user bubble */
     .msg.user .timestamp {
       text-align: right;
-      padding-right: 4px; /* slight indent to match bubble padding */
+      align-self: flex-end;
+      padding-right: 4px;
     }
 
 
@@ -538,7 +559,7 @@
           <div class="flex-1 flex flex-col">
             <div
               id="chat-box"
-              class="flex-1 overflow-y-auto px-4 pt-4 pb-32 space-y-2 bg-white text-slate-800"
+              class="flex-1 overflow-y-auto px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
             ></div>
 
             <div class="chat-input-bar">
