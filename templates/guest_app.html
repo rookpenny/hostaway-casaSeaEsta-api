@@ -163,6 +163,13 @@
       gap: 0.5rem;
       border-top: 1px solid #1f2937;
       background: #020617;
+    
+      /* NEW: pin it above the bottom nav */
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 4rem;       /* height of the nav (h-16 = 4rem) */
+      z-index: 30;        /* above the nav (nav has z-20) */
     }
 
     .chat-input-inner {
@@ -458,7 +465,7 @@
         <div class="flex-1 flex flex-col">
           <div
             id="chat-box"
-            class="flex-1 overflow-y-auto px-4 py-4 space-y-2"
+            class="flex-1 overflow-y-auto px-4 pt-4 pb-32 space-y-2"
           ></div>
 
           <div class="chat-input-bar">
