@@ -286,6 +286,10 @@ def get_upcoming_phone_for_listing(
         if not full_phone:
             return None, None, None, None, None, None
 
+        digits_only = "".join(ch for ch in full_phone if ch.isdigit())
+        if len(digits_only) < 4:
+            return None, None, None, None, None, None
+
         phone_last4 = full_phone[-4:]
         reservation_id = str(
             best_res.get("id")
