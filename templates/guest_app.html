@@ -566,7 +566,7 @@
           <div class="flex-1 flex flex-col">
             <div
               id="chat-box"
-              class="flex-1 overflow-y-auto px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
+              class="flex-1 overflow-y-auto px-4 pt-4 pb-48 space-y-2 bg-white text-slate-800"
             ></div>
 
             <div class="chat-input-bar">
@@ -922,6 +922,8 @@
             renderMessage(intro, "bot");
             chatHasWelcome = true;
           }
+           // 👇 new
+           scrollChatToBottom();
         } else {
           headerEl?.classList.remove("hidden");
         }
@@ -1144,16 +1146,18 @@
       }
 
       function scrollChatToBottom() {
-        if (!chatBox) return;
-      
-        const lastMessage = chatBox.lastElementChild;
-        if (!lastMessage) return;
-      
-        lastMessage.scrollIntoView({
-          block: "end",   // align to the virtual bottom
-          behavior: "auto"
-        });
-      }
+          if (!chatBox) return;
+        
+          // wait for layout, then force scroll to bottom (twice)
+          requestAnimationFrame(() => {
+            chatBox.scrollTop = chatBox.scrollHeight;
+        
+            requestAnimationFrame(() => {
+              chatBox.scrollTop = chatBox.scrollHeight;
+            });
+          });
+        }
+
 
 
 
