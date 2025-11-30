@@ -19,6 +19,7 @@
 
     html, body {
     overflow-x: hidden;
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
   }
   * {
     box-sizing: border-box;
@@ -273,10 +274,10 @@
       id="screen-container"
       class="flex-1 flex flex-col px-4 pt-3 pb-16 overflow-y-auto"
     >
-      <!-- HOME -->
+            <!-- HOME -->
       <section
         id="screen-home"
-        class="flex flex-col justify-end gap-4 text-[0.95rem] min-h-full"
+        class="flex flex-col text-[0.95rem] min-h-full"
         style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
       >
         <!-- LOGIN STATE -->
@@ -330,122 +331,125 @@
           </div>
         </div>
 
-        <!-- UNLOCKED HOME CARD -->
-        <div id="home-stay" class="space-y-4 hidden">
-          <div class="rounded-2xl overflow-hidden shadow-xl">
-            <div class="px-4 pt-6 pb-2">
-              <h1 class="text-4xl font-semibold leading-tight">
-                <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe — you’ve made it.
-              </h1>
-            </div>
-          </div>
-
-          <!-- body -->
-          <div class="px-4 py-4 space-y-4 bg-slate-950/70 rounded-2xl">
-            <!-- address + map -->
-            <div class="flex items-start justify-between gap-3">
-              <div class="text-xs leading-snug text-slate-200">
-                <p>{{ property_address or "123 Any Street" }}</p>
-                
+        <!-- UNLOCKED HOME CARD (bottom-aligned) -->
+        <div class="flex-1 flex flex-col justify-end pb-4">
+          <div id="home-stay" class="space-y-4 hidden">
+            <div class="rounded-2xl overflow-hidden shadow-xl">
+              <div class="px-4 pt-6 pb-2">
+                <h1 class="text-4xl font-semibold leading-tight">
+                  <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe — you’ve made it.
+                </h1>
               </div>
-              {% if property_address %}
-                {% if google_maps_link %}
-                  {% set maps_href = google_maps_link %}
-                {% else %}
-                  {% set maps_href = "#" %}
-                {% endif %}
-                <a
-                  href="{{ maps_href }}"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  class="inline-flex items-center justify-center rounded-full border border-slate-600 px-3 py-1 bg-slate-950/80"
-                >
-                  <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.5"
-                      d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z"
-                    />
-                    <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
-                  </svg>
-                  <span>Map</span>
-                </a>
-              {% endif %}
             </div>
 
-            <div class="border-t border-slate-800 my-2"></div>
+            <!-- body -->
+            <div class="px-4 py-4 space-y-4 bg-slate-950/70 rounded-2xl">
+              <!-- address + map -->
+              <div class="flex items-start justify-between gap-3">
+                <div class="text-xs leading-snug text-slate-200">
+                  <p>{{ property_address or "123 Any Street" }}</p>
+                  <p>{{ city_name or "Anywhere, AB A0A 1A1" }}</p>
+                </div>
+                {% if property_address %}
+                  {% if google_maps_link %}
+                    {% set maps_href = google_maps_link %}
+                  {% else %}
+                    {% set maps_href = "#" %}
+                  {% endif %}
+                  <a
+                    href="{{ maps_href }}"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="inline-flex items-center justify-center rounded-full border border-slate-600 px-3 py-1 bg-slate-950/80"
+                  >
+                    <svg class="w-4 h-4 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor">
+                      <path
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        stroke-width="1.5"
+                        d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z"
+                      />
+                      <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
+                    </svg>
+                    <span>Map</span>
+                  </a>
+                {% endif %}
+              </div>
 
-            {% if arrival_date or departure_date %}
-              <div class="flex items-start justify-between gap-4 text-slate-300">
+              <div class="border-t border-slate-800 my-2"></div>
+
+              {% if arrival_date or departure_date %}
+                <div class="flex items-start justify-between gap-4 text-slate-300">
+                  <div>
+                    <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Arrival</p>
+                    <p class="font-medium" id="arrival-date-span">{{ arrival_date or "-" }}</p>
+                  </div>
+                  <div class="text-right">
+                    <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Departure</p>
+                    <p class="font-medium" id="departure-date-span">{{ departure_date or "-" }}</p>
+                  </div>
+                </div>
+
+                <div class="border-t border-slate-800 my-2"></div>
+              {% endif %}
+
+              <!-- Check-in / Check-out -->
+              <div class="flex items-start justify-between gap-4">
                 <div>
-                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Arrival</p>
-                  <p class="font-medium" id="arrival-date-span">{{ arrival_date or "-" }}</p>
+                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-in</p>
+                  <p class="font-medium">
+                    {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
+                  </p>
                 </div>
                 <div class="text-right">
-                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Departure</p>
-                  <p class="font-medium" id="departure-date-span">{{ departure_date or "-" }}</p>
+                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-out</p>
+                  <p class="font-medium">
+                    {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
+                  </p>
                 </div>
               </div>
 
               <div class="border-t border-slate-800 my-2"></div>
-            {% endif %}
 
-            <!-- Check-in / Check-out -->
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-in</p>
-                <p class="font-medium">
-                  {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
-                </p>
+              <!-- WiFi -->
+              <div class="flex items-start justify-between gap-4">
+                <div>
+                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">WiFi Network</p>
+                  <p class="font-medium">
+                    {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
+                  </p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Password</p>
+                  <p class="font-medium">
+                    {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
+                  </p>
+                </div>
               </div>
-              <div class="text-right">
-                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-out</p>
-                <p class="font-medium">
-                  {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
-                </p>
+
+              <div class="border-t border-slate-800 my-2"></div>
+
+              <!-- Buttons: Check-in + Upgrades -->
+              <div class="mt-3 flex items-center gap-3">
+                <button
+                  id="checkin-button"
+                  class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white py-3 font-semibold bg-transparent text-white transition hover:bg-white hover:text-slate-900"
+                >
+                  <span>Check-in</span>
+                </button>
+
+                <button
+                  id="upgrades-button"
+                  class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950 transition hover:bg-transparent hover:text-emerald-400"
+                >
+                  <span>Upgrades</span>
+                </button>
               </div>
-            </div>
-
-            <div class="border-t border-slate-800 my-2"></div>
-
-            <!-- WiFi -->
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">WiFi Network</p>
-                <p class="font-medium">
-                  {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
-                </p>
-              </div>
-              <div class="text-right">
-                <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Password</p>
-                <p class="font-medium">
-                  {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
-                </p>
-              </div>
-            </div>
-
-            <div class="border-t border-slate-800 my-2"></div>
-
-            <!-- Buttons: Check-in + Upgrades -->
-            <div class="mt-3 flex items-center gap-3">
-              <button
-                id="checkin-button"
-                class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white py-3 font-semibold bg-transparent text-white transition hover:bg-white hover:text-slate-900"
-              >
-                <span>Check-in</span>
-              </button>
-
-              <button
-                id="upgrades-button"
-                class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950 transition hover:bg-transparent hover:text-emerald-400"
-              >
-                <span>Upgrades</span>
-              </button>
             </div>
           </div>
         </div>
       </section>
+
 
       <!-- CHAT -->
       <section id="screen-chat" class="hidden flex flex-col min-h-full bg-slate-950">
