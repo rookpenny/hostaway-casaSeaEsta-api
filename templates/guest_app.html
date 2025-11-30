@@ -214,49 +214,51 @@
 <body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
 
   <!-- Top hero (hidden on chat screen) -->
-  <header id="app-header" class="relative w-full">
-    <div class="h-80 w-full relative">
-      {% if hero_image_url %}
-        <img src="{{ hero_image_url }}" alt="{{ property_name }}" class="w-full h-full object-cover">
-      {% else %}
-        <div class="w-full h-full bg-slate-900"></div>
-      {% endif %}
-      <div class="absolute inset-0 bg-gradient-to-b from-black/20 via-black/60 to-slate-950"></div>
+<header id="app-header" class="relative w-full">
+  <div
+    class="h-40 w-full relative rounded-2xl overflow-hidden shadow-xl bg-cover bg-top"
+    style="background-image: url('{{ property_image_url or default_image_url }}');"
+  >
+    <!-- softer gradient only on the bottom half -->
+    <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
 
-      <!-- language + logout (only for non-chat screens) -->
-      <div id="language-bar" class="absolute top-4 right-4">
-        <div class="flex items-center gap-2">
-          <!-- logout icon -->
-          <button
-            id="logout-button"
-            type="button"
-            class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+    <!-- language + logout (only for non-chat screens) -->
+    <div id="language-bar" class="absolute top-4 right-4">
+      <div class="flex items-center gap-2">
+        <!-- logout icon (switched to a power icon) -->
+        <button
+          id="logout-button"
+          type="button"
+          class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              stroke-width="1.6"
+              d="M12 9.75V4.5m0 5.25a4.5 4.5 0 104.5 4.5 4.5 4.5 0 00-4.5-4.5z"
+            />
+          </svg>
+        </button>
+
+        <!-- language select -->
+        <div class="bg-black/60 border border-slate-700 rounded-full px-2 py-0.5 text-[11px]">
+          <select
+            id="language-select"
+            class="bg-transparent text-xs text-slate-100 focus:outline-none px-[4px] py-[3px]"
           >
-            <!-- your logout SVG icon here -->
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
-                d="M15.75 9V5.25A2.25 2.25 0 0013.5 3h-6A2.25 2.25 0 005.25 5.25v13.5A2.25 2.25 0 007.5 21h6a2.25 2.25 0 002.25-2.25V15M18 12H9.75M18 12l-2.25-2.25M18 12l-2.25 2.25" />
-            </svg>
-          </button>
-
-
-          <!-- language select -->
-          <div class="bg-black/60 border border-slate-700 rounded-full px-2 py-0.5 text-[11px]">
-            <select
-              id="language-select"
-              class="bg-transparent text-xs text-slate-100 focus:outline-none"
-            >
-              <option value="auto">Auto</option>
-              <option value="en">English</option>
-              <option value="es">Español</option>
-              <option value="fr">Français</option>
-              <option value="de">Deutsch</option>
-            </select>
-          </div>
+            <option value="auto">Auto</option>
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+          </select>
         </div>
       </div>
     </div>
-  </header>
+  </div>
+</header>
+
 
   <!-- Main content -->
   <main
