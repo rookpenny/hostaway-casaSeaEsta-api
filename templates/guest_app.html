@@ -336,9 +336,10 @@
       <!-- address + map -->
       <div class="flex items-start justify-between gap-3">
         <div class="leading-snug text-slate-200">
-          <p>{{ property_address or "123 Any Street" }}</p>
-          <p>{{ city_name or "Anywhere, AB A0A 1A1" }}</p>
-          <p>Anyplace</p>
+          <p>
+            {{ property_address }}
+            {% if city_name %} — {{ city_name }}{% endif %}
+          </p>
         </div>
         {% if property_address %}
           {% if google_maps_link %}
