@@ -69,13 +69,14 @@
     }
 
    /* column that holds bubble + timestamp */
+/* column that holds bubble + timestamp */
 .msg-column {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;   /* bot defaults to left */
+  align-items: flex-start;   /* default = left for Sandy */
 }
 
-/* user messages: bubble + time right-aligned */
+/* user messages: bubble + time right-aligned as a group */
 .msg.user .msg-column {
   align-items: flex-end;
 }
@@ -85,7 +86,7 @@
 
 /* make sure bubble hugs the text nicely */
 .bubble {
-  display: inline-block;     /* <- add this line */
+  display: inline-block;        /* important: shrink-wrap to text */
   padding: 0.6rem 1rem;
   border-radius: 1rem;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
@@ -94,11 +95,11 @@
   line-height: 1.5;
 }
 
-    /* User bubble – soft mint */
-    .msg.user .bubble {
-      background: #DFF6D8;
-      color: #1a1a1a;
-    }
+  /* Optional: slightly different styling for user bubble */
+.msg.user .bubble {
+  background-color: #e5ecf8;    /* soft grey/blue */
+  color: #111827;
+}
 
     /* Bot bubble – soft pink */
     .msg.bot .bubble {
@@ -132,9 +133,9 @@
     }
 
     .timestamp {
-      font-size: 0.7rem;
-      color: #A0A0A0;
-      margin-top: 0.3rem;
+      font-size: 0.65rem;
+  color: #9ca3af;
+  margin-top: 0.25rem;
     }
 
     .message-text p {
