@@ -669,6 +669,7 @@
   
   <!-- JS -->
   <script>
+  document.addEventListener("DOMContentLoaded", function () {
   const screens = {
     home: document.getElementById("screen-home"),
     chat: document.getElementById("screen-chat"),
@@ -1206,6 +1207,7 @@ if (storedState) {
       }
     });
   }
+    }); // end DOMContentLoaded
 </script>
 
 </body>
