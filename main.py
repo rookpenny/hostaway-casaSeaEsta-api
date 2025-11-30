@@ -174,21 +174,27 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     cfg = context.get("config", {}) or {}
     wifi = cfg.get("wifi") or {}
 
-        # 🎨 Hero images: config.json can override, but default to Hostaway hero if available
+    # 🎨 Hero images: config.json can override, but default to Hostaway hero if available
     hero_image_url = cfg.get("hero_image_url")
     experiences_hero_url = cfg.get("experiences_hero_url")
 
     # Only attempt Hostaway fetch if:
     # - we have a PMC
-    # - it’s a Hostaway PMC (adjust field name as needed)
-    # - we have a PMS listing ID on the Property
-    if pmc and getattr(pmc, "pms_type", "").lower() == "hostaway" and prop.pms_property_id:
+    # - this property is integrated with Hostaway
+    # - we have a Hostaway listing ID stored in pms_property_id
+    if (
+        pmc
+        and pmc.pms_integration
+        and pmc.pms_integration.lower() == "hostaway"
+        and prop.pms_integration
+        and prop.pms_integration.lower() == "hostaway"
+        and prop.pms_property_id
+    ):
         # Only call Hostaway if config didn't already specify a hero
         if not hero_image_url:
             try:
-                # ⚠️ Adjust these field names to match your PMC model
-                client_id = getattr(pmc, "pms_client_id", None) or os.getenv("HOSTAWAY_CLIENT_ID")
-                client_secret = getattr(pmc, "pms_client_secret", None) or os.getenv("HOSTAWAY_CLIENT_SECRET")
+                client_id = pmc.pms_api_key
+                client_secret = pmc.pms_api_secret
 
                 if client_id and client_secret:
                     hostaway_hero = get_listing_hero_image(
@@ -198,6 +204,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                     )
                     if hostaway_hero:
                         hero_image_url = hostaway_hero
+                        # If guides hero not set separately, reuse the same image
                         if not experiences_hero_url:
                             experiences_hero_url = hostaway_hero
             except Exception as e:
@@ -206,6 +213,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     # Final fallback: if no separate guides hero, reuse main hero
     if not experiences_hero_url and hero_image_url:
         experiences_hero_url = hero_image_url
+
 
     
     # 🔹 Pull latest ChatSession that has guest_name / dates from PMS, if any
