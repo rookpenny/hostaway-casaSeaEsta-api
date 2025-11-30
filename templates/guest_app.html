@@ -26,12 +26,14 @@
     box-sizing: border-box;
   }
 
-    .msg.bot .avatar {
-  background-image: url('/static/sandy.jpg');
-  background-size: cover;
-  background-position: center;
-  color: transparent;
-  background-color: transparent;
+  .msg.bot .avatar {
+    background-image: url('/static/img/sandy.png');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: transparent !important;
+    background-color: transparent !important;
+    display: block; /* remove flex since we’re now using an image */
 }
     
      /* CHAT STYLES ONLY – no global body changes */
