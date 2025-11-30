@@ -839,64 +839,63 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-   let chatHasWelcome = false;
+  let chatHasWelcome = false;
 
   function showScreen(name) {
-  // --- Swap visible screen ---
-  Object.entries(screens).forEach(([key, el]) => {
-    if (!el) return;
-    if (key === name) el.classList.remove("hidden");
-    else el.classList.add("hidden");
-  });
+    // --- Swap visible screen ---
+    Object.entries(screens).forEach(([key, el]) => {
+      if (!el) return;
+      if (key === name) el.classList.remove("hidden");
+      else el.classList.add("hidden");
+    });
 
-  // --- Header hide/show logic ---
-  if (name === "chat") {
-    headerEl?.classList.add("hidden");
+    // --- Header hide/show logic ---
+    if (name === "chat") {
+      headerEl?.classList.add("hidden");
 
-    if (
-      window.SANDY_LIVE === "true" &&
-      chatBox &&
-      !chatHasWelcome &&
-      chatBox.children.length === 0
-    ) {
-      const intro = guestName
-        ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-        : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+      if (
+        window.SANDY_LIVE === "true" &&
+        chatBox &&
+        !chatHasWelcome &&
+        chatBox.children.length === 0
+      ) {
+        const intro = guestName
+          ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+          : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
 
-      renderMessage(intro, "bot");
-      chatHasWelcome = true;
-    }
-  } else {
-    headerEl?.classList.remove("hidden");
-  }
-
-  // --- Highlight active nav tab (NEW) ---
-  navButtons.forEach((btn) => {
-    const target = btn.getAttribute("data-screen");
-    const icon = btn.querySelector(".nav-icon");
-
-    if (target === name) {
-      // Active
-      btn.classList.remove("text-slate-400");
-      btn.classList.add("text-slate-50");
-
-      if (icon) {
-        icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
-        icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
+        renderMessage(intro, "bot");
+        chatHasWelcome = true;
       }
     } else {
-      // Inactive
-      btn.classList.add("text-slate-400");
-      btn.classList.remove("text-slate-50");
-
-      if (icon) {
-        icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
-        icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
-      }
+      headerEl?.classList.remove("hidden");
     }
-  });
-}
 
+    // --- Highlight active nav tab ---
+    navButtons.forEach((btn) => {
+      const target = btn.getAttribute("data-screen");
+      const icon = btn.querySelector(".nav-icon");
+
+      if (target === name) {
+        // Active
+        btn.classList.remove("text-slate-400");
+        btn.classList.add("text-slate-50");
+
+        if (icon) {
+          icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
+          icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
+        }
+      } else {
+        // Inactive
+        btn.classList.add("text-slate-400");
+        btn.classList.remove("text-slate-50");
+
+        if (icon) {
+          icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
+          icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
+        }
+      }
+    });
+  }
 
   // 🧭 Nav buttons
   navButtons.forEach((btn) => {
@@ -1057,7 +1056,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Upgrades → Guides (this is why clicking Upgrades takes you to Guides)
+  // Upgrades → Guides
   if (upgradesButton) {
     upgradesButton.addEventListener("click", () => {
       if (!isUnlocked) return;
@@ -1087,7 +1086,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (chatSend) chatSend.disabled = true;
     if (chatPlus) chatPlus.disabled = true;
   }
-  
+
   function scrollChatToBottom() {
     if (!chatBox) return;
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -1120,46 +1119,46 @@ document.addEventListener("DOMContentLoaded", function () {
     return escaped.replace(/\n/g, "<br>");
   }
 
- function renderMessage(text, sender) {
-  if (!chatBox) return;
+  function renderMessage(text, sender) {
+    if (!chatBox) return;
 
-  const isUser = sender === "user";
-  const ts = formatTime(new Date());
+    const isUser = sender === "user";
+    const ts = formatTime(new Date());
 
-  const row = document.createElement("div");
-  row.className = "msg " + (isUser ? "user" : "bot");
+    const row = document.createElement("div");
+    row.className = "msg " + (isUser ? "user" : "bot");
 
-  const avatar = document.createElement("div");
-  avatar.className = "avatar";
-  avatar.textContent = isUser ? "" : "S"; // you can replace with real image later
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    // user: blank circle; bot: image via CSS background
+    avatar.textContent = ""; 
 
-  // Column holding bubble + timestamp
-  const column = document.createElement("div");
-  column.className = "msg-column";
+    // Column holding bubble + timestamp
+    const column = document.createElement("div");
+    column.className = "msg-column";
 
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
 
-  const time = document.createElement("div");
-  time.className = "timestamp";
-  time.textContent = ts;
+    const time = document.createElement("div");
+    time.className = "timestamp";
+    time.textContent = ts;
 
-  column.appendChild(bubble);
-  column.appendChild(time);
+    column.appendChild(bubble);
+    column.appendChild(time);
 
-  if (isUser) {
-    row.appendChild(column);
-    row.appendChild(avatar);
-  } else {
-    row.appendChild(avatar);
-    row.appendChild(column);
+    if (isUser) {
+      row.appendChild(column);
+      row.appendChild(avatar);
+    } else {
+      row.appendChild(avatar);
+      row.appendChild(column);
+    }
+
+    chatBox.appendChild(row);
+    scrollChatToBottom();
   }
-
-  chatBox.appendChild(row);
-  scrollChatToBottom();
-}
-
 
   if (chatPlus && chatInput) {
     chatPlus.addEventListener("click", () => {
@@ -1188,7 +1187,7 @@ document.addEventListener("DOMContentLoaded", function () {
 
     const avatar = document.createElement("div");
     avatar.className = "avatar";
-    avatar.textContent = "S";
+    avatar.textContent = ""; // use Sandy image via CSS
 
     const bubble = document.createElement("div");
     bubble.className = "bubble";
@@ -1341,6 +1340,7 @@ document.addEventListener("DOMContentLoaded", function () {
   }
 });
 </script>
+
 
 
 </body>
