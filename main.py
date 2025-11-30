@@ -289,6 +289,24 @@ def verify_json(
             status_code=400
         )
 
+     # 🔐 1) TEST OVERRIDE (for your own testing)
+    test_code = os.getenv("TEST_UNLOCK_CODE")
+    if test_code and code == test_code:
+        # Mark this browser as verified
+        request.session[f"guest_verified_{property_id}"] = True
+
+        # Fake but realistic-looking guest meta for the UI
+        today = datetime.utcnow().date()
+        arrival = today.strftime("%Y-%m-%d")
+        departure = (today + timedelta(days=3)).strftime("%Y-%m-%d")
+
+        return {
+            "success": True,
+            "guest_name": "Test Guest",
+            "arrival_date": arrival,
+            "departure_date": departure,
+        }
+        
     # load property + PMC
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
