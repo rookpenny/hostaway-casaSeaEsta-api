@@ -213,11 +213,11 @@
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
 
-  <!-- Top hero (hidden on chat screen) -->
+<!-- Top hero (hidden on chat screen) -->
 <header id="app-header" class="relative w-full">
   <div
     class="h-40 w-full relative rounded-2xl overflow-hidden shadow-xl bg-cover bg-top"
-    style="background-image: url('{{ property_image_url or default_image_url }}');"
+    style="background-image: url('{{ hero_image_url or default_image_url }}');"
   >
     <!-- softer gradient only on the bottom half -->
     <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-black/60 via-black/30 to-transparent"></div>
@@ -225,7 +225,7 @@
     <!-- language + logout (only for non-chat screens) -->
     <div id="language-bar" class="absolute top-4 right-4">
       <div class="flex items-center gap-2">
-        <!-- logout icon (switched to a power icon) -->
+        <!-- logout icon (power icon) -->
         <button
           id="logout-button"
           type="button"
@@ -258,6 +258,7 @@
     </div>
   </div>
 </header>
+
 
 
   <!-- Main content -->
