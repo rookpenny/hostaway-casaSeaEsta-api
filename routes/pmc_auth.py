@@ -157,6 +157,10 @@ def dashboard(request: Request, db: Session = Depends(get_db)):
     pmc = db.query(PMC).filter(PMC.email == user["email"]).first()
     if not pmc:
         return HTMLResponse("<h2>No PMC found for this email</h2>", status_code=404)
+    
+    if not pmc.active:
+        return HTMLResponse("<h2>Your PMC account is inactive. Please contact support.</h2>", status_code=403)
+
 
     properties = pmc.properties
 
