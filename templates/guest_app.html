@@ -16,13 +16,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    html,
-    body {
+    html, body {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 0.95rem;
-      height: 100%;
-      overflow-x: hidden;
+      overflow-x: hidden; /* only block horizontal scroll */
     }
+
 
     * {
       box-sizing: border-box;
@@ -39,9 +38,9 @@
     /* CHAT STYLES (scoped by IDs/classes where possible) */
     #chat-box {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      overflow-y: auto;
       flex: 1;
-      min-height: 0; /* Required for flex scroll behaviors */
+      min-height: 0;
+      overflow-y: auto;
     }
 
     .msg {
@@ -259,6 +258,14 @@
       display: flex;
       flex-direction: column;
     }
+
+    /* The inner wrapper <div class="flex-1 flex flex-col"> */
+      #screen-chat > .flex-1 {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0; /* critical for flex scrolling */
+      }
 
     .msg.user .bubble {
       background: #e5e7eb;
@@ -873,13 +880,11 @@
       let chatHasWelcome = false;
 
       function showScreen(name) {
-        // Swap visible screen
         Object.entries(screens).forEach(([key, el]) => {
           if (!el) return;
           if (key === name) el.classList.remove("hidden");
           else el.classList.add("hidden");
         });
-
         // Header hide/show
         if (name === "chat") {
           headerEl?.classList.add("hidden");
@@ -1120,10 +1125,7 @@
 
       function scrollChatToBottom() {
         if (!chatBox) return;
-      
-        requestAnimationFrame(() => {
-          chatBox.scrollTop = chatBox.scrollHeight;
-        });
+        chatBox.scrollTop = chatBox.scrollHeight;
       }
 
 
@@ -1155,50 +1157,49 @@
       }
 
      function renderMessage(text, sender) {
-  if (!chatBox) return;
+      if (!chatBox) return;
+    
+      const isUser = sender === "user";
+      const ts = formatTime(new Date());
+    
+      const row = document.createElement("div");
+      row.className = "msg " + (isUser ? "user" : "bot");
+    
+      // Avatar (Sandy only)
+      let avatar = null;
+      if (!isUser) {
+        avatar = document.createElement("div");
+        avatar.className = "avatar avatar-sandy";
+      }
+    
+      const column = document.createElement("div");
+    
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+    
+      const time = document.createElement("div");
+      time.className = "timestamp";
+      time.textContent = ts;
+    
+      column.appendChild(bubble);
+      column.appendChild(time);
+    
+      if (isUser) {
+        // user: bubble only
+        row.appendChild(column);
+      } else {
+        // bot: avatar + bubble
+        row.appendChild(avatar);
+        row.appendChild(column);
+      }
+    
+      chatBox.appendChild(row);
+    
+      // ensure latest message in view
+      setTimeout(scrollChatToBottom, 0);
+    }
 
-  const isUser = sender === "user";
-  const ts = formatTime(new Date());
-
-  // outer row
-  const row = document.createElement("div");
-  row.className = "msg " + (isUser ? "user" : "bot");
-
-  // avatar (ONLY for Sandy/bot)
-  let avatar = null;
-  if (!isUser) {
-    avatar = document.createElement("div");
-    avatar.className = "avatar avatar-sandy"; // photo avatar
-  }
-
-  // column that holds bubble + timestamp
-  const column = document.createElement("div");
-
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
-
-  const time = document.createElement("div");
-  time.className = "timestamp";
-  time.textContent = ts;
-
-  column.appendChild(bubble);
-  column.appendChild(time);
-
-  if (isUser) {
-    // user: bubble only
-    row.appendChild(column);
-  } else {
-    // bot: avatar on the left, bubble on the right
-    row.appendChild(avatar);
-    row.appendChild(column);
-  }
-
-  chatBox.appendChild(row);
-
-  // make sure latest message is visible
-  setTimeout(scrollChatToBottom, 0);
-}
 
 
 
