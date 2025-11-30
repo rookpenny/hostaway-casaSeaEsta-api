@@ -50,7 +50,7 @@ from fastapi import Depends, Request
 from fastapi.responses import HTMLResponse
 
 # 💬 Recent Chats Overview
-/chats", response_class=HTMLResponse)
+@router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(request: Request, db: Session = Depends(get_db)):
     # Latest sessions first
     sessions = (
@@ -84,7 +84,7 @@ def admin_chats(request: Request, db: Session = Depends(get_db)):
             ChatMessage.sentiment == "negative",
         ).first() is not None
 
-       items.append({
+        items.append({
             "id": s.id,
             "property_name": prop.property_name if prop else "Unknown property",
             "property_id": s.property_id,
@@ -109,7 +109,7 @@ def admin_chats(request: Request, db: Session = Depends(get_db)):
 
 
 # 💬 Single Chat Conversation View
-/chats/{session_id}", response_class=HTMLResponse)
+@router.get("/admin/chats/{session_id}", response_class=HTMLResponse)
 def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(get_db)):
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not session:
@@ -133,6 +133,37 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
             "messages": messages,
         }
     )
+
+
+# This route renders the admin dashboard with a list of all PMCs pulled from your new database.
+@router.get("/admin/dashboard", response_class=HTMLResponse)
+def admin_dashboard(request: Request):
+    db: Session = SessionLocal()
+
+    def serialize_pmc(pmc):
+        return {
+            "id": pmc.id,
+            "pmc_name": pmc.pmc_name,
+            "email": pmc.email,
+            "main_contact": pmc.main_contact,
+            "subscription_plan": pmc.subscription_plan,
+            "pms_integration": pmc.pms_integration,
+            "pms_api_key": pmc.pms_api_key,
+            "pms_api_secret": pmc.pms_api_secret,
+            "pms_account_id": pmc.pms_account_id,
+            "active": pmc.active,
+            "sync_enabled": pmc.sync_enabled,
+            "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None
+        }
+
+    pmc_list = db.query(PMC).all()
+    pmc_data = [serialize_pmc(p) for p in pmc_list]
+
+    return templates.TemplateResponse("admin_dashboard.html", {
+        "request": request,
+        "pmc": pmc_data  # ✅ Now it's safe to use `tojson` in the template
+    })
+
 
 
 
@@ -179,34 +210,6 @@ def save_manual_file(file_path: str = Form(...), content: str = Form(...)):
 
 
 
-# This route renders the admin dashboard with a list of all PMCs pulled from your new database.
-/dashboard", response_class=HTMLResponse)
-def admin_dashboard(request: Request):
-    db: Session = SessionLocal()
-
-    def serialize_pmc(pmc):
-        return {
-            "id": pmc.id,
-            "pmc_name": pmc.pmc_name,
-            "email": pmc.email,
-            "main_contact": pmc.main_contact,
-            "subscription_plan": pmc.subscription_plan,
-            "pms_integration": pmc.pms_integration,
-            "pms_api_key": pmc.pms_api_key,
-            "pms_api_secret": pmc.pms_api_secret,
-            "pms_account_id": pmc.pms_account_id,
-            "active": pmc.active,
-            "sync_enabled": pmc.sync_enabled,
-            "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None
-        }
-
-    pmc_list = db.query(PMC).all()
-    pmc_data = [serialize_pmc(p) for p in pmc_list]
-
-    return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request,
-        "pmc": pmc_data  # ✅ Now it's safe to use `tojson` in the template
-    })
 
 # ✅ Add this new route here:
 @router.get("/admin/pmc-properties/{pmc_id}")
