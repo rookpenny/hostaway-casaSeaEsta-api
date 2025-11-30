@@ -25,39 +25,18 @@
   * {
     box-sizing: border-box;
   }
-
-  .msg.bot .avatar {
-    background-image: url('/static/img/sandy.png');
-    background-size: cover;
-    background-position: center;
-    background-repeat: no-repeat;
-    color: transparent !important;
-    background-color: transparent !important;
-    display: block; /* remove flex since we’re now using an image */
-}
     
-     /* CHAT STYLES ONLY – no global body changes */
-
-    /* Chat screen background */
-    #screen-chat {
-      background: #F6F3F0; /* soft warm light */
-      color: #1f2937;
-    }
-
-    /* Scroll area */
+    /* CHAT STYLES ONLY – no global body changes */
     #chat-box {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      background: #F6F3F0;
-      padding-bottom: 7rem; /* space for input + nav */
     }
 
     .msg {
       display: flex;
       align-items: flex-end;
-      margin-bottom: 1rem;
+      margin-bottom: 0.75rem;
       animation: fadeInUp 0.35s ease-out;
       animation-fill-mode: both;
-      padding: 0 0.5rem;
     }
 
     .msg.user {
@@ -68,76 +47,44 @@
       justify-content: flex-start;
     }
 
-   /* column that holds bubble + timestamp */
-/* column that holds bubble + timestamp */
-.msg-column {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;   /* default = left for Sandy */
-}
-
-/* user messages: bubble + time right-aligned as a group */
-.msg.user .msg-column {
-  align-items: flex-end;
-}
-    .msg.bot .msg-column {
-      align-items: flex-start;
-    }
-
-/* make sure bubble hugs the text nicely */
-.bubble {
-  display: inline-block;        /* important: shrink-wrap to text */
-  padding: 0.6rem 1rem;
-  border-radius: 1rem;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  max-width: 70%;
-  font-size: 0.95rem;
-  line-height: 1.5;
-}
-
-  /* Optional: slightly different styling for user bubble */
-.msg.user .bubble {
-  background-color: #e5ecf8;  /* your grey/blue */
-  color: #111827;
-  min-width: 40%;             /* 👈 keeps "hello" sized like longer messages */
-  text-align: left;
-}
-
-    /* Bot bubble – soft pink */
-    .msg.bot .bubble {
-      background: #F7DCE9;
-      color: #1a1a1a;
+    .bubble {
+      padding: 0.6rem 1rem;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      max-width: 70%;
+      font-size: 0.95rem;
+      line-height: 1.5;
     }
 
     .avatar {
-      width: 36px;
-      height: 36px;
+      width: 32px;
+      height: 32px;
       border-radius: 50%;
-      margin: 0 8px;
+      margin: 0 0.5rem;
       background-size: cover;
       background-position: center;
       flex-shrink: 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: 600;
-      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
     }
 
     .msg.user .avatar {
-      background-color: #ffffff;
-      color: #4B226B;
+      background-color: #e5e7eb;
     }
 
     .msg.bot .avatar {
-      background-color: #ffffff;
-      color: #4B226B;
+      background-color: #22c55e;
+      color: #022c22;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
     }
 
     .timestamp {
       font-size: 0.65rem;
-  color: #9ca3af;
-  margin-top: 0.25rem;
+      color: #9ca3af;
+      margin-top: 0.25rem;
+      text-align: right;
     }
 
     .message-text p {
@@ -154,7 +101,7 @@
     }
 
     .message-text a {
-      color: #4B226B;
+      color: #22c55e;
       text-decoration: none;
       word-break: break-word;
     }
@@ -210,20 +157,20 @@
       }
     }
 
-    /* Chat input bar pinned above bottom nav */
     .chat-input-bar {
       padding: 0.8rem 1rem;
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      background: #020617;
-      border-top: none !important;
-
+       background: #f8fafc;     /* light gray */
+  border-top: 1px solid #e2e8f0;
+    
+      /* NEW: pin it above the bottom nav */
       position: fixed;
       left: 0;
       right: 0;
-      bottom: 4rem;   /* nav height */
-      z-index: 30;
+      bottom: 4rem;       /* height of the nav (h-16 = 4rem) */
+      z-index: 30;        /* above the nav (nav has z-20) */
     }
 
     .chat-input-inner {
@@ -231,16 +178,10 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
-     
       border-radius: 999px;
-      background: #0f172a;
-      
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
       padding: 0.6rem 0.75rem;
-      /*
-      border: none !important;
-      outline: none !important;
-       border-radius: 16px;
-      */
     }
 
     .chat-input-bar input[type="text"] {
@@ -249,11 +190,11 @@
       background: transparent;
       font-size: 1rem;
       outline: none;
-      color: #e5e7eb;
+      color: #1f2937;
     }
 
     .chat-plus {
-      background: #ffffff;
+      background: #0b1120;
       border: none;
       width: 2.5rem;
       height: 2.5rem;
@@ -263,11 +204,11 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: #4B226B;
+      color: #e5e7eb;
     }
 
     .send-button {
-      background: #4B226B;
+      background: #22c55e;
       border: none;
       width: 2.5rem;
       height: 2.5rem;
@@ -276,7 +217,7 @@
       align-items: center;
       justify-content: center;
       cursor: pointer;
-      color: #ffffff;
+      color: #022c22;
     }
 
     /* --- Light Mode Chat Styles --- */
@@ -330,7 +271,7 @@
   style="background-image: url('{{ hero_image_url or default_image_url }}'); background-size: cover; background-position: top;"
 >
   <!-- Gradient overlay -->
-  <div class="absolute inset-0 bg-gradient-to-t from-black via-black/20 to-transparent pointer-events-none"></div>
+  <div class="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none"></div>
 
   <!-- Foreground content -->
   <div class="relative z-10 flex flex-col min-h-screen">
@@ -553,58 +494,47 @@
 
 
       <!-- CHAT -->
-   <section
-  id="screen-chat"
-  class="hidden flex flex-col bg-slate-950 min-h-[calc(100vh-4rem)]"
->
-  <div class="flex flex-col flex-1">
-    <!-- Messages -->
-    <div
-      id="chat-box"
-      class="flex-1 overflow-y-auto px-4 pt-4 pb-32 space-y-2"
-    ></div>
+      <section
+        id="screen-chat"
+        class="hidden flex flex-col flex-1 bg-white"
+      >
+        <div class="flex-1 flex flex-col">
+          <div
+            id="chat-box"
+            class="flex-1 overflow-y-auto px-4 pt-4 pb-32 space-y-2 bg-white text-slate-800"
+          ></div>
 
-    <!-- Input bar -->
-    <div class="chat-input-bar mb-4">
-      <div class="chat-input-inner">
-        <!-- + button -->
-        <button type="button" class="chat-plus">
-          +
-        </button>
-
-        <!-- text input -->
-        <input
-          id="chat-input"
-          type="text"
-          placeholder="Type a message here..."
-        />
-
-        <!-- send (up arrow) -->
-        <button
-          id="chat-send"
-          type="button"
-          class="send-button"
-        >
-          <svg
-            class="w-4 h-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-          >
-            <path
-              stroke-linecap="round"
-              stroke-linejoin="round"
-              stroke-width="1.6"
-              d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
-            />
-          </svg>
-        </button>
-      </div>
-    </div>
-  </div>
-</section>
-
-
+          <div class="chat-input-bar">
+            <div class="chat-input-inner">
+              <button type="button" class="chat-plus">+</button>
+              <input
+                id="chat-input"
+                type="text"
+                placeholder="Type a message here..."
+              />
+              <button
+                id="chat-send"
+                type="button"
+                class="send-button"
+              >
+                <svg
+                  class="w-4 h-4"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                >
+                  <path
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    stroke-width="1.6"
+                    d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
+                  />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </div>
+      </section>
 
       <!-- GUIDES -->
       <section
@@ -864,63 +794,64 @@ document.addEventListener("DOMContentLoaded", function () {
     }
   }
 
-  let chatHasWelcome = false;
+   let chatHasWelcome = false;
 
   function showScreen(name) {
-    // --- Swap visible screen ---
-    Object.entries(screens).forEach(([key, el]) => {
-      if (!el) return;
-      if (key === name) el.classList.remove("hidden");
-      else el.classList.add("hidden");
-    });
+  // --- Swap visible screen ---
+  Object.entries(screens).forEach(([key, el]) => {
+    if (!el) return;
+    if (key === name) el.classList.remove("hidden");
+    else el.classList.add("hidden");
+  });
 
-    // --- Header hide/show logic ---
-    if (name === "chat") {
-      headerEl?.classList.add("hidden");
+  // --- Header hide/show logic ---
+  if (name === "chat") {
+    headerEl?.classList.add("hidden");
 
-      if (
-        window.SANDY_LIVE === "true" &&
-        chatBox &&
-        !chatHasWelcome &&
-        chatBox.children.length === 0
-      ) {
-        const intro = guestName
-          ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-          : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+    if (
+      window.SANDY_LIVE === "true" &&
+      chatBox &&
+      !chatHasWelcome &&
+      chatBox.children.length === 0
+    ) {
+      const intro = guestName
+        ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+        : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
 
-        renderMessage(intro, "bot");
-        chatHasWelcome = true;
+      renderMessage(intro, "bot");
+      chatHasWelcome = true;
+    }
+  } else {
+    headerEl?.classList.remove("hidden");
+  }
+
+  // --- Highlight active nav tab (NEW) ---
+  navButtons.forEach((btn) => {
+    const target = btn.getAttribute("data-screen");
+    const icon = btn.querySelector(".nav-icon");
+
+    if (target === name) {
+      // Active
+      btn.classList.remove("text-slate-400");
+      btn.classList.add("text-slate-50");
+
+      if (icon) {
+        icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
+        icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
       }
     } else {
-      headerEl?.classList.remove("hidden");
-    }
+      // Inactive
+      btn.classList.add("text-slate-400");
+      btn.classList.remove("text-slate-50");
 
-    // --- Highlight active nav tab ---
-    navButtons.forEach((btn) => {
-      const target = btn.getAttribute("data-screen");
-      const icon = btn.querySelector(".nav-icon");
-
-      if (target === name) {
-        // Active
-        btn.classList.remove("text-slate-400");
-        btn.classList.add("text-slate-50");
-
-        if (icon) {
-          icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
-          icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
-        }
-      } else {
-        // Inactive
-        btn.classList.add("text-slate-400");
-        btn.classList.remove("text-slate-50");
-
-        if (icon) {
-          icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
-          icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
-        }
+      if (icon) {
+        icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
+        icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
       }
-    });
-  }
+    }
+  });
+}
+
 
   // 🧭 Nav buttons
   navButtons.forEach((btn) => {
@@ -1081,7 +1012,7 @@ document.addEventListener("DOMContentLoaded", function () {
     });
   }
 
-  // Upgrades → Guides
+  // Upgrades → Guides (this is why clicking Upgrades takes you to Guides)
   if (upgradesButton) {
     upgradesButton.addEventListener("click", () => {
       if (!isUnlocked) return;
@@ -1111,7 +1042,7 @@ document.addEventListener("DOMContentLoaded", function () {
     if (chatSend) chatSend.disabled = true;
     if (chatPlus) chatPlus.disabled = true;
   }
-
+  
   function scrollChatToBottom() {
     if (!chatBox) return;
     chatBox.scrollTop = chatBox.scrollHeight;
@@ -1144,46 +1075,45 @@ document.addEventListener("DOMContentLoaded", function () {
     return escaped.replace(/\n/g, "<br>");
   }
 
-function renderMessage(text, sender) {
-  if (!chatBox) return;
+  function renderMessage(text, sender) {
+    if (!chatBox) return;
 
-  const isUser = sender === "user";
-  const ts = formatTime(new Date());
+    const isUser = sender === "user";
+    const ts = formatTime(new Date());
 
-  const row = document.createElement("div");
-  row.className = "msg " + (isUser ? "user" : "bot");
+    const row = document.createElement("div");
+    row.className = "msg " + (isUser ? "user" : "bot");
 
-  const avatar = document.createElement("div");
-  avatar.className = "avatar";
-  avatar.textContent = ""; // Sandy avatar loads via CSS background
+    const avatar = document.createElement("div");
+    avatar.className = "avatar";
+    if (!isUser) {
+      avatar.textContent = "S";
+    }
 
-  // Column for bubble + timestamp
-  const column = document.createElement("div");
-  column.className = "msg-column";
+    const column = document.createElement("div");
 
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
 
-  const time = document.createElement("div");
-  time.className = "timestamp";
-  time.textContent = ts;
+    const time = document.createElement("div");
+    time.className = "timestamp";
+    time.textContent = ts;
 
-  column.appendChild(bubble);
-  column.appendChild(time);
+    column.appendChild(bubble);
+    column.appendChild(time);
 
-  if (isUser) {
-    // ⛔ USER: NO AVATAR — only their message bubble
-    row.appendChild(column);
-  } else {
-    // 🤖 SANDY: show avatar
-    row.appendChild(avatar);
-    row.appendChild(column);
+    if (isUser) {
+      row.appendChild(column);
+      row.appendChild(avatar);
+    } else {
+      row.appendChild(avatar);
+      row.appendChild(column);
+    }
+
+    chatBox.appendChild(row);
+    scrollChatToBottom();
   }
-
-  chatBox.appendChild(row);
-  scrollChatToBottom();
-}
 
   if (chatPlus && chatInput) {
     chatPlus.addEventListener("click", () => {
@@ -1212,7 +1142,7 @@ function renderMessage(text, sender) {
 
     const avatar = document.createElement("div");
     avatar.className = "avatar";
-    avatar.textContent = ""; // use Sandy image via CSS
+    avatar.textContent = "S";
 
     const bubble = document.createElement("div");
     bubble.className = "bubble";
@@ -1365,7 +1295,6 @@ function renderMessage(text, sender) {
   }
 });
 </script>
-
 
 
 </body>
