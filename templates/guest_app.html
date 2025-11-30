@@ -16,6 +16,14 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
+
+    html, body {
+    overflow-x: hidden;
+  }
+  * {
+    box-sizing: border-box;
+  }
+    
     /* CHAT STYLES ONLY – no global body changes */
     #chat-box {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
@@ -215,7 +223,7 @@
 <!-- App shell with shared background image + gradient -->
 <div
   id="app-shell"
-  class="relative min-h-screen w-full max-w-full flex flex-col"
+  class="relative min-h-screen w-full max-w-full flex flex-col overflow-x-hidden"
   style="background-image: url('{{ hero_image_url or default_image_url }}'); background-size: cover; background-position: top;"
 >
   <!-- Gradient overlay -->
