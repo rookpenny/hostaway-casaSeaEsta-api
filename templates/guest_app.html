@@ -213,17 +213,14 @@
 </head>
 <body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col">
 
-<!-- App shell with shared background image + gradient 
-  
-  class="relative w-full rounded-2xl overflow-hidden shadow-xl"
-  -->
+<!-- App shell with shared background image + gradient -->
 <div
   id="app-shell"
-  class="relative min-h-screen w-full overflow-hidden"
+  class="relative min-h-screen w-full overflow-hidden flex flex-col"
   style="background-image: url('{{ hero_image_url or default_image_url }}'); background-size: cover; background-position: top;"
 >
   <!-- Gradient overlay over the image -->
-  <div class="absolute inset-0 bg-gradient-to-b from-black/20 via-black/70 to-black pointer-events-none"></div>
+  <div class="absolute inset-0 bg-gradient-to-t from-black via-black/80 to-transparent pointer-events-none"></div>
 
   <!-- Foreground content sits above image+gradient -->
   <div class="relative z-10">
@@ -268,16 +265,16 @@
     <!-- Main content -->
     <main
       id="screen-container"
-      class="flex-1 flex flex-col overflow-y-auto px-4 pt-3 pb-0"
+      class="flex-1 flex flex-col px-4 pt-3 pb-20 overflow-y-auto"
     >
-      <!-- HOME 
-      class="flex flex-col justify-end gap-4 text-[0.95rem] min-h-[calc(100vh-160px)] pb-2"
-      -->
-      <section
-        id="screen-home"
-        class="flex flex-col justify-end min-h-[calc(100vh-160px)]"
-        style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
-      >
+
+      <!-- HOME -->
+       <section
+          id="screen-home"
+          class="flex flex-col justify-end gap-4 text-[0.95rem] min-h-[calc(100vh-4rem)]"
+          style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
+        >
+
         <!-- LOGIN STATE -->
         <div id="home-login" class="space-y-4">
           <div class="space-y-2">
@@ -431,15 +428,15 @@
             <!-- Buttons: Check-in + Upgrades -->
             <div class="mt-3 flex items-center gap-3">
               <button
-                id="checkin-button"
-                class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border-1 border-white py-3 font-semibold bg-transparent"
-              >
+                  id="checkin-button"
+                  class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white py-3 font-semibold bg-transparent text-white transition hover:bg-white hover:text-slate-900"
+                >
                 <span>Check-in</span>
               </button>
 
               <button
                 id="upgrades-button"
-                class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950"
+                class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950 transition hover:bg-transparent hover:text-emerald-400"
               >
                 <span>Upgrades</span>
               </button>
@@ -455,8 +452,8 @@
 
 
 <!-- CHAT (full screen: header hidden, no logout/language) -->
-<section id="screen-chat" class="hidden flex-1 flex flex-col -mx-4 -mt-3">
-  <div class="flex-1 flex flex-col bg-slate-950">
+<section id="screen-chat" class="hidden flex flex-col min-h-[calc(100vh-4rem)] bg-slate-950">
+  <div class="flex-1 flex flex-col">
     <!-- Messages -->
     <div
       id="chat-box"
@@ -507,7 +504,7 @@
 
 
     <!-- GUIDES -->
-    <section id="screen-experiences" class="hidden flex flex-col gap-4">
+    <section id="screen-experiences" class="hidden flex flex-col gap-4 min-h-[calc(100vh-4rem)] bg-slate-950 px-4 pt-4 pb-20">
       <div class="h-32 w-full relative rounded-2xl overflow-hidden">
         {% if experiences_hero_url %}
           <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
