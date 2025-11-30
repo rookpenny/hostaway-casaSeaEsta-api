@@ -36,12 +36,11 @@
     }
 
     /* CHAT STYLES (scoped by IDs/classes where possible) */
-    #chat-box {
+   #chat-box {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      flex: 1;
-      min-height: 0;
-      overflow-y: auto;
+      /* let the PAGE scroll, not this div */
     }
+
 
     .msg {
       display: flex;
@@ -565,7 +564,7 @@
         >
           <div
               id="chat-box"
-              class="flex-1 overflow-y-auto px-4 pt-4 space-y-2 bg-white text-slate-800"
+              class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
             ></div>
 
 
@@ -1164,14 +1163,20 @@
         if (chatPlus) chatPlus.disabled = true;
       }
 
-      function scrollChatToBottom() {
-          if (!chatBox) return;
-        
-          // Wait for layout first, then scroll to the true bottom
-          requestAnimationFrame(() => {
-            chatBox.scrollTop = chatBox.scrollHeight;
-          });
-        }
+     function scrollChatToBottom() {
+  // wait one frame so DOM height is updated
+  requestAnimationFrame(() => {
+    const docEl = document.documentElement;
+    const body = document.body;
+    const fullHeight = Math.max(docEl.scrollHeight, body.scrollHeight);
+
+    window.scrollTo({
+      top: fullHeight,
+      behavior: "auto", // or "smooth" if you like
+    });
+  });
+}
+
 
 
 
