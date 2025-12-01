@@ -254,22 +254,6 @@
         transform: translateY(0);
       }
     }
-/*
-    .chat-input-bar {
-      padding: 0.8rem 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: #f8fafc; 
-      border-top: 1px solid #e2e8f0;
-
-      /
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 4rem;=
-      z-index: 30; 
-    }*/
 
     .chat-input-bar {
   padding: 0.8rem 1rem;
@@ -509,7 +493,7 @@
               <div class="px-4 py-4 space-y-4 bg-slate-950/70 rounded-2xl">
                 <!-- address + map -->
                 <div class="flex items-start justify-between gap-3">
-                  <div class="text-xs leading-snug text-slate-200">
+                  <div class="text-s leading-snug text-slate-200">
                     <p>{{ property_address or "123 Any Street" }}</p>
                   </div>
                   {% if property_address %}
