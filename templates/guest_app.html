@@ -28,30 +28,36 @@
     }
 
 
-/* Base nav layout */
+/* Keep Tailwind layout; only tweak visuals */
 nav[role="navigation"] {
-  height: 120px !important;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 60px; /* fixed spacing */
+  height: 120px !important; /* or 64px if you want smaller */
 }
 
-/* Nav button reset */
+/* Make the nav buttons visually clean but DO NOT touch layout */
 nav .nav-item {
   background: none !important;
   border: none !important;
   padding: 0;
   margin: 0;
+  box-shadow: none !important;
+}
+
+/* Icon images */
+.nav-icon-img {
   width: 60px;
   height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: none !important;
-  transform: none !important;
-  cursor: pointer;
+  object-fit: contain;
+  opacity: 0.65;
+  transition: opacity 0.25s ease;
 }
+
+/* Hover + active: just change opacity, nothing else */
+nav .nav-item:hover .nav-icon-img,
+nav .nav-item[aria-current="page"] .nav-icon-img {
+  opacity: 1;
+}
+
+
 
 /* REMOVE any unwanted Tailwind classes JS might apply */
 nav .nav-icon {
@@ -59,15 +65,6 @@ nav .nav-icon {
   border: none !important;
   box-shadow: none !important;
   transform: none !important; /* stops scale-110 */
-}
-
-/* Icon images - default dim */
-.nav-icon-img {
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-  opacity: 0.65;
-  transition: opacity 0.25s ease;
 }
 
 
@@ -79,11 +76,7 @@ nav .nav-icon {
   opacity: 1;
 }
 
-    /* Hover removes opacity ONLY */
-nav .nav-item:hover .nav-icon-img {
-  opacity: 1;
-}
-    
+
 
     /* header labels (Arrival, Check-in, WiFi Network, etc.) */
     .detail-label {
