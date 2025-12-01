@@ -606,77 +606,76 @@
           </div>
         </section>
 
-        <!-- GUIDES -->
-        <section
-          id="screen-experiences"
-          class="hidden flex flex-col gap-4 bg-slate-950 px-4 pt-4 pb-24 min-h-[calc(100vh-4rem)]"
-          aria-label="Guides"
-        >
-          <div class="h-32 w-full relative rounded-2xl overflow-hidden">
-            {% if experiences_hero_url %}
-              <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
-            {% elif hero_image_url %}
-              <img src="{{ hero_image_url }}" alt="Guides" class="w-full h-full object-cover">
-            {% else %}
-              <div class="w-full h-full bg-slate-800"></div>
-            {% endif %}
-            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-            <div class="absolute bottom-3 left-7 right-7">
-              <h2 class="text-2xl font-semibold">Guides</h2>
-              <p class="text-sm text-slate-200">
-                Local guidebooks, ideas, and upgrades to make your stay extra special.
-              </p>
-            </div>
-          </div>
+       <!-- GUIDES -->
+<section
+  id="screen-experiences"
+  class="hidden bg-slate-950 px-4 pt-4 pb-24 space-y-4"
+  aria-label="Guides"
+>
+  <div class="h-32 w-full relative rounded-2xl overflow-hidden">
+    {% if experiences_hero_url %}
+      <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
+    {% elif hero_image_url %}
+      <img src="{{ hero_image_url }}" alt="Guides" class="w-full h-full object-cover">
+    {% else %}
+      <div class="w-full h-full bg-slate-800"></div>
+    {% endif %}
+    <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+    <div class="absolute bottom-3 left-7 right-7">
+      <h2 class="text-2xl font-semibold">Guides</h2>
+      <p class="text-sm text-slate-200">
+        Local guidebooks, ideas, and upgrades to make your stay extra special.
+      </p>
+    </div>
+  </div>
 
-          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-              <div class="h-32 relative">
-                {% if feature_image_url %}
-                  <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
-                {% else %}
-                  <div class="w-full h-full bg-slate-800"></div>
-                {% endif %}
-                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-                <div class="absolute bottom-3 left-3 right-3">
-                  <h3 class="text-base font-semibold">Our Story</h3>
-                  <p class="text-[11px] text-slate-200 line-clamp-2">
-                    In the heart of {{ city_name or "our favorite town" }}, this place came to life…
-                  </p>
-                </div>
-              </div>
-            </article>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="h-32 relative">
+        {% if feature_image_url %}
+          <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
+        {% else %}
+          <div class="w-full h-full bg-slate-800"></div>
+        {% endif %}
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+        <div class="absolute bottom-3 left-3 right-3">
+          <h3 class="text-base font-semibold">Our Story</h3>
+          <p class="text-[11px] text-slate-200 line-clamp-2">
+            In the heart of {{ city_name or "our favorite town" }}, this place came to life…
+          </p>
+        </div>
+      </div>
+    </article>
 
-            <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-              <div class="h-24 bg-slate-800">
-                {% if family_image_url %}
-                  <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
-                {% endif %}
-              </div>
-              <div class="p-3 space-y-1">
-                <h3 class="text-sm font-semibold">Fun Family Activities</h3>
-                <p class="text-[11px] text-slate-300 line-clamp-2">
-                  Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
-                </p>
-              </div>
-            </article>
+    <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="h-24 bg-slate-800">
+        {% if family_image_url %}
+          <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
+        {% endif %}
+      </div>
+      <div class="p-3 space-y-1">
+        <h3 class="text-sm font-semibold">Fun Family Activities</h3>
+        <p class="text-[11px] text-slate-300 line-clamp-2">
+          Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
+        </p>
+      </div>
+    </article>
 
-            <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-              <div class="h-24 bg-slate-800">
-                {% if foodie_image_url %}
-                  <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
-                {% endif %}
-              </div>
-              <div class="p-3 space-y-1">
-                <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
-                <p class="text-[11px] text-slate-300 line-clamp-2">
-                  Coffee, brunch, seafood, and dessert spots we genuinely love.
-                </p>
-              </div>
-            </article>
-          </div>
-        </section>
-
+    <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="h-24 bg-slate-800">
+        {% if foodie_image_url %}
+          <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
+        {% endif %}
+      </div>
+      <div class="p-3 space-y-1">
+        <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
+        <p class="text-[11px] text-slate-300 line-clamp-2">
+          Coffee, brunch, seafood, and dessert spots we genuinely love.
+        </p>
+      </div>
+    </article>
+  </div>
+</section>
 
         
       </main>
