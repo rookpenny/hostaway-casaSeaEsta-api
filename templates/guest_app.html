@@ -27,6 +27,65 @@
       box-sizing: border-box;
     }
 
+
+    /* main navigation */
+    .nav-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.25s ease;
+}
+
+    .nav-icon svg {
+  width: 22px;
+  height: 22px;
+  stroke-width: 2.4;
+  stroke: rgba(0,0,0,0.55); /* outline darker than circle */
+  fill: none;
+}
+
+    .icon-home {
+  background-color: #0ea5e9; /* cyan-500 */
+}
+
+.icon-chat {
+  background-color: #22c55e; /* emerald-500 */
+}
+
+.icon-guides {
+  background-color: #f59e0b; /* amber-500 */
+}
+    /* Icon sits inside your colored nav circle */
+.icon-compass-svg {
+  width: 22px;
+  height: 22px;
+}
+
+/* Outer ring (outline) */
+.icon-compass-svg .compass-ring {
+  stroke: rgba(0,0,0,0.55);
+  stroke-width: 2.2;
+  fill: none;
+}
+
+/* Needle (solid fill) */
+.icon-compass-svg .compass-needle {
+  fill: rgba(0,0,0,0.65); /* darker than outer ring */
+}
+
+/* Center circle (outline) */
+.icon-compass-svg .compass-center {
+  stroke: rgba(0,0,0,0.55);
+  stroke-width: 2.2;
+  fill: white; /* or transparent if you prefer */
+}
+
+
+    
+
     /* header labels (Arrival, Check-in, WiFi Network, etc.) */
     .detail-label {
       font-size: 0.65rem !important;
@@ -722,47 +781,40 @@
   </div>
 
   <!-- Bottom nav -->
-  <!-- Bottom nav -->
 <nav
   class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-20 flex items-center justify-center gap-10 backdrop-blur"
   role="navigation"
   aria-label="Guest app navigation"
 >
   <!-- HOME -->
-  <button
-    data-screen="home"
-    class="nav-item flex flex-col items-center text-slate-400 transition"
-    type="button"
-    aria-label="Home"
-  >
-    <span
-      class="nav-icon w-11 h-11 rounded-full border-2 border-rose-200 bg-rose-50/80 shadow-sm transition-all duration-300 scale-100"
-    ></span>
-  </button>
+  <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
+  <span class="nav-icon icon-home">
+    <svg viewBox="0 0 24 24">
+      <path d="M7.5 3.5l2 5m3-4l1.5 4.5m2-2.5l1 3" stroke-linecap="round"/>
+      <path d="M5 14c1.5 5 8.5 7 11.5 3.5 3-3.5.5-8.5-1.5-12" stroke-linecap="round"/>
+      <path d="M18.5 2.5c1.5 1 2.5 4 1 6" stroke-linecap="round"/>
+    </svg>
+  </span>
+</button>
 
   <!-- CHAT -->
-  <button
-    data-screen="chat"
-    class="nav-item flex flex-col items-center text-slate-400 transition"
-    type="button"
-    aria-label="Chat"
-  >
-    <span
-      class="nav-icon w-11 h-11 rounded-full border-2 border-amber-200 bg-amber-50/80 shadow-sm transition-all duration-300 scale-100"
-    ></span>
-  </button>
+  <button data-screen="chat" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+  <span class="nav-icon icon-chat">
+    <svg viewBox="0 0 24 24">
+      <path d="M4 5h16v10H8l-4 4V5z" stroke-linejoin="round" stroke-linecap="round"/>
+    </svg>
+  </span>
+</button>
 
   <!-- GUIDES -->
-  <button
-    data-screen="experiences"
-    class="nav-item flex flex-col items-center text-slate-400 transition"
-    type="button"
-    aria-label="Guides"
-  >
-    <span
-      class="nav-icon w-11 h-11 rounded-full border-2 border-lime-200 bg-lime-50/80 shadow-sm transition-all duration-300 scale-100"
-    ></span>
-  </button>
+  <button data-screen="experiences" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
+  <span class="nav-icon icon-guides">
+    <svg viewBox="0 0 24 24">
+      <circle cx="12" cy="12" r="9" stroke-linecap="round"/>
+      <path d="M10 10l4-1-1 4-4 1 1-4z" stroke-linecap="round"/>
+    </svg>
+  </span>
+</button>
 </nav>
 
 
