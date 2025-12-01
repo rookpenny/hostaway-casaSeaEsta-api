@@ -48,16 +48,14 @@
 }
 
 
-    .msg {
-      display: flex;
-      align-items: flex-start;
-      margin-bottom: 0.75rem;
-      animation: fadeInUp 0.35s ease-out;
-      animation-fill-mode: both;
-    
-      /* NEW: keep last message above input bar + nav */
-      scroll-margin-bottom: 7rem; /* tweak to 8rem if needed */
-    }
+   .msg {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  animation: fadeInUp 0.35s ease-out;
+  animation-fill-mode: both;
+  scroll-margin-bottom: 7rem;
+}
 
 
     .msg.user {
@@ -71,8 +69,6 @@
         flex-direction: column;
         align-items: flex-end; /* bubble & timestamp align to right together */
 
-        /* NEW: keep last message above input bar + nav */
-        scroll-margin-bottom: 7rem; /* tweak to 8rem if needed */
       }
       
       /* Column that wraps bubble + timestamp for bot messages */
@@ -829,40 +825,25 @@
     document.addEventListener("DOMContentLoaded", function () {
       // --- Screens + core elements ---
       const screens = {
-        home: document.getElementById("screen-home"),
-        chat: document.getElementById("screen-chat"),
-        experiences: document.getElementById("screen-experiences")
+  home: document.getElementById("screen-home"),
+  chat: document.getElementById("screen-chat"),
+  experiences: document.getElementById("screen-experiences"),
+};
 
-        function isChatVisible() {
+// helper: are we currently on the chat screen?
+function isChatVisible() {
   const chatScreen = screens.chat;
   return chatScreen && !chatScreen.classList.contains("hidden");
 }
 
-function scrollChatToBottom() {
-  if (!isChatVisible()) return;
 
-  requestAnimationFrame(() => {
-    const docEl = document.documentElement;
-    const body = document.body;
-    const fullHeight = Math.max(docEl.scrollHeight, body.scrollHeight);
 
-    window.scrollTo({
-      top: fullHeight,
-      behavior: "auto", // change to "smooth" if you want
-    });
-  });
-}
-      };
 
       const navButtons = document.querySelectorAll("nav .nav-item");
       const homeLogin = document.getElementById("home-login");
       const homeStay = document.getElementById("home-stay");
       const headerEl = document.getElementById("app-header");
 
-      function isChatVisible() {
-  const chatScreen = screens.chat;
-  return chatScreen && !chatScreen.classList.contains("hidden");
-}
 
 
       // --- Global state ---
@@ -1002,6 +983,30 @@ function scrollChatToBottom() {
         });
       }
 
+      function scrollChatToBottom() {
+  // Only scroll when the chat screen is actually visible
+  if (!isChatVisible()) return;
+
+  requestAnimationFrame(() => {
+    const docEl = document.documentElement;
+    const body = document.body;
+
+    const fullHeight = Math.max(
+      docEl.scrollHeight,
+      body.scrollHeight,
+      docEl.offsetHeight,
+      body.offsetHeight
+    );
+
+    window.scrollTo({
+      top: fullHeight,
+      behavior: "auto", // change to "smooth" if you prefer
+    });
+  });
+}
+
+
+      
       // Nav buttons
       navButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1180,19 +1185,7 @@ function scrollChatToBottom() {
       const bottomNav = document.querySelector('nav[role="navigation"]');
       
       // Dynamically set bottom padding so last message sits above input + nav
-      function updateChatPadding() {
-        if (!chatBox) return;
-        const inputH = chatInputBar ? chatInputBar.offsetHeight : 0;
-        const navH = bottomNav ? bottomNav.offsetHeight : 0;
-        const extra = 16; // extra breathing room (px)
       
-        chatBox.style.paddingBottom = inputH + navH + extra + "px";
-      }
-      
-      // Run once on load and again on resize (orientation changes, etc.)
-      updateChatPadding();
-      window.addEventListener("resize", updateChatPadding);
-
 
       if (window.SANDY_LIVE === "false") {
         if (chatBox) {
@@ -1210,14 +1203,7 @@ function scrollChatToBottom() {
         if (chatPlus) chatPlus.disabled = true;
       }
 
-     function scrollChatToBottom() {
-  if (!chatBox || !isChatVisible()) return;
-
-  // Wait for the DOM to lay out the new message
-  requestAnimationFrame(() => {
-    chatBox.scrollTop = chatBox.scrollHeight;
-  });
-}
+   
 
 
 
