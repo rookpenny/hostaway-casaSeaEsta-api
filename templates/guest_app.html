@@ -722,46 +722,49 @@
   </div>
 
   <!-- Bottom nav -->
-  <nav
-    class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur"
-    role="navigation"
-    aria-label="Guest app navigation"
+  <!-- Bottom nav -->
+<nav
+  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-20 flex items-center justify-center gap-10 backdrop-blur"
+  role="navigation"
+  aria-label="Guest app navigation"
+>
+  <!-- HOME -->
+  <button
+    data-screen="home"
+    class="nav-item flex flex-col items-center text-slate-400 transition"
+    type="button"
+    aria-label="Home"
   >
-    <button
-      data-screen="home"
-      class="nav-item flex flex-col items-center gap-0.5 text-slate-50"
-      type="button"
-      aria-current="page"
-      aria-label="Home"
-    >
-      <span class="nav-icon w-7 h-7 flex items-center justify-center rounded-xl transition-all duration-300">
-        🏠
-      </span>
-      <span>Home</span>
-    </button>
-    <button
-      data-screen="chat"
-      class="nav-item flex flex-col items-center gap-0.5 text-slate-400"
-      type="button"
-      aria-label="Chat"
-    >
-      <span class="nav-icon w-7 h-7 flex items-center justify-center rounded-xl transition-all duration-300">
-        💬
-      </span>
-      <span>Chat</span>
-    </button>
-    <button
-      data-screen="experiences"
-      class="nav-item flex flex-col items-center gap-0.5 text-slate-400"
-      type="button"
-      aria-label="Guides"
-    >
-      <span class="nav-icon w-7 h-7 flex items-center justify-center rounded-xl transition-all duration-300">
-        📚
-      </span>
-      <span>Guides</span>
-    </button>
-  </nav>
+    <span
+      class="nav-icon w-11 h-11 rounded-full border-2 border-rose-200 bg-rose-50/80 shadow-sm transition-all duration-300 scale-100"
+    ></span>
+  </button>
+
+  <!-- CHAT -->
+  <button
+    data-screen="chat"
+    class="nav-item flex flex-col items-center text-slate-400 transition"
+    type="button"
+    aria-label="Chat"
+  >
+    <span
+      class="nav-icon w-11 h-11 rounded-full border-2 border-amber-200 bg-amber-50/80 shadow-sm transition-all duration-300 scale-100"
+    ></span>
+  </button>
+
+  <!-- GUIDES -->
+  <button
+    data-screen="experiences"
+    class="nav-item flex flex-col items-center text-slate-400 transition"
+    type="button"
+    aria-label="Guides"
+  >
+    <span
+      class="nav-icon w-11 h-11 rounded-full border-2 border-lime-200 bg-lime-50/80 shadow-sm transition-all duration-300 scale-100"
+    ></span>
+  </button>
+</nav>
+
 
   <!-- Check-in modal -->
   <div
