@@ -29,21 +29,33 @@
 
 
     /* main navigation */
-    .nav-icon {
-  width: 50px;
-  height: 50px;
-  /*border-radius: 50%;*/
+ .nav-icon {
+  width: 2.5rem;   /* 40px */
+  height: 2.5rem;
+  border-radius: 9999px;
   display: flex;
   align-items: center;
   justify-content: center;
+  background-color: transparent; /* IMPORTANT: prevents white circles */
   transition: all 0.25s ease;
 }
 
-    .nav-icon svg {
-  width: 50px;
-  height: 50px;
-  stroke-width: 2;
-  stroke: rgba(0,0,0,0.55); /* outline darker than circle */
+.nav-icon-img {
+  width: 22px;
+  height: 22px;
+  display: block;
+  object-fit: contain;
+  pointer-events: none; /* avoids clicks interfering */
+}
+
+    /* Dim for inactive tabs */
+.nav-item.text-slate-400 .nav-icon-img {
+  opacity: 0.7;
+}
+
+/* Full opacity for the active tab */
+.nav-item.text-slate-50 .nav-icon-img {
+  opacity: 1;
 }
 
     .icon-home {
@@ -781,42 +793,51 @@
 
   <!-- Bottom nav -->
 <nav
-  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-20 flex items-center justify-center gap-10 backdrop-blur"
+  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur"
   role="navigation"
   aria-label="Guest app navigation"
 >
   <!-- HOME -->
-  <button data-screen="home" class="nav-item flex flex-col items-center gap-0.5 text-slate-50">
-  <span class="nav-icon icon-home">
-    <svg viewBox="0 0 24 24">
-      <path d="M7.5 3.5l2 5m3-4l1.5 4.5m2-2.5l1 3" stroke-linecap="round"/>
-      <path d="M5 14c1.5 5 8.5 7 11.5 3.5 3-3.5.5-8.5-1.5-12" stroke-linecap="round"/>
-      <path d="M18.5 2.5c1.5 1 2.5 4 1 6" stroke-linecap="round"/>
-    </svg>
-  </span>
-</button>
+  <button
+    data-screen="home"
+    class="nav-item flex flex-col items-center gap-0.5 text-slate-50"
+    type="button"
+    aria-current="page"
+    aria-label="Home"
+  >
+    <span class="nav-icon">
+      <img src="/static/img/nav-01.png" alt="" class="nav-icon-img" />
+    </span>
+    <span>Home</span>
+  </button>
 
   <!-- CHAT -->
-  <button data-screen="chat" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
-  <span class="nav-icon icon-chat">
-    <svg viewBox="0 0 24 24">
-      <path d="M4 5h16v10H8l-4 4V5z" stroke-linejoin="round" stroke-linecap="round"/>
-    </svg>
-  </span>
-</button>
+  <button
+    data-screen="chat"
+    class="nav-item flex flex-col items-center gap-0.5 text-slate-400"
+    type="button"
+    aria-label="Chat"
+  >
+    <span class="nav-icon">
+      <img src="/static/img/nav-02.png" alt="" class="nav-icon-img" />
+    </span>
+    <span>Chat</span>
+  </button>
 
   <!-- GUIDES -->
-  <button data-screen="experiences" class="nav-item flex flex-col items-center gap-0.5 text-slate-400">
-  <span class="nav-icon icon-guides">
-    <svg class="icon-compass-svg" viewBox="0 0 24 24">
-      <circle cx="12" cy="12" r="9" class="compass-ring" />
-      <path d="M12 8l4 4-4 4-4-4z" class="compass-needle" />
-      <circle cx="12" cy="12" r="1.4" class="compass-center" />
-    </svg>
-  </span>
-</button>
-
+  <button
+    data-screen="experiences"
+    class="nav-item flex flex-col items-center gap-0.5 text-slate-400"
+    type="button"
+    aria-label="Guides"
+  >
+    <span class="nav-icon">
+      <img src="/static/img/nav-03.png" alt="" class="nav-icon-img" />
+    </span>
+    <span>Guides</span>
+  </button>
 </nav>
+
 
 
   <!-- Check-in modal -->
