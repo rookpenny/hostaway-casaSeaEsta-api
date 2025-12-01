@@ -28,6 +28,56 @@
     }
 
 
+
+
+    /* The expanding circle */
+.menu-circle {
+  transform: scale(0);
+  transform-origin: top right;
+}
+
+/* When menu is open, scale the circle to cover the viewport */
+#fullscreen-menu.open .menu-circle {
+  transform: scale(40); /* big enough to cover large screens */
+}
+
+/* Fade in the menu content after circle starts expanding */
+#fullscreen-menu .menu-content {
+  opacity: 0;
+  transition: opacity 260ms ease-out;
+}
+
+#fullscreen-menu.open .menu-content {
+  opacity: 1;
+}
+
+/* Prevent background scrolling when menu is open */
+body.menu-open {
+  overflow: hidden;
+}
+
+/* Fullscreen menu typography */
+.menu-link {
+  font-size: 1.75rem;
+  line-height: 1.2;
+}
+
+.menu-link-main {
+  font-size: 2rem;
+}
+
+/* Slight hover treatment */
+.menu-link,
+.menu-link-main {
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.menu-link:hover,
+.menu-link-main:hover {
+  opacity: 0.9;
+  transform: translateX(4px);
+}
+
 /* Keep Tailwind layout; only tweak visuals
 nav[role="navigation"] {
   height: 120px !important; 
@@ -428,6 +478,16 @@ nav .nav-icon {
       <header id="app-header" class="relative w-full h-0">
         <div id="language-bar" class="absolute top-4 right-4">
           <div class="flex items-center gap-2">
+            <button
+      id="menu-open"
+      type="button"
+      class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+      aria-label="Open menu"
+    >
+      <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
+      <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
+      <span class="block w-4 h-[2px] bg-slate-100"></span>
+    </button>
             <!-- logout icon -->
             <button
               id="logout-button"
@@ -590,6 +650,8 @@ nav .nav-icon {
 
                   <div class="border-t border-slate-800 my-2"></div>
                 {% endif %}
+
+            
 
                 <!-- Check-in / Check-out -->
                 <div class="flex items-start justify-between gap-4">
@@ -795,6 +857,86 @@ nav .nav-icon {
 </nav>
 
 
+<!-- Fullscreen circular menu -->
+<div
+  id="fullscreen-menu"
+  class="fixed inset-0 z-45 hidden"
+  aria-hidden="true"
+>
+  <!-- Expanding circle -->
+  <div class="absolute inset-0 overflow-hidden pointer-events-none">
+    <div
+      class="menu-circle bg-emerald-900 rounded-full w-20 h-20 absolute top-4 right-4 transition-transform duration-500 ease-out"
+    ></div>
+  </div>
+
+  <!-- Menu content -->
+  <div
+    class="menu-content absolute inset-0 flex flex-col justify-between text-slate-50 px-8 py-8"
+  >
+    <!-- Top row: brand + close -->
+    <div class="flex items-center justify-between">
+      <div class="text-lg font-semibold tracking-wide">
+        {{ property_name }}
+      </div>
+      <button
+        id="menu-close"
+        type="button"
+        class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+        aria-label="Close menu"
+      >
+        <span class="text-xl leading-none">×</span>
+      </button>
+    </div>
+
+    <!-- Center links -->
+    <nav class="mt-16 space-y-3">
+      <button
+        type="button"
+        class="menu-link-main block text-left font-semibold"
+        data-menu-screen="home"
+      >
+        Home
+      </button>
+      <button
+        type="button"
+        class="menu-link block text-left text-slate-200"
+        data-menu-screen="chat"
+      >
+        Chat
+      </button>
+      <button
+        type="button"
+        class="menu-link block text-left text-slate-200"
+        data-menu-screen="experiences"
+      >
+        Guides
+      </button>
+      <!-- You can add more “virtual” screens later if you’d like -->
+      <!--
+      <button type="button" class="menu-link block text-left text-slate-200">
+        About this stay
+      </button>
+      -->
+    </nav>
+
+    <!-- Bottom actions -->
+    <div class="flex items-center justify-start gap-4 text-sm">
+      <button
+        type="button"
+        class="border border-slate-300/40 rounded-full px-4 py-2"
+      >
+        Call host
+      </button>
+      <button
+        type="button"
+        class="border border-slate-300/40 rounded-full px-4 py-2"
+      >
+        Email host
+      </button>
+    </div>
+  </div>
+</div>
 
 
 
@@ -1045,6 +1187,64 @@ function isChatVisible() {
           }
         });
       }
+
+
+
+
+            // --- Fullscreen circular menu ---
+      const menuOverlay = document.getElementById("fullscreen-menu");
+      const menuOpenBtn = document.getElementById("menu-open");
+      const menuCloseBtn = document.getElementById("menu-close");
+      const menuLinks = document.querySelectorAll("[data-menu-screen]");
+
+      function openMenu() {
+        if (!menuOverlay) return;
+        menuOverlay.classList.remove("hidden");
+        // allow clicks
+        menuOverlay.style.pointerEvents = "auto";
+
+        // trigger animation
+        requestAnimationFrame(() => {
+          menuOverlay.classList.add("open");
+          document.body.classList.add("menu-open");
+        });
+      }
+
+      function closeMenu() {
+        if (!menuOverlay) return;
+        menuOverlay.classList.remove("open");
+        document.body.classList.remove("menu-open");
+
+        // after animation, hide + disable pointer events
+        setTimeout(() => {
+          if (!menuOverlay.classList.contains("open")) {
+            menuOverlay.classList.add("hidden");
+            menuOverlay.style.pointerEvents = "none";
+          }
+        }, 500); // match duration-500 in CSS
+      }
+
+      menuOpenBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openMenu();
+      });
+
+      menuCloseBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeMenu();
+      });
+
+      // Clicking links changes screen + closes menu
+      menuLinks.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.getAttribute("data-menu-screen");
+          if (target) {
+            showScreen(target);
+          }
+          closeMenu();
+        });
+      });
+
 
       function scrollChatToBottom() {
   // Only scroll when the chat screen is actually visible
