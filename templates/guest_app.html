@@ -857,86 +857,6 @@ nav .nav-icon {
 </nav>-->
 
 
-<!-- Fullscreen circular menu -->
-<div
-  id="fullscreen-menu"
-  class="fixed inset-0 z-45 hidden"
-  aria-hidden="true"
->
-  <!-- Expanding circle -->
-  <div class="absolute inset-0 overflow-hidden pointer-events-none">
-    <div
-      class="menu-circle bg-emerald-900 rounded-full w-20 h-20 absolute top-4 right-4 transition-transform duration-500 ease-out"
-    ></div>
-  </div>
-
-  <!-- Menu content -->
-  <div
-    class="menu-content absolute inset-0 flex flex-col justify-between text-slate-50 px-8 py-8"
-  >
-    <!-- Top row: brand + close -->
-    <div class="flex items-center justify-between">
-      <div class="text-lg font-semibold tracking-wide">
-        {{ property_name }}
-      </div>
-      <button
-        id="menu-close"
-        type="button"
-        class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
-        aria-label="Close menu"
-      >
-        <span class="text-xl leading-none">×</span>
-      </button>
-    </div>
-
-    <!-- Center links -->
-    <nav class="mt-16 space-y-3">
-      <button
-        type="button"
-        class="menu-link-main block text-left font-semibold"
-        data-menu-screen="home"
-      >
-        Home
-      </button>
-      <button
-        type="button"
-        class="menu-link block text-left text-slate-200"
-        data-menu-screen="chat"
-      >
-        Chat
-      </button>
-      <button
-        type="button"
-        class="menu-link block text-left text-slate-200"
-        data-menu-screen="experiences"
-      >
-        Guides
-      </button>
-      <!-- You can add more “virtual” screens later if you’d like -->
-      <!--
-      <button type="button" class="menu-link block text-left text-slate-200">
-        About this stay
-      </button>
-      -->
-    </nav>
-
-    <!-- Bottom actions -->
-    <div class="flex items-center justify-start gap-4 text-sm">
-      <button
-        type="button"
-        class="border border-slate-300/40 rounded-full px-4 py-2"
-      >
-        Call host
-      </button>
-      <button
-        type="button"
-        class="border border-slate-300/40 rounded-full px-4 py-2"
-      >
-        Email host
-      </button>
-    </div>
-  </div>
-</div>
 
 
 
@@ -1025,6 +945,88 @@ nav .nav-icon {
       </div>
     </div>
   </div>
+
+
+  <!-- Fullscreen circular menu -->
+<div
+  id="fullscreen-menu"
+  class="fixed inset-0 z-[9999] hidden"
+  aria-hidden="true"
+>
+  <!-- Expanding circle -->
+  <div class="absolute inset-0 overflow-hidden pointer-events-none">
+    <div
+      class="menu-circle bg-emerald-900 rounded-full w-20 h-20 absolute top-4 right-4 transition-transform duration-500 ease-out"
+    ></div>
+  </div>
+
+  <!-- Menu content -->
+  <div
+    class="menu-content absolute inset-0 flex flex-col justify-between text-slate-50 px-8 py-8"
+  >
+    <!-- Top row: brand + close -->
+    <div class="flex items-center justify-between">
+      <div class="text-lg font-semibold tracking-wide">
+        {{ property_name }}
+      </div>
+      <button
+        id="menu-close"
+        type="button"
+        class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+        aria-label="Close menu"
+      >
+        <span class="text-xl leading-none">×</span>
+      </button>
+    </div>
+
+    <!-- Center links -->
+    <nav class="mt-16 space-y-3">
+      <button
+        type="button"
+        class="menu-link-main block text-left font-semibold"
+        data-menu-screen="home"
+      >
+        Home
+      </button>
+      <button
+        type="button"
+        class="menu-link block text-left text-slate-200"
+        data-menu-screen="chat"
+      >
+        Chat
+      </button>
+      <button
+        type="button"
+        class="menu-link block text-left text-slate-200"
+        data-menu-screen="experiences"
+      >
+        Guides
+      </button>
+      <!-- You can add more “virtual” screens later if you’d like -->
+      <!--
+      <button type="button" class="menu-link block text-left text-slate-200">
+        About this stay
+      </button>
+      -->
+    </nav>
+
+    <!-- Bottom actions -->
+    <div class="flex items-center justify-start gap-4 text-sm">
+      <button
+        type="button"
+        class="border border-slate-300/40 rounded-full px-4 py-2"
+      >
+        Call host
+      </button>
+      <button
+        type="button"
+        class="border border-slate-300/40 rounded-full px-4 py-2"
+      >
+        Email host
+      </button>
+    </div>
+  </div>
+</div>
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {
