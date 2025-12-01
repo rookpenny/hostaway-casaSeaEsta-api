@@ -558,53 +558,50 @@
           </div>
         </section>
 
-        <!-- CHAT -->
-        <section
-          id="screen-chat"
-          class="hidden flex flex-col flex-1 bg-white"
-          aria-label="Chat"
+       <!-- CHAT -->
+<section
+  id="screen-chat"
+  class="hidden bg-white"
+  aria-label="Chat"
+>
+  <div
+    id="chat-box"
+    class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
+  ></div>
+
+  <div class="chat-input-bar">
+    <div class="chat-input-inner">
+      <button type="button" class="chat-plus" aria-label="Insert a suggested question">+</button>
+      <input
+        id="chat-input"
+        type="text"
+        placeholder="Type a message here..."
+        aria-label="Chat message"
+      />
+      <button
+        id="chat-send"
+        type="button"
+        class="send-button"
+        aria-label="Send message"
+      >
+        <svg
+          class="w-4 h-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          aria-hidden="true"
         >
-          <div
-  id="chat-box"
-  class="flex-1 overflow-y-auto px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
-></div>
-
-
-
-            <div class="chat-input-bar">
-              <div class="chat-input-inner">
-                <button type="button" class="chat-plus" aria-label="Insert a suggested question">+</button>
-                <input
-                  id="chat-input"
-                  type="text"
-                  placeholder="Type a message here..."
-                  aria-label="Chat message"
-                />
-                <button
-                  id="chat-send"
-                  type="button"
-                  class="send-button"
-                  aria-label="Send message"
-                >
-                  <svg
-                    class="w-4 h-4"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    aria-hidden="true"
-                  >
-                    <path
-                      stroke-linecap="round"
-                      stroke-linejoin="round"
-                      stroke-width="1.6"
-                      d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
-                    />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          </div>
-        </section>
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.6"
+            d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
+          />
+        </svg>
+      </button>
+    </div>
+  </div>
+</section>
 
        <!-- GUIDES -->
 <section
