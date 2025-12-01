@@ -27,6 +27,15 @@
       box-sizing: border-box;
     }
 
+    /* header labels (Arrival, Check-in, WiFi Network, etc.) */
+    .detail-label {
+      font-size: 0.65rem !important;
+      font-weight: 600 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgb(148 163 184); /* slate-400 */
+    }
+
     /* Sandy avatar photo */
     .avatar-sandy {
       background-image: url("/static/img/sandy.png");
@@ -548,7 +557,8 @@
                 <!-- Check-in / Check-out -->
                 <div class="flex items-start justify-between gap-4">
                   <div>
-                    <p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-in</p>
+                    <!--p class="text-[0.65rem] font-semibold uppercase tracking-wide text-slate-400">Check-in</p-->
+                    <p class="detail-label">Check-in</p>
                     <p class="font-medium">
                       {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
                     </p>
