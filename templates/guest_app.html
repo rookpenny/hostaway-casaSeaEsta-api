@@ -28,18 +28,44 @@
     }
 
 
-/* Remove button backgrounds + reset */
+/* NAV CONTAINER — fixed height 120px */
+nav[role="navigation"] {
+  height: 120px !important;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #0f172a; /* slate-950-ish */
+  border-top: 1px solid #1e293b; /* subtle border */
+  gap: 60px; /* spacing between icons */
+}
+
+/* BUTTON RESET — remove all backgrounds, borders */
 nav .nav-item {
-  background: none;
-  border: none;
+  background: none !important;
+  border: none !important;
   padding: 0;
-  margin: 0 15px; /* total spacing = 60px between icons */
+  margin: 0;
+  box-shadow: none !important;
+  outline: none !important;
+
+  width: 60px;   /* fixed clickable area */
+  height: 60px;  /* fixed clickable area */
   display: flex;
   align-items: center;
   justify-content: center;
+
+  transition: opacity 0.2s ease;
 }
 
-/* Increase PNG size to 60px */
+/* REMOVE any unwanted Tailwind classes JS might apply */
+nav .nav-icon {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  transform: none !important; /* stops scale-110 */
+}
+
+/* ICON IMAGE — fixed size, never changes */
 .nav-icon-img {
   width: 60px;
   height: 60px;
@@ -48,25 +74,15 @@ nav .nav-item {
   pointer-events: none;
 }
 
-/* Center the whole group */
-nav[role="navigation"] {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 30px; /* spacing between them */
-  height: 100px; /* taller nav bar for bigger icons */
-}
-
-/* Remove text since you removed labels */
+/* Remove text labels entirely */
 nav .nav-item span {
   display: none !important;
 }
 
-/* Optional: dim inactive icons (if your JS toggles classes) */
+/* OPTIONAL — dim inactive icons (if JS toggles text-slate-400/50) */
 .nav-item.text-slate-400 .nav-icon-img {
   opacity: 0.6;
 }
-
 .nav-item.text-slate-50 .nav-icon-img {
   opacity: 1;
 }
@@ -769,22 +785,26 @@ nav .nav-item span {
 
   <!-- Bottom nav -->
 <nav
-  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-24 flex items-center justify-center backdrop-blur"
+  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-24
+         flex items-center justify-center backdrop-blur gap-16"
   role="navigation"
-  aria-label="Guest app navigation"
 >
+  <!-- HOME -->
   <button data-screen="home" class="nav-item">
     <img src="/static/img/nav-01.png" class="nav-icon-img" alt="">
   </button>
 
+  <!-- CHAT -->
   <button data-screen="chat" class="nav-item">
     <img src="/static/img/nav-02.png" class="nav-icon-img" alt="">
   </button>
 
+  <!-- GUIDES -->
   <button data-screen="experiences" class="nav-item">
     <img src="/static/img/nav-03.png" class="nav-icon-img" alt="">
   </button>
 </nav>
+
 
 
 
