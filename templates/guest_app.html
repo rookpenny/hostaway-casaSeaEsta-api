@@ -28,33 +28,29 @@
     }
 
 
-/* NAV CONTAINER — fixed height 120px */
+/* Base nav layout */
 nav[role="navigation"] {
   height: 120px !important;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #0f172a; /* slate-950-ish */
-  border-top: 1px solid #1e293b; /* subtle border */
-  gap: 60px; /* spacing between icons */
+  gap: 60px; /* fixed spacing */
 }
 
-/* BUTTON RESET — remove all backgrounds, borders */
+/* Nav button reset */
 nav .nav-item {
   background: none !important;
   border: none !important;
   padding: 0;
   margin: 0;
-  box-shadow: none !important;
-  outline: none !important;
-
-  width: 60px;   /* fixed clickable area */
-  height: 60px;  /* fixed clickable area */
+  width: 60px;
+  height: 60px;
   display: flex;
   align-items: center;
   justify-content: center;
-
-  transition: opacity 0.2s ease;
+  box-shadow: none !important;
+  transform: none !important;
+  cursor: pointer;
 }
 
 /* REMOVE any unwanted Tailwind classes JS might apply */
@@ -65,19 +61,15 @@ nav .nav-icon {
   transform: none !important; /* stops scale-110 */
 }
 
-/* ICON IMAGE — fixed size, never changes */
+/* Icon images - default dim */
 .nav-icon-img {
   width: 60px;
   height: 60px;
   object-fit: contain;
-  display: block;
-  pointer-events: none;
+  opacity: 0.65;
+  transition: opacity 0.25s ease;
 }
 
-/* Remove text labels entirely */
-nav .nav-item span {
-  display: none !important;
-}
 
 /* OPTIONAL — dim inactive icons (if JS toggles text-slate-400/50) */
 .nav-item.text-slate-400 .nav-icon-img {
@@ -87,6 +79,10 @@ nav .nav-item span {
   opacity: 1;
 }
 
+    /* Hover removes opacity ONLY */
+nav .nav-item:hover .nav-icon-img {
+  opacity: 1;
+}
     
 
     /* header labels (Arrival, Check-in, WiFi Network, etc.) */
