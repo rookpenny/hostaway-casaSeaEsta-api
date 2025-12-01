@@ -831,7 +831,27 @@
       const screens = {
         home: document.getElementById("screen-home"),
         chat: document.getElementById("screen-chat"),
-        experiences: document.getElementById("screen-experiences"),
+        experiences: document.getElementById("screen-experiences")
+
+        function isChatVisible() {
+  const chatScreen = screens.chat;
+  return chatScreen && !chatScreen.classList.contains("hidden");
+}
+
+function scrollChatToBottom() {
+  if (!isChatVisible()) return;
+
+  requestAnimationFrame(() => {
+    const docEl = document.documentElement;
+    const body = document.body;
+    const fullHeight = Math.max(docEl.scrollHeight, body.scrollHeight);
+
+    window.scrollTo({
+      top: fullHeight,
+      behavior: "auto", // change to "smooth" if you want
+    });
+  });
+}
       };
 
       const navButtons = document.querySelectorAll("nav .nav-item");
@@ -931,28 +951,28 @@
           else el.classList.add("hidden");
         });
         // Header hide/show
-        if (name === "chat") {
-          headerEl?.classList.add("hidden");
+       if (name === "chat") {
+  headerEl?.classList.add("hidden");
 
-          if (
-            window.SANDY_LIVE === "true" &&
-            chatBox &&
-            !chatHasWelcome &&
-            chatBox.children.length === 0
-          ) {
-            const intro = guestName
-              ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-              : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+  if (
+    window.SANDY_LIVE === "true" &&
+    chatBox &&
+    !chatHasWelcome &&
+    chatBox.children.length === 0
+  ) {
+    const intro = guestName
+      ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+      : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
 
-            renderMessage(intro, "bot");
-            chatHasWelcome = true;
-          }
-           // 👇 new
-           scrollChatToBottom();
+    renderMessage(intro, "bot");
+    chatHasWelcome = true;
+  }
 
-        } else {
-          headerEl?.classList.remove("hidden");
-        }
+  scrollChatToBottom(); // 👈 here
+} else {
+  headerEl?.classList.remove("hidden");
+}
+
 
         // Highlight active nav tab + aria attributes
         navButtons.forEach((btn) => {
