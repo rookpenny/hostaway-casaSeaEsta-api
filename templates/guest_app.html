@@ -28,72 +28,48 @@
     }
 
 
-    /* main navigation */
- .nav-icon {
-  width: 2.5rem;   /* 40px */
-  height: 2.5rem;
-  border-radius: 9999px;
+/* Remove button backgrounds + reset */
+nav .nav-item {
+  background: none;
+  border: none;
+  padding: 0;
+  margin: 0 30px; /* total spacing = 60px between icons */
   display: flex;
   align-items: center;
   justify-content: center;
-  background-color: transparent; /* IMPORTANT: prevents white circles */
-  transition: all 0.25s ease;
 }
 
+/* Increase PNG size to 60px */
 .nav-icon-img {
-  width: 22px;
-  height: 22px;
-  display: block;
+  width: 60px;
+  height: 60px;
   object-fit: contain;
-  pointer-events: none; /* avoids clicks interfering */
+  display: block;
+  pointer-events: none;
 }
 
-    /* Dim for inactive tabs */
+/* Center the whole group */
+nav[role="navigation"] {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 60px; /* spacing between them */
+  height: 100px; /* taller nav bar for bigger icons */
+}
+
+/* Remove text since you removed labels */
+nav .nav-item span {
+  display: none !important;
+}
+
+/* Optional: dim inactive icons (if your JS toggles classes) */
 .nav-item.text-slate-400 .nav-icon-img {
-  opacity: 0.7;
+  opacity: 0.6;
 }
 
-/* Full opacity for the active tab */
 .nav-item.text-slate-50 .nav-icon-img {
   opacity: 1;
 }
-
-    .icon-home {
-  background-color: #0ea5e9; /* cyan-500 */
-}
-
-.icon-chat {
-  background-color: #22c55e; /* emerald-500 */
-}
-
-.icon-guides {
-  background-color: #f59e0b; /* amber-500 */
-}
-    /* Icon sits inside your colored nav circle */
-.icon-compass-svg {
-  width: 22px;
-  height: 22px;
-}
-
-/* Outer ring (outline) */
-.icon-compass-svg .compass-ring {
-  stroke: rgba(0,0,0,0.55);
-  stroke-width: 2.2;
-  fill: none;
-}
-
-/* Needle (solid fill) */
-.icon-compass-svg .compass-needle {
-  fill: rgba(0,0,0,0.65); /* darker than outer ring */
-}
-
-/* Center circle (outline) */
-.icon-compass-svg .compass-center {
-  stroke: rgba(0,0,0,0.55);
-  stroke-width: 2.2;
-  fill: white; /* or transparent if you prefer */
-}
-
 
     
 
@@ -793,50 +769,23 @@
 
   <!-- Bottom nav -->
 <nav
-  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-16 flex items-center justify-around text-[11px] backdrop-blur"
+  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-24 flex items-center justify-center backdrop-blur"
   role="navigation"
   aria-label="Guest app navigation"
 >
-  <!-- HOME -->
-  <button
-    data-screen="home"
-    class="nav-item flex flex-col items-center gap-0.5 text-slate-50"
-    type="button"
-    aria-current="page"
-    aria-label="Home"
-  >
-    <span class="nav-icon">
-      <img src="/static/img/nav-01.png" alt="" class="nav-icon-img" />
-    </span>
-    <span>Home</span>
+  <button data-screen="home" class="nav-item" aria-label="Home">
+    <img src="/static/img/nav-01.png" class="nav-icon-img" alt="">
   </button>
 
-  <!-- CHAT -->
-  <button
-    data-screen="chat"
-    class="nav-item flex flex-col items-center gap-0.5 text-slate-400"
-    type="button"
-    aria-label="Chat"
-  >
-    <span class="nav-icon">
-      <img src="/static/img/nav-02.png" alt="" class="nav-icon-img" />
-    </span>
-    <span>Chat</span>
+  <button data-screen="chat" class="nav-item" aria-label="Chat">
+    <img src="/static/img/nav-02.png" class="nav-icon-img" alt="">
   </button>
 
-  <!-- GUIDES -->
-  <button
-    data-screen="experiences"
-    class="nav-item flex flex-col items-center gap-0.5 text-slate-400"
-    type="button"
-    aria-label="Guides"
-  >
-    <span class="nav-icon">
-      <img src="/static/img/nav-03.png" alt="" class="nav-icon-img" />
-    </span>
-    <span>Guides</span>
+  <button data-screen="experiences" class="nav-item" aria-label="Guides">
+    <img src="/static/img/nav-03.png" class="nav-icon-img" alt="">
   </button>
 </nav>
+
 
 
 
