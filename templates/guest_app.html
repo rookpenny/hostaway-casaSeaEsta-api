@@ -84,6 +84,8 @@
       justify-content: flex-start;
     }
 
+    
+
       .bubble {
         display: inline-block;        /* hug contents */
         padding: 0.6rem 1rem;
@@ -168,6 +170,35 @@
     .message-text em {
       font-style: italic;
     }
+
+    .typing-dots {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+    
+    .typing-dots span {
+      width: 7px;
+      height: 7px;
+      background: #022c22; /* dark emerald */
+      border-radius: 50%;
+      display: inline-block;
+      animation: bounce 0.6s infinite alternate;
+    }
+    
+    .typing-dots span:nth-child(2) {
+      animation-delay: 0.15s;
+    }
+    
+    .typing-dots span:nth-child(3) {
+      animation-delay: 0.3s;
+    }
+    
+    @keyframes bounce {
+      from { transform: translateY(0); opacity: 0.4; }
+      to   { transform: translateY(-6px); opacity: 1; }
+    }
+
 
     .dots-anim {
       display: inline-block;
@@ -1299,7 +1330,7 @@ function isChatVisible() {
         const bubble = document.createElement("div");
         bubble.className = "bubble";
         bubble.innerHTML = `
-          <span class="dots-anim">
+          <span class="typing-dots">
             <span>.</span><span>.</span><span>.</span>
           </span>
         `;
