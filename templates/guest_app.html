@@ -30,18 +30,21 @@
 
 
 
-    /* The expanding circle */
+  /* Fullscreen menu */
+#fullscreen-menu {
+  pointer-events: none; /* we enable it when open via JS */
+}
+
+/* The expanding circle: from hamburger (top-right) */
 .menu-circle {
- /* transform: scale(0);
-  transform-origin: top right;*/
- transform: scale(0);
   transform-origin: top right;
+  transform: scale(0);
 }
 
 /* When menu is open, scale the circle to cover the viewport */
 #fullscreen-menu.open .menu-circle {
-  /*transform: scale(40);  big enough to cover large screens */
-  transform: scale(1);
+  /* Big enough for tall phones too */
+  transform: scale(80);
 }
 
 /* Fade in the menu content after circle starts expanding */
@@ -54,12 +57,12 @@
   opacity: 1;
 }
 
-/* Prevent background scrolling when menu is open */
+    /* Prevent background scrolling when menu is open */
 body.menu-open {
   overflow: hidden;
 }
 
-/* Fullscreen menu typography */
+/* Typography */
 .menu-link {
   font-size: 1.75rem;
   line-height: 1.2;
@@ -69,7 +72,6 @@ body.menu-open {
   font-size: 2rem;
 }
 
-/* Slight hover treatment */
 .menu-link,
 .menu-link-main {
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -80,6 +82,7 @@ body.menu-open {
   opacity: 0.9;
   transform: translateX(4px);
 }
+    
 
 /* Keep Tailwind layout; only tweak visuals
 nav[role="navigation"] {
@@ -481,16 +484,16 @@ nav .nav-icon {
       <header id="app-header" class="relative w-full h-0">
         <div id="language-bar" class="absolute top-4 right-4">
           <div class="flex items-center gap-2">
-            <button
-      id="menu-open"
-      type="button"
-      class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
-      aria-label="Open menu"
-    >
-      <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
-      <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
-      <span class="block w-4 h-[2px] bg-slate-100"></span>
-    </button>
+           <button
+  id="menu-open"
+  type="button"
+  class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+  aria-label="Open menu"
+>
+  <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
+  <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
+  <span class="block w-4 h-[2px] bg-slate-100"></span>
+</button>
             <!-- logout icon 
             <button
               id="logout-button"
@@ -950,7 +953,7 @@ nav .nav-icon {
   </div>
 
 
-  <!-- Fullscreen circular menu -->
+<!-- Fullscreen circular menu -->
 <div
   id="fullscreen-menu"
   class="fixed inset-0 z-[9999] hidden bg-emerald-900"
@@ -958,78 +961,78 @@ nav .nav-icon {
 >
   <!-- Expanding circle -->
   <div class="absolute inset-0 overflow-hidden pointer-events-none">
-  <div
-    id="menu-circle"
-    class="menu-circle bg-emerald-900 rounded-full
-           w-[200vmax] h-[200vmax]
-           absolute
-           top-0 right-0
-           translate-x-1/2 -translate-y-1/2
-           transition-transform duration-500 ease-out"
-  ></div>
-</div>
-
+    <div
+      class="menu-circle bg-emerald-900 rounded-full w-20 h-20
+             absolute top-4 right-4
+             transition-transform duration-500 ease-out"
+    ></div>
+  </div>
 
   <!-- Menu content -->
   <div
-    class="menu-content absolute inset-0 flex flex-col justify-between text-slate-50 px-8 py-8"
->
-    <!-- Top row: brand + close 
-    <div class="flex items-center justify-between">-->
-      <!--div class="text-lg font-semibold tracking-wide">
-        #{{ property_name }}
-    </div-->
-     <button
-  id="menu-close"
-  type="button"
-  class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center
-         text-3xl font-light text-white
-         rounded-full hover:bg-white/10"
-  aria-label="Close menu"
->
-  ×
-</button>
-    <!-- Center links -->
-  <nav class="mt-16 space-y-3">
-    <button
-      type="button"
-      class="menu-link-main block text-left font-semibold"
-      data-menu-screen="home"
-    >
-      Home
-    </button>
-    <button
-      type="button"
-      class="menu-link block text-left text-slate-200"
-      data-menu-screen="chat"
-    >
-      Chat
-    </button>
-    <button
-      type="button"
-      class="menu-link block text-left text-slate-200"
-      data-menu-screen="experiences"
-    >
-      Guides
-    </button>
-  </nav>
+    class="menu-content absolute inset-0 flex flex-col justify-between
+           text-slate-50 px-8 py-8"
+  >
+    <!-- Brand -->
+    <div class="text-lg font-semibold tracking-wide">
+      {{ property_name }}
+    </div>
 
-  <!-- Bottom actions -->
-  <div class="flex items-center justify-start gap-4 text-sm mb-4">
+    <!-- Close button (same spot as hamburger, but bigger) -->
     <button
+      id="menu-close"
       type="button"
-      class="border border-slate-300/40 rounded-full px-4 py-2"
+      class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center
+             text-3xl font-light text-white
+             rounded-full hover:bg-white/10"
+      aria-label="Close menu"
     >
-      Call host
+      ×
     </button>
-    <button
-      type="button"
-      class="border border-slate-300/40 rounded-full px-4 py-2"
-    >
-      Email host
-    </button>
+
+    <!-- Center links -->
+    <nav class="mt-16 space-y-3">
+      <button
+        type="button"
+        class="menu-link-main block text-left font-semibold"
+        data-menu-screen="home"
+      >
+        Home
+      </button>
+      <button
+        type="button"
+        class="menu-link block text-left text-slate-200"
+        data-menu-screen="chat"
+      >
+        Chat
+      </button>
+      <button
+        type="button"
+        class="menu-link block text-left text-slate-200"
+        data-menu-screen="experiences"
+      >
+        Guides
+      </button>
+    </nav>
+
+    <!-- Bottom actions -->
+    <div class="flex items-center justify-start gap-4 text-sm mb-4">
+      <button
+        type="button"
+        class="border border-slate-300/40 rounded-full px-4 py-2"
+      >
+        Call host
+      </button>
+      <button
+        type="button"
+        class="border border-slate-300/40 rounded-full px-4 py-2"
+      >
+        Email host
+      </button>
+    </div>
   </div>
 </div>
+
 
   <script>
     document.addEventListener("DOMContentLoaded", function () {
@@ -1207,7 +1210,7 @@ function isChatVisible() {
   menuOverlay.classList.remove("hidden");
   menuOverlay.style.pointerEvents = "auto";
 
-  // hide hamburger (keeps layout, just invisible)
+  // hide hamburger (keeps the space so layout doesn't jump)
   if (menuOpenBtn) menuOpenBtn.classList.add("invisible");
 
   requestAnimationFrame(() => {
@@ -1216,7 +1219,7 @@ function isChatVisible() {
   });
 }
 
-  function closeMenu() {
+function closeMenu() {
   if (!menuOverlay) return;
   menuOverlay.classList.remove("open");
   document.body.classList.remove("menu-open");
@@ -1242,6 +1245,7 @@ menuCloseBtn?.addEventListener("click", (e) => {
   closeMenu();
 });
 
+// Menu items change screen + close
 menuLinks.forEach((btn) => {
   btn.addEventListener("click", () => {
     const target = btn.getAttribute("data-menu-screen");
