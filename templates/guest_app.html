@@ -29,22 +29,20 @@
 
 
 
-
-  /* Fullscreen menu */
+/* Fullscreen menu */
 #fullscreen-menu {
-  pointer-events: none; /* we enable it when open via JS */
+  pointer-events: none; /* only clickable when open */
 }
 
-/* The expanding circle: from hamburger (top-right) */
+/* The expanding circle */
 .menu-circle {
-  transform-origin: top right;
   transform: scale(0);
+  transform-origin: top right;
 }
 
 /* When menu is open, scale the circle to cover the viewport */
 #fullscreen-menu.open .menu-circle {
-  /* Big enough for tall phones too */
-  transform: scale(80);
+  transform: scale(40); /* big enough to cover large screens */
 }
 
 /* Fade in the menu content after circle starts expanding */
@@ -57,12 +55,12 @@
   opacity: 1;
 }
 
-    /* Prevent background scrolling when menu is open */
+/* Prevent background scrolling when menu is open */
 body.menu-open {
   overflow: hidden;
 }
 
-/* Typography */
+/* Fullscreen menu typography */
 .menu-link {
   font-size: 1.75rem;
   line-height: 1.2;
@@ -72,6 +70,7 @@ body.menu-open {
   font-size: 2rem;
 }
 
+/* Slight hover treatment */
 .menu-link,
 .menu-link-main {
   transition: opacity 0.2s ease, transform 0.2s ease;
@@ -82,6 +81,7 @@ body.menu-open {
   opacity: 0.9;
   transform: translateX(4px);
 }
+
     
 
 /* Keep Tailwind layout; only tweak visuals
@@ -483,17 +483,29 @@ nav .nav-icon {
       <!-- Top header -->
       <header id="app-header" class="relative w-full h-0">
         <div id="language-bar" class="absolute top-4 right-4">
-          <div class="flex items-center gap-2">
-           <button
-  id="menu-open"
-  type="button"
-  class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
-  aria-label="Open menu"
->
-  <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
-  <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
-  <span class="block w-4 h-[2px] bg-slate-100"></span>
-</button>
+  <div class="flex items-center gap-2">
+    <!-- Hamburger menu -->
+    <button
+      id="menu-open"
+      type="button"
+      class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+      aria-label="Open menu"
+    >
+      <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
+      <span class="block w-4 h-[2px] bg-slate-100 mb-[3px]"></span>
+      <span class="block w-4 h-[2px] bg-slate-100"></span>
+    </button>
+
+    <!-- logout icon -->
+    <button
+      id="logout-button"
+      type="button"
+      class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+      aria-label="Log out"
+    >
+      <svg ...>...</svg>
+    </button>
+
             <!-- logout icon 
             <button
               id="logout-button"
@@ -956,39 +968,34 @@ nav .nav-icon {
 <!-- Fullscreen circular menu -->
 <div
   id="fullscreen-menu"
-  class="fixed inset-0 z-[9999] hidden bg-emerald-900"
+  class="fixed inset-0 z-45 hidden"
   aria-hidden="true"
 >
   <!-- Expanding circle -->
   <div class="absolute inset-0 overflow-hidden pointer-events-none">
     <div
-      class="menu-circle bg-emerald-900 rounded-full w-20 h-20
-             absolute top-4 right-4
-             transition-transform duration-500 ease-out"
+      class="menu-circle bg-emerald-900 rounded-full w-20 h-20 absolute top-4 right-4 transition-transform duration-500 ease-out"
     ></div>
   </div>
 
   <!-- Menu content -->
   <div
-    class="menu-content absolute inset-0 flex flex-col justify-between
-           text-slate-50 px-8 py-8"
+    class="menu-content absolute inset-0 flex flex-col justify-between text-slate-50 px-8 py-8"
   >
-    <!-- Brand -->
-    <div class="text-lg font-semibold tracking-wide">
-      {{ property_name }}
+    <!-- Top row: brand + close -->
+    <div class="flex items-center justify-between">
+      <div class="text-lg font-semibold tracking-wide">
+        {{ property_name }}
+      </div>
+      <button
+        id="menu-close"
+        type="button"
+        class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+        aria-label="Close menu"
+      >
+        <span class="text-xl leading-none">×</span>
+      </button>
     </div>
-
-    <!-- Close button (same spot as hamburger, but bigger) -->
-    <button
-      id="menu-close"
-      type="button"
-      class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center
-             text-3xl font-light text-white
-             rounded-full hover:bg-white/10"
-      aria-label="Close menu"
-    >
-      ×
-    </button>
 
     <!-- Center links -->
     <nav class="mt-16 space-y-3">
@@ -1013,10 +1020,16 @@ nav .nav-icon {
       >
         Guides
       </button>
+      <!-- You can add more “virtual” screens later if you’d like -->
+      <!--
+      <button type="button" class="menu-link block text-left text-slate-200">
+        About this stay
+      </button>
+      -->
     </nav>
 
     <!-- Bottom actions -->
-    <div class="flex items-center justify-start gap-4 text-sm mb-4">
+    <div class="flex items-center justify-start gap-4 text-sm">
       <button
         type="button"
         class="border border-slate-300/40 rounded-full px-4 py-2"
@@ -1032,6 +1045,7 @@ nav .nav-icon {
     </div>
   </div>
 </div>
+
 
 
   <script>
@@ -1206,53 +1220,51 @@ function isChatVisible() {
       const menuLinks = document.querySelectorAll("[data-menu-screen]");
 
       function openMenu() {
-  if (!menuOverlay) return;
-  menuOverlay.classList.remove("hidden");
-  menuOverlay.style.pointerEvents = "auto";
+        if (!menuOverlay) return;
+        menuOverlay.classList.remove("hidden");
+        // allow clicks
+        menuOverlay.style.pointerEvents = "auto";
 
-  // hide hamburger (keeps the space so layout doesn't jump)
-  if (menuOpenBtn) menuOpenBtn.classList.add("invisible");
+        // trigger animation
+        requestAnimationFrame(() => {
+          menuOverlay.classList.add("open");
+          document.body.classList.add("menu-open");
+        });
+      }
+      function closeMenu() {
+        if (!menuOverlay) return;
+        menuOverlay.classList.remove("open");
+        document.body.classList.remove("menu-open");
 
-  requestAnimationFrame(() => {
-    menuOverlay.classList.add("open");
-    document.body.classList.add("menu-open");
-  });
-}
+        // after animation, hide + disable pointer events
+        setTimeout(() => {
+          if (!menuOverlay.classList.contains("open")) {
+            menuOverlay.classList.add("hidden");
+            menuOverlay.style.pointerEvents = "none";
+          }
+        }, 500); // match duration-500 in CSS
+      }
 
-function closeMenu() {
-  if (!menuOverlay) return;
-  menuOverlay.classList.remove("open");
-  document.body.classList.remove("menu-open");
+      menuOpenBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        openMenu();
+      });
 
-  // show hamburger again
-  if (menuOpenBtn) menuOpenBtn.classList.remove("invisible");
+      menuCloseBtn?.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeMenu();
+      });
 
-  setTimeout(() => {
-    if (!menuOverlay.classList.contains("open")) {
-      menuOverlay.classList.add("hidden");
-      menuOverlay.style.pointerEvents = "none";
-    }
-  }, 500); // match duration-500
-}
-
-menuOpenBtn?.addEventListener("click", (e) => {
-  e.preventDefault();
-  openMenu();
-});
-
-menuCloseBtn?.addEventListener("click", (e) => {
-  e.preventDefault();
-  closeMenu();
-});
-
-// Menu items change screen + close
-menuLinks.forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const target = btn.getAttribute("data-menu-screen");
-    if (target) showScreen(target);
-    closeMenu();
-  });
-});
+      // Clicking links changes screen + closes menu
+      menuLinks.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.getAttribute("data-menu-screen");
+          if (target) {
+            showScreen(target);
+          }
+          closeMenu();
+        });
+      });
 
       function scrollChatToBottom() {
   // Only scroll when the chat screen is actually visible
