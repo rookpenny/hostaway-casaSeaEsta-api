@@ -439,16 +439,16 @@ nav .nav-icon {
   z-index: 30;
 }
 
-    /* Top bar hidden (slides up) */
+    /* Top bar hidden (slides up)
 #top-bar.bar-hidden {
   transform: translateY(-100%);
 }
 
-/* Top bar visible (slides down) */
+
 #top-bar.bar-visible {
   transform: translateY(0);
 }
-
+ */
 
     .chat-input-inner {
       flex: 1;
@@ -1274,9 +1274,6 @@ function isChatVisible() {
         if (!mobileMenu) return;
         isMenuOpen = true;
 
-        topBar?.classList.add("bar-hidden");
-        topBar?.classList.remove("bar-visible");
-
         // Slide panel down from top
         mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
         mobileMenu.classList.add("translate-y-0");
@@ -1299,9 +1296,7 @@ function isChatVisible() {
         if (!mobileMenu) return;
         isMenuOpen = false;
 
-        topBar?.classList.add("bar-visible");
-        topBar?.classList.remove("bar-hidden");
-      
+
         // Slide panel back up
         mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
         mobileMenu.classList.remove("translate-y-0");
