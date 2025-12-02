@@ -1429,6 +1429,27 @@ function isChatVisible() {
           return;
         }
 
+        // 🧪 DEV OVERRIDE (MASTER CODE) — remove before going live
+          const DEV_MASTER_CODE = "0000";
+          if (code === DEV_MASTER_CODE) {
+            console.warn("DEV MASTER CODE USED — bypassing verification");
+          
+            isUnlocked = true;
+            lastUnlockCode = code;
+          
+            // Update UI
+            saveGuestState();
+            updateHomeState();
+            showScreen("home");
+          
+            // Clear input + errors
+            if (unlockCodeInput) unlockCodeInput.value = "";
+            if (unlockError) unlockError.textContent = "";
+          
+            return; // ⬅ IMPORTANT: stop here, skip API call
+          }
+
+
         if (unlockBtn) unlockBtn.disabled = true;
         unlockSpinner?.classList.remove("hidden");
 
