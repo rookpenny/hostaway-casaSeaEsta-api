@@ -1331,13 +1331,7 @@ function isChatVisible() {
           showScreen(target);
           closeMenu();
 
-          menuLinks.forEach((link) => {
-          link.addEventListener("click", () => {
-            const target = link.getAttribute("data-menu-screen");
-            if (target && typeof showScreen === "function") {
-              showScreen(target);
-            }
-            closeMenu();
+         
           });
         });
 
