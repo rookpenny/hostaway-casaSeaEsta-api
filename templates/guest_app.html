@@ -306,7 +306,7 @@ nav .nav-icon {
       }
     }
 
-    .chat-input-bar {
+ .chat-input-bar {
   padding: 0.8rem 1rem;
   display: flex;
   align-items: center;
@@ -316,9 +316,10 @@ nav .nav-icon {
   position: fixed;
   left: 0;
   right: 0;
-  bottom: 5rem; /* above nav */
+  bottom: 0rem; /* or 0 if you want it flush with the edge */
   z-index: 30;
 }
+
 
     .chat-input-inner {
       flex: 1;
@@ -425,43 +426,7 @@ nav .nav-icon {
     <div class="relative z-10 flex flex-col min-h-screen">
 
       <!-- Top header -->
-      <header id="app-header" class="relative w-full h-0">
-        <div id="language-bar" class="absolute top-4 right-4">
-          <div class="flex items-center gap-2">
-            <!-- logout icon -->
-            <button
-              id="logout-button"
-              type="button"
-              class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
-              aria-label="Log out"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
-                <path
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                  stroke-width="1.6"
-                  d="M12 9.75V4.5m0 5.25a4.5 4.5 0 104.5 4.5 4.5 4.5 0 00-4.5-4.5z"
-                />
-              </svg>
-            </button>
-
-            <!-- language select -->
-            <div class="bg-black/60 border border-slate-700 rounded-full px-2 py-0.5 text-[12px]">
-              <label for="language-select" class="sr-only">Language</label>
-              <select
-                id="language-select"
-                class="bg-transparent text-xs text-slate-100 focus:outline-none px-[4px] py-[3px]"
-              >
-                <option value="auto">Auto</option>
-                <option value="en">English</option>
-                <option value="es">Español</option>
-                <option value="fr">Français</option>
-                <option value="de">Deutsch</option>
-              </select>
-            </div>
-          </div>
-        </div>
-      </header>
+      <header id="app-header" class="relative w-full h-0"></header>
 
       <!-- Main content area that swaps screens  overflow-hidden-->
       <main id="screen-container" class="flex-1 flex flex-col" role="main">
@@ -772,32 +737,7 @@ nav .nav-icon {
     </div>
   </div>
 
-  <!-- Bottom nav -->
-<nav
-  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-24
-         flex items-center justify-center backdrop-blur gap-16"
-  role="navigation"
->
-  <!-- HOME -->
-  <button data-screen="home" class="nav-item">
-    <img src="/static/img/nav-01.png" class="nav-icon-img" alt="">
-  </button>
-
-  <!-- CHAT -->
-  <button data-screen="chat" class="nav-item">
-    <img src="/static/img/nav-02.png" class="nav-icon-img" alt="">
-  </button>
-
-  <!-- GUIDES -->
-  <button data-screen="experiences" class="nav-item">
-    <img src="/static/img/nav-03.png" class="nav-icon-img" alt="">
-  </button>
-</nav>
-
-
-
-
-
+  
   <!-- Check-in modal -->
   <div
     id="checkin-modal"
@@ -1018,33 +958,7 @@ function isChatVisible() {
 }
 
 
-        // Highlight active nav tab + aria attributes
-        navButtons.forEach((btn) => {
-          const target = btn.getAttribute("data-screen");
-          const icon = btn.querySelector(".nav-icon");
-          const isActive = target === name;
-
-          if (isActive) {
-            btn.classList.remove("text-slate-400");
-            btn.classList.add("text-slate-50");
-            btn.setAttribute("aria-current", "page");
-
-            if (icon) {
-              icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
-              icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
-            }
-          } else {
-            btn.classList.add("text-slate-400");
-            btn.classList.remove("text-slate-50");
-            btn.setAttribute("aria-current", "false");
-
-            if (icon) {
-              icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
-              icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
-            }
-          }
-        });
-      }
+       
 
       function scrollChatToBottom() {
   // Only scroll when the chat screen is actually visible
@@ -1069,7 +983,7 @@ function isChatVisible() {
 }
 
 
-      
+      /*
       // Nav buttons
       navButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1194,7 +1108,7 @@ function isChatVisible() {
           if (unlockBtn) unlockBtn.disabled = false;
           unlockSpinner?.classList.add("hidden");
         }
-      }
+      }*/
 
       // Check-in modal
       const checkinButton = document.getElementById("checkin-button");
