@@ -42,7 +42,7 @@
 
 /* When menu is open, scale the circle to cover the viewport */
 #fullscreen-menu.open .menu-circle {
-  transform: scale(40); /* big enough to cover large screens */
+  transform: scale(1);
 }
 
 /* Fade in the menu content after circle starts expanding */
@@ -1058,16 +1058,29 @@ nav .nav-icon {
   home: document.getElementById("screen-home"),
   chat: document.getElementById("screen-chat"),
   experiences: document.getElementById("screen-experiences"),
+        const circle = document.getElementById("menu-circle");
+const menuOpenBtn = document.getElementById("menu-open");
+
+function positionCircleToHamburger() {
+  const rect = menuOpenBtn.getBoundingClientRect();
+
+  // Position so the center of the circle aligns with the button
+  circle.style.top = `${rect.top - 100 * window.innerWidth}px`;
+  circle.style.left = `${rect.left - 100 * window.innerWidth}px`;
+}
+      
 };
+
+    menuOpenBtn.addEventListener("click", () => {
+  positionCircleToHamburger();
+  openMenu();
+});
 
 // helper: are we currently on the chat screen?
 function isChatVisible() {
   const chatScreen = screens.chat;
   return chatScreen && !chatScreen.classList.contains("hidden");
 }
-
-
-
 
       const navButtons = document.querySelectorAll("nav .nav-item");
       const homeLogin = document.getElementById("home-login");
