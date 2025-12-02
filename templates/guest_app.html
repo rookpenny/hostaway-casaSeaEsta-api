@@ -439,6 +439,20 @@ nav .nav-icon {
   z-index: 30;
 }
 
+    /* Content inside the sliding menu (starts hidden) */
+#mobile-menu .mobile-menu-content {
+  opacity: 0;
+  transform: translateY(16px); /* slightly below */
+  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+}
+
+/* When background is down and we want links visible */
+#mobile-menu.show-links .mobile-menu-content {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+
     /* Top bar hidden (slides up)
 #top-bar.bar-hidden {
   transform: translateY(-100%);
@@ -616,7 +630,7 @@ nav .nav-icon {
          transition-transform duration-400 ease-out"
   aria-label="Main navigation"
 >
-  <div class="pt-20 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full">
+  <div class="mobile-menu-content pt-20 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full">
     <!-- Small label -->
     <div class="text-[11px] font-semibold tracking-[0.2em] text-slate-400 uppercase mb-6">
       Menu
@@ -1260,50 +1274,69 @@ function isChatVisible() {
       const menuLinks = document.querySelectorAll("[data-menu-screen]");
       let isMenuOpen = false;
 
+      // match Tailwind duration-400 on the panel
+      const MOBILE_MENU_SLIDE_DURATION = 400;  // ms
+      const MOBILE_MENU_LINKS_FADE_DURATION = 250; // ms
+
+
         function openMenu() {
-        if (!mobileMenu) return;
-        isMenuOpen = true;
+          if (!mobileMenu) return;
+          isMenuOpen = true;
+        
+          // Slide panel down from top
+          mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
+          mobileMenu.classList.add("translate-y-0");
+        
+          // Change top bar to light theme
+          topBar?.classList.remove("bg-sky-600", "text-white");
+          topBar?.classList.add("bg-slate-50", "text-slate-900");
+        
+          // Swap logos
+          logoLight?.classList.add("hidden");
+          logoDark?.classList.remove("hidden");
+        
+          // Animate hamburger → X
+          menuToggle?.classList.add("menu-toggle-open");
+        
+          document.body.classList.add("menu-open");
+        
+          // 👉 AFTER panel has finished sliding, fade/slide in the links
+          setTimeout(() => {
+            if (isMenuOpen && mobileMenu) {
+              mobileMenu.classList.add("show-links");
+            }
+          }, MOBILE_MENU_SLIDE_DURATION);
+        }
+        
+        function closeMenu() {
+          if (!mobileMenu) return;
+          isMenuOpen = false;
+        
+          // 👉 First: fade/slide OUT the links
+          mobileMenu.classList.remove("show-links");
+        
+          // Change top bar back to blue/dark while content is fading
+          topBar?.classList.add("bg-transparent", "text-white");
+          topBar?.classList.remove("bg-slate-50", "text-slate-900");
+        
+          // Swap logos back
+          logoLight?.classList.remove("hidden");
+          logoDark?.classList.add("hidden");
+        
+          // Animate X → hamburger
+          menuToggle?.classList.remove("menu-toggle-open");
+        
+          document.body.classList.remove("menu-open");
+        
+          // AFTER links have faded out, slide the panel back up
+          setTimeout(() => {
+            if (!isMenuOpen && mobileMenu) {
+              mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
+              mobileMenu.classList.remove("translate-y-0");
+            }
+          }, MOBILE_MENU_LINKS_FADE_DURATION);
+        }
 
-        // Slide panel down from top
-        mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
-        mobileMenu.classList.add("translate-y-0");
-      
-        // Change top bar to light theme
-        topBar?.classList.remove("bg-sky-600", "text-white");
-        topBar?.classList.add("bg-slate-50", "text-slate-900");
-      
-        // Swap logos
-        logoLight?.classList.add("hidden");
-        logoDark?.classList.remove("hidden");
-      
-        // Animate hamburger → X
-        menuToggle?.classList.add("menu-toggle-open");
-      
-        document.body.classList.add("menu-open");
-      }
-      
-      function closeMenu() {
-        if (!mobileMenu) return;
-        isMenuOpen = false;
-
-
-        // Slide panel back up
-        mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
-        mobileMenu.classList.remove("translate-y-0");
-      
-        // Restore blue bar now bg-transparent
-        topBar?.classList.add("bg-transparent", "text-white");
-        topBar?.classList.remove("bg-slate-50", "text-slate-900");
-      
-        // Swap logos back
-        logoLight?.classList.remove("hidden");
-        logoDark?.classList.add("hidden");
-      
-        // Animate X → hamburger
-        menuToggle?.classList.remove("menu-toggle-open");
-      
-        document.body.classList.remove("menu-open");
-      }
       
       menuToggle?.addEventListener("click", () => {
         if (isMenuOpen) closeMenu();
