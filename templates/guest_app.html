@@ -32,13 +32,15 @@
 
     /* The expanding circle */
 .menu-circle {
+ /* transform: scale(0);
+  transform-origin: top right;*/
   transform: scale(0);
-  transform-origin: top right;
 }
 
 /* When menu is open, scale the circle to cover the viewport */
 #fullscreen-menu.open .menu-circle {
-  transform: scale(40); /* big enough to cover large screens */
+  /*transform: scale(40);  big enough to cover large screens */
+  transform: scale(1);
 }
 
 /* Fade in the menu content after circle starts expanding */
@@ -955,10 +957,14 @@ nav .nav-icon {
 >
   <!-- Expanding circle -->
   <div class="absolute inset-0 overflow-hidden pointer-events-none">
-    <div
-      class="menu-circle bg-emerald-900 rounded-full w-20 h-20 absolute top-4 right-4 transition-transform duration-500 ease-out"
-    ></div>
+  <div
+    class="menu-circle bg-emerald-900 rounded-full
+           w-[200vmax] h-[200vmax]
+           absolute top-[-100vmax] right-[-100vmax]
+           transition-transform duration-500 ease-out"
+  ></div>
   </div>
+
 
   <!-- Menu content -->
   <div
@@ -1202,8 +1208,10 @@ function isChatVisible() {
       function openMenu() {
         if (!menuOverlay) return;
         menuOverlay.classList.remove("hidden");
-        // allow clicks
         menuOverlay.style.pointerEvents = "auto";
+
+        // hide hamburger
+        if (menuOpenBtn) menuOpenBtn.classList.add("invisible");
 
         // trigger animation
         requestAnimationFrame(() => {
@@ -1212,41 +1220,39 @@ function isChatVisible() {
         });
       }
 
-      function closeMenu() {
-        if (!menuOverlay) return;
-        menuOverlay.classList.remove("open");
-        document.body.classList.remove("menu-open");
+     function closeMenu() {
+  if (!menuOverlay) return;
+  menuOverlay.classList.remove("open");
+  document.body.classList.remove("menu-open");
 
-        // after animation, hide + disable pointer events
-        setTimeout(() => {
-          if (!menuOverlay.classList.contains("open")) {
-            menuOverlay.classList.add("hidden");
-            menuOverlay.style.pointerEvents = "none";
-          }
-        }, 500); // match duration-500 in CSS
-      }
+  // show hamburger again
+  if (menuOpenBtn) menuOpenBtn.classList.remove("invisible");
 
-      menuOpenBtn?.addEventListener("click", (e) => {
-        e.preventDefault();
-        openMenu();
-      });
+  setTimeout(() => {
+    if (!menuOverlay.classList.contains("open")) {
+      menuOverlay.classList.add("hidden");
+      menuOverlay.style.pointerEvents = "none";
+    }
+  }, 500); // match duration-500
+}
 
-      menuCloseBtn?.addEventListener("click", (e) => {
-        e.preventDefault();
-        closeMenu();
-      });
+menuOpenBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  openMenu();
+});
 
-      // Clicking links changes screen + closes menu
-      menuLinks.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const target = btn.getAttribute("data-menu-screen");
-          if (target) {
-            showScreen(target);
-          }
-          closeMenu();
-        });
-      });
+menuCloseBtn?.addEventListener("click", (e) => {
+  e.preventDefault();
+  closeMenu();
+});
 
+menuLinks.forEach((btn) => {
+  btn.addEventListener("click", () => {
+    const target = btn.getAttribute("data-menu-screen");
+    if (target) showScreen(target);
+    closeMenu();
+  });
+});
 
       function scrollChatToBottom() {
   // Only scroll when the chat screen is actually visible
