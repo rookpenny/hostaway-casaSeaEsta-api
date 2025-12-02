@@ -34,13 +34,15 @@
 .menu-circle {
  /* transform: scale(0);
   transform-origin: top right;*/
-  transform: scale(0);
+ transform: translate(-50%, -50%) scale(0);
+  transform-origin: center center;
 }
 
 /* When menu is open, scale the circle to cover the viewport */
 #fullscreen-menu.open .menu-circle {
-  /*transform: scale(40);  big enough to cover large screens */
-  transform: scale(1);
+  /*transform: scale(40);  big enough to cover large screens 
+  transform: scale(1);*/
+  transform: translate(-50%, -50%) scale(1);
 }
 
 /* Fade in the menu content after circle starts expanding */
@@ -960,7 +962,8 @@ nav .nav-icon {
   <div
     class="menu-circle bg-emerald-900 rounded-full
            w-[200vmax] h-[200vmax]
-           absolute top-[-100vmax] right-[-100vmax]
+           absolute
+          top-1/2 left-1/2
            transition-transform duration-500 ease-out"
   ></div>
   </div>
@@ -969,68 +972,61 @@ nav .nav-icon {
   <!-- Menu content -->
   <div
     class="menu-content absolute inset-0 flex flex-col justify-between text-slate-50 px-8 py-8"
-  >
-    <!-- Top row: brand + close -->
-    <div class="flex items-center justify-between">
+>
+    <!-- Top row: brand + close 
+    <div class="flex items-center justify-between">-->
       <!--div class="text-lg font-semibold tracking-wide">
         #{{ property_name }}
     </div-->
       <button
-        id="menu-close"
-        type="button"
-        class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
-        aria-label="Close menu"
-      >
-        <span class="text-xl leading-none">×</span>
-      </button>
-    </div>
-
+    id="menu-close"
+    type="button"
+    class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center
+           rounded-full hover:bg-white/10 focus:outline-none focus:ring-2
+           focus:ring-white/40 text-3xl leading-none"
+    aria-label="Close menu"
+  >
+    ×
+  </button>
     <!-- Center links -->
-    <nav class="mt-16 space-y-3">
-      <button
-        type="button"
-        class="menu-link-main block text-left font-semibold"
-        data-menu-screen="home"
-      >
-        Home
-      </button>
-      <button
-        type="button"
-        class="menu-link block text-left text-slate-200"
-        data-menu-screen="chat"
-      >
-        Chat
-      </button>
-      <button
-        type="button"
-        class="menu-link block text-left text-slate-200"
-        data-menu-screen="experiences"
-      >
-        Guides
-      </button>
-      <!-- You can add more “virtual” screens later if you’d like -->
-      <!--
-      <button type="button" class="menu-link block text-left text-slate-200">
-        About this stay
-      </button>
-      -->
-    </nav>
+  <nav class="mt-16 space-y-3">
+    <button
+      type="button"
+      class="menu-link-main block text-left font-semibold"
+      data-menu-screen="home"
+    >
+      Home
+    </button>
+    <button
+      type="button"
+      class="menu-link block text-left text-slate-200"
+      data-menu-screen="chat"
+    >
+      Chat
+    </button>
+    <button
+      type="button"
+      class="menu-link block text-left text-slate-200"
+      data-menu-screen="experiences"
+    >
+      Guides
+    </button>
+  </nav>
 
-    <!-- Bottom actions -->
-    <div class="flex items-center justify-start gap-4 text-sm">
-      <button
-        type="button"
-        class="border border-slate-300/40 rounded-full px-4 py-2"
-      >
-        Call host
-      </button>
-      <button
-        type="button"
-        class="border border-slate-300/40 rounded-full px-4 py-2"
-      >
-        Email host
-      </button>
-    </div>
+  <!-- Bottom actions -->
+  <div class="flex items-center justify-start gap-4 text-sm mb-4">
+    <button
+      type="button"
+      class="border border-slate-300/40 rounded-full px-4 py-2"
+    >
+      Call host
+    </button>
+    <button
+      type="button"
+      class="border border-slate-300/40 rounded-full px-4 py-2"
+    >
+      Email host
+    </button>
   </div>
 </div>
 
