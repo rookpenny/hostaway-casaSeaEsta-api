@@ -34,6 +34,7 @@ body.menu-open {
     /* === HAMBURGER / X BUTTON === */
 
 /* === Hamburger / X toggle for #menu-toggle === */
+/* === Hamburger / X toggle for #menu-toggle === */
 #menu-toggle {
   position: relative;
 }
@@ -47,31 +48,31 @@ body.menu-open {
   width: 24px;
   height: 2px;
   border-radius: 999px;
-  background: #ffffff; /* closed state: white on blue bar */
+  background: #ffffff; /* closed: white bars on blue */
   transform: translateX(-50%);
   transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
 }
 
-/* Top line (hamburger closed) */
+/* Top bar (hamburger) */
 #menu-toggle::before {
   transform: translate(-50%, -6px);
 }
 
-/* Bottom line (hamburger closed) */
+/* Bottom bar (hamburger) */
 #menu-toggle::after {
   transform: translate(-50%, 6px);
 }
 
-/* Middle line */
+/* Middle bar */
 #menu-toggle .menu-toggle-middle {
   width: 24px;
   height: 2px;
   border-radius: 999px;
-  background: #ffffff; /* closed state: white */
+  background: #ffffff;
   transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
 }
 
-/* === OPEN STATE: turn into X + dark lines on light bar === */
+/* === OPEN STATE transforms hamburger into "X" === */
 #menu-toggle.menu-toggle-open::before {
   transform: translate(-50%, 0) rotate(45deg);
 }
@@ -85,11 +86,11 @@ body.menu-open {
   transform: scaleX(0.5);
 }
 
-/* When menu is open, use dark bars (to match light top bar) */
+/* On light bar (menu open), lines turn dark */
 #menu-toggle.menu-toggle-open::before,
 #menu-toggle.menu-toggle-open::after,
 #menu-toggle.menu-toggle-open .menu-toggle-middle {
-  background: #020617; /* near slate-950 */
+  background: #020617; /* slate-950 */
 }
 
 
