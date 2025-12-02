@@ -424,102 +424,44 @@ nav .nav-icon {
     <!-- Foreground content -->
     <div class="relative z-10 flex flex-col min-h-screen">
 
-     <!-- Top Nav Bar -->
-<header
-  id="site-header"
-  class="fixed top-0 inset-x-0 z-40 bg-sky-600 text-white transition-colors duration-300"
->
-  <div class="max-w-5xl mx-auto flex items-center justify-between h-16 px-4">
-    <!-- Logo -->
-    <a href="/" class="flex items-center gap-2">
-      <!-- Blue-bar logo (for dark background) -->
-      <img
-        id="logo-light"
-        src="/static/logo-light.svg"
-        alt="Brand logo"
-        class="h-8"
-      />
-      <!-- Light-bar logo (for light background) -->
-      <img
-        id="logo-dark"
-        src="/static/logo-dark.svg"
-        alt="Brand logo dark"
-        class="h-8 hidden"
-      />
-    </a>
+      <!-- Top header -->
+      <header id="app-header" class="relative w-full h-0">
+        <div id="language-bar" class="absolute top-4 right-4">
+          <div class="flex items-center gap-2">
+            <!-- logout icon -->
+            <button
+              id="logout-button"
+              type="button"
+              class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+              aria-label="Log out"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.6"
+                  d="M12 9.75V4.5m0 5.25a4.5 4.5 0 104.5 4.5 4.5 4.5 0 00-4.5-4.5z"
+                />
+              </svg>
+            </button>
 
-    <!-- (Optional) Center button like "Donate" -->
-    <button
-      class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold bg-white text-sky-900 rounded-sm shadow-sm"
-    >
-      Donate
-    </button>
-
-    <!-- Right side: hamburger / close -->
-    <button
-      id="menu-toggle"
-      type="button"
-      class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-600 focus:ring-white"
-      aria-label="Open navigation menu"
-    >
-      <!-- Hamburger icon -->
-      <div id="icon-hamburger" class="flex flex-col gap-[3px]">
-        <span class="block w-5 h-[2px] bg-current"></span>
-        <span class="block w-5 h-[2px] bg-current"></span>
-        <span class="block w-5 h-[2px] bg-current"></span>
-      </div>
-
-      <!-- Close (X) icon -->
-      <div id="icon-close" class="hidden text-2xl leading-none">
-        &times;
-      </div>
-    </button>
-  </div>
-</header>
-
-<!-- Spacer so content doesn't hide behind fixed header -->
-<div class="h-16"></div>
-
-
-     <!-- Sliding Menu Panel -->
-<nav
-  id="mobile-menu"
-  class="fixed top-16 inset-x-0 z-30 bg-slate-50 text-slate-900
-         transform -translate-y-full opacity-0 pointer-events-none
-         transition-all duration-300 ease-out"
-  aria-label="Main navigation"
->
-  <div class="max-w-5xl mx-auto px-4 py-8 flex flex-col gap-6">
-    <ul class="space-y-4 text-lg">
-      <li class="border-b border-slate-300 pb-2">
-        <a href="#center" class="block">The Center</a>
-      </li>
-      <li class="border-b border-slate-300 pb-2">
-        <a href="#programs" class="block">Programs</a>
-      </li>
-      <li class="border-b border-slate-300 pb-2">
-        <a href="#stories" class="block">Stories</a>
-      </li>
-      <li class="border-b border-slate-300 pb-2">
-        <a href="#about" class="block">About</a>
-      </li>
-      <li class="border-b border-slate-300 pb-2">
-        <a href="#support" class="block">Support us</a>
-      </li>
-    </ul>
-
-    <!-- Optional: bottom actions -->
-    <div class="mt-8 flex flex-wrap gap-3 text-sm">
-      <button class="px-4 py-2 border border-slate-400 rounded-full">
-        Call us
-      </button>
-      <button class="px-4 py-2 border border-slate-400 rounded-full">
-        Email us
-      </button>
-    </div>
-  </div>
-</nav>
- 
+            <!-- language select -->
+            <div class="bg-black/60 border border-slate-700 rounded-full px-2 py-0.5 text-[12px]">
+              <label for="language-select" class="sr-only">Language</label>
+              <select
+                id="language-select"
+                class="bg-transparent text-xs text-slate-100 focus:outline-none px-[4px] py-[3px]"
+              >
+                <option value="auto">Auto</option>
+                <option value="en">English</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </header>
 
       <!-- Main content area that swaps screens  overflow-hidden-->
       <main id="screen-container" class="flex-1 flex flex-col" role="main">
@@ -942,90 +884,14 @@ nav .nav-icon {
     </div>
   </div>
 
- <script>
-  document.addEventListener("DOMContentLoaded", () => {
-    const header = document.getElementById("site-header");
-    const menu = document.getElementById("mobile-menu");
-    const toggle = document.getElementById("menu-toggle");
-    const iconHamburger = document.getElementById("icon-hamburger");
-    const iconClose = document.getElementById("icon-close");
-    const logoLight = document.getElementById("logo-light");
-    const logoDark = document.getElementById("logo-dark");
-
-    let isOpen = false;
-
-    function openMenu() {
-      isOpen = true;
-
-      // Slide panel down
-      menu.classList.remove("-translate-y-full", "opacity-0", "pointer-events-none");
-      menu.classList.add("translate-y-0", "opacity-100");
-
-      // Change header to light theme
-      header.classList.remove("bg-sky-600", "text-white");
-      header.classList.add("bg-slate-50", "text-slate-900");
-
-      // Swap logos
-      logoLight.classList.add("hidden");
-      logoDark.classList.remove("hidden");
-
-      // Swap icons
-      iconHamburger.classList.add("hidden");
-      iconClose.classList.remove("hidden");
-
-      // Lock body scroll (optional)
-      document.body.classList.add("overflow-hidden");
-    }
-
-    function closeMenu() {
-      isOpen = false;
-
-      // Slide panel up
-      menu.classList.add("-translate-y-full", "opacity-0", "pointer-events-none");
-      menu.classList.remove("translate-y-0", "opacity-100");
-
-      // Restore blue header
-      header.classList.add("bg-sky-600", "text-white");
-      header.classList.remove("bg-slate-50", "text-slate-900");
-
-      // Swap logos back
-      logoLight.classList.remove("hidden");
-      logoDark.classList.add("hidden");
-
-      // Swap icons back
-      iconHamburger.classList.remove("hidden");
-      iconClose.classList.add("hidden");
-
-      document.body.classList.remove("overflow-hidden");
-    }
-
-    toggle.addEventListener("click", () => {
-      if (isOpen) {
-        closeMenu();
-      } else {
-        openMenu();
-      }
-    });
-
-    // Optional: close menu when clicking a link
-    menu.querySelectorAll("a").forEach((link) => {
-      link.addEventListener("click", () => {
-        if (isOpen) closeMenu();
-      });
-    });
-  });
-   
-    
-    
-    
-    
-    // document.addEventListener("DOMContentLoaded", function () {
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
       // --- Screens + core elements ---
-    //  const screens = {
- // home: document.getElementById("screen-home"),
- // chat: document.getElementById("screen-chat"),
- // experiences: document.getElementById("screen-experiences"),
-//};
+      const screens = {
+  home: document.getElementById("screen-home"),
+  chat: document.getElementById("screen-chat"),
+  experiences: document.getElementById("screen-experiences"),
+};
 
 // helper: are we currently on the chat screen?
 function isChatVisible() {
