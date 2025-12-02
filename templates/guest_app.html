@@ -32,6 +32,69 @@ body.menu-open {
 }
 
     /* === HAMBURGER / X BUTTON === */
+
+/* === Hamburger / X toggle for #menu-toggle === */
+#menu-toggle {
+  position: relative;
+}
+
+/* Top + bottom bars */
+#menu-toggle::before,
+#menu-toggle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 24px;
+  height: 2px;
+  border-radius: 999px;
+  background: #ffffff; /* closed state: white on blue bar */
+  transform: translateX(-50%);
+  transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
+}
+
+/* Top line (hamburger closed) */
+#menu-toggle::before {
+  transform: translate(-50%, -6px);
+}
+
+/* Bottom line (hamburger closed) */
+#menu-toggle::after {
+  transform: translate(-50%, 6px);
+}
+
+/* Middle line */
+#menu-toggle .menu-toggle-middle {
+  width: 24px;
+  height: 2px;
+  border-radius: 999px;
+  background: #ffffff; /* closed state: white */
+  transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
+}
+
+/* === OPEN STATE: turn into X + dark lines on light bar === */
+#menu-toggle.menu-toggle-open::before {
+  transform: translate(-50%, 0) rotate(45deg);
+}
+
+#menu-toggle.menu-toggle-open::after {
+  transform: translate(-50%, 0) rotate(-45deg);
+}
+
+#menu-toggle.menu-toggle-open .menu-toggle-middle {
+  opacity: 0;
+  transform: scaleX(0.5);
+}
+
+/* When menu is open, use dark bars (to match light top bar) */
+#menu-toggle.menu-toggle-open::before,
+#menu-toggle.menu-toggle-open::after,
+#menu-toggle.menu-toggle-open .menu-toggle-middle {
+  background: #020617; /* near slate-950 */
+}
+
+
+
+    
 .menu-toggle {
   position: relative;
 }
@@ -518,10 +581,12 @@ nav .nav-icon {
               id="menu-toggle"
               type="button"
               class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-600 focus:ring-white"
-              aria-label="Open navigation menu"
+              aria-label="Toggle navigation menu"
             >
+              <!-- middle bar -->
               <span class="menu-toggle-middle"></span>
             </button>
+
           </div>
         </div>
 
@@ -1196,7 +1261,7 @@ function isChatVisible() {
         logoLight?.classList.add("hidden");
         logoDark?.classList.remove("hidden");
 
-        // 🔥 Animate hamburger → X
+        // 🔥 NEW: animate hamburger → X
         menuToggle?.classList.add("menu-toggle-open");
 
         document.body.classList.add("menu-open");
@@ -1218,7 +1283,7 @@ function isChatVisible() {
         logoLight?.classList.remove("hidden");
         logoDark?.classList.add("hidden");
 
-        // 🔥 Animate X → hamburger
+        // 🔥 NEW: animate X → hamburger
         menuToggle?.classList.remove("menu-toggle-open");
 
         document.body.classList.remove("menu-open");
