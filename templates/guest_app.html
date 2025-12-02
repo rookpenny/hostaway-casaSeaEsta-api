@@ -1144,9 +1144,12 @@ nav .nav-icon {
 
       // --- Global state ---
       let isUnlocked = window.INITIAL_VERIFIED === "true";
+      
+      // TEMP: force unlocked during UI testing //REMOVE when live
+      isUnlocked = true;
+      
       let lastUnlockCode = null;
       let currentSessionId = null;
-
       let guestName = null;
       let arrivalDate = null;
       let departureDate = null;
@@ -1227,30 +1230,30 @@ nav .nav-icon {
           if (key === name) el.classList.remove("hidden");
           else el.classList.add("hidden");
         });
-        // Header hide/show
-       // Keep header visible on all screens
-          if (name === "chat") {
-            if (
-              window.SANDY_LIVE === "true" &&
-              chatBox &&
-              !chatHasWelcome &&
-              chatBox.children.length === 0
-            ) {
-              const intro = guestName
-                ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-                : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
-          
-              renderMessage(intro, "bot");
-              chatHasWelcome = true;
-            }
-          
-            scrollChatToBottom();
+      
+        // keep header visible; only add welcome/scroll on chat
+        if (name === "chat") {
+          if (
+            window.SANDY_LIVE === "true" &&
+            chatBox &&
+            !chatHasWelcome &&
+            chatBox.children.length === 0
+          ) {
+            const intro = guestName
+              ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+              : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+      
+            renderMessage(intro, "bot");
+            chatHasWelcome = true;
           }
-          
-          // always show header
-          headerEl?.classList.remove("hidden");
+      
+          scrollChatToBottom();
+        }
+      
+        // always show header
+        headerEl?.classList.remove("hidden");
+      }
 
-}
 
 
         // Highlight active nav tab + aria attributes
