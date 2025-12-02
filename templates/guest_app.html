@@ -1310,35 +1310,18 @@ function isChatVisible() {
         else openMenu();
       });
 
-      
-      // Clicking a menu item switches screen + closes menu
+       // Clicking links changes screen + closes menu
       menuLinks.forEach((btn) => {
         btn.addEventListener("click", () => {
           const target = btn.getAttribute("data-menu-screen");
-          if (!target) return;
-
-          if (!isUnlocked && target !== "home") {
-            const err = document.getElementById("unlock-error");
-            if (err) {
-              err.textContent =
-                "Please unlock your stay first with the last 4 digits of your booking phone number.";
-            }
-            showScreen("home");
-            closeMenu();
-            return;
+          if (target) {
+            showScreen(target);
           }
-
-          showScreen(target);
           closeMenu();
-
-         
-          });
         });
+      });
 
-      // 🔼🔼🔼 END NEW NAV CODE 🔼🔼🔼
 
-});
-      
       function scrollChatToBottom() {
   // Only scroll when the chat screen is actually visible
   if (!isChatVisible()) return;
@@ -1360,6 +1343,7 @@ function isChatVisible() {
     });
   });
 }
+
 
 
       
