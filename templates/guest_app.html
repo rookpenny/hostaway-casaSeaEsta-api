@@ -31,6 +31,58 @@ body.menu-open {
   overflow: hidden;
 }
 
+    /* === HAMBURGER / X BUTTON === */
+.menu-toggle {
+  position: relative;
+}
+
+/* Top + bottom bars */
+.menu-toggle::before,
+.menu-toggle::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  width: 24px;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
+
+/* Top bar (default) */
+.menu-toggle::before {
+  transform: translate(-50%, -6px);
+}
+
+/* Bottom bar (default) */
+.menu-toggle::after {
+  transform: translate(-50%, 6px);
+}
+
+/* Middle bar */
+.menu-toggle-middle {
+  width: 24px;
+  height: 2px;
+  background: #ffffff;
+  border-radius: 999px;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+/* === OPEN STATE === */
+.menu-toggle.menu-toggle-open::before {
+  transform: translate(-50%, 0) rotate(45deg);
+}
+
+.menu-toggle.menu-toggle-open::after {
+  transform: translate(-50%, 0) rotate(-45deg);
+}
+
+.menu-toggle.menu-toggle-open .menu-toggle-middle {
+  opacity: 0;
+  transform: scaleX(0.5);
+}
+
 /* Keep Tailwind layout; only tweak visuals
 nav[role="navigation"] {
   height: 120px !important; 
@@ -468,17 +520,7 @@ nav .nav-icon {
               class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-600 focus:ring-white"
               aria-label="Open navigation menu"
             >
-              <!-- Hamburger icon -->
-              <div id="icon-hamburger" class="flex flex-col gap-[3px]">
-                <span class="block w-5 h-[2px] bg-current"></span>
-                <span class="block w-5 h-[2px] bg-current"></span>
-                <span class="block w-5 h-[2px] bg-current"></span>
-              </div>
-
-              <!-- Close (X) icon -->
-              <div id="icon-close" class="hidden text-2xl leading-none">
-                &times;
-              </div>
+              <span class="menu-toggle-middle"></span>
             </button>
           </div>
         </div>
@@ -1131,15 +1173,14 @@ function isChatVisible() {
       const topBar = document.getElementById("top-bar");
       const mobileMenu = document.getElementById("mobile-menu");
       const menuToggle = document.getElementById("menu-toggle");
-      const iconHamburger = document.getElementById("icon-hamburger");
-      const iconClose = document.getElementById("icon-close");
       const logoLight = document.getElementById("logo-light");
       const logoDark = document.getElementById("logo-dark");
       const menuLinks = document.querySelectorAll("[data-menu-screen]");
 
+
       let isMenuOpen = false;
 
-            function openMenu() {
+        function openMenu() {
         if (!mobileMenu) return;
         isMenuOpen = true;
 
@@ -1155,9 +1196,8 @@ function isChatVisible() {
         logoLight?.classList.add("hidden");
         logoDark?.classList.remove("hidden");
 
-        // Swap icons
-        iconHamburger?.classList.add("hidden");
-        iconClose?.classList.remove("hidden");
+        // 🔥 Animate hamburger → X
+        menuToggle?.classList.add("menu-toggle-open");
 
         document.body.classList.add("menu-open");
       }
@@ -1178,9 +1218,8 @@ function isChatVisible() {
         logoLight?.classList.remove("hidden");
         logoDark?.classList.add("hidden");
 
-        // Swap icons back
-        iconHamburger?.classList.remove("hidden");
-        iconClose?.classList.add("hidden");
+        // 🔥 Animate X → hamburger
+        menuToggle?.classList.remove("menu-toggle-open");
 
         document.body.classList.remove("menu-open");
       }
