@@ -983,7 +983,7 @@ function isChatVisible() {
 }
 
 
-      /*
+      
       // Nav buttons
       navButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1001,12 +1001,12 @@ function isChatVisible() {
           }
           showScreen(target);
         });
-      });*/
+      });
 
-     // updateHomeState();
-    //  showScreen("home");
+      updateHomeState();
+      showScreen("home");
 
-        /*
+        
       // Language
       const langSelect = document.getElementById("language-select");
       function getSelectedLanguage() {
@@ -1021,7 +1021,7 @@ function isChatVisible() {
         langSelect.addEventListener("change", () => {
           window.localStorage.setItem("guest_language", langSelect.value);
         });
-      }*/
+      }
 
       // Unlock flow
       const unlockBtn = document.getElementById("unlock-button");
@@ -1206,13 +1206,6 @@ function isChatVisible() {
       }
 
    
-
-
-
-
-
-
-
       function formatTime(date) {
         let hours = date.getHours();
         const minutes = date.getMinutes().toString().padStart(2, "0");
