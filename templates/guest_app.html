@@ -439,31 +439,32 @@ nav .nav-icon {
   z-index: 30;
 }
 
-/* Menu content starts ABOVE and invisible */
+/* Default hidden state */
 #mobile-menu .mobile-menu-content {
   opacity: 0;
-  transform: translateY(-20px);
-  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
-              transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+  transform: translateY(-12px);
+  transition:
+    opacity .3s cubic-bezier(0.16,1,0.3,1),
+    transform .35s cubic-bezier(0.16,1,0.3,1);
 }
 
-/* After delay, slide DOWN into place */
+/* Opening animation */
+#mobile-menu.show-links {
+  opacity: 1;
+}
+
 #mobile-menu.show-links .mobile-menu-content {
   opacity: 1;
   transform: translateY(0);
 }
 
-
-    /* Top bar hidden (slides up)
-#top-bar.bar-hidden {
-  transform: translateY(-100%);
+/* Closing fade-out ONLY */
+#mobile-menu.fade-out .mobile-menu-content {
+  opacity: 0;
+  transform: translateY(0);    /* no slide on close */
+  transition: opacity .25s ease;
 }
 
-
-#top-bar.bar-visible {
-  transform: translateY(0);
-}
- */
 
     .chat-input-inner {
       flex: 1;
