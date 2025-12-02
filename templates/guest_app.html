@@ -34,15 +34,14 @@
 .menu-circle {
  /* transform: scale(0);
   transform-origin: top right;*/
- transform: translate(-50%, -50%) scale(0);
-  transform-origin: center center;
+ transform: scale(0);
+  transform-origin: top right;
 }
 
 /* When menu is open, scale the circle to cover the viewport */
 #fullscreen-menu.open .menu-circle {
-  /*transform: scale(40);  big enough to cover large screens 
-  transform: scale(1);*/
-  transform: translate(-50%, -50%) scale(1);
+  /*transform: scale(40);  big enough to cover large screens */
+  transform: scale(1);
 }
 
 /* Fade in the menu content after circle starts expanding */
@@ -954,19 +953,21 @@ nav .nav-icon {
   <!-- Fullscreen circular menu -->
 <div
   id="fullscreen-menu"
-  class="fixed inset-0 z-[9999] hidden"
+  class="fixed inset-0 z-[9999] hidden bg-emerald-900"
   aria-hidden="true"
 >
   <!-- Expanding circle -->
   <div class="absolute inset-0 overflow-hidden pointer-events-none">
   <div
+    id="menu-circle"
     class="menu-circle bg-emerald-900 rounded-full
            w-[200vmax] h-[200vmax]
            absolute
-          top-1/2 left-1/2
+           top-0 right-0
+           translate-x-1/2 -translate-y-1/2
            transition-transform duration-500 ease-out"
   ></div>
-  </div>
+</div>
 
 
   <!-- Menu content -->
@@ -978,16 +979,16 @@ nav .nav-icon {
       <!--div class="text-lg font-semibold tracking-wide">
         #{{ property_name }}
     </div-->
-      <button
-    id="menu-close"
-    type="button"
-    class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center
-           rounded-full hover:bg-white/10 focus:outline-none focus:ring-2
-           focus:ring-white/40 text-3xl leading-none"
-    aria-label="Close menu"
-  >
-    ×
-  </button>
+     <button
+  id="menu-close"
+  type="button"
+  class="absolute top-4 right-4 w-10 h-10 flex items-center justify-center
+         text-3xl font-light text-white
+         rounded-full hover:bg-white/10"
+  aria-label="Close menu"
+>
+  ×
+</button>
     <!-- Center links -->
   <nav class="mt-16 space-y-3">
     <button
