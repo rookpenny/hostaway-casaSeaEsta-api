@@ -828,9 +828,9 @@ nav .nav-icon {
     document.addEventListener("DOMContentLoaded", function () {
       // --- Screens + core elements ---
       const screens = {
-  home: document.getElementById("screen-home"),
-  chat: document.getElementById("screen-chat"),
-  experiences: document.getElementById("screen-experiences"),
+      home: document.getElementById("screen-home"),
+      chat: document.getElementById("screen-chat"),
+      experiences: document.getElementById("screen-experiences"),
 };
 
 // helper: are we currently on the chat screen?
@@ -842,7 +842,7 @@ function isChatVisible() {
 
 
 
-      const navButtons = document.querySelectorAll("nav .nav-item");
+      //const navButtons = document.querySelectorAll("nav .nav-item");
       const homeLogin = document.getElementById("home-login");
       const homeStay = document.getElementById("home-stay");
       const headerEl = document.getElementById("app-header");
@@ -1001,11 +1001,12 @@ function isChatVisible() {
           }
           showScreen(target);
         });
-      });
+      });*/
 
-      updateHomeState();
-      showScreen("home");
+     // updateHomeState();
+    //  showScreen("home");
 
+        /*
       // Language
       const langSelect = document.getElementById("language-select");
       function getSelectedLanguage() {
