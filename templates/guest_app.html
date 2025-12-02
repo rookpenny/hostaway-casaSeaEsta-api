@@ -1121,16 +1121,16 @@ nav .nav-icon {
     document.addEventListener("DOMContentLoaded", function () {
       // --- Screens + core elements ---
       const screens = {
-  home: document.getElementById("screen-home"),
-  chat: document.getElementById("screen-chat"),
-  experiences: document.getElementById("screen-experiences"),
-};
-
-// helper: are we currently on the chat screen?
-function isChatVisible() {
-  const chatScreen = screens.chat;
-  return chatScreen && !chatScreen.classList.contains("hidden");
-}
+        home: document.getElementById("screen-home"),
+        chat: document.getElementById("screen-chat"),
+        experiences: document.getElementById("screen-experiences"),
+      };
+      
+      // helper: are we currently on the chat screen?
+      function isChatVisible() {
+        const chatScreen = screens.chat;
+        return chatScreen && !chatScreen.classList.contains("hidden");
+      }
 
 
 
@@ -1228,26 +1228,28 @@ function isChatVisible() {
           else el.classList.add("hidden");
         });
         // Header hide/show
-       if (name === "chat") {
-  headerEl?.classList.add("hidden");
+       // Keep header visible on all screens
+          if (name === "chat") {
+            if (
+              window.SANDY_LIVE === "true" &&
+              chatBox &&
+              !chatHasWelcome &&
+              chatBox.children.length === 0
+            ) {
+              const intro = guestName
+                ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+                : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+          
+              renderMessage(intro, "bot");
+              chatHasWelcome = true;
+            }
+          
+            scrollChatToBottom();
+          }
+          
+          // always show header
+          headerEl?.classList.remove("hidden");
 
-  if (
-    window.SANDY_LIVE === "true" &&
-    chatBox &&
-    !chatHasWelcome &&
-    chatBox.children.length === 0
-  ) {
-    const intro = guestName
-      ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-      : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
-
-    renderMessage(intro, "bot");
-    chatHasWelcome = true;
-  }
-
-  scrollChatToBottom(); // 👈 here
-} else {
-  headerEl?.classList.remove("hidden");
 }
 
 
