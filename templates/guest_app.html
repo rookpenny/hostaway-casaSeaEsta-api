@@ -1310,18 +1310,7 @@ function isChatVisible() {
         else openMenu();
       });
 
-      menuLinks.forEach((link) => {
-        link.addEventListener("click", () => {
-          const target = link.getAttribute("data-menu-screen");
-          if (target && typeof showScreen === "function") {
-            showScreen(target);
-          }
-          closeMenu();
-        });
-      });
-
-
-
+      
       // Clicking a menu item switches screen + closes menu
       menuLinks.forEach((btn) => {
         btn.addEventListener("click", () => {
