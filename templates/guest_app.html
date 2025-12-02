@@ -1222,16 +1222,17 @@ nav .nav-icon {
         }
       }
 
-      let chatHasWelcome = false;
+            let chatHasWelcome = false;
 
       function showScreen(name) {
+        // Show / hide screens
         Object.entries(screens).forEach(([key, el]) => {
           if (!el) return;
           if (key === name) el.classList.remove("hidden");
           else el.classList.add("hidden");
         });
-      
-        // keep header visible; only add welcome/scroll on chat
+
+        // Chat-specific behavior
         if (name === "chat") {
           if (
             window.SANDY_LIVE === "true" &&
@@ -1242,21 +1243,18 @@ nav .nav-icon {
             const intro = guestName
               ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
               : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
-      
+
             renderMessage(intro, "bot");
             chatHasWelcome = true;
           }
-      
+
           scrollChatToBottom();
         }
-      
-        // always show header
+
+        // Always show header
         headerEl?.classList.remove("hidden");
-      }
 
-
-
-        // Highlight active nav tab + aria attributes
+        // (Optional) highlight bottom nav tabs if/when you re-enable that nav
         navButtons.forEach((btn) => {
           const target = btn.getAttribute("data-screen");
           const icon = btn.querySelector(".nav-icon");
@@ -1283,6 +1281,7 @@ nav .nav-icon {
           }
         });
       }
+
 
 
       // 🔽🔽🔽 PUT THE NEW NAV CODE RIGHT HERE 🔽🔽🔽
