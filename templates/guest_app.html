@@ -1444,8 +1444,13 @@ function closeMenu() {
       body.offsetHeight
     );
 
+    const viewport = window.innerHeight || docEl.clientHeight;
+    const target = Math.max(fullHeight - viewport, 0);
+
+
     window.scrollTo({
-      top: fullHeight,
+      top: target,
+      /*top: fullHeight,*/
       behavior: "auto", // change to "smooth" if you prefer
     });
   });
