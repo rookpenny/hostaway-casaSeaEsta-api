@@ -465,6 +465,26 @@ nav .nav-icon {
   transition: opacity .25s ease;
 }
 
+/* When on chat screen: top bar becomes light grey */
+body.chat-screen #top-bar {
+  background: #f8fafc !important; /* same light grey as input bar */
+  color: #020617 !important;       /* slate text/icons */
+}
+
+/* Make hamburger slate on chat screen */
+body.chat-screen #menu-toggle::before,
+body.chat-screen #menu-toggle::after,
+body.chat-screen #menu-toggle .menu-toggle-middle {
+  background: #020617 !important;  /* slate-950 */
+}
+
+/* Switch logos appropriately */
+body.chat-screen #logo-light {
+  display: none !important;
+}
+body.chat-screen #logo-dark {
+  display: block !important;
+}
 
 
     .chat-input-inner {
@@ -1225,62 +1245,70 @@ nav .nav-icon {
             let chatHasWelcome = false;
 
       function showScreen(name) {
-        // Show / hide screens
-        Object.entries(screens).forEach(([key, el]) => {
-          if (!el) return;
-          if (key === name) el.classList.remove("hidden");
-          else el.classList.add("hidden");
-        });
+  // Show / hide screens
+  Object.entries(screens).forEach(([key, el]) => {
+    if (!el) return;
+    if (key === name) el.classList.remove("hidden");
+    else el.classList.add("hidden");
+  });
 
-        // Chat-specific behavior
-        if (name === "chat") {
-          if (
-            window.SANDY_LIVE === "true" &&
-            chatBox &&
-            !chatHasWelcome &&
-            chatBox.children.length === 0
-          ) {
-            const intro = guestName
-              ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-              : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+  // Toggle body class for chat-specific styling (top nav, hamburger, etc.)
+  if (name === "chat") {
+    document.body.classList.add("chat-screen");
+  } else {
+    document.body.classList.remove("chat-screen");
+  }
 
-            renderMessage(intro, "bot");
-            chatHasWelcome = true;
-          }
+  // Chat-specific behavior
+  if (name === "chat") {
+    if (
+      window.SANDY_LIVE === "true" &&
+      chatBox &&
+      !chatHasWelcome &&
+      chatBox.children.length === 0
+    ) {
+      const intro = guestName
+        ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+        : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
 
-          scrollChatToBottom();
-        }
+      renderMessage(intro, "bot");
+      chatHasWelcome = true;
+    }
 
-        // Always show header
-        headerEl?.classList.remove("hidden");
+    scrollChatToBottom();
+  }
 
-        // (Optional) highlight bottom nav tabs if/when you re-enable that nav
-        navButtons.forEach((btn) => {
-          const target = btn.getAttribute("data-screen");
-          const icon = btn.querySelector(".nav-icon");
-          const isActive = target === name;
+  // Always show header
+  headerEl?.classList.remove("hidden");
 
-          if (isActive) {
-            btn.classList.remove("text-slate-400");
-            btn.classList.add("text-slate-50");
-            btn.setAttribute("aria-current", "page");
+  // (Optional) highlight bottom nav tabs if/when you re-enable that nav
+  navButtons.forEach((btn) => {
+    const target = btn.getAttribute("data-screen");
+    const icon = btn.querySelector(".nav-icon");
+    const isActive = target === name;
 
-            if (icon) {
-              icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
-              icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
-            }
-          } else {
-            btn.classList.add("text-slate-400");
-            btn.classList.remove("text-slate-50");
-            btn.setAttribute("aria-current", "false");
+    if (isActive) {
+      btn.classList.remove("text-slate-400");
+      btn.classList.add("text-slate-50");
+      btn.setAttribute("aria-current", "page");
 
-            if (icon) {
-              icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
-              icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
-            }
-          }
-        });
+      if (icon) {
+        icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
+        icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
       }
+    } else {
+      btn.classList.add("text-slate-400");
+      btn.classList.remove("text-slate-50");
+      btn.setAttribute("aria-current", "false");
+
+      if (icon) {
+        icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
+        icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
+      }
+    }
+  });
+}
+
 
 
 
