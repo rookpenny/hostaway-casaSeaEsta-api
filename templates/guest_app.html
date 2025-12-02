@@ -439,6 +439,17 @@ nav .nav-icon {
   z-index: 30;
 }
 
+    /* Top bar hidden (slides up) */
+#top-bar.bar-hidden {
+  transform: translateY(-100%);
+}
+
+/* Top bar visible (slides down) */
+#top-bar.bar-visible {
+  transform: translateY(0);
+}
+
+
     .chat-input-inner {
       flex: 1;
       display: flex;
@@ -548,7 +559,9 @@ nav .nav-icon {
   <!-- Fixed blue top bar -->
   <div
     id="top-bar"
-    class="fixed top-0 inset-x-0 z-40 bg-transparent text-white transition-colors duration-300"
+    class="fixed top-0 inset-x-0 z-40 bg-transparent text-white
+           transition-colors duration-300
+           transform transition-transform ease-out duration-500"
   >
     <div class="max-w-3xl mx-auto flex items-center justify-between h-16 px-4">
       
@@ -1260,7 +1273,10 @@ function isChatVisible() {
         function openMenu() {
         if (!mobileMenu) return;
         isMenuOpen = true;
-      
+
+        topBar?.classList.add("bar-hidden");
+        topBar?.classList.remove("bar-visible");
+
         // Slide panel down from top
         mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
         mobileMenu.classList.add("translate-y-0");
@@ -1282,6 +1298,9 @@ function isChatVisible() {
       function closeMenu() {
         if (!mobileMenu) return;
         isMenuOpen = false;
+
+        topBar?.classList.add("bar-visible");
+        topBar?.classList.remove("bar-hidden");
       
         // Slide panel back up
         mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
