@@ -439,14 +439,15 @@ nav .nav-icon {
   z-index: 30;
 }
 
-    /* Content inside the sliding menu (starts hidden) */
+/* Menu content starts ABOVE and invisible */
 #mobile-menu .mobile-menu-content {
   opacity: 0;
-  transform: translateY(-10px); /* slightly below */
-  transition: opacity 0.25s ease-out, transform 0.25s ease-out;
+  transform: translateY(-20px);
+  transition: opacity 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-/* When background is down and we want links visible */
+/* After delay, slide DOWN into place */
 #mobile-menu.show-links .mobile-menu-content {
   opacity: 1;
   transform: translateY(0);
@@ -1302,7 +1303,7 @@ function isChatVisible() {
         
           document.body.classList.add("menu-open");
         
-          // 👉 AFTER panel has finished sliding, fade/slide in the links
+          // After panel finishes sliding, fade/slide in the links
           setTimeout(() => {
             if (isMenuOpen && mobileMenu) {
               mobileMenu.classList.add("show-links");
