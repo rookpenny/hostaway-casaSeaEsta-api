@@ -1202,21 +1202,20 @@ function isChatVisible() {
       const menuLinks = document.querySelectorAll("[data-menu-screen]");
 
       function openMenu() {
-        if (!menuOverlay) return;
-        menuOverlay.classList.remove("hidden");
-        menuOverlay.style.pointerEvents = "auto";
+  if (!menuOverlay) return;
+  menuOverlay.classList.remove("hidden");
+  menuOverlay.style.pointerEvents = "auto";
 
-        // hide hamburger
-        if (menuOpenBtn) menuOpenBtn.classList.add("invisible");
+  // hide hamburger (keeps layout, just invisible)
+  if (menuOpenBtn) menuOpenBtn.classList.add("invisible");
 
-        // trigger animation
-        requestAnimationFrame(() => {
-          menuOverlay.classList.add("open");
-          document.body.classList.add("menu-open");
-        });
-      }
+  requestAnimationFrame(() => {
+    menuOverlay.classList.add("open");
+    document.body.classList.add("menu-open");
+  });
+}
 
-     function closeMenu() {
+  function closeMenu() {
   if (!menuOverlay) return;
   menuOverlay.classList.remove("open");
   document.body.classList.remove("menu-open");
