@@ -27,6 +27,9 @@
       box-sizing: border-box;
     }
 
+body.menu-open {
+  overflow: hidden;
+}
 
 /* Keep Tailwind layout; only tweak visuals
 nav[role="navigation"] {
@@ -424,7 +427,118 @@ nav .nav-icon {
     <!-- Foreground content -->
     <div class="relative z-10 flex flex-col min-h-screen">
 
-     <header id="app-header" class="relative w-full h-0"></header>
+           <!-- Top header / nav -->
+      <header id="app-header" class="relative w-full">
+        <!-- Fixed blue top bar -->
+        <div
+          id="top-bar"
+          class="fixed top-0 inset-x-0 z-40 bg-sky-600 text-white transition-colors duration-300"
+        >
+          <div class="max-w-3xl mx-auto flex items-center justify-between h-16 px-4">
+            <!-- Logo -->
+            <a href="#" class="flex items-center gap-2">
+              <!-- Logo for blue bar -->
+              <img
+                id="logo-light"
+                src="/static/img/logo-light.svg"
+                alt="{{ property_name }}"
+                class="h-7"
+              />
+              <!-- Logo for light bar (menu open) -->
+              <img
+                id="logo-dark"
+                src="/static/img/logo-dark.svg"
+                alt="{{ property_name }}"
+                class="h-7 hidden"
+              />
+            </a>
+
+            <!-- (Optional) center button like "Upgrades" or "Donate" -->
+            <button
+              type="button"
+              class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold bg-white text-sky-900 rounded-sm shadow-sm"
+            >
+              Upgrades
+            </button>
+
+            <!-- Right side: hamburger / close -->
+            <button
+              id="menu-toggle"
+              type="button"
+              class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-sky-600 focus:ring-white"
+              aria-label="Open navigation menu"
+            >
+              <!-- Hamburger icon -->
+              <div id="icon-hamburger" class="flex flex-col gap-[3px]">
+                <span class="block w-5 h-[2px] bg-current"></span>
+                <span class="block w-5 h-[2px] bg-current"></span>
+                <span class="block w-5 h-[2px] bg-current"></span>
+              </div>
+
+              <!-- Close (X) icon -->
+              <div id="icon-close" class="hidden text-2xl leading-none">
+                &times;
+              </div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Spacer so content doesn't sit under fixed bar -->
+        <div class="h-16"></div>
+      </header>
+
+            <!-- Sliding menu panel -->
+      <nav
+        id="mobile-menu"
+        class="fixed top-16 inset-x-0 z-30 bg-slate-50 text-slate-900
+               transform -translate-y-full opacity-0 pointer-events-none
+               transition-all duration-300 ease-out"
+        aria-label="Main navigation"
+      >
+        <div class="max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
+          <ul class="space-y-4 text-lg">
+            <li class="border-b border-slate-300 pb-2">
+              <button
+                type="button"
+                class="w-full text-left"
+                data-menu-screen="home"
+              >
+                Home
+              </button>
+            </li>
+            <li class="border-b border-slate-300 pb-2">
+              <button
+                type="button"
+                class="w-full text-left"
+                data-menu-screen="chat"
+              >
+                Chat
+              </button>
+            </li>
+            <li class="border-b border-slate-300 pb-2">
+              <button
+                type="button"
+                class="w-full text-left"
+                data-menu-screen="experiences"
+              >
+                Guides
+              </button>
+            </li>
+          </ul>
+
+          <!-- Optional bottom actions -->
+          <div class="mt-8 flex flex-wrap gap-3 text-sm">
+            <button class="px-4 py-2 border border-slate-400 rounded-full">
+              Call host
+            </button>
+            <button class="px-4 py-2 border border-slate-400 rounded-full">
+              Email host
+            </button>
+          </div>
+        </div>
+      </nav>
+
+
 
 
       <!-- Main content area that swaps screens  overflow-hidden-->
@@ -1009,6 +1123,109 @@ function isChatVisible() {
         });
       }
 
+
+      // 🔽🔽🔽 PUT THE NEW NAV CODE RIGHT HERE 🔽🔽🔽
+
+      // --- Top bar sliding menu nav ---
+      const topBar = document.getElementById("top-bar");
+      const mobileMenu = document.getElementById("mobile-menu");
+      const menuToggle = document.getElementById("menu-toggle");
+      const iconHamburger = document.getElementById("icon-hamburger");
+      const iconClose = document.getElementById("icon-close");
+      const logoLight = document.getElementById("logo-light");
+      const logoDark = document.getElementById("logo-dark");
+      const menuLinks = document.querySelectorAll("[data-menu-screen]");
+
+      let isMenuOpen = false;
+
+      function openMenu() {
+        if (!mobileMenu) return;
+        isMenuOpen = true;
+
+        // Slide panel down
+        mobileMenu.classList.remove(
+          "-translate-y-full",
+          "opacity-0",
+          "pointer-events-none"
+        );
+        mobileMenu.classList.add("translate-y-0", "opacity-100");
+
+        // Change top bar to light theme
+        topBar?.classList.remove("bg-sky-600", "text-white");
+        topBar?.classList.add("bg-slate-50", "text-slate-900");
+
+        // Swap logos
+        logoLight?.classList.add("hidden");
+        logoDark?.classList.remove("hidden");
+
+        // Swap icons
+        iconHamburger?.classList.add("hidden");
+        iconClose?.classList.remove("hidden");
+
+        document.body.classList.add("menu-open");
+      }
+
+      function closeMenu() {
+        if (!mobileMenu) return;
+        isMenuOpen = false;
+
+        // Slide panel up
+        mobileMenu.classList.add(
+          "-translate-y-full",
+          "opacity-0",
+          "pointer-events-none"
+        );
+        mobileMenu.classList.remove("translate-y-0", "opacity-100");
+
+        // Restore blue bar
+        topBar?.classList.add("bg-sky-600", "text-white");
+        topBar?.classList.remove("bg-slate-50", "text-slate-900");
+
+        // Swap logos back
+        logoLight?.classList.remove("hidden");
+        logoDark?.classList.add("hidden");
+
+        // Swap icons back
+        iconHamburger?.classList.remove("hidden");
+        iconClose?.classList.add("hidden");
+
+        document.body.classList.remove("menu-open");
+      }
+
+      menuToggle?.addEventListener("click", () => {
+        if (isMenuOpen) {
+          closeMenu();
+        } else {
+          openMenu();
+        }
+      });
+
+      // Clicking a menu item switches screen + closes menu
+      menuLinks.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.getAttribute("data-menu-screen");
+          if (!target) return;
+
+          if (!isUnlocked && target !== "home") {
+            const err = document.getElementById("unlock-error");
+            if (err) {
+              err.textContent =
+                "Please unlock your stay first with the last 4 digits of your booking phone number.";
+            }
+            showScreen("home");
+            closeMenu();
+            return;
+          }
+
+          showScreen(target);
+          closeMenu();
+        });
+      });
+
+      // 🔼🔼🔼 END NEW NAV CODE 🔼🔼🔼
+
+
+      
       function scrollChatToBottom() {
   // Only scroll when the chat screen is actually visible
   if (!isChatVisible()) return;
