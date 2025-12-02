@@ -596,57 +596,70 @@ nav .nav-icon {
 </header>
 
 
-            <!-- Sliding menu panel -->
-      <nav
+      <!-- Full-screen slide-down mobile menu -->
+<nav
   id="mobile-menu"
   class="fixed inset-0 z-30 bg-slate-50 text-slate-900
          transform -translate-y-full pointer-events-none
-         transition-transform duration-300 ease-out"
+         transition-transform duration-400 ease-out"
   aria-label="Main navigation"
 >
-  
-  <div class="pt-16 max-w-3xl mx-auto px-4 py-8 flex flex-col gap-6">
-          <ul class="space-y-4 text-lg">
-            <li class="border-b border-slate-300 pb-2">
-              <button
-                type="button"
-                class="w-full text-left"
-                data-menu-screen="home"
-              >
-                Home
-              </button>
-            </li>
-            <li class="border-b border-slate-300 pb-2">
-              <button
-                type="button"
-                class="w-full text-left"
-                data-menu-screen="chat"
-              >
-                Chat
-              </button>
-            </li>
-            <li class="border-b border-slate-300 pb-2">
-              <button
-                type="button"
-                class="w-full text-left"
-                data-menu-screen="experiences"
-              >
-                Guides
-              </button>
-            </li>
-          </ul>
+  <div class="pt-20 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full">
+    <!-- Small label -->
+    <div class="text-[11px] font-semibold tracking-[0.2em] text-slate-400 uppercase mb-6">
+      Menu
+    </div>
 
-          <!-- Optional bottom actions -->
-          <div class="mt-8 flex flex-wrap gap-3 text-sm">
-            <button class="px-4 py-2 border border-slate-400 rounded-full">
-              Call host
-            </button>
-            <button class="px-4 py-2 border border-slate-400 rounded-full">
-              Email host
-            </button>
-          </div>
+    <!-- Main links -->
+    <ul class="space-y-4 text-2xl font-semibold">
+      <li>
+        <button
+          type="button"
+          data-menu-screen="home"
+          class="w-full text-left hover:text-sky-700 transition-colors"
+        >
+          Stay overview
+        </button>
+      </li>
+      <li>
+        <button
+          type="button"
+          data-menu-screen="chat"
+          class="w-full text-left hover:text-sky-700 transition-colors"
+        >
+          Chat with Sandy
+        </button>
+      </li>
+      <li>
+        <button
+          type="button"
+          data-menu-screen="experiences"
+          class="w-full text-left hover:text-sky-700 transition-colors"
+        >
+          Guides & local tips
+        </button>
+      </li>
+    </ul>
+
+    <!-- Bottom meta section -->
+    <div class="mt-auto pt-8 border-t border-slate-200 text-xs text-slate-500 space-y-2">
+      <div class="font-semibold text-slate-700">
+        {{ property_name }}
+      </div>
+      {% if arrival_date or departure_date %}
+        <div>
+          <span>{{ arrival_date or "-" }}</span>
+          <span class="mx-1">–</span>
+          <span>{{ departure_date or "-" }}</span>
         </div>
-      </nav>
+      {% endif %}
+      <div>
+        Hosted by {{ host_name or "your host" }}
+      </div>
+    </div>
+  </div>
+</nav>
+
 
 
 
@@ -1243,6 +1256,7 @@ function isChatVisible() {
       const logoLight = document.getElementById("logo-light");
       const logoDark = document.getElementById("logo-dark");
       const menuLinks = document.querySelectorAll("[data-menu-screen]");
+      let isMenuOpen = false;
 
 
       let isMenuOpen = false;
@@ -1250,55 +1264,52 @@ function isChatVisible() {
         function openMenu() {
         if (!mobileMenu) return;
         isMenuOpen = true;
-
+      
         // Slide panel down from top
         mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
         mobileMenu.classList.add("translate-y-0");
-
+      
         // Change top bar to light theme
         topBar?.classList.remove("bg-sky-600", "text-white");
         topBar?.classList.add("bg-slate-50", "text-slate-900");
-
+      
         // Swap logos
         logoLight?.classList.add("hidden");
         logoDark?.classList.remove("hidden");
-
-        // 🔥 NEW: animate hamburger → X
+      
+        // Animate hamburger → X
         menuToggle?.classList.add("menu-toggle-open");
-
+      
         document.body.classList.add("menu-open");
       }
-
+      
       function closeMenu() {
         if (!mobileMenu) return;
         isMenuOpen = false;
-
+      
         // Slide panel back up
         mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
         mobileMenu.classList.remove("translate-y-0");
-
+      
         // Restore blue bar
         topBar?.classList.add("bg-sky-600", "text-white");
         topBar?.classList.remove("bg-slate-50", "text-slate-900");
-
+      
         // Swap logos back
         logoLight?.classList.remove("hidden");
         logoDark?.classList.add("hidden");
-
-        // 🔥 NEW: animate X → hamburger
+      
+        // Animate X → hamburger
         menuToggle?.classList.remove("menu-toggle-open");
-
+      
         document.body.classList.remove("menu-open");
       }
-
-
+      
       menuToggle?.addEventListener("click", () => {
-        if (isMenuOpen) {
-          closeMenu();
-        } else {
-          openMenu();
-        }
+        if (isMenuOpen) closeMenu();
+        else openMenu();
       });
+
 
       // Clicking a menu item switches screen + closes menu
       menuLinks.forEach((btn) => {
@@ -1319,6 +1330,16 @@ function isChatVisible() {
 
           showScreen(target);
           closeMenu();
+        });
+
+        menuLinks.forEach((link) => {
+          link.addEventListener("click", () => {
+            const target = link.getAttribute("data-menu-screen");
+            if (target && typeof showScreen === "function") {
+              showScreen(target);
+            }
+            closeMenu();
+          });
         });
       });
 
