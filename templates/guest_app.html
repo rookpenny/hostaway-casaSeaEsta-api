@@ -1020,7 +1020,7 @@ function isChatVisible() {
         langSelect.addEventListener("change", () => {
           window.localStorage.setItem("guest_language", langSelect.value);
         });
-      }
+      }*/
 
       // Unlock flow
       const unlockBtn = document.getElementById("unlock-button");
@@ -1048,6 +1048,30 @@ function isChatVisible() {
         if (!/^\d{4}$/.test(code)) {
           if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
           return;
+        }
+
+        // ✅ TEST OVERRIDE: allow a hardcoded code to unlock without backend
+        if (code === "1234") {
+          isUnlocked = true;
+          lastUnlockCode = code;
+
+          // fake PMS data for testing
+          guestName = "Test Guest";
+          arrivalDate = "2025-01-01";
+          departureDate = "2025-01-05";
+
+          const nameEl = document.getElementById("guest-name-span");
+          if (nameEl) nameEl.textContent = guestName;
+          const arrEl = document.getElementById("arrival-date-span");
+          if (arrEl) arrEl.textContent = arrivalDate;
+          const depEl = document.getElementById("departure-date-span");
+          if (depEl) depEl.textContent = departureDate;
+
+          if (unlockCodeInput) unlockCodeInput.value = "";
+          saveGuestState();
+          updateHomeState();
+          showScreen("home");
+          return; // skip the real API call
         }
 
         if (unlockBtn) unlockBtn.disabled = true;
@@ -1108,7 +1132,7 @@ function isChatVisible() {
           if (unlockBtn) unlockBtn.disabled = false;
           unlockSpinner?.classList.add("hidden");
         }
-      }*/
+      }
 
       // Check-in modal
       const checkinButton = document.getElementById("checkin-button");
