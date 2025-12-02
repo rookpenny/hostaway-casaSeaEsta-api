@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ property_name }} – Guest Experience</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- PWA / icons -->
+  <link rel="manifest" href="/manifest/{{ property_id }}.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="theme-color" content="#020617" />
+  <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    html, body {
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 0.95rem;
+      overflow-x: hidden; /* only block horizontal scroll */
+    }
+
+
+    * {
+      box-sizing: border-box;
+    }
+
+
+/* Keep Tailwind layout; only tweak visuals
+nav[role="navigation"] {
+  height: 120px !important; 
+}
+ */
+/* Make the nav buttons visually clean but DO NOT touch layout */
+nav .nav-item {
+  background: none !important;
+  border: none !important;
+  padding: 0;
+  margin: 0;
+  box-shadow: none !important;
+}
+
+/* Icon images */
+.nav-icon-img {
+  width: 60px;
+  height: 60px;
+  object-fit: contain;
+  opacity: 0.65;
+  transition: opacity 0.25s ease;
+}
+
+/* Hover + active: just change opacity, nothing else */
+nav .nav-item:hover .nav-icon-img,
+nav .nav-item[aria-current="page"] .nav-icon-img {
+  opacity: 1;
+}
+
+
+
+/* REMOVE any unwanted Tailwind classes JS might apply */
+nav .nav-icon {
+  background: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  transform: none !important; /* stops scale-110 */
+}
+
+
+/* OPTIONAL — dim inactive icons (if JS toggles text-slate-400/50) */
+.nav-item.text-slate-400 .nav-icon-img {
+  opacity: 0.6;
+}
+.nav-item.text-slate-50 .nav-icon-img {
+  opacity: 1;
+}
+
+
+
+    /* header labels (Arrival, Check-in, WiFi Network, etc.) */
+    .detail-label {
+      font-size: 0.65rem !important;
+      font-weight: 700 !important;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: rgb(148 163 184); /* slate-400 */
+    }
+
+    .detail-label-results {
+      font-size: 1rem !important;
+      font-weight: 600 !important;
+      text-transform: uppercase;
+     /* letter-spacing: 0.05em;*/
+      color: rgb(255 255 255); /* slate-400 */
+    }
+
+    /* Sandy avatar photo */
+    .avatar-sandy {
+      background-image: url("/static/img/sandy.png");
+      background-size: cover;
+      background-position: center;
+      background-color: transparent;
+    }
+
+ 
+    #chat-box {
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+}
+
+
+   .msg {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 0.75rem;
+  animation: fadeInUp 0.35s ease-out;
+  animation-fill-mode: both;
+  scroll-margin-bottom: 7rem;
+}
+
+
+    .msg.user {
+      justify-content: flex-end;
+    }
+
+    /* Column that wraps bubble + timestamp for user messages */
+      .msg.user > div {
+        max-width: 70%;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-end; /* bubble & timestamp align to right together */
+
+      }
+      
+      /* Column that wraps bubble + timestamp for bot messages */
+      .msg.bot > div:last-child {
+        max-width: 70%;
+        display: inline-flex;
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+
+    .msg.bot {
+      justify-content: flex-start;
+    }
+
+    
+
+      .bubble {
+        display: inline-block;        /* hug contents */
+        padding: 0.6rem 1rem;
+        border-radius: 1rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+        max-width: 100%;              /* let parent control width */
+        font-size: 0.95rem;
+        line-height: 1.5;
+        word-wrap: break-word;
+      }
+
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 12px; /* rounded square */
+      margin: 0 0.5rem;
+      background-size: cover;
+      background-position: center;
+      flex-shrink: 0;
+    }
+
+
+    .msg.bot .avatar {
+      /*background-color: #22c55e;*/
+      color: #022c22;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      font-weight: 600;
+    }
+
+    .timestamp {
+      font-size: 0.65rem;
+      color: #64748b;
+      margin-top: 0.25rem;
+    }
+
+     /* Bot timestamps align left under the bubble */
+    .msg.bot .timestamp {
+      text-align: left;
+      align-self: flex-start;
+      padding-left: 4px;
+    }
+    
+    /* User timestamps align right, directly under user bubble */
+    .msg.user .timestamp {
+      text-align: right;
+      align-self: flex-end;
+      padding-right: 4px;
+    }
+
+
+    .message-text p {
+      margin: 0.5rem 0;
+    }
+
+    .message-text ul {
+      margin: 0.5rem 0;
+      padding-left: 1.2rem;
+    }
+
+    .message-text li {
+      margin-bottom: 0.3rem;
+    }
+
+    .message-text a {
+      color: #22c55e;
+      text-decoration: none;
+      word-break: break-word;
+    }
+
+    .message-text a:hover {
+      text-decoration: underline;
+    }
+
+    .message-text strong {
+      font-weight: 600;
+    }
+
+    .message-text em {
+      font-style: italic;
+    }
+.typing-dots {
+  display: inline-flex;
+  align-items: center;
+  transform: translateY(-2px); /* raise it */
+}
+  .typing-dots span {
+  width: 6px;
+  height: 6px;
+  margin: 0 3px;
+  background-color: #022c22;
+  border-radius: 50%;
+  display: inline-block;
+  animation: pulse 1s infinite ease-in-out;
+}
+
+.typing-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.typing-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 0.3; transform: scale(0.7); }
+  50% { opacity: 1; transform: scale(1); }
+}
+
+
+
+    .dots-anim {
+      display: inline-block;
+    }
+
+    .dots-anim span {
+      font-size: 1.25rem;
+      animation: blink 1.4s infinite both;
+      opacity: 0.3;
+    }
+
+    .dots-anim span:nth-child(1) {
+      animation-delay: 0s;
+    }
+
+    .dots-anim span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .dots-anim span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes blink {
+      0% {
+        opacity: 0.3;
+      }
+      20% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0.3;
+      }
+    }
+
+    @keyframes fadeInUp {
+      from {
+        opacity: 0;
+        transform: translateY(12px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .chat-input-bar {
+  padding: 0.8rem 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 5rem; /* above nav */
+  z-index: 30;
+}
+
+    .chat-input-inner {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      padding: 0.6rem 0.75rem;
+    }
+
+    .chat-input-bar input[type="text"] {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 1rem;
+      outline: none;
+      color: #1f2937;
+    }
+
+    .chat-plus {
+      background: #0b1120;
+      border: none;
+      width: 2.5rem;
+      height: 2.5rem;
+      font-size: 1.2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #e5e7eb;
+    }
+
+    .send-button {
+      background: #22c55e;
+      border: none;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #022c22;
+    }
+
+      /* Light mode chat screen */
+      #screen-chat {
+        color: #1f2937;
+        /* DO NOT set display or height here so .hidden can control it */
+      }
+
+    #screen-chat > .flex-1 {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+
+    .msg.user .bubble {
+      background: #e5e7eb;
+      color: #111827;
+    }
+
+    .msg.bot .bubble {
+      background: #22c55e;
+      color: #022c22;
+    }
+    
+    .msg.bot .avatarOLD {
+      display: none !important;
+      background-color: #22c55e;
+      color: #022c22;
+    }
+
+    .timestamp {
+      color: #64748b;
+    }
+  </style>
+
+  <script>
+    window.PROPERTY_ID = {{ property_id | tojson }};
+    window.PROPERTY_NAME = {{ property_name | tojson }};
+    window.SANDY_LIVE = {{ ("true" if is_live else "false") | tojson }};
+    window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
+  </script>
+</head>
+<body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col overflow-x-hidden">
+
+  <!-- App shell with shared background image + gradient -->
+  <div
+    id="app-shell"
+    class="relative min-h-screen w-full max-w-full flex flex-col overflow-x-hidden"
+    style="background-image: url('{{ hero_image_url or default_image_url }}'); background-size: cover; background-position: top;"
+  >
+    <!-- Gradient overlay -->
+    <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent pointer-events-none"></div>
+
+
+    <!-- Foreground content -->
+    <div class="relative z-10 flex flex-col min-h-screen">
+
+      <!-- Top header -->
+      <header id="app-header" class="relative w-full h-0">
+        <div id="language-bar" class="absolute top-4 right-4">
+          <div class="flex items-center gap-2">
+            <!-- logout icon -->
+            <button
+              id="logout-button"
+              type="button"
+              class="p-2 rounded-full hover:bg-white/10 focus:outline-none focus:ring-2 focus:ring-white/40"
+              aria-label="Log out"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" class="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
+                <path
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="1.6"
+                  d="M12 9.75V4.5m0 5.25a4.5 4.5 0 104.5 4.5 4.5 4.5 0 00-4.5-4.5z"
+                />
+              </svg>
+            </button>
+
+            <!-- language select -->
+            <div class="bg-black/60 border border-slate-700 rounded-full px-2 py-0.5 text-[12px]">
+              <label for="language-select" class="sr-only">Language</label>
+              <select
+                id="language-select"
+                class="bg-transparent text-xs text-slate-100 focus:outline-none px-[4px] py-[3px]"
+              >
+                <option value="auto">Auto</option>
+                <option value="en">English</option>
+                <option value="es">Español</option>
+                <option value="fr">Français</option>
+                <option value="de">Deutsch</option>
+              </select>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main content area that swaps screens  overflow-hidden-->
+      <main id="screen-container" class="flex-1 flex flex-col" role="main">
+        <!-- HOME -->
+        <section
+          id="screen-home"
+          class="flex flex-col flex-1 text-[0.95rem] px-4 pt-3 pb-20"
+          style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
+          aria-label="Home"
+        >
+          <!-- LOGIN STATE -->
+          <div id="home-login" class="space-y-4">
+            <div class="space-y-2">
+              <h2 class="font-semibold">Unlock your stay</h2>
+              <p class="text-slate-300">
+                Enter the <span class="font-semibold">last 4 digits of the phone number</span> on your booking
+                to unlock your trip details, chat with Sandy, and browse guides.
+              </p>
+            </div>
+
+            <div class="bg-slate-900/80 rounded-2xl p-4 space-y-3">
+              <label for="unlock-code" class="block font-medium text-slate-300 mb-1">
+                Last 4 digits
+              </label>
+              <input
+                id="unlock-code"
+                type="text"
+                inputmode="numeric"
+                maxlength="4"
+                autocomplete="off"
+                placeholder="1234"
+                pattern="[0-9]*"
+                class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+              />
+              <button
+                id="unlock-button"
+                type="button"
+                data-property-id="{{ property_id }}"
+                class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-slate-950 py-3 transition"
+              >
+                <span>Unlock experience</span>
+                <span
+                  id="unlock-spinner"
+                  class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"
+                ></span>
+              </button>
+              <p
+                id="unlock-error"
+                class="text-rose-400 min-h-[1.125rem]"
+                aria-live="polite"
+              ></p>
+              <p class="text-slate-400">
+                Not sure which number is on the booking? Check your confirmation email or message your host.
+              </p>
+            </div>
+
+            <div class="mt-1 text-slate-400 flex items-center gap-2">
+              {% if is_live %}
+                <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+                <span>Sandy is live for this property 🌊</span>
+              {% else %}
+                <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+                <span>Sandy is currently offline – you can still view trip details.</span>
+              {% endif %}
+            </div>
+          </div>
+
+          <!-- UNLOCKED HOME CARD (bottom-aligned) -->
+          <div class="flex-1 flex flex-col justify-end pb-4">
+            <div id="home-stay" class="space-y-4 hidden">
+              <!--div class="rounded-2xl overflow-hidden shadow-xl"-->
+              <div>
+                <div class="px-4 pt-6 pb-2">
+                  <h1 class="text-5xl font-semibold leading-tight">
+                    <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe - you’ve made it.
+                  </h1>
+                </div>
+              </div>
+
+              <!-- body -->
+              <div class="px-4 py-4 space-y-4 bg-slate-950/70 rounded-2xl">
+                <!-- address + map -->
+                <div class="flex items-start justify-between gap-3">
+                  <div class="text-s leading-snug text-slate-200 max-w-[160px]">
+                    <p>{{ property_address or "123 Any Street" }}</p>
+                  </div>
+                  {% if property_address %}
+                    {% if google_maps_link %}
+                      {% set maps_href = google_maps_link %}
+                    {% else %}
+                      {% set maps_href = "#" %}
+                    {% endif %}
+                    <a
+                      href="{{ maps_href }}"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="inline-flex items-center justify-center rounded-full border-2 border-slate-600 px-3 py-1 bg-slate-950/80"
+                    >
+                      <svg class="w-6 h-6 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                        <path
+                          stroke-linecap="round"
+                          stroke-linejoin="round"
+                          stroke-width="1.5"
+                          d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z"
+                        />
+                        <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
+                      </svg>
+                      <span>Map</span>
+                    </a>
+                  {% endif %}
+                </div>
+
+                <div class="border-t border-slate-800 my-2"></div>
+
+                {% if arrival_date or departure_date %}
+                  <div class="flex items-start justify-between gap-4 text-slate-300">
+                    <div>
+                      <p class="detail-label">Arrival</p>
+                      <p class="detail-label-results" id="arrival-date-span">{{ arrival_date or "-" }}</p>
+                    </div>
+                    <div class="text-right">
+                      <p class="detail-label">Departure</p>
+                      <p class="detail-label-results" id="departure-date-span">{{ departure_date or "-" }}</p>
+                    </div>
+                  </div>
+
+                  <div class="border-t border-slate-800 my-2"></div>
+                {% endif %}
+
+                <!-- Check-in / Check-out -->
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    
+                    <p class="detail-label">Check-in</p>
+                    <p class="detail-label-results">
+                      {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
+                    </p>
+                  </div>
+                  <div class="text-right">
+                    <p class="detail-label">Check-out</p>
+                    <p class="detail-label-results">
+                      {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="border-t border-slate-800 my-2"></div>
+
+                <!-- WiFi -->
+                <div class="flex items-start justify-between gap-4">
+                  <div>
+                    <p class="detail-label">WiFi Network</p>
+                    <p class="detail-label-results">
+                      {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
+                    </p>
+                  </div>
+                  <div class="text-right">
+                    <p class="detail-label">Password</p>
+                    <p class="detail-label-results">
+                      {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
+                    </p>
+                  </div>
+                </div>
+
+                <div class="border-t border-slate-800 my-2"></div>
+
+                <!-- Buttons: Check-in + Upgrades -->
+                <div class="mt-3 flex items-center gap-3">
+                  <button
+                    id="checkin-button"
+                    type="button"
+                    class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white py-3 font-semibold bg-transparent text-white transition hover:bg-white hover:text-slate-900"
+                  >
+                    <span>Check-in</span>
+                  </button>
+
+                  <button
+                    id="upgrades-button"
+                    type="button"
+                    class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950 transition hover:bg-transparent hover:text-emerald-400"
+                  >
+                    <span>Upgrades</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+       <!-- CHAT -->
+<section
+  id="screen-chat"
+  class="hidden bg-white min-h-screen"
+  aria-label="Chat"
+>
+  <div
+    id="chat-box"
+    class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
+  ></div>
+
+  <div class="chat-input-bar">
+    <div class="chat-input-inner">
+      <button type="button" class="chat-plus" aria-label="Insert a suggested question">+</button>
+      <input
+        id="chat-input"
+        type="text"
+        placeholder="Type a message here..."
+        aria-label="Chat message"
+      />
+      <button
+        id="chat-send"
+        type="button"
+        class="send-button"
+        aria-label="Send message"
+      >
+        <svg
+          class="w-4 h-4"
+          viewBox="0 0 24 24"
+          fill="none"
+          stroke="currentColor"
+          aria-hidden="true"
+        >
+          <path
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            stroke-width="1.6"
+            d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
+          />
+        </svg>
+      </button>
+    </div>
+  </div>
+</section>
+
+       <!-- GUIDES -->
+<section
+  id="screen-experiences"
+  class="hidden bg-slate-950 px-4 pt-4 pb-24 space-y-4"
+  aria-label="Guides"
+>
+  <div class="h-32 w-full relative rounded-2xl overflow-hidden">
+    {% if experiences_hero_url %}
+      <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
+    {% elif hero_image_url %}
+      <img src="{{ hero_image_url }}" alt="Guides" class="w-full h-full object-cover">
+    {% else %}
+      <div class="w-full h-full bg-slate-800"></div>
+    {% endif %}
+    <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+    <div class="absolute bottom-3 left-7 right-7">
+      <h2 class="text-2xl font-semibold">Guides</h2>
+      <p class="text-sm text-slate-200">
+        Local guidebooks, ideas, and upgrades to make your stay extra special.
+      </p>
+    </div>
+  </div>
+
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+    <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="h-32 relative">
+        {% if feature_image_url %}
+          <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
+        {% else %}
+          <div class="w-full h-full bg-slate-800"></div>
+        {% endif %}
+        <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+        <div class="absolute bottom-3 left-3 right-3">
+          <h3 class="text-base font-semibold">Our Story</h3>
+          <p class="text-[11px] text-slate-200 line-clamp-2">
+            In the heart of {{ city_name or "our favorite town" }}, this place came to life…
+          </p>
+        </div>
+      </div>
+    </article>
+
+    <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="h-24 bg-slate-800">
+        {% if family_image_url %}
+          <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
+        {% endif %}
+      </div>
+      <div class="p-3 space-y-1">
+        <h3 class="text-sm font-semibold">Fun Family Activities</h3>
+        <p class="text-[11px] text-slate-300 line-clamp-2">
+          Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
+        </p>
+      </div>
+    </article>
+
+    <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+      <div class="h-24 bg-slate-800">
+        {% if foodie_image_url %}
+          <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
+        {% endif %}
+      </div>
+      <div class="p-3 space-y-1">
+        <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
+        <p class="text-[11px] text-slate-300 line-clamp-2">
+          Coffee, brunch, seafood, and dessert spots we genuinely love.
+        </p>
+      </div>
+    </article>
+  </div>
+</section>
+
+        
+      </main>
+    </div>
+  </div>
+
+  <!-- Bottom nav -->
+<nav
+  class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-24
+         flex items-center justify-center backdrop-blur gap-16"
+  role="navigation"
+>
+  <!-- HOME -->
+  <button data-screen="home" class="nav-item">
+    <img src="/static/img/nav-01.png" class="nav-icon-img" alt="">
+  </button>
+
+  <!-- CHAT -->
+  <button data-screen="chat" class="nav-item">
+    <img src="/static/img/nav-02.png" class="nav-icon-img" alt="">
+  </button>
+
+  <!-- GUIDES -->
+  <button data-screen="experiences" class="nav-item">
+    <img src="/static/img/nav-03.png" class="nav-icon-img" alt="">
+  </button>
+</nav>
+
+
+
+
+
+  <!-- Check-in modal -->
+  <div
+    id="checkin-modal"
+    class="fixed inset-0 z-40 bg-black/85 hidden items-center justify-center px-6"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="checkin-title"
+  >
+    <div class="absolute top-4 right-4">
+      <button
+        id="checkin-close"
+        type="button"
+        class="w-9 h-9 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-slate-100 text-xl leading-none"
+        aria-label="Close"
+      >
+        ×
+      </button>
+    </div>
+    <div class="text-center space-y-4">
+      <p
+        id="checkin-title"
+        class="text-sm uppercase tracking-[0.2em] text-slate-300"
+      >
+        Your door code
+      </p>
+      <p id="checkin-code" class="text-5xl md:text-6xl font-semibold tracking-[0.25em]">
+        ----
+      </p>
+      <p class="text-xs text-slate-300 max-w-xs mx-auto">
+        This code matches the last 4 digits of the phone number on your reservation.
+        Enter it slowly on the keypad. If the lock gives you trouble, contact your host.
+      </p>
+    </div>
+  </div>
+
+  <!-- Logout modal -->
+  <div
+    id="logout-modal"
+    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="logout-title"
+  >
+    <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <h2 id="logout-title" class="text-base font-semibold text-slate-900">Leaving already?</h2>
+          <p class="mt-1 text-sm text-slate-500">
+            To regain access to {{ property_name }}, you’ll need to enter the last 4 digits of your booking phone number.
+          </p>
+        </div>
+        <button
+          id="logout-close"
+          type="button"
+          class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+        >
+          <span class="sr-only">Close</span>
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path
+              fill-rule="evenodd"
+              d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z"
+              clip-rule="evenodd"
+            />
+          </svg>
+        </button>
+      </div>
+
+      <div class="mt-5 flex items-center justify-end gap-3">
+        <button
+          id="logout-cancel"
+          type="button"
+          class="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+        >
+          Cancel
+        </button>
+        <button
+          id="logout-confirm"
+          type="button"
+          class="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
+        >
+          Log out
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", function () {
+      // --- Screens + core elements ---
+      const screens = {
+  home: document.getElementById("screen-home"),
+  chat: document.getElementById("screen-chat"),
+  experiences: document.getElementById("screen-experiences"),
+};
+
+// helper: are we currently on the chat screen?
+function isChatVisible() {
+  const chatScreen = screens.chat;
+  return chatScreen && !chatScreen.classList.contains("hidden");
+}
+
+
+
+
+      const navButtons = document.querySelectorAll("nav .nav-item");
+      const homeLogin = document.getElementById("home-login");
+      const homeStay = document.getElementById("home-stay");
+      const headerEl = document.getElementById("app-header");
+
+
+
+      // --- Global state ---
+      let isUnlocked = window.INITIAL_VERIFIED === "true";
+      let lastUnlockCode = null;
+      let currentSessionId = null;
+
+      let guestName = null;
+      let arrivalDate = null;
+      let departureDate = null;
+
+      const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
+
+      function saveGuestState() {
+        try {
+          const state = {
+            isUnlocked,
+            lastUnlockCode,
+            sessionId: currentSessionId,
+            guestName,
+            arrivalDate,
+            departureDate,
+          };
+          window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
+        } catch (e) {
+          console.warn("Unable to save guest state:", e);
+        }
+      }
+
+      function loadGuestState() {
+        try {
+          const raw = window.localStorage.getItem(GUEST_STATE_KEY);
+          if (!raw) return null;
+          return JSON.parse(raw);
+        } catch (e) {
+          console.warn("Unable to load guest state:", e);
+          return null;
+        }
+      }
+
+      const storedState = loadGuestState();
+      if (storedState) {
+        if (!isUnlocked && storedState.isUnlocked) {
+          isUnlocked = true;
+        }
+        if (storedState.lastUnlockCode) {
+          lastUnlockCode = storedState.lastUnlockCode;
+        }
+        if (storedState.sessionId) {
+          currentSessionId = storedState.sessionId;
+        }
+
+        if (storedState.guestName) {
+          guestName = storedState.guestName;
+          const nameEl = document.getElementById("guest-name-span");
+          if (nameEl) nameEl.textContent = guestName;
+        }
+        if (storedState.arrivalDate) {
+          arrivalDate = storedState.arrivalDate;
+          const arrEl = document.getElementById("arrival-date-span");
+          if (arrEl) arrEl.textContent = arrivalDate;
+        }
+        if (storedState.departureDate) {
+          departureDate = storedState.departureDate;
+          const depEl = document.getElementById("departure-date-span");
+          if (depEl) depEl.textContent = departureDate;
+        }
+      }
+
+      function updateHomeState() {
+        if (isUnlocked) {
+          if (homeLogin) homeLogin.classList.add("hidden");
+          if (homeStay) homeStay.classList.remove("hidden");
+        } else {
+          if (homeLogin) homeLogin.classList.remove("hidden");
+          if (homeStay) homeStay.classList.add("hidden");
+        }
+      }
+
+      let chatHasWelcome = false;
+
+      function showScreen(name) {
+        Object.entries(screens).forEach(([key, el]) => {
+          if (!el) return;
+          if (key === name) el.classList.remove("hidden");
+          else el.classList.add("hidden");
+        });
+        // Header hide/show
+       if (name === "chat") {
+  headerEl?.classList.add("hidden");
+
+  if (
+    window.SANDY_LIVE === "true" &&
+    chatBox &&
+    !chatHasWelcome &&
+    chatBox.children.length === 0
+  ) {
+    const intro = guestName
+      ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+      : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+
+    renderMessage(intro, "bot");
+    chatHasWelcome = true;
+  }
+
+  scrollChatToBottom(); // 👈 here
+} else {
+  headerEl?.classList.remove("hidden");
+}
+
+
+        // Highlight active nav tab + aria attributes
+        navButtons.forEach((btn) => {
+          const target = btn.getAttribute("data-screen");
+          const icon = btn.querySelector(".nav-icon");
+          const isActive = target === name;
+
+          if (isActive) {
+            btn.classList.remove("text-slate-400");
+            btn.classList.add("text-slate-50");
+            btn.setAttribute("aria-current", "page");
+
+            if (icon) {
+              icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
+              icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
+            }
+          } else {
+            btn.classList.add("text-slate-400");
+            btn.classList.remove("text-slate-50");
+            btn.setAttribute("aria-current", "false");
+
+            if (icon) {
+              icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
+              icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
+            }
+          }
+        });
+      }
+
+      function scrollChatToBottom() {
+  // Only scroll when the chat screen is actually visible
+  if (!isChatVisible()) return;
+
+  requestAnimationFrame(() => {
+    const docEl = document.documentElement;
+    const body = document.body;
+
+    const fullHeight = Math.max(
+      docEl.scrollHeight,
+      body.scrollHeight,
+      docEl.offsetHeight,
+      body.offsetHeight
+    );
+
+    window.scrollTo({
+      top: fullHeight,
+      behavior: "auto", // change to "smooth" if you prefer
+    });
+  });
+}
+
+
+      
+      // Nav buttons
+      navButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.getAttribute("data-screen");
+          if (!target) return;
+
+          if (!isUnlocked && target !== "home") {
+            const err = document.getElementById("unlock-error");
+            if (err) {
+              err.textContent =
+                "Please unlock your stay first with the last 4 digits of your booking phone number.";
+            }
+            showScreen("home");
+            return;
+          }
+          showScreen(target);
+        });
+      });
+
+      updateHomeState();
+      showScreen("home");
+
+      // Language
+      const langSelect = document.getElementById("language-select");
+      function getSelectedLanguage() {
+        if (!langSelect) return "auto";
+        return langSelect.value || "auto";
+      }
+      if (langSelect) {
+        const saved = window.localStorage.getItem("guest_language");
+        if (saved) {
+          langSelect.value = saved;
+        }
+        langSelect.addEventListener("change", () => {
+          window.localStorage.setItem("guest_language", langSelect.value);
+        });
+      }
+
+      // Unlock flow
+      const unlockBtn = document.getElementById("unlock-button");
+      const unlockCodeInput = document.getElementById("unlock-code");
+      const unlockError = document.getElementById("unlock-error");
+      const unlockSpinner = document.getElementById("unlock-spinner");
+
+      if (unlockCodeInput) {
+        unlockCodeInput.addEventListener("keydown", (e) => {
+          if (e.key === "Enter") {
+            e.preventDefault();
+            attemptUnlock();
+          }
+        });
+      }
+
+      if (unlockBtn) {
+        unlockBtn.addEventListener("click", attemptUnlock);
+      }
+
+      async function attemptUnlock() {
+        const code = (unlockCodeInput?.value || "").trim();
+        if (unlockError) unlockError.textContent = "";
+
+        if (!/^\d{4}$/.test(code)) {
+          if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
+          return;
+        }
+
+        if (unlockBtn) unlockBtn.disabled = true;
+        unlockSpinner?.classList.remove("hidden");
+
+        try {
+          const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ code }),
+          });
+          const data = await res.json();
+
+          if (!res.ok || !data.success) {
+            if (unlockError) {
+              unlockError.textContent =
+                data.error ||
+                "We couldn’t verify that code. Please double-check or contact your host.";
+            }
+            return;
+          }
+
+          isUnlocked = true;
+          lastUnlockCode = code;
+          if (unlockError) unlockError.textContent = "";
+          if (unlockCodeInput) unlockCodeInput.value = "";
+
+          try {
+            if (data.guest_name) {
+              guestName = data.guest_name;
+              const nameEl = document.getElementById("guest-name-span");
+              if (nameEl) nameEl.textContent = guestName;
+            }
+            if (data.arrival_date) {
+              arrivalDate = data.arrival_date;
+              const arrEl = document.getElementById("arrival-date-span");
+              if (arrEl) arrEl.textContent = arrivalDate;
+            }
+            if (data.departure_date) {
+              departureDate = data.departure_date;
+              const depEl = document.getElementById("departure-date-span");
+              if (depEl) depEl.textContent = departureDate;
+            }
+          } catch (e) {
+            console.warn("Error applying PMS guest info to UI:", e);
+          }
+
+          saveGuestState();
+          updateHomeState();
+          showScreen("home");
+        } catch (err) {
+          console.error(err);
+          if (unlockError) {
+            unlockError.textContent =
+              "Something went wrong while verifying. Please try again.";
+          }
+        } finally {
+          if (unlockBtn) unlockBtn.disabled = false;
+          unlockSpinner?.classList.add("hidden");
+        }
+      }
+
+      // Check-in modal
+      const checkinButton = document.getElementById("checkin-button");
+      const upgradesButton = document.getElementById("upgrades-button");
+      const checkinModal = document.getElementById("checkin-modal");
+      const checkinClose = document.getElementById("checkin-close");
+      const checkinCodeEl = document.getElementById("checkin-code");
+
+      function openCheckinModal() {
+        if (!checkinModal) return;
+        const code = lastUnlockCode || "----";
+        if (checkinCodeEl) checkinCodeEl.textContent = code;
+        checkinModal.classList.remove("hidden");
+        checkinModal.classList.add("flex");
+      }
+
+      function closeCheckinModal() {
+        if (!checkinModal) return;
+        checkinModal.classList.add("hidden");
+        checkinModal.classList.remove("flex");
+      }
+
+      if (checkinButton) {
+        checkinButton.addEventListener("click", openCheckinModal);
+      }
+      if (checkinClose) {
+        checkinClose.addEventListener("click", closeCheckinModal);
+      }
+      if (checkinModal) {
+        checkinModal.addEventListener("click", (e) => {
+          if (e.target === checkinModal) closeCheckinModal();
+        });
+      }
+
+      // Upgrades → Guides
+      if (upgradesButton) {
+        upgradesButton.addEventListener("click", () => {
+          if (!isUnlocked) return;
+          showScreen("experiences");
+        });
+      }
+
+      // Chat logic
+      const chatBox = document.getElementById("chat-box");
+      const chatInput = document.getElementById("chat-input");
+      const chatSend = document.getElementById("chat-send");
+      const chatPlus = document.querySelector(".chat-plus");
+      
+      // Elements that sit on top of the chat (fixed at bottom)
+      const chatInputBar = document.querySelector(".chat-input-bar");
+      const bottomNav = document.querySelector('nav[role="navigation"]');
+      
+      // Dynamically set bottom padding so last message sits above input + nav
+      
+
+      if (window.SANDY_LIVE === "false") {
+        if (chatBox) {
+          renderMessage(
+            "Sandy is currently offline for this property 🌙\n\n" +
+              "For urgent questions, please contact your host directly via your booking app or email.",
+            "bot"
+          );
+        }
+        if (chatInput) {
+          chatInput.disabled = true;
+          chatInput.placeholder = "Sandy is offline for this property.";
+        }
+        if (chatSend) chatSend.disabled = true;
+        if (chatPlus) chatPlus.disabled = true;
+      }
+
+   
+
+
+
+
+
+
+
+      function formatTime(date) {
+        let hours = date.getHours();
+        const minutes = date.getMinutes().toString().padStart(2, "0");
+        const ampm = hours >= 12 ? "PM" : "AM";
+        hours = hours % 12;
+        if (hours === 0) hours = 12;
+        return `${hours.toString().padStart(2, "0")}:${minutes} ${ampm}`;
+      }
+
+      function formatMessage(text) {
+        let escaped = text
+          .replace(/&/g, "&amp;")
+          .replace(/</g, "&lt;")
+          .replace(/>/g, "&gt;");
+
+        escaped = escaped.replace(
+          /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
+          '<a href="$1" target="_blank" rel="noopener noreferrer" class="gmap-link">📍 View on Google Maps</a>'
+        );
+        escaped = escaped.replace(
+          /(https?:\/\/[^\s]+)/g,
+          '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+        );
+
+        return escaped.replace(/\n/g, "<br>");
+      }
+
+     function renderMessage(text, sender) {
+  if (!chatBox) return;
+
+  const isUser = sender === "user";
+  const ts = formatTime(new Date());
+
+  const row = document.createElement("div");
+  row.className = "msg " + (isUser ? "user" : "bot");
+
+  // Avatar (Sandy only)
+  let avatar = null;
+  if (!isUser) {
+    avatar = document.createElement("div");
+    avatar.className = "avatar avatar-sandy";
+  }
+
+  const column = document.createElement("div");
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+
+  const time = document.createElement("div");
+  time.className = "timestamp";
+  time.textContent = ts;
+
+  column.appendChild(bubble);
+  column.appendChild(time);
+
+  if (isUser) {
+    // user: bubble only
+    row.appendChild(column);
+  } else {
+    // bot: avatar + bubble
+    row.appendChild(avatar);
+    row.appendChild(column);
+  }
+
+  chatBox.appendChild(row);
+
+  // 👇 only scroll if the chat screen is actually visible
+  scrollChatToBottom();
+}
+
+
+
+
+
+      function addTyping() {
+        if (!chatBox || document.getElementById("typing-indicator")) return;
+
+        const row = document.createElement("div");
+        row.id = "typing-indicator";
+        row.className = "msg bot";
+
+        const avatar = document.createElement("div");
+        avatar.className = "avatar avatar-sandy";
+
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        bubble.innerHTML = `
+          <span class="typing-dots">
+            <span> </span><span> </span><span> </span>
+          </span>
+        `;
+
+        const column = document.createElement("div");
+        column.appendChild(bubble);
+
+        row.appendChild(avatar);
+        row.appendChild(column);
+
+       chatBox.appendChild(row);
+        scrollChatToBottom();
+
+      }
+
+      function removeTyping() {
+        const el = document.getElementById("typing-indicator");
+        if (el) el.remove();
+      }
+
+      async function sendChat() {
+        const text = (chatInput?.value || "").trim();
+        if (!text) return;
+
+        if (window.SANDY_LIVE === "false") {
+          renderMessage(
+            "Sandy is currently offline for this property. Please contact your host directly. 🙏",
+            "bot"
+          );
+          return;
+        }
+
+        renderMessage(text, "user");
+        if (chatInput) chatInput.value = "";
+        addTyping();
+
+        try {
+          const body = {
+            message: text,
+            session_id: currentSessionId,
+            language: getSelectedLanguage(),
+          };
+
+          const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          });
+
+          const data = await res.json();
+          removeTyping();
+
+          if (data.session_id) {
+            currentSessionId = data.session_id;
+            saveGuestState();
+          }
+
+          if (data.error) {
+            renderMessage(data.error, "bot");
+          } else {
+            renderMessage(
+              data.response || "Hmm, I didn’t catch that — could you try again? 🌴",
+              "bot"
+            );
+          }
+        } catch (err) {
+          console.error(err);
+          removeTyping();
+          renderMessage(
+            "Oops! Something went wrong. Please try again in a moment. 🐚",
+            "bot"
+          );
+        }
+      }
+
+      if (chatSend && chatInput) {
+        chatSend.addEventListener("click", sendChat);
+        chatInput.addEventListener("keypress", (e) => {
+          if (e.key === "Enter" && !e.shiftKey) {
+            e.preventDefault();
+            sendChat();
+          }
+        });
+      }
+
+      // Logout modal wiring
+      const logoutButton = document.getElementById("logout-button");
+      const logoutModal = document.getElementById("logout-modal");
+      const logoutClose = document.getElementById("logout-close");
+      const logoutCancel = document.getElementById("logout-cancel");
+      const logoutConfirm = document.getElementById("logout-confirm");
+
+      function openLogoutModal() {
+        if (logoutModal) {
+          logoutModal.classList.remove("hidden");
+          logoutModal.classList.add("flex");
+        }
+      }
+
+      function closeLogoutModal() {
+        if (logoutModal) {
+          logoutModal.classList.add("hidden");
+          logoutModal.classList.remove("flex");
+        }
+      }
+
+      if (logoutButton) {
+        logoutButton.addEventListener("click", (e) => {
+          e.preventDefault();
+          openLogoutModal();
+        });
+      }
+
+      if (logoutClose) {
+        logoutClose.addEventListener("click", (e) => {
+          e.preventDefault();
+          closeLogoutModal();
+        });
+      }
+
+      if (logoutCancel) {
+        logoutCancel.addEventListener("click", (e) => {
+          e.preventDefault();
+          closeLogoutModal();
+        });
+      }
+
+      if (logoutConfirm) {
+        logoutConfirm.addEventListener("click", (e) => {
+          e.preventDefault();
+          try {
+            window.localStorage.removeItem(GUEST_STATE_KEY);
+          } catch (err) {
+            console.warn("Unable to clear guest state:", err);
+          }
+          window.location.href = "/auth/logout";
+        });
+      }
+
+      if (logoutModal) {
+        logoutModal.addEventListener("click", (e) => {
+          if (e.target === logoutModal) {
+            closeLogoutModal();
+          }
+        });
+      }
+    });
+  </script>
+</body>
+</html>
