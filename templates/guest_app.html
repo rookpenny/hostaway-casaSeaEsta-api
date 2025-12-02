@@ -968,13 +968,16 @@ nav .nav-icon {
 <!-- Fullscreen circular menu -->
 <div
   id="fullscreen-menu"
-  class="fixed inset-0 z-45 hidden"
+  class="fixed inset-0 z-[9999] hidden"
   aria-hidden="true"
 >
   <!-- Expanding circle -->
   <div class="absolute inset-0 overflow-hidden pointer-events-none">
     <div
-      class="menu-circle bg-emerald-900 rounded-full w-20 h-20 absolute top-4 right-4 transition-transform duration-500 ease-out"
+      class="menu-circle bg-emerald-900 rounded-full
+             w-[200vmax] h-[200vmax]
+             absolute top-[-100vmax] right-[-100vmax]
+             transition-transform duration-500 ease-out"
     ></div>
   </div>
 
