@@ -491,8 +491,8 @@ nav .nav-icon {
       <nav
   id="mobile-menu"
   class="fixed inset-0 z-30 bg-slate-50 text-slate-900
-         transform -translate-y-full opacity-0 pointer-events-none
-         transition-all duration-300 ease-out"
+         transform -translate-y-full pointer-events-none
+         transition-transform duration-400 ease-out"
   aria-label="Main navigation"
 >
   
@@ -1139,17 +1139,13 @@ function isChatVisible() {
 
       let isMenuOpen = false;
 
-      function openMenu() {
+            function openMenu() {
         if (!mobileMenu) return;
         isMenuOpen = true;
 
-        // Slide panel down
-        mobileMenu.classList.remove(
-          "-translate-y-full",
-          "opacity-0",
-          "pointer-events-none"
-        );
-        mobileMenu.classList.add("translate-y-0", "opacity-100");
+        // Slide panel down from top
+        mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
+        mobileMenu.classList.add("translate-y-0");
 
         // Change top bar to light theme
         topBar?.classList.remove("bg-sky-600", "text-white");
@@ -1170,13 +1166,9 @@ function isChatVisible() {
         if (!mobileMenu) return;
         isMenuOpen = false;
 
-        // Slide panel up
-        mobileMenu.classList.add(
-          "-translate-y-full",
-          "opacity-0",
-          "pointer-events-none"
-        );
-        mobileMenu.classList.remove("translate-y-0", "opacity-100");
+        // Slide panel back up
+        mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
+        mobileMenu.classList.remove("translate-y-0");
 
         // Restore blue bar
         topBar?.classList.add("bg-sky-600", "text-white");
@@ -1192,6 +1184,7 @@ function isChatVisible() {
 
         document.body.classList.remove("menu-open");
       }
+
 
       menuToggle?.addEventListener("click", () => {
         if (isMenuOpen) {
