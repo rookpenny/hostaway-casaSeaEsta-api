@@ -293,12 +293,13 @@ nav[role="navigation"] {
     .avatar {
       width: 44px;
       height: 44px;
-      border-radius: 12px;
-      /* rounded square */
+      border-radius: 999px; /* full circle */
+      overflow: hidden;     /* prevents distortion */
+      /* rounded square
       margin: 0 0.5rem;
       background-size: cover;
       background-position: center;
-      flex-shrink: 0;
+      flex-shrink: 0; */
     }
 
 
@@ -312,11 +313,14 @@ nav[role="navigation"] {
       font-weight: 600;
     }
 
+    /* Timestamp above bubble */
     .timestamp {
       font-size: 0.65rem;
       color: #64748b;
-      margin-top: 0.25rem;
+      margin-bottom: 0.25rem;  /* spacing below timestamp */
+      margin-top: 0;           /* remove old spacing */
     }
+
 
     /* Bot timestamps align left under the bubble */
     .msg.bot .timestamp {
@@ -1677,8 +1681,9 @@ body.menu-open #chat-header-sandy {
         time.className = "timestamp";
         time.textContent = ts;
 
-        column.appendChild(bubble);
         column.appendChild(time);
+        column.appendChild(bubble);
+        
 
         if (isUser) {
           // user: bubble only
