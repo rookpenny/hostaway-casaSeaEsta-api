@@ -623,23 +623,18 @@ body.chat-screen #screen-chat {
 
     /* Smooth fade animation for Sandy avatar */
 #chat-header-sandy {
-  opacity: 1;
-  transform: translateY(0);
-  transition:
-    opacity 0.35s ease,
-    transform 0.35s ease;
+ opacity: 1;
+  transition: opacity 0.4s ease; /* simple fade */
 }
 
 /* Fade out immediately when menu opens */
 body.menu-open #chat-header-sandy {
   opacity: 0;
-  transform: translateY(-5px);
 }
 
 /* Keep hidden while menu is closing (JS will handle timing) */
 #chat-header-sandy.fade-hidden {
   opacity: 0 !important;
-  transform: translateY(-5px) !important;
 }
 
   </style>
@@ -1348,7 +1343,7 @@ body.menu-open #chat-header-sandy {
           if (!isMenuOpen && document.body.classList.contains("chat-screen")) {
             document.getElementById("chat-header-sandy")?.classList.remove("fade-hidden");
           }
-        }, 200);
+        }, 400);
         
         // AFTER links have faded out, slide the panel back up
         setTimeout(() => {
