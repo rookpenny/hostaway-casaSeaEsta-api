@@ -616,6 +616,23 @@ nav[role="navigation"] {
 body.chat-screen #screen-chat {
   padding-top: 5rem; /* match header height (h-20) */
 }
+
+    /* Smooth fade animation for Sandy avatar */
+#chat-header-sandy {
+  opacity: 1;
+  transition: opacity 0.4s ease;
+}
+
+/* Fade out immediately when menu opens */
+body.menu-open #chat-header-sandy {
+  opacity: 0;
+}
+
+/* Keep hidden while menu is closing (JS will handle timing) */
+#chat-header-sandy.fade-hidden {
+  opacity: 0 !important;
+}
+
   </style>
 
   <script>
@@ -1284,12 +1301,16 @@ body.chat-screen #screen-chat {
 
         document.body.classList.add("menu-open");
 
+        // 👉 Fade out Sandy avatar immediately
+        document.getElementById("chat-header-sandy")?.classList.add("fade-hidden");
+
         // After panel finishes sliding, fade/slide in the links
         setTimeout(() => {
           if (isMenuOpen && mobileMenu) {
             mobileMenu.classList.add("show-links");
           }
         }, MOBILE_MENU_SLIDE_DURATION); // e.g. 350
+        
       }
 
       function closeMenu() {
@@ -1313,6 +1334,13 @@ body.chat-screen #screen-chat {
 
         document.body.classList.remove("menu-open");
 
+        // 👉 Fade Sandy back in AFTER 2 seconds (only if chat screen is visible)
+        setTimeout(() => {
+          if (!isMenuOpen && document.body.classList.contains("chat-screen")) {
+            document.getElementById("chat-header-sandy")?.classList.remove("fade-hidden");
+          }
+        }, 2000);
+        
         // AFTER links have faded out, slide the panel back up
         setTimeout(() => {
           if (!isMenuOpen && mobileMenu) {
