@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <title>{{ property_name }} – Guest Experience</title>
@@ -16,10 +17,12 @@
   <script src="https://cdn.tailwindcss.com"></script>
 
   <style>
-    html, body {
+    html,
+    body {
       font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
       font-size: 0.95rem;
-      overflow-x: hidden; /* only block horizontal scroll */
+      overflow-x: hidden;
+      /* only block horizontal scroll */
     }
 
 
@@ -27,173 +30,177 @@
       box-sizing: border-box;
     }
 
-body.menu-open {
-  overflow: hidden;
-}
+    body.menu-open {
+      overflow: hidden;
+    }
 
     /* === HAMBURGER / X BUTTON === */
 
-/* === Hamburger / X toggle for #menu-toggle === */
-/* === Hamburger / X toggle for #menu-toggle === */
-#menu-toggle {
-  position: relative;
-}
+    /* === Hamburger / X toggle for #menu-toggle === */
+    /* === Hamburger / X toggle for #menu-toggle === */
+    #menu-toggle {
+      position: relative;
+    }
 
-/* Top + bottom bars */
-#menu-toggle::before,
-#menu-toggle::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  width: 24px;
-  height: 2px;
-  border-radius: 999px;
-  background: #ffffff; /* closed: white bars on blue */
-  transform: translateX(-50%);
-  transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
-}
+    /* Top + bottom bars */
+    #menu-toggle::before,
+    #menu-toggle::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      width: 24px;
+      height: 2px;
+      border-radius: 999px;
+      background: #ffffff;
+      /* closed: white bars on blue */
+      transform: translateX(-50%);
+      transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
+    }
 
-/* Top bar (hamburger) */
-#menu-toggle::before {
-  transform: translate(-50%, -6px);
-}
+    /* Top bar (hamburger) */
+    #menu-toggle::before {
+      transform: translate(-50%, -6px);
+    }
 
-/* Bottom bar (hamburger) */
-#menu-toggle::after {
-  transform: translate(-50%, 6px);
-}
+    /* Bottom bar (hamburger) */
+    #menu-toggle::after {
+      transform: translate(-50%, 6px);
+    }
 
-/* Middle bar */
-#menu-toggle .menu-toggle-middle {
-  width: 24px;
-  height: 2px;
-  border-radius: 999px;
-  background: #ffffff;
-  transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
-}
+    /* Middle bar */
+    #menu-toggle .menu-toggle-middle {
+      width: 24px;
+      height: 2px;
+      border-radius: 999px;
+      background: #ffffff;
+      transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
+    }
 
-/* === OPEN STATE transforms hamburger into "X" === */
-#menu-toggle.menu-toggle-open::before {
-  transform: translate(-50%, 0) rotate(45deg);
-}
+    /* === OPEN STATE transforms hamburger into "X" === */
+    #menu-toggle.menu-toggle-open::before {
+      transform: translate(-50%, 0) rotate(45deg);
+    }
 
-#menu-toggle.menu-toggle-open::after {
-  transform: translate(-50%, 0) rotate(-45deg);
-}
+    #menu-toggle.menu-toggle-open::after {
+      transform: translate(-50%, 0) rotate(-45deg);
+    }
 
-#menu-toggle.menu-toggle-open .menu-toggle-middle {
-  opacity: 0;
-  transform: scaleX(0.5);
-}
+    #menu-toggle.menu-toggle-open .menu-toggle-middle {
+      opacity: 0;
+      transform: scaleX(0.5);
+    }
 
-/* On light bar (menu open), lines turn dark */
-#menu-toggle.menu-toggle-open::before,
-#menu-toggle.menu-toggle-open::after,
-#menu-toggle.menu-toggle-open .menu-toggle-middle {
-  background: #020617; /* slate-950 */
-}
+    /* On light bar (menu open), lines turn dark */
+    #menu-toggle.menu-toggle-open::before,
+    #menu-toggle.menu-toggle-open::after,
+    #menu-toggle.menu-toggle-open .menu-toggle-middle {
+      background: #020617;
+      /* slate-950 */
+    }
 
 
 
-    
-.menu-toggle {
-  position: relative;
-}
 
-/* Top + bottom bars */
-.menu-toggle::before,
-.menu-toggle::after {
-  content: "";
-  position: absolute;
-  left: 50%;
-  width: 24px;
-  height: 2px;
-  background: #ffffff;
-  border-radius: 999px;
-  transform: translateX(-50%);
-  transition: transform 0.3s ease, opacity 0.3s ease;
-}
+    .menu-toggle {
+      position: relative;
+    }
 
-/* Top bar (default) */
-.menu-toggle::before {
-  transform: translate(-50%, -6px);
-}
+    /* Top + bottom bars */
+    .menu-toggle::before,
+    .menu-toggle::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      width: 24px;
+      height: 2px;
+      background: #ffffff;
+      border-radius: 999px;
+      transform: translateX(-50%);
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
 
-/* Bottom bar (default) */
-.menu-toggle::after {
-  transform: translate(-50%, 6px);
-}
+    /* Top bar (default) */
+    .menu-toggle::before {
+      transform: translate(-50%, -6px);
+    }
 
-/* Middle bar */
-.menu-toggle-middle {
-  width: 24px;
-  height: 2px;
-  background: #ffffff;
-  border-radius: 999px;
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
+    /* Bottom bar (default) */
+    .menu-toggle::after {
+      transform: translate(-50%, 6px);
+    }
 
-/* === OPEN STATE === */
-.menu-toggle.menu-toggle-open::before {
-  transform: translate(-50%, 0) rotate(45deg);
-}
+    /* Middle bar */
+    .menu-toggle-middle {
+      width: 24px;
+      height: 2px;
+      background: #ffffff;
+      border-radius: 999px;
+      transition: opacity 0.3s ease, transform 0.3s ease;
+    }
 
-.menu-toggle.menu-toggle-open::after {
-  transform: translate(-50%, 0) rotate(-45deg);
-}
+    /* === OPEN STATE === */
+    .menu-toggle.menu-toggle-open::before {
+      transform: translate(-50%, 0) rotate(45deg);
+    }
 
-.menu-toggle.menu-toggle-open .menu-toggle-middle {
-  opacity: 0;
-  transform: scaleX(0.5);
-}
+    .menu-toggle.menu-toggle-open::after {
+      transform: translate(-50%, 0) rotate(-45deg);
+    }
 
-/* Keep Tailwind layout; only tweak visuals
+    .menu-toggle.menu-toggle-open .menu-toggle-middle {
+      opacity: 0;
+      transform: scaleX(0.5);
+    }
+
+    /* Keep Tailwind layout; only tweak visuals
 nav[role="navigation"] {
   height: 120px !important; 
 }
  */
-/* Make the nav buttons visually clean but DO NOT touch layout */
-nav .nav-item {
-  background: none !important;
-  border: none !important;
-  padding: 0;
-  margin: 0;
-  box-shadow: none !important;
-}
+    /* Make the nav buttons visually clean but DO NOT touch layout */
+    nav .nav-item {
+      background: none !important;
+      border: none !important;
+      padding: 0;
+      margin: 0;
+      box-shadow: none !important;
+    }
 
-/* Icon images */
-.nav-icon-img {
-  width: 60px;
-  height: 60px;
-  object-fit: contain;
-  opacity: 0.65;
-  transition: opacity 0.25s ease;
-}
+    /* Icon images */
+    .nav-icon-img {
+      width: 60px;
+      height: 60px;
+      object-fit: contain;
+      opacity: 0.65;
+      transition: opacity 0.25s ease;
+    }
 
-/* Hover + active: just change opacity, nothing else */
-nav .nav-item:hover .nav-icon-img,
-nav .nav-item[aria-current="page"] .nav-icon-img {
-  opacity: 1;
-}
-
-
-
-/* REMOVE any unwanted Tailwind classes JS might apply */
-nav .nav-icon {
-  background: none !important;
-  border: none !important;
-  box-shadow: none !important;
-  transform: none !important; /* stops scale-110 */
-}
+    /* Hover + active: just change opacity, nothing else */
+    nav .nav-item:hover .nav-icon-img,
+    nav .nav-item[aria-current="page"] .nav-icon-img {
+      opacity: 1;
+    }
 
 
-/* OPTIONAL — dim inactive icons (if JS toggles text-slate-400/50) */
-.nav-item.text-slate-400 .nav-icon-img {
-  opacity: 0.6;
-}
-.nav-item.text-slate-50 .nav-icon-img {
-  opacity: 1;
-}
+
+    /* REMOVE any unwanted Tailwind classes JS might apply */
+    nav .nav-icon {
+      background: none !important;
+      border: none !important;
+      box-shadow: none !important;
+      transform: none !important;
+      /* stops scale-110 */
+    }
+
+
+    /* OPTIONAL — dim inactive icons (if JS toggles text-slate-400/50) */
+    .nav-item.text-slate-400 .nav-icon-img {
+      opacity: 0.6;
+    }
+
+    .nav-item.text-slate-50 .nav-icon-img {
+      opacity: 1;
+    }
 
 
 
@@ -203,15 +210,17 @@ nav .nav-icon {
       font-weight: 700 !important;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      color: rgb(148 163 184); /* slate-400 */
+      color: rgb(148 163 184);
+      /* slate-400 */
     }
 
     .detail-label-results {
       font-size: 1rem !important;
       font-weight: 600 !important;
       text-transform: uppercase;
-     /* letter-spacing: 0.05em;*/
-      color: rgb(255 255 255); /* slate-400 */
+      /* letter-spacing: 0.05em;*/
+      color: rgb(255 255 255);
+      /* slate-400 */
     }
 
     /* Sandy avatar photo */
@@ -222,20 +231,20 @@ nav .nav-icon {
       background-color: transparent;
     }
 
- 
+
     #chat-box {
-  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-}
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
 
 
-   .msg {
-  display: flex;
-  align-items: flex-start;
-  margin-bottom: 0.75rem;
-  animation: fadeInUp 0.35s ease-out;
-  animation-fill-mode: both;
-  scroll-margin-bottom: 7rem;
-}
+    .msg {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+      animation: fadeInUp 0.35s ease-out;
+      animation-fill-mode: both;
+      scroll-margin-bottom: 7rem;
+    }
 
 
     .msg.user {
@@ -243,45 +252,49 @@ nav .nav-icon {
     }
 
     /* Column that wraps bubble + timestamp for user messages */
-      .msg.user > div {
-        max-width: 70%;
-        display: inline-flex;
-        flex-direction: column;
-        align-items: flex-end; /* bubble & timestamp align to right together */
+    .msg.user>div {
+      max-width: 70%;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-end;
+      /* bubble & timestamp align to right together */
 
-      }
-      
-      /* Column that wraps bubble + timestamp for bot messages */
-      .msg.bot > div:last-child {
-        max-width: 70%;
-        display: inline-flex;
-        flex-direction: column;
-        align-items: flex-start;
-      }
+    }
+
+    /* Column that wraps bubble + timestamp for bot messages */
+    .msg.bot>div:last-child {
+      max-width: 70%;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
 
 
     .msg.bot {
       justify-content: flex-start;
     }
 
-    
 
-      .bubble {
-        display: inline-block;        /* hug contents */
-        padding: 0.6rem 1rem;
-        border-radius: 1rem;
-        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-        max-width: 100%;              /* let parent control width */
-        font-size: 0.95rem;
-        line-height: 1.5;
-        word-wrap: break-word;
-      }
+
+    .bubble {
+      display: inline-block;
+      /* hug contents */
+      padding: 0.6rem 1rem;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      max-width: 100%;
+      /* let parent control width */
+      font-size: 0.95rem;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
 
 
     .avatar {
       width: 44px;
       height: 44px;
-      border-radius: 12px; /* rounded square */
+      border-radius: 12px;
+      /* rounded square */
       margin: 0 0.5rem;
       background-size: cover;
       background-position: center;
@@ -305,13 +318,13 @@ nav .nav-icon {
       margin-top: 0.25rem;
     }
 
-     /* Bot timestamps align left under the bubble */
+    /* Bot timestamps align left under the bubble */
     .msg.bot .timestamp {
       text-align: left;
       align-self: flex-start;
       padding-left: 4px;
     }
-    
+
     /* User timestamps align right, directly under user bubble */
     .msg.user .timestamp {
       text-align: right;
@@ -350,33 +363,45 @@ nav .nav-icon {
     .message-text em {
       font-style: italic;
     }
-.typing-dots {
-  display: inline-flex;
-  align-items: center;
-  transform: translateY(-2px); /* raise it */
-}
-  .typing-dots span {
-  width: 6px;
-  height: 6px;
-  margin: 0 3px;
-  background-color: #022c22;
-  border-radius: 50%;
-  display: inline-block;
-  animation: pulse 1s infinite ease-in-out;
-}
 
-.typing-dots span:nth-child(2) {
-  animation-delay: 0.2s;
-}
+    .typing-dots {
+      display: inline-flex;
+      align-items: center;
+      transform: translateY(-2px);
+      /* raise it */
+    }
 
-.typing-dots span:nth-child(3) {
-  animation-delay: 0.4s;
-}
+    .typing-dots span {
+      width: 6px;
+      height: 6px;
+      margin: 0 3px;
+      background-color: #022c22;
+      border-radius: 50%;
+      display: inline-block;
+      animation: pulse 1s infinite ease-in-out;
+    }
 
-@keyframes pulse {
-  0%, 100% { opacity: 0.3; transform: scale(0.7); }
-  50% { opacity: 1; transform: scale(1); }
-}
+    .typing-dots span:nth-child(2) {
+      animation-delay: 0.2s;
+    }
+
+    .typing-dots span:nth-child(3) {
+      animation-delay: 0.4s;
+    }
+
+    @keyframes pulse {
+
+      0%,
+      100% {
+        opacity: 0.3;
+        transform: scale(0.7);
+      }
+
+      50% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
 
 
 
@@ -406,9 +431,11 @@ nav .nav-icon {
       0% {
         opacity: 0.3;
       }
+
       20% {
         opacity: 1;
       }
+
       100% {
         opacity: 0.3;
       }
@@ -419,6 +446,7 @@ nav .nav-icon {
         opacity: 0;
         transform: translateY(12px);
       }
+
       to {
         opacity: 1;
         transform: translateY(0);
@@ -426,75 +454,81 @@ nav .nav-icon {
     }
 
     .chat-input-bar {
-  padding: 0.8rem 1rem;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  background: #f8fafc;
-  border-top: 1px solid #e2e8f0;
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0rem; /* above nav */
-  z-index: 30;
-}
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0rem;
+      /* above nav */
+      z-index: 30;
+    }
 
-/* Default hidden state */
-#mobile-menu .mobile-menu-content {
-  opacity: 0;
-  transform: translateY(-12px);
-  transition:
-    opacity .3s cubic-bezier(0.16,1,0.3,1),
-    transform .35s cubic-bezier(0.16,1,0.3,1);
-}
+    /* Default hidden state */
+    #mobile-menu .mobile-menu-content {
+      opacity: 0;
+      transform: translateY(-12px);
+      transition:
+        opacity .3s cubic-bezier(0.16, 1, 0.3, 1),
+        transform .35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
 
-/* Opening animation */
-#mobile-menu.show-links {
-  opacity: 1;
-}
+    /* Opening animation */
+    #mobile-menu.show-links {
+      opacity: 1;
+    }
 
-#mobile-menu.show-links .mobile-menu-content {
-  opacity: 1;
-  transform: translateY(0);
-}
+    #mobile-menu.show-links .mobile-menu-content {
+      opacity: 1;
+      transform: translateY(0);
+    }
 
-/* Closing fade-out ONLY */
-#mobile-menu.fade-out .mobile-menu-content {
-  opacity: 0;
-  transform: translateY(0);    /* no slide on close */
-  transition: opacity .25s ease;
-}
+    /* Closing fade-out ONLY */
+    #mobile-menu.fade-out .mobile-menu-content {
+      opacity: 0;
+      transform: translateY(0);
+      /* no slide on close */
+      transition: opacity .25s ease;
+    }
 
-/* When on chat screen: top bar becomes light grey */
-body.chat-screen #top-bar {
-  background: #f8fafc !important; /* same light grey as input bar */
-  color: #020617 !important;       /* slate text/icons */
-}
+    /* When on chat screen: top bar becomes light grey */
+    body.chat-screen #top-bar {
+      background: #f8fafc !important;
+      /* same light grey as input bar */
+      color: #020617 !important;
+      /* slate text/icons */
+    }
 
-/* Make hamburger slate on chat screen */
-body.chat-screen #menu-toggle::before,
-body.chat-screen #menu-toggle::after,
-body.chat-screen #menu-toggle .menu-toggle-middle {
-  background: #020617 !important;  /* slate-950 */
-}
+    /* Make hamburger slate on chat screen */
+    body.chat-screen #menu-toggle::before,
+    body.chat-screen #menu-toggle::after,
+    body.chat-screen #menu-toggle .menu-toggle-middle {
+      background: #020617 !important;
+      /* slate-950 */
+    }
 
-/* Switch logos appropriately */
-body.chat-screen #logo-light {
-  display: none !important;
-}
-body.chat-screen #logo-dark {
-  display: block !important;
-}
+    /* Switch logos appropriately */
+    body.chat-screen #logo-light {
+      display: none !important;
+    }
+
+    body.chat-screen #logo-dark {
+      display: block !important;
+    }
 
     /* Show Sandy header only on chat screen */
-body.chat-screen #chat-header-sandy {
-  display: flex;
-}
+    body.chat-screen #chat-header-sandy {
+      display: flex;
+    }
 
-/* When menu is open, hide it */
-body.menu-open #chat-header-sandy {
-  display: none !important;
-}
+    /* When menu is open, hide it */
+    body.menu-open #chat-header-sandy {
+      display: none !important;
+    }
 
 
     .chat-input-inner {
@@ -544,18 +578,18 @@ body.menu-open #chat-header-sandy {
       color: #022c22;
     }
 
-      /* Light mode chat screen */
-      #screen-chat {
-        color: #1f2937;
-        /* DO NOT set display or height here so .hidden can control it */
-      }
+    /* Light mode chat screen */
+    #screen-chat {
+      color: #1f2937;
+      /* DO NOT set display or height here so .hidden can control it */
+    }
 
-    #screen-chat > .flex-1 {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-}
+    #screen-chat>.flex-1 {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
 
 
     .msg.user .bubble {
@@ -567,7 +601,7 @@ body.menu-open #chat-header-sandy {
       background: #22c55e;
       color: #022c22;
     }
-    
+
     .msg.bot .avatarOLD {
       display: none !important;
       background-color: #22c55e;
@@ -586,14 +620,12 @@ body.menu-open #chat-header-sandy {
     window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
   </script>
 </head>
+
 <body class="min-h-screen bg-slate-950 text-slate-50 flex flex-col overflow-x-hidden">
 
   <!-- App shell with shared background image + gradient -->
-  <div
-    id="app-shell"
-    class="relative min-h-screen w-full max-w-full flex flex-col overflow-x-hidden"
-    style="background-image: url('{{ hero_image_url or default_image_url }}'); background-size: cover; background-position: top;"
-  >
+  <div id="app-shell" class="relative min-h-screen w-full max-w-full flex flex-col overflow-x-hidden"
+    style="background-image: url('{{ hero_image_url or default_image_url }}'); background-size: cover; background-position: top;">
     <!-- Gradient overlay -->
     <div class="absolute inset-0 bg-gradient-to-t from-black to-transparent pointer-events-none"></div>
 
@@ -601,132 +633,98 @@ body.menu-open #chat-header-sandy {
     <!-- Foreground content -->
     <div class="relative z-10 flex flex-col min-h-screen">
 
-           <!-- Top header / nav -->
-<header id="app-header" class="relative w-full">
-  <!-- Fixed blue top bar -->
-  <div
-    id="top-bar"
-    class="fixed top-0 inset-x-0 z-50 bg-transparent text-white
+      <!-- Top header / nav -->
+      <header id="app-header" class="relative w-full">
+        <!-- Fixed blue top bar -->
+        <div id="top-bar" class="fixed top-0 inset-x-0 z-50 bg-transparent text-white
            transition-colors duration-300
-           transform transition-transform ease-out duration-700"
-  >
-    <!-- CHAT HEADER: Sandy avatar + name -->
-<div
-  id="chat-header-sandy"
-  class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-         hidden flex flex-col items-center pointer-events-none"
->
-  <div class="avatar avatar-sandy shadow"></div>
-  <span class="text-xs text-slate-900 mt-1">Sandy</span>
-</div>
+           transform transition-transform ease-out duration-700">
+          <!-- CHAT HEADER: Sandy avatar + name -->
+          <div id="chat-header-sandy" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+         hidden flex flex-col items-center pointer-events-none">
+            <div class="avatar avatar-sandy shadow"></div>
+            <span class="text-xs text-slate-900 mt-1">Sandy</span>
+          </div>
 
-   
-     <div class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4"> 
-      <!-- Logo -->
-      <a href="#" class="flex items-center gap-2">
-        <!-- Logo for blue bar -->
-        <img
-          id="logo-light"
-          src="/static/img/logo-light.svg"
-          alt="{{ property_name }}"
-          class="h-7"
-        />
-        <!-- Logo for light bar (menu open) -->
-        <img
-          id="logo-dark"
-          src="/static/img/logo-dark.svg"
-          alt="{{ property_name }}"
-          class="h-7 hidden"
-        />
-      </a>
 
-      <!-- (Optional) center button -->
-      <button
-        type="button"
-        class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold bg-white text-sky-900 rounded-sm shadow-sm"
-      >
-        Upgrades
-      </button>
+          <div class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
+            <!-- Logo -->
+            <a href="#" class="flex items-center gap-2">
+              <!-- Logo for blue bar -->
+              <img id="logo-light" src="/static/img/logo-light.svg" alt="{{ property_name }}" class="h-7" />
+              <!-- Logo for light bar (menu open) -->
+              <img id="logo-dark" src="/static/img/logo-dark.svg" alt="{{ property_name }}" class="h-7 hidden" />
+            </a>
 
-      <!-- Right side: ANIMATED HAMBURGER -->
-      <button
-        id="menu-toggle"
-        type="button"
-        class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none"
-        aria-label="Toggle navigation menu"
-      >
-        <span class="menu-toggle-middle"></span>
-      </button>
-    </div>
-  </div>
+            <!-- (Optional) center button -->
+            <button type="button"
+              class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold bg-white text-sky-900 rounded-sm shadow-sm">
+              Upgrades
+            </button>
 
-  <!-- Spacer so content doesn't sit under fixed bar 
+            <!-- Right side: ANIMATED HAMBURGER -->
+            <button id="menu-toggle" type="button"
+              class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none"
+              aria-label="Toggle navigation menu">
+              <span class="menu-toggle-middle"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Spacer so content doesn't sit under fixed bar 
   <div class="h-16"></div>-->
-</header>
+      </header>
 
 
       <!-- Full-screen slide-down mobile menu -->
-<nav
-  id="mobile-menu"
-  class="fixed inset-0 z-40 bg-slate-50 text-slate-900
+      <nav id="mobile-menu" class="fixed inset-0 z-40 bg-slate-50 text-slate-900
           transition-colors duration-500
          transform -translate-y-full pointer-events-none
-         transition-transform duration-700 ease-out"
-  aria-label="Main navigation"
->
-  
-  <div class="mobile-menu-content pt-20 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full justify-end">
-  <!--div class="mobile-menu-content"-->
+         transition-transform duration-700 ease-out" aria-label="Main navigation">
 
-    <!-- Small label -->
-    <div class="text-[11px] font-semibold tracking-[0.2em] text-slate-400 uppercase mb-6">
-      Menu
-    </div>
+        <div class="mobile-menu-content pt-20 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full justify-end">
+          <!--div class="mobile-menu-content"-->
 
-    <!-- Main links -->
-    <ul class="space-y-6 text-4xl font-semibold">
-      <li class="border-t border-slate-200 pt-4">
-        <button
-          type="button"
-          data-menu-screen="home"
-          class="w-full text-left hover:text-sky-700 transition-colors"
-        >
-          Stay overview
-        </button>
-      </li>
-      <li class="border-t border-slate-200 pt-4">
-        <button
-          type="button"
-          data-menu-screen="chat"
-          class="w-full text-left hover:text-sky-700 transition-colors"
-        >
-          Chat with Sandy
-        </button>
-      </li>
-      <li class="border-t border-slate-200 pt-4">
-        <button
-          type="button"
-          data-menu-screen="experiences"
-          class="w-full text-left hover:text-sky-700 transition-colors"
-        >
-          Guides & local tips
-        </button>
-      </li>
-    </ul>
+          <!-- Small label -->
+          <div class="text-[11px] font-semibold tracking-[0.2em] text-slate-400 uppercase mb-6">
+            Menu
+          </div>
 
-    <!-- Small label -->
-    <div class="mt-auto pt-8 border-t border-slate-200 text-xs text-slate-500 space-y-2">
-      Get HostScout for your property
-    </div>
+          <!-- Main links -->
+          <ul class="space-y-6 text-4xl font-semibold">
+            <li class="border-t border-slate-200 pt-4">
+              <button type="button" data-menu-screen="home"
+                class="w-full text-left hover:text-sky-700 transition-colors">
+                Stay overview
+              </button>
+            </li>
+            <li class="border-t border-slate-200 pt-4">
+              <button type="button" data-menu-screen="chat"
+                class="w-full text-left hover:text-sky-700 transition-colors">
+                Chat with Sandy
+              </button>
+            </li>
+            <li class="border-t border-slate-200 pt-4">
+              <button type="button" data-menu-screen="experiences"
+                class="w-full text-left hover:text-sky-700 transition-colors">
+                Guides & local tips
+              </button>
+            </li>
+          </ul>
 
-    <!-- Bottom meta section
+          <!-- Small label -->
+          <div class="mt-auto pt-8 border-t border-slate-200 text-xs text-slate-500 space-y-2">
+            Get HostScout for your property
+          </div>
+
+          <!-- Bottom meta section
     <div class="mt-auto pt-8 border-t border-slate-200 text-xs text-slate-500 space-y-2">
       <div class="font-semibold text-slate-700">
         #{{ property_name }} Do you have a property you would like to use this for?
       </div>
     </div>-->
-  </div>
-</nav>
+        </div>
+      </nav>
 
 
 
@@ -735,12 +733,8 @@ body.menu-open #chat-header-sandy {
       <!-- Main content area that swaps screens  overflow-hidden-->
       <main id="screen-container" class="flex-1 flex flex-col" role="main">
         <!-- HOME -->
-        <section
-          id="screen-home"
-          class="flex flex-col flex-1 text-[0.95rem] px-4 pt-3 pb-0"
-          style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
-          aria-label="Home"
-        >
+        <section id="screen-home" class="flex flex-col flex-1 text-[0.95rem] px-4 pt-3 pb-0"
+          style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;" aria-label="Home">
           <!-- LOGIN STATE -->
           <div id="home-login" class="space-y-4">
             <div class="space-y-2">
@@ -755,33 +749,16 @@ body.menu-open #chat-header-sandy {
               <label for="unlock-code" class="block font-medium text-slate-300 mb-1">
                 Last 4 digits
               </label>
-              <input
-                id="unlock-code"
-                type="text"
-                inputmode="numeric"
-                maxlength="4"
-                autocomplete="off"
-                placeholder="1234"
-                pattern="[0-9]*"
-                class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
-              />
-              <button
-                id="unlock-button"
-                type="button"
-                data-property-id="{{ property_id }}"
-                class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-slate-950 py-3 transition"
-              >
+              <input id="unlock-code" type="text" inputmode="numeric" maxlength="4" autocomplete="off"
+                placeholder="1234" pattern="[0-9]*"
+                class="w-full rounded-xl bg-slate-900 border border-slate-700 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400" />
+              <button id="unlock-button" type="button" data-property-id="{{ property_id }}"
+                class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 font-semibold text-slate-950 py-3 transition">
                 <span>Unlock experience</span>
-                <span
-                  id="unlock-spinner"
-                  class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"
-                ></span>
+                <span id="unlock-spinner"
+                  class="hidden w-4 h-4 border-2 border-slate-900 border-t-transparent rounded-full animate-spin"></span>
               </button>
-              <p
-                id="unlock-error"
-                class="text-rose-400 min-h-[1.125rem]"
-                aria-live="polite"
-              ></p>
+              <p id="unlock-error" class="text-rose-400 min-h-[1.125rem]" aria-live="polite"></p>
               <p class="text-slate-400">
                 Not sure which number is on the booking? Check your confirmation email or message your host.
               </p>
@@ -789,11 +766,11 @@ body.menu-open #chat-header-sandy {
 
             <div class="mt-1 text-slate-400 flex items-center gap-2">
               {% if is_live %}
-                <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-                <span>Sandy is live for this property 🌊</span>
+              <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+              <span>Sandy is live for this property 🌊</span>
               {% else %}
-                <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-                <span>Sandy is currently offline – you can still view trip details.</span>
+              <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+              <span>Sandy is currently offline – you can still view trip details.</span>
               {% endif %}
             </div>
           </div>
@@ -818,52 +795,44 @@ body.menu-open #chat-header-sandy {
                     <p>{{ property_address or "123 Any Street" }}</p>
                   </div>
                   {% if property_address %}
-                    {% if google_maps_link %}
-                      {% set maps_href = google_maps_link %}
-                    {% else %}
-                      {% set maps_href = "#" %}
-                    {% endif %}
-                    <a
-                      href="{{ maps_href }}"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      class="inline-flex items-center justify-center rounded-full border-2 border-slate-600 px-3 py-1 bg-slate-950/80"
-                    >
-                      <svg class="w-6 h-6 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                        <path
-                          stroke-linecap="round"
-                          stroke-linejoin="round"
-                          stroke-width="1.5"
-                          d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z"
-                        />
-                        <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
-                      </svg>
-                      <span>Map</span>
-                    </a>
+                  {% if google_maps_link %}
+                  {% set maps_href = google_maps_link %}
+                  {% else %}
+                  {% set maps_href = "#" %}
+                  {% endif %}
+                  <a href="{{ maps_href }}" target="_blank" rel="noopener noreferrer"
+                    class="inline-flex items-center justify-center rounded-full border-2 border-slate-600 px-3 py-1 bg-slate-950/80">
+                    <svg class="w-6 h-6 mr-1" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M12 21s6-4.35 6-10.125C18 7.014 15.314 4.5 12 4.5S6 7.014 6 10.875C6 16.65 12 21 12 21z" />
+                      <circle cx="12" cy="10.5" r="2.25" stroke-width="1.5" />
+                    </svg>
+                    <span>Map</span>
+                  </a>
                   {% endif %}
                 </div>
 
                 <div class="border-t border-slate-800 my-2"></div>
 
                 {% if arrival_date or departure_date %}
-                  <div class="flex items-start justify-between gap-4 text-slate-300">
-                    <div>
-                      <p class="detail-label">Arrival</p>
-                      <p class="detail-label-results" id="arrival-date-span">{{ arrival_date or "-" }}</p>
-                    </div>
-                    <div class="text-right">
-                      <p class="detail-label">Departure</p>
-                      <p class="detail-label-results" id="departure-date-span">{{ departure_date or "-" }}</p>
-                    </div>
+                <div class="flex items-start justify-between gap-4 text-slate-300">
+                  <div>
+                    <p class="detail-label">Arrival</p>
+                    <p class="detail-label-results" id="arrival-date-span">{{ arrival_date or "-" }}</p>
                   </div>
+                  <div class="text-right">
+                    <p class="detail-label">Departure</p>
+                    <p class="detail-label-results" id="departure-date-span">{{ departure_date or "-" }}</p>
+                  </div>
+                </div>
 
-                  <div class="border-t border-slate-800 my-2"></div>
+                <div class="border-t border-slate-800 my-2"></div>
                 {% endif %}
 
                 <!-- Check-in / Check-out -->
                 <div class="flex items-start justify-between gap-4">
                   <div>
-                    
+
                     <p class="detail-label">Check-in</p>
                     <p class="detail-label-results">
                       {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
@@ -899,19 +868,13 @@ body.menu-open #chat-header-sandy {
 
                 <!-- Buttons: Check-in + Upgrades -->
                 <div class="mt-3 flex items-center gap-3">
-                  <button
-                    id="checkin-button"
-                    type="button"
-                    class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white py-3 font-semibold bg-transparent text-white transition hover:bg-white hover:text-slate-900"
-                  >
+                  <button id="checkin-button" type="button"
+                    class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-white py-3 font-semibold bg-transparent text-white transition hover:bg-white hover:text-slate-900">
                     <span>Check-in</span>
                   </button>
 
-                  <button
-                    id="upgrades-button"
-                    type="button"
-                    class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950 transition hover:bg-transparent hover:text-emerald-400"
-                  >
+                  <button id="upgrades-button" type="button"
+                    class="flex-1 inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-500 py-3 font-semibold bg-emerald-500 text-slate-950 transition hover:bg-transparent hover:text-emerald-400">
                     <span>Upgrades</span>
                   </button>
                 </div>
@@ -920,132 +883,101 @@ body.menu-open #chat-header-sandy {
           </div>
         </section>
 
-       <!-- CHAT -->
-<section
-  id="screen-chat"
-  class="hidden bg-white min-h-screen"
-  aria-label="Chat"
->
+        <!-- CHAT -->
+        <section id="screen-chat" class="hidden bg-white min-h-screen" aria-label="Chat">
 
-  <!-- NEW: Spacer for top navigation (same height as header h-16) 
+          <!-- NEW: Spacer for top navigation (same height as header h-16) 
   <div class="h-24"></div>-->
 
-  <div
-    id="chat-box"
-    class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
-  ></div>
+          <div id="chat-box" class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"></div>
 
 
-  <div class="chat-input-bar">
-    <div class="chat-input-inner">
-      <button type="button" class="chat-plus" aria-label="Insert a suggested question">+</button>
-      <input
-        id="chat-input"
-        type="text"
-        placeholder="Type a message here..."
-        aria-label="Chat message"
-      />
-      <button
-        id="chat-send"
-        type="button"
-        class="send-button"
-        aria-label="Send message"
-      >
-        <svg
-          class="w-4 h-4"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          aria-hidden="true"
-        >
-          <path
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            stroke-width="1.6"
-            d="M12 19V5M6.5 10.5L12 5l5.5 5.5"
-          />
-        </svg>
-      </button>
-    </div>
-  </div>
-</section>
+          <div class="chat-input-bar">
+            <div class="chat-input-inner">
+              <button type="button" class="chat-plus" aria-label="Insert a suggested question">+</button>
+              <input id="chat-input" type="text" placeholder="Type a message here..." aria-label="Chat message" />
+              <button id="chat-send" type="button" class="send-button" aria-label="Send message">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
+                    d="M12 19V5M6.5 10.5L12 5l5.5 5.5" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </section>
 
-       <!-- GUIDES -->
-<section
-  id="screen-experiences"
-  class="hidden bg-slate-950 px-4 pt-4 pb-24 space-y-4"
-  aria-label="Guides"
->
-  <div class="h-32 w-full relative rounded-2xl overflow-hidden">
-    {% if experiences_hero_url %}
-      <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
-    {% elif hero_image_url %}
-      <img src="{{ hero_image_url }}" alt="Guides" class="w-full h-full object-cover">
-    {% else %}
-      <div class="w-full h-full bg-slate-800"></div>
-    {% endif %}
-    <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-    <div class="absolute bottom-3 left-7 right-7">
-      <h2 class="text-2xl font-semibold">Guides</h2>
-      <p class="text-sm text-slate-200">
-        Local guidebooks, ideas, and upgrades to make your stay extra special.
-      </p>
-    </div>
-  </div>
+        <!-- GUIDES -->
+        <section id="screen-experiences" class="hidden bg-slate-950 px-4 pt-4 pb-24 space-y-4" aria-label="Guides">
+          <div class="h-32 w-full relative rounded-2xl overflow-hidden">
+            {% if experiences_hero_url %}
+            <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
+            {% elif hero_image_url %}
+            <img src="{{ hero_image_url }}" alt="Guides" class="w-full h-full object-cover">
+            {% else %}
+            <div class="w-full h-full bg-slate-800"></div>
+            {% endif %}
+            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+            <div class="absolute bottom-3 left-7 right-7">
+              <h2 class="text-2xl font-semibold">Guides</h2>
+              <p class="text-sm text-slate-200">
+                Local guidebooks, ideas, and upgrades to make your stay extra special.
+              </p>
+            </div>
+          </div>
 
-  <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-    <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-      <div class="h-32 relative">
-        {% if feature_image_url %}
-          <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
-        {% else %}
-          <div class="w-full h-full bg-slate-800"></div>
-        {% endif %}
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-        <div class="absolute bottom-3 left-3 right-3">
-          <h3 class="text-base font-semibold">Our Story</h3>
-          <p class="text-[11px] text-slate-200 line-clamp-2">
-            In the heart of {{ city_name or "our favorite town" }}, this place came to life…
-          </p>
-        </div>
-      </div>
-    </article>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <article class="sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+              <div class="h-32 relative">
+                {% if feature_image_url %}
+                <img src="{{ feature_image_url }}" alt="Our Story" class="w-full h-full object-cover">
+                {% else %}
+                <div class="w-full h-full bg-slate-800"></div>
+                {% endif %}
+                <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
+                <div class="absolute bottom-3 left-3 right-3">
+                  <h3 class="text-base font-semibold">Our Story</h3>
+                  <p class="text-[11px] text-slate-200 line-clamp-2">
+                    In the heart of {{ city_name or "our favorite town" }}, this place came to life…
+                  </p>
+                </div>
+              </div>
+            </article>
 
-    <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-      <div class="h-24 bg-slate-800">
-        {% if family_image_url %}
-          <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
-        {% endif %}
-      </div>
-      <div class="p-3 space-y-1">
-        <h3 class="text-sm font-semibold">Fun Family Activities</h3>
-        <p class="text-[11px] text-slate-300 line-clamp-2">
-          Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
-        </p>
-      </div>
-    </article>
+            <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+              <div class="h-24 bg-slate-800">
+                {% if family_image_url %}
+                <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
+                {% endif %}
+              </div>
+              <div class="p-3 space-y-1">
+                <h3 class="text-sm font-semibold">Fun Family Activities</h3>
+                <p class="text-[11px] text-slate-300 line-clamp-2">
+                  Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive.
+                </p>
+              </div>
+            </article>
 
-    <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
-      <div class="h-24 bg-slate-800">
-        {% if foodie_image_url %}
-          <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
-        {% endif %}
-      </div>
-      <div class="p-3 space-y-1">
-        <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
-        <p class="text-[11px] text-slate-300 line-clamp-2">
-          Coffee, brunch, seafood, and dessert spots we genuinely love.
-        </p>
-      </div>
-    </article>
-  </div>
-</section>
+            <article class="bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden">
+              <div class="h-24 bg-slate-800">
+                {% if foodie_image_url %}
+                <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
+                {% endif %}
+              </div>
+              <div class="p-3 space-y-1">
+                <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
+                <p class="text-[11px] text-slate-300 line-clamp-2">
+                  Coffee, brunch, seafood, and dessert spots we genuinely love.
+                </p>
+              </div>
+            </article>
+          </div>
+        </section>
 
-        
+
       </main>
     </div>
   </div>
-<!--
+  <!--
 
 <nav
   class="fixed bottom-0 inset-x-0 z-20 bg-slate-950/95 border-t border-slate-800 h-24
@@ -1072,28 +1004,17 @@ body.menu-open #chat-header-sandy {
 
 
   <!-- Check-in modal -->
-  <div
-    id="checkin-modal"
-    class="fixed inset-0 z-40 bg-black/85 hidden items-center justify-center px-6"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="checkin-title"
-  >
+  <div id="checkin-modal" class="fixed inset-0 z-40 bg-black/85 hidden items-center justify-center px-6" role="dialog"
+    aria-modal="true" aria-labelledby="checkin-title">
     <div class="absolute top-4 right-4">
-      <button
-        id="checkin-close"
-        type="button"
+      <button id="checkin-close" type="button"
         class="w-9 h-9 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-slate-100 text-xl leading-none"
-        aria-label="Close"
-      >
+        aria-label="Close">
         ×
       </button>
     </div>
     <div class="text-center space-y-4">
-      <p
-        id="checkin-title"
-        class="text-sm uppercase tracking-[0.2em] text-slate-300"
-      >
+      <p id="checkin-title" class="text-sm uppercase tracking-[0.2em] text-slate-300">
         Your door code
       </p>
       <p id="checkin-code" class="text-5xl md:text-6xl font-semibold tracking-[0.25em]">
@@ -1107,50 +1028,36 @@ body.menu-open #chat-header-sandy {
   </div>
 
   <!-- Logout modal -->
-  <div
-    id="logout-modal"
-    class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="logout-title"
-  >
+  <div id="logout-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
+    role="dialog" aria-modal="true" aria-labelledby="logout-title">
     <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
       <div class="flex items-start justify-between gap-4">
         <div>
           <h2 id="logout-title" class="text-base font-semibold text-slate-900">Leaving already?</h2>
           <p class="mt-1 text-sm text-slate-500">
-            To regain access to {{ property_name }}, you’ll need to enter the last 4 digits of your booking phone number.
+            To regain access to {{ property_name }}, you’ll need to enter the last 4 digits of your booking phone
+            number.
           </p>
         </div>
-        <button
-          id="logout-close"
-          type="button"
-          class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
-        >
+        <button id="logout-close" type="button"
+          class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
           <span class="sr-only">Close</span>
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path
-              fill-rule="evenodd"
+          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
+            aria-hidden="true">
+            <path fill-rule="evenodd"
               d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z"
-              clip-rule="evenodd"
-            />
+              clip-rule="evenodd" />
           </svg>
         </button>
       </div>
 
       <div class="mt-5 flex items-center justify-end gap-3">
-        <button
-          id="logout-cancel"
-          type="button"
-          class="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
-        >
+        <button id="logout-cancel" type="button"
+          class="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
           Cancel
         </button>
-        <button
-          id="logout-confirm"
-          type="button"
-          class="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800"
-        >
+        <button id="logout-confirm" type="button"
+          class="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800">
           Log out
         </button>
       </div>
@@ -1165,7 +1072,7 @@ body.menu-open #chat-header-sandy {
         chat: document.getElementById("screen-chat"),
         experiences: document.getElementById("screen-experiences"),
       };
-      
+
       // helper: are we currently on the chat screen?
       function isChatVisible() {
         const chatScreen = screens.chat;
@@ -1184,10 +1091,10 @@ body.menu-open #chat-header-sandy {
 
       // --- Global state ---
       let isUnlocked = window.INITIAL_VERIFIED === "true";
-      
+
       // TEMP: force unlocked during UI testing //REMOVE when live
       isUnlocked = true;
-      
+
       let lastUnlockCode = null;
       let currentSessionId = null;
       let guestName = null;
@@ -1262,72 +1169,72 @@ body.menu-open #chat-header-sandy {
         }
       }
 
-            let chatHasWelcome = false;
+      let chatHasWelcome = false;
 
       function showScreen(name) {
-  // Show / hide screens
-  Object.entries(screens).forEach(([key, el]) => {
-    if (!el) return;
-    if (key === name) el.classList.remove("hidden");
-    else el.classList.add("hidden");
-  });
+        // Show / hide screens
+        Object.entries(screens).forEach(([key, el]) => {
+          if (!el) return;
+          if (key === name) el.classList.remove("hidden");
+          else el.classList.add("hidden");
+        });
 
-  // Toggle body class for chat-specific styling (top nav, hamburger, etc.)
-  if (name === "chat") {
-    document.body.classList.add("chat-screen");
-  } else {
-    document.body.classList.remove("chat-screen");
-  }
+        // Toggle body class for chat-specific styling (top nav, hamburger, etc.)
+        if (name === "chat") {
+          document.body.classList.add("chat-screen");
+        } else {
+          document.body.classList.remove("chat-screen");
+        }
 
-  // Chat-specific behavior
-  if (name === "chat") {
-    if (
-      window.SANDY_LIVE === "true" &&
-      chatBox &&
-      !chatHasWelcome &&
-      chatBox.children.length === 0
-    ) {
-      const intro = guestName
-        ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-        : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+        // Chat-specific behavior
+        if (name === "chat") {
+          if (
+            window.SANDY_LIVE === "true" &&
+            chatBox &&
+            !chatHasWelcome &&
+            chatBox.children.length === 0
+          ) {
+            const intro = guestName
+              ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+              : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
 
-      renderMessage(intro, "bot");
-      chatHasWelcome = true;
-    }
+            renderMessage(intro, "bot");
+            chatHasWelcome = true;
+          }
 
-    scrollChatToBottom();
-  }
+          scrollChatToBottom();
+        }
 
-  // Always show header
-  headerEl?.classList.remove("hidden");
+        // Always show header
+        headerEl?.classList.remove("hidden");
 
-  // (Optional) highlight bottom nav tabs if/when you re-enable that nav
-  navButtons.forEach((btn) => {
-    const target = btn.getAttribute("data-screen");
-    const icon = btn.querySelector(".nav-icon");
-    const isActive = target === name;
+        // (Optional) highlight bottom nav tabs if/when you re-enable that nav
+        navButtons.forEach((btn) => {
+          const target = btn.getAttribute("data-screen");
+          const icon = btn.querySelector(".nav-icon");
+          const isActive = target === name;
 
-    if (isActive) {
-      btn.classList.remove("text-slate-400");
-      btn.classList.add("text-slate-50");
-      btn.setAttribute("aria-current", "page");
+          if (isActive) {
+            btn.classList.remove("text-slate-400");
+            btn.classList.add("text-slate-50");
+            btn.setAttribute("aria-current", "page");
 
-      if (icon) {
-        icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
-        icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
+            if (icon) {
+              icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
+              icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
+            }
+          } else {
+            btn.classList.add("text-slate-400");
+            btn.classList.remove("text-slate-50");
+            btn.setAttribute("aria-current", "false");
+
+            if (icon) {
+              icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
+              icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
+            }
+          }
+        });
       }
-    } else {
-      btn.classList.add("text-slate-400");
-      btn.classList.remove("text-slate-50");
-      btn.setAttribute("aria-current", "false");
-
-      if (icon) {
-        icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
-        icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
-      }
-    }
-  });
-}
 
 
 
@@ -1348,76 +1255,76 @@ body.menu-open #chat-header-sandy {
       const MOBILE_MENU_LINKS_FADE_DURATION = 250; // ms
 
 
-        function openMenu() {
-  if (!mobileMenu) return;
-  isMenuOpen = true;
+      function openMenu() {
+        if (!mobileMenu) return;
+        isMenuOpen = true;
 
-  // Reset any closing state
-  mobileMenu.classList.remove("fade-out");
-  
-  // Slide panel down from top
-  mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
-  mobileMenu.classList.add("translate-y-0");
+        // Reset any closing state
+        mobileMenu.classList.remove("fade-out");
 
-  // Change top bar to light theme
-  topBar?.classList.remove("bg-transparent", "text-white");
-  topBar?.classList.add("bg-slate-50", "text-slate-900");
+        // Slide panel down from top
+        mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
+        mobileMenu.classList.add("translate-y-0");
 
-  // Swap logos
-  logoLight?.classList.add("hidden");
-  logoDark?.classList.remove("hidden");
+        // Change top bar to light theme
+        topBar?.classList.remove("bg-transparent", "text-white");
+        topBar?.classList.add("bg-slate-50", "text-slate-900");
 
-  // Animate hamburger → X
-  menuToggle?.classList.add("menu-toggle-open");
+        // Swap logos
+        logoLight?.classList.add("hidden");
+        logoDark?.classList.remove("hidden");
 
-  document.body.classList.add("menu-open");
+        // Animate hamburger → X
+        menuToggle?.classList.add("menu-toggle-open");
 
-  // After panel finishes sliding, fade/slide in the links
-  setTimeout(() => {
-    if (isMenuOpen && mobileMenu) {
-      mobileMenu.classList.add("show-links");
-    }
-  }, MOBILE_MENU_SLIDE_DURATION); // e.g. 350
-}
+        document.body.classList.add("menu-open");
 
-function closeMenu() {
-  if (!mobileMenu) return;
-  isMenuOpen = false;
+        // After panel finishes sliding, fade/slide in the links
+        setTimeout(() => {
+          if (isMenuOpen && mobileMenu) {
+            mobileMenu.classList.add("show-links");
+          }
+        }, MOBILE_MENU_SLIDE_DURATION); // e.g. 350
+      }
 
-  // Start fade-out on menu links ONLY (no slide)
-  mobileMenu.classList.add("fade-out");
-  mobileMenu.classList.remove("show-links");
+      function closeMenu() {
+        if (!mobileMenu) return;
+        isMenuOpen = false;
 
-  // Change top bar back to dark while content is fading
-  topBar?.classList.add("bg-transparent", "text-white");
-  topBar?.classList.remove("bg-slate-50", "text-slate-900");
+        // Start fade-out on menu links ONLY (no slide)
+        mobileMenu.classList.add("fade-out");
+        mobileMenu.classList.remove("show-links");
 
-  // Swap logos back
-  logoLight?.classList.remove("hidden");
-  logoDark?.classList.add("hidden");
+        // Change top bar back to dark while content is fading
+        topBar?.classList.add("bg-transparent", "text-white");
+        topBar?.classList.remove("bg-slate-50", "text-slate-900");
 
-  // Animate X → hamburger
-  menuToggle?.classList.remove("menu-toggle-open");
+        // Swap logos back
+        logoLight?.classList.remove("hidden");
+        logoDark?.classList.add("hidden");
 
-  document.body.classList.remove("menu-open");
+        // Animate X → hamburger
+        menuToggle?.classList.remove("menu-toggle-open");
 
-  // AFTER links have faded out, slide the panel back up
-  setTimeout(() => {
-    if (!isMenuOpen && mobileMenu) {
-      mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
-      mobileMenu.classList.remove("translate-y-0", "fade-out");
-    }
-  }, MOBILE_MENU_LINKS_FADE_DURATION); // e.g. 250
-}
+        document.body.classList.remove("menu-open");
+
+        // AFTER links have faded out, slide the panel back up
+        setTimeout(() => {
+          if (!isMenuOpen && mobileMenu) {
+            mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
+            mobileMenu.classList.remove("translate-y-0", "fade-out");
+          }
+        }, MOBILE_MENU_LINKS_FADE_DURATION); // e.g. 250
+      }
 
 
-      
+
       menuToggle?.addEventListener("click", () => {
         if (isMenuOpen) closeMenu();
         else openMenu();
       });
 
-       // Clicking links changes screen + closes menu
+      // Clicking links changes screen + closes menu
       menuLinks.forEach((btn) => {
         btn.addEventListener("click", () => {
           const target = btn.getAttribute("data-menu-screen");
@@ -1430,30 +1337,30 @@ function closeMenu() {
 
 
       function scrollChatToBottom() {
-  // Only scroll when the chat screen is actually visible
-  if (!isChatVisible()) return;
+        // Only scroll when the chat screen is actually visible
+        if (!isChatVisible()) return;
 
-  requestAnimationFrame(() => {
-    const docEl = document.documentElement;
-    const body = document.body;
+        requestAnimationFrame(() => {
+          const docEl = document.documentElement;
+          const body = document.body;
 
-    const fullHeight = Math.max(
-      docEl.scrollHeight,
-      body.scrollHeight,
-      docEl.offsetHeight,
-      body.offsetHeight
-    );
+          const fullHeight = Math.max(
+            docEl.scrollHeight,
+            body.scrollHeight,
+            docEl.offsetHeight,
+            body.offsetHeight
+          );
 
-    window.scrollTo({
-      top: fullHeight,
-      behavior: "auto", // change to "smooth" if you prefer
-    });
-  });
-}
+          window.scrollTo({
+            top: fullHeight,
+            behavior: "auto", // change to "smooth" if you prefer
+          });
+        });
+      }
 
 
 
-      
+
       // Nav buttons
       navButtons.forEach((btn) => {
         btn.addEventListener("click", () => {
@@ -1521,24 +1428,24 @@ function closeMenu() {
         }
 
         // 🧪 DEV OVERRIDE (MASTER CODE) — remove before going live
-          const DEV_MASTER_CODE = "0000";
-          if (code === DEV_MASTER_CODE) {
-            console.warn("DEV MASTER CODE USED — bypassing verification");
-          
-            isUnlocked = true;
-            lastUnlockCode = code;
-          
-            // Update UI
-            saveGuestState();
-            updateHomeState();
-            showScreen("home");
-          
-            // Clear input + errors
-            if (unlockCodeInput) unlockCodeInput.value = "";
-            if (unlockError) unlockError.textContent = "";
-          
-            return; // ⬅ IMPORTANT: stop here, skip API call
-          }
+        const DEV_MASTER_CODE = "0000";
+        if (code === DEV_MASTER_CODE) {
+          console.warn("DEV MASTER CODE USED — bypassing verification");
+
+          isUnlocked = true;
+          lastUnlockCode = code;
+
+          // Update UI
+          saveGuestState();
+          updateHomeState();
+          showScreen("home");
+
+          // Clear input + errors
+          if (unlockCodeInput) unlockCodeInput.value = "";
+          if (unlockError) unlockError.textContent = "";
+
+          return; // ⬅ IMPORTANT: stop here, skip API call
+        }
 
 
         if (unlockBtn) unlockBtn.disabled = true;
@@ -1647,19 +1554,19 @@ function closeMenu() {
       const chatInput = document.getElementById("chat-input");
       const chatSend = document.getElementById("chat-send");
       const chatPlus = document.querySelector(".chat-plus");
-      
+
       // Elements that sit on top of the chat (fixed at bottom)
       const chatInputBar = document.querySelector(".chat-input-bar");
       const bottomNav = document.querySelector('nav[role="navigation"]');
-      
+
       // Dynamically set bottom padding so last message sits above input + nav
-      
+
 
       if (window.SANDY_LIVE === "false") {
         if (chatBox) {
           renderMessage(
             "Sandy is currently offline for this property 🌙\n\n" +
-              "For urgent questions, please contact your host directly via your booking app or email.",
+            "For urgent questions, please contact your host directly via your booking app or email.",
             "bot"
           );
         }
@@ -1671,7 +1578,7 @@ function closeMenu() {
         if (chatPlus) chatPlus.disabled = true;
       }
 
-   
+
 
 
 
@@ -1706,49 +1613,49 @@ function closeMenu() {
         return escaped.replace(/\n/g, "<br>");
       }
 
-     function renderMessage(text, sender) {
-  if (!chatBox) return;
+      function renderMessage(text, sender) {
+        if (!chatBox) return;
 
-  const isUser = sender === "user";
-  const ts = formatTime(new Date());
+        const isUser = sender === "user";
+        const ts = formatTime(new Date());
 
-  const row = document.createElement("div");
-  row.className = "msg " + (isUser ? "user" : "bot");
+        const row = document.createElement("div");
+        row.className = "msg " + (isUser ? "user" : "bot");
 
-  // Avatar (Sandy only)
-  let avatar = null;
-  if (!isUser) {
-    avatar = document.createElement("div");
-    avatar.className = "avatar avatar-sandy";
-  }
+        // Avatar (Sandy only)
+        let avatar = null;
+        if (!isUser) {
+          avatar = document.createElement("div");
+          avatar.className = "avatar avatar-sandy";
+        }
 
-  const column = document.createElement("div");
+        const column = document.createElement("div");
 
-  const bubble = document.createElement("div");
-  bubble.className = "bubble";
-  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+        const bubble = document.createElement("div");
+        bubble.className = "bubble";
+        bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
 
-  const time = document.createElement("div");
-  time.className = "timestamp";
-  time.textContent = ts;
+        const time = document.createElement("div");
+        time.className = "timestamp";
+        time.textContent = ts;
 
-  column.appendChild(bubble);
-  column.appendChild(time);
+        column.appendChild(bubble);
+        column.appendChild(time);
 
-  if (isUser) {
-    // user: bubble only
-    row.appendChild(column);
-  } else {
-    // bot: avatar + bubble
-    row.appendChild(avatar);
-    row.appendChild(column);
-  }
+        if (isUser) {
+          // user: bubble only
+          row.appendChild(column);
+        } else {
+          // bot: avatar + bubble
+          row.appendChild(avatar);
+          row.appendChild(column);
+        }
 
-  chatBox.appendChild(row);
+        chatBox.appendChild(row);
 
-  // 👇 only scroll if the chat screen is actually visible
-  scrollChatToBottom();
-}
+        // 👇 only scroll if the chat screen is actually visible
+        scrollChatToBottom();
+      }
 
 
 
@@ -1778,7 +1685,7 @@ function closeMenu() {
         row.appendChild(avatar);
         row.appendChild(column);
 
-       chatBox.appendChild(row);
+        chatBox.appendChild(row);
         scrollChatToBottom();
 
       }
@@ -1917,4 +1824,5 @@ function closeMenu() {
     });
   </script>
 </body>
+
 </html>
