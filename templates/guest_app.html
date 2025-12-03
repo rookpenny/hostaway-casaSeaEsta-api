@@ -223,14 +223,8 @@ nav .nav-icon {
     }
 
  
-   #chat-box {
+    #chat-box {
   font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-  /* NEW */
-     
-     flex: 1;
-  overflow-y: auto;
-  /* header = h-24 (96px), input bar ≈ 72px → leave room so it doesn't hide behind them */
-  max-height: calc(100vh - 96px - 72px);
 }
 
 
@@ -554,9 +548,6 @@ body.menu-open #chat-header-sandy {
       #screen-chat {
         color: #1f2937;
         /* DO NOT set display or height here so .hidden can control it */
-
-        display: flex;
-  flex-direction: column;
       }
 
     #screen-chat > .flex-1 {
@@ -941,7 +932,7 @@ body.menu-open #chat-header-sandy {
 
   <div
     id="chat-box"
-    class="px-4 pt-4 pb-24 space-y-2 bg-white text-slate-800"
+    class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"
   ></div>
 
 
@@ -1437,7 +1428,7 @@ function closeMenu() {
         });
       });
 
-/*
+
       function scrollChatToBottom() {
   // Only scroll when the chat screen is actually visible
   if (!isChatVisible()) return;
@@ -1453,24 +1444,10 @@ function closeMenu() {
       body.offsetHeight
     );
 
-    const viewport = window.innerHeight || docEl.clientHeight;
-    const target = Math.max(fullHeight - viewport, 0);
-
-
     window.scrollTo({
-      top: target,
-
+      top: fullHeight,
       behavior: "auto", // change to "smooth" if you prefer
     });
-  });
-}*/
-function scrollChatToBottom() {
-  // Only scroll when the chat screen is actually visible
-  if (!isChatVisible()) return;
-  if (!chatBox) return;
-
-  requestAnimationFrame(() => {
-    chatBox.scrollTop = chatBox.scrollHeight;
   });
 }
 
