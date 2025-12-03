@@ -611,6 +611,11 @@ nav[role="navigation"] {
     .timestamp {
       color: #64748b;
     }
+
+    /* Push chat content below the fixed top bar (h-20 = 5rem) */
+body.chat-screen #screen-chat {
+  padding-top: 5rem; /* match header height (h-20) */
+}
   </style>
 
   <script>
