@@ -99,13 +99,13 @@
     }
 
 
-/*
+
 
     .menu-toggle {
       position: relative;
     }
 
-    Top + bottom bars
+    /* Top + bottom bars */
     .menu-toggle::before,
     .menu-toggle::after {
       content: "";
@@ -119,17 +119,17 @@
       transition: transform 0.3s ease, opacity 0.3s ease;
     }
 
-    Top bar (default)
+    /* Top bar (default) */
     .menu-toggle::before {
       transform: translate(-50%, -6px);
     }
 
-    Bottom bar (default)
+    /* Bottom bar (default) */
     .menu-toggle::after {
       transform: translate(-50%, 6px);
     }
 
-     Middle bar
+    /* Middle bar */
     .menu-toggle-middle {
       width: 24px;
       height: 2px;
@@ -138,7 +138,7 @@
       transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
-    === OPEN STATE ===
+    /* === OPEN STATE === */
     .menu-toggle.menu-toggle-open::before {
       transform: translate(-50%, 0) rotate(45deg);
     }
@@ -150,7 +150,7 @@
     .menu-toggle.menu-toggle-open .menu-toggle-middle {
       opacity: 0;
       transform: scaleX(0.5);
-    }*/
+    }
 
     /* Keep Tailwind layout; only tweak visuals
 nav[role="navigation"] {
@@ -474,10 +474,6 @@ nav[role="navigation"] {
       z-index: 30;
     }
 
-    #mobile-menu {
-      z-index: 60; /* you can keep z-[40] class instead if you like */
-    }
-        
     /* Default hidden state */
     #mobile-menu .mobile-menu-content {
       opacity: 0;
@@ -506,16 +502,16 @@ nav[role="navigation"] {
     }
 
     /* When on chat screen: top bar becomes light grey */
-   body.chat-screen #top-bar {
-  /* no background here – let it be transparent */
-  color: #020617 !important;  /* dark logo / hamburger */
-}
+    body.chat-screen #top-bar {
+      background: #f8fafc !important;
+      /* same light grey as input bar */
+      color: #020617 !important;
+      /* slate text/icons */
+    }
 
-    #top-bar {
-  z-index: 70;
-}
-
-
+   #top-bar {
+     z-index: 30;
+       }
     
     /* Make hamburger slate on chat screen */
     body.chat-screen #menu-toggle::before,
@@ -534,11 +530,12 @@ nav[role="navigation"] {
       display: block !important;
     }
 
-   /* Sandy avatar below menu, above page content */
-    #chat-header-sandy {
-      position: fixed;  
-      z-index: 55;
+    /* Show Sandy header only on chat screen */
+    body.chat-screen #chat-header-sandy {
+      display: flex;
     }
+
+   
 
     .chat-input-inner {
       flex: 1;
@@ -611,11 +608,7 @@ nav[role="navigation"] {
       color: #022c22;
     }
 
-    /* Top bar chrome (logo + hamburger) above menu */
-    #top-bar-inner {
-      position: relative;
-      z-index: 50;
-    }
+  
 
     .timestamp {
       color: #64748b;
@@ -623,7 +616,7 @@ nav[role="navigation"] {
 
     /* Push chat content below the fixed top bar (h-20 = 5rem) */
 body.chat-screen #screen-chat {
-  padding-top: 6.5rem;       /* header (5rem) + a bit of room */
+  padding-top: 5rem; /* match header height (h-20) */
 }
 
  
@@ -650,40 +643,51 @@ body.chat-screen #screen-chat {
     <!-- Foreground content -->
     <div class="relative z-10 flex flex-col min-h-screen">
 
-       <!-- Sandy avatar, separate from top bar -->
-    <div id="chat-header-sandy"
-     class="fixed left-1/2 top-4 -translate-x-1/2 hidden flex flex-col items-center pointer-events-none">
-      <div class="avatar avatar-sandy shadow"></div>
-      <span class="text-xs text-slate-900 mt-1">Sandy</span>
-    </div>
+      <!-- Top header / nav -->
+      <header id="app-header" class="relative w-full">
+        <!-- Fixed blue top bar -->
+        <div id="top-bar" class="fixed top-0 inset-x-0 z-35 bg-transparent text-white
+           transition-colors duration-300
+           transform transition-transform ease-out duration-700">
+          <!-- CHAT HEADER: Sandy avatar + name -->
+          <div id="chat-header-sandy" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+         hidden flex flex-col items-center pointer-events-none">
+            <div class="avatar avatar-sandy shadow"></div>
+            <span class="text-xs text-slate-900 mt-1">Sandy</span>
+          </div>
 
-  <header id="app-header" class="relative w-full">
-    <!-- Fixed top bar (logo + hamburger) -->
-    <div id="top-bar" class="fixed top-0 inset-x-0 z-50 bg-transparent text-white
-             transition-colors duration-300
-             transform transition-transform ease-out duration-700">
-      <div id="top-bar-inner" class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
-        
-        <!-- Logo -->
-        <a href="#" class="flex items-center gap-2">
-          <img id="logo-light" src="/static/img/logo-light.svg" alt="{{ property_name }}" class="h-7" />
-          <img id="logo-dark" src="/static/img/logo-dark.svg" alt="{{ property_name }}" class="h-7 hidden" />
-        </a>
 
-        <!-- Right side: ANIMATED HAMBURGER -->
-        <button id="menu-toggle" type="button"
-          class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none"
-          aria-label="Toggle navigation menu">
-          <span class="menu-toggle-middle"></span>
-        </button>
-      </div>
-    </div>
+          <div class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
+            <!-- Logo -->
+            <a href="#" class="flex items-center gap-2">
+              <!-- Logo for blue bar -->
+              <img id="logo-light" src="/static/img/logo-light.svg" alt="{{ property_name }}" class="h-7" />
+              <!-- Logo for light bar (menu open) -->
+              <img id="logo-dark" src="/static/img/logo-dark.svg" alt="{{ property_name }}" class="h-7 hidden" />
+            </a>
 
-   
-  </header>
+            <!-- (Optional) center button -->
+            <button type="button"
+              class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold bg-white text-sky-900 rounded-sm shadow-sm">
+              Upgrades
+            </button>
+
+            <!-- Right side: ANIMATED HAMBURGER -->
+            <button id="menu-toggle" type="button"
+              class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none"
+              aria-label="Toggle navigation menu">
+              <span class="menu-toggle-middle"></span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Spacer so content doesn't sit under fixed bar 
+  <div class="h-16"></div>-->
+      </header>
+
 
       <!-- Full-screen slide-down mobile menu -->
-      <nav id="mobile-menu" class="fixed inset-0 z-40 bg-slate-50 text-slate-900
+      <nav id="mobile-menu" class="fixed inset-0 z-[60] bg-slate-50 text-slate-900
           transition-colors duration-500
          transform -translate-y-full pointer-events-none
          transition-transform duration-700 ease-out" aria-label="Main navigation">
@@ -1092,8 +1096,6 @@ body.chat-screen #screen-chat {
       const homeLogin = document.getElementById("home-login");
       const homeStay = document.getElementById("home-stay");
       const headerEl = document.getElementById("app-header");
-      const chatHeaderSandy = document.getElementById("chat-header-sandy");
-
 
 
 
@@ -1188,17 +1190,11 @@ body.chat-screen #screen-chat {
         });
 
         // Toggle body class for chat-specific styling (top nav, hamburger, etc.)
-  if (name === "chat") {
-    document.body.classList.add("chat-screen");
-    // 👇 Show Sandy avatar on chat screen
-    if (chatHeaderSandy) chatHeaderSandy.classList.remove("hidden");
-  } else {
-    document.body.classList.remove("chat-screen");
-    // 👇 Hide Sandy avatar on other screens
-    if (chatHeaderSandy) chatHeaderSandy.classList.add("hidden");
-  }
-
-      
+        if (name === "chat") {
+          document.body.classList.add("chat-screen");
+        } else {
+          document.body.classList.remove("chat-screen");
+        }
 
         // Chat-specific behavior
         if (name === "chat") {
