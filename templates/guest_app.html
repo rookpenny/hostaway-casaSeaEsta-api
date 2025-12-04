@@ -509,6 +509,10 @@ nav[role="navigation"] {
       /* slate text/icons */
     }
 
+   #top-bar {
+     z-index: 30;
+       }
+    
     /* Make hamburger slate on chat screen */
     body.chat-screen #menu-toggle::before,
     body.chat-screen #menu-toggle::after,
@@ -531,11 +535,7 @@ nav[role="navigation"] {
       display: flex;
     }
 
-    /* When menu is open, hide it */
-    body.menu-open #chat-header-sandy {
-      display: none !important;
-    }
-
+   
 
     .chat-input-inner {
       flex: 1;
@@ -619,21 +619,7 @@ body.chat-screen #screen-chat {
   padding-top: 5rem; /* match header height (h-20) */
 }
 
-    /* Smooth fade animation for Sandy avatar */
-#chat-header-sandy {
- opacity: 1;
-  transition: opacity 0.4s ease; /* simple fade */
-}
-
-/* Fade out immediately when menu opens */
-body.menu-open #chat-header-sandy {
-  opacity: 0;
-}
-
-/* Keep hidden while menu is closing (JS will handle timing) */
-#chat-header-sandy.fade-hidden {
-  opacity: 0 !important;
-}
+ 
 
   </style>
 
@@ -701,7 +687,7 @@ body.menu-open #chat-header-sandy {
 
 
       <!-- Full-screen slide-down mobile menu -->
-      <nav id="mobile-menu" class="fixed inset-0 z-40 bg-slate-50 text-slate-900
+      <nav id="mobile-menu" class="fixed inset-0 z-[60] bg-slate-50 text-slate-900
           transition-colors duration-500
          transform -translate-y-full pointer-events-none
          transition-transform duration-700 ease-out" aria-label="Main navigation">
@@ -1303,9 +1289,6 @@ body.menu-open #chat-header-sandy {
 
         document.body.classList.add("menu-open");
 
-        // 👉 Fade out Sandy avatar immediately
-        document.getElementById("chat-header-sandy")?.classList.add("fade-hidden");
-
         // After panel finishes sliding, fade/slide in the links
         setTimeout(() => {
           if (isMenuOpen && mobileMenu) {
@@ -1335,13 +1318,6 @@ body.menu-open #chat-header-sandy {
         menuToggle?.classList.remove("menu-toggle-open");
 
         document.body.classList.remove("menu-open");
-
-        // 👉 Fade Sandy back in AFTER 2 seconds (only if chat screen is visible)
-        setTimeout(() => {
-          if (!isMenuOpen && document.body.classList.contains("chat-screen")) {
-            document.getElementById("chat-header-sandy")?.classList.remove("fade-hidden");
-          }
-        }, 500);
         
         // AFTER links have faded out, slide the panel back up
         setTimeout(() => {
