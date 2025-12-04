@@ -952,6 +952,9 @@ body.chat-screen #screen-chat {
 
         <!-- GUIDES -->
         <section id="screen-experiences" class="hidden bg-slate-950 px-4 pt-4 pb-24 space-y-4" aria-label="Guides">
+         <!-- GUIDES INTRO AREA-->
+          
+          
           <div class="h-32 w-full relative rounded-2xl overflow-hidden">
             {% if experiences_hero_url %}
             <img src="{{ experiences_hero_url }}" alt="Guides" class="w-full h-full object-cover">
@@ -960,13 +963,13 @@ body.chat-screen #screen-chat {
             {% else %}
             <div class="w-full h-full bg-slate-800"></div>
             {% endif %}
-            <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-            <div class="absolute bottom-3 left-7 right-7">
-              <h2 class="text-2xl font-semibold">Guides</h2>
-              <p class="text-sm text-slate-200">
-                Local guidebooks, ideas, and upgrades to make your stay extra special.
-              </p>
-            </div>
+            <div>
+                <div class="px-4 pt-6 pb-2">
+                  <h1 class="text-5xl font-semibold leading-tight">
+                    <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe - you’ve made it.
+                  </h1>
+                </div>
+              </div>
           </div>
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
