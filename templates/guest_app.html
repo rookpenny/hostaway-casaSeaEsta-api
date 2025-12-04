@@ -152,6 +152,11 @@
       transform: scaleX(0.5);
     }
 
+    /* Smooth fade on logo when we swap pngs */
+#logo-img {
+  transition: opacity 180ms ease;
+}
+
     /* Keep Tailwind layout; only tweak visuals
 nav[role="navigation"] {
   height: 120px !important; 
@@ -1292,6 +1297,20 @@ body.chat-screen #screen-chat {
       const MOBILE_MENU_SLIDE_DURATION = 400;  // ms
       const MOBILE_MENU_LINKS_FADE_DURATION = 250; // ms
 
+      // Fade-out → swap image → fade-in
+      function swapLogoWithFade(newSrc) {
+        if (!logoImg) return;
+      
+        // fade out
+        logoImg.style.opacity = "0";
+      
+        // after fade-out, swap src, then fade back in
+        setTimeout(() => {
+          logoImg.src = newSrc;
+          logoImg.style.opacity = "1";
+        }, 120); // slightly less than CSS transition (180ms)
+      }
+
 
       function openMenu() {
         if (!mobileMenu) return;
@@ -1308,10 +1327,8 @@ body.chat-screen #screen-chat {
         topBar?.classList.remove("bg-transparent", "text-white");
         topBar?.classList.add("bg-slate-50", "text-slate-900");
 
-        // Swap to dark (black) logo PNG when menu opens
-        if (logoImg) {
-          logoImg.src = "/static/img/neat-sleeps-black.png";
-        }
+        // 👇 fade to dark logo
+        swapLogoWithFade("/static/img/neat-sleeps-black.png");
 
         // Animate hamburger → X
         menuToggle?.classList.add("menu-toggle-open");
@@ -1339,10 +1356,8 @@ body.chat-screen #screen-chat {
         topBar?.classList.add("bg-transparent", "text-white");
         topBar?.classList.remove("bg-slate-50", "text-slate-900");
 
-        // Swap back to light (white) logo PNG when menu closes
-        if (logoImg) {
-          logoImg.src = "/static/img/neat-sleeps-white.png";
-        }
+        // 👇 fade back to light logo
+        swapLogoWithFade("/static/img/neat-sleeps-white.png");
 
         // Animate X → hamburger
         menuToggle?.classList.remove("menu-toggle-open");
