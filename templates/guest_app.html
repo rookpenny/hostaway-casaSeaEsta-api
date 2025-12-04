@@ -506,12 +506,10 @@ nav[role="navigation"] {
     }
 
     /* When on chat screen: top bar becomes light grey */
-    body.chat-screen #top-bar {
-      background: #f8fafc !important;
-      /* same light grey as input bar */
-      color: #020617 !important;
-      /* slate text/icons */
-    }
+   body.chat-screen #top-bar {
+  /* no background here – let it be transparent */
+  color: #020617 !important;  /* dark logo / hamburger */
+}
 
     #top-bar {
   z-index: 70;
@@ -625,7 +623,8 @@ nav[role="navigation"] {
 
     /* Push chat content below the fixed top bar (h-20 = 5rem) */
 body.chat-screen #screen-chat {
-  padding-top: 5rem; /* match header height (h-20) */
+  padding-top: 6.5rem;       /* header (5rem) + a bit of room */
+  background: #f8fafc;       /* this is the grey you’re seeing */
 }
 
  
@@ -654,7 +653,7 @@ body.chat-screen #screen-chat {
 
        <!-- Sandy avatar, separate from top bar -->
     <div id="chat-header-sandy"
-        class="fixed left-1/2 top-16 -translate-x-1/2
+        class="fixed left-1/2 top-20 -translate-x-1/2
                hidden flex flex-col items-center pointer-events-none">
       <div class="avatar avatar-sandy shadow"></div>
       <span class="text-xs text-slate-900 mt-1">Sandy</span>
