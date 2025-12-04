@@ -99,13 +99,13 @@
     }
 
 
-
+/*
 
     .menu-toggle {
       position: relative;
     }
 
-    /* Top + bottom bars */
+    Top + bottom bars
     .menu-toggle::before,
     .menu-toggle::after {
       content: "";
@@ -119,17 +119,17 @@
       transition: transform 0.3s ease, opacity 0.3s ease;
     }
 
-    /* Top bar (default) */
+    Top bar (default)
     .menu-toggle::before {
       transform: translate(-50%, -6px);
     }
 
-    /* Bottom bar (default) */
+    Bottom bar (default)
     .menu-toggle::after {
       transform: translate(-50%, 6px);
     }
 
-    /* Middle bar */
+     Middle bar
     .menu-toggle-middle {
       width: 24px;
       height: 2px;
@@ -138,7 +138,7 @@
       transition: opacity 0.3s ease, transform 0.3s ease;
     }
 
-    /* === OPEN STATE === */
+    === OPEN STATE ===
     .menu-toggle.menu-toggle-open::before {
       transform: translate(-50%, 0) rotate(45deg);
     }
@@ -150,7 +150,7 @@
     .menu-toggle.menu-toggle-open .menu-toggle-middle {
       opacity: 0;
       transform: scaleX(0.5);
-    }
+    }*/
 
     /* Keep Tailwind layout; only tweak visuals
 nav[role="navigation"] {
@@ -475,7 +475,7 @@ nav[role="navigation"] {
     }
 
     #mobile-menu {
-      z-index: 40; /* you can keep z-[40] class instead if you like */
+      z-index: 60; /* you can keep z-[40] class instead if you like */
     }
         
     /* Default hidden state */
@@ -514,7 +514,7 @@ nav[role="navigation"] {
     }
 
     #top-bar {
-  z-index: 50;
+  z-index: 70;
 }
 
 
@@ -539,7 +539,7 @@ nav[role="navigation"] {
    /* Sandy avatar below menu, above page content */
     #chat-header-sandy {
       position: fixed;  
-      z-index: 60;
+      z-index: 55;
     }
 
     .chat-input-inner {
@@ -655,7 +655,7 @@ body.chat-screen #screen-chat {
        <!-- Sandy avatar, separate from top bar -->
     <div id="chat-header-sandy"
         class="fixed left-1/2 top-16 -translate-x-1/2
-               flex flex-col items-center pointer-events-none">
+               hidden flex flex-col items-center pointer-events-none">
       <div class="avatar avatar-sandy shadow"></div>
       <span class="text-xs text-slate-900 mt-1">Sandy</span>
     </div>
@@ -1095,6 +1095,8 @@ body.chat-screen #screen-chat {
       const homeLogin = document.getElementById("home-login");
       const homeStay = document.getElementById("home-stay");
       const headerEl = document.getElementById("app-header");
+      const chatHeaderSandy = document.getElementById("chat-header-sandy");
+
 
 
 
@@ -1189,11 +1191,17 @@ body.chat-screen #screen-chat {
         });
 
         // Toggle body class for chat-specific styling (top nav, hamburger, etc.)
-        if (name === "chat") {
-          document.body.classList.add("chat-screen");
-        } else {
-          document.body.classList.remove("chat-screen");
-        }
+  if (name === "chat") {
+    document.body.classList.add("chat-screen");
+    // 👇 Show Sandy avatar on chat screen
+    if (chatHeaderSandy) chatHeaderSandy.classList.remove("hidden");
+  } else {
+    document.body.classList.remove("chat-screen");
+    // 👇 Hide Sandy avatar on other screens
+    if (chatHeaderSandy) chatHeaderSandy.classList.add("hidden");
+  }
+
+      
 
         // Chat-specific behavior
         if (name === "chat") {
