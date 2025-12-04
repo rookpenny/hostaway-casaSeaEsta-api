@@ -1117,6 +1117,9 @@ body.chat-screen #screen-chat {
         experiences: document.getElementById("screen-experiences"),
       };
 
+      const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
+      const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
+
       // helper: are we currently on the chat screen?
       function isChatVisible() {
         const chatScreen = screens.chat;
@@ -1230,6 +1233,14 @@ body.chat-screen #screen-chat {
           document.body.classList.remove("chat-screen");
         }
 
+        // After switching screens, update logo accordingly
+        if (name === "chat") {
+          swapLogoWithFade(LOGO_BLACK);      // chat = black logo
+        } else if (!isMenuOpen) {
+          // Only switch back if the menu is not covering it
+          swapLogoWithFade(LOGO_WHITE);      // home/experiences = white logo
+        }
+
         // Chat-specific behavior
         if (name === "chat") {
           if (
@@ -1328,7 +1339,7 @@ body.chat-screen #screen-chat {
         topBar?.classList.add("bg-slate-50", "text-slate-900");
 
         // 👇 fade to dark logo
-        swapLogoWithFade("/static/img/neat-sleeps-black.png");
+        swapLogoWithFade(LOGO_BLACK);
 
         // Animate hamburger → X
         menuToggle?.classList.add("menu-toggle-open");
@@ -1356,8 +1367,12 @@ body.chat-screen #screen-chat {
         topBar?.classList.add("bg-transparent", "text-white");
         topBar?.classList.remove("bg-slate-50", "text-slate-900");
 
-        // 👇 fade back to light logo
-        swapLogoWithFade("/static/img/neat-sleeps-white.png");
+        // 👇 fade back based on current screen
+        if (document.body.classList.contains("chat-screen")) {
+          swapLogoWithFade(LOGO_BLACK);   // stay black on chat
+        } else {
+          swapLogoWithFade(LOGO_WHITE);   // white elsewhere
+        }
 
         // Animate X → hamburger
         menuToggle?.classList.remove("menu-toggle-open");
