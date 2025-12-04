@@ -689,8 +689,11 @@ body.chat-screen #screen-chat {
          class="max-w-3xl mx-auto flex items-center justify-between h-full px-4">
       <!-- Logo -->
       <a href="#" class="flex items-center gap-2">
-        <img id="logo-light" src="/static/img/neat-sleeps-white.png" alt="{{ property_name }}" class="h-7" /> <!--<img id="logo-light" src="/static/img/logo-light.svg" alt="{{ property_name }}" class="h-7" />-->
-        <img id="logo-dark"  src="/static/img/neat-sleeps-black.png"  alt="{{ property_name }}" class="h-7 hidden" />
+        <!-- default: white logo -->
+        <img id="logo-img"
+             src="/static/img/neat-sleeps-white.png"
+             alt="{{ property_name }}"
+             class="h-7" />
       </a>
 
       <!-- (Optional) center button -->
@@ -1281,10 +1284,9 @@ body.chat-screen #screen-chat {
       const topBar = document.getElementById("top-bar");
       const mobileMenu = document.getElementById("mobile-menu");
       const menuToggle = document.getElementById("menu-toggle");
-      const logoLight = document.getElementById("logo-light");
-      const logoDark = document.getElementById("logo-dark");
+      const logoImg = document.getElementById("logo-img");   // 👈 new single logo
       const menuLinks = document.querySelectorAll("[data-menu-screen]");
-      let isMenuOpen = false;
+      let isMenuOpen = false;  
 
       // match Tailwind duration-400 on the panel
       const MOBILE_MENU_SLIDE_DURATION = 400;  // ms
@@ -1306,9 +1308,10 @@ body.chat-screen #screen-chat {
         topBar?.classList.remove("bg-transparent", "text-white");
         topBar?.classList.add("bg-slate-50", "text-slate-900");
 
-        // Swap logos
-        logoLight?.classList.add("hidden");
-        logoDark?.classList.remove("hidden");
+        // Swap to dark (black) logo PNG when menu opens
+        if (logoImg) {
+          logoImg.src = "/static/img/neat-sleeps-black.png";
+        }
 
         // Animate hamburger → X
         menuToggle?.classList.add("menu-toggle-open");
@@ -1336,9 +1339,10 @@ body.chat-screen #screen-chat {
         topBar?.classList.add("bg-transparent", "text-white");
         topBar?.classList.remove("bg-slate-50", "text-slate-900");
 
-        // Swap logos back
-        logoLight?.classList.remove("hidden");
-        logoDark?.classList.add("hidden");
+        // Swap back to light (white) logo PNG when menu closes
+        if (logoImg) {
+          logoImg.src = "/static/img/neat-sleeps-white.png";
+        }
 
         // Animate X → hamburger
         menuToggle?.classList.remove("menu-toggle-open");
