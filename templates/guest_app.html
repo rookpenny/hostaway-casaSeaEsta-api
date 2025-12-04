@@ -503,15 +503,25 @@ nav[role="navigation"] {
 
     /* When on chat screen: top bar becomes light grey */
     body.chat-screen #top-bar {
-      background: #f8fafc !important;
-      /* same light grey as input bar */
-      color: #020617 !important;
-      /* slate text/icons */
-    }
+  color: #020617 !important; /* text/icons dark */
+}
 
+    body.chat-screen #top-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: #f8fafc;        /* same grey as input bar */
+  z-index: 0;                  /* sits behind inner content */
+}
+
+    
    #top-bar {
-     z-index: 30;
-       }
+  z-index: 35;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+}
     
     /* Make hamburger slate on chat screen */
     body.chat-screen #menu-toggle::before,
@@ -521,6 +531,13 @@ nav[role="navigation"] {
       /* slate-950 */
     }
 
+    /* logo + hamburger (and Sandy) ABOVE the grey bar */
+#top-bar-inner,
+#chat-header-sandy {
+  position: relative;
+  z-index: 1;
+}
+    
     /* Switch logos appropriately */
     body.chat-screen #logo-light {
       display: none !important;
@@ -649,15 +666,16 @@ body.chat-screen #screen-chat {
         <div id="top-bar" class="fixed top-0 inset-x-0 z-35 bg-transparent text-white
            transition-colors duration-300
            transform transition-transform ease-out duration-700">
-          <!-- CHAT HEADER: Sandy avatar + name -->
-          <div id="chat-header-sandy" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+  <!-- CHAT HEADER: Sandy avatar + name -->
+  <div id="chat-header-sandy" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
          hidden flex flex-col items-center pointer-events-none">
-            <div class="avatar avatar-sandy shadow"></div>
-            <span class="text-xs text-slate-900 mt-1">Sandy</span>
-          </div>
+    <div class="avatar avatar-sandy shadow"></div>
+    <span class="text-xs text-slate-900 mt-1">Sandy</span>
+  </div>
 
+  <!-- give this an id so we can layer it above the bar -->
+  <div id="top-bar-inner" class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
 
-          <div class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
             <!-- Logo -->
             <a href="#" class="flex items-center gap-2">
               <!-- Logo for blue bar -->
