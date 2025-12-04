@@ -1309,18 +1309,24 @@ body.chat-screen #screen-chat {
       const MOBILE_MENU_LINKS_FADE_DURATION = 250; // ms
 
       // Fade-out → swap image → fade-in
-      function swapLogoWithFade(newSrc) {
-        if (!logoImg) return;
-      
-        // fade out
-        logoImg.style.opacity = "0";
-      
-        // after fade-out, swap src, then fade back in
-        setTimeout(() => {
-          logoImg.src = newSrc;
-          logoImg.style.opacity = "1";
-        }, 120); // slightly less than CSS transition (180ms)
-      }
+    // Fade-out → swap image → fade-in
+    function swapLogoWithFade(newSrc) {
+      if (!logoImg) return;
+    
+      const currentSrc = logoImg.getAttribute("src");
+      // 🔴 If we're already on this logo (e.g. black → black), do nothing
+      if (currentSrc === newSrc) return;
+    
+      // fade out
+      logoImg.style.opacity = "0";
+    
+      // after fade-out, swap src, then fade back in
+      setTimeout(() => {
+        logoImg.src = newSrc;
+        logoImg.style.opacity = "1";
+      }, 120); // slightly less than CSS transition (180ms)
+    }
+
 
 
       function openMenu() {
