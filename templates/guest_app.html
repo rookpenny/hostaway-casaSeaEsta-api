@@ -474,6 +474,10 @@ nav[role="navigation"] {
       z-index: 30;
     }
 
+    #mobile-menu {
+      z-index: 40; /* you can keep z-[40] class instead if you like */
+    }
+        
     /* Default hidden state */
     #mobile-menu .mobile-menu-content {
       opacity: 0;
@@ -509,9 +513,6 @@ nav[role="navigation"] {
       /* slate text/icons */
     }
 
-   #top-bar {
-     z-index: 50;
-       }
     
     /* Make hamburger slate on chat screen */
     body.chat-screen #menu-toggle::before,
@@ -535,7 +536,11 @@ nav[role="navigation"] {
       display: flex;
     }
 
-   
+   /* Sandy avatar below menu, above page content */
+    #chat-header-sandy {
+      position: absolute;
+      z-index: 30;
+    }
 
     .chat-input-inner {
       flex: 1;
@@ -608,7 +613,11 @@ nav[role="navigation"] {
       color: #022c22;
     }
 
-  
+    /* Top bar chrome (logo + hamburger) above menu */
+    #top-bar-inner {
+      position: relative;
+      z-index: 50;
+    }
 
     .timestamp {
       color: #64748b;
@@ -646,7 +655,7 @@ body.chat-screen #screen-chat {
       <!-- Top header / nav -->
       <header id="app-header" class="relative w-full">
         <!-- Fixed blue top bar -->
-        <div id="top-bar" class="fixed top-0 inset-x-0 z-35 bg-transparent text-white
+        <div id="top-bar" class="fixed top-0 inset-x-0 bg-transparent text-white
            transition-colors duration-300
            transform transition-transform ease-out duration-700">
           <!-- CHAT HEADER: Sandy avatar + name -->
@@ -657,7 +666,7 @@ body.chat-screen #screen-chat {
           </div>
 
 
-          <div class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
+          <div id="top-bar-inner" class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
             <!-- Logo -->
             <a href="#" class="flex items-center gap-2">
               <!-- Logo for blue bar -->
@@ -687,7 +696,7 @@ body.chat-screen #screen-chat {
 
 
       <!-- Full-screen slide-down mobile menu -->
-      <nav id="mobile-menu" class="fixed inset-0 z-[60] bg-slate-50 text-slate-900
+      <nav id="mobile-menu" class="fixed inset-0 z-40 bg-slate-50 text-slate-900
           transition-colors duration-500
          transform -translate-y-full pointer-events-none
          transition-transform duration-700 ease-out" aria-label="Main navigation">
