@@ -538,7 +538,7 @@ nav[role="navigation"] {
 
    /* Sandy avatar below menu, above page content */
     #chat-header-sandy {
-      position: absolute;
+      position: fixed;  /* was absolute */
       z-index: 30;
     }
 
@@ -652,43 +652,42 @@ body.chat-screen #screen-chat {
     <!-- Foreground content -->
     <div class="relative z-10 flex flex-col min-h-screen">
 
-      <!-- Top header / nav -->
       <header id="app-header" class="relative w-full">
-        <!-- Fixed blue top bar -->
-        <div id="top-bar" class="fixed top-0 inset-x-0 bg-transparent text-white
+  <!-- Fixed top bar (logo + hamburger) -->
+  <div id="top-bar" class="fixed top-0 inset-x-0 z-50 bg-transparent text-white
            transition-colors duration-300
            transform transition-transform ease-out duration-700">
-          <!-- CHAT HEADER: Sandy avatar + name -->
-          <div id="chat-header-sandy" class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-         hidden flex flex-col items-center pointer-events-none">
-            <div class="avatar avatar-sandy shadow"></div>
-            <span class="text-xs text-slate-900 mt-1">Sandy</span>
-          </div>
+    <div id="top-bar-inner" class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
+      <!-- Logo -->
+      <a href="#" class="flex items-center gap-2">
+        <img id="logo-light" src="/static/img/logo-light.svg" alt="{{ property_name }}" class="h-7" />
+        <img id="logo-dark" src="/static/img/logo-dark.svg" alt="{{ property_name }}" class="h-7 hidden" />
+      </a>
 
+      <!-- (Optional) center button -->
+      <button type="button"
+        class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold bg-white text-sky-900 rounded-sm shadow-sm">
+        Upgrades
+      </button>
 
-          <div id="top-bar-inner" class="max-w-3xl mx-auto flex items-center justify-between h-20 px-4">
-            <!-- Logo -->
-            <a href="#" class="flex items-center gap-2">
-              <!-- Logo for blue bar -->
-              <img id="logo-light" src="/static/img/logo-light.svg" alt="{{ property_name }}" class="h-7" />
-              <!-- Logo for light bar (menu open) -->
-              <img id="logo-dark" src="/static/img/logo-dark.svg" alt="{{ property_name }}" class="h-7 hidden" />
-            </a>
+      <!-- Right side: ANIMATED HAMBURGER -->
+      <button id="menu-toggle" type="button"
+        class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none"
+        aria-label="Toggle navigation menu">
+        <span class="menu-toggle-middle"></span>
+      </button>
+    </div>
+  </div>
 
-            <!-- (Optional) center button -->
-            <button type="button"
-              class="hidden sm:inline-flex items-center justify-center px-4 py-2 text-sm font-semibold bg-white text-sky-900 rounded-sm shadow-sm">
-              Upgrades
-            </button>
+  <!-- Sandy avatar, separate from top bar -->
+  <div id="chat-header-sandy"
+       class="fixed left-1/2 top-10 -translate-x-1/2 -translate-y-1/2
+              hidden flex flex-col items-center pointer-events-none">
+    <div class="avatar avatar-sandy shadow"></div>
+    <span class="text-xs text-slate-900 mt-1">Sandy</span>
+  </div>
+</header>
 
-            <!-- Right side: ANIMATED HAMBURGER -->
-            <button id="menu-toggle" type="button"
-              class="relative w-9 h-9 flex items-center justify-center rounded-full hover:bg-white/10 focus:outline-none"
-              aria-label="Toggle navigation menu">
-              <span class="menu-toggle-middle"></span>
-            </button>
-          </div>
-        </div>
 
         <!-- Spacer so content doesn't sit under fixed bar 
   <div class="h-16"></div>-->
