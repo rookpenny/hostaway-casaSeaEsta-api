@@ -1357,6 +1357,25 @@ body.chat-screen #screen-chat {
           scrollChatToBottom();
         }
 
+
+        async function purchaseUpgrade(upgradeId, guestEmail) {
+        const res = await fetch(`/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guest_email: guestEmail || null }),
+        });
+      
+        const data = await res.json();
+        if (data.checkout_url) {
+          window.location.href = data.checkout_url;
+        } else {
+          alert("Unable to start checkout, please try again.");
+        }
+      }
+      
+      
+              
+
         // Always show header
         headerEl?.classList.remove("hidden");
 
