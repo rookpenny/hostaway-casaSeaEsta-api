@@ -1026,10 +1026,11 @@ body.chat-screen #screen-chat {
 
 
 
-        <!-- UPGRADES -->
+       <!-- UPGRADES -->
 <section id="screen-upgrades"
          class="hidden bg-slate-950 px-4 pt-4 pb-24 space-y-4"
          aria-label="Upgrades">
+
   <!-- Hero card -->
   <div class="h-40 w-full relative rounded-2xl overflow-hidden bg-slate-900">
     {% if upgrades_hero_url %}
@@ -1048,71 +1049,62 @@ body.chat-screen #screen-chat {
       </span>
       <h2 class="text-xl font-semibold">Make your stay extra special</h2>
       <p class="text-xs text-slate-200">
-        Add early check-in, late checkout, and local treats with one tap.
+        Add early check-in, late checkout, or a mid-stay clean with one tap.
       </p>
     </div>
   </div>
 
-  <!-- List of upgrade cards -->
+  <!-- List of upgrade cards from DB -->
   <div class="space-y-3">
-
-    <!-- Upgrade card -->
-    <article class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden flex">
-      <div class="w-24 h-24 bg-slate-800 flex-shrink-0">
-        <img src="{{ late_checkout_image_url or hero_image_url }}"
-             alt="Late checkout"
-             class="w-full h-full object-cover">
-      </div>
-      <div class="flex-1 p-3 flex flex-col justify-between">
-        <div class="space-y-1">
-          <div class="flex items-center gap-2">
-            <h3 class="text-sm font-semibold text-slate-50">Late checkout</h3>
-            <span class="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">
-              Popular
-            </span>
+    {% if upgrades and upgrades|length > 0 %}
+      {% for up in upgrades %}
+        <article class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden flex">
+          <div class="w-24 h-24 bg-slate-800 flex-shrink-0">
+            {% if up.image_url %}
+              <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
+            {% else %}
+              <img src="{{ hero_image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
+            {% endif %}
           </div>
-          <p class="text-xs text-slate-300">
-            Sleep in and leave by <span class="font-semibold">1:00 PM</span> instead of 11:00 AM.
-          </p>
-        </div>
-        <div class="mt-2 flex items-center justify-between text-xs">
-          <span class="font-semibold text-slate-50">$40</span>
-          <button type="button"
-                  class="inline-flex items-center px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-[11px] font-semibold">
-            Add upgrade
-          </button>
-        </div>
-      </div>
-    </article>
-
-    <!-- Another example upgrade -->
-    <article class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden flex">
-      <div class="w-24 h-24 bg-slate-800 flex-shrink-0">
-        <img src="{{ early_checkin_image_url or family_image_url }}"
-             alt="Early check-in"
-             class="w-full h-full object-cover">
-      </div>
-      <div class="flex-1 p-3 flex flex-col justify-between">
-        <div class="space-y-1">
-          <h3 class="text-sm font-semibold text-slate-50">Early check-in</h3>
-          <p class="text-xs text-slate-300">
-            Access the home from <span class="font-semibold">1:00 PM</span> instead of standard check-in time.
-          </p>
-        </div>
-        <div class="mt-2 flex items-center justify-between text-xs">
-          <span class="font-semibold text-slate-50">$35</span>
-          <button type="button"
-                  class="inline-flex items-center px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-[11px] font-semibold">
-            Add upgrade
-          </button>
-        </div>
-      </div>
-    </article>
-
-    <!-- Add more upgrade cards as needed -->
-
+          <div class="flex-1 p-3 flex flex-col justify-between">
+            <div class="space-y-1">
+              <div class="flex items-center gap-2">
+                <h3 class="text-sm font-semibold text-slate-50">
+                  {{ up.title }}
+                </h3>
+                {% if up.badge %}
+                  <span class="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">
+                    {{ up.badge }}
+                  </span>
+                {% endif %}
+              </div>
+              {% if up.short_description %}
+                <p class="text-xs text-slate-300">
+                  {{ up.short_description }}
+                </p>
+              {% endif %}
+            </div>
+            <div class="mt-2 flex items-center justify-between text-xs">
+              <span class="font-semibold text-slate-50">
+                {{ up.price_display }}
+              </span>
+              <button type="button"
+                      class="inline-flex items-center px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-[11px] font-semibold upgrade-buy-btn"
+                      data-upgrade-id="{{ up.id }}">
+                Add upgrade
+              </button>
+            </div>
+          </div>
+        </article>
+      {% endfor %}
+    {% else %}
+      <p class="text-xs text-slate-400">
+        Upgrades aren’t available for this stay yet.
+      </p>
+    {% endif %}
   </div>
 </section>
+
 
 
       </main>
@@ -1212,6 +1204,7 @@ body.chat-screen #screen-chat {
         home: document.getElementById("screen-home"),
         chat: document.getElementById("screen-chat"),
         experiences: document.getElementById("screen-experiences"),
+        upgrades: document.getElementById("screen-upgrades"),   // 👈 NEW
       };
 
       const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
@@ -1357,23 +1350,54 @@ body.chat-screen #screen-chat {
           scrollChatToBottom();
         }
 
+      }
 
-        async function purchaseUpgrade(upgradeId, guestEmail) {
-        const res = await fetch(`/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ guest_email: guestEmail || null }),
+            // Wire up "Add upgrade" buttons
+      const upgradeButtons = document.querySelectorAll(".upgrade-buy-btn");
+      upgradeButtons.forEach((btn) => {
+        btn.addEventListener("click", async () => {
+          const upgradeId = btn.getAttribute("data-upgrade-id");
+          if (!upgradeId) return;
+
+          // (Optional) ask for email here, or just pass null
+          const guestEmail = null;
+
+          btn.disabled = true;
+          const originalText = btn.textContent;
+          btn.textContent = "Loading…";
+
+          try {
+            await purchaseUpgrade(upgradeId, guestEmail);
+          } catch (e) {
+            console.error(e);
+            alert("Something went wrong starting checkout.");
+          } finally {
+            btn.disabled = false;
+            btn.textContent = originalText;
+          }
         });
+      });
+
       
+            // --- Stripe checkout for upgrades ---
+      async function purchaseUpgrade(upgradeId, guestEmail) {
+        const res = await fetch(
+          `/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ guest_email: guestEmail || null }),
+          }
+        );
+
         const data = await res.json();
         if (data.checkout_url) {
           window.location.href = data.checkout_url;
         } else {
-          alert("Unable to start checkout, please try again.");
+          alert(data.detail || "Unable to start checkout, please try again.");
         }
       }
-      
-      
+
               
 
         // Always show header
@@ -1517,16 +1541,27 @@ body.chat-screen #screen-chat {
         else openMenu();
       });
 
-      // Clicking links changes screen + closes menu
+            // Clicking links changes screen + closes menu
       menuLinks.forEach((btn) => {
         btn.addEventListener("click", () => {
           const target = btn.getAttribute("data-menu-screen");
-          if (target) {
+          if (!target) return;
+
+          if (!isUnlocked && target !== "home") {
+            const err = document.getElementById("unlock-error");
+            if (err) {
+              err.textContent =
+                "Please unlock your stay first with the last 4 digits of your booking phone number.";
+            }
+            showScreen("home");
+          } else {
             showScreen(target);
           }
+
           closeMenu();
         });
       });
+
 
 
       function scrollChatToBottom() {
