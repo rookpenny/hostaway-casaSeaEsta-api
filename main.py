@@ -8,6 +8,8 @@ import uvicorn
 import re
 import stripe
 
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
 from typing import Optional
 from datetime import datetime, timedelta
 from sqlalchemy import text
@@ -37,8 +39,10 @@ from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from openai import OpenAI
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- Init ---
@@ -218,9 +222,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     if not experiences_hero_url and hero_image_url:
         experiences_hero_url = hero_image_url
 
-
-
-    
     # 🔹 Pull latest ChatSession that has guest_name / dates from PMS, if any
     latest_session = (
         db.query(ChatSession)
@@ -240,25 +241,60 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         q = " ".join(filter(None, [address, city_name]))
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
+    # ------------------------------------------------------------
+    # 🔹 NEW — Load upgrades for this property
+    # ------------------------------------------------------------
+    upgrades = (
+        db.query(Upgrade)
+        .filter(
+            Upgrade.property_id == prop.id,
+            Upgrade.is_active == True,
+        )
+        .order_by(Upgrade.id.asc())
+        .all()
+    )
+
+    # Convert DB objects → safe dicts for template or JS
+    upgrades_payload = []
+    for up in upgrades:
+        upgrades_payload.append(
+            {
+                "id": up.id,
+                "slug": up.slug,
+                "title": getattr(up, "title", None),
+                "short_description": getattr(up, "short_description", None),
+                "long_description": getattr(up, "long_description", None),
+                "price_cents": getattr(up, "price_cents", None),
+                "price_currency": getattr(up, "currency", "usd"),
+                "stripe_price_id": getattr(up, "stripe_price_id", None),
+                "image_url": getattr(up, "image_url", None),
+            }
+        )
+
+    # ------------------------------------------------------------
+    # 🔹 Render Template
+    # ------------------------------------------------------------
     return templates.TemplateResponse(
         "guest_app.html",
         {
             "request": request,
             "property_id": prop.id,
             "property_name": prop.property_name,
-            "reservation_name": reservation_name,  # 🔹 used for "Welcome to Casa X, Name!"
+            "reservation_name": reservation_name,
             "property_address": address,
             "wifi_ssid": wifi.get("ssid"),
             "wifi_password": wifi.get("password"),
             "checkin_time": cfg.get("checkin_time"),
             "checkout_time": cfg.get("checkout_time"),
+
             # PMS dates override config if present
             "arrival_date": arrival_date_db or cfg.get("arrival_date"),
             "departure_date": departure_date_db or cfg.get("departure_date"),
+
             "feature_image_url": cfg.get("feature_image_url"),
             "family_image_url": cfg.get("family_image_url"),
             "foodie_image_url": cfg.get("foodie_image_url"),
-            "property_address": address,
+
             "city_name": city_name,
             "hero_image_url": hero_image_url,
             "experiences_hero_url": experiences_hero_url,
@@ -266,10 +302,11 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "is_live": is_live,
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
 
-             # 🔹 add this
+            # 🔹 Upgrades now passed into template
             "upgrades": upgrades_payload,
         },
     )
+
 
 
 class VerifyRequest(BaseModel):
@@ -390,9 +427,9 @@ def dynamic_manifest(property_id: int, request: Request, db: Session = Depends(g
         media_type="application/manifest+json",
     )
 
-    class UpgradeCheckoutRequest(BaseModel):
+
+class UpgradeCheckoutRequest(BaseModel):
     guest_email: Optional[str] = None
-    pass   # 👈 add this
 
 
 @app.post("/properties/{property_id}/upgrades/{upgrade_id}/checkout")
