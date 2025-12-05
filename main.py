@@ -312,23 +312,24 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 class VerifyRequest(BaseModel):
     code: str
 
+
 @app.post("/guest/{property_id}/verify-json")
 def verify_json(
     property_id: int,
     payload: VerifyRequest,
     request: Request,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     code = (payload.code or "").strip()
 
-    # quick format check
+    # 1) Quick format check
     if not code.isdigit() or len(code) != 4:
         return JSONResponse(
             {"success": False, "error": "Please enter exactly 4 digits."},
-            status_code=400
+            status_code=400,
         )
 
-     # 🔐 1) TEST OVERRIDE (for your own testing)
+    # 2) TEST OVERRIDE (for your own testing)
     test_code = os.getenv("TEST_UNLOCK_CODE")
     if test_code and code == test_code:
         # Mark this browser as verified
@@ -345,8 +346,8 @@ def verify_json(
             "arrival_date": arrival,
             "departure_date": departure,
         }
-        
-    # load property + PMC
+
+    # 3) Load property + PMC
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -355,45 +356,77 @@ def verify_json(
     if not pmc:
         return JSONResponse(
             {"success": False, "error": "This property is not linked to a PMS."},
-            status_code=400
+            status_code=400,
         )
 
-    # get PMS-linked last 4 digits + guest info from Hostaway
+    # 4) Get PMS-linked last 4 digits + guest info
     try:
-        (
-            phone_last4,
-            door_code,
-            reservation_id,
-            guest_name,
-            arrival_date,
-            departure_date,
-        ) = get_pms_access_info(pmc, prop)
+        # For Hostaway, use "upcoming or in-house" reservation lookup
+        if (
+            pmc.pms_integration
+            and pmc.pms_integration.lower() == "hostaway"
+            and prop.pms_integration
+            and prop.pms_integration.lower() == "hostaway"
+            and prop.pms_property_id
+            and pmc.pms_api_key
+            and pmc.pms_api_secret
+        ):
+            (
+                phone_last4,
+                door_code,
+                reservation_id,
+                guest_name,
+                arrival_date,
+                departure_date,
+            ) = get_upcoming_phone_for_listing(
+                listing_id=str(prop.pms_property_id),
+                client_id=pmc.pms_api_key,
+                client_secret=pmc.pms_api_secret,
+            )
+        else:
+            # fallback for other PMS types
+            (
+                phone_last4,
+                door_code,
+                reservation_id,
+                guest_name,
+                arrival_date,
+                departure_date,
+            ) = get_pms_access_info(pmc, prop)
+
     except Exception as e:
         print("[VERIFY PMS ERROR]", e)
         return JSONResponse(
-            {"success": False, "error": "Could not verify your reservation. Please try again."},
-            status_code=500
+            {
+                "success": False,
+                "error": "Could not verify your reservation. Please try again.",
+            },
+            status_code=500,
         )
 
-    # no reservation/phone found
+    # 5) No upcoming/current reservation / phone found
     if not phone_last4 or not reservation_id:
         return JSONResponse(
-            {"success": False, "error": "No active reservation found for this property."},
-            status_code=400
+            {
+                "success": False,
+                "error": "No upcoming reservation found for this property.",
+            },
+            status_code=400,
         )
 
-    # wrong code → deny access
+    # 6) Wrong code → deny access
     if code != phone_last4:
         return JSONResponse(
-            {"success": False, "error": "That code does not match the reservation phone number."},
-            status_code=403
+            {
+                "success": False,
+                "error": "That code does not match the reservation phone number.",
+            },
+            status_code=403,
         )
 
-    # correct! mark this browser as verified
+    # 7) Correct: mark this browser as verified and return guest + stay info
     request.session[f"guest_verified_{property_id}"] = True
 
-    # 🔹 also return guest + stay info so the UI can show:
-    # "Welcome to Casa X, [guest_name]!" and dates
     return {
         "success": True,
         "guest_name": guest_name,
