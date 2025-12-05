@@ -1,55 +1,72 @@
+# seed_upgrades.py
+import os
+from sqlalchemy.orm import Session
 from database import SessionLocal
 from models import Upgrade
 
-db = SessionLocal()
+# CHANGE THIS to the property you want to seed
+PROPERTY_ID = 1
 
-PROPERTY_ID = 1  # change to your real property ID
-
-upgrades = [
-    Upgrade(
-        property_id=PROPERTY_ID,
-        slug="early-check-in",
-        title="Early check-in",
-        short_description="Arrive earlier and start relaxing sooner.",
-        long_description="Check in as early as 1:00 PM (subject to availability).",
-        price_cents=7500,
-        currency="usd",
-        sort_order=1,
-    ),
-    Upgrade(
-        property_id=PROPERTY_ID,
-        slug="purchase-groceries",
-        title="Purchase groceries",
-        short_description="Have essentials waiting for you.",
-        long_description="Send us your list and we'll stock the fridge before you arrive.",
-        price_cents=9500,
-        currency="usd",
-        sort_order=2,
-    ),
-    Upgrade(
-        property_id=PROPERTY_ID,
-        slug="mid-stay-clean",
-        title="Mid-stay clean",
-        short_description="Reset and refresh your space mid-stay.",
-        long_description="A full clean including bathrooms, surfaces, and linens.",
-        price_cents=12000,
-        currency="usd",
-        sort_order=3,
-    ),
-    Upgrade(
-        property_id=PROPERTY_ID,
-        slug="late-check-out",
-        title="Late check-out",
-        short_description="Enjoy a slower final morning.",
-        long_description="Extend checkout time to relax without rushing.",
-        price_cents=6000,
-        currency="usd",
-        sort_order=4,
-    ),
+UPGRADES = [
+    {
+        "title": "Early Check-in",
+        "slug": "early-check-in",
+        "description": "Arrive early and start relaxing sooner.",
+        "price_cents": 3500,
+    },
+    {
+        "title": "Purchase Groceries",
+        "slug": "groceries",
+        "description": "Let us stock the fridge before you arrive.",
+        "price_cents": 6000,
+    },
+    {
+        "title": "Mid-Stay Clean",
+        "slug": "mid-stay-clean",
+        "description": "A fresh clean during your stay.",
+        "price_cents": 8500,
+    },
+    {
+        "title": "Late Checkout",
+        "slug": "late-checkout",
+        "description": "Enjoy a slower, more relaxed departure.",
+        "price_cents": 3000,
+    },
 ]
 
-db.add_all(upgrades)
-db.commit()
-db.close()
+def run():
+    db: Session = SessionLocal()
 
-print("Seeded upgrades successfully!")
+    for u in UPGRADES:
+        existing = (
+            db.query(Upgrade)
+            .filter(
+                Upgrade.property_id == PROPERTY_ID,
+                Upgrade.slug == u["slug"],
+            )
+            .first()
+        )
+
+        if existing:
+            print(f"Already exists → {u['title']}")
+            continue
+
+        upgrade = Upgrade(
+            property_id=PROPERTY_ID,
+            title=u["title"],
+            slug=u["slug"],
+            description=u["description"],
+            price_cents=u["price_cents"],
+            is_active=True,
+            stripe_price_id=None,  # You will fill this in after creating Stripe prices
+        )
+
+        db.add(upgrade)
+        print(f"Created upgrade → {u['title']}")
+
+    db.commit()
+    db.close()
+    print("✅ Done seeding upgrades!")
+
+if __name__ == "__main__":
+    run()
