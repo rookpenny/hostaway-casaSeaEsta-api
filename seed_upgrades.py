@@ -5,7 +5,7 @@ from database import SessionLocal
 from models import Upgrade
 
 # CHANGE THIS to the property you want to seed
-PROPERTY_ID = 1
+PROPERTY_ID = 5
 
 UPGRADES = [
     {
