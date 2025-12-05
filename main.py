@@ -392,6 +392,7 @@ def dynamic_manifest(property_id: int, request: Request, db: Session = Depends(g
 
     class UpgradeCheckoutRequest(BaseModel):
     guest_email: Optional[str] = None
+    pass   # 👈 add this
 
 
 @app.post("/properties/{property_id}/upgrades/{upgrade_id}/checkout")
