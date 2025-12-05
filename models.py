@@ -42,6 +42,49 @@ class Property(Base):
     pmc = relationship("PMC", back_populates="properties")
 
 
+class Upgrade(Base):
+    __tablename__ = "upgrades"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # which property this upgrade belongs to
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
+
+    # e.g. "early-check-in", "mid-stay-clean"
+    slug = Column(String, unique=True, index=True)
+
+    # short label (card title)
+    title = Column(String, nullable=False)
+
+    # short blurb under the title (card)
+    short_description = Column(String, nullable=True)
+
+    # full description on the detail page
+    long_description = Column(Text, nullable=True)
+
+    # pricing
+    price_cents = Column(Integer, nullable=False, default=0)  # e.g. 7500 = $75.00
+    currency = Column(String, nullable=False, default="usd")
+
+    # Stripe linkage (Price ID from Stripe dashboard)
+    stripe_price_id = Column(String, nullable=True)
+
+    # display / ordering
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
+
+    # relationship back to Property
+    property = relationship("Property", backref="upgrades")
+
+
+
 class ChatSession(Base):
     __tablename__ = "chat_sessions"
 
