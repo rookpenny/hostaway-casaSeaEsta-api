@@ -6,6 +6,7 @@ import logging
 import requests
 import uvicorn
 import re
+import stripe
 
 from typing import Optional
 from datetime import datetime, timedelta
@@ -27,7 +28,7 @@ from routes import admin, pmc_auth
 
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
-from models import Property, ChatSession, ChatMessage, PMC
+from models import Property, ChatSession, ChatMessage, PMC, Upgrade
 
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 from utils.pms_sync import sync_properties, sync_all_pmcs
@@ -264,6 +265,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "google_maps_link": google_maps_link,
             "is_live": is_live,
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
+
+             # 🔹 add this
+            "upgrades": upgrades_payload,
         },
     )
 
@@ -385,6 +389,83 @@ def dynamic_manifest(property_id: int, request: Request, db: Session = Depends(g
         },
         media_type="application/manifest+json",
     )
+
+    class UpgradeCheckoutRequest(BaseModel):
+    guest_email: Optional[str] = None
+
+
+@app.post("/properties/{property_id}/upgrades/{upgrade_id}/checkout")
+def create_upgrade_checkout(
+    property_id: int,
+    upgrade_id: int,
+    payload: UpgradeCheckoutRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    # Enforce that the guest has unlocked this stay
+    verified_flag = request.session.get(f"guest_verified_{property_id}", False)
+    if not verified_flag:
+        raise HTTPException(
+            status_code=403,
+            detail="Please unlock your stay before purchasing upgrades.",
+        )
+
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    upgrade = (
+        db.query(Upgrade)
+        .filter(
+            Upgrade.id == upgrade_id,
+            Upgrade.property_id == property_id,
+            Upgrade.is_active == True,
+        )
+        .first()
+    )
+    if not upgrade:
+        raise HTTPException(status_code=404, detail="Upgrade not found")
+
+    if not upgrade.stripe_price_id:
+        raise HTTPException(
+            status_code=400,
+            detail="This upgrade is not yet configured for payment.",
+        )
+
+    # Where Stripe sends the guest after payment
+    success_url = str(
+        request.url_for("guest_app_ui", property_id=property_id)
+    ) + "?upgrade=success"
+    cancel_url = str(
+        request.url_for("guest_app_ui", property_id=property_id)
+    ) + f"?upgrade={upgrade.slug}"
+
+    try:
+        checkout_session = stripe.checkout.Session.create(
+            mode="payment",
+            line_items=[
+                {
+                    "price": upgrade.stripe_price_id,
+                    "quantity": 1,
+                }
+            ],
+            success_url=success_url,
+            cancel_url=cancel_url,
+            metadata={
+                "property_id": str(property_id),
+                "upgrade_id": str(upgrade.id),
+                "upgrade_slug": upgrade.slug or "",
+            },
+            customer_email=payload.guest_email,
+        )
+    except Exception as e:
+        logging.exception("Stripe checkout creation failed")
+        raise HTTPException(
+            status_code=500,
+            detail="Unable to start checkout for this upgrade.",
+        )
+
+    return {"checkout_url": checkout_session.url}
 
     
 @app.post("/properties/{property_id}/chat")
