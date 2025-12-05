@@ -16,3 +16,4 @@ openai==1.6.1
 psycopg2-binary
 asyncpg
 sqlalchemy>=1.4
+stripe==7.10.0
