@@ -964,7 +964,7 @@ body.chat-screen #screen-chat {
             <div>
                 <div class="px-4 pt-6 pb-2">
                   <h1 class="text-5xl font-semibold leading-tight">
-                    <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe - you’ve made it.
+                    <span id="guest-name-span-guides">{{ reservation_name or "Guest" }}</span>, breathe - you’ve made it.
                   </h1>
                 </div>
               </div>
@@ -1234,285 +1234,278 @@ body.chat-screen #screen-chat {
     </div>
   </div>
 
-  <script>
-    document.addEventListener("DOMContentLoaded", function () {
-      // --- Screens + core elements ---
-      const screens = {
-        home: document.getElementById("screen-home"),
-        chat: document.getElementById("screen-chat"),
-        experiences: document.getElementById("screen-experiences"),
-        upgrades: document.getElementById("screen-upgrades"),
-       //upgradeDetail: document.getElementById("screen-upgrade-detail"),
-      };
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    // --- Screens + core elements ---
+    const screens = {
+      home: document.getElementById("screen-home"),
+      chat: document.getElementById("screen-chat"),
+      experiences: document.getElementById("screen-experiences"),
+      upgrades: document.getElementById("screen-upgrades"),
+      //upgradeDetail: document.getElementById("screen-upgrade-detail"),
+    };
 
-      const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
-      const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
+    const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
+    const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
 
-      // helper: are we currently on the chat screen?
-      function isChatVisible() {
-        const chatScreen = screens.chat;
-        return chatScreen && !chatScreen.classList.contains("hidden");
-      }
-
-
-
-
-      const navButtons = document.querySelectorAll("nav .nav-item");
-      const homeLogin = document.getElementById("home-login");
-      const homeStay = document.getElementById("home-stay");
-      const headerEl = document.getElementById("app-header");
-      const upgradeModal = document.getElementById("upgrade-modal");
-      const upgradeModalClose = document.getElementById("upgrade-modal-close");
-
-
-      // OPEN modal (when an upgrade is clicked)
-      function openUpgradeModal() {
-        upgradeModal.classList.remove("hidden");
-        upgradeModal.classList.add("flex");
-      }
-      
-      // CLOSE modal
-      function closeUpgradeModal() {
-        upgradeModal.classList.add("hidden");
-        upgradeModal.classList.remove("flex");
-      }
-      
-      // X BUTTON closes modal
-      if (upgradeModalClose) {
-        upgradeModalClose.addEventListener("click", closeUpgradeModal);
-      }
-      
-      // Clicking outside closes modal
-      if (upgradeModal) {
-        upgradeModal.addEventListener("click", (e) => {
-          if (e.target === upgradeModal) closeUpgradeModal();
-        });
-      }
-            
-
-      // --- Global state ---
-      let isUnlocked = window.INITIAL_VERIFIED === "true";
-
-      // TEMP: force unlocked during UI testing //REMOVE when live
-      //isUnlocked = true;
-
-      let lastUnlockCode = null;
-      let currentSessionId = null;
-      let guestName = null;
-      let arrivalDate = null;
-      let departureDate = null;
-
-      const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
-
-      function saveGuestState() {
-        try {
-          const state = {
-            isUnlocked,
-            lastUnlockCode,
-            sessionId: currentSessionId,
-            guestName,
-            arrivalDate,
-            departureDate,
-          };
-          window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
-        } catch (e) {
-          console.warn("Unable to save guest state:", e);
-        }
-      }
-
-      function loadGuestState() {
-        try {
-          const raw = window.localStorage.getItem(GUEST_STATE_KEY);
-          if (!raw) return null;
-          return JSON.parse(raw);
-        } catch (e) {
-          console.warn("Unable to load guest state:", e);
-          return null;
-        }
-      }
-
-      const storedState = loadGuestState();
-      if (storedState) {
-        if (!isUnlocked && storedState.isUnlocked) {
-          isUnlocked = true;
-        }
-        if (storedState.lastUnlockCode) {
-          lastUnlockCode = storedState.lastUnlockCode;
-        }
-        if (storedState.sessionId) {
-          currentSessionId = storedState.sessionId;
-        }
-
-        if (storedState.guestName) {
-          guestName = storedState.guestName;
-          const nameEl = document.getElementById("guest-name-span");
-          if (nameEl) nameEl.textContent = guestName;
-        }
-        if (storedState.arrivalDate) {
-          arrivalDate = storedState.arrivalDate;
-          const arrEl = document.getElementById("arrival-date-span");
-          if (arrEl) arrEl.textContent = arrivalDate;
-        }
-        if (storedState.departureDate) {
-          departureDate = storedState.departureDate;
-          const depEl = document.getElementById("departure-date-span");
-          if (depEl) depEl.textContent = departureDate;
-        }
-      }
-
-      function updateHomeState() {
-        if (isUnlocked) {
-          if (homeLogin) homeLogin.classList.add("hidden");
-          if (homeStay) homeStay.classList.remove("hidden");
-        } else {
-          if (homeLogin) homeLogin.classList.remove("hidden");
-          if (homeStay) homeStay.classList.add("hidden");
-        }
-      }
-
-      let chatHasWelcome = false;
-
-      function showScreen(name) {
-        // Show / hide screens
-        Object.entries(screens).forEach(([key, el]) => {
-          if (!el) return;
-          if (key === name) el.classList.remove("hidden");
-          else el.classList.add("hidden");
-        });
-
-        // Toggle body class for chat-specific styling (top nav, hamburger, etc.)
-        if (name === "chat") {
-          document.body.classList.add("chat-screen");
-        } else {
-          document.body.classList.remove("chat-screen");
-        }
-
-        // After switching screens, update logo accordingly
-        if (name === "chat") {
-          swapLogoWithFade(LOGO_BLACK);      // chat = black logo
-        } else if (!isMenuOpen) {
-          // Only switch back if the menu is not covering it
-          swapLogoWithFade(LOGO_WHITE);      // home/experiences = white logo
-        }
-
-        // Chat-specific behavior
-        if (name === "chat") {
-          if (
-            window.SANDY_LIVE === "true" &&
-            chatBox &&
-            !chatHasWelcome &&
-            chatBox.children.length === 0
-          ) {
-            const intro = guestName
-              ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-              : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
-
-            renderMessage(intro, "bot");
-            chatHasWelcome = true;
-          }
-
-          scrollChatToBottom();
-        }
-
-      }
-
-      // --- Upgrade cards → detail screen + purchase ---
-const upgradeCards = document.querySelectorAll(".upgrade-card");
-const upgradeDetailTitle = document.getElementById("upgrade-detail-title");
-const upgradeDetailBody = document.getElementById("upgrade-detail-body");
-const upgradeDetailName = document.getElementById("upgrade-detail-name");
-const upgradeDetailPrice = document.getElementById("upgrade-detail-price");
-const upgradeDetailPriceBottom = document.getElementById("upgrade-detail-price-bottom");
-//const upgradeDetailClose = document.getElementById("upgrade-detail-close");
-const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
-
-let currentUpgradeId = null;
-
-upgradeCards.forEach((card) => {
-  card.addEventListener("click", () => {
-    const id = card.getAttribute("data-upgrade-id");
-    const title = card.getAttribute("data-upgrade-title") || "";
-    const price = card.getAttribute("data-upgrade-price") || "";
-    const longEl = card.querySelector(".upgrade-long");
-    const longText = longEl ? longEl.textContent.trim() : "";
-
-    currentUpgradeId = id;
-
-    if (upgradeDetailTitle) upgradeDetailTitle.textContent = title;
-    if (upgradeDetailName) upgradeDetailName.textContent = title;
-    if (upgradeDetailBody) upgradeDetailBody.textContent = longText;
-    if (upgradeDetailPrice) upgradeDetailPrice.textContent = price;
-    if (upgradeDetailPriceBottom)
-      upgradeDetailPriceBottom.textContent = `${price} – Purchase`;
-
-    //showScreen("upgradeDetail");
-    openUpgradeModal();
-  });
-});
-
-
-
-if (upgradeDetailPurchase) {
-  upgradeDetailPurchase.addEventListener("click", async () => {
-    if (!currentUpgradeId) return;
-    try {
-      await purchaseUpgrade(currentUpgradeId, null);
-    } catch (e) {
-      console.error(e);
-      alert("Something went wrong starting checkout.");
+    // helper: are we currently on the chat screen?
+    function isChatVisible() {
+      const chatScreen = screens.chat;
+      return chatScreen && !chatScreen.classList.contains("hidden");
     }
-  });
-}
 
+    const navButtons = document.querySelectorAll("nav .nav-item");
+    const homeLogin = document.getElementById("home-login");
+    const homeStay = document.getElementById("home-stay");
+    const headerEl = document.getElementById("app-header");
+    const upgradeModal = document.getElementById("upgrade-modal");
+    const upgradeModalClose = document.getElementById("upgrade-modal-close");
 
-      
-            // --- Stripe checkout for upgrades ---
-      async function purchaseUpgrade(upgradeId, guestEmail) {
-        const res = await fetch(
-          `/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ guest_email: guestEmail || null }),
-          }
-        );
+    // OPEN modal (when an upgrade is clicked)
+    function openUpgradeModal() {
+      upgradeModal.classList.remove("hidden");
+      upgradeModal.classList.add("flex");
+    }
 
-        const data = await res.json();
-        if (data.checkout_url) {
-          window.location.href = data.checkout_url;
-        } else {
-          alert(data.detail || "Unable to start checkout, please try again.");
-        }
+    // CLOSE modal
+    function closeUpgradeModal() {
+      upgradeModal.classList.add("hidden");
+      upgradeModal.classList.remove("flex");
+    }
+
+    // X BUTTON closes modal
+    if (upgradeModalClose) {
+      upgradeModalClose.addEventListener("click", closeUpgradeModal);
+    }
+
+    // Clicking outside closes modal
+    if (upgradeModal) {
+      upgradeModal.addEventListener("click", (e) => {
+        if (e.target === upgradeModal) closeUpgradeModal();
+      });
+    }
+
+    // --- Global state ---
+    let isUnlocked = window.INITIAL_VERIFIED === "true";
+
+    // TEMP: force unlocked during UI testing //REMOVE when live
+    //isUnlocked = true;
+
+    let lastUnlockCode = null;
+    let currentSessionId = null;
+    let guestName = null;
+    let arrivalDate = null;
+    let departureDate = null;
+
+    // 🔹 helper: keep guest name in sync across all places we show it
+    function updateGuestNameInUI(name) {
+      const nameEls = document.querySelectorAll("#guest-name-span, #guest-name-span-guides");
+      nameEls.forEach((el) => {
+        el.textContent = name;
+      });
+    }
+
+    const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
+
+    function saveGuestState() {
+      try {
+        const state = {
+          isUnlocked,
+          lastUnlockCode,
+          sessionId: currentSessionId,
+          guestName,
+          arrivalDate,
+          departureDate,
+        };
+        window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn("Unable to save guest state:", e);
+      }
+    }
+
+    function loadGuestState() {
+      try {
+        const raw = window.localStorage.getItem(GUEST_STATE_KEY);
+        if (!raw) return null;
+        return JSON.parse(raw);
+      } catch (e) {
+        console.warn("Unable to load guest state:", e);
+        return null;
+      }
+    }
+
+    const storedState = loadGuestState();
+    if (storedState) {
+      if (!isUnlocked && storedState.isUnlocked) {
+        isUnlocked = true;
+      }
+      if (storedState.lastUnlockCode) {
+        lastUnlockCode = storedState.lastUnlockCode;
+      }
+      if (storedState.sessionId) {
+        currentSessionId = storedState.sessionId;
       }
 
-            
+      if (storedState.guestName) {
+        guestName = storedState.guestName;
+        updateGuestNameInUI(guestName);
+      }
+      if (storedState.arrivalDate) {
+        arrivalDate = storedState.arrivalDate;
+        const arrEl = document.getElementById("arrival-date-span");
+        if (arrEl) arrEl.textContent = arrivalDate;
+      }
+      if (storedState.departureDate) {
+        departureDate = storedState.departureDate;
+        const depEl = document.getElementById("departure-date-span");
+        if (depEl) depEl.textContent = departureDate;
+      }
+    }
 
-      // 🔽🔽🔽 PUT THE NEW NAV CODE RIGHT HERE 🔽🔽🔽
+    function updateHomeState() {
+      if (isUnlocked) {
+        if (homeLogin) homeLogin.classList.add("hidden");
+        if (homeStay) homeStay.classList.remove("hidden");
+      } else {
+        if (homeLogin) homeLogin.classList.remove("hidden");
+        if (homeStay) homeStay.classList.add("hidden");
+      }
+    }
 
-      // --- Top bar sliding menu nav ---
-      const topBar = document.getElementById("top-bar");
-      const mobileMenu = document.getElementById("mobile-menu");
-      const menuToggle = document.getElementById("menu-toggle");
-      const logoImg = document.getElementById("logo-img");   // 👈 new single logo
-      const menuLinks = document.querySelectorAll("[data-menu-screen]");
-      let isMenuOpen = false;  
+    let chatHasWelcome = false;
 
-      // match Tailwind duration-400 on the panel
-      const MOBILE_MENU_SLIDE_DURATION = 400;  // ms
-      const MOBILE_MENU_LINKS_FADE_DURATION = 250; // ms
+    function showScreen(name) {
+      // Show / hide screens
+      Object.entries(screens).forEach(([key, el]) => {
+        if (!el) return;
+        if (key === name) el.classList.remove("hidden");
+        else el.classList.add("hidden");
+      });
 
-      // Fade-out → swap image → fade-in
+      // Toggle body class for chat-specific styling (top nav, hamburger, etc.)
+      if (name === "chat") {
+        document.body.classList.add("chat-screen");
+      } else {
+        document.body.classList.remove("chat-screen");
+      }
+
+      // After switching screens, update logo accordingly
+      if (name === "chat") {
+        swapLogoWithFade(LOGO_BLACK);      // chat = black logo
+      } else if (!isMenuOpen) {
+        // Only switch back if the menu is not covering it
+        swapLogoWithFade(LOGO_WHITE);      // home/experiences = white logo
+      }
+
+      // Chat-specific behavior
+      if (name === "chat") {
+        if (
+          window.SANDY_LIVE === "true" &&
+          chatBox &&
+          !chatHasWelcome &&
+          chatBox.children.length === 0
+        ) {
+          const intro = guestName
+            ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
+            : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+
+          renderMessage(intro, "bot");
+          chatHasWelcome = true;
+        }
+
+        scrollChatToBottom();
+      }
+
+    }
+
+    // --- Upgrade cards → detail screen + purchase ---
+    const upgradeCards = document.querySelectorAll(".upgrade-card");
+    const upgradeDetailTitle = document.getElementById("upgrade-detail-title");
+    const upgradeDetailBody = document.getElementById("upgrade-detail-body");
+    const upgradeDetailName = document.getElementById("upgrade-detail-name");
+    const upgradeDetailPrice = document.getElementById("upgrade-detail-price");
+    const upgradeDetailPriceBottom = document.getElementById("upgrade-detail-price-bottom");
+    //const upgradeDetailClose = document.getElementById("upgrade-detail-close");
+    const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
+
+    let currentUpgradeId = null;
+
+    upgradeCards.forEach((card) => {
+      card.addEventListener("click", () => {
+        const id = card.getAttribute("data-upgrade-id");
+        const title = card.getAttribute("data-upgrade-title") || "";
+        const price = card.getAttribute("data-upgrade-price") || "";
+        const longEl = card.querySelector(".upgrade-long");
+        const longText = longEl ? longEl.textContent.trim() : "";
+
+        currentUpgradeId = id;
+
+        if (upgradeDetailTitle) upgradeDetailTitle.textContent = title;
+        if (upgradeDetailName) upgradeDetailName.textContent = title;
+        if (upgradeDetailBody) upgradeDetailBody.textContent = longText;
+        if (upgradeDetailPrice) upgradeDetailPrice.textContent = price;
+        if (upgradeDetailPriceBottom)
+          upgradeDetailPriceBottom.textContent = `${price} – Purchase`;
+
+        //showScreen("upgradeDetail");
+        openUpgradeModal();
+      });
+    });
+
+    if (upgradeDetailPurchase) {
+      upgradeDetailPurchase.addEventListener("click", async () => {
+        if (!currentUpgradeId) return;
+        try {
+          await purchaseUpgrade(currentUpgradeId, null);
+        } catch (e) {
+          console.error(e);
+          alert("Something went wrong starting checkout.");
+        }
+      });
+    }
+
+    // --- Stripe checkout for upgrades ---
+    async function purchaseUpgrade(upgradeId, guestEmail) {
+      const res = await fetch(
+        `/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ guest_email: guestEmail || null }),
+        }
+      );
+
+      const data = await res.json();
+      if (data.checkout_url) {
+        window.location.href = data.checkout_url;
+      } else {
+        alert(data.detail || "Unable to start checkout, please try again.");
+      }
+    }
+
+    // --- Top bar sliding menu nav ---
+    const topBar = document.getElementById("top-bar");
+    const mobileMenu = document.getElementById("mobile-menu");
+    const menuToggle = document.getElementById("menu-toggle");
+    const logoImg = document.getElementById("logo-img");   // 👈 new single logo
+    const menuLinks = document.querySelectorAll("[data-menu-screen]");
+    let isMenuOpen = false;
+
+    // match Tailwind duration-400 on the panel
+    const MOBILE_MENU_SLIDE_DURATION = 400;  // ms
+    const MOBILE_MENU_LINKS_FADE_DURATION = 250; // ms
+
     // Fade-out → swap image → fade-in
     function swapLogoWithFade(newSrc) {
       if (!logoImg) return;
-    
+
       const currentSrc = logoImg.getAttribute("src");
-      // 🔴 If we're already on this logo (e.g. black → black), do nothing
+      // If we're already on this logo (e.g. black → black), do nothing
       if (currentSrc === newSrc) return;
-    
+
       // fade out
       logoImg.style.opacity = "0";
-    
+
       // after fade-out, swap src, then fade back in
       setTimeout(() => {
         logoImg.src = newSrc;
@@ -1520,572 +1513,544 @@ if (upgradeDetailPurchase) {
       }, 120); // slightly less than CSS transition (180ms)
     }
 
+    function openMenu() {
+      if (!mobileMenu) return;
+      isMenuOpen = true;
 
+      // Reset any closing state
+      mobileMenu.classList.remove("fade-out");
 
-      function openMenu() {
-        if (!mobileMenu) return;
-        isMenuOpen = true;
+      // Slide panel down from top
+      mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
+      mobileMenu.classList.add("translate-y-0");
 
-        // Reset any closing state
-        mobileMenu.classList.remove("fade-out");
+      // Change top bar to light theme
+      topBar?.classList.remove("bg-transparent", "text-white");
+      topBar?.classList.add("bg-slate-50", "text-slate-900");
 
-        // Slide panel down from top
-        mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
-        mobileMenu.classList.add("translate-y-0");
+      // fade to dark logo
+      swapLogoWithFade(LOGO_BLACK);
 
-        // Change top bar to light theme
-        topBar?.classList.remove("bg-transparent", "text-white");
-        topBar?.classList.add("bg-slate-50", "text-slate-900");
+      // Animate hamburger → X
+      menuToggle?.classList.add("menu-toggle-open");
 
-        // 👇 fade to dark logo
-        swapLogoWithFade(LOGO_BLACK);
+      document.body.classList.add("menu-open");
 
-        // Animate hamburger → X
-        menuToggle?.classList.add("menu-toggle-open");
+      // After panel finishes sliding, fade/slide in the links
+      setTimeout(() => {
+        if (isMenuOpen && mobileMenu) {
+          mobileMenu.classList.add("show-links");
+        }
+      }, MOBILE_MENU_SLIDE_DURATION);
+    }
 
-        document.body.classList.add("menu-open");
+    function closeMenu() {
+      if (!mobileMenu) return;
+      isMenuOpen = false;
 
-        // After panel finishes sliding, fade/slide in the links
-        setTimeout(() => {
-          if (isMenuOpen && mobileMenu) {
-            mobileMenu.classList.add("show-links");
-          }
-        }, MOBILE_MENU_SLIDE_DURATION); // e.g. 350
-        
+      // Start fade-out on menu links ONLY (no slide)
+      mobileMenu.classList.add("fade-out");
+      mobileMenu.classList.remove("show-links");
+
+      // Change top bar back to dark while content is fading
+      topBar?.classList.add("bg-transparent", "text-white");
+      topBar?.classList.remove("bg-slate-50", "text-slate-900");
+
+      // fade back based on current screen
+      if (document.body.classList.contains("chat-screen")) {
+        swapLogoWithFade(LOGO_BLACK);   // stay black on chat
+      } else {
+        swapLogoWithFade(LOGO_WHITE);   // white elsewhere
       }
 
-      function closeMenu() {
-        if (!mobileMenu) return;
-        isMenuOpen = false;
+      // Animate X → hamburger
+      menuToggle?.classList.remove("menu-toggle-open");
 
-        // Start fade-out on menu links ONLY (no slide)
-        mobileMenu.classList.add("fade-out");
-        mobileMenu.classList.remove("show-links");
+      document.body.classList.remove("menu-open");
 
-        // Change top bar back to dark while content is fading
-        topBar?.classList.add("bg-transparent", "text-white");
-        topBar?.classList.remove("bg-slate-50", "text-slate-900");
+      // AFTER links have faded out, slide the panel back up
+      setTimeout(() => {
+        if (!isMenuOpen && mobileMenu) {
+          mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
+          mobileMenu.classList.remove("translate-y-0", "fade-out");
+        }
+      }, MOBILE_MENU_LINKS_FADE_DURATION);
+    }
 
-        // 👇 fade back based on current screen
-        if (document.body.classList.contains("chat-screen")) {
-          swapLogoWithFade(LOGO_BLACK);   // stay black on chat
+    menuToggle?.addEventListener("click", () => {
+      if (isMenuOpen) closeMenu();
+      else openMenu();
+    });
+
+    // Clicking links changes screen + closes menu
+    menuLinks.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-menu-screen");
+        if (!target) return;
+
+        if (!isUnlocked && target !== "home") {
+          const err = document.getElementById("unlock-error");
+          if (err) {
+            err.textContent =
+              "Please unlock your stay first with the last 4 digits of your booking phone number.";
+          }
+          showScreen("home");
         } else {
-          swapLogoWithFade(LOGO_WHITE);   // white elsewhere
-        }
-
-        // Animate X → hamburger
-        menuToggle?.classList.remove("menu-toggle-open");
-
-        document.body.classList.remove("menu-open");
-        
-        // AFTER links have faded out, slide the panel back up
-        setTimeout(() => {
-          if (!isMenuOpen && mobileMenu) {
-            mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
-            mobileMenu.classList.remove("translate-y-0", "fade-out");
-          }
-        }, MOBILE_MENU_LINKS_FADE_DURATION); // e.g. 250
-      }
-
-
-
-      menuToggle?.addEventListener("click", () => {
-        if (isMenuOpen) closeMenu();
-        else openMenu();
-      });
-
-            // Clicking links changes screen + closes menu
-      menuLinks.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const target = btn.getAttribute("data-menu-screen");
-          if (!target) return;
-
-          if (!isUnlocked && target !== "home") {
-            const err = document.getElementById("unlock-error");
-            if (err) {
-              err.textContent =
-                "Please unlock your stay first with the last 4 digits of your booking phone number.";
-            }
-            showScreen("home");
-          } else {
-            showScreen(target);
-          }
-
-          closeMenu();
-        });
-      });
-
-
-
-      function scrollChatToBottom() {
-        // Only scroll when the chat screen is actually visible
-        if (!isChatVisible()) return;
-
-        requestAnimationFrame(() => {
-          const docEl = document.documentElement;
-          const body = document.body;
-
-          const fullHeight = Math.max(
-            docEl.scrollHeight,
-            body.scrollHeight,
-            docEl.offsetHeight,
-            body.offsetHeight
-          );
-
-          window.scrollTo({
-            top: fullHeight,
-            behavior: "auto", // change to "smooth" if you prefer
-          });
-        });
-      }
-
-
-
-
-      // Nav buttons
-      navButtons.forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const target = btn.getAttribute("data-screen");
-          if (!target) return;
-
-          if (!isUnlocked && target !== "home") {
-            const err = document.getElementById("unlock-error");
-            if (err) {
-              err.textContent =
-                "Please unlock your stay first with the last 4 digits of your booking phone number.";
-            }
-            showScreen("home");
-            return;
-          }
           showScreen(target);
+        }
+
+        closeMenu();
+      });
+    });
+
+    function scrollChatToBottom() {
+      // Only scroll when the chat screen is actually visible
+      if (!isChatVisible()) return;
+
+      requestAnimationFrame(() => {
+        const docEl = document.documentElement;
+        const body = document.body;
+
+        const fullHeight = Math.max(
+          docEl.scrollHeight,
+          body.scrollHeight,
+          docEl.offsetHeight,
+          body.offsetHeight
+        );
+
+        window.scrollTo({
+          top: fullHeight,
+          behavior: "auto",
         });
       });
+    }
 
-      updateHomeState();
-      showScreen("home");
+    // Legacy bottom nav (safe if empty)
+    navButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const target = btn.getAttribute("data-screen");
+        if (!target) return;
 
-      // Language
-      const langSelect = document.getElementById("language-select");
-      function getSelectedLanguage() {
-        if (!langSelect) return "auto";
-        return langSelect.value || "auto";
-      }
-      if (langSelect) {
-        const saved = window.localStorage.getItem("guest_language");
-        if (saved) {
-          langSelect.value = saved;
-        }
-        langSelect.addEventListener("change", () => {
-          window.localStorage.setItem("guest_language", langSelect.value);
-        });
-      }
-
-      // Unlock flow
-      const unlockBtn = document.getElementById("unlock-button");
-      const unlockCodeInput = document.getElementById("unlock-code");
-      const unlockError = document.getElementById("unlock-error");
-      const unlockSpinner = document.getElementById("unlock-spinner");
-
-      if (unlockCodeInput) {
-        unlockCodeInput.addEventListener("keydown", (e) => {
-          if (e.key === "Enter") {
-            e.preventDefault();
-            attemptUnlock();
+        if (!isUnlocked && target !== "home") {
+          const err = document.getElementById("unlock-error");
+          if (err) {
+            err.textContent =
+              "Please unlock your stay first with the last 4 digits of your booking phone number.";
           }
-        });
-      }
-
-      if (unlockBtn) {
-        unlockBtn.addEventListener("click", attemptUnlock);
-      }
-
-      async function attemptUnlock() {
-        const code = (unlockCodeInput?.value || "").trim();
-        if (unlockError) unlockError.textContent = "";
-
-        if (!/^\d{4}$/.test(code)) {
-          if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
+          showScreen("home");
           return;
         }
+        showScreen(target);
+      });
+    });
 
+    updateHomeState();
+    showScreen("home");
 
+    // Language
+    const langSelect = document.getElementById("language-select");
+    function getSelectedLanguage() {
+      if (!langSelect) return "auto";
+      return langSelect.value || "auto";
+    }
+    if (langSelect) {
+      const saved = window.localStorage.getItem("guest_language");
+      if (saved) {
+        langSelect.value = saved;
+      }
+      langSelect.addEventListener("change", () => {
+        window.localStorage.setItem("guest_language", langSelect.value);
+      });
+    }
 
-        if (unlockBtn) unlockBtn.disabled = true;
-        unlockSpinner?.classList.remove("hidden");
+    // Unlock flow
+    const unlockBtn = document.getElementById("unlock-button");
+    const unlockCodeInput = document.getElementById("unlock-code");
+    const unlockError = document.getElementById("unlock-error");
+    const unlockSpinner = document.getElementById("unlock-spinner");
 
-        try {
-          const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ code }),
-          });
-          const data = await res.json();
+    if (unlockCodeInput) {
+      unlockCodeInput.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          attemptUnlock();
+        }
+      });
+    }
 
-          if (!res.ok || !data.success) {
-            if (unlockError) {
-              unlockError.textContent =
-                data.error ||
-                "We couldn’t verify that code. Please double-check or contact your host.";
-            }
-            return;
-          }
+    if (unlockBtn) {
+      unlockBtn.addEventListener("click", attemptUnlock);
+    }
 
-          isUnlocked = true;
-          lastUnlockCode = code;
-          if (unlockError) unlockError.textContent = "";
-          if (unlockCodeInput) unlockCodeInput.value = "";
+    async function attemptUnlock() {
+      const code = (unlockCodeInput?.value || "").trim();
+      if (unlockError) unlockError.textContent = "";
 
-          try {
-            if (data.guest_name) {
-              guestName = data.guest_name;
-              const nameEl = document.getElementById("guest-name-span");
-              if (nameEl) nameEl.textContent = guestName;
-            }
-            if (data.arrival_date) {
-              arrivalDate = data.arrival_date;
-              const arrEl = document.getElementById("arrival-date-span");
-              if (arrEl) arrEl.textContent = arrivalDate;
-            }
-            if (data.departure_date) {
-              departureDate = data.departure_date;
-              const depEl = document.getElementById("departure-date-span");
-              if (depEl) depEl.textContent = departureDate;
-            }
-          } catch (e) {
-            console.warn("Error applying PMS guest info to UI:", e);
-          }
+      if (!/^\d{4}$/.test(code)) {
+        if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
+        return;
+      }
 
-          saveGuestState();
-          updateHomeState();
-          showScreen("home");
-        } catch (err) {
-          console.error(err);
+      if (unlockBtn) unlockBtn.disabled = true;
+      unlockSpinner?.classList.remove("hidden");
+
+      try {
+        const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ code }),
+        });
+        const data = await res.json();
+
+        if (!res.ok || !data.success) {
           if (unlockError) {
             unlockError.textContent =
-              "Something went wrong while verifying. Please try again.";
+              data.error ||
+              "We couldn’t verify that code. Please double-check or contact your host.";
           }
-        } finally {
-          if (unlockBtn) unlockBtn.disabled = false;
-          unlockSpinner?.classList.add("hidden");
-        }
-      }
-
-      // Check-in modal
-      const checkinButton = document.getElementById("checkin-button");
-      const upgradesButton = document.getElementById("upgrades-button");
-      const checkinModal = document.getElementById("checkin-modal");
-      const checkinClose = document.getElementById("checkin-close");
-      const checkinCodeEl = document.getElementById("checkin-code");
-
-      function openCheckinModal() {
-        if (!checkinModal) return;
-        const code = lastUnlockCode || "----";
-        if (checkinCodeEl) checkinCodeEl.textContent = code;
-        checkinModal.classList.remove("hidden");
-        checkinModal.classList.add("flex");
-      }
-
-      function closeCheckinModal() {
-        if (!checkinModal) return;
-        checkinModal.classList.add("hidden");
-        checkinModal.classList.remove("flex");
-      }
-
-      if (checkinButton) {
-        checkinButton.addEventListener("click", openCheckinModal);
-      }
-      if (checkinClose) {
-        checkinClose.addEventListener("click", closeCheckinModal);
-      }
-      if (checkinModal) {
-        checkinModal.addEventListener("click", (e) => {
-          if (e.target === checkinModal) closeCheckinModal();
-        });
-      }
-
-      // Upgrades → Guides
-      if (upgradesButton) {
-        upgradesButton.addEventListener("click", () => {
-          if (!isUnlocked) return;
-          showScreen("upgrades");
-        });
-      }
-
-      // Chat logic
-      const chatBox = document.getElementById("chat-box");
-      const chatInput = document.getElementById("chat-input");
-      const chatSend = document.getElementById("chat-send");
-      const chatPlus = document.querySelector(".chat-plus");
-
-      // Elements that sit on top of the chat (fixed at bottom)
-      const chatInputBar = document.querySelector(".chat-input-bar");
-      const bottomNav = document.querySelector('nav[role="navigation"]');
-
-      // Dynamically set bottom padding so last message sits above input + nav
-
-
-      if (window.SANDY_LIVE === "false") {
-        if (chatBox) {
-          renderMessage(
-            "Sandy is currently offline for this property 🌙\n\n" +
-            "For urgent questions, please contact your host directly via your booking app or email.",
-            "bot"
-          );
-        }
-        if (chatInput) {
-          chatInput.disabled = true;
-          chatInput.placeholder = "Sandy is offline for this property.";
-        }
-        if (chatSend) chatSend.disabled = true;
-        if (chatPlus) chatPlus.disabled = true;
-      }
-
-
-
-
-
-
-
-
-
-      function formatTime(date) {
-        let hours = date.getHours();
-        const minutes = date.getMinutes().toString().padStart(2, "0");
-        const ampm = hours >= 12 ? "PM" : "AM";
-        hours = hours % 12;
-        if (hours === 0) hours = 12;
-        return `${hours.toString().padStart(2, "0")}:${minutes} ${ampm}`;
-      }
-
-      function formatMessage(text) {
-        let escaped = text
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;");
-
-        escaped = escaped.replace(
-          /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
-          '<a href="$1" target="_blank" rel="noopener noreferrer" class="gmap-link">📍 View on Google Maps</a>'
-        );
-        escaped = escaped.replace(
-          /(https?:\/\/[^\s]+)/g,
-          '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
-        );
-
-        return escaped.replace(/\n/g, "<br>");
-      }
-
-      function renderMessage(text, sender) {
-        if (!chatBox) return;
-
-        const isUser = sender === "user";
-        const ts = formatTime(new Date());
-
-        const row = document.createElement("div");
-        row.className = "msg " + (isUser ? "user" : "bot");
-
-        // Avatar (Sandy only)
-        let avatar = null;
-        if (!isUser) {
-          avatar = document.createElement("div");
-          avatar.className = "avatar avatar-sandy";
-        }
-
-        const column = document.createElement("div");
-
-        const bubble = document.createElement("div");
-        bubble.className = "bubble";
-        bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
-
-        const time = document.createElement("div");
-        time.className = "timestamp";
-        time.textContent = ts;
-
-        column.appendChild(time);
-        column.appendChild(bubble);
-        
-
-        if (isUser) {
-          // user: bubble only
-          row.appendChild(column);
-        } else {
-          // bot: avatar + bubble
-          row.appendChild(avatar);
-          row.appendChild(column);
-        }
-
-        chatBox.appendChild(row);
-
-        // 👇 only scroll if the chat screen is actually visible
-        scrollChatToBottom();
-      }
-
-
-
-
-
-      function addTyping() {
-        if (!chatBox || document.getElementById("typing-indicator")) return;
-
-        const row = document.createElement("div");
-        row.id = "typing-indicator";
-        row.className = "msg bot";
-
-        const avatar = document.createElement("div");
-        avatar.className = "avatar avatar-sandy";
-
-        const bubble = document.createElement("div");
-        bubble.className = "bubble";
-        bubble.innerHTML = `
-          <span class="typing-dots">
-            <span> </span><span> </span><span> </span>
-          </span>
-        `;
-
-        const column = document.createElement("div");
-        column.appendChild(bubble);
-
-        row.appendChild(avatar);
-        row.appendChild(column);
-
-        chatBox.appendChild(row);
-        scrollChatToBottom();
-
-      }
-
-      function removeTyping() {
-        const el = document.getElementById("typing-indicator");
-        if (el) el.remove();
-      }
-
-      async function sendChat() {
-        const text = (chatInput?.value || "").trim();
-        if (!text) return;
-
-        if (window.SANDY_LIVE === "false") {
-          renderMessage(
-            "Sandy is currently offline for this property. Please contact your host directly. 🙏",
-            "bot"
-          );
           return;
         }
 
-        renderMessage(text, "user");
-        if (chatInput) chatInput.value = "";
-        addTyping();
+        isUnlocked = true;
+        lastUnlockCode = code;
+        if (unlockError) unlockError.textContent = "";
+        if (unlockCodeInput) unlockCodeInput.value = "";
 
         try {
-          const body = {
-            message: text,
-            session_id: currentSessionId,
-            language: getSelectedLanguage(),
-          };
-
-          const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(body),
-          });
-
-          const data = await res.json();
-          removeTyping();
-
-          if (data.session_id) {
-            currentSessionId = data.session_id;
-            saveGuestState();
+          if (data.guest_name) {
+            guestName = data.guest_name;
+            updateGuestNameInUI(guestName);
           }
-
-          if (data.error) {
-            renderMessage(data.error, "bot");
-          } else {
-            renderMessage(
-              data.response || "Hmm, I didn’t catch that — could you try again? 🌴",
-              "bot"
-            );
+          if (data.arrival_date) {
+            arrivalDate = data.arrival_date;
+            const arrEl = document.getElementById("arrival-date-span");
+            if (arrEl) arrEl.textContent = arrivalDate;
           }
-        } catch (err) {
-          console.error(err);
-          removeTyping();
+          if (data.departure_date) {
+            departureDate = data.departure_date;
+            const depEl = document.getElementById("departure-date-span");
+            if (depEl) depEl.textContent = departureDate;
+          }
+        } catch (e) {
+          console.warn("Error applying PMS guest info to UI:", e);
+        }
+
+        saveGuestState();
+        updateHomeState();
+        showScreen("home");
+      } catch (err) {
+        console.error(err);
+        if (unlockError) {
+          unlockError.textContent =
+            "Something went wrong while verifying. Please try again.";
+        }
+      } finally {
+        if (unlockBtn) unlockBtn.disabled = false;
+        unlockSpinner?.classList.add("hidden");
+      }
+    }
+
+    // Check-in modal
+    const checkinButton = document.getElementById("checkin-button");
+    const upgradesButton = document.getElementById("upgrades-button");
+    const checkinModal = document.getElementById("checkin-modal");
+    const checkinClose = document.getElementById("checkin-close");
+    const checkinCodeEl = document.getElementById("checkin-code");
+
+    function openCheckinModal() {
+      if (!checkinModal) return;
+      const code = lastUnlockCode || "----";
+      if (checkinCodeEl) checkinCodeEl.textContent = code;
+      checkinModal.classList.remove("hidden");
+      checkinModal.classList.add("flex");
+    }
+
+    function closeCheckinModal() {
+      if (!checkinModal) return;
+      checkinModal.classList.add("hidden");
+      checkinModal.classList.remove("flex");
+    }
+
+    if (checkinButton) {
+      checkinButton.addEventListener("click", openCheckinModal);
+    }
+    if (checkinClose) {
+      checkinClose.addEventListener("click", closeCheckinModal);
+    }
+    if (checkinModal) {
+      checkinModal.addEventListener("click", (e) => {
+        if (e.target === checkinModal) closeCheckinModal();
+      });
+    }
+
+    // Upgrades screen shortcut (legacy button)
+    if (upgradesButton) {
+      upgradesButton.addEventListener("click", () => {
+        if (!isUnlocked) return;
+        showScreen("upgrades");
+      });
+    }
+
+    // Chat logic
+    const chatBox = document.getElementById("chat-box");
+    const chatInput = document.getElementById("chat-input");
+    const chatSend = document.getElementById("chat-send");
+    const chatPlus = document.querySelector(".chat-plus");
+
+    // Elements that sit on top of the chat (fixed at bottom)
+    const chatInputBar = document.querySelector(".chat-input-bar");
+    const bottomNav = document.querySelector('nav[role="navigation"]');
+
+    if (window.SANDY_LIVE === "false") {
+      if (chatBox) {
+        renderMessage(
+          "Sandy is currently offline for this property 🌙\n\n" +
+          "For urgent questions, please contact your host directly via your booking app or email.",
+          "bot"
+        );
+      }
+      if (chatInput) {
+        chatInput.disabled = true;
+        chatInput.placeholder = "Sandy is offline for this property.";
+      }
+      if (chatSend) chatSend.disabled = true;
+      if (chatPlus) chatPlus.disabled = true;
+    }
+
+    function formatTime(date) {
+      let hours = date.getHours();
+      const minutes = date.getMinutes().toString().padStart(2, "0");
+      const ampm = hours >= 12 ? "PM" : "AM";
+      hours = hours % 12;
+      if (hours === 0) hours = 12;
+      return `${hours.toString().padStart(2, "0")}:${minutes} ${ampm}`;
+    }
+
+    function formatMessage(text) {
+      let escaped = text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+
+      escaped = escaped.replace(
+        /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer" class="gmap-link">📍 View on Google Maps</a>'
+      );
+      escaped = escaped.replace(
+        /(https?:\/\/[^\s]+)/g,
+        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+      );
+
+      return escaped.replace(/\n/g, "<br>");
+    }
+
+    function renderMessage(text, sender) {
+      if (!chatBox) return;
+
+      const isUser = sender === "user";
+      const ts = formatTime(new Date());
+
+      const row = document.createElement("div");
+      row.className = "msg " + (isUser ? "user" : "bot");
+
+      // Avatar (Sandy only)
+      let avatar = null;
+      if (!isUser) {
+        avatar = document.createElement("div");
+        avatar.className = "avatar avatar-sandy";
+      }
+
+      const column = document.createElement("div");
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+
+      const time = document.createElement("div");
+      time.className = "timestamp";
+      time.textContent = ts;
+
+      column.appendChild(time);
+      column.appendChild(bubble);
+
+      if (isUser) {
+        // user: bubble only
+        row.appendChild(column);
+      } else {
+        // bot: avatar + bubble
+        row.appendChild(avatar);
+        row.appendChild(column);
+      }
+
+      chatBox.appendChild(row);
+
+      // only scroll if the chat screen is actually visible
+      scrollChatToBottom();
+    }
+
+    function addTyping() {
+      if (!chatBox || document.getElementById("typing-indicator")) return;
+
+      const row = document.createElement("div");
+      row.id = "typing-indicator";
+      row.className = "msg bot";
+
+      const avatar = document.createElement("div");
+      avatar.className = "avatar avatar-sandy";
+
+      const bubble = document.createElement("div");
+      bubble.className = "bubble";
+      bubble.innerHTML = `
+        <span class="typing-dots">
+          <span> </span><span> </span><span> </span>
+        </span>
+      `;
+
+      const column = document.createElement("div");
+      column.appendChild(bubble);
+
+      row.appendChild(avatar);
+      row.appendChild(column);
+
+      chatBox.appendChild(row);
+      scrollChatToBottom();
+    }
+
+    function removeTyping() {
+      const el = document.getElementById("typing-indicator");
+      if (el) el.remove();
+    }
+
+    async function sendChat() {
+      const text = (chatInput?.value || "").trim();
+      if (!text) return;
+
+      if (window.SANDY_LIVE === "false") {
+        renderMessage(
+          "Sandy is currently offline for this property. Please contact your host directly. 🙏",
+          "bot"
+        );
+        return;
+      }
+
+      renderMessage(text, "user");
+      if (chatInput) chatInput.value = "";
+      addTyping();
+
+      try {
+        const body = {
+          message: text,
+          session_id: currentSessionId,
+          language: getSelectedLanguage(),
+        };
+
+        const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        const data = await res.json();
+        removeTyping();
+
+        if (data.session_id) {
+          currentSessionId = data.session_id;
+          saveGuestState();
+        }
+
+        if (data.error) {
+          renderMessage(data.error, "bot");
+        } else {
           renderMessage(
-            "Oops! Something went wrong. Please try again in a moment. 🐚",
+            data.response || "Hmm, I didn’t catch that — could you try again? 🌴",
             "bot"
           );
         }
+      } catch (err) {
+        console.error(err);
+        removeTyping();
+        renderMessage(
+          "Oops! Something went wrong. Please try again in a moment. 🐚",
+          "bot"
+        );
       }
+    }
 
-      if (chatSend && chatInput) {
-        chatSend.addEventListener("click", sendChat);
-        chatInput.addEventListener("keypress", (e) => {
-          if (e.key === "Enter" && !e.shiftKey) {
-            e.preventDefault();
-            sendChat();
-          }
-        });
-      }
-
-      // Logout modal wiring
-      const logoutButton = document.getElementById("logout-button");
-      const logoutModal = document.getElementById("logout-modal");
-      const logoutClose = document.getElementById("logout-close");
-      const logoutCancel = document.getElementById("logout-cancel");
-      const logoutConfirm = document.getElementById("logout-confirm");
-
-      function openLogoutModal() {
-        if (logoutModal) {
-          logoutModal.classList.remove("hidden");
-          logoutModal.classList.add("flex");
+    if (chatSend && chatInput) {
+      chatSend.addEventListener("click", sendChat);
+      chatInput.addEventListener("keypress", (e) => {
+        if (e.key === "Enter" && !e.shiftKey) {
+          e.preventDefault();
+          sendChat();
         }
-      }
+      });
+    }
 
-      function closeLogoutModal() {
-        if (logoutModal) {
-          logoutModal.classList.add("hidden");
-          logoutModal.classList.remove("flex");
-        }
-      }
+    // Logout modal wiring
+    const logoutButton = document.getElementById("logout-button");
+    const logoutModal = document.getElementById("logout-modal");
+    const logoutClose = document.getElementById("logout-close");
+    const logoutCancel = document.getElementById("logout-cancel");
+    const logoutConfirm = document.getElementById("logout-confirm");
 
-      if (logoutButton) {
-        logoutButton.addEventListener("click", (e) => {
-          e.preventDefault();
-          openLogoutModal();
-        });
-      }
-
-      if (logoutClose) {
-        logoutClose.addEventListener("click", (e) => {
-          e.preventDefault();
-          closeLogoutModal();
-        });
-      }
-
-      if (logoutCancel) {
-        logoutCancel.addEventListener("click", (e) => {
-          e.preventDefault();
-          closeLogoutModal();
-        });
-      }
-
-      if (logoutConfirm) {
-        logoutConfirm.addEventListener("click", (e) => {
-          e.preventDefault();
-          try {
-            window.localStorage.removeItem(GUEST_STATE_KEY);
-          } catch (err) {
-            console.warn("Unable to clear guest state:", err);
-          }
-          window.location.href = "/auth/logout";
-        });
-      }
-
+    function openLogoutModal() {
       if (logoutModal) {
-        logoutModal.addEventListener("click", (e) => {
-          if (e.target === logoutModal) {
-            closeLogoutModal();
-          }
-        });
+        logoutModal.classList.remove("hidden");
+        logoutModal.classList.add("flex");
       }
-    });
-  </script>
+    }
+
+    function closeLogoutModal() {
+      if (logoutModal) {
+        logoutModal.classList.add("hidden");
+        logoutModal.classList.remove("flex");
+      }
+    }
+
+    if (logoutButton) {
+      logoutButton.addEventListener("click", (e) => {
+        e.preventDefault();
+        openLogoutModal();
+      });
+    }
+
+    if (logoutClose) {
+      logoutClose.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeLogoutModal();
+      });
+    }
+
+    if (logoutCancel) {
+      logoutCancel.addEventListener("click", (e) => {
+        e.preventDefault();
+        closeLogoutModal();
+      });
+    }
+
+    if (logoutConfirm) {
+      logoutConfirm.addEventListener("click", (e) => {
+        e.preventDefault();
+        try {
+          window.localStorage.removeItem(GUEST_STATE_KEY);
+        } catch (err) {
+          console.warn("Unable to clear guest state:", err);
+        }
+        window.location.href = "/auth/logout";
+      });
+    }
+
+    if (logoutModal) {
+      logoutModal.addEventListener("click", (e) => {
+        if (e.target === logoutModal) {
+          closeLogoutModal();
+        }
+      });
+    }
+  });
+</script>
+
+
 </body>
 
 </html>
