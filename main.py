@@ -46,6 +46,7 @@ from openai import OpenAI
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- Init ---
+
 app = FastAPI()
 
 # --- Routers ---
@@ -310,17 +311,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
 # --- main.py (excerpt) ---
 
-from datetime import date
-from fastapi import FastAPI, Request, Depends, HTTPException
-from sqlalchemy.orm import Session
-
-# ⬇️ use your actual imports / paths here
-from .database import get_db               # OR wherever get_db lives
-from .models import Property, Reservation, Upgrade  # adjust to your project
-from .config import templates              # or Jinja2Templates("templates")
-
-
-app = FastAPI()
 
 
 def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
