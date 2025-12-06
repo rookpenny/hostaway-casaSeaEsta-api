@@ -41,6 +41,7 @@ from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 
 
 from apscheduler.schedulers.background import BackgroundScheduler
+
 from openai import OpenAI
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -403,6 +404,35 @@ def verify_json(
             },
             status_code=500,
         )
+
+    # 5) Enforce a 30-day arrival window
+    WINDOW_DAYS = 30
+    def parse_ymd(d: Optional[str]):
+        if not d:
+            return None
+        try:
+            # PMS dates are typically "YYYY-MM-DD"
+            return datetime.strptime(d, "%Y-%m-%d").date()
+        except Exception:
+            return None
+
+    today = datetime.utcnow().date()
+    arrival_date_obj = parse_ymd(arrival_date)
+
+    if arrival_date_obj is not None:
+        # if arrival is more than 30 days in the future, block unlock
+        if arrival_date_obj > today + timedelta(days=WINDOW_DAYS):
+            return JSONResponse(
+                {
+                    "success": False,
+                    "error": (
+                        "You can only unlock this stay within "
+                        f"{WINDOW_DAYS} days of arrival."
+                    ),
+                },
+                status_code=400,
+            )
+
 
     # 5) No upcoming/current reservation / phone found
     if not phone_last4 or not reservation_id:
