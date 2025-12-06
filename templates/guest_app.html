@@ -1027,7 +1027,9 @@ body.chat-screen #screen-chat {
 
   <!-- HEADER -->
   <div class="mt-4">
-    
+    <p class="text-[11px] font-semibold tracking-[0.2em] text-slate-400 uppercase">
+      Customize your stay
+    </p>
     <h1 class="mt-2 text-4xl font-semibold leading-tight">
       Upgrades
     </h1>
@@ -1042,15 +1044,26 @@ body.chat-screen #screen-chat {
     {% endif %}
   </div>
 
-  <!-- HORIZONTAL SCROLL CARDS -->
+  <!-- LIST OF CARDS -->
   <div class="mt-5 space-y-4">
     {% if upgrades and upgrades|length > 0 %}
-      {% for up in upgrades %}
-        {# Determine if this upgrade is early check-in or late checkout #}
-        {% set is_time_flex = up.slug in ["early-check-in", "late-checkout"] %}
 
-        {# Only render the card if we're NOT hiding time-flex upgrades on turnover days #}
-        {% if not (hide_time_flex and is_time_flex) %}
+      {% for up in upgrades %}
+        {# Normalize fields #}
+        {% set slug = up.slug or "" %}
+        {% set title_lower = (up.title or "")|lower %}
+
+        {# Determine if this upgrade is an early check-in / late checkout product #}
+        {% set is_time_flex =
+              slug in ["early-check-in", "late-checkout", "late-check-out"]
+              or "early check" in title_lower
+              or "late check" in title_lower
+        %}
+
+        {# If it's time-flex AND we're on a same-day turnover, hide it #}
+        {% if hide_time_flex and is_time_flex %}
+          {# skip rendering this upgrade #}
+        {% else %}
           <button
             type="button"
             class="upgrade-card w-full bg-slate-900/90 rounded-3xl overflow-hidden shadow-lg text-left focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -1103,14 +1116,15 @@ body.chat-screen #screen-chat {
           </button>
         {% endif %}
       {% endfor %}
+
     {% else %}
       <p class="text-xs text-slate-400">
         Upgrades aren’t available for this stay yet.
       </p>
     {% endif %}
   </div>
-
 </section>
+
 
 
 <div id="upgrade-modal"
