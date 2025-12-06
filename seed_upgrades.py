@@ -11,25 +11,29 @@ UPGRADES = [
     {
         "title": "Early Check-in",
         "slug": "early-check-in",
-        "description": "Arrive early and start relaxing sooner.",
+        "short_description": "Arrive early and start relaxing sooner.",
+        "long_description": "Arrive early and start relaxing sooner with guaranteed early access to the property.",
         "price_cents": 3500,
     },
     {
         "title": "Purchase Groceries",
         "slug": "groceries",
-        "description": "Let us stock the fridge before you arrive.",
+        "short_description": "Let us stock the fridge before you arrive.",
+        "long_description": "Send us your list and we'll have your favorite groceries ready and waiting when you arrive.",
         "price_cents": 6000,
     },
     {
         "title": "Mid-Stay Clean",
         "slug": "mid-stay-clean",
-        "description": "A fresh clean during your stay.",
+        "short_description": "A fresh clean during your stay.",
+        "long_description": "Enjoy fresh towels, linens, and a tidy space with a full clean during your stay.",
         "price_cents": 8500,
     },
     {
         "title": "Late Checkout",
         "slug": "late-checkout",
-        "description": "Enjoy a slower, more relaxed departure.",
+        "short_description": "Enjoy a slower, more relaxed departure.",
+        "long_description": "Extend your stay a few extra hours so you can pack up and head out at your own pace.",
         "price_cents": 3000,
     },
 ]
@@ -37,7 +41,7 @@ UPGRADES = [
 def run():
     db: Session = SessionLocal()
 
-    for u in UPGRADES:
+    for idx, u in enumerate(UPGRADES):
         existing = (
             db.query(Upgrade)
             .filter(
@@ -55,10 +59,13 @@ def run():
             property_id=PROPERTY_ID,
             title=u["title"],
             slug=u["slug"],
-            description=u["description"],
+            short_description=u["short_description"],
+            long_description=u.get("long_description"),
             price_cents=u["price_cents"],
+            currency="usd",          # adjust if your app uses a different default
             is_active=True,
-            stripe_price_id=None,  # You will fill this in after creating Stripe prices
+            sort_order=idx + 1,      # keeps them ordered
+            stripe_price_id=None,    # fill this in later after creating Stripe prices
         )
 
         db.add(upgrade)
