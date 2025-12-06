@@ -28,6 +28,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from routes import admin, pmc_auth
 
+# ⬇️ use your actual imports / paths here
+from .database import get_db               # OR wherever get_db lives
+from .models import Property, Reservation, Upgrade  # adjust to your project
+from .config import templates              # or Jinja2Templates("templates")
+
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
 from models import Property, ChatSession, ChatMessage, PMC, Upgrade
@@ -307,6 +312,176 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "upgrades": upgrades_payload,
         },
     )
+
+
+# --- main.py (excerpt) ---
+
+from datetime import date
+from fastapi import FastAPI, Request, Depends, HTTPException
+from sqlalchemy.orm import Session
+
+# ⬇️ use your actual imports / paths here
+from .database import get_db               # OR wherever get_db lives
+from .models import Property, Reservation, Upgrade  # adjust to your project
+from .config import templates              # or Jinja2Templates("templates")
+
+
+app = FastAPI()
+
+
+def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
+    """
+    Returns True if there is ANOTHER reservation arriving on the same day
+    this reservation checks out.
+    """
+    if not reservation or not reservation.departure_date:
+        return False
+
+    checkout = reservation.departure_date
+
+    next_guest = (
+        db.query(Reservation)
+        .filter(
+            Reservation.property_id == property_id,
+            Reservation.arrival_date == checkout,
+            Reservation.id != reservation.id,
+        )
+        .first()
+    )
+
+    return next_guest is not None
+
+
+def should_hide_upgrade_for_turnover(upgrade: Upgrade, same_day_turnover: bool) -> bool:
+    """
+    If it's a same-day turnover AND this upgrade is early check-in / late checkout,
+    we hide it.
+    """
+    if not same_day_turnover:
+        return False
+
+    title = (upgrade.title or "").lower()
+
+    # tweak these matches to match your real upgrade titles
+    early_phrases = [
+        "early check-in",
+        "early check in",
+        "early arrival",
+    ]
+    late_phrases = [
+        "late checkout",
+        "late check-out",
+        "late check out",
+        "late departure",
+    ]
+
+    if any(p in title for p in early_phrases + late_phrases):
+        return True
+
+    return False
+
+
+@app.get("/guest/{property_id}", name="guest_app")
+async def guest_app(
+    property_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """
+    Render the guest web app (guest_app.html).
+    This is where we:
+      - load property + reservation
+      - compute same_day_turnover
+      - filter upgrades based on same_day_turnover
+    """
+
+    # --- Load property ---
+    property_obj = (
+        db.query(Property)
+        .filter(Property.id == property_id)
+        .first()
+    )
+    if not property_obj:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    # --- Load current reservation for this guest ---
+    # 👉 Replace this with your real logic (e.g. using a code, session, cookie, etc.)
+    reservation: Reservation | None = (
+        db.query(Reservation)
+        .filter(
+            Reservation.property_id == property_id,
+            # put your real "current guest" conditions here
+        )
+        .first()
+    )
+
+    # --- Compute same-day turnover flag ---
+    same_day_turnover = compute_same_day_turnover(
+        db=db,
+        property_id=property_id,
+        reservation=reservation,
+    )
+
+    # --- Load upgrades for this property ---
+    # Adjust this query to match your schema
+    upgrades = (
+        db.query(Upgrade)
+        .filter(Upgrade.property_id == property_id)
+        .order_by(Upgrade.sort_order.asc())
+        .all()
+    )
+
+    # --- Filter upgrades for same-day turnover (hide early/late) ---
+    visible_upgrades = [
+        up for up in upgrades
+        if not should_hide_upgrade_for_turnover(up, same_day_turnover)
+    ]
+
+    # --- Compute template fields you already use in guest_app.html ---
+    reservation_name = reservation.guest_name if reservation else None
+    arrival_date = reservation.arrival_date if reservation else None
+    departure_date = reservation.departure_date if reservation else None
+
+    # You probably already compute these somewhere — keep your versions
+    wifi_ssid = property_obj.wifi_ssid if hasattr(property_obj, "wifi_ssid") else None
+    wifi_password = property_obj.wifi_password if hasattr(property_obj, "wifi_password") else None
+    checkin_time = getattr(property_obj, "checkin_time", None)
+    checkout_time = getattr(property_obj, "checkout_time", None)
+
+    hero_image_url = getattr(property_obj, "hero_image_url", None)
+    default_image_url = "/static/img/default-hero.jpg"
+
+    experiences_hero_url = getattr(property_obj, "experiences_hero_url", hero_image_url)
+    feature_image_url = getattr(property_obj, "feature_image_url", None)
+    family_image_url = getattr(property_obj, "family_image_url", None)
+    foodie_image_url = getattr(property_obj, "foodie_image_url", None)
+
+    context = {
+        "request": request,
+        "property_id": property_obj.id,
+        "property_name": property_obj.name,
+        "property_address": property_obj.address,
+        "reservation_name": reservation_name,
+        "arrival_date": arrival_date,
+        "departure_date": departure_date,
+        "wifi_ssid": wifi_ssid,
+        "wifi_password": wifi_password,
+        "checkin_time": checkin_time,
+        "checkout_time": checkout_time,
+        "hero_image_url": hero_image_url,
+        "default_image_url": default_image_url,
+        "experiences_hero_url": experiences_hero_url,
+        "feature_image_url": feature_image_url,
+        "family_image_url": family_image_url,
+        "foodie_image_url": foodie_image_url,
+
+        # 👇 IMPORTANT: pass filtered upgrades + turnover flag
+        "upgrades": visible_upgrades,
+        "same_day_turnover": same_day_turnover,
+    }
+
+    return templates.TemplateResponse("guest_app.html", context)
+
 
 
 
