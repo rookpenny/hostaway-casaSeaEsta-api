@@ -4,7 +4,31 @@ from datetime import datetime
 
 from database import Base  # ✅ Use the shared Base from database.py
 
-#Base = declarative_base()
+
+class Reservation(Base):
+    __tablename__ = "reservations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False)
+
+    # PMS reference
+    pms_reservation_id = Column(String, unique=True, index=True)
+
+    # Guest info
+    guest_name = Column(String)
+    phone_last4 = Column(String(4))
+
+    # Dates
+    arrival_date = Column(Date, nullable=False)
+    departure_date = Column(Date, nullable=False)
+
+    # Times – you can use Time or String depending on how your PMS gives it to you
+    checkin_time = Column(String, nullable=True)   # e.g. "15:00"
+    checkout_time = Column(String, nullable=True)  # e.g. "11:00"
+
+    # Relationship back to Property
+    property = relationship("Property", back_populates="reservations")
+
 
 class PMC(Base):
     __tablename__ = "pmc"
@@ -40,6 +64,7 @@ class Property(Base):
 
     # ✅ Back-reference to PMC
     pmc = relationship("PMC", back_populates="properties")
+    reservations = relationship("Reservation", back_populates="property") o
 
 
 class Upgrade(Base):
