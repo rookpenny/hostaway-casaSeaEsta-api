@@ -1399,40 +1399,7 @@ body.chat-screen #screen-chat {
       }
 
               
-
-        // Always show header
-        headerEl?.classList.remove("hidden");
-
-        // (Optional) highlight bottom nav tabs if/when you re-enable that nav
-        navButtons.forEach((btn) => {
-          const target = btn.getAttribute("data-screen");
-          const icon = btn.querySelector(".nav-icon");
-          const isActive = target === name;
-
-          if (isActive) {
-            btn.classList.remove("text-slate-400");
-            btn.classList.add("text-slate-50");
-            btn.setAttribute("aria-current", "page");
-
-            if (icon) {
-              icon.classList.add("bg-slate-100", "text-slate-900", "scale-110");
-              icon.classList.remove("bg-slate-900", "text-slate-400", "scale-100");
-            }
-          } else {
-            btn.classList.add("text-slate-400");
-            btn.classList.remove("text-slate-50");
-            btn.setAttribute("aria-current", "false");
-
-            if (icon) {
-              icon.classList.remove("bg-slate-100", "text-slate-900", "scale-110");
-              icon.classList.add("bg-slate-900", "text-slate-400", "scale-100");
-            }
-          }
-        });
       }
-
-
-
 
       // 🔽🔽🔽 PUT THE NEW NAV CODE RIGHT HERE 🔽🔽🔽
 
