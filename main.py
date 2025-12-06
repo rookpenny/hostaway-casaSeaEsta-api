@@ -225,7 +225,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     if not experiences_hero_url and hero_image_url:
         experiences_hero_url = hero_image_url
 
-    # --- Pull latest ChatSession (PMS-populated) for name + dates ---
+    # --- Latest ChatSession (for name/dates fallback) ---
     latest_session = (
         db.query(ChatSession)
         .filter(ChatSession.property_id == prop.id)
@@ -233,9 +233,26 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         .first()
     )
 
-    reservation_name = latest_session.guest_name if latest_session and latest_session.guest_name else None
-    arrival_date_db = latest_session.arrival_date if latest_session and latest_session.arrival_date else None
-    departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
+    # --- CURRENT RESERVATION (today) from Reservation table ---
+    current_res: Reservation | None = get_today_reservation(db, prop.id)
+
+    # Use Reservation data first, fall back to ChatSession, then config
+    reservation_name = None
+    if current_res and getattr(current_res, "guest_name", None):
+        reservation_name = current_res.guest_name
+    elif latest_session and latest_session.guest_name:
+        reservation_name = latest_session.guest_name
+
+    arrival_date_db = None
+    departure_date_db = None
+
+    if current_res:
+        arrival_date_db = current_res.arrival_date
+        departure_date_db = current_res.departure_date
+    else:
+        if latest_session:
+            arrival_date_db = latest_session.arrival_date or arrival_date_db
+            departure_date_db = latest_session.departure_date or departure_date_db
 
     # --- Build Google Maps Link ---
     from urllib.parse import quote_plus
@@ -245,68 +262,27 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
     # ------------------------------------------------------------
-    # 🔹 SAME-DAY TURNOVER LOGIC (current reservation → other bookings)
+    # 🔹 SAME-DAY TURNOVER LOGIC (Reservation → other bookings)
     # ------------------------------------------------------------
     same_day_turnover = False
     hide_time_flex = False
 
-    # Use the "current reservation" departure date:
-    # Prefer PMS dates from ChatSession; fall back to config if needed.
-    raw_departure = departure_date_db or cfg.get("departure_date")
-    checkout_date = None
+    if current_res and current_res.departure_date:
+        checkout_date = current_res.departure_date
 
-    if raw_departure:
-        from datetime import date as _date_type
-
-        # Already a date?
-        if isinstance(raw_departure, _date_type):
-            checkout_date = raw_departure
-        # Datetime?
-        elif isinstance(raw_departure, datetime):
-            checkout_date = raw_departure.date()
-        else:
-            # Try ISO string: "YYYY-MM-DD" or "YYYY-MM-DDTHH:MM:SS"
-            try:
-                checkout_date = datetime.fromisoformat(str(raw_departure)).date()
-            except Exception:
-                checkout_date = None
-
-    if checkout_date:
         try:
-            # Also figure out the current reservation's arrival date (for exclusion)
-            raw_arrival = arrival_date_db or cfg.get("arrival_date")
-            arrival_date_current = None
-            if raw_arrival:
-                from datetime import date as _date_type2
-                if isinstance(raw_arrival, _date_type2):
-                    arrival_date_current = raw_arrival
-                elif isinstance(raw_arrival, datetime):
-                    arrival_date_current = raw_arrival.date()
-                else:
-                    try:
-                        arrival_date_current = datetime.fromisoformat(str(raw_arrival)).date()
-                    except Exception:
-                        arrival_date_current = None
-
-            # Base query: any reservation arriving on the checkout_date
-            q = db.query(Reservation).filter(
-                Reservation.property_id == prop.id,
-                Reservation.arrival_date == checkout_date,
+            # Is there ANY other reservation arriving exactly on this checkout date?
+            overlapping = (
+                db.query(Reservation)
+                .filter(
+                    Reservation.property_id == prop.id,
+                    Reservation.arrival_date == checkout_date,
+                    Reservation.id != current_res.id,  # don't compare with itself
+                )
+                .first()
             )
 
-            # If we know the current arrival date, exclude the "same reservation"
-            # by matching exact arrival+departure pair.
-            if arrival_date_current:
-                q = q.filter(
-                    ~(
-                        (Reservation.arrival_date == arrival_date_current)
-                        & (Reservation.departure_date == checkout_date)
-                    )
-                )
-
-            # Is there at least one other booking arriving that day?
-            overlap_exists = db.query(q.exists()).scalar()
-            if overlap_exists:
+            if overlapping:
                 same_day_turnover = True
                 hide_time_flex = True
 
@@ -334,7 +310,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         upgrades_payload.append(
             {
                 "id": up.id,
-                "slug": up.slug,
+                "slug": getattr(up, "slug", None),
                 "title": getattr(up, "title", None),
                 "short_description": getattr(up, "short_description", None),
                 "long_description": getattr(up, "long_description", None),
@@ -343,7 +319,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "stripe_price_id": getattr(up, "stripe_price_id", None),
                 "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
-                # If you added a property or @property on the model called price_display:
                 "price_display": getattr(up, "price_display", None),
             }
         )
@@ -364,7 +339,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "checkin_time": cfg.get("checkin_time"),
             "checkout_time": cfg.get("checkout_time"),
 
-            # PMS dates override config if present
+            # Reservation / PMS dates override config if present
             "arrival_date": arrival_date_db or cfg.get("arrival_date"),
             "departure_date": departure_date_db or cfg.get("departure_date"),
 
@@ -379,7 +354,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "is_live": is_live,
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
 
-            # Upgrades + turnover flags
+            # 👇 important for the template logic
             "upgrades": upgrades_payload,
             "same_day_turnover": same_day_turnover,
             "hide_time_flex": hide_time_flex,
