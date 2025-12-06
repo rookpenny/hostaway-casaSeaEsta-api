@@ -1022,80 +1022,97 @@ body.chat-screen #screen-chat {
 
        <!-- UPGRADES -->
 <section id="screen-upgrades"
-         class="hidden bg-slate-950 px-4 pt-4 pb-24 space-y-4"
+         class="hidden flex flex-col flex-1 text-[0.95rem] px-4 pt-3 pb-24"
+         style="font-family: 'Segoe UI', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;"
          aria-label="Upgrades">
 
-  <!-- Hero card -->
-  <div class="h-40 w-full relative rounded-2xl overflow-hidden bg-slate-900">
-    {% if upgrades_hero_url %}
-      <img src="{{ upgrades_hero_url }}" alt="Upgrades"
-           class="w-full h-full object-cover">
-    {% elif hero_image_url %}
-      <img src="{{ hero_image_url }}" alt="Upgrades"
-           class="w-full h-full object-cover">
-    {% else %}
-      <div class="w-full h-full bg-slate-800"></div>
-    {% endif %}
-    <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-    <div class="absolute bottom-4 left-5 right-5 space-y-1">
-      <span class="inline-flex items-center px-2.5 py-0.5 rounded-full bg-emerald-500/90 text-[11px] font-semibold text-slate-950">
-        Upgrades
-      </span>
-      <h2 class="text-xl font-semibold">Make your stay extra special</h2>
-      <p class="text-xs text-slate-200">
-        Add early check-in, late checkout, or a mid-stay clean with one tap.
-      </p>
+  <!-- TOP HERO / HEADER (similar spirit to home-stay) -->
+  <div class="mt-4">
+    <div class="relative rounded-2xl overflow-hidden"
+         style="background-image: url('{{ upgrades_hero_url or hero_image_url }}');
+                background-size: cover;
+                background-position: center;">
+      <!-- Gradient overlay -->
+      <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent"></div>
+
+      <!-- Header content -->
+      <div class="relative px-4 pt-6 pb-6 space-y-2">
+        <p class="text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300">
+          Upgrades
+        </p>
+        <h1 class="text-3xl md:text-4xl font-semibold leading-tight text-slate-50">
+          {{ reservation_name or "Guest" }}, make your stay extra special.
+        </h1>
+        <p class="text-sm text-slate-200 max-w-md">
+          Add early check-in, late checkout, or a mid-stay clean with one tap—no phone calls or back-and-forth messages.
+        </p>
+      </div>
     </div>
   </div>
 
-  <!-- List of upgrade cards from DB -->
-  <div class="space-y-3">
-    {% if upgrades and upgrades|length > 0 %}
-      {% for up in upgrades %}
-        <article class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden flex">
-          <div class="w-24 h-24 bg-slate-800 flex-shrink-0">
-            {% if up.image_url %}
-              <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
-            {% else %}
-              <img src="{{ hero_image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
-            {% endif %}
-          </div>
-          <div class="flex-1 p-3 flex flex-col justify-between">
-            <div class="space-y-1">
-              <div class="flex items-center gap-2">
-                <h3 class="text-sm font-semibold text-slate-50">
-                  {{ up.title }}
-                </h3>
-                {% if up.badge %}
-                  <span class="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">
-                    {{ up.badge }}
-                  </span>
+  <!-- BODY CARD (matches home-stay styling) -->
+  <div class="mt-4 px-0">
+    <div class="px-4 py-4 space-y-4 bg-slate-950/70 rounded-2xl">
+      <!-- Optional subheader / explainer -->
+      <div class="space-y-1">
+        <p class="detail-label">Available upgrades</p>
+        <p class="text-slate-200 text-sm">
+          These options are tailored to this stay and are subject to availability.
+        </p>
+      </div>
+
+      <div class="border-t border-slate-800 my-2"></div>
+
+      <!-- List of upgrade cards from DB -->
+      <div class="space-y-3">
+        {% if upgrades and upgrades|length > 0 %}
+          {% for up in upgrades %}
+            <article class="bg-slate-900/90 border border-slate-800 rounded-2xl overflow-hidden flex">
+              <div class="w-24 h-24 bg-slate-800 flex-shrink-0">
+                {% if up.image_url %}
+                  <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
+                {% else %}
+                  <img src="{{ hero_image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
                 {% endif %}
               </div>
-              {% if up.short_description %}
-                <p class="text-xs text-slate-300">
-                  {{ up.short_description }}
-                </p>
-              {% endif %}
-            </div>
-            <div class="mt-2 flex items-center justify-between text-xs">
-              <span class="font-semibold text-slate-50">
-                {{ up.price_display }}
-              </span>
-              <button type="button"
-                      class="inline-flex items-center px-3 py-1.5 rounded-full bg-emerald-500 text-slate-950 text-[11px] font-semibold upgrade-buy-btn"
-                      data-upgrade-id="{{ up.id }}">
-                Add upgrade
-              </button>
-            </div>
-          </div>
-        </article>
-      {% endfor %}
-    {% else %}
-      <p class="text-xs text-slate-400">
-        Upgrades aren’t available for this stay yet.
-      </p>
-    {% endif %}
+              <div class="flex-1 p-4 flex flex-col justify-between">
+                <div class="space-y-1">
+                  <div class="flex items-center gap-2">
+                    <h3 class="text-sm font-semibold text-slate-50">
+                      {{ up.title }}
+                    </h3>
+                    {% if up.badge %}
+                      <span class="inline-flex items-center px-1.5 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">
+                        {{ up.badge }}
+                      </span>
+                    {% endif %}
+                  </div>
+                  {% if up.short_description %}
+                    <p class="text-xs text-slate-300">
+                      {{ up.short_description }}
+                    </p>
+                  {% endif %}
+                </div>
+                <div class="mt-3 flex items-center justify-between text-xs">
+                  <span class="font-semibold text-slate-50">
+                    {{ up.price_display }}
+                  </span>
+                  <button type="button"
+                          class="inline-flex items-center px-5 py-2 rounded-full bg-emerald-500 text-slate-950 text-sm font-semibold shadow-sm hover:bg-emerald-400 transition upgrade-buy-btn"
+                          data-upgrade-id="{{ up.id }}">
+                    Add upgrade
+                  </button>
+                </div>
+              </div>
+            </article>
+          {% endfor %}
+        {% else %}
+          <p class="text-xs text-slate-400">
+            Upgrades aren’t available for this stay yet.
+          </p>
+        {% endif %}
+      </div>
+    </div>
   </div>
 </section>
 
