@@ -28,8 +28,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from routes import admin, pmc_auth
 
-from config import templates              # or Jinja2Templates("templates")
-
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
 from models import Property, ChatSession, ChatMessage, PMC, Upgrade, Reservation
