@@ -333,6 +333,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             # 🔹 Upgrades + turnover flag for the template
             "upgrades": visible_upgrades,
             "same_day_turnover": same_day_turnover,
+            "hide_time_flex": same_day_turnover,   # 👈 ADD THIS LINE
         },
     )
 
@@ -983,11 +984,14 @@ def simple_sentiment(message: str) -> str:
 
 def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
     """
-    Return the reservation (if any) where today falls between
-    arrival_date and departure_date (inclusive) for this property.
+    Return the *current* reservation if today falls between arrival_date and
+    departure_date (inclusive). If there is no current stay, fall back to the
+    *next upcoming* reservation for this property.
     """
     today = datetime.utcnow().date()
-    return (
+
+    # 1) Try in-house (today within the stay)
+    current = (
         db.query(Reservation)
         .filter(
             Reservation.property_id == property_id,
@@ -997,6 +1001,20 @@ def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
         .order_by(Reservation.arrival_date.asc())
         .first()
     )
+    if current:
+        return current
+
+    # 2) Fallback: next upcoming reservation
+    upcoming = (
+        db.query(Reservation)
+        .filter(
+            Reservation.property_id == property_id,
+            Reservation.arrival_date >= today,
+        )
+        .order_by(Reservation.arrival_date.asc())
+        .first()
+    )
+    return upcoming
 
 
 def load_property_context(prop: Property) -> dict:
