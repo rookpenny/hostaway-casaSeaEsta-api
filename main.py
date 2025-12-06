@@ -243,7 +243,46 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
     # ------------------------------------------------------------
-    # 🔹 NEW — Load upgrades for this property
+    # 🔹 Turnover logic: same-day check-out + check-in
+    # ------------------------------------------------------------
+    same_day_turnover = False
+    hide_time_flex = False
+
+    try:
+        if departure_date_db:
+            # normalize to a date object
+            from datetime import date as _date_type
+
+            if isinstance(departure_date_db, (datetime, _date_type)):
+                dep_date = (
+                    departure_date_db
+                    if isinstance(departure_date_db, _date_type)
+                    else departure_date_db.date()
+                )
+            else:
+                # expect string like "2025-12-06"
+                dep_date = datetime.fromisoformat(str(departure_date_db)).date()
+
+            # any reservation that ARRIVES on this departure date?
+            overlapping = (
+                db.query(Reservation)
+                .filter(
+                    Reservation.property_id == prop.id,
+                    Reservation.arrival_date == dep_date,
+                )
+                .count()
+            )
+
+            if overlapping > 0:
+                same_day_turnover = True
+                hide_time_flex = True
+    except Exception as e:
+        print("[UPGRADES] Error computing same_day_turnover:", e)
+        same_day_turnover = False
+        hide_time_flex = False
+
+    # ------------------------------------------------------------
+    # 🔹 Load upgrades for this property
     # ------------------------------------------------------------
     upgrades = (
         db.query(Upgrade)
@@ -269,6 +308,10 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "price_currency": getattr(up, "currency", "usd"),
                 "stripe_price_id": getattr(up, "stripe_price_id", None),
                 "image_url": getattr(up, "image_url", None),
+                # 👇 used in the template as up.price_display
+                "price_display": getattr(up, "price_display", None)
+                if hasattr(up, "price_display")
+                else None,
             }
         )
 
@@ -303,8 +346,10 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "is_live": is_live,
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
 
-            # 🔹 Upgrades now passed into template
+            # Upgrades + turnover flags
             "upgrades": upgrades_payload,
+            "same_day_turnover": same_day_turnover,
+            "hide_time_flex": hide_time_flex,
         },
     )
 
