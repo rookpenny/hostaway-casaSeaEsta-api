@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
@@ -64,7 +64,7 @@ class Property(Base):
 
     # ✅ Back-reference to PMC
     pmc = relationship("PMC", back_populates="properties")
-    reservations = relationship("Reservation", back_populates="property") o
+    reservations = relationship("Reservation", back_populates="property")
 
 
 class Upgrade(Base):
