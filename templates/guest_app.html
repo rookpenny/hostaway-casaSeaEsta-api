@@ -1028,20 +1028,14 @@ body.chat-screen #screen-chat {
 
   <!-- TOP HERO / HEADER (similar spirit to home-stay) -->
   <div class="mt-4">
-    <div class="relative rounded-2xl overflow-hidden"
-         style="background-image: url('{{ upgrades_hero_url or hero_image_url }}');
-                background-size: cover;
-                background-position: center;">
+    <div>
       <!-- Gradient overlay -->
-      <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/60 to-transparent"></div>
+      <div></div>
 
       <!-- Header content -->
       <div class="relative px-4 pt-6 pb-6 space-y-2">
-        <p class="text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300">
-          Upgrades
-        </p>
         <h1 class="text-3xl md:text-4xl font-semibold leading-tight text-slate-50">
-          {{ reservation_name or "Guest" }}, make your stay extra special.
+          {{ reservation_name or "Guest" }}, make your stay extra special with these Upgrades.
         </h1>
         <p class="text-sm text-slate-200 max-w-md">
           Add early check-in, late checkout, or a mid-stay clean with one tap—no phone calls or back-and-forth messages.
