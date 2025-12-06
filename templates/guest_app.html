@@ -1039,68 +1039,67 @@ body.chat-screen #screen-chat {
   </div>
 
   <!-- HORIZONTAL SCROLL CARDS -->
-  <div class="mt-5 -mx-4 px-4 pb-4 overflow-x-auto">
-    <div class="flex gap-4 snap-x snap-mandatory">
-      {% if upgrades and upgrades|length > 0 %}
-        {% for up in upgrades %}
-          <button
-            type="button"
-            class="upgrade-card snap-start flex-shrink-0 w-[280px] bg-slate-900/90 rounded-3xl overflow-hidden shadow-lg text-left focus:outline-none focus:ring-2 focus:ring-emerald-400"
-            data-upgrade-id="{{ up.id }}"
-            data-upgrade-title="{{ up.title }}"
-            data-upgrade-price="{{ up.price_display }}"
-          >
-            <!-- Card image -->
-            <div class="h-40 w-full overflow-hidden">
-              {% if up.image_url %}
-                <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
-              {% else %}
-                <img src="{{ hero_image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
-              {% endif %}
-            </div>
+<div class="mt-5 space-y-4">
+  {% if upgrades and upgrades|length > 0 %}
+    {% for up in upgrades %}
+      <button
+        type="button"
+        class="upgrade-card w-full bg-slate-900/90 rounded-3xl overflow-hidden shadow-lg text-left focus:outline-none focus:ring-2 focus:ring-emerald-400"
+        data-upgrade-id="{{ up.id }}"
+        data-upgrade-title="{{ up.title }}"
+        data-upgrade-price="{{ up.price_display }}"
+      >
+        <!-- Card image -->
+        <div class="h-40 w-full overflow-hidden">
+          {% if up.image_url %}
+            <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
+          {% else %}
+            <img src="{{ hero_image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
+          {% endif %}
+        </div>
 
-            <!-- Card content -->
-            <div class="p-4 space-y-2">
-              <div class="flex items-center gap-2">
-                <h3 class="text-base font-semibold text-slate-50 leading-snug">
-                  {{ up.title }}
-                </h3>
-                {% if up.badge %}
-                  <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">
-                    {{ up.badge }}
-                  </span>
-                {% endif %}
-              </div>
+        <!-- Card content -->
+        <div class="p-4 space-y-2">
+          <div class="flex items-center gap-2">
+            <h3 class="text-base font-semibold text-slate-50 leading-snug">
+              {{ up.title }}
+            </h3>
+            {% if up.badge %}
+              <span class="inline-flex items-center px-2 py-0.5 rounded-full bg-slate-800 text-[10px] font-semibold text-slate-300">
+                {{ up.badge }}
+              </span>
+            {% endif %}
+          </div>
 
-              {% if up.short_description or up.long_description %}
-                <p class="text-xs text-slate-300 leading-relaxed line-clamp-3">
-                  {{ up.short_description or up.long_description }}
-                </p>
-              {% endif %}
+          {% if up.short_description or up.long_description %}
+            <p class="text-xs text-slate-300 leading-relaxed">
+              {{ up.short_description or up.long_description }}
+            </p>
+          {% endif %}
 
-              <!-- Hidden full description for detail screen -->
-              <p class="hidden upgrade-long">
-                {{ up.long_description or up.short_description }}
-              </p>
+          <!-- Hidden full description for detail screen -->
+          <p class="hidden upgrade-long">
+            {{ up.long_description or up.short_description }}
+          </p>
 
-              <div class="pt-2 flex items-center justify-between text-xs">
-                <span class="font-semibold text-slate-50">
-                  {{ up.price_display }}
-                </span>
-                <span class="text-[10px] uppercase tracking-[0.16em] text-emerald-400">
-                  View details
-                </span>
-              </div>
-            </div>
-          </button>
-        {% endfor %}
-      {% else %}
-        <p class="text-xs text-slate-400">
-          Upgrades aren’t available for this stay yet.
-        </p>
-      {% endif %}
-    </div>
-  </div>
+          <div class="pt-2 flex items-center justify-between text-xs">
+            <span class="font-semibold text-slate-50">
+              {{ up.price_display }}
+            </span>
+            <span class="text-[10px] uppercase tracking-[0.16em] text-emerald-400">
+              View details
+            </span>
+          </div>
+        </div>
+      </button>
+    {% endfor %}
+  {% else %}
+    <p class="text-xs text-slate-400">
+      Upgrades aren’t available for this stay yet.
+    </p>
+  {% endif %}
+</div>
+
 </section>
 
 <div id="upgrade-modal"
