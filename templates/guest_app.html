@@ -1103,7 +1103,9 @@ body.chat-screen #screen-chat {
   </div>
 </section>
 
-
+<div id="upgrade-modal"
+     class="fixed inset-0 bg-black/80 hidden items-center justify-center px-4 z-[60]">
+ 
         <!-- UPGRADE DETAIL SCREEN -->
 <section id="screen-upgrade-detail"
          class="hidden bg-slate-950 text-slate-50 flex flex-col min-h-screen px-4 pt-3 pb-24"
@@ -1118,7 +1120,7 @@ body.chat-screen #screen-chat {
     <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
 
     <button
-      id="upgrade-detail-close"
+      id="upgrade-modal-close"
       type="button"
       class="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/70 flex items-center justify-center text-slate-50 text-xl leading-none">
       ×
@@ -1160,7 +1162,7 @@ body.chat-screen #screen-chat {
     </button>
   </div>
 </section>
-
+</div>
       </main>
     </div>
   </div>
@@ -1254,8 +1256,34 @@ body.chat-screen #screen-chat {
       const homeLogin = document.getElementById("home-login");
       const homeStay = document.getElementById("home-stay");
       const headerEl = document.getElementById("app-header");
+      const upgradeModal = document.getElementById("upgrade-modal");
+      const upgradeModalClose = document.getElementById("upgrade-modal-close");
 
 
+      // OPEN modal (when an upgrade is clicked)
+      function openUpgradeModal() {
+        upgradeModal.classList.remove("hidden");
+        upgradeModal.classList.add("flex");
+      }
+      
+      // CLOSE modal
+      function closeUpgradeModal() {
+        upgradeModal.classList.add("hidden");
+        upgradeModal.classList.remove("flex");
+      }
+      
+      // X BUTTON closes modal
+      if (upgradeModalClose) {
+        upgradeModalClose.addEventListener("click", closeUpgradeModal);
+      }
+      
+      // Clicking outside closes modal
+      if (upgradeModal) {
+        upgradeModal.addEventListener("click", (e) => {
+          if (e.target === upgradeModal) closeUpgradeModal();
+        });
+      }
+            
 
       // --- Global state ---
       let isUnlocked = window.INITIAL_VERIFIED === "true";
@@ -1412,7 +1440,8 @@ upgradeCards.forEach((card) => {
     if (upgradeDetailPriceBottom)
       upgradeDetailPriceBottom.textContent = `${price} – Purchase`;
 
-    showScreen("upgradeDetail");
+    //showScreen("upgradeDetail");
+    openUpgradeModal();
   });
 });
 
