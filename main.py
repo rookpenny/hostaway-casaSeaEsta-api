@@ -243,39 +243,51 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
     # ------------------------------------------------------------
-    # 🔹 Turnover logic: same-day check-out + check-in
+    # 🔹 SAME-DAY TURNOVER LOGIC (backed by Reservation table)
     # ------------------------------------------------------------
     same_day_turnover = False
     hide_time_flex = False
 
     try:
-        if departure_date_db:
-            # normalize to a date object
+        # 1) Try to find "today's" active reservation
+        today_res = get_today_reservation(db, prop.id)
+
+        # 2) Prefer using the Reservation table
+        active_dep_date = None
+        if today_res and today_res.departure_date:
+            active_dep_date = today_res.departure_date
+
+        # 3) Fallback: use departure_date from ChatSession if we don't have a Reservation dep date
+        if not active_dep_date and departure_date_db:
             from datetime import date as _date_type
 
-            if isinstance(departure_date_db, (datetime, _date_type)):
-                dep_date = (
-                    departure_date_db
-                    if isinstance(departure_date_db, _date_type)
-                    else departure_date_db.date()
-                )
+            if isinstance(departure_date_db, _date_type):
+                active_dep_date = departure_date_db
+            elif isinstance(departure_date_db, datetime):
+                active_dep_date = departure_date_db.date()
             else:
                 # expect string like "2025-12-06"
-                dep_date = datetime.fromisoformat(str(departure_date_db)).date()
+                try:
+                    active_dep_date = datetime.fromisoformat(str(departure_date_db)).date()
+                except Exception:
+                    active_dep_date = None
 
-            # any reservation that ARRIVES on this departure date?
-            overlapping = (
-                db.query(Reservation)
-                .filter(
-                    Reservation.property_id == prop.id,
-                    Reservation.arrival_date == dep_date,
-                )
-                .count()
+        # 4) If we have a departure date, check if another reservation arrives that same day
+        if active_dep_date:
+            q = db.query(Reservation).filter(
+                Reservation.property_id == prop.id,
+                Reservation.arrival_date == active_dep_date,
             )
 
-            if overlapping > 0:
+            # if we know today's reservation, don't count it as "another"
+            if today_res:
+                q = q.filter(Reservation.id != today_res.id)
+
+            overlap_count = q.count()
+            if overlap_count > 0:
                 same_day_turnover = True
                 hide_time_flex = True
+
     except Exception as e:
         print("[UPGRADES] Error computing same_day_turnover:", e)
         same_day_turnover = False
@@ -308,7 +320,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "price_currency": getattr(up, "currency", "usd"),
                 "stripe_price_id": getattr(up, "stripe_price_id", None),
                 "image_url": getattr(up, "image_url", None),
-                # 👇 used in the template as up.price_display
+                # used in the template as up.price_display
                 "price_display": getattr(up, "price_display", None)
                 if hasattr(up, "price_display")
                 else None,
@@ -352,7 +364,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "hide_time_flex": hide_time_flex,
         },
     )
-
 
 
 
