@@ -1082,14 +1082,14 @@ body.chat-screen #screen-chat {
               </p>
 
               <div class="pt-2 flex items-center justify-between text-xs">
-                <span class="font-semibold text-slate-50">
-                  data-upgrade-price="{{ up.price_display or '' }}"
-                  {{ up.price_display or "" }}
-                </span>
-                <span class="text-[10px] uppercase tracking-[0.16em] text-emerald-400">
-                  View details
-                </span>
-              </div>
+              <span class="font-semibold text-slate-50">
+                {{ up.price_display or "" }}
+              </span>
+              <span class="text-[10px] uppercase tracking-[0.16em] text-emerald-400">
+                View details
+              </span>
+            </div>
+
             </div>
           </button>
         {% endif %}
