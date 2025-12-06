@@ -177,7 +177,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     pmc = prop.pmc
     is_live = bool(prop.sandy_enabled and pmc and pmc.active)
 
-    # --- Load config/manual for WiFi, times, images, etc. ---
+    # Optional: load config/manual for WiFi, times, images, etc.
     context = load_property_context(prop)
     cfg = context.get("config", {}) or {}
     wifi = cfg.get("wifi") or {}
@@ -188,7 +188,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     hero_image_url = cfg.get("hero_image_url")
     experiences_hero_url = cfg.get("experiences_hero_url")
 
-    # --- Hostaway listing overview (hero, address, city) ---
+    # If this is a Hostaway property and we have PMC creds, pull from Hostaway
     if (
         pmc
         and pmc.pms_integration
@@ -225,7 +225,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     if not experiences_hero_url and hero_image_url:
         experiences_hero_url = hero_image_url
 
-    # --- Latest ChatSession (for name/dates fallback) ---
+    # 🔹 Pull latest ChatSession that has guest_name / dates from PMS, if any
     latest_session = (
         db.query(ChatSession)
         .filter(ChatSession.property_id == prop.id)
@@ -233,68 +233,36 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         .first()
     )
 
-    # --- CURRENT RESERVATION (today) from Reservation table ---
-    current_res: Reservation | None = get_today_reservation(db, prop.id)
+    reservation_name = (
+        latest_session.guest_name if latest_session and latest_session.guest_name else None
+    )
+    arrival_date_db = (
+        latest_session.arrival_date if latest_session and latest_session.arrival_date else None
+    )
+    departure_date_db = (
+        latest_session.departure_date if latest_session and latest_session.departure_date else None
+    )
 
-    # Use Reservation data first, fall back to ChatSession, then config
-    reservation_name = None
-    if current_res and getattr(current_res, "guest_name", None):
-        reservation_name = current_res.guest_name
-    elif latest_session and latest_session.guest_name:
-        reservation_name = latest_session.guest_name
+    # ---------- SAME-DAY TURNOVER LOGIC ----------
+    # Figure out "today's" reservation (arrival <= today <= departure)
+    today_res = get_today_reservation(db, prop.id)
 
-    arrival_date_db = None
-    departure_date_db = None
-
-    if current_res:
-        arrival_date_db = current_res.arrival_date
-        departure_date_db = current_res.departure_date
-    else:
-        if latest_session:
-            arrival_date_db = latest_session.arrival_date or arrival_date_db
-            departure_date_db = latest_session.departure_date or departure_date_db
-
-    # --- Build Google Maps Link ---
-    from urllib.parse import quote_plus
-    google_maps_link = None
-    if address or city_name:
-        q = " ".join(filter(None, [address, city_name]))
-        google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
-
-    # ------------------------------------------------------------
-    # 🔹 SAME-DAY TURNOVER LOGIC (Reservation → other bookings)
-    # ------------------------------------------------------------
     same_day_turnover = False
-    hide_time_flex = False
-
-    if current_res and current_res.departure_date:
-        checkout_date = current_res.departure_date
-
-        try:
-            # Is there ANY other reservation arriving exactly on this checkout date?
-            overlapping = (
-                db.query(Reservation)
-                .filter(
-                    Reservation.property_id == prop.id,
-                    Reservation.arrival_date == checkout_date,
-                    Reservation.id != current_res.id,  # don't compare with itself
-                )
-                .first()
+    if today_res and today_res.departure_date:
+        # is there ANOTHER reservation arriving on the same date we check out?
+        next_res = (
+            db.query(Reservation)
+            .filter(
+                Reservation.property_id == prop.id,
+                Reservation.arrival_date == today_res.departure_date,
+                Reservation.id != today_res.id,
             )
+            .first()
+        )
+        same_day_turnover = next_res is not None
 
-            if overlapping:
-                same_day_turnover = True
-                hide_time_flex = True
-
-        except Exception as e:
-            print("[UPGRADES] Error computing same_day_turnover:", e)
-            same_day_turnover = False
-            hide_time_flex = False
-
-    # ------------------------------------------------------------
-    # 🔹 Load upgrades for this property
-    # ------------------------------------------------------------
-    upgrades = (
+    # ---------- LOAD + FILTER UPGRADES ----------
+    raw_upgrades = (
         db.query(Upgrade)
         .filter(
             Upgrade.property_id == prop.id,
@@ -304,28 +272,62 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         .all()
     )
 
-    # Convert DB objects → safe dicts for template or JS
-    upgrades_payload = []
-    for up in upgrades:
-        upgrades_payload.append(
+    visible_upgrades = []
+    for up in raw_upgrades:
+        title_lower = (up.title or "").lower()
+
+        # treat early check-in / late checkout as "time flex" upgrades
+        is_time_flex = any(
+            phrase in title_lower
+            for phrase in [
+                "early check-in",
+                "early check in",
+                "early arrival",
+                "late checkout",
+                "late check-out",
+                "late check out",
+                "late departure",
+            ]
+        )
+
+        # hide time-flex upgrades on same-day turnover
+        if same_day_turnover and is_time_flex:
+            continue
+
+        # build a human-readable price string
+        price_display = None
+        if up.price_cents is not None:
+            currency = (up.currency or "usd").lower()
+            amount = up.price_cents / 100.0
+            if currency == "usd":
+                price_display = f"${amount:,.0f}"
+            else:
+                price_display = f"{amount:,.2f} {currency.upper()}"
+
+        visible_upgrades.append(
             {
                 "id": up.id,
-                "slug": getattr(up, "slug", None),
+                "slug": up.slug,
                 "title": getattr(up, "title", None),
                 "short_description": getattr(up, "short_description", None),
                 "long_description": getattr(up, "long_description", None),
                 "price_cents": getattr(up, "price_cents", None),
                 "price_currency": getattr(up, "currency", "usd"),
+                "price_display": price_display,
                 "stripe_price_id": getattr(up, "stripe_price_id", None),
                 "image_url": getattr(up, "image_url", None),
-                "badge": getattr(up, "badge", None),
-                "price_display": getattr(up, "price_display", None),
             }
         )
 
-    # ------------------------------------------------------------
-    # 🔹 Render Template
-    # ------------------------------------------------------------
+    # ---------- GOOGLE MAPS LINK ----------
+    from urllib.parse import quote_plus
+
+    google_maps_link = None
+    if address or city_name:
+        q = " ".join(filter(None, [address, city_name]))
+        google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
+
+    # ---------- RENDER TEMPLATE ----------
     return templates.TemplateResponse(
         "guest_app.html",
         {
@@ -339,7 +341,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "checkin_time": cfg.get("checkin_time"),
             "checkout_time": cfg.get("checkout_time"),
 
-            # Reservation / PMS dates override config if present
+            # PMS dates override config if present
             "arrival_date": arrival_date_db or cfg.get("arrival_date"),
             "departure_date": departure_date_db or cfg.get("departure_date"),
 
@@ -354,12 +356,12 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "is_live": is_live,
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
 
-            # 👇 important for the template logic
-            "upgrades": upgrades_payload,
+            # 🔹 filtered upgrades + turnover flag
+            "upgrades": visible_upgrades,
             "same_day_turnover": same_day_turnover,
-            "hide_time_flex": hide_time_flex,
         },
     )
+
 
 
 
@@ -415,7 +417,7 @@ def should_hide_upgrade_for_turnover(upgrade: Upgrade, same_day_turnover: bool) 
 
     return False
 
-
+'''
 @app.get("/guest/{property_id}", name="guest_app")
 async def guest_app(
     property_id: int,
@@ -518,7 +520,7 @@ async def guest_app(
     return templates.TemplateResponse("guest_app.html", context)
 
 
-
+'''
 
 class VerifyRequest(BaseModel):
     code: str
