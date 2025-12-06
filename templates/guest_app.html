@@ -1049,20 +1049,17 @@ body.chat-screen #screen-chat {
     {% if upgrades and upgrades|length > 0 %}
 
       {% for up in upgrades %}
-        {# Normalize fields #}
         {% set slug = up.slug or "" %}
         {% set title_lower = (up.title or "")|lower %}
 
-        {# Determine if this upgrade is an early check-in / late checkout product #}
         {% set is_time_flex =
               slug in ["early-check-in", "late-checkout", "late-check-out"]
               or "early check" in title_lower
               or "late check" in title_lower
         %}
 
-        {# If it's time-flex AND we're on a same-day turnover, hide it #}
         {% if hide_time_flex and is_time_flex %}
-          {# skip rendering this upgrade #}
+          {# skip early/late upgrade on turnover days #}
         {% else %}
           <button
             type="button"
@@ -1071,7 +1068,6 @@ body.chat-screen #screen-chat {
             data-upgrade-title="{{ up.title }}"
             data-upgrade-price="{{ up.price_display }}"
           >
-            <!-- Card image -->
             <div class="h-40 w-full overflow-hidden">
               {% if up.image_url %}
                 <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover">
@@ -1080,7 +1076,6 @@ body.chat-screen #screen-chat {
               {% endif %}
             </div>
 
-            <!-- Card content -->
             <div class="p-4 space-y-2">
               <div class="flex items-center gap-2">
                 <h3 class="text-base font-semibold text-slate-50 leading-snug">
@@ -1099,7 +1094,6 @@ body.chat-screen #screen-chat {
                 </p>
               {% endif %}
 
-              <!-- Hidden full description for detail screen -->
               <p class="hidden upgrade-long">
                 {{ up.long_description or up.short_description }}
               </p>
@@ -1124,6 +1118,7 @@ body.chat-screen #screen-chat {
     {% endif %}
   </div>
 </section>
+
 
 
 
