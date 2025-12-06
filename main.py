@@ -964,6 +964,24 @@ def simple_sentiment(message: str) -> str:
     return "neutral"
 
 
+def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
+    """
+    Return the reservation (if any) where today falls between
+    arrival_date and departure_date (inclusive) for this property.
+    """
+    today = datetime.utcnow().date()
+    return (
+        db.query(Reservation)
+        .filter(
+            Reservation.property_id == property_id,
+            Reservation.arrival_date <= today,
+            Reservation.departure_date >= today,
+        )
+        .order_by(Reservation.arrival_date.asc())
+        .first()
+    )
+
+
 def load_property_context(prop: Property) -> dict:
     config = {}
     manual_text = ""
