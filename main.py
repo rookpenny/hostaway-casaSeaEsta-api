@@ -28,14 +28,11 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from routes import admin, pmc_auth
 
-# ⬇️ use your actual imports / paths here
-from .database import get_db               # OR wherever get_db lives
-from .models import Property, Reservation, Upgrade  # adjust to your project
-from .config import templates              # or Jinja2Templates("templates")
+from config import templates              # or Jinja2Templates("templates")
 
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
-from models import Property, ChatSession, ChatMessage, PMC, Upgrade
+from models import Property, ChatSession, ChatMessage, PMC, Upgrade, Reservation
 
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 from utils.pms_sync import sync_properties, sync_all_pmcs
@@ -43,7 +40,6 @@ from utils.pms_access import get_pms_access_info, ensure_pms_data
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
-
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
