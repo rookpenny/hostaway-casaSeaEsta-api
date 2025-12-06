@@ -354,8 +354,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     )
 
 
-# --- main.py (excerpt) ---
-
 
 
 def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
