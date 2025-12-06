@@ -1040,8 +1040,17 @@ body.chat-screen #screen-chat {
 
   <!-- HORIZONTAL SCROLL CARDS -->
 <div class="mt-5 space-y-4">
-  {% if upgrades and upgrades|length > 0 %}
-    {% for up in upgrades %}
+{% if upgrades and upgrades|length > 0 %}
+  
+  {% for up in upgrades %}
+  
+    {# Determine if this upgrade is early check-in or late checkout #}
+    {% set is_time_flex = up.slug in ["early-check-in", "late-checkout"] %}
+    
+    {# Skip showing early check-in/late checkout on turnover days #}
+    {% if hide_time_flex and is_time_flex %}
+      {% continue %}
+    {% endif %}
       <button
         type="button"
         class="upgrade-card w-full bg-slate-900/90 rounded-3xl overflow-hidden shadow-lg text-left focus:outline-none focus:ring-2 focus:ring-emerald-400"
@@ -1092,12 +1101,11 @@ body.chat-screen #screen-chat {
           </div>
         </div>
       </button>
-    {% endfor %}
-  {% else %}
-    <p class="text-xs text-slate-400">
-      Upgrades aren’t available for this stay yet.
-    </p>
-  {% endif %}
+  {% endfor %}
+  
+{% else %}
+  <p class="text-xs text-slate-400">Upgrades aren’t available for this stay yet.</p>
+{% endif %}
 </div>
 
 </section>
