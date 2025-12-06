@@ -30,7 +30,7 @@ from routes import admin, pmc_auth
 
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
-from models import Property, ChatSession, ChatMessage, PMC, Upgrade
+from models import Property, ChatSession, ChatMessage, PMC, Upgrade, Reservation
 
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 from utils.pms_sync import sync_properties, sync_all_pmcs
