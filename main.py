@@ -303,22 +303,23 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 price_display = f"${amount:,.0f}"
             else:
                 price_display = f"{amount:,.2f} {currency.upper()}"
-
+        
         visible_upgrades.append(
             {
                 "id": up.id,
                 "slug": up.slug,
-                "title": getattr(up, "title", None),
-                "short_description": getattr(up, "short_description", None),
-                "long_description": getattr(up, "long_description", None),
-                "price_cents": getattr(up, "price_cents", None),
-                "price_currency": getattr(up, "currency", "usd"),
+                "title": up.title,
+                "short_description": up.short_description,
+                "long_description": up.long_description,
+                "price_cents": up.price_cents,
+                "price_currency": up.currency or "usd",
                 "price_display": price_display,
-                "stripe_price_id": getattr(up, "stripe_price_id", None),
-                "image_url": getattr(up, "image_url", None),
+                "stripe_price_id": up.stripe_price_id,
+                "image_url": up.image_url,
+                "badge": getattr(up, "badge", None),
             }
         )
-
+            
     # ---------- GOOGLE MAPS LINK ----------
     from urllib.parse import quote_plus
 
@@ -359,6 +360,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             # 🔹 filtered upgrades + turnover flag
             "upgrades": visible_upgrades,
             "same_day_turnover": same_day_turnover,
+
         },
     )
 
