@@ -1019,8 +1019,6 @@ body.chat-screen #screen-chat {
         </section>
 
 
-
-       <!-- UPGRADES -->
 <!-- UPGRADES -->
 <section id="screen-upgrades"
          class="hidden bg-slate-950 flex flex-col flex-1 text-[0.95rem] px-4 pt-3 pb-24"
@@ -1106,6 +1104,63 @@ body.chat-screen #screen-chat {
 </section>
 
 
+        <!-- UPGRADE DETAIL SCREEN -->
+<section id="screen-upgrade-detail"
+         class="hidden bg-slate-950 text-slate-50 flex flex-col min-h-screen px-4 pt-3 pb-24"
+         aria-label="Upgrade details">
+
+  <!-- Hero image + close -->
+  <div class="mt-4 h-56 w-full relative rounded-3xl overflow-hidden">
+    <img id="upgrade-detail-image"
+         src="{{ hero_image_url }}"
+         alt=""
+         class="w-full h-full object-cover">
+    <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/20 to-transparent"></div>
+
+    <button
+      id="upgrade-detail-close"
+      type="button"
+      class="absolute top-4 right-4 w-9 h-9 rounded-full bg-black/70 flex items-center justify-center text-slate-50 text-xl leading-none">
+      ×
+    </button>
+  </div>
+
+  <!-- Text content -->
+  <div class="mt-6 flex-1 flex flex-col">
+    <h2 id="upgrade-detail-title" class="text-2xl font-semibold leading-tight">
+      Upgrade title
+    </h2>
+
+    <p id="upgrade-detail-body" class="mt-4 text-sm text-slate-200 leading-relaxed whitespace-pre-line">
+      Full description goes here.
+    </p>
+
+    <div class="mt-8 border border-slate-800 rounded-2xl p-4">
+      <p class="text-[11px] uppercase tracking-[0.2em] text-slate-400 mb-2">
+        Your upgrade
+      </p>
+      <div class="flex items-center justify-between">
+        <span id="upgrade-detail-name" class="text-sm font-medium">
+          Upgrade name
+        </span>
+        <span id="upgrade-detail-price" class="text-sm font-semibold">
+          $0.00
+        </span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Bottom purchase bar -->
+  <div class="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 bg-gradient-to-t from-black via-black/95 to-black/40">
+    <button
+      id="upgrade-detail-purchase"
+      type="button"
+      class="w-full rounded-full py-3 text-sm font-semibold bg-white text-black">
+      <span id="upgrade-detail-price-bottom">$0.00 – Purchase</span>
+    </button>
+  </div>
+</section>
+
       </main>
     </div>
   </div>
@@ -1179,7 +1234,8 @@ body.chat-screen #screen-chat {
         home: document.getElementById("screen-home"),
         chat: document.getElementById("screen-chat"),
         experiences: document.getElementById("screen-experiences"),
-        upgrades: document.getElementById("screen-upgrades"),   // 👈 NEW
+        upgrades: document.getElementById("screen-upgrades"),
+        upgradeDetail: document.getElementById("screen-upgrade-detail"),
       };
 
       const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
@@ -1327,31 +1383,57 @@ body.chat-screen #screen-chat {
 
       }
 
-            // Wire up "Add upgrade" buttons
-      const upgradeButtons = document.querySelectorAll(".upgrade-buy-btn");
-      upgradeButtons.forEach((btn) => {
-        btn.addEventListener("click", async () => {
-          const upgradeId = btn.getAttribute("data-upgrade-id");
-          if (!upgradeId) return;
+      // --- Upgrade cards → detail screen + purchase ---
+const upgradeCards = document.querySelectorAll(".upgrade-card");
+const upgradeDetailTitle = document.getElementById("upgrade-detail-title");
+const upgradeDetailBody = document.getElementById("upgrade-detail-body");
+const upgradeDetailName = document.getElementById("upgrade-detail-name");
+const upgradeDetailPrice = document.getElementById("upgrade-detail-price");
+const upgradeDetailPriceBottom = document.getElementById("upgrade-detail-price-bottom");
+const upgradeDetailClose = document.getElementById("upgrade-detail-close");
+const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
 
-          // (Optional) ask for email here, or just pass null
-          const guestEmail = null;
+let currentUpgradeId = null;
 
-          btn.disabled = true;
-          const originalText = btn.textContent;
-          btn.textContent = "Loading…";
+upgradeCards.forEach((card) => {
+  card.addEventListener("click", () => {
+    const id = card.getAttribute("data-upgrade-id");
+    const title = card.getAttribute("data-upgrade-title") || "";
+    const price = card.getAttribute("data-upgrade-price") || "";
+    const longEl = card.querySelector(".upgrade-long");
+    const longText = longEl ? longEl.textContent.trim() : "";
 
-          try {
-            await purchaseUpgrade(upgradeId, guestEmail);
-          } catch (e) {
-            console.error(e);
-            alert("Something went wrong starting checkout.");
-          } finally {
-            btn.disabled = false;
-            btn.textContent = originalText;
-          }
-        });
-      });
+    currentUpgradeId = id;
+
+    if (upgradeDetailTitle) upgradeDetailTitle.textContent = title;
+    if (upgradeDetailName) upgradeDetailName.textContent = title;
+    if (upgradeDetailBody) upgradeDetailBody.textContent = longText;
+    if (upgradeDetailPrice) upgradeDetailPrice.textContent = price;
+    if (upgradeDetailPriceBottom)
+      upgradeDetailPriceBottom.textContent = `${price} – Purchase`;
+
+    showScreen("upgradeDetail");
+  });
+});
+
+if (upgradeDetailClose) {
+  upgradeDetailClose.addEventListener("click", () => {
+    showScreen("upgrades");
+  });
+}
+
+if (upgradeDetailPurchase) {
+  upgradeDetailPurchase.addEventListener("click", async () => {
+    if (!currentUpgradeId) return;
+    try {
+      await purchaseUpgrade(currentUpgradeId, null);
+    } catch (e) {
+      console.error(e);
+      alert("Something went wrong starting checkout.");
+    }
+  });
+}
+
 
       
             // --- Stripe checkout for upgrades ---
