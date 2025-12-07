@@ -36,8 +36,6 @@
 
     /* === HAMBURGER / X BUTTON === */
 
-    /* === Hamburger / X toggle for #menu-toggle === */
-    /* === Hamburger / X toggle for #menu-toggle === */
     #menu-toggle {
       position: relative;
     }
@@ -51,7 +49,7 @@
       width: 24px;
       height: 2px;
       border-radius: 999px;
-      background: #FFFFF;
+      background: #FFFFFF;
       /* closed: white bars on blue */
       transform: translateX(-50%);
       transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
@@ -523,7 +521,7 @@ nav[role="navigation"] {
   content: "";
   position: absolute;
   inset: 0;
-  background: #050e92;
+ /* background: #050e92;*/
   z-index: 0;  /* sits under Sandy avatar */
 }
 
@@ -725,7 +723,7 @@ body.chat-screen #screen-chat {
 
 
       <!-- Full-screen slide-down mobile menu -->
-      <nav id="mobile-menu" class="fixed inset-0 z-[60] bg-slate-50 text-slate-900
+      <nav id="mobile-menu" class="fixed inset-0 z-[60] text-slate-900
           transition-colors duration-500
          transform -translate-y-full pointer-events-none
          transition-transform duration-700 ease-out" aria-label="Main navigation">
@@ -773,12 +771,7 @@ body.chat-screen #screen-chat {
             Get HostScout for your property
           </div>
 
-          <!-- Bottom meta section
-    <div class="mt-auto pt-8 border-t border-slate-200 text-xs text-slate-500 space-y-2">
-      <div class="font-semibold text-slate-700">
-        #{{ property_name }} Do you have a property you would like to use this for?
-      </div>
-    </div>-->
+          
         </div>
       </nav>
 
