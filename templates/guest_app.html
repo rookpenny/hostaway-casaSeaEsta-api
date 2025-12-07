@@ -953,169 +953,59 @@ body.chat-screen #screen-chat {
         </section>
 
         <!-- GUIDES -->
+<!-- GUIDES -->
 <section
   id="screen-experiences"
   class="hidden bg-slate-950 px-4 pt-4 pb-24 space-y-4"
   aria-label="Guides and local tips"
 >
-  <!-- Hero -->
+  <!-- Hero (visual shell only) -->
   <div class="relative w-full rounded-2xl overflow-hidden h-40">
-    {% if experiences_hero_url %}
-      <img
-        src="{{ experiences_hero_url }}"
-        alt="Local area near {{ city_name or property_name }}"
-        class="w-full h-full object-cover"
-      >
-    {% else %}
-      <div class="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900"></div>
-    {% endif %}
-
+    <div class="w-full h-full bg-gradient-to-br from-slate-800 to-slate-900">
+      {% if experiences_hero_url %}
+        <img
+          src="{{ experiences_hero_url }}"
+          alt="Local area"
+          class="w-full h-full object-cover"
+        >
+      {% endif %}
+    </div>
     <div class="absolute inset-0 bg-gradient-to-t from-black/85 via-black/40 to-transparent"></div>
-
     <div class="absolute bottom-3 left-4 right-4">
       <p class="text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-300">
         Guides &amp; local tips
       </p>
       <h1 class="mt-1 text-2xl font-semibold leading-tight">
         <span id="guest-name-span-guides">{{ reservation_name or "Guest" }}</span>,
-        here’s how to make the most of {{ city_name or "your stay" }}.
+        explore the best of {{ city_name or "the area" }}.
       </h1>
-      <p class="mt-1 text-xs text-slate-200/90">
-        Curated picks from your host — not a generic travel blog.
+      <p class="mt-1 text-xs text-slate-200/90" id="guides-subtitle">
+        Handpicked by your host and updated in real time.
       </p>
     </div>
   </div>
 
-  <!-- Quick filters (chips) -->
-  <div class="flex gap-2 overflow-x-auto pb-1 pt-1 text-[11px]">
-    <button
-      type="button"
-      class="guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-600/70 bg-slate-900/80 text-slate-100 font-medium"
-      data-filter="all"
-    >
-      All
-    </button>
-    <button
-      type="button"
-      class="guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-700/60 bg-transparent text-slate-300"
-      data-filter="family"
-    >
-      Family-friendly
-    </button>
-    <button
-      type="button"
-      class="guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-700/60 bg-transparent text-slate-300"
-      data-filter="foodie"
-    >
-      Food &amp; coffee
-    </button>
-    <button
-      type="button"
-      class="guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-700/60 bg-transparent text-slate-300"
-      data-filter="outdoors"
-    >
-      Outdoors
-    </button>
-    <button
-      type="button"
-      class="guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-700/60 bg-transparent text-slate-300"
-      data-filter="rainy"
-    >
-      Rainy day
-    </button>
-  </div>
+  <!-- Filters: injected by JS -->
+  <div
+    id="guides-filters"
+    class="flex gap-2 overflow-x-auto pb-1 pt-1 text-[11px]"
+  ></div>
 
-  <!-- Guides grid -->
-  <div id="guides-grid" class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+  <!-- Guides grid: injected by JS -->
+  <div
+    id="guides-grid"
+    class="grid grid-cols-1 sm:grid-cols-2 gap-3"
+  ></div>
 
-    {# FEATURED "OUR STORY" GUIDE #}
-    <article
-      class="guide-card sm:col-span-2 bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden cursor-pointer transition hover:border-emerald-400/70 hover:shadow-lg"
-      data-guide-title="Our Story"
-      data-guide-tags="all,story,arrival"
-      data-guide-image="{{ feature_image_url or experiences_hero_url or hero_image_url or default_image_url }}"
-      data-guide-body="{{ our_story_long or our_story_short or ('In the heart of ' ~ (city_name or 'our favorite town') ~ ', this home came to life as a place for slow mornings, ocean-air evenings, and easy gatherings. We’ve pulled together the nearby spots and rituals that make this stay feel like “yours,” not just a place to sleep.') }}"
-    >
-      <div class="h-32 relative">
-        {% if feature_image_url %}
-          <img src="{{ feature_image_url }}" alt="Our story" class="w-full h-full object-cover">
-        {% else %}
-          <div class="w-full h-full bg-slate-800"></div>
-        {% endif %}
-        <div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>
-        <div class="absolute bottom-3 left-3 right-3">
-          <h3 class="text-base font-semibold">Our Story</h3>
-          <p class="text-[11px] text-slate-200 line-clamp-2">
-            {{ our_story_short or ("How this place came to life in " ~ (city_name or "our favorite town") ~ " and how to settle in like a local.") }}
-          </p>
-        </div>
-      </div>
-    </article>
-
-    {# FAMILY GUIDE #}
-    <article
-      class="guide-card bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden cursor-pointer transition hover:border-emerald-400/70 hover:shadow-lg"
-      data-guide-title="Fun Family Activities"
-      data-guide-tags="all,family,outdoors,rainy"
-      data-guide-image="{{ family_image_url or experiences_hero_url or hero_image_url or default_image_url }}"
-      data-guide-body="{{ family_guide_long or family_guide_short or 'Our go-to list for traveling with kids: which beaches actually have bathrooms, playgrounds that are worth the drive, rainy-day backup plans, and a few spots that secretly make the grown-ups happy too.' }}"
-    >
-      <div class="h-24 bg-slate-800">
-        {% if family_image_url %}
-          <img src="{{ family_image_url }}" alt="Family activities" class="w-full h-full object-cover">
-        {% endif %}
-      </div>
-      <div class="p-3 space-y-1">
-        <h3 class="text-sm font-semibold">Fun Family Activities</h3>
-        <p class="text-[11px] text-slate-300 line-clamp-2">
-          {{ family_guide_short or "Kid-friendly beaches, playgrounds, and rainy-day ideas within a short drive." }}
-        </p>
-      </div>
-    </article>
-
-    {# FOODIE GUIDE #}
-    <article
-      class="guide-card bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden cursor-pointer transition hover:border-emerald-400/70 hover:shadow-lg"
-      data-guide-title="The Foodie Travel Guide"
-      data-guide-tags="all,foodie"
-      data-guide-image="{{ foodie_image_url or experiences_hero_url or hero_image_url or default_image_url }}"
-      data-guide-body="{{ foodie_guide_long or foodie_guide_short or 'Every coffee shop, brunch spot, seafood shack, and dessert place we actually send friends to — including when to go, what to order, and which ones are walkable from the house.' }}"
-    >
-      <div class="h-24 bg-slate-800">
-        {% if foodie_image_url %}
-          <img src="{{ foodie_image_url }}" alt="Foodie guide" class="w-full h-full object-cover">
-        {% endif %}
-      </div>
-      <div class="p-3 space-y-1">
-        <h3 class="text-sm font-semibold">The Foodie Travel Guide</h3>
-        <p class="text-[11px] text-slate-300 line-clamp-2">
-          {{ foodie_guide_short or "Coffee, brunch, seafood, and dessert spots we genuinely love." }}
-        </p>
-      </div>
-    </article>
-
-    {# OPTIONAL: “FIRST 24 HOURS” GUIDE – SAFE STATIC FALLBACK #}
-    <article
-      class="guide-card bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden cursor-pointer transition hover:border-emerald-400/70 hover:shadow-lg"
-      data-guide-title="Your First 24 Hours"
-      data-guide-tags="all,arrival"
-      data-guide-image="{{ experiences_hero_url or hero_image_url or default_image_url }}"
-      data-guide-body="{{ first24_long or 'Where to grab groceries, the closest coffee, liquor, and late-night bites — plus a few simple walks from the house to shake off travel day.' }}"
-    >
-      <div class="h-24 bg-gradient-to-br from-slate-800 to-slate-900 flex items-center justify-center">
-        <span class="text-xs font-semibold text-slate-100">
-          First 24 hours in {{ city_name or "the area" }}
-        </span>
-      </div>
-      <div class="p-3 space-y-1">
-        <h3 class="text-sm font-semibold">Your First 24 Hours</h3>
-        <p class="text-[11px] text-slate-300 line-clamp-2">
-          Fast essentials: groceries, coffee, and an easy first walk so you can land without rushing.
-        </p>
-      </div>
-    </article>
-  </div>
+  <!-- Fallback / empty state (hidden by default) -->
+  <p
+    id="guides-empty-state"
+    class="hidden text-xs text-slate-400 mt-4"
+  >
+    We don’t have any guides yet for this stay. Check back soon or ask Sandy for local tips.
+  </p>
 </section>
+
 
 
 
@@ -1300,6 +1190,7 @@ body.chat-screen #screen-chat {
 
 
   <!-- GUIDE DETAIL MODAL -->
+<!-- GUIDE DETAIL MODAL -->
 <div
   id="guide-modal"
   class="fixed inset-0 bg-black/80 hidden items-center justify-center px-4 z-[80]"
@@ -1309,7 +1200,6 @@ body.chat-screen #screen-chat {
     class="bg-slate-950 text-slate-50 flex flex-col max-h-[90vh] w-full max-w-md rounded-3xl overflow-hidden"
     aria-label="Guide details"
   >
-    <!-- Hero image + close -->
     <div class="relative h-40 w-full overflow-hidden">
       <img
         id="guide-modal-image"
@@ -1328,7 +1218,6 @@ body.chat-screen #screen-chat {
       </button>
     </div>
 
-    <!-- Text content -->
     <div class="flex-1 overflow-y-auto px-4 pt-4 pb-5 space-y-3">
       <div class="text-[11px] uppercase tracking-[0.2em] text-slate-400">
         Local guide
@@ -1345,6 +1234,7 @@ body.chat-screen #screen-chat {
     </div>
   </section>
 </div>
+
 
 
   <!-- Logout modal -->
@@ -1419,6 +1309,217 @@ body.chat-screen #screen-chat {
     const guideModalImage = document.getElementById("guide-modal-image");
     const guideCards = document.querySelectorAll(".guide-card");
     const guideFilters = document.querySelectorAll(".guide-filter");
+
+    const guidesState = {
+      loaded: false,
+      loading: false,
+      guides: [],
+      activeFilter: "all",
+    };
+
+     function createGuideCard(guide) {
+      const card = document.createElement("article");
+      card.className =
+        "guide-card bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden cursor-pointer transition hover:border-emerald-400/70 hover:shadow-lg";
+      card.dataset.guideId = guide.id;
+      card.dataset.tags = (guide.tags || []).join(",");
+
+      // Featured ones can span 2 cols on larger screens
+      if (guide.is_featured) {
+        card.classList.add("sm:col-span-2");
+      }
+
+      const imageUrl =
+        guide.image_url ||
+        "{{ experiences_hero_url or hero_image_url or default_image_url }}";
+
+      card.innerHTML = `
+        <div class="${guide.is_featured ? "h-32" : "h-24"} relative bg-slate-800">
+          <img src="${imageUrl}" alt="${guide.title || ""}" class="w-full h-full object-cover">
+          ${
+            guide.is_featured
+              ? '<div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>'
+              : ""
+          }
+        </div>
+        <div class="p-3 space-y-1">
+          <h3 class="text-sm font-semibold">${guide.title || ""}</h3>
+          <p class="text-[11px] text-slate-300 line-clamp-2">
+            ${guide.short_description || ""}
+          </p>
+        </div>
+      `;
+
+      card.addEventListener("click", () => openGuideModalFromGuide(guide));
+      return card;
+    }
+
+        function openGuideModalFromGuide(guide) {
+      if (!guideModal) return;
+      if (guideModalTitle) guideModalTitle.textContent = guide.title || "";
+      if (guideModalBody) guideModalBody.textContent = guide.long_description || guide.short_description || "";
+
+      const imageUrl =
+        guide.image_url ||
+        "{{ experiences_hero_url or hero_image_url or default_image_url }}";
+      if (guideModalImage) guideModalImage.src = imageUrl;
+
+      guideModal.classList.remove("hidden");
+      guideModal.classList.add("flex");
+    }
+
+    function closeGuideModal() {
+      if (!guideModal) return;
+      guideModal.classList.add("hidden");
+      guideModal.classList.remove("flex");
+    }
+
+    if (guideModalClose) {
+      guideModalClose.addEventListener("click", (e) => {
+        e.stopPropagation();
+        closeGuideModal();
+      });
+    }
+
+    if (guideModal) {
+      guideModal.addEventListener("click", (e) => {
+        if (e.target === guideModal) closeGuideModal();
+      });
+    }
+
+        function buildGuideFiltersFromGuides(guides) {
+      if (!guidesFiltersContainer) return;
+
+      // Collect unique tags
+      const tagSet = new Set();
+      guides.forEach((g) => {
+        (g.tags || []).forEach((t) => {
+          if (t) tagSet.add(String(t).trim().toLowerCase());
+        });
+      });
+
+      // Clear existing
+      guidesFiltersContainer.innerHTML = "";
+
+      // Always add "All"
+      const allBtn = document.createElement("button");
+      allBtn.type = "button";
+      allBtn.textContent = "All";
+      allBtn.dataset.filter = "all";
+      allBtn.className =
+        "guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-600/70 bg-slate-50 text-slate-900 font-medium";
+      guidesFiltersContainer.appendChild(allBtn);
+
+      // Add one chip per tag
+      Array.from(tagSet)
+        .sort()
+        .forEach((tag) => {
+          const label = tag.charAt(0).toUpperCase() + tag.slice(1);
+          const btn = document.createElement("button");
+          btn.type = "button";
+          btn.dataset.filter = tag;
+          btn.textContent = label;
+          btn.className =
+            "guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-700/60 bg-transparent text-slate-300";
+          guidesFiltersContainer.appendChild(btn);
+        });
+
+      // Wire click handlers
+      const filterButtons = guidesFiltersContainer.querySelectorAll(".guide-filter");
+      filterButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const filter = btn.dataset.filter || "all";
+          guidesState.activeFilter = filter;
+
+          // visual state
+          filterButtons.forEach((b) => {
+            b.classList.remove("bg-slate-50", "text-slate-900");
+            b.classList.remove("bg-slate-900/80", "text-slate-100");
+            b.classList.add("bg-transparent", "text-slate-300");
+          });
+          btn.classList.remove("bg-transparent", "text-slate-300");
+          btn.classList.add("bg-slate-50", "text-slate-900");
+
+          renderGuidesGrid();
+        });
+      });
+    }
+
+
+    function renderGuidesGrid() {
+      if (!guidesGrid) return;
+
+      guidesGrid.innerHTML = "";
+
+      const filter = (guidesState.activeFilter || "all").toLowerCase();
+      const filtered = guidesState.guides.filter((g) => {
+        if (filter === "all") return true;
+        const tags = (g.tags || []).map((t) => String(t).toLowerCase());
+        return tags.includes(filter);
+      });
+
+      if (filtered.length === 0) {
+        if (guidesEmptyState) guidesEmptyState.classList.remove("hidden");
+        return;
+      } else if (guidesEmptyState) {
+        guidesEmptyState.classList.add("hidden");
+      }
+
+      filtered
+        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
+        .forEach((guide) => {
+          const card = createGuideCard(guide);
+          guidesGrid.appendChild(card);
+        });
+    }
+
+        async function loadGuidesIfNeeded() {
+      if (guidesState.loaded || guidesState.loading) return;
+      guidesState.loading = true;
+
+      try {
+        const res = await fetch(`/properties/${window.PROPERTY_ID}/guides`);
+        if (!res.ok) throw new Error("Failed to load guides");
+        const data = await res.json();
+
+        const guides = Array.isArray(data.guides) ? data.guides : [];
+
+        // Normalize tags to arrays
+        guides.forEach((g) => {
+          if (typeof g.tags === "string") {
+            g.tags = g.tags
+              .split(",")
+              .map((t) => t.trim())
+              .filter(Boolean);
+          } else if (!Array.isArray(g.tags)) {
+            g.tags = [];
+          }
+        });
+
+        guidesState.guides = guides;
+        guidesState.loaded = true;
+
+        if (!guides.length && guidesEmptyState) {
+          guidesEmptyState.classList.remove("hidden");
+        }
+
+        if (guides.length) {
+          buildGuideFiltersFromGuides(guides);
+          renderGuidesGrid();
+        }
+      } catch (err) {
+        console.error("Error loading guides:", err);
+        if (guidesEmptyState) {
+          guidesEmptyState.textContent =
+            "We couldn’t load guides right now. Please try again in a moment or ask Sandy for local tips.";
+          guidesEmptyState.classList.remove("hidden");
+        }
+      } finally {
+        guidesState.loading = false;
+      }
+    }
+
+
 
     function openGuideModal(card) {
       if (!guideModal || !card) return;
@@ -1627,6 +1728,10 @@ body.chat-screen #screen-chat {
         document.body.classList.add("chat-screen");
       } else {
         document.body.classList.remove("chat-screen");
+      }
+
+      if (name === "experiences") {
+        loadGuidesIfNeeded();
       }
 
       // After switching screens, update logo accordingly
