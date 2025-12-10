@@ -51,7 +51,7 @@
       width: 24px;
       height: 2px;
       border-radius: 999px;
-      background: #020617;
+      background: #FFFFFF;
       /* closed: white bars on blue */
       transform: translateX(-50%);
       transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
@@ -785,7 +785,9 @@ body.chat-screen #screen-chat {
 
       <!-- Hamburger -->
       <button id="menu-toggle" type="button"
-              class="relative w-12 h-12 flex items-center justify-center rounded-full bg-[#000] focus:outline-none p-1"
+              class="relative w-12 h-12 flex items-center justify-center rounded-full bg-black
+       transition-transform duration-300 ease-in-out
+       hover:scale-115 active:scale-90"
               aria-label="Toggle navigation menu">
         <span class="menu-toggle-middle"></span>
       </button>
