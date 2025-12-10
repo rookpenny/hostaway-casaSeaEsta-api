@@ -1292,40 +1292,33 @@ body.chat-screen #screen-chat {
 
   <!-- Content -->
   <div class="text-center space-y-4 max-w-xs mx-auto">
-    <p
-      id="wifi-title"
-      class="text-[13px] uppercase tracking-[0.2em] text-slate-200"
-    >
-      Wi-Fi details
-    </p>
-
     <div class="space-y-4">
       <div>
-        <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-          Network
+        <p id="checkin-title" class="text-[16px] text-white font-semibold">
+          WiFi Network
         </p>
         <p
           id="wifi-ssid"
-          class="mt-1 text-[20px] font-semibold text-white break-all"
+          class="mt-1 text-[50px] font-semibold text-white break-all"
         >
           {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
         </p>
       </div>
 
       <div>
-        <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+        <p id="checkin-title" class="text-[16px] text-white font-semibold">
           Password
         </p>
         <p
           id="wifi-password"
-          class="mt-1 text-[20px] font-semibold text-white break-all"
+          class="mt-1 text-[50px] font-semibold text-white break-all"
         >
           {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
         </p>
       </div>
     </div>
 
-    <p class="text-xs text-slate-300">
+    <p  class="text-[16px] text-white font-semibold">
       Tap and hold to copy on most devices.
     </p>
   </div>
@@ -1341,7 +1334,7 @@ body.chat-screen #screen-chat {
      aria-labelledby="checkin-title">
     <div class="absolute top-4 right-4">
       <button id="checkin-close" type="button"
-        class="w-12 h-12 rounded-full flex items-center justify-center text-[24px] text-white font-bold leading-none"
+        class="w-12 h-12 rounded-full flex items-center justify-center text-[32px] text-white leading-none"
         aria-label="Close">
         x
       </button>
@@ -1376,8 +1369,8 @@ body.chat-screen #screen-chat {
     <button
       id="guide-modal-close"
       type="button"
-      class="absolute top-6 right-5 w-9 h-9 rounded-full bg-black/80 flex items-center justify-center text-slate-50 text-xl leading-none z-10"
-    >
+      class="w-12 h-12 rounded-full flex items-center justify-center text-[32px] text-white leading-none"
+        aria-label="Close">
       ×
     </button>
 
