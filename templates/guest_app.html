@@ -989,8 +989,8 @@ body.chat-screen #screen-chat {
               id="arrival-date-span"
               class="mt-1 text-[20px] font-semibold text-[#000000] text-right"
             >
-             {{ arrival_date or "-" }}<br>
-             {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
+             {{ arrival_date or "-" }}></p>
+             <p>{{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
             </p>
           </div>
           <div class="flex-1 pb-3 pl-2">
@@ -1001,8 +1001,8 @@ body.chat-screen #screen-chat {
               id="departure-date-span"
               class="mt-1 text-[20px] font-semibold text-left text-[#000000]"
             >
-              {{ departure_date or "-" }}<br>
-              {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
+              {{ departure_date or "-" }}</p>
+              <p>{{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
             </p>
           </div>
         </div>
