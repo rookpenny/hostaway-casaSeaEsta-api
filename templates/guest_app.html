@@ -72,7 +72,7 @@
       width: 24px;
       height: 2px;
       border-radius: 999px;
-      background: #ffffff;
+      background: #020617 !important; /* black */
       transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
     }
 
@@ -90,13 +90,12 @@
       transform: scaleX(0.5);
     }
 
-    /* On light bar (menu open), lines turn dark */
-    #menu-toggle.menu-toggle-open::before,
-    #menu-toggle.menu-toggle-open::after,
-    #menu-toggle.menu-toggle-open .menu-toggle-middle {
-      background: #020617;
-      /* slate-950 */
-    }
+ /* When menu is open → switch to white (on black menu) */
+#menu-toggle.menu-toggle-open::before,
+#menu-toggle.menu-toggle-open::after,
+#menu-toggle.menu-toggle-open .menu-toggle-middle {
+  background: #ffffff !important; /* white */
+}
 
 
 
