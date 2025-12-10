@@ -1270,23 +1270,23 @@ body.chat-screen #screen-chat {
  
 
   <!-- Check-in modal -->
-  <div id="checkin-modal" class="fixed inset-0 z-[9999] bg-black hidden items-center justify-center px-6" role="dialog"
+  <div id="checkin-modal" class="fixed inset-0 z-[9999] hidden items-center justify-center px-6" role="dialog"
     aria-modal="true" aria-labelledby="checkin-title">
     <div class="absolute top-4 right-4">
       <button id="checkin-close" type="button"
-        class="w-9 h-9 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-slate-100 text-xl leading-none"
+        class="w-12 h-12 rounded-full flex items-center justify-center text-white font-bold text-xl leading-none"
         aria-label="Close">
-        ×
+        X
       </button>
     </div>
     <div class="text-center space-y-4">
-      <p id="checkin-title" class="text-[20px] text-white font-semibold">
+      <p id="checkin-title" class="text-[16px] text-white font-semibold">
         Your door code
       </p>
-      <p id="checkin-code" class="text-[50px] text-white font-semibold">
+      <p id="checkin-code" class="text-[80px] text-white font-semibold">
         ----
       </p>
-      <p class="text-[20px] text-white max-w-xs mx-auto">
+      <p class="text-[16px] text-white max-w-xs mx-auto">
         This code matches the last 4 digits of the phone number on your reservation.
         Enter it slowly on the keypad. If the lock gives you trouble, contact your host.
       </p>
