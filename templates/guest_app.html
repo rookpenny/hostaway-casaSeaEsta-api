@@ -1267,7 +1267,71 @@ body.chat-screen #screen-chat {
   </section>
 </div>
 
- 
+
+
+
+        <!-- WiFi modal -->
+<div
+  id="wifi-modal"
+  class="fixed inset-0 z-[80] bg-black/85 hidden items-center justify-center px-6"
+  role="dialog"
+  aria-modal="true"
+  aria-labelledby="wifi-title"
+>
+  <!-- Close button -->
+  <div class="absolute top-4 right-4">
+    <button
+      id="wifi-close"
+      type="button"
+      class="w-9 h-9 rounded-full bg-slate-900 border border-slate-600 flex items-center justify-center text-slate-100 text-xl leading-none"
+      aria-label="Close WiFi details"
+    >
+      ×
+    </button>
+  </div>
+
+  <!-- Content -->
+  <div class="text-center space-y-4 max-w-xs mx-auto">
+    <p
+      id="wifi-title"
+      class="text-[13px] uppercase tracking-[0.2em] text-slate-200"
+    >
+      Wi-Fi details
+    </p>
+
+    <div class="space-y-4">
+      <div>
+        <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+          Network
+        </p>
+        <p
+          id="wifi-ssid"
+          class="mt-1 text-[20px] font-semibold text-white break-all"
+        >
+          {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
+        </p>
+      </div>
+
+      <div>
+        <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+          Password
+        </p>
+        <p
+          id="wifi-password"
+          class="mt-1 text-[20px] font-semibold text-white break-all"
+        >
+          {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
+        </p>
+      </div>
+    </div>
+
+    <p class="text-xs text-slate-300">
+      Tap and hold to copy on most devices.
+    </p>
+  </div>
+</div>
+
+        
 
   <!-- Check-in modal -->
   <div id="checkin-modal" class="fixed inset-0 z-80 hidden items-center justify-center px-6" role="dialog"
@@ -2198,6 +2262,35 @@ body.chat-screen #screen-chat {
     const checkinModal = document.getElementById("checkin-modal");
     const checkinClose = document.getElementById("checkin-close");
     const checkinCodeEl = document.getElementById("checkin-code");
+        // WiFi modal
+    const wifiButton = document.getElementById("wifi-button");
+    const wifiModal = document.getElementById("wifi-modal");
+    const wifiClose = document.getElementById("wifi-close");
+
+    function openWifiModal() {
+      if (!wifiModal) return;
+      wifiModal.classList.remove("hidden");
+      wifiModal.classList.add("flex");
+    }
+
+    function closeWifiModal() {
+      if (!wifiModal) return;
+      wifiModal.classList.add("hidden");
+      wifiModal.classList.remove("flex");
+    }
+
+    if (wifiButton) {
+      wifiButton.addEventListener("click", openWifiModal);
+    }
+    if (wifiClose) {
+      wifiClose.addEventListener("click", closeWifiModal);
+    }
+    if (wifiModal) {
+      wifiModal.addEventListener("click", (e) => {
+        if (e.target === wifiModal) closeWifiModal();
+      });
+    }
+
 
     function openCheckinModal() {
       if (!checkinModal) return;
