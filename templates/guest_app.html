@@ -982,26 +982,14 @@ body.chat-screen #screen-chat {
           class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm"
         >
           <div class="flex-1 pb-1 pr-2">
-            <p class="text-[11px] font-semibold text-[#666666] text-right">
-              Arrival
-            </p>
-            <p
-              id="arrival-date-span"
-              class="mt-1 text-[20px] font-semibold text-[#000000] text-right"
-            >{{ arrival_date or "-" }}></p>
-             <p class="mt-1 text-[20px] font-semibold text-[#000000] text-right" pt-1>{{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
-            </p>
+            <p class="text-[11px] font-semibold text-[#666666] text-right">Arrival</p>
+            <p id="arrival-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right">{{ arrival_date or "-" }}></p>
+            <p class="mt-1 text-[20px] font-semibold text-[#000000] text-right" pt-1>{{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}</p>
           </div>
-          <div class="flex-1 pb-3 pl-2">
-            <p class="text-[11px] font-semibold text-left text-[#666666]">
-              Departure
-            </p>
-            <p
-              id="departure-date-span"
-              class="mt-1 text-[20px] font-semibold text-left text-[#000000]"
-            >{{ departure_date or "-" }}</p>
-              <p class="mt-1 text-[20px] font-semibold text-left text-[#000000] pt-1">{{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
-            </p>
+          <div class="flex-1 pb-1 pl-2">
+            <p class="text-[11px] font-semibold text-[#666666] text-left">Departure</p>
+            <p id="departure-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left">{{ departure_date or "-" }}</p>
+            <p class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">{{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}</p>
           </div>
         </div>
         {% endif %}
@@ -1011,13 +999,12 @@ body.chat-screen #screen-chat {
           <button
             id="checkin-button"
             type="button"
-            class="w-full border border-slate-900 rounded-[999px] py-3 text-[15px] font-semibold bg-white text-slate-900">
+            class="w-full border border-slate-900 rounded-[999px] py-3 text-[15px] font-semibold bg-white text-slate-900 hover:bg-slate-800 hover:text-black/60">
             Door
           </button>
           <button
             type="button"
-            class="w-full border border-slate-900 rounded-[999px] py-3 text-[15px] font-semibold bg-white text-slate-900"
-          >
+            class="w-full border border-slate-900 rounded-[999px] py-3 text-[15px] font-semibold bg-white text-slate-900 hover:bg-slate-800 hover:text-black/60">
             WiFi
           </button>
         </div>
