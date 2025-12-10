@@ -950,7 +950,7 @@ body.chat-screen #screen-chat {
     >
       <!-- Top labels / heading -->
       <div class="text-center">
-        <p class="text-[11px] font-semibold tracking-[0.2em] text-[#666666]">
+        <p class="text-[11px] font-semibold text-[#666666]">
           Casa {{ property_name or "Your stay" }}
         </p>
         <h1 class="mt-3 text-[36px] font-semibold text-[#000000]">
@@ -962,9 +962,9 @@ body.chat-screen #screen-chat {
       <!-- Image card -->
       <div class="w-full flex justify-center mt-2">
         <div
-          class="bg-white rounded-[32px] shadow-[0_20px_45px_rgba(15,23,42,0.16)] overflow-hidden w-full max-w-[407px]"
+          class="bg-white rounded-[32px] shadow-[0_20px_45px_rgba(15,23,42,0.16)] overflow-hidden w-full max-w-[407px] border-[4px] border-[#FFFFFF]"
         >
-          <div class="h-[485px] w-full overflow-hidden border-[4px] border-[#FFFFFF]">
+          <div class="h-[485px] w-full overflow-hidden">
             <img
               src="{{ hero_image_url or default_image_url }}"
               alt="{{ property_name }}"
