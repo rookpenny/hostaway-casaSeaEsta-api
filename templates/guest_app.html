@@ -950,10 +950,10 @@ body.chat-screen #screen-chat {
     >
       <!-- Top labels / heading -->
       <div class="text-center">
-        <p class="text-[11px] font-semibold tracking-[0.2em] uppercase text-slate-400">
+        <p class="text-[11px] font-semibold tracking-[0.2em] text-[#666666]">
           {{ property_name or "Your stay" }}
         </p>
-        <h1 class="mt-3 text-[28px] leading-tight font-semibold text-slate-900">
+        <h1 class="mt-3 text-[36px] font-semibold text-[#000000]">
           <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe.<br />
           You’ve made it.
         </h1>
@@ -982,59 +982,38 @@ body.chat-screen #screen-chat {
           class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm"
         >
           <div class="flex-1">
-            <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
+            <p class="text-[16px] tracking-[0.16em] text-[#666666] text-right">
               Arrival
             </p>
             <p
               id="arrival-date-span"
-              class="mt-1 text-[15px] font-semibold text-slate-900"
+              class="mt-1 text-[26px] font-semibold text-[#000000] text-right"
             >
               {{ arrival_date or "-" }}
-            </p>
-          </div>
-          <div class="flex-1">
-            <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Departure
-            </p>
-            <p
-              id="departure-date-span"
-              class="mt-1 text-[15px] font-semibold text-slate-900"
-            >
-              {{ departure_date or "-" }}
-            </p>
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Check-in / out (times) -->
-        <div
-          class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm -mt-4"
-        >
-          <div class="flex-1">
-            <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Check-in
-            </p>
-            <p class="mt-1 text-[15px] font-semibold text-slate-900">
               {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
             </p>
           </div>
           <div class="flex-1">
-            <p class="text-[11px] uppercase tracking-[0.16em] text-slate-400">
-              Check-out
+            <p class="text-[16px] tracking-[0.16em] text-left text-[#666666]">
+              Departure
             </p>
-            <p class="mt-1 text-[15px] font-semibold text-slate-900">
+            <p
+              id="departure-date-span"
+              class="mt-1 text-[26px] font-semibold text-left text-[#000000]"
+            >
+              {{ departure_date or "-" }}
               {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
             </p>
           </div>
         </div>
+        {% endif %}
 
         <!-- Door / WiFi buttons -->
         <div class="max-w-[360px] mx-auto grid grid-cols-2 gap-4 mt-2">
           <button
             id="checkin-button"
             type="button"
-            class="w-full border border-slate-900 rounded-[999px] py-3 text-[15px] font-semibold bg-white text-slate-900"
-          >
+            class="w-full border border-slate-900 rounded-[999px] py-3 text-[15px] font-semibold bg-white text-slate-900">
             Door
           </button>
           <button
