@@ -981,28 +981,28 @@ body.chat-screen #screen-chat {
         <div
           class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm"
         >
-          <div class="flex-1">
-            <p class="text-[16px] tracking-[0.16em] text-[#666666] text-right">
+          <div class="flex-1 pb-3 pr-2">
+            <p class="text-[11px] tracking-[0.16em] text-[#666666] text-right">
               Arrival
             </p>
             <p
               id="arrival-date-span"
               class="mt-1 text-[26px] font-semibold text-[#000000] text-right"
             >
-             <span class="pb-3 pr-2">{{ arrival_date or "-" }}</span><br>
-              <span class="pr-2">{{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}</span>
+             {{ arrival_date or "-" }}<br>
+             {{ checkin_time if checkin_time is defined and checkin_time else "3:00 PM" }}
             </p>
           </div>
-          <div class="flex-1">
-            <p class="text-[16px] tracking-[0.16em] text-left text-[#666666]">
+          <div class="flex-1 pb-3 pl-2">
+            <p class="text-[11px] tracking-[0.16em] text-left text-[#666666]">
               Departure
             </p>
             <p
               id="departure-date-span"
               class="mt-1 text-[26px] font-semibold text-left text-[#000000]"
             >
-              <span class="pb-3 pl-2">{{ departure_date or "-" }}</span><br>
-              <span class="pl-2">{{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}</span>
+              {{ departure_date or "-" }}<br>
+              {{ checkout_time if checkout_time is defined and checkout_time else "11:00 AM" }}
             </p>
           </div>
         </div>
