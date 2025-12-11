@@ -472,8 +472,15 @@ nav[role="navigation"] {
     
 /* MIDDLE layer: menu (you already have z-[60] in HTML) */
 #mobile-menu {
-  z-index: 60;
+  z-index: 9999 !important;
+  
 }
+
+    #mobile-menu button {
+  z-index: 10000 !important;
+  position: relative;
+}
+
 
     .chat-input-bar {
       padding: 0.8rem 1rem;
@@ -917,7 +924,7 @@ body.chat-screen #screen-chat {
         <button
           type="button"
           data-menu-screen="home"
-          class="w-full text-left hover:text-white transition-colors"
+          class="w-full text-center hover:text-white transition-colors"
         >
           Stay overview
         </button>
