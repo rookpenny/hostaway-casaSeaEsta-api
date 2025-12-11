@@ -801,6 +801,20 @@ body.chat-screen #screen-chat {
   transform: scale(0.7) translateY(4px);
 }
 
+/* Add a white circle behind the X when menu is open */
+#menu-toggle.menu-toggle-open {
+  background: white !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+#menu-toggle.menu-toggle-open::before,
+#menu-toggle.menu-toggle-open::after {
+  background: black !important; /* black X on white circle */
+}
+
+#menu-toggle.menu-toggle-open .menu-toggle-middle {
+  background: black !important;
+}
 
 
   </style>
@@ -872,7 +886,7 @@ body.chat-screen #screen-chat {
       <!-- Full-screen slide-down mobile menu -->
 <nav
   id="mobile-menu"
-  class="fixed inset-0 z-[60]
+  class="fixed inset-0 z-[80]
          transform -translate-y-full pointer-events-none
          transition-transform duration-700 ease-out"
   aria-label="Main navigation"
@@ -880,10 +894,7 @@ body.chat-screen #screen-chat {
   <div
     class="mobile-menu-content pt-24 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full"
   >
-    <!-- Small label -->
-    <div class="menu-label mb-10">
-      Menu
-    </div>
+   
 
     <!-- Main links -->
     <ul class="space-y-8">
