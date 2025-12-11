@@ -1982,38 +1982,8 @@ body.chat-screen #screen-chat {
     }
 
     // --- Upgrade cards → detail screen + purchase ---
-    const upgradeCards = document.querySelectorAll(".upgrade-card");
-    const upgradeDetailTitle = document.getElementById("upgrade-detail-title");
-    const upgradeDetailBody = document.getElementById("upgrade-detail-body");
-    const upgradeDetailName = document.getElementById("upgrade-detail-name");
-    const upgradeDetailPrice = document.getElementById("upgrade-detail-price");
-    const upgradeDetailPriceBottom = document.getElementById("upgrade-detail-price-bottom");
-    //const upgradeDetailClose = document.getElementById("upgrade-detail-close");
-    const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
-
+    
     let currentUpgradeId = null;
-
-    upgradeCards.forEach((card) => {
-      card.addEventListener("click", () => {
-        const id = card.getAttribute("data-upgrade-id");
-        const title = card.getAttribute("data-upgrade-title") || "";
-        const price = card.getAttribute("data-upgrade-price") || "";
-        const longEl = card.querySelector(".upgrade-long");
-        const longText = longEl ? longEl.textContent.trim() : "";
-
-        currentUpgradeId = id;
-
-        if (upgradeDetailTitle) upgradeDetailTitle.textContent = title;
-        if (upgradeDetailName) upgradeDetailName.textContent = title;
-        if (upgradeDetailBody) upgradeDetailBody.textContent = longText;
-        if (upgradeDetailPrice) upgradeDetailPrice.textContent = price;
-        if (upgradeDetailPriceBottom)
-          upgradeDetailPriceBottom.textContent = `${price} – Purchase`;
-
-        //showScreen("upgradeDetail");
-        openUpgradeModal();
-      });
-    });
 
     if (upgradeDetailPurchase) {
       upgradeDetailPurchase.addEventListener("click", async () => {
@@ -2159,16 +2129,20 @@ body.chat-screen #screen-chat {
       setTimeout(updateUpgradeSlides, 80);
     }
 
-    // CTA button uses currently active upgrade (same ID you already use elsewhere)
-    if (activeButton) {
-      activeButton.addEventListener("click", () => {
-        // simulate clicking the active slide, so your existing upgrade-click logic runs
-        const slide = upgradeSlides[activeUpgradeIndex];
-        if (slide) {
-          slide.click();
-        }
-      });
-    }
+      // CTA button: purchase the currently active upgrade directly
+      if (activeButton) {
+        activeButton.addEventListener("click", async () => {
+          if (!activeUpgradeId) return;
+      
+          try {
+            await purchaseUpgrade(activeUpgradeId, null);
+          } catch (e) {
+            console.error(e);
+            alert("Something went wrong starting checkout.");
+          }
+        });
+      }
+
 
 
 
