@@ -2126,27 +2126,42 @@ body.chat-screen #screen-chat {
     }
 
     if (upgradesCarousel && upgradeSlides.length) {
-      upgradesCarousel.addEventListener("scroll", updateUpgradeSlides);
-      window.addEventListener("resize", updateUpgradeSlides);
+  upgradesCarousel.addEventListener("scroll", updateUpgradeSlides);
+  window.addEventListener("resize", updateUpgradeSlides);
 
-      // click a card → also scroll it into center
-      upgradeSlides.forEach((slide) => {
-        slide.addEventListener("click", () => {
-          const rect = slide.getBoundingClientRect();
-          const containerRect = upgradesCarousel.getBoundingClientRect();
-          const targetScroll =
-            slide.offsetLeft - (containerRect.width - rect.width) / 2;
+  // click a card → scroll it into center
+  upgradeSlides.forEach((slide) => {
+    slide.addEventListener("click", () => {
+      const rect = slide.getBoundingClientRect();
+      const containerRect = upgradesCarousel.getBoundingClientRect();
+      const targetScroll =
+        slide.offsetLeft - (containerRect.width - rect.width) / 2;
 
-          upgradesCarousel.scrollTo({
-            left: targetScroll,
-            behavior: "smooth",
-          });
-        });
+      upgradesCarousel.scrollTo({
+        left: targetScroll,
+        behavior: "smooth",
       });
+    });
+  });
 
-      // initial layout
-      setTimeout(updateUpgradeSlides, 80);
-    }
+  // 🔹 initial layout: center the FIRST slide, then compute active states
+  const firstSlide = upgradeSlides[0];
+
+  setTimeout(() => {
+    if (!firstSlide || !upgradesCarousel) return;
+
+    const rect = firstSlide.getBoundingClientRect();
+    const containerRect = upgradesCarousel.getBoundingClientRect();
+    const targetScroll =
+      firstSlide.offsetLeft - (containerRect.width - rect.width) / 2;
+
+    // put first card in the middle
+    upgradesCarousel.scrollLeft = Math.max(targetScroll, 0);
+
+    // now that it's centered, mark it as active / apply transforms
+    updateUpgradeSlides();
+  }, 80);
+}
 
       // CTA button: purchase the currently active upgrade directly
       if (activeButton) {
