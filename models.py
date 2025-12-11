@@ -97,6 +97,7 @@ class Property(Base):
     # ✅ Back-reference to PMC
     pmc = relationship("PMC", back_populates="properties")
     reservations = relationship("Reservation", back_populates="property")
+    guides = relationship("Guide", backref="property", cascade="all, delete-orphan")
 
 
 class Upgrade(Base):
