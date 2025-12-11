@@ -2082,7 +2082,7 @@ body.chat-screen #screen-chat {
       activeButtonWrap?.classList.remove("hidden");
     }
 
-    function updateUpgradeSlides() {
+ function updateUpgradeSlides() {
   if (!upgradesCarousel || !upgradeSlides.length) return;
 
   const containerRect = upgradesCarousel.getBoundingClientRect();
@@ -2091,18 +2091,25 @@ body.chat-screen #screen-chat {
   let bestIndex = 0;
   let smallestDistance = Infinity;
 
+  // first pass: find index of center slide
   upgradeSlides.forEach((slide, index) => {
     const rect = slide.getBoundingClientRect();
     const slideCenter = rect.left + rect.width / 2;
-
     const distance = slideCenter - centerX;
-    const normalized = distance / rect.width;
-
     const absDist = Math.abs(distance);
+
     if (absDist < smallestDistance) {
       smallestDistance = absDist;
       bestIndex = index;
     }
+  });
+
+  // second pass: apply transforms + z-index
+  upgradeSlides.forEach((slide, index) => {
+    const rect = slide.getBoundingClientRect();
+    const slideCenter = rect.left + rect.width / 2;
+    const distance = slideCenter - centerX;
+    const normalized = distance / rect.width;
 
     const maxShift = 80;
     const translateX = -normalized * maxShift;
@@ -2113,16 +2120,19 @@ body.chat-screen #screen-chat {
     const maxTilt = 14;
     const rotateY = -normalized * maxTilt;
 
-    slide.style.transform =
-      `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
-  });
+    const cardInner = slide.querySelector(".upgrade-card-inner");
+    if (cardInner) {
+      cardInner.style.transform =
+        `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
+    }
 
-  // 🔹 stacking & state
-  upgradeSlides.forEach((slide, idx) => {
-    const isActive = idx === bestIndex;
+    const isActive = index === bestIndex;
     slide.classList.toggle("is-active", isActive);
     slide.classList.toggle("is-inactive", !isActive);
-    slide.style.zIndex = isActive ? "50" : "10";
+
+    // deterministic z-index: center highest, then fall off by index distance
+    const indexDistance = Math.abs(index - bestIndex);
+    slide.style.zIndex = String(100 - indexDistance);
   });
 
   updateActiveUpgradeInfo(bestIndex);
