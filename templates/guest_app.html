@@ -816,6 +816,16 @@ body.chat-screen #screen-chat {
   background: black !important;
 }
 
+.mobile-menu-content {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.mobile-menu-content ul {
+  margin-top: auto;
+  margin-bottom: auto; /* centers vertically */
+}
 
   </style>
 
@@ -892,7 +902,7 @@ body.chat-screen #screen-chat {
   aria-label="Main navigation"
 >
   <div
-    class="mobile-menu-content pt-24 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full"
+    class="mobile-menu-content pt-24 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full justify-center items-center"
   >
    
 
@@ -935,6 +945,7 @@ body.chat-screen #screen-chat {
         </button>
       </li>
     </ul>
+
 
     <!-- Footer -->
     <div class="mt-auto pt-8 menu-footer">
