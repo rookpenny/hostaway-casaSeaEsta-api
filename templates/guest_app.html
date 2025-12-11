@@ -2116,7 +2116,7 @@ function updateUpgradeSlides() {
   let bestIndex = 0;
   let smallestDistance = Infinity;
 
-  // first pass: find index of center slide
+  // 1) find the index of the center slide
   upgradeSlides.forEach((slide, index) => {
     const rect = slide.getBoundingClientRect();
     const slideCenter = rect.left + rect.width / 2;
@@ -2129,7 +2129,7 @@ function updateUpgradeSlides() {
     }
   });
 
-  // second pass: apply transforms + z-index
+  // 2) apply transforms + scale
   upgradeSlides.forEach((slide, index) => {
     const rect = slide.getBoundingClientRect();
     const slideCenter = rect.left + rect.width / 2;
@@ -2139,14 +2139,26 @@ function updateUpgradeSlides() {
     const maxShift = 80;
     const translateX = -normalized * maxShift;
 
-    const scaleBase = 0.70;
-    const scale = 1 - Math.min(Math.abs(normalized), 1) * (1 - scaleBase);
-
-    const maxTilt = 10;
+    const maxTilt = 14;
     const rotateY = -normalized * maxTilt;
 
     const cardInner = slide.querySelector(".upgrade-card-inner");
     if (cardInner) {
+      const scaleBase = 0.7; // how small the back cards are
+      let scale;
+
+      if (index === bestIndex) {
+        // center card → full size
+        scale = 1;
+      } else {
+        // everyone else stays smaller (you can tweak this)
+        const t = Math.min(Math.abs(normalized), 1); // 0 near center, 1 far
+        // nearer neighbors: a tiny bit bigger than far ones
+        scale = scaleBase + (1 - scaleBase) * (0.3 * (1 - t)); 
+        // if you want them all the SAME size, just do:
+        // scale = scaleBase;
+      }
+
       cardInner.style.transform =
         `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
     }
@@ -2155,17 +2167,14 @@ function updateUpgradeSlides() {
     slide.classList.toggle("is-active", isActive);
     slide.classList.toggle("is-inactive", !isActive);
 
-    // deterministic z-index: center highest, then fall off by index distance
     const indexDistance = Math.abs(index - bestIndex);
     slide.style.zIndex = String(100 - indexDistance);
   });
 
-  // update copy + button for the one active card
   updateActiveUpgradeInfo(bestIndex);
-
-  // remember which slide is best so we can snap to it
   lastComputedActiveIndex = bestIndex;
 }
+
 
 if (upgradesCarousel && upgradeSlides.length) {
   // Scroll handler: update transforms + schedule a snap
