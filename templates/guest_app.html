@@ -465,19 +465,18 @@ nav[role="navigation"] {
 
 
     
-/* TOP layer: chrome (logo + hamburger) */
+/* TOP layer: chrome (logo + hamburger / X) */
 #top-bar-chrome {
-  z-index: 70;
-}
-    
-/* MIDDLE layer: menu (you already have z-[60] in HTML) */
-#mobile-menu {
-  z-index: 9999 !important;
-  
+  z-index: 100; /* higher than everything else */
 }
 
-    #mobile-menu button {
-  z-index: 10000 !important;
+/* Menu: full-screen overlay, but under the chrome */
+#mobile-menu {
+  z-index: 90 !important; /* above modals (z-[80]) but below top-bar-chrome */
+}
+
+/* no special z-index needed on menu buttons */
+#mobile-menu button {
   position: relative;
 }
 
