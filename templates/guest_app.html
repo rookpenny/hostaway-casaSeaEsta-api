@@ -771,32 +771,6 @@ body.chat-screen #screen-chat {
 }
 
 
-/* Hide horizontal scrollbar on the upgrades rail */
-#upgrades-rail::-webkit-scrollbar {
-  display: none;
-}
-#upgrades-rail {
-  -ms-overflow-style: none;  /* IE/Edge */
-  scrollbar-width: none;     /* Firefox */
-}
-
-/* Fan-style cards: default = slightly smaller / faded */
-.upgrade-card {
-  transform-origin: center bottom;
-  transform: translateY(12px) scale(0.9);
-  opacity: 0.55;
-  transition:
-    transform 0.28s ease-out,
-    opacity 0.28s ease-out,
-    box-shadow 0.28s ease-out;
-}
-
-/* Active card */
-.upgrade-card.is-active {
-  transform: translateY(0) scale(1);
-  opacity: 1;
-  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.4);
-}
 
 
   </style>
@@ -1178,12 +1152,6 @@ body.chat-screen #screen-chat {
   class="hidden bg-[#f5f5f5] flex flex-col flex-1 text-[0.95rem] px-4 pt-24 pb-24"
   aria-label="Upgrades"
 >
-  {% if upgrades and upgrades|length > 0 %}
-    {% set first_up = upgrades[0] %}
-    {% set first_body = first_up.long_description or first_up.short_description or "" %}
-    {% set first_price = first_up.price_display or "" %}
-  {% endif %}
-
   <!-- Heading -->
   <div class="mb-6 text-left">
     <p class="home-property-label">
@@ -1195,79 +1163,89 @@ body.chat-screen #screen-chat {
     </h1>
   </div>
 
-  {% if upgrades and upgrades|length > 0 %}
-    <!-- CARD RAIL (Beats-style fan) -->
-    <div class="relative mt-4">
-      <div
-        id="upgrades-rail"
-        class="flex gap-0 overflow-x-auto px-0 pb-8 snap-x snap-mandatory scrollbar-hide"
-      >
+  <!-- Beats-style carousel shell -->
+  <div
+    id="upgrades-carousel"
+    class="upgrades-carousel relative w-full max-w-[420px] mx-auto overflow-x-auto pb-4"
+  >
+    <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
+      {% if upgrades and upgrades|length > 0 %}
         {% for up in upgrades %}
-          {% set img = up.image_url or hero_image_url or default_image_url %}
-          {% set body = up.long_description or up.short_description or "" %}
+          {% set slug = up.slug or "" %}
+          {% set title_lower = (up.title or "")|lower %}
+          {% set is_time_flex =
+                slug in ["early-check-in", "late-checkout", "late-check-out"]
+                or "early check" in title_lower
+                or "late check" in title_lower
+          %}
+          {% if same_day_turnover and is_time_flex %}
+            {# skip time-flex on same-day turnover #}
+          {% else %}
+            <!-- each slide is still a button so your existing JS can use it -->
+            <button
+              type="button"
+              class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
+              data-upgrade-id="{{ up.id }}"
+              data-upgrade-title="{{ up.title }}"
+              data-upgrade-price="{{ up.price_display or '' }}"
+            >
+              <div
+                class="upgrade-card-inner bg-white rounded-[32px] shadow-[0_20px_45px_rgba(15,23,42,0.32)]
+                       overflow-hidden w-[280px] h-[360px] border border-[#111827]/10"
+              >
+                <div class="h-[360px] w-full overflow-hidden">
+                  {% if up.image_url %}
+                    <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover" />
+                  {% else %}
+                    <img src="{{ hero_image_url or default_image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover" />
+                  {% endif %}
+                </div>
+              </div>
 
-          <article
-            class="upgrade-card shrink-0 snap-center relative w-[260px] h-[340px] rounded-[32px] overflow-hidden bg-white shadow-[0_20px_45px_rgba(15,23,42,0.28)] border border-[#E5E7EB]
-                   {% if not loop.first %} -ml-[72px] {% endif %}"
-            data-upgrade-id="{{ up.id }}"
-            data-upgrade-title="{{ up.title }}"
-            data-upgrade-price="{{ up.price_display or '' }}"
-            data-upgrade-body="{{ body|escape('html_attr') }}"
-          >
-            <img
-              src="{{ img }}"
-              alt="{{ up.title }}"
-              class="w-full h-full object-cover"
-            />
-          </article>
+              <!-- hidden long copy so JS can read it -->
+              <p class="hidden upgrade-long">
+                {{ up.long_description or up.short_description }}
+              </p>
+            </button>
+          {% endif %}
         {% endfor %}
-      </div>
-
-      <!-- Little grey track under cards -->
-      <div class="mt-2 h-[4px] mx-10 bg-[#E5E5E5] rounded-full overflow-hidden">
-        <div
-          id="upgrades-progress"
-          class="h-full w-[24%] bg-[#111827] rounded-full transition-all duration-200 ease-out"
-        ></div>
-      </div>
+      {% else %}
+        <p class="text-xs text-slate-500">
+          Upgrades aren’t available for this stay yet.
+        </p>
+      {% endif %}
     </div>
+  </div>
 
-    <!-- ACTIVE COPY + CTA (driven by selected card) -->
-    <div class="mt-8 text-center max-w-xs mx-auto space-y-4">
-      <h3
-        id="upgrade-active-title"
-        class="text-[18px] font-semibold text-[#111827]"
-      >
-        {{ first_up.title if upgrades else "" }}
-      </h3>
-
-      <p
-        id="upgrade-active-body"
-        class="text-[13px] leading-relaxed text-[#4B5563]"
-      >
-        {{ first_body }}
-      </p>
-
-      <button
-        id="upgrade-main-cta"
-        type="button"
-        class="w-full border border-[#111827] rounded-[999px] py-4 text-[15px] font-semibold
-               bg-white text-[#111827] hover:bg-black hover:text-white
-               transition-colors duration-200"
-      >
-        <span id="upgrade-main-cta-label">
-          {{ first_price }} – Purchase
-        </span>
-      </button>
-    </div>
-  {% else %}
-    <p class="text-xs text-slate-500">
-      Upgrades aren’t available for this stay yet.
+  <!-- COPY + BUTTON for the ACTIVE card only -->
+  <div id="upgrade-active-info" class="mt-6 text-center space-y-3 hidden">
+    <h3
+      id="upgrade-active-title"
+      class="text-lg font-semibold text-[#020617]"
+    >
+      <!-- filled by JS -->
+    </h3>
+    <p
+      id="upgrade-active-description"
+      class="text-[12px] leading-relaxed text-[#4b5563] max-w-xs mx-auto"
+    >
+      <!-- filled by JS -->
     </p>
-  {% endif %}
+  </div>
+
+  <div id="upgrade-active-cta" class="mt-5 flex justify-center hidden">
+    <button
+      id="upgrade-active-button"
+      type="button"
+      class="inline-flex items-center justify-center rounded-[999px]
+             border border-[#020617] px-10 py-3 text-[15px] font-semibold
+             bg-white text-[#020617] hover:bg-black hover:text-white
+             transition-colors duration-200"
+    >
+      <span id="upgrade-active-button-label">$0.00 – Purchase</span>
+    </button>
+  </div>
 </section>
-
-
 
 
 
@@ -2004,7 +1982,52 @@ body.chat-screen #screen-chat {
     }
 
     // --- Upgrade cards → detail screen + purchase ---
-        // --- Stripe checkout for upgrades ---
+    const upgradeCards = document.querySelectorAll(".upgrade-card");
+    const upgradeDetailTitle = document.getElementById("upgrade-detail-title");
+    const upgradeDetailBody = document.getElementById("upgrade-detail-body");
+    const upgradeDetailName = document.getElementById("upgrade-detail-name");
+    const upgradeDetailPrice = document.getElementById("upgrade-detail-price");
+    const upgradeDetailPriceBottom = document.getElementById("upgrade-detail-price-bottom");
+    //const upgradeDetailClose = document.getElementById("upgrade-detail-close");
+    const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
+
+    let currentUpgradeId = null;
+
+    upgradeCards.forEach((card) => {
+      card.addEventListener("click", () => {
+        const id = card.getAttribute("data-upgrade-id");
+        const title = card.getAttribute("data-upgrade-title") || "";
+        const price = card.getAttribute("data-upgrade-price") || "";
+        const longEl = card.querySelector(".upgrade-long");
+        const longText = longEl ? longEl.textContent.trim() : "";
+
+        currentUpgradeId = id;
+
+        if (upgradeDetailTitle) upgradeDetailTitle.textContent = title;
+        if (upgradeDetailName) upgradeDetailName.textContent = title;
+        if (upgradeDetailBody) upgradeDetailBody.textContent = longText;
+        if (upgradeDetailPrice) upgradeDetailPrice.textContent = price;
+        if (upgradeDetailPriceBottom)
+          upgradeDetailPriceBottom.textContent = `${price} – Purchase`;
+
+        //showScreen("upgradeDetail");
+        openUpgradeModal();
+      });
+    });
+
+    if (upgradeDetailPurchase) {
+      upgradeDetailPurchase.addEventListener("click", async () => {
+        if (!currentUpgradeId) return;
+        try {
+          await purchaseUpgrade(currentUpgradeId, null);
+        } catch (e) {
+          console.error(e);
+          alert("Something went wrong starting checkout.");
+        }
+      });
+    }
+
+    // --- Stripe checkout for upgrades ---
     async function purchaseUpgrade(upgradeId, guestEmail) {
       const res = await fetch(
         `/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`,
@@ -2014,114 +2037,6 @@ body.chat-screen #screen-chat {
           body: JSON.stringify({ guest_email: guestEmail || null }),
         }
       );
-
-
-
-    // === Upgrades carousel (Beats-style) ===
-    const upgradeRail = document.getElementById("upgrades-rail");
-    const upgradeCards = upgradeRail
-      ? upgradeRail.querySelectorAll(".upgrade-card")
-      : [];
-
-    const upgradeProgress = document.getElementById("upgrades-progress");
-    const upgradeTitleEl = document.getElementById("upgrade-active-title");
-    const upgradeBodyEl = document.getElementById("upgrade-active-body");
-    const upgradeCta = document.getElementById("upgrade-main-cta");
-    const upgradeCtaLabel = document.getElementById("upgrade-main-cta-label");
-
-    let activeUpgradeId = null;
-
-    function setActiveUpgrade(card) {
-      if (!card) return;
-
-      // Toggle visual state
-      upgradeCards.forEach((c) => c.classList.remove("is-active"));
-      card.classList.add("is-active");
-
-      // Read data from card
-      const id = card.getAttribute("data-upgrade-id");
-      const title = card.getAttribute("data-upgrade-title") || "";
-      const body = card.getAttribute("data-upgrade-body") || "";
-      const price = card.getAttribute("data-upgrade-price") || "";
-
-      activeUpgradeId = id;
-
-      if (upgradeTitleEl) upgradeTitleEl.textContent = title;
-      if (upgradeBodyEl) upgradeBodyEl.textContent = body;
-      if (upgradeCtaLabel) {
-        upgradeCtaLabel.textContent = price
-          ? `${price} – Purchase`
-          : "Purchase";
-      }
-    }
-
-    function updateUpgradeProgress() {
-      if (!upgradeRail || !upgradeProgress) return;
-      const maxScroll =
-        upgradeRail.scrollWidth - upgradeRail.clientWidth;
-      if (maxScroll <= 0) {
-        upgradeProgress.style.width = "100%";
-        return;
-      }
-      const ratio = upgradeRail.scrollLeft / maxScroll;
-      const pct = 20 + ratio * 60; // keep bar between 20% and 80%
-      upgradeProgress.style.width = `${pct}%`;
-    }
-
-    function handleUpgradeScroll() {
-      if (!upgradeRail || !upgradeCards.length) return;
-
-      const railRect = upgradeRail.getBoundingClientRect();
-      const centerX = railRect.left + railRect.width / 2;
-
-      let nearest = null;
-      let nearestDist = Infinity;
-
-      upgradeCards.forEach((card) => {
-        const rect = card.getBoundingClientRect();
-        const cardCenter = rect.left + rect.width / 2;
-        const dist = Math.abs(centerX - cardCenter);
-        if (dist < nearestDist) {
-          nearestDist = dist;
-          nearest = card;
-        }
-      });
-
-      if (nearest) {
-        setActiveUpgrade(nearest);
-      }
-
-      updateUpgradeProgress();
-    }
-
-    // Initial state
-    if (upgradeCards.length) {
-      setActiveUpgrade(upgradeCards[0]);
-      updateUpgradeProgress();
-    }
-
-    if (upgradeRail) {
-      upgradeRail.addEventListener("scroll", handleUpgradeScroll, {
-        passive: true,
-      });
-      window.addEventListener("resize", handleUpgradeScroll);
-    }
-
-    // Purchase button from main page
-    if (upgradeCta) {
-      upgradeCta.addEventListener("click", async () => {
-        if (!activeUpgradeId) return;
-        try {
-          await purchaseUpgrade(activeUpgradeId, null);
-        } catch (e) {
-          console.error(e);
-          alert("Something went wrong starting checkout.");
-        }
-      });
-    }
-
-
-      
 
       const data = await res.json();
       if (data.checkout_url) {
@@ -2133,112 +2048,127 @@ body.chat-screen #screen-chat {
 
 
     // === Beats-style upgrades carousel behaviour ===
-    // === UPGRADES STACK / ACTIVE COPY + CTA ===
-const upgradesCarousel = document.getElementById("upgrades-carousel");
-const upgradeSlides = upgradesCarousel
-  ? upgradesCarousel.querySelectorAll(".upgrade-slide")
-  : [];
-const activeTitleEl = document.getElementById("upgrade-active-title");
-const activeBodyEl = document.getElementById("upgrade-active-body");
-const purchaseButton = document.getElementById("upgrade-purchase-button");
-const purchaseLabel = document.getElementById("upgrade-purchase-label");
+    const upgradesCarousel = document.getElementById("upgrades-carousel");
+    const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
 
-let activeUpgradeId = null;
+    const activeTitleEl = document.getElementById("upgrade-active-title");
+    const activeDescEl = document.getElementById("upgrade-active-description");
+    const activeButtonWrap = document.getElementById("upgrade-active-cta");
+    const activeInfoWrap = document.getElementById("upgrade-active-info");
+    const activeButton = document.getElementById("upgrade-active-button");
+    const activeButtonLabel = document.getElementById("upgrade-active-button-label");
 
-// helper: set active-copy area from a slide
-function setActiveFromSlide(slide) {
-  if (!slide) return;
-  const id = slide.dataset.upgradeId;
-  const title = slide.dataset.upgradeTitle || "";
-  const price = slide.dataset.upgradePrice || "";
-  const desc = slide.dataset.upgradeDescription || "";
+    let activeUpgradeIndex = 0;
+    let activeUpgradeId = null;
 
-  activeUpgradeId = id;
+    function updateActiveUpgradeInfo(index) {
+      if (
+        !upgradeSlides.length ||
+        !activeTitleEl ||
+        !activeDescEl ||
+        !activeButton ||
+        !activeButtonLabel
+      ) return;
 
-  if (activeTitleEl) activeTitleEl.textContent = title;
-  if (activeBodyEl) activeBodyEl.textContent = desc;
-  if (purchaseLabel) {
-    purchaseLabel.textContent = price
-      ? `${price} – Purchase`
-      : "Purchase";
-  }
+      const slide = upgradeSlides[index];
+      if (!slide) return;
 
-  // small visual hint for active card
-  upgradeSlides.forEach((s) => {
-    s.classList.remove("scale-100", "opacity-100");
-    s.classList.add("scale-95", "opacity-70");
-  });
-  slide.classList.remove("scale-95", "opacity-70");
-  slide.classList.add("scale-100", "opacity-100");
-}
+      activeUpgradeIndex = index;
+      activeUpgradeId = slide.getAttribute("data-upgrade-id") || null;
 
-// find slide closest to center of viewport
-function updateActiveFromScroll() {
-  if (!upgradesCarousel || !upgradeSlides.length) return;
+      const title = slide.getAttribute("data-upgrade-title") || "";
+      const price = slide.getAttribute("data-upgrade-price") || "";
+      const longEl = slide.querySelector(".upgrade-long");
+      const body = longEl ? longEl.textContent.trim() : "";
 
-  const containerRect = upgradesCarousel.getBoundingClientRect();
-  const centerX = containerRect.left + containerRect.width / 2;
+      activeTitleEl.textContent = title;
+      activeDescEl.textContent = body || "";
+      activeButtonLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 
-  let bestSlide = null;
-  let bestDist = Infinity;
-
-  upgradeSlides.forEach((slide) => {
-    const rect = slide.getBoundingClientRect();
-    const slideCenter = rect.left + rect.width / 2;
-    const dist = Math.abs(slideCenter - centerX);
-    if (dist < bestDist) {
-      bestDist = dist;
-      bestSlide = slide;
+      activeInfoWrap?.classList.remove("hidden");
+      activeButtonWrap?.classList.remove("hidden");
     }
-  });
 
-  if (bestSlide) setActiveFromSlide(bestSlide);
-}
+    function updateUpgradeSlides() {
+      if (!upgradesCarousel || !upgradeSlides.length) return;
 
-// initial state once DOM is ready
-if (upgradeSlides.length) {
-  setActiveFromSlide(upgradeSlides[0]);
-}
+      const containerRect = upgradesCarousel.getBoundingClientRect();
+      const centerX = containerRect.left + containerRect.width / 2;
 
-// update on scroll
-if (upgradesCarousel) {
-  upgradesCarousel.addEventListener("scroll", () => {
-    window.clearTimeout(upgradesCarousel._activeTimeout);
-    upgradesCarousel._activeTimeout = window.setTimeout(
-      updateActiveFromScroll,
-      80
-    );
-  });
-}
+      let bestIndex = 0;
+      let smallestDistance = Infinity;
 
-// optional: tap card to recenter it (but not open anything)
-upgradeSlides.forEach((slide) => {
-  slide.addEventListener("click", () => {
-    const rect = slide.getBoundingClientRect();
-    const containerRect = upgradesCarousel.getBoundingClientRect();
-    const targetScroll =
-      slide.offsetLeft - (containerRect.width - rect.width) / 2;
+      upgradeSlides.forEach((slide, index) => {
+        const rect = slide.getBoundingClientRect();
+        const slideCenter = rect.left + rect.width / 2;
 
-    upgradesCarousel.scrollTo({
-      left: targetScroll,
-      behavior: "smooth",
-    });
-  });
-});
+        const distance = slideCenter - centerX;
+        const normalized = distance / rect.width;
 
-// CTA → purchase active upgrade (Stripe)
-if (purchaseButton) {
-  purchaseButton.addEventListener("click", async () => {
-    if (!activeUpgradeId) return;
-    try {
-      await purchaseUpgrade(activeUpgradeId, null);
-    } catch (e) {
-      console.error(e);
-      alert("Something went wrong starting checkout.");
+        const absDist = Math.abs(distance);
+        if (absDist < smallestDistance) {
+          smallestDistance = absDist;
+          bestIndex = index;
+        }
+
+        const maxShift = 80;
+        const translateX = -normalized * maxShift;
+
+        const scaleBase = 0.82;
+        const scale = 1 - Math.min(Math.abs(normalized), 1) * (1 - scaleBase);
+
+        const maxTilt = 14;
+        const rotateY = -normalized * maxTilt;
+
+        slide.style.transform =
+          `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
+        slide.style.zIndex = String(100 - Math.round(Math.abs(normalized) * 20));
+      });
+
+      // set active / inactive flags
+      upgradeSlides.forEach((slide, idx) => {
+        const isActive = idx === bestIndex;
+        slide.classList.toggle("is-active", isActive);
+        slide.classList.toggle("is-inactive", !isActive);
+      });
+
+      // update copy + button for the one active card
+      updateActiveUpgradeInfo(bestIndex);
     }
-  });
-}
 
+    if (upgradesCarousel && upgradeSlides.length) {
+      upgradesCarousel.addEventListener("scroll", updateUpgradeSlides);
+      window.addEventListener("resize", updateUpgradeSlides);
+
+      // click a card → also scroll it into center
+      upgradeSlides.forEach((slide) => {
+        slide.addEventListener("click", () => {
+          const rect = slide.getBoundingClientRect();
+          const containerRect = upgradesCarousel.getBoundingClientRect();
+          const targetScroll =
+            slide.offsetLeft - (containerRect.width - rect.width) / 2;
+
+          upgradesCarousel.scrollTo({
+            left: targetScroll,
+            behavior: "smooth",
+          });
+        });
+      });
+
+      // initial layout
+      setTimeout(updateUpgradeSlides, 80);
+    }
+
+    // CTA button uses currently active upgrade (same ID you already use elsewhere)
+    if (activeButton) {
+      activeButton.addEventListener("click", () => {
+        // simulate clicking the active slide, so your existing upgrade-click logic runs
+        const slide = upgradeSlides[activeUpgradeIndex];
+        if (slide) {
+          slide.click();
+        }
+      });
+    }
 
 
 
