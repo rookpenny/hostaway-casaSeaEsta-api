@@ -771,6 +771,32 @@ body.chat-screen #screen-chat {
 }
 
 
+/* Hide horizontal scrollbar on the upgrades rail */
+#upgrades-rail::-webkit-scrollbar {
+  display: none;
+}
+#upgrades-rail {
+  -ms-overflow-style: none;  /* IE/Edge */
+  scrollbar-width: none;     /* Firefox */
+}
+
+/* Fan-style cards: default = slightly smaller / faded */
+.upgrade-card {
+  transform-origin: center bottom;
+  transform: translateY(12px) scale(0.9);
+  opacity: 0.55;
+  transition:
+    transform 0.28s ease-out,
+    opacity 0.28s ease-out,
+    box-shadow 0.28s ease-out;
+}
+
+/* Active card */
+.upgrade-card.is-active {
+  transform: translateY(0) scale(1);
+  opacity: 1;
+  box-shadow: 0 20px 45px rgba(15, 23, 42, 0.4);
+}
 
 
   </style>
@@ -1152,6 +1178,12 @@ body.chat-screen #screen-chat {
   class="hidden bg-[#f5f5f5] flex flex-col flex-1 text-[0.95rem] px-4 pt-24 pb-24"
   aria-label="Upgrades"
 >
+  {% if upgrades and upgrades|length > 0 %}
+    {% set first_up = upgrades[0] %}
+    {% set first_body = first_up.long_description or first_up.short_description or "" %}
+    {% set first_price = first_up.price_display or "" %}
+  {% endif %}
+
   <!-- Heading -->
   <div class="mb-6 text-left">
     <p class="home-property-label">
@@ -1164,72 +1196,77 @@ body.chat-screen #screen-chat {
   </div>
 
   {% if upgrades and upgrades|length > 0 %}
-  <div class="flex-1 flex flex-col justify-start">
-    <!-- Card stack / carousel -->
-    <div
-      id="upgrades-carousel"
-      class="flex gap-4 overflow-x-auto pb-6 pt-2 px-2 snap-x snap-mandatory"
-    >
-      {% for up in upgrades %}
+    <!-- CARD RAIL (Beats-style fan) -->
+    <div class="relative mt-4">
       <div
-        class="upgrade-slide relative shrink-0 snap-center"
-        data-upgrade-id="{{ up.id }}"
-        data-upgrade-title="{{ up.title }}"
-        data-upgrade-price="{{ up.price_display or '' }}"
-        data-upgrade-description="{{ (up.long_description or up.short_description or '')|e }}"
+        id="upgrades-rail"
+        class="flex gap-0 overflow-x-auto px-0 pb-8 snap-x snap-mandatory scrollbar-hide"
       >
-        <div
-          class="upgrade-card-inner bg-white rounded-[32px]
-                 shadow-[0_20px_45px_rgba(15,23,42,0.32)]
-                 overflow-hidden w-[280px] h-[360px]
-                 border border-[#111827]/10"
-        >
-          <div class="h-full w-full overflow-hidden">
-            {% if up.image_url %}
-            <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover" />
-            {% else %}
-            <img src="{{ hero_image_url or default_image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover" />
-            {% endif %}
-          </div>
-        </div>
+        {% for up in upgrades %}
+          {% set img = up.image_url or hero_image_url or default_image_url %}
+          {% set body = up.long_description or up.short_description or "" %}
+
+          <article
+            class="upgrade-card shrink-0 snap-center relative w-[260px] h-[340px] rounded-[32px] overflow-hidden bg-white shadow-[0_20px_45px_rgba(15,23,42,0.28)] border border-[#E5E7EB]
+                   {% if not loop.first %} -ml-[72px] {% endif %}"
+            data-upgrade-id="{{ up.id }}"
+            data-upgrade-title="{{ up.title }}"
+            data-upgrade-price="{{ up.price_display or '' }}"
+            data-upgrade-body="{{ body|e('html_attr') }}"
+          >
+            <img
+              src="{{ img }}"
+              alt="{{ up.title }}"
+              class="w-full h-full object-cover"
+            />
+          </article>
+        {% endfor %}
       </div>
-      {% endfor %}
+
+      <!-- Little grey track under cards -->
+      <div class="mt-2 h-[4px] mx-10 bg-[#E5E5E5] rounded-full overflow-hidden">
+        <div
+          id="upgrades-progress"
+          class="h-full w-[24%] bg-[#111827] rounded-full transition-all duration-200 ease-out"
+        ></div>
+      </div>
     </div>
 
-    <!-- Active copy + purchase button -->
-    <div class="mt-6 max-w-xs mx-auto text-center space-y-4">
-      <div class="space-y-2">
-        <h2
-          id="upgrade-active-title"
-          class="text-[20px] font-semibold text-[#000000]"
-        >
-          <!-- filled by JS -->
-        </h2>
-        <p
-          id="upgrade-active-body"
-          class="text-[13px] leading-relaxed text-[#4b5563]"
-        >
-          <!-- filled by JS -->
-        </p>
-      </div>
+    <!-- ACTIVE COPY + CTA (driven by selected card) -->
+    <div class="mt-8 text-center max-w-xs mx-auto space-y-4">
+      <h3
+        id="upgrade-active-title"
+        class="text-[18px] font-semibold text-[#111827]"
+      >
+        {{ first_up.title if upgrades else "" }}
+      </h3>
+
+      <p
+        id="upgrade-active-body"
+        class="text-[13px] leading-relaxed text-[#4B5563]"
+      >
+        {{ first_body }}
+      </p>
 
       <button
-        id="upgrade-purchase-button"
+        id="upgrade-main-cta"
         type="button"
-        class="w-full border border-slate-900 rounded-[999px] py-4 text-[15px]
-               font-semibold bg-white text-slate-900 hover:bg-black hover:text-white
+        class="w-full border border-[#111827] rounded-[999px] py-4 text-[15px] font-semibold
+               bg-white text-[#111827] hover:bg-black hover:text-white
                transition-colors duration-200"
       >
-        <span id="upgrade-purchase-label">$0 – Purchase</span>
+        <span id="upgrade-main-cta-label">
+          {{ first_price }} – Purchase
+        </span>
       </button>
     </div>
-  </div>
   {% else %}
-  <p class="text-xs text-slate-500">
-    Upgrades aren’t available for this stay yet.
-  </p>
+    <p class="text-xs text-slate-500">
+      Upgrades aren’t available for this stay yet.
+    </p>
   {% endif %}
 </section>
+
 
 
 
@@ -1967,52 +2004,7 @@ body.chat-screen #screen-chat {
     }
 
     // --- Upgrade cards → detail screen + purchase ---
-    const upgradeCards = document.querySelectorAll(".upgrade-card");
-    const upgradeDetailTitle = document.getElementById("upgrade-detail-title");
-    const upgradeDetailBody = document.getElementById("upgrade-detail-body");
-    const upgradeDetailName = document.getElementById("upgrade-detail-name");
-    const upgradeDetailPrice = document.getElementById("upgrade-detail-price");
-    const upgradeDetailPriceBottom = document.getElementById("upgrade-detail-price-bottom");
-    //const upgradeDetailClose = document.getElementById("upgrade-detail-close");
-    const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
-
-    let currentUpgradeId = null;
-
-    upgradeCards.forEach((card) => {
-      card.addEventListener("click", () => {
-        const id = card.getAttribute("data-upgrade-id");
-        const title = card.getAttribute("data-upgrade-title") || "";
-        const price = card.getAttribute("data-upgrade-price") || "";
-        const longEl = card.querySelector(".upgrade-long");
-        const longText = longEl ? longEl.textContent.trim() : "";
-
-        currentUpgradeId = id;
-
-        if (upgradeDetailTitle) upgradeDetailTitle.textContent = title;
-        if (upgradeDetailName) upgradeDetailName.textContent = title;
-        if (upgradeDetailBody) upgradeDetailBody.textContent = longText;
-        if (upgradeDetailPrice) upgradeDetailPrice.textContent = price;
-        if (upgradeDetailPriceBottom)
-          upgradeDetailPriceBottom.textContent = `${price} – Purchase`;
-
-        //showScreen("upgradeDetail");
-        openUpgradeModal();
-      });
-    });
-
-    if (upgradeDetailPurchase) {
-      upgradeDetailPurchase.addEventListener("click", async () => {
-        if (!currentUpgradeId) return;
-        try {
-          await purchaseUpgrade(currentUpgradeId, null);
-        } catch (e) {
-          console.error(e);
-          alert("Something went wrong starting checkout.");
-        }
-      });
-    }
-
-    // --- Stripe checkout for upgrades ---
+        // --- Stripe checkout for upgrades ---
     async function purchaseUpgrade(upgradeId, guestEmail) {
       const res = await fetch(
         `/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`,
@@ -2022,6 +2014,114 @@ body.chat-screen #screen-chat {
           body: JSON.stringify({ guest_email: guestEmail || null }),
         }
       );
+
+
+
+    // === Upgrades carousel (Beats-style) ===
+    const upgradeRail = document.getElementById("upgrades-rail");
+    const upgradeCards = upgradeRail
+      ? upgradeRail.querySelectorAll(".upgrade-card")
+      : [];
+
+    const upgradeProgress = document.getElementById("upgrades-progress");
+    const upgradeTitleEl = document.getElementById("upgrade-active-title");
+    const upgradeBodyEl = document.getElementById("upgrade-active-body");
+    const upgradeCta = document.getElementById("upgrade-main-cta");
+    const upgradeCtaLabel = document.getElementById("upgrade-main-cta-label");
+
+    let activeUpgradeId = null;
+
+    function setActiveUpgrade(card) {
+      if (!card) return;
+
+      // Toggle visual state
+      upgradeCards.forEach((c) => c.classList.remove("is-active"));
+      card.classList.add("is-active");
+
+      // Read data from card
+      const id = card.getAttribute("data-upgrade-id");
+      const title = card.getAttribute("data-upgrade-title") || "";
+      const body = card.getAttribute("data-upgrade-body") || "";
+      const price = card.getAttribute("data-upgrade-price") || "";
+
+      activeUpgradeId = id;
+
+      if (upgradeTitleEl) upgradeTitleEl.textContent = title;
+      if (upgradeBodyEl) upgradeBodyEl.textContent = body;
+      if (upgradeCtaLabel) {
+        upgradeCtaLabel.textContent = price
+          ? `${price} – Purchase`
+          : "Purchase";
+      }
+    }
+
+    function updateUpgradeProgress() {
+      if (!upgradeRail || !upgradeProgress) return;
+      const maxScroll =
+        upgradeRail.scrollWidth - upgradeRail.clientWidth;
+      if (maxScroll <= 0) {
+        upgradeProgress.style.width = "100%";
+        return;
+      }
+      const ratio = upgradeRail.scrollLeft / maxScroll;
+      const pct = 20 + ratio * 60; // keep bar between 20% and 80%
+      upgradeProgress.style.width = `${pct}%`;
+    }
+
+    function handleUpgradeScroll() {
+      if (!upgradeRail || !upgradeCards.length) return;
+
+      const railRect = upgradeRail.getBoundingClientRect();
+      const centerX = railRect.left + railRect.width / 2;
+
+      let nearest = null;
+      let nearestDist = Infinity;
+
+      upgradeCards.forEach((card) => {
+        const rect = card.getBoundingClientRect();
+        const cardCenter = rect.left + rect.width / 2;
+        const dist = Math.abs(centerX - cardCenter);
+        if (dist < nearestDist) {
+          nearestDist = dist;
+          nearest = card;
+        }
+      });
+
+      if (nearest) {
+        setActiveUpgrade(nearest);
+      }
+
+      updateUpgradeProgress();
+    }
+
+    // Initial state
+    if (upgradeCards.length) {
+      setActiveUpgrade(upgradeCards[0]);
+      updateUpgradeProgress();
+    }
+
+    if (upgradeRail) {
+      upgradeRail.addEventListener("scroll", handleUpgradeScroll, {
+        passive: true,
+      });
+      window.addEventListener("resize", handleUpgradeScroll);
+    }
+
+    // Purchase button from main page
+    if (upgradeCta) {
+      upgradeCta.addEventListener("click", async () => {
+        if (!activeUpgradeId) return;
+        try {
+          await purchaseUpgrade(activeUpgradeId, null);
+        } catch (e) {
+          console.error(e);
+          alert("Something went wrong starting checkout.");
+        }
+      });
+    }
+
+
+      
 
       const data = await res.json();
       if (data.checkout_url) {
