@@ -760,7 +760,31 @@ body.chat-screen #screen-chat {
 
 .upgrade-card-inner {
   transform-origin: center center;
+  border-radius: 32px;
+  overflow: hidden;
+  /* no shadow by default */
+  box-shadow: none;
+  transition:
+    box-shadow 300ms ease,
+    transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 250ms ease;
 }
+
+    /* Only the centered (active) upgrade gets the big shadow */
+.upgrade-slide.is-active .upgrade-card-inner {
+  box-shadow:
+    0 20px 45px rgba(15, 23, 42, 0.32),
+    0 0 0 1px rgba(15, 23, 42, 0.08);
+  transform: scale(1);   /* you can bump to 1.02 if you want a tiny pop */
+}
+
+/* Inactive ones: no shadow + slightly pushed back */
+.upgrade-slide.is-inactive .upgrade-card-inner {
+  box-shadow: none;
+  transform: scale(0.94) translateY(4px);
+  opacity: 0.8;
+}
+
 
 .upgrade-slide.is-active {
   z-index: 30;
@@ -1191,9 +1215,10 @@ body.chat-screen #screen-chat {
               data-upgrade-price="{{ up.price_display or '' }}"
             >
               <div
-                class="upgrade-card-inner bg-white rounded-[32px] shadow-[0_20px_45px_rgba(15,23,42,0.32)]
-                       overflow-hidden w-[280px] h-[360px] border border-[#111827]/10"
-              >
+  class="upgrade-card-inner bg-white rounded-[32px]
+         overflow-hidden w-[280px] h-[360px] border border-[#111827]/10"
+>
+
                 <div class="h-[360px] w-full overflow-hidden">
                   {% if up.image_url %}
                     <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover" />
