@@ -30,7 +30,7 @@ from routes import admin, pmc_auth
 
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
-from models import Property, ChatSession, ChatMessage, PMC, Upgrade, Reservation
+from models import Property, ChatSession, ChatMessage, PMC, Upgrade, Reservation, Guide
 
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 from utils.pms_sync import sync_properties, sync_all_pmcs
@@ -131,6 +131,55 @@ def list_routes():
 
 # Additional routes (e.g., /properties, /guests, /guest-message, etc.)
 # are handled and correct as provided in your current file
+
+
+
+@app.get("/properties/{property_id}/guides")
+def list_property_guides(
+    property_id: int,
+    db: Session = Depends(get_db),
+):
+    # Make sure the property exists
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    # Fetch active guides for this property
+    guides = (
+        db.query(Guide)
+        .filter(
+            Guide.property_id == property_id,
+            Guide.is_active == True,
+        )
+        .order_by(Guide.sort_order.asc(), Guide.id.asc())
+        .all()
+    )
+
+    # Shape response to match front-end expectations
+    payload = []
+    for g in guides:
+        payload.append(
+            {
+                "id": g.id,
+                "property_id": g.property_id,
+                "title": g.title,
+                "short_description": g.short_description,
+                "long_description": g.long_description,
+                "body_html": g.body_html,
+                "category": g.category,
+                "image_url": g.image_url,
+                "sort_order": g.sort_order,
+            }
+        )
+
+    return {"guides": payload}
+
+
+
+
+
+
+
 
 # --- Chat Endpoint ---
 class ChatRequest(BaseModel):
