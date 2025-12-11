@@ -1831,42 +1831,7 @@ body.chat-screen #screen-chat {
     }
 
 
-    // Guide filters (chips)
-    function applyGuideFilter(filter) {
-      const normalized = (filter || "all").toLowerCase();
-
-      guideCards.forEach((card) => {
-        const tagsRaw = card.getAttribute("data-guide-tags") || "";
-        const tags = tagsRaw.split(",").map((t) => t.trim().toLowerCase()).filter(Boolean);
-
-        if (normalized === "all" || tags.includes(normalized)) {
-          card.classList.remove("hidden");
-        } else {
-          card.classList.add("hidden");
-        }
-      });
-    }
-
-    guideFilters.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const filter = btn.getAttribute("data-filter") || "all";
-
-        // visual active state
-        guideFilters.forEach((b) => {
-          b.classList.remove("bg-slate-50", "text-slate-900");
-          b.classList.remove("bg-slate-900/80", "text-slate-100");
-          b.classList.add("bg-transparent", "text-slate-300");
-        });
-
-        btn.classList.remove("bg-transparent", "text-slate-300");
-        btn.classList.add("bg-slate-50", "text-slate-900");
-
-        applyGuideFilter(filter);
-      });
-    });
-
-    // default: show all
-    applyGuideFilter("all");
+   
 
 
    
