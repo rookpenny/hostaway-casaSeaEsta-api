@@ -1207,31 +1207,37 @@ body.chat-screen #screen-chat {
           {% else %}
             <!-- each slide is still a button so your existing JS can use it -->
             <button
-              type="button"
-              class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
-              data-upgrade-id="{{ up.id }}"
-              data-upgrade-title="{{ up.title }}"
-              data-upgrade-price="{{ up.price_display or '' }}"
-            >
-              <div
-  class="upgrade-card-inner bg-white rounded-[32px]
-         overflow-hidden w-[280px] h-[360px] border border-[#111827]/10"
+  type="button"
+  class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
+  data-upgrade-id="{{ up.id }}"
+  data-upgrade-title="{{ up.title }}"
+  data-upgrade-price="{{ up.price_display or '' }}"
 >
+  <div
+    class="upgrade-card-inner w-[280px] h-[360px]
+           rounded-[32px] overflow-hidden bg-white"
+  >
+    {% if up.image_url %}
+      <img
+        src="{{ up.image_url }}"
+        alt="{{ up.title }}"
+        class="w-full h-full object-cover"
+      />
+    {% else %}
+      <img
+        src="{{ hero_image_url or default_image_url }}"
+        alt="{{ up.title }}"
+        class="w-full h-full object-cover"
+      />
+    {% endif %}
+  </div>
 
-                <div class="h-[360px] w-full overflow-hidden">
-                  {% if up.image_url %}
-                    <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover" />
-                  {% else %}
-                    <img src="{{ hero_image_url or default_image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover" />
-                  {% endif %}
-                </div>
-              </div>
+  <!-- hidden long copy so JS can read it -->
+  <p class="hidden upgrade-long">
+    {{ up.long_description or up.short_description }}
+  </p>
+</button>
 
-              <!-- hidden long copy so JS can read it -->
-              <p class="hidden upgrade-long">
-                {{ up.long_description or up.short_description }}
-              </p>
-            </button>
           {% endif %}
         {% endfor %}
       {% else %}
