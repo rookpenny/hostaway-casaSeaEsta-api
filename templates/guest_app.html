@@ -746,6 +746,7 @@ body.chat-screen #screen-chat {
 }
 
 /* PARENT: do NOT clip shadow, give base z-index */
+/* PARENT: do NOT clip shadow */
 .upgrade-slide {
   position: relative;
   flex: 0 0 auto;
@@ -754,21 +755,15 @@ body.chat-screen #screen-chat {
   will-change: transform;
   cursor: pointer;
   overflow: visible;      /* don't clip the shadow */
-  z-index: 1;             /* base */
+  /* no z-index here; JS will control it */
   transition:
     transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
     opacity 250ms ease;
 }
 
 /* Active slide is always in front */
-.upgrade-slide.is-active {
-  z-index: 50;
-}
-
-/* (optional) make sure inactives never jump over it */
-.upgrade-slide.is-inactive {
-  z-index: 10;
-}
+.upgrade-slide.is-active { }
+.upgrade-slide.is-inactive { }
 
 /* INNER CARD: rounded, clipped, thick border, gets shadow */
 .upgrade-card-inner {
@@ -2088,51 +2083,51 @@ body.chat-screen #screen-chat {
     }
 
     function updateUpgradeSlides() {
-      if (!upgradesCarousel || !upgradeSlides.length) return;
+  if (!upgradesCarousel || !upgradeSlides.length) return;
 
-      const containerRect = upgradesCarousel.getBoundingClientRect();
-      const centerX = containerRect.left + containerRect.width / 2;
+  const containerRect = upgradesCarousel.getBoundingClientRect();
+  const centerX = containerRect.left + containerRect.width / 2;
 
-      let bestIndex = 0;
-      let smallestDistance = Infinity;
+  let bestIndex = 0;
+  let smallestDistance = Infinity;
 
-      upgradeSlides.forEach((slide, index) => {
-        const rect = slide.getBoundingClientRect();
-        const slideCenter = rect.left + rect.width / 2;
+  upgradeSlides.forEach((slide, index) => {
+    const rect = slide.getBoundingClientRect();
+    const slideCenter = rect.left + rect.width / 2;
 
-        const distance = slideCenter - centerX;
-        const normalized = distance / rect.width;
+    const distance = slideCenter - centerX;
+    const normalized = distance / rect.width;
 
-        const absDist = Math.abs(distance);
-        if (absDist < smallestDistance) {
-          smallestDistance = absDist;
-          bestIndex = index;
-        }
-
-        const maxShift = 80;
-        const translateX = -normalized * maxShift;
-
-        const scaleBase = 0.82;
-        const scale = 1 - Math.min(Math.abs(normalized), 1) * (1 - scaleBase);
-
-        const maxTilt = 14;
-        const rotateY = -normalized * maxTilt;
-
-        slide.style.transform =
-          `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
-        /*slide.style.zIndex = String(100 - Math.round(Math.abs(normalized) * 20));*/
-      });
-
-      // set active / inactive flags
-      upgradeSlides.forEach((slide, idx) => {
-        const isActive = idx === bestIndex;
-        slide.classList.toggle("is-active", isActive);
-        slide.classList.toggle("is-inactive", !isActive);
-      });
-
-      // update copy + button for the one active card
-      updateActiveUpgradeInfo(bestIndex);
+    const absDist = Math.abs(distance);
+    if (absDist < smallestDistance) {
+      smallestDistance = absDist;
+      bestIndex = index;
     }
+
+    const maxShift = 80;
+    const translateX = -normalized * maxShift;
+
+    const scaleBase = 0.82;
+    const scale = 1 - Math.min(Math.abs(normalized), 1) * (1 - scaleBase);
+
+    const maxTilt = 14;
+    const rotateY = -normalized * maxTilt;
+
+    slide.style.transform =
+      `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
+  });
+
+  // 🔹 stacking & state
+  upgradeSlides.forEach((slide, idx) => {
+    const isActive = idx === bestIndex;
+    slide.classList.toggle("is-active", isActive);
+    slide.classList.toggle("is-inactive", !isActive);
+    slide.style.zIndex = isActive ? "50" : "10";
+  });
+
+  updateActiveUpgradeInfo(bestIndex);
+}
+
 
     if (upgradesCarousel && upgradeSlides.length) {
   upgradesCarousel.addEventListener("scroll", updateUpgradeSlides);
