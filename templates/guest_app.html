@@ -1210,6 +1210,7 @@ body.chat-screen #screen-chat {
 
 
 
+
 <!-- UPGRADES -->
 <section
   id="screen-upgrades"
@@ -1595,13 +1596,16 @@ body.chat-screen #screen-chat {
     const upgradeModalClose = document.getElementById("upgrade-modal-close");*/
 
         // --- Guides / experiences (local tips) ---
+        // --- Guides / experiences (local tips) ---
+
+    const guidesGrid = document.getElementById("guides-grid");
+    const guidesEmptyState = document.getElementById("guides-empty-state");
+    const guidesFiltersContainer = document.getElementById("guides-filters");
+
     const guideModal = document.getElementById("guide-modal");
     const guideModalClose = document.getElementById("guide-modal-close");
     const guideModalTitle = document.getElementById("guide-modal-title");
     const guideModalBody = document.getElementById("guide-modal-body");
-    const guideModalImage = document.getElementById("guide-modal-image");
-    const guideCards = document.querySelectorAll(".guide-card");
-    const guideFilters = document.querySelectorAll(".guide-filter");
 
     const guidesState = {
       loaded: false,
@@ -1610,61 +1614,85 @@ body.chat-screen #screen-chat {
       activeFilter: "all",
     };
 
-     function createGuideCard(guide) {
-      const card = document.createElement("article");
-      card.className =
-        "guide-card bg-slate-900/80 border border-slate-800 rounded-2xl overflow-hidden cursor-pointer transition hover:border-emerald-400/70 hover:shadow-lg";
-      card.dataset.guideId = guide.id;
-      card.dataset.tags = (guide.tags || []).join(",");
+    // Build one card per guide (2-col grid, “blocks” like your mock)
+    function createGuideCard(guide, index) {
+      const isTall = index % 3 === 0; // every 3rd card taller for variety
 
-      // Featured ones can span 2 cols on larger screens
-      if (guide.is_featured) {
-        card.classList.add("sm:col-span-2");
-      }
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className =
+        "group relative overflow-hidden rounded-[24px] bg-slate-200 shadow-sm " +
+        "focus:outline-none focus:ring-2 focus:ring-slate-900 transition-transform active:scale-95";
+      card.style.aspectRatio = isTall ? "3 / 4" : "4 / 3";
 
       const imageUrl =
         guide.image_url ||
         "{{ experiences_hero_url or hero_image_url or default_image_url }}";
 
-      card.innerHTML = `
-        <div class="${guide.is_featured ? "h-32" : "h-24"} relative bg-slate-800">
-          <img src="${imageUrl}" alt="${guide.title || ""}" class="w-full h-full object-cover">
-          ${
-            guide.is_featured
-              ? '<div class="absolute inset-0 bg-gradient-to-t from-slate-950 via-black/40 to-transparent"></div>'
-              : ""
-          }
-        </div>
-        <div class="p-3 space-y-1">
-          <h3 class="text-sm font-semibold">${guide.title || ""}</h3>
-          <p class="text-[11px] text-slate-300 line-clamp-2">
-            ${guide.short_description || ""}
-          </p>
-        </div>
-      `;
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.alt = guide.title || "Guide";
+      img.className =
+        "h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]";
+      card.appendChild(img);
+
+      const overlay = document.createElement("div");
+      overlay.className =
+        "absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent";
+      card.appendChild(overlay);
+
+      const textWrap = document.createElement("div");
+      textWrap.className =
+        "absolute inset-x-3 bottom-3 text-left text-white space-y-1";
+
+      const titleEl = document.createElement("h2");
+      titleEl.className = "text-[13px] font-semibold leading-tight line-clamp-2";
+      titleEl.textContent = guide.title || "Guide";
+      textWrap.appendChild(titleEl);
+
+      if (guide.category) {
+        const catEl = document.createElement("p");
+        catEl.className = "text-[10px] opacity-80";
+        catEl.textContent = guide.category;
+        textWrap.appendChild(catEl);
+      }
 
       card.addEventListener("click", () => openGuideModalFromGuide(guide));
       return card;
     }
 
-        function openGuideModalFromGuide(guide) {
+    function openGuideModalFromGuide(guide) {
       if (!guideModal) return;
-      if (guideModalTitle) guideModalTitle.textContent = guide.title || "";
-      if (guideModalBody) guideModalBody.textContent = guide.long_description || guide.short_description || "";
 
-      const imageUrl =
-        guide.image_url ||
-        "{{ experiences_hero_url or hero_image_url or default_image_url }}";
-      if (guideModalImage) guideModalImage.src = imageUrl;
+      if (guideModalTitle) {
+        guideModalTitle.textContent = guide.title || "Guide";
+      }
+
+      // Prefer HTML body if available
+      if (guide.body_html) {
+        guideModalBody.innerHTML = guide.body_html;
+        guideModalBody.classList.remove("whitespace-pre-line");
+      } else if (guide.long_description) {
+        guideModalBody.textContent = guide.long_description;
+        guideModalBody.classList.add("whitespace-pre-line");
+      } else if (guide.short_description) {
+        guideModalBody.textContent = guide.short_description;
+        guideModalBody.classList.add("whitespace-pre-line");
+      } else {
+        guideModalBody.textContent = "";
+        guideModalBody.classList.add("whitespace-pre-line");
+      }
 
       guideModal.classList.remove("hidden");
       guideModal.classList.add("flex");
+      document.body.classList.add("overflow-hidden");
     }
 
     function closeGuideModal() {
       if (!guideModal) return;
       guideModal.classList.add("hidden");
       guideModal.classList.remove("flex");
+      document.body.classList.remove("overflow-hidden");
     }
 
     if (guideModalClose) {
@@ -1680,126 +1708,116 @@ body.chat-screen #screen-chat {
       });
     }
 
-        function buildGuideFiltersFromGuides(guides) {
+    // Build filter chips from guide categories
+    function buildGuideFiltersFromGuides(guides) {
       if (!guidesFiltersContainer) return;
 
-      // Collect unique tags
-      const tagSet = new Set();
-      guides.forEach((g) => {
-        (g.tags || []).forEach((t) => {
-          if (t) tagSet.add(String(t).trim().toLowerCase());
-        });
-      });
+      const categories = [
+        ...new Set(
+          guides
+            .map((g) => g.category)
+            .filter((c) => typeof c === "string" && c.trim() !== "")
+        ),
+      ];
 
-      // Clear existing
       guidesFiltersContainer.innerHTML = "";
 
-      // Always add "All"
-      const allBtn = document.createElement("button");
-      allBtn.type = "button";
-      allBtn.textContent = "All";
-      allBtn.dataset.filter = "all";
-      allBtn.className =
-        "guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-600/70 bg-slate-50 text-slate-900 font-medium";
-      guidesFiltersContainer.appendChild(allBtn);
-
-      // Add one chip per tag
-      Array.from(tagSet)
-        .sort()
-        .forEach((tag) => {
-          const label = tag.charAt(0).toUpperCase() + tag.slice(1);
-          const btn = document.createElement("button");
-          btn.type = "button";
-          btn.dataset.filter = tag;
-          btn.textContent = label;
-          btn.className =
-            "guide-filter whitespace-nowrap px-3 py-1 rounded-full border border-slate-700/60 bg-transparent text-slate-300";
-          guidesFiltersContainer.appendChild(btn);
-        });
-
-      // Wire click handlers
-      const filterButtons = guidesFiltersContainer.querySelectorAll(".guide-filter");
-      filterButtons.forEach((btn) => {
+      // Make one button per category
+      categories.forEach((category) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.dataset.filter = category;
+        btn.textContent = category;
+        btn.className =
+          "guide-filter whitespace-nowrap px-3 py-1.5 rounded-full border " +
+          "border-slate-300 bg-white text-slate-900 text-[11px]";
         btn.addEventListener("click", () => {
-          const filter = btn.dataset.filter || "all";
-          guidesState.activeFilter = filter;
-
-          // visual state
-          filterButtons.forEach((b) => {
-            b.classList.remove("bg-slate-50", "text-slate-900");
-            b.classList.remove("bg-slate-900/80", "text-slate-100");
-            b.classList.add("bg-transparent", "text-slate-300");
-          });
-          btn.classList.remove("bg-transparent", "text-slate-300");
-          btn.classList.add("bg-slate-50", "text-slate-900");
-
+          guidesState.activeFilter = category;
+          updateGuideFilterStates();
           renderGuidesGrid();
         });
+        guidesFiltersContainer.appendChild(btn);
       });
+
+      // Hook up the fixed “Sort by” button to reset filter to all
+      const sortButton = document.querySelector(
+        'button.guide-filter[data-filter="all"]'
+      );
+      if (sortButton) {
+        sortButton.addEventListener("click", () => {
+          guidesState.activeFilter = "all";
+          updateGuideFilterStates();
+          renderGuidesGrid();
+        });
+      }
+
+      updateGuideFilterStates();
     }
 
+    function updateGuideFilterStates() {
+      const buttons = document.querySelectorAll(".guide-filter");
+      const active = guidesState.activeFilter;
+
+      buttons.forEach((btn) => {
+        const filter = btn.dataset.filter;
+        const isActive =
+          active === "all" ? filter === "all" : filter === active;
+
+        if (isActive) {
+          btn.classList.add("bg-slate-900", "text-white", "border-slate-900");
+          btn.classList.remove("bg-white", "text-slate-900", "border-slate-300");
+        } else if (filter !== "all") {
+          btn.classList.add("bg-white", "text-slate-900", "border-slate-300");
+          btn.classList.remove("bg-slate-900", "text-white", "border-slate-900");
+        }
+      });
+    }
 
     function renderGuidesGrid() {
       if (!guidesGrid) return;
 
       guidesGrid.innerHTML = "";
 
-      const filter = (guidesState.activeFilter || "all").toLowerCase();
-      const filtered = guidesState.guides.filter((g) => {
-        if (filter === "all") return true;
-        const tags = (g.tags || []).map((t) => String(t).toLowerCase());
-        return tags.includes(filter);
-      });
+      const filter = guidesState.activeFilter;
+      const visible =
+        filter === "all"
+          ? guidesState.guides
+          : guidesState.guides.filter((g) => g.category === filter);
 
-      if (filtered.length === 0) {
-        if (guidesEmptyState) guidesEmptyState.classList.remove("hidden");
+      if (!visible.length) {
+        guidesEmptyState?.classList.remove("hidden");
         return;
-      } else if (guidesEmptyState) {
-        guidesEmptyState.classList.add("hidden");
       }
+      guidesEmptyState?.classList.add("hidden");
 
-      filtered
-        .sort((a, b) => (a.sort_order || 0) - (b.sort_order || 0))
-        .forEach((guide) => {
-          const card = createGuideCard(guide);
-          guidesGrid.appendChild(card);
-        });
+      visible.forEach((guide, index) => {
+        const card = createGuideCard(guide, index);
+        guidesGrid.appendChild(card);
+      });
     }
 
-        async function loadGuidesIfNeeded() {
+    async function loadGuidesIfNeeded() {
       if (guidesState.loaded || guidesState.loading) return;
       guidesState.loading = true;
 
       try {
         const res = await fetch(`/properties/${window.PROPERTY_ID}/guides`);
         if (!res.ok) throw new Error("Failed to load guides");
-        const data = await res.json();
 
+        const data = await res.json();
         const guides = Array.isArray(data.guides) ? data.guides : [];
 
-        // Normalize tags to arrays
-        guides.forEach((g) => {
-          if (typeof g.tags === "string") {
-            g.tags = g.tags
-              .split(",")
-              .map((t) => t.trim())
-              .filter(Boolean);
-          } else if (!Array.isArray(g.tags)) {
-            g.tags = [];
-          }
-        });
-
+        // Normalize tags/fields if needed in the future
         guidesState.guides = guides;
         guidesState.loaded = true;
 
-        if (!guides.length && guidesEmptyState) {
-          guidesEmptyState.classList.remove("hidden");
+        if (!guides.length) {
+          guidesEmptyState?.classList.remove("hidden");
+          return;
         }
 
-        if (guides.length) {
-          buildGuideFiltersFromGuides(guides);
-          renderGuidesGrid();
-        }
+        buildGuideFiltersFromGuides(guides);
+        renderGuidesGrid();
       } catch (err) {
         console.error("Error loading guides:", err);
         if (guidesEmptyState) {
@@ -1812,50 +1830,6 @@ body.chat-screen #screen-chat {
       }
     }
 
-
-
-    function openGuideModal(card) {
-      if (!guideModal || !card) return;
-
-      const title = card.getAttribute("data-guide-title") || "";
-      const body = card.getAttribute("data-guide-body") || "";
-      const img = card.getAttribute("data-guide-image");
-
-      if (guideModalTitle) guideModalTitle.textContent = title;
-      if (guideModalBody) guideModalBody.textContent = body;
-      if (guideModalImage && img) guideModalImage.src = img;
-
-      guideModal.classList.remove("hidden");
-      guideModal.classList.add("flex");
-    }
-
-    function closeGuideModal() {
-      if (!guideModal) return;
-      guideModal.classList.add("hidden");
-      guideModal.classList.remove("flex");
-    }
-
-    // Attach click listeners to guide cards
-    guideCards.forEach((card) => {
-      card.addEventListener("click", () => openGuideModal(card));
-    });
-
-    // Close actions
-    if (guideModalClose) {
-      guideModalClose.addEventListener("click", (e) => {
-        e.stopPropagation();
-        closeGuideModal();
-      });
-    }
-
-    if (guideModal) {
-      guideModal.addEventListener("click", (e) => {
-        // click on backdrop closes; clicks inside the panel do not
-        if (e.target === guideModal) {
-          closeGuideModal();
-        }
-      });
-    }
 
     // Guide filters (chips)
     function applyGuideFilter(filter) {
