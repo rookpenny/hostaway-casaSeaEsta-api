@@ -732,6 +732,8 @@ body.chat-screen #screen-chat {
 
 /* === Beats-style upgrades carousel === */
 
+/* === Beats-style upgrades carousel === */
+
 .upgrades-carousel {
   -webkit-overflow-scrolling: touch;
   scrollbar-width: none;
@@ -745,79 +747,31 @@ body.chat-screen #screen-chat {
   padding-right: 80px;
 }
 
-/* Each slide: rounded + clipping so back images have rounded corners too */
 .upgrade-slide {
   position: relative;
   flex: 0 0 auto;
   margin-right: -120px;  /* overlap */
   transform-origin: center center;
-  will-change: transform;
+  will-change: transform, opacity;
   cursor: pointer;
-  border-radius: 32px;   /* 🔑 same radius as card */
-  overflow: hidden;      /* 🔑 clip the image on all slides */
   transition:
     transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 250ms ease;
+    opacity 250ms ease,
+    box-shadow 300ms ease;
 }
 
-/* Inner card: default, no shadow */
+/* card shape is always rounded + clipped */
 .upgrade-card-inner {
-  width: 280px;
-  height: 360px;
-  background: #ffffff;
+  transform-origin: center center;
   border-radius: 32px;
   overflow: hidden;
-  border: 1px solid rgba(17, 24, 39, 0.10);
-  box-shadow: none; /* inactive cards have no shadow */
-  transform-origin: center center;
-  transition:
-    box-shadow 300ms ease,
-    transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 250ms ease;
+  box-shadow: none; /* no shadow by default */
 }
 
-/* Make sure the image itself is clipped nicely */
-.upgrade-slide img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Active (centered) card gets Stay Overview shadow */
+/* only the active (center) slide gets the Stay Overview shadow */
 .upgrade-slide.is-active .upgrade-card-inner {
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35); /* same as shadow-[0_10px_20px_rgba(0,0,0,0.35)] */
-  transform: scale(1);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35);
 }
-
-    /* Inactive cards sit behind the active one */
-.upgrade-slide.is-inactive {
-  transform: translateY(40px) scale(0.8); /* LOWER + SMALLER -->
-                                              makes them visually sit behind */
-/*  opacity: 0.45;                             fade them back more */
-  z-index: 5;                                /* always behind the active card */
-}
-
-/* Active card sits on top */
-.upgrade-slide.is-active {
-  z-index: 30;                /* on top */
-  transform: translateY(0) scale(1); 
-}
-
-
-.upgrade-slide.is-inactive .upgrade-card-inner {
-  /* REMOVE translate + scale here */
-  box-shadow: none;
-}
-
-.upgrade-slide.is-inactive:nth-child(odd) .upgrade-card-inner {
-  transform: translateX(-35px);
-}
-
-.upgrade-slide.is-inactive:nth-child(even) .upgrade-card-inner {
-  transform: translateX(35px);
-}
-
 
 
   </style>
@@ -2121,52 +2075,63 @@ body.chat-screen #screen-chat {
       activeButtonWrap?.classList.remove("hidden");
     }
 
-    function updateUpgradeSlides() {
-      if (!upgradesCarousel || !upgradeSlides.length) return;
+   function updateUpgradeSlides() {
+  if (!upgradesCarousel || !upgradeSlides.length) return;
 
-      const containerRect = upgradesCarousel.getBoundingClientRect();
-      const centerX = containerRect.left + containerRect.width / 2;
+  const containerRect = upgradesCarousel.getBoundingClientRect();
+  const centerX = containerRect.left + containerRect.width / 2;
 
-      let bestIndex = 0;
-      let smallestDistance = Infinity;
+  let activeIndex = 0;
+  let smallestDistance = Infinity;
 
-      upgradeSlides.forEach((slide, index) => {
-        const rect = slide.getBoundingClientRect();
-        const slideCenter = rect.left + rect.width / 2;
+  upgradeSlides.forEach((slide, index) => {
+    const rect = slide.getBoundingClientRect();
+    const slideCenter = rect.left + rect.width / 2;
+    const distance = slideCenter - centerX; // < 0 = left, > 0 = right
 
-        const distance = slideCenter - centerX;
-        const normalized = distance / rect.width;
-
-        const absDist = Math.abs(distance);
-        if (absDist < smallestDistance) {
-          smallestDistance = absDist;
-          bestIndex = index;
-        }
-
-        const maxShift = 80;
-        const translateX = -normalized * maxShift;
-
-        const scaleBase = 0.82;
-        const scale = 1 - Math.min(Math.abs(normalized), 1) * (1 - scaleBase);
-
-        const maxTilt = 14;
-        const rotateY = -normalized * maxTilt;
-
-        slide.style.transform =
-          `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
-        slide.style.zIndex = String(100 - Math.round(Math.abs(normalized) * 20));
-      });
-
-      // set active / inactive flags
-      upgradeSlides.forEach((slide, idx) => {
-        const isActive = idx === bestIndex;
-        slide.classList.toggle("is-active", isActive);
-        slide.classList.toggle("is-inactive", !isActive);
-      });
-
-      // update copy + button for the one active card
-      updateActiveUpgradeInfo(bestIndex);
+    const absDist = Math.abs(distance);
+    if (absDist < smallestDistance) {
+      smallestDistance = absDist;
+      activeIndex = index;
     }
+
+    let transform;
+    let opacity;
+    let zIndex;
+
+    // treat anything close to the center as the main card
+    if (absDist < rect.width * 0.3) {
+      // center / active card
+      transform = "translateX(0) translateY(0) scale(1)";
+      opacity = 1;
+      zIndex = 30;
+    } else if (distance < 0) {
+      // LEFT behind card
+      transform = "translateX(-40px) translateY(14px) scale(0.9)";
+      opacity = 0.75;
+      zIndex = 20;
+    } else {
+      // RIGHT behind card
+      transform = "translateX(40px) translateY(14px) scale(0.9)";
+      opacity = 0.75;
+      zIndex = 20;
+    }
+
+    slide.style.transform = transform;
+    slide.style.opacity = opacity;
+    slide.style.zIndex = zIndex;
+  });
+
+  // flag active vs inactive for shadow + copy
+  upgradeSlides.forEach((slide, idx) => {
+    const isActive = idx === activeIndex;
+    slide.classList.toggle("is-active", isActive);
+    slide.classList.toggle("is-inactive", !isActive);
+  });
+
+  updateActiveUpgradeInfo(activeIndex);
+}
+
 
     if (upgradesCarousel && upgradeSlides.length) {
       upgradesCarousel.addEventListener("scroll", updateUpgradeSlides);
