@@ -2043,6 +2043,7 @@ body.chat-screen #screen-chat {
  // === Beats-style upgrades carousel behaviour ===
 const upgradesCarousel = document.getElementById("upgrades-carousel");
 const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
+const upgradesTrack = document.querySelector(".upgrades-track");
 
 const activeTitleEl = document.getElementById("upgrade-active-title");
 const activeDescEl = document.getElementById("upgrade-active-description");
@@ -2067,11 +2068,16 @@ function snapToSlide(index) {
   const targetScroll =
     slide.offsetLeft - (containerRect.width - rect.width) / 2;
 
+  const maxScroll =
+    upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
+  const safeTarget = Math.min(Math.max(targetScroll, 0), maxScroll);
+
   upgradesCarousel.scrollTo({
-    left: Math.max(targetScroll, 0),
+    left: safeTarget,
     behavior: "smooth",
   });
 }
+
 
 function updateActiveUpgradeInfo(index) {
   if (
@@ -2201,22 +2207,36 @@ if (upgradesCarousel && upgradeSlides.length) {
     });
   });
 
-  // Initial layout: center the FIRST slide, then compute active states
-  const firstSlide = upgradeSlides[0];
+ // Initial layout: center the FIRST slide, then compute active states
+const firstSlide = upgradeSlides[0];
 
-  setTimeout(() => {
-    if (!firstSlide || !upgradesCarousel) return;
+setTimeout(() => {
+  if (!firstSlide || !upgradesCarousel) return;
 
-    const rect = firstSlide.getBoundingClientRect();
-    const containerRect = upgradesCarousel.getBoundingClientRect();
-    const targetScroll =
-      firstSlide.offsetLeft - (containerRect.width - rect.width) / 2;
+  const rect = firstSlide.getBoundingClientRect();
+  const containerRect = upgradesCarousel.getBoundingClientRect();
+  const targetScroll =
+    firstSlide.offsetLeft - (containerRect.width - rect.width) / 2;
 
-    upgradesCarousel.scrollLeft = Math.max(targetScroll, 0);
+  upgradesCarousel.scrollLeft = Math.max(targetScroll, 0);
 
-    updateUpgradeSlides();
-  }, 80);
-}
+  // 🔹 ensure there’s enough right padding for the LAST slide to center
+  const lastSlide = upgradeSlides[upgradeSlides.length - 1];
+  if (upgradesTrack && lastSlide) {
+    const lastRect = lastSlide.getBoundingClientRect();
+    const neededPaddingRight =
+      (containerRect.width - lastRect.width) / 2;
+
+    const currentPaddingRight =
+      parseFloat(getComputedStyle(upgradesTrack).paddingRight) || 0;
+
+    upgradesTrack.style.paddingRight =
+      `${currentPaddingRight + neededPaddingRight}px`;
+  }
+
+  updateUpgradeSlides();
+}, 80);
+
 
 
       // CTA button: purchase the currently active upgrade directly
