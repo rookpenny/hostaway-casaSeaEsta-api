@@ -30,6 +30,38 @@ class Reservation(Base):
     property = relationship("Property", back_populates="reservations")
 
 
+
+class Guide(Base):
+    __tablename__ = "guides"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # which property this guide belongs to
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False, index=True)
+
+    # content + metadata
+    title = Column(String, nullable=False)
+    short_description = Column(String, nullable=True)
+    long_description = Column(Text, nullable=True)
+    body_html = Column(Text, nullable=True)  # optional: rich HTML body
+
+    category = Column(String, nullable=True)  # e.g. "Food & Drink", "Family", "Outdoors"
+    image_url = Column(String, nullable=True)
+
+    is_active = Column(Boolean, default=True)
+    sort_order = Column(Integer, default=0)
+
+    created_at = Column(DateTime, default=datetime.utcnow)
+    updated_at = Column(
+        DateTime,
+        default=datetime.utcnow,
+        onupdate=datetime.utcnow
+    )
+
+    # relationship back to Property
+    property = relationship("Property", backref="guides")
+
+
 class PMC(Base):
     __tablename__ = "pmc"
 
