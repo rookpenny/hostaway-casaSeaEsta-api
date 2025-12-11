@@ -2230,8 +2230,7 @@ setTimeout(() => {
     const currentPaddingRight =
       parseFloat(getComputedStyle(upgradesTrack).paddingRight) || 0;
 
-    upgradesTrack.style.paddingRight =
-      `${currentPaddingRight + neededPaddingRight}px`;
+    upgradesTrack.style.paddingRight = `${requiredPaddingRight}px`;
   }
 
   updateUpgradeSlides();
