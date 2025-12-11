@@ -792,9 +792,9 @@ body.chat-screen #screen-chat {
 
     /* Inactive cards sit behind the active one */
 .upgrade-slide.is-inactive {
-  transform: translateY(40px) scale(0.6); /* LOWER + SMALLER -->
+  transform: translateY(40px) scale(0.8); /* LOWER + SMALLER -->
                                               makes them visually sit behind */
-  opacity: 0.45;                            /* fade them back more */
+/*  opacity: 0.45;                             fade them back more */
   z-index: 5;                                /* always behind the active card */
 }
 
@@ -810,7 +810,13 @@ body.chat-screen #screen-chat {
   box-shadow: none;
 }
 
+.upgrade-slide.is-inactive:nth-child(odd) .upgrade-card-inner {
+  transform: translateX(-35px);
+}
 
+.upgrade-slide.is-inactive:nth-child(even) .upgrade-card-inner {
+  transform: translateX(35px);
+}
 
 
 
