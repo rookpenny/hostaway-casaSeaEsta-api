@@ -1212,7 +1212,7 @@ body.chat-screen #screen-chat {
             data-upgrade-id="{{ up.id }}"
             data-upgrade-title="{{ up.title }}"
             data-upgrade-price="{{ up.price_display or '' }}"
-            data-upgrade-body="{{ body|e('html_attr') }}"
+            data-upgrade-body="{{ body|escape('html_attr') }}"
           >
             <img
               src="{{ img }}"
