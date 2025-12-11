@@ -786,14 +786,13 @@ body.chat-screen #screen-chat {
 
 /* Active (centered) card gets Stay Overview shadow */
 .upgrade-slide.is-active .upgrade-card-inner {
-  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35); /* same as shadow-[0_10px_20px_rgba(0,0,0,0.35)] */
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.35); 
   transform: scale(1);
 }
 
 /* Inactive cards sit back visually */
 .upgrade-slide.is-inactive .upgrade-card-inner {
   box-shadow: none;
-  /* opacity: 0.8; */
   transform: scale(0.7) translateY(4px);
 }
 
@@ -1551,8 +1550,8 @@ body.chat-screen #screen-chat {
     const homeLogin = document.getElementById("home-login");
     const homeStay = document.getElementById("home-stay");
     const headerEl = document.getElementById("app-header");
-    const upgradeModal = document.getElementById("upgrade-modal");
-    const upgradeModalClose = document.getElementById("upgrade-modal-close");
+    /*const upgradeModal = document.getElementById("upgrade-modal");
+    const upgradeModalClose = document.getElementById("upgrade-modal-close");*/
 
         // --- Guides / experiences (local tips) ---
     const guideModal = document.getElementById("guide-modal");
@@ -1855,29 +1854,7 @@ body.chat-screen #screen-chat {
     applyGuideFilter("all");
 
 
-    // OPEN modal (when an upgrade is clicked)
-    function openUpgradeModal() {
-      upgradeModal.classList.remove("hidden");
-      upgradeModal.classList.add("flex");
-    }
-
-    // CLOSE modal
-    function closeUpgradeModal() {
-      upgradeModal.classList.add("hidden");
-      upgradeModal.classList.remove("flex");
-    }
-
-    // X BUTTON closes modal
-    if (upgradeModalClose) {
-      upgradeModalClose.addEventListener("click", closeUpgradeModal);
-    }
-
-    // Clicking outside closes modal
-    if (upgradeModal) {
-      upgradeModal.addEventListener("click", (e) => {
-        if (e.target === upgradeModal) closeUpgradeModal();
-      });
-    }
+   
 
     // --- Global state ---
     let isUnlocked = window.INITIAL_VERIFIED === "true";
