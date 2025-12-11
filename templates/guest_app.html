@@ -1983,7 +1983,14 @@ body.chat-screen #screen-chat {
     }
 
     // --- Upgrade cards → detail screen + purchase ---
-    
+    const upgradeDetailTitle = document.getElementById("upgrade-detail-title");
+    const upgradeDetailBody = document.getElementById("upgrade-detail-body");
+    const upgradeDetailName = document.getElementById("upgrade-detail-name");
+    const upgradeDetailPrice = document.getElementById("upgrade-detail-price");
+    const upgradeDetailPriceBottom = document.getElementById("upgrade-detail-price-bottom");
+    const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
+
+
     let currentUpgradeId = null;
 
     if (upgradeDetailPurchase) {
