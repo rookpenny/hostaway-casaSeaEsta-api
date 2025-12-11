@@ -40,6 +40,7 @@ from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 
 from apscheduler.schedulers.background import BackgroundScheduler
+from typing import List
 
 from openai import OpenAI
 
