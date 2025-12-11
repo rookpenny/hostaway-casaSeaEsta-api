@@ -2040,49 +2040,68 @@ body.chat-screen #screen-chat {
     }
 
 
-    // === Beats-style upgrades carousel behaviour ===
-    const upgradesCarousel = document.getElementById("upgrades-carousel");
-    const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
+ // === Beats-style upgrades carousel behaviour ===
+const upgradesCarousel = document.getElementById("upgrades-carousel");
+const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
 
-    const activeTitleEl = document.getElementById("upgrade-active-title");
-    const activeDescEl = document.getElementById("upgrade-active-description");
-    const activeButtonWrap = document.getElementById("upgrade-active-cta");
-    const activeInfoWrap = document.getElementById("upgrade-active-info");
-    const activeButton = document.getElementById("upgrade-active-button");
-    const activeButtonLabel = document.getElementById("upgrade-active-button-label");
+const activeTitleEl = document.getElementById("upgrade-active-title");
+const activeDescEl = document.getElementById("upgrade-active-description");
+const activeButtonWrap = document.getElementById("upgrade-active-cta");
+const activeInfoWrap = document.getElementById("upgrade-active-info");
+const activeButton = document.getElementById("upgrade-active-button");
+const activeButtonLabel = document.getElementById("upgrade-active-button-label");
 
-    let activeUpgradeIndex = 0;
-    let activeUpgradeId = null;
+let activeUpgradeIndex = 0;
+let activeUpgradeId = null;
 
-    function updateActiveUpgradeInfo(index) {
-      if (
-        !upgradeSlides.length ||
-        !activeTitleEl ||
-        !activeDescEl ||
-        !activeButton ||
-        !activeButtonLabel
-      ) return;
+// keep track of the last “best” slide & a debounce timer
+let lastComputedActiveIndex = 0;
+let scrollSnapTimeout = null;
 
-      const slide = upgradeSlides[index];
-      if (!slide) return;
+function snapToSlide(index) {
+  const slide = upgradeSlides[index];
+  if (!slide || !upgradesCarousel) return;
 
-      activeUpgradeIndex = index;
-      activeUpgradeId = slide.getAttribute("data-upgrade-id") || null;
+  const rect = slide.getBoundingClientRect();
+  const containerRect = upgradesCarousel.getBoundingClientRect();
+  const targetScroll =
+    slide.offsetLeft - (containerRect.width - rect.width) / 2;
 
-      const title = slide.getAttribute("data-upgrade-title") || "";
-      const price = slide.getAttribute("data-upgrade-price") || "";
-      const longEl = slide.querySelector(".upgrade-long");
-      const body = longEl ? longEl.textContent.trim() : "";
+  upgradesCarousel.scrollTo({
+    left: Math.max(targetScroll, 0),
+    behavior: "smooth",
+  });
+}
 
-      activeTitleEl.textContent = title;
-      activeDescEl.textContent = body || "";
-      activeButtonLabel.textContent = price ? `${price} – Purchase` : "Purchase";
+function updateActiveUpgradeInfo(index) {
+  if (
+    !upgradeSlides.length ||
+    !activeTitleEl ||
+    !activeDescEl ||
+    !activeButton ||
+    !activeButtonLabel
+  ) return;
 
-      activeInfoWrap?.classList.remove("hidden");
-      activeButtonWrap?.classList.remove("hidden");
-    }
+  const slide = upgradeSlides[index];
+  if (!slide) return;
 
- function updateUpgradeSlides() {
+  activeUpgradeIndex = index;
+  activeUpgradeId = slide.getAttribute("data-upgrade-id") || null;
+
+  const title = slide.getAttribute("data-upgrade-title") || "";
+  const price = slide.getAttribute("data-upgrade-price") || "";
+  const longEl = slide.querySelector(".upgrade-long");
+  const body = longEl ? longEl.textContent.trim() : "";
+
+  activeTitleEl.textContent = title;
+  activeDescEl.textContent = body || "";
+  activeButtonLabel.textContent = price ? `${price} – Purchase` : "Purchase";
+
+  activeInfoWrap?.classList.remove("hidden");
+  activeButtonWrap?.classList.remove("hidden");
+}
+
+function updateUpgradeSlides() {
   if (!upgradesCarousel || !upgradeSlides.length) return;
 
   const containerRect = upgradesCarousel.getBoundingClientRect();
@@ -2135,30 +2154,54 @@ body.chat-screen #screen-chat {
     slide.style.zIndex = String(100 - indexDistance);
   });
 
+  // update copy + button for the one active card
   updateActiveUpgradeInfo(bestIndex);
+
+  // remember which slide is best so we can snap to it
+  lastComputedActiveIndex = bestIndex;
 }
 
+if (upgradesCarousel && upgradeSlides.length) {
+  // Scroll handler: update transforms + schedule a snap
+  upgradesCarousel.addEventListener("scroll", () => {
+    updateUpgradeSlides();
 
-    if (upgradesCarousel && upgradeSlides.length) {
-  upgradesCarousel.addEventListener("scroll", updateUpgradeSlides);
+    if (scrollSnapTimeout) clearTimeout(scrollSnapTimeout);
+
+    scrollSnapTimeout = setTimeout(() => {
+      if (!upgradesCarousel) return;
+
+      const maxScroll =
+        upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
+      const current = upgradesCarousel.scrollLeft;
+      const edgeThreshold = 40; // px
+
+      let indexToSnap = lastComputedActiveIndex;
+
+      // If we’re near the right edge → force last card to center
+      if (maxScroll - current <= edgeThreshold) {
+        indexToSnap = upgradeSlides.length - 1;
+      }
+      // optional: if we’re near left edge → force first card to center
+      else if (current <= edgeThreshold) {
+        indexToSnap = 0;
+      }
+
+      snapToSlide(indexToSnap);
+    }, 120); // wait for user to stop scrolling
+  });
+
+  // Recalculate transforms on resize
   window.addEventListener("resize", updateUpgradeSlides);
 
-  // click a card → scroll it into center
-  upgradeSlides.forEach((slide) => {
+  // Click a card → snap it into center
+  upgradeSlides.forEach((slide, index) => {
     slide.addEventListener("click", () => {
-      const rect = slide.getBoundingClientRect();
-      const containerRect = upgradesCarousel.getBoundingClientRect();
-      const targetScroll =
-        slide.offsetLeft - (containerRect.width - rect.width) / 2;
-
-      upgradesCarousel.scrollTo({
-        left: targetScroll,
-        behavior: "smooth",
-      });
+      snapToSlide(index);
     });
   });
 
-  // 🔹 initial layout: center the FIRST slide, then compute active states
+  // Initial layout: center the FIRST slide, then compute active states
   const firstSlide = upgradeSlides[0];
 
   setTimeout(() => {
@@ -2169,13 +2212,12 @@ body.chat-screen #screen-chat {
     const targetScroll =
       firstSlide.offsetLeft - (containerRect.width - rect.width) / 2;
 
-    // put first card in the middle
     upgradesCarousel.scrollLeft = Math.max(targetScroll, 0);
 
-    // now that it's centered, mark it as active / apply transforms
     updateUpgradeSlides();
   }, 80);
 }
+
 
       // CTA button: purchase the currently active upgrade directly
       if (activeButton) {
