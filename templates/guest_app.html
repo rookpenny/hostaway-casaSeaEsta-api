@@ -924,7 +924,7 @@ body.chat-screen #screen-chat {
         <button
           type="button"
           data-menu-screen="home"
-          class="w-full text-center hover:text-white transition-colors"
+          class="w-full hover:text-[#CCCCCC] transition-colors"
         >
           Stay overview
         </button>
@@ -933,7 +933,7 @@ body.chat-screen #screen-chat {
         <button
           type="button"
           data-menu-screen="chat"
-          class="w-full text-left hover:text-white transition-colors"
+          class="w-full  hover:text-[#CCCCCC] transition-colors"
         >
           Chat with Sandy
         </button>
@@ -942,7 +942,7 @@ body.chat-screen #screen-chat {
         <button
           type="button"
           data-menu-screen="experiences"
-          class="w-full text-left hover:text-white transition-colors"
+          class="w-full hover:text-[#CCCCCC] transition-colors"
         >
           Guides
         </button>
@@ -951,7 +951,7 @@ body.chat-screen #screen-chat {
         <button
           type="button"
           data-menu-screen="upgrades"
-          class="w-full text-left hover:text-white transition-colors"
+          class="w-full hover:text-[#CCCCCC] transition-colors"
         >
           Upgrades
         </button>
@@ -2077,8 +2077,8 @@ body.chat-screen #screen-chat {
 
 // === Beats-style upgrades carousel behaviour ===
 const upgradesCarousel = document.getElementById("upgrades-carousel");
-const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
-const upgradesTrack = document.querySelector(".upgrades-track");
+const upgradeSlides   = Array.from(document.querySelectorAll(".upgrade-slide"));
+const upgradesTrack   = document.querySelector(".upgrades-track");
 
 const activeTitleEl     = document.getElementById("upgrade-active-title");
 const activeDescEl      = document.getElementById("upgrade-active-description");
@@ -2088,11 +2088,11 @@ const activeButton      = document.getElementById("upgrade-active-button");
 const activeButtonLabel = document.getElementById("upgrade-active-button-label");
 
 let activeUpgradeIndex = 0;
-let activeUpgradeId = null;
+let activeUpgradeId    = null;
 
 // keep track of the last “best” slide & a debounce timer
 let lastComputedActiveIndex = 0;
-let scrollSnapTimeout = null;
+let scrollSnapTimeout       = null;
 
 // Scroll so the slide's CENTER lines up with the container CENTER
 function snapToSlide(index) {
@@ -2128,15 +2128,15 @@ function updateActiveUpgradeInfo(index) {
   if (!slide) return;
 
   activeUpgradeIndex = index;
-  activeUpgradeId = slide.getAttribute("data-upgrade-id") || null;
+  activeUpgradeId    = slide.getAttribute("data-upgrade-id") || null;
 
-  const title  = slide.getAttribute("data-upgrade-title") || "";
-  const price  = slide.getAttribute("data-upgrade-price") || "";
+  const title  = slide.getAttribute("data-upgrade-title")  || "";
+  const price  = slide.getAttribute("data-upgrade-price")  || "";
   const longEl = slide.querySelector(".upgrade-long");
   const body   = longEl ? longEl.textContent.trim() : "";
 
-  activeTitleEl.textContent = title;
-  activeDescEl.textContent = body || "";
+  activeTitleEl.textContent     = title;
+  activeDescEl.textContent      = body || "";
   activeButtonLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 
   activeInfoWrap?.classList.remove("hidden");
@@ -2147,32 +2147,32 @@ function updateUpgradeSlides() {
   if (!upgradesCarousel || !upgradeSlides.length) return;
 
   const containerRect = upgradesCarousel.getBoundingClientRect();
-  const centerX = containerRect.left + containerRect.width / 2;
+  const centerX       = containerRect.left + containerRect.width / 2;
 
-  let bestIndex = 0;
+  let bestIndex        = 0;
   let smallestDistance = Infinity;
 
   // 1) find the index of the center slide
   upgradeSlides.forEach((slide, index) => {
-    const rect = slide.getBoundingClientRect();
+    const rect        = slide.getBoundingClientRect();
     const slideCenter = rect.left + rect.width / 2;
-    const distance = slideCenter - centerX;
-    const absDist = Math.abs(distance);
+    const distance    = slideCenter - centerX;
+    const absDist     = Math.abs(distance);
 
     if (absDist < smallestDistance) {
       smallestDistance = absDist;
-      bestIndex = index;
+      bestIndex        = index;
     }
   });
 
   // 2) apply transforms + scale
   upgradeSlides.forEach((slide, index) => {
-    const rect = slide.getBoundingClientRect();
+    const rect        = slide.getBoundingClientRect();
     const slideCenter = rect.left + rect.width / 2;
-    const distance = slideCenter - centerX;
-    const normalized = distance / rect.width;
+    const distance    = slideCenter - centerX;
+    const normalized  = distance / rect.width;
 
-    const maxShift = 80;
+    const maxShift   = 80;
     const translateX = -normalized * maxShift;
 
     const maxTilt = 14;
@@ -2189,7 +2189,7 @@ function updateUpgradeSlides() {
       } else {
         // neighbors stay smaller (tweak factor 0.3 if you want)
         const t = Math.min(Math.abs(normalized), 1); // 0 near center, 1 far
-        scale = scaleBase + (1 - scaleBase) * (0.3 * (1 - t));
+        scale   = scaleBase + (1 - scaleBase) * (0.3 * (1 - t));
         // if you want them all the SAME small size: scale = scaleBase;
       }
 
@@ -2202,11 +2202,48 @@ function updateUpgradeSlides() {
     slide.classList.toggle("is-inactive", !isActive);
 
     const indexDistance = Math.abs(index - bestIndex);
-    slide.style.zIndex = String(100 - indexDistance);
+    slide.style.zIndex  = String(100 - indexDistance);
   });
 
   updateActiveUpgradeInfo(bestIndex);
   lastComputedActiveIndex = bestIndex;
+}
+
+// 🔹 NEW: one place that sets padding for the last slide AND
+// perfectly centers the first slide once everything has loaded
+function centerFirstSlide() {
+  if (!upgradesCarousel || !upgradeSlides.length) return;
+
+  const firstSlide     = upgradeSlides[0];
+  const containerWidth = upgradesCarousel.clientWidth;
+  const slideWidth     = firstSlide.offsetWidth;
+
+  // Ensure last slide can also center → add right padding
+  const lastSlide = upgradeSlides[upgradeSlides.length - 1];
+  if (upgradesTrack && lastSlide) {
+    const lastWidth          = lastSlide.offsetWidth;
+    const neededPaddingRight = (containerWidth - lastWidth) / 2;
+    const currentPaddingRight =
+      parseFloat(getComputedStyle(upgradesTrack).paddingRight) || 0;
+
+    upgradesTrack.style.paddingRight =
+      `${currentPaddingRight + neededPaddingRight}px`;
+  }
+
+  // Center the very first slide
+  const targetScroll =
+    firstSlide.offsetLeft - (containerWidth - slideWidth) / 2;
+
+  const maxScroll =
+    upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
+  const safeTarget = Math.min(Math.max(targetScroll, 0), maxScroll);
+
+  upgradesCarousel.scrollLeft = safeTarget;
+
+  // Once scroll is applied, compute transforms based on final positions
+  requestAnimationFrame(() => {
+    updateUpgradeSlides();
+  });
 }
 
 if (upgradesCarousel && upgradeSlides.length) {
@@ -2224,7 +2261,7 @@ if (upgradesCarousel && upgradeSlides.length) {
 
       const maxScroll =
         upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
-      const current = upgradesCarousel.scrollLeft;
+      const current       = upgradesCarousel.scrollLeft;
       const edgeThreshold = 40; // px
 
       let indexToSnap = lastComputedActiveIndex;
@@ -2252,32 +2289,12 @@ if (upgradesCarousel && upgradeSlides.length) {
     });
   });
 
-  // Initial layout: make sure FIRST slide is centered,
-  // and add enough right padding so LAST slide can also center.
-  const firstSlide = upgradeSlides[0];
-
-  setTimeout(() => {
-    if (!firstSlide || !upgradesCarousel) return;
-
-    // extra padding on the right so the last slide can align perfectly center
-    const lastSlide = upgradeSlides[upgradeSlides.length - 1];
-    if (upgradesTrack && lastSlide) {
-      const containerWidth = upgradesCarousel.clientWidth;
-      const lastWidth = lastSlide.offsetWidth;
-      const neededPaddingRight = (containerWidth - lastWidth) / 2;
-
-      const currentPaddingRight =
-        parseFloat(getComputedStyle(upgradesTrack).paddingRight) || 0;
-
-      upgradesTrack.style.paddingRight =
-        `${currentPaddingRight + neededPaddingRight}px`;
-    }
-
-    // now center the first slide and compute transforms
-    snapToSlide(0);
-    setTimeout(updateUpgradeSlides, 40);
-  }, 80);
+  // 🔹 Perfect initial centering once the whole page (images/fonts) is ready
+  window.addEventListener("load", () => {
+    setTimeout(centerFirstSlide, 50);
+  });
 }
+
 
 
       // CTA button: purchase the currently active upgrade directly
