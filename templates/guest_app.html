@@ -2139,10 +2139,10 @@ function updateUpgradeSlides() {
     const maxShift = 80;
     const translateX = -normalized * maxShift;
 
-    const scaleBase = 0.82;
+    const scaleBase = 0.70;
     const scale = 1 - Math.min(Math.abs(normalized), 1) * (1 - scaleBase);
 
-    const maxTilt = 14;
+    const maxTilt = 10;
     const rotateY = -normalized * maxTilt;
 
     const cardInner = slide.querySelector(".upgrade-card-inner");
