@@ -1722,53 +1722,62 @@ function createGuideCard(guide, index) {
 
 
 
-    function openGuideModalFromGuide(guide) {
-      if (!guideModal) return;
+  function openGuideModalFromGuide(guide) {
+  if (!guideModal) return;
 
-      if (guideModalTitle) {
-        guideModalTitle.textContent = guide.title || "Guide";
-      }
+  // ✅ If the mobile menu is open, close it first
+  try {
+    if (typeof closeMenu === "function") closeMenu();
+  } catch (e) {}
 
-      // Prefer HTML body if available
-      if (guide.body_html) {
-        guideModalBody.innerHTML = guide.body_html;
-        guideModalBody.classList.remove("whitespace-pre-line");
-      } else if (guide.long_description) {
-        guideModalBody.textContent = guide.long_description;
-        guideModalBody.classList.add("whitespace-pre-line");
-      } else if (guide.short_description) {
-        guideModalBody.textContent = guide.short_description;
-        guideModalBody.classList.add("whitespace-pre-line");
-      } else {
-        guideModalBody.textContent = "";
-        guideModalBody.classList.add("whitespace-pre-line");
-      }
+  // ✅ Populate content
+  if (guideModalTitle) {
+    guideModalTitle.textContent = guide.title || "Guide";
+  }
 
-      guideModal.classList.remove("hidden");
-      guideModal.classList.add("flex");
-      document.body.classList.add("overflow-hidden");
-      document.body.classList.add("guide-open"); // ✅ add this
+  if (guide.body_html) {
+    guideModalBody.innerHTML = guide.body_html;
+    guideModalBody.classList.remove("whitespace-pre-line");
+  } else if (guide.long_description) {
+    guideModalBody.textContent = guide.long_description;
+    guideModalBody.classList.add("whitespace-pre-line");
+  } else if (guide.short_description) {
+    guideModalBody.textContent = guide.short_description;
+    guideModalBody.classList.add("whitespace-pre-line");
+  } else {
+    guideModalBody.textContent = "";
+    guideModalBody.classList.add("whitespace-pre-line");
+  }
+
+  // ✅ Show modal
+  guideModal.classList.remove("hidden");
+  guideModal.classList.add("flex");
+
+  // ✅ Lock background + hide header chrome
+  document.body.classList.add("overflow-hidden", "guide-open");
+}
+
+
+ function closeGuideModal() {
+  if (!guideModal) return;
+
+  // ✅ Hide modal
+  guideModal.classList.add("hidden");
+  guideModal.classList.remove("flex");
+
+  // ✅ Restore scroll + header
+  document.body.classList.remove("overflow-hidden", "guide-open");
+
+  // ✅ Restore correct logo state
+  try {
+    if (document.body.classList.contains("chat-screen")) {
+      swapLogoWithFade(LOGO_BLACK);
+    } else {
+      swapLogoWithFade(LOGO_WHITE);
     }
+  } catch (e) {}
+}
 
-    function closeGuideModal() {
-      if (!guideModal) return;
-      guideModal.classList.add("hidden");
-      guideModal.classList.remove("flex");
-      document.body.classList.remove("overflow-hidden");
-    }
-
-    if (guideModalClose) {
-      guideModalClose.addEventListener("click", (e) => {
-        e.stopPropagation();
-        closeGuideModal();
-      });
-    }
-
-    if (guideModal) {
-      guideModal.addEventListener("click", (e) => {
-        if (e.target === guideModal) closeGuideModal();
-      });
-    }
 
     // Build filter chips from guide categories
     function buildGuideFiltersFromGuides(guides) {
@@ -2364,7 +2373,16 @@ if (upgradesCarousel && upgradeSlides.length) {
     const menuToggle = document.getElementById("menu-toggle");
     const logoImg = document.getElementById("logo-img");   // 👈 new single logo
     const menuLinks = document.querySelectorAll("[data-menu-screen]");
+    const topBarChrome = document.getElementById("top-bar-chrome");
     let isMenuOpen = false;
+
+    function hideHeaderChrome() {
+      topBarChrome?.classList.add("hidden");
+    }
+    
+    function showHeaderChrome() {
+      topBarChrome?.classList.remove("hidden");
+    }
 
     // match Tailwind duration-400 on the panel
     const MOBILE_MENU_SLIDE_DURATION = 400;  // ms
