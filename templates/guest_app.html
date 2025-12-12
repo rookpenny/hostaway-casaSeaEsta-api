@@ -88,12 +88,12 @@
       transform: scaleX(0.5);
     }
 
- /* When menu is open → switch to white (on black menu) */
+ /* When menu is open → switch to white (on black menu) 
 #menu-toggle.menu-toggle-open::before,
 #menu-toggle.menu-toggle-open::after,
 #menu-toggle.menu-toggle-open .menu-toggle-middle {
   background: #FFFFFF !important; /* white */
-}
+}*/
 
 
 
@@ -813,13 +813,19 @@ body.chat-screen #screen-chat {
   box-shadow: 0 2px 8px rgba(0,0,0,0.15);
 }
 
+    body.guide-open #menu-toggle,
+body.modal-open #menu-toggle {
+  display: none !important;
+}
+
 #menu-toggle.menu-toggle-open::before,
 #menu-toggle.menu-toggle-open::after {
   background: black !important; /* black X on white circle */
 }
 
 #menu-toggle.menu-toggle-open .menu-toggle-middle {
-  background: black !important;
+ /* background: black !important;*/
+  opacity: 0;
 }
 
 .mobile-menu-content {
