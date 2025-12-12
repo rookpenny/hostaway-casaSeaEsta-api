@@ -62,13 +62,16 @@ app.include_router(seed_guides_router)
 # Middleware
 
 ALLOWED_ORIGINS = [
-    "https://hostaway-casaseaesta-api.onrender.com/",
+    "https://hostaway-casaseaesta-api.onrender.com",
 ]
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET") or "fallbacksecret"
+    secret_key=os.getenv("SESSION_SECRET") or "fallbacksecret",
+    same_site="none",
+    https_only=True,
 )
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=ALLOWED_ORIGINS,
