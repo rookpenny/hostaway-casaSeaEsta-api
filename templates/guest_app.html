@@ -1494,11 +1494,17 @@ body.modal-open #mobile-menu {
     <button
       id="wifi-close"
       type="button"
-      class="w-12 h-12 rounded-full flex items-center justify-center text-[32px] text-white leading-none z-[510]"
+      class="absolute top-4 right-5
+             w-12 h-12
+             rounded-full
+             bg-black text-white
+             flex items-center justify-center
+             text-[32px] leading-none
+             z-[510]"
         aria-label="Close">
-      ×
+      <span class="relative -top-[2px]">×</span>
     </button>
-  </div>
+ </div>
 
   <!-- Content space-y-4  class="space-y-4" -->
   <div class="text-center max-w-xs mx-auto">
@@ -1545,10 +1551,17 @@ body.modal-open #mobile-menu {
     <div class="absolute top-4 right-4">
       <button id="checkin-close"
         type="button"
-      class="w-12 h-12 rounded-full flex items-center justify-center text-[32px] text-white leading-none z-[510]"
+      class="absolute top-4 right-5
+             w-12 h-12
+             rounded-full
+             bg-black text-white
+             flex items-center justify-center
+             text-[32px] leading-none
+             z-[510]"
         aria-label="Close">
-      ×
+      <span class="relative -top-[2px]">×</span>
       </button>
+      
     </div>
     <div class="text-center space-y-4">
       <p id="checkin-title" class="text-[14px] text-[#CCCCCC] font-semibold uppercase">
