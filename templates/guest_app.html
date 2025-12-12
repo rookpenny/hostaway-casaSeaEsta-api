@@ -1,2064 +1,2066 @@
-<!DOCTYPE html>
-<html lang="en">
-
-<head>
-  <meta charset="UTF-8" />
-  <title>{{ property_name }} – Guest Experience</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-
-  <!-- PWA / icons -->
-  <link rel="manifest" href="/manifest/{{ property_id }}.webmanifest" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-  <meta name="theme-color" content="#020617" />
-  <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
-
-  <!-- Tailwind CDN -->
-  <script src="https://cdn.tailwindcss.com"></script>
-
-  <style>
-    html,
-    body {
-      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-      font-size: 0.95rem;
-      overflow-x: hidden;
-      /* only block horizontal scroll */
-    }
-
-
-    * {
-      box-sizing: border-box;
-    }
-
-    body.menu-open {
-      overflow: hidden;
-    }
-
-
-    /* === Hamburger / X toggle for #menu-toggle === */
-    #menu-toggle {
-      position: relative;
-    }
-
-    /* Top + bottom bars */
-    #menu-toggle::before,
-    #menu-toggle::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      width: 24px;
-      height: 2px;
-      border-radius: 999px;
-      background: #FFFFFF;
-      /* closed: white bars on blue */
-      transform: translateX(-50%);
-      transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
-    }
-
-    /* Top bar (hamburger) */
-    #menu-toggle::before {
-      transform: translate(-50%, -6px);
-    }
-
-    /* Bottom bar (hamburger) */
-    #menu-toggle::after {
-      transform: translate(-50%, 6px);
-    }
-
-    /* Middle bar */
-    #menu-toggle .menu-toggle-middle {
-      width: 24px;
-      height: 2px;
-      border-radius: 999px;
-      background: #FFFFFF !important; /* black */
-      transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
-    }
-
-    /* === OPEN STATE transforms hamburger into "X" === */
-    #menu-toggle.menu-toggle-open::before {
-      transform: translate(-50%, 0) rotate(45deg);
-    }
-
-    #menu-toggle.menu-toggle-open::after {
-      transform: translate(-50%, 0) rotate(-45deg);
-    }
-
-    #menu-toggle.menu-toggle-open .menu-toggle-middle {
-      opacity: 0;
-      transform: scaleX(0.5);
-    }
-
- /* When menu is open → switch to white (on black menu) 
-#menu-toggle.menu-toggle-open::before,
-#menu-toggle.menu-toggle-open::after,
-#menu-toggle.menu-toggle-open .menu-toggle-middle {
-  background: #FFFFFF !important; 
-}*/
-
-
-
-/* 
-    .menu-toggle {
-      position: relative;
-    }*/
-
-    /* Top + bottom bars 
-    .menu-toggle::before,
-    .menu-toggle::after {
-      content: "";
-      position: absolute;
-      left: 50%;
-      width: 24px;
-      height: 2px;
-      background: #ffffff;
-      border-radius: 999px;
-      transform: translateX(-50%);
-      transition: transform 0.3s ease, opacity 0.3s ease;
-    }*/
-
-    /* Top bar (default) 
-    .menu-toggle::before {
-      transform: translate(-50%, -6px);
-    }*/
-
-    /* Bottom bar (default) 
-    .menu-toggle::after {
-      transform: translate(-50%, 6px);
-    }*/
-
-    /* Middle bar 
-    .menu-toggle-middle {
-      width: 24px;
-      height: 2px;
-      background: #ffffff;
-      border-radius: 999px;
-      transition: opacity 0.3s ease, transform 0.3s ease;
-    }*/
-
-    /* === OPEN STATE === */
-    .menu-toggle.menu-toggle-open::before {
-      transform: translate(-50%, 0) rotate(45deg);
-    }
-
-    .menu-toggle.menu-toggle-open::after {
-      transform: translate(-50%, 0) rotate(-45deg);
-    }
-
-    .menu-toggle.menu-toggle-open .menu-toggle-middle {
-      opacity: 0;
-      transform: scaleX(0.5);
-    }
-
-    /* Smooth fade on logo when we swap pngs */
-#logo-img {
-  transition: opacity 180ms ease;
-}
-
-    /* Keep Tailwind layout; only tweak visuals
-nav[role="navigation"] {
-  height: 120px !important; 
-}
- */
-    /* Make the nav buttons visually clean but DO NOT touch layout */
-    nav .nav-item {
-      background: none !important;
-      border: none !important;
-      padding: 0;
-      margin: 0;
-      box-shadow: none !important;
-    }
-
-    /* Icon images */
-    .nav-icon-img {
-      width: 60px;
-      height: 60px;
-      object-fit: contain;
-      opacity: 0.65;
-      transition: opacity 0.25s ease;
-    }
-
-    /* Hover + active: just change opacity, nothing else */
-    nav .nav-item:hover .nav-icon-img,
-    nav .nav-item[aria-current="page"] .nav-icon-img {
-      opacity: 1;
-    }
-
-
-
-    /* REMOVE any unwanted Tailwind classes JS might apply */
-    nav .nav-icon {
-      background: none !important;
-      border: none !important;
-      box-shadow: none !important;
-      transform: none !important;
-      /* stops scale-110 */
-    }
-
-
-    /* OPTIONAL — dim inactive icons (if JS toggles text-slate-400/50) */
-    .nav-item.text-slate-400 .nav-icon-img {
-      opacity: 0.6;
-    }
-
-    .nav-item.text-slate-50 .nav-icon-img {
-      opacity: 1;
-    }
-
-
-
-    /* header labels (Arrival, Check-in, WiFi Network, etc.) */
-    .detail-label {
-      font-size: 0.65rem !important;
-      font-weight: 700 !important;
-      text-transform: uppercase;
-      letter-spacing: 0.05em;
-      color: rgb(148 163 184);
-      /* slate-400 */
-    }
-
-    .detail-label-results {
-      font-size: 1rem !important;
-      font-weight: 600 !important;
-      text-transform: uppercase;
-      /* letter-spacing: 0.05em;*/
-      color: rgb(255 255 255);
-      /* slate-400 */
-    }
-
-    /* Sandy avatar photo */
-    .avatar-sandy {
-      background-image: url("/static/img/sandy.png");
-      background-size: cover;
-      background-position: center;
-      background-color: transparent;
-    }
-
-
-    #chat-box {
-      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-    }
-
-
-    .msg {
-      display: flex;
-      align-items: flex-start;
-      margin-bottom: 0.75rem;
-      animation: fadeInUp 0.35s ease-out;
-      animation-fill-mode: both;
-      scroll-margin-bottom: 7rem;
-    }
-
-
-    .msg.user {
-      justify-content: flex-end;
-    }
-
-    /* Column that wraps bubble + timestamp for user messages */
-    .msg.user>div {
-      max-width: 70%;
-      display: inline-flex;
-      flex-direction: column;
-      align-items: flex-end;
-      /* bubble & timestamp align to right together */
-
-    }
-
-    /* Column that wraps bubble + timestamp for bot messages */
-    .msg.bot>div:last-child {
-      max-width: 70%;
-      display: inline-flex;
-      flex-direction: column;
-      align-items: flex-start;
-    }
-
-
-    .msg.bot {
-      justify-content: flex-start;
-    }
-
-
-
-    .bubble {
-      display: inline-block;
-      /* hug contents */
-      padding: 0.6rem 1rem;
-      border-radius: 1rem;
-      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-      max-width: 100%;
-      /* let parent control width */
-      font-size: 0.95rem;
-      line-height: 1.5;
-      word-wrap: break-word;
-    }
-
-
-    .avatar {
-      width: 44px;
-      height: 44px;
-      border-radius: 999px; /* full circle */
-      overflow: hidden;     /* prevents distortion */
-      /* rounded square
-      margin: 0 0.5rem;
-      background-size: cover;
-      background-position: center;
-      flex-shrink: 0; */
-    }
-
-
-    .msg.bot .avatar {
-      /*background-color: #22c55e;*/
-      color: #022c22;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 0.75rem;
-      font-weight: 600;
-      margin-top: 1.25rem; /* adjust to taste */
-      margin-right: 0.50rem; /* 12px */
-    }
-
-    /* Timestamp above bubble */
-    .timestamp {
-      font-size: 0.65rem;
-      color: #64748b;
-      margin-bottom: 0.25rem;  /* spacing below timestamp */
-      margin-top: 0;           /* remove old spacing */
-    }
-
-
-    /* Bot timestamps align left under the bubble */
-    .msg.bot .timestamp {
-      text-align: left;
-      align-self: flex-start;
-      padding-left: 4px;
-    }
-
-    /* User timestamps align right, directly under user bubble */
-    .msg.user .timestamp {
-      text-align: right;
-      align-self: flex-end;
-      padding-right: 4px;
-    }
-
-
-    .message-text p {
-      margin: 0.5rem 0;
-    }
-
-    .message-text ul {
-      margin: 0.5rem 0;
-      padding-left: 1.2rem;
-    }
-
-    .message-text li {
-      margin-bottom: 0.3rem;
-    }
-
-    .message-text a {
-      color: #22c55e;
-      text-decoration: none;
-      word-break: break-word;
-    }
-
-    .message-text a:hover {
-      text-decoration: underline;
-    }
-
-    .message-text strong {
-      font-weight: 600;
-    }
-
-    .message-text em {
-      font-style: italic;
-    }
-
-    .typing-dots {
-      display: inline-flex;
-      align-items: center;
-      transform: translateY(-2px);
-      /* raise it */
-    }
-
-    .typing-dots span {
-      width: 6px;
-      height: 6px;
-      margin: 0 3px;
-      background-color: #022c22;
-      border-radius: 50%;
-      display: inline-block;
-      animation: pulse 1s infinite ease-in-out;
-    }
-
-    .typing-dots span:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .typing-dots span:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes pulse {
-
-      0%,
-      100% {
-        opacity: 0.3;
-        transform: scale(0.7);
+      <!DOCTYPE html>
+      <html lang="en">
+      
+      <head>
+        <meta charset="UTF-8" />
+        <title>{{ property_name }} – Guest Experience</title>
+        <meta name="viewport" content="width=device-width, initial-scale=1" />
+      
+        <!-- PWA / icons -->
+        <link rel="manifest" href="/manifest/{{ property_id }}.webmanifest" />
+        <meta name="apple-mobile-web-app-capable" content="yes" />
+        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+        <meta name="theme-color" content="#020617" />
+        <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
+      
+        <!-- Tailwind CDN -->
+        <script src="https://cdn.tailwindcss.com"></script>
+      
+        <style>
+          html,
+          body {
+            font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+            font-size: 0.95rem;
+            overflow-x: hidden;
+            /* only block horizontal scroll */
+          }
+      
+      
+          * {
+            box-sizing: border-box;
+          }
+      
+          body.menu-open {
+            overflow: hidden;
+          }
+      
+      
+          /* === Hamburger / X toggle for #menu-toggle === */
+          #menu-toggle {
+            position: relative;
+          }
+      
+          /* Top + bottom bars */
+          #menu-toggle::before,
+          #menu-toggle::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            width: 24px;
+            height: 2px;
+            border-radius: 999px;
+            background: #FFFFFF;
+            /* closed: white bars on blue */
+            transform: translateX(-50%);
+            transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
+          }
+      
+          /* Top bar (hamburger) */
+          #menu-toggle::before {
+            transform: translate(-50%, -6px);
+          }
+      
+          /* Bottom bar (hamburger) */
+          #menu-toggle::after {
+            transform: translate(-50%, 6px);
+          }
+      
+          /* Middle bar */
+          #menu-toggle .menu-toggle-middle {
+            width: 24px;
+            height: 2px;
+            border-radius: 999px;
+            background: #FFFFFF !important; /* black */
+            transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
+          }
+      
+          /* === OPEN STATE transforms hamburger into "X" === */
+          #menu-toggle.menu-toggle-open::before {
+            transform: translate(-50%, 0) rotate(45deg);
+          }
+      
+          #menu-toggle.menu-toggle-open::after {
+            transform: translate(-50%, 0) rotate(-45deg);
+          }
+      
+          #menu-toggle.menu-toggle-open .menu-toggle-middle {
+            opacity: 0;
+            transform: scaleX(0.5);
+          }
+      
+       /* When menu is open → switch to white (on black menu) 
+      #menu-toggle.menu-toggle-open::before,
+      #menu-toggle.menu-toggle-open::after,
+      #menu-toggle.menu-toggle-open .menu-toggle-middle {
+        background: #FFFFFF !important; 
+      }*/
+      
+      
+      
+      /* 
+          .menu-toggle {
+            position: relative;
+          }*/
+      
+          /* Top + bottom bars 
+          .menu-toggle::before,
+          .menu-toggle::after {
+            content: "";
+            position: absolute;
+            left: 50%;
+            width: 24px;
+            height: 2px;
+            background: #ffffff;
+            border-radius: 999px;
+            transform: translateX(-50%);
+            transition: transform 0.3s ease, opacity 0.3s ease;
+          }*/
+      
+          /* Top bar (default) 
+          .menu-toggle::before {
+            transform: translate(-50%, -6px);
+          }*/
+      
+          /* Bottom bar (default) 
+          .menu-toggle::after {
+            transform: translate(-50%, 6px);
+          }*/
+      
+          /* Middle bar 
+          .menu-toggle-middle {
+            width: 24px;
+            height: 2px;
+            background: #ffffff;
+            border-radius: 999px;
+            transition: opacity 0.3s ease, transform 0.3s ease;
+          }*/
+      
+          /* === OPEN STATE === */
+          .menu-toggle.menu-toggle-open::before {
+            transform: translate(-50%, 0) rotate(45deg);
+          }
+      
+          .menu-toggle.menu-toggle-open::after {
+            transform: translate(-50%, 0) rotate(-45deg);
+          }
+      
+          .menu-toggle.menu-toggle-open .menu-toggle-middle {
+            opacity: 0;
+            transform: scaleX(0.5);
+          }
+      
+          /* Smooth fade on logo when we swap pngs */
+      #logo-img {
+        transition: opacity 180ms ease;
       }
-
-      50% {
-        opacity: 1;
+      
+          /* Keep Tailwind layout; only tweak visuals
+      nav[role="navigation"] {
+        height: 120px !important; 
+      }
+       */
+          /* Make the nav buttons visually clean but DO NOT touch layout */
+          nav .nav-item {
+            background: none !important;
+            border: none !important;
+            padding: 0;
+            margin: 0;
+            box-shadow: none !important;
+          }
+      
+          /* Icon images */
+          .nav-icon-img {
+            width: 60px;
+            height: 60px;
+            object-fit: contain;
+            opacity: 0.65;
+            transition: opacity 0.25s ease;
+          }
+      
+          /* Hover + active: just change opacity, nothing else */
+          nav .nav-item:hover .nav-icon-img,
+          nav .nav-item[aria-current="page"] .nav-icon-img {
+            opacity: 1;
+          }
+      
+      
+      
+          /* REMOVE any unwanted Tailwind classes JS might apply */
+          nav .nav-icon {
+            background: none !important;
+            border: none !important;
+            box-shadow: none !important;
+            transform: none !important;
+            /* stops scale-110 */
+          }
+      
+      
+          /* OPTIONAL — dim inactive icons (if JS toggles text-slate-400/50) */
+          .nav-item.text-slate-400 .nav-icon-img {
+            opacity: 0.6;
+          }
+      
+          .nav-item.text-slate-50 .nav-icon-img {
+            opacity: 1;
+          }
+      
+      
+      
+          /* header labels (Arrival, Check-in, WiFi Network, etc.) */
+          .detail-label {
+            font-size: 0.65rem !important;
+            font-weight: 700 !important;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: rgb(148 163 184);
+            /* slate-400 */
+          }
+      
+          .detail-label-results {
+            font-size: 1rem !important;
+            font-weight: 600 !important;
+            text-transform: uppercase;
+            /* letter-spacing: 0.05em;*/
+            color: rgb(255 255 255);
+            /* slate-400 */
+          }
+      
+          /* Sandy avatar photo */
+          .avatar-sandy {
+            background-image: url("/static/img/sandy.png");
+            background-size: cover;
+            background-position: center;
+            background-color: transparent;
+          }
+      
+      
+          #chat-box {
+            font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+          }
+      
+      
+          .msg {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+            animation: fadeInUp 0.35s ease-out;
+            animation-fill-mode: both;
+            scroll-margin-bottom: 7rem;
+          }
+      
+      
+          .msg.user {
+            justify-content: flex-end;
+          }
+      
+          /* Column that wraps bubble + timestamp for user messages */
+          .msg.user>div {
+            max-width: 70%;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-end;
+            /* bubble & timestamp align to right together */
+      
+          }
+      
+          /* Column that wraps bubble + timestamp for bot messages */
+          .msg.bot>div:last-child {
+            max-width: 70%;
+            display: inline-flex;
+            flex-direction: column;
+            align-items: flex-start;
+          }
+      
+      
+          .msg.bot {
+            justify-content: flex-start;
+          }
+      
+      
+      
+          .bubble {
+            display: inline-block;
+            /* hug contents */
+            padding: 0.6rem 1rem;
+            border-radius: 1rem;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+            max-width: 100%;
+            /* let parent control width */
+            font-size: 0.95rem;
+            line-height: 1.5;
+            word-wrap: break-word;
+          }
+      
+      
+          .avatar {
+            width: 44px;
+            height: 44px;
+            border-radius: 999px; /* full circle */
+            overflow: hidden;     /* prevents distortion */
+            /* rounded square
+            margin: 0 0.5rem;
+            background-size: cover;
+            background-position: center;
+            flex-shrink: 0; */
+          }
+      
+      
+          .msg.bot .avatar {
+            /*background-color: #22c55e;*/
+            color: #022c22;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 1.25rem; /* adjust to taste */
+            margin-right: 0.50rem; /* 12px */
+          }
+      
+          /* Timestamp above bubble */
+          .timestamp {
+            font-size: 0.65rem;
+            color: #64748b;
+            margin-bottom: 0.25rem;  /* spacing below timestamp */
+            margin-top: 0;           /* remove old spacing */
+          }
+      
+      
+          /* Bot timestamps align left under the bubble */
+          .msg.bot .timestamp {
+            text-align: left;
+            align-self: flex-start;
+            padding-left: 4px;
+          }
+      
+          /* User timestamps align right, directly under user bubble */
+          .msg.user .timestamp {
+            text-align: right;
+            align-self: flex-end;
+            padding-right: 4px;
+          }
+      
+      
+          .message-text p {
+            margin: 0.5rem 0;
+          }
+      
+          .message-text ul {
+            margin: 0.5rem 0;
+            padding-left: 1.2rem;
+          }
+      
+          .message-text li {
+            margin-bottom: 0.3rem;
+          }
+      
+          .message-text a {
+            color: #22c55e;
+            text-decoration: none;
+            word-break: break-word;
+          }
+      
+          .message-text a:hover {
+            text-decoration: underline;
+          }
+      
+          .message-text strong {
+            font-weight: 600;
+          }
+      
+          .message-text em {
+            font-style: italic;
+          }
+      
+          .typing-dots {
+            display: inline-flex;
+            align-items: center;
+            transform: translateY(-2px);
+            /* raise it */
+          }
+      
+          .typing-dots span {
+            width: 6px;
+            height: 6px;
+            margin: 0 3px;
+            background-color: #022c22;
+            border-radius: 50%;
+            display: inline-block;
+            animation: pulse 1s infinite ease-in-out;
+          }
+      
+          .typing-dots span:nth-child(2) {
+            animation-delay: 0.2s;
+          }
+      
+          .typing-dots span:nth-child(3) {
+            animation-delay: 0.4s;
+          }
+      
+          @keyframes pulse {
+      
+            0%,
+            100% {
+              opacity: 0.3;
+              transform: scale(0.7);
+            }
+      
+            50% {
+              opacity: 1;
+              transform: scale(1);
+            }
+          }
+      
+      
+      
+          .dots-anim {
+            display: inline-block;
+          }
+      
+          .dots-anim span {
+            font-size: 1.25rem;
+            animation: blink 1.4s infinite both;
+            opacity: 0.3;
+          }
+      
+          .dots-anim span:nth-child(1) {
+            animation-delay: 0s;
+          }
+      
+          .dots-anim span:nth-child(2) {
+            animation-delay: 0.2s;
+          }
+      
+          .dots-anim span:nth-child(3) {
+            animation-delay: 0.4s;
+          }
+      
+          @keyframes blink {
+            0% {
+              opacity: 0.3;
+            }
+      
+            20% {
+              opacity: 1;
+            }
+      
+            100% {
+              opacity: 0.3;
+            }
+          }
+      
+          @keyframes fadeInUp {
+            from {
+              opacity: 0;
+              transform: translateY(12px);
+            }
+      
+            to {
+              opacity: 1;
+              transform: translateY(0);
+            }
+          }
+      
+      
+          
+      /* TOP layer: chrome (logo + hamburger / X) */
+      #top-bar-chrome {
+        z-index: 300; /* higher than everything else */
+      }
+      
+      /* Menu: full-screen overlay, but under the chrome */
+      #mobile-menu {
+        z-index: 200 !important; /* above modals (z-[80]) but below top-bar-chrome */
+      }
+      
+      /* no special z-index needed on menu buttons */
+      #mobile-menu button {
+        z-index: 250 !important;
+      }
+      
+      
+          .chat-input-bar {
+            padding: 0.8rem 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            background: #f8fafc;
+            border-top: 1px solid #e2e8f0;
+            position: fixed;
+            left: 0;
+            right: 0;
+            bottom: 0rem;
+            /* above nav */
+            z-index: 30;
+          }
+      
+          /* Default hidden state */
+          #mobile-menu .mobile-menu-content {
+            opacity: 0;
+            transform: translateY(-12px);
+            transition:
+              opacity .3s cubic-bezier(0.16, 1, 0.3, 1),
+              transform .35s cubic-bezier(0.16, 1, 0.3, 1);
+          }
+      
+          /* Opening animation */
+          #mobile-menu.show-links {
+            opacity: 1;
+          }
+      
+          #mobile-menu.show-links .mobile-menu-content {
+            opacity: 1;
+            transform: translateY(0);
+          }
+      
+          /* Closing fade-out ONLY */
+          #mobile-menu.fade-out .mobile-menu-content {
+            opacity: 0;
+            transform: translateY(0);
+            /* no slide on close */
+            transition: opacity .25s ease;
+          }
+      
+          /* When on chat screen: top bar becomes light grey */
+      body.chat-screen #top-bar {
+        color: #020617 !important;
+        /* if you want text on avatar label darker (you already do) */
+      }
+      
+      body.chat-screen #top-bar::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: #f8fafc;      /* grey strip behind everything */
+        z-index: 0;               /* under avatar */
+      }
+      
+          
+      #top-bar {
+        z-index: 20;              /* below menu, below chrome */
+      }
+      
+      
+          
+      /* chat screen: hamburger (closed) stays white */
+      body.chat-screen #menu-toggle:not(.menu-toggle-open)::before,
+      body.chat-screen #menu-toggle:not(.menu-toggle-open)::after,
+      body.chat-screen #menu-toggle:not(.menu-toggle-open) .menu-toggle-middle {
+        background: #FFFFFF !important;
+      }
+      
+      /* avatar on top of grey bar but under menu */
+      #chat-header-sandy {
+        z-index: 1;
+      }
+          
+          /* Switch logos appropriately */
+          body.chat-screen #logo-light {
+            display: none !important;
+          }
+      
+          body.chat-screen #logo-dark {
+            display: block !important;
+          }
+      
+          /* Show Sandy header only on chat screen */
+          body.chat-screen #chat-header-sandy {
+            display: flex;
+          }
+      
+         
+      
+          .chat-input-inner {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            border-radius: 999px;
+            background: #ffffff;
+            border: 1px solid #e2e8f0;
+            padding: 0.6rem 0.75rem;
+          }
+      
+          .chat-input-bar input[type="text"] {
+            flex: 1;
+            border: none;
+            background: transparent;
+            font-size: 1rem;
+            outline: none;
+            color: #1f2937;
+          }
+      
+          .chat-plus {
+            background: #0b1120;
+            border: none;
+            width: 2.5rem;
+            height: 2.5rem;
+            font-size: 1.2rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #e5e7eb;
+          }
+      
+          .send-button {
+            background: #22c55e;
+            border: none;
+            width: 2.5rem;
+            height: 2.5rem;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            color: #022c22;
+          }
+      
+          /* Light mode chat screen */
+          #screen-chat {
+            color: #1f2937;
+            /* DO NOT set display or height here so .hidden can control it */
+          }
+      
+          #screen-chat>.flex-1 {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+          }
+      
+      
+          .msg.user .bubble {
+            background: #e5e7eb;
+            color: #111827;
+          }
+      
+          .msg.bot .bubble {
+            background: #22c55e;
+            color: #022c22;
+          }
+      
+        
+      
+          .timestamp {
+            color: #64748b;
+          }
+      
+          /* Push chat content below the fixed top bar (h-20 = 5rem) */
+      body.chat-screen #screen-chat {
+        padding-top: 5rem; /* match header height (h-20) */
+      }
+      
+       /* NEW STYLES */
+      
+      /* Light surfaces for main screens (Home / Guides / Upgrades) */
+      #screen-home,
+      #screen-experiences,
+      #screen-upgrades {
+        background: #f5f5f5;
+        color: #020617;
+      }
+      
+      /* Home card heading + small label */
+      .home-property-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.16em;
+        color: #94a3b8;
+      }
+      
+      /* Big hero heading on Home / Guides / Upgrades */
+      .hero-heading {
+        font-size: 2rem;
+        line-height: 1.2;
+        font-weight: 600;
+      }
+      
+      /* White “polaroid” card with image (Home + Upgrades cards) */
+      .surface-card {
+        border-radius: 2rem;
+        background: #ffffff;
+        box-shadow:
+          0 20px 45px rgba(15, 23, 42, 0.16),
+          0 0 0 1px rgba(15, 23, 42, 0.04);
+      }
+      
+      /* Pill CTA buttons (Door / WiFi / purchase) */
+      .pill-button {
+        border-radius: 999px;
+        border-width: 1px;
+        padding: 0.9rem 1rem;
+        font-size: 0.95rem;
+        font-weight: 600;
+      }
+      
+      /* Black full-screen menu */
+      #mobile-menu {
+        background: #000000;
+        color: #f9fafb;
+      }
+      
+      #mobile-menu .mobile-menu-content {
+        justify-content: flex-start;
+      }
+      
+      #mobile-menu ul li button {
+        font-size: 2rem;       /* big menu items */
+        font-weight: 600;
+      }
+      
+      #mobile-menu .menu-label {
+        font-size: 0.7rem;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: #9ca3af;
+      }
+      
+      #mobile-menu .menu-footer {
+        font-size: 0.75rem;
+        color: #9ca3af;
+      }
+      
+      /* Guide detail full-page layout */
+      #guide-modal section {
+        border-radius: 0;
+        max-height: none;
+        max-width: 100%;
+      }
+      
+      /* Make the guide/upgrades detail screens feel like full pages */
+      #screen-guide-detail,
+      #screen-upgrade-detail {
+        background: #f5f5f5;
+        color: #020617;
+      }
+      
+      /* === Beats-style upgrades carousel === */
+      
+      .upgrades-carousel {
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: none;
+          overflow-x: auto;
+        overflow-y: hidden;
+      }
+      .upgrades-carousel::-webkit-scrollbar {
+        display: none;
+      }
+      
+      .upgrades-track {
+        padding-left: 80px;
+        padding-right: 80px;
+      }
+      
+      /* PARENT: do NOT clip shadow, give base z-index */
+      /* PARENT: do NOT clip shadow */
+      .upgrade-slide {
+        position: relative;
+        flex: 0 0 auto;
+        margin-right: -120px;  /* overlap */
+        transform-origin: center center;
+        will-change: transform;
+        cursor: pointer;
+        overflow: visible;      /* don't clip the shadow */
+        /* no z-index here; JS will control it */
+        transition:
+          transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
+          opacity 250ms ease;
+      }
+      
+      /* Active slide is always in front */
+      .upgrade-slide.is-active { }
+      .upgrade-slide.is-inactive { }
+      
+      /* INNER CARD: rounded, clipped, thick border, gets shadow */
+      .upgrade-card-inner {
+        width: 280px;
+        height: 360px;
+        background: #ffffff;
+        border-radius: 32px;
+        overflow: hidden;           /* clip image to rounded corners */
+        border: 4px solid #ffffff;  /* thick polaroid border */
+        transform-origin: center center;
+        transition:
+          box-shadow 300ms ease,
+          transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
+          opacity 250ms ease;
+      }
+      
+      
+      /* Make sure the image itself is clipped nicely */
+      .upgrade-slide img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      
+      /* Active centered card pops */
+      .upgrade-slide.is-active .upgrade-card-inner {
+        box-shadow: 0 10px 20px rgba(0,0,0,0.35);
         transform: scale(1);
       }
-    }
-
-
-
-    .dots-anim {
-      display: inline-block;
-    }
-
-    .dots-anim span {
-      font-size: 1.25rem;
-      animation: blink 1.4s infinite both;
-      opacity: 0.3;
-    }
-
-    .dots-anim span:nth-child(1) {
-      animation-delay: 0s;
-    }
-
-    .dots-anim span:nth-child(2) {
-      animation-delay: 0.2s;
-    }
-
-    .dots-anim span:nth-child(3) {
-      animation-delay: 0.4s;
-    }
-
-    @keyframes blink {
-      0% {
-        opacity: 0.3;
+      
+      /* Inactive cards sit back */
+      .upgrade-slide.is-inactive .upgrade-card-inner {
+        box-shadow: none;
+        transform: scale(0.7) translateY(4px);
       }
-
-      20% {
-        opacity: 1;
+      
+      /* Add a white circle behind the X when menu is open */
+      #menu-toggle.menu-toggle-open {
+        background: white !important;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
       }
-
-      100% {
-        opacity: 0.3;
+      
+          body.guide-open #menu-toggle,
+      body.modal-open #menu-toggle {
+        display: none !important;
       }
-    }
-
-    @keyframes fadeInUp {
-      from {
-        opacity: 0;
-        transform: translateY(12px);
+      
+      /* open menu: black X on white circle */
+      #menu-toggle.menu-toggle-open { background: #fff !important; }
+      
+      #menu-toggle.menu-toggle-open::before,
+      #menu-toggle.menu-toggle-open::after,
+      #menu-toggle.menu-toggle-open .menu-toggle-middle {
+        background: #000 !important;
       }
-
-      to {
-        opacity: 1;
-        transform: translateY(0);
+      
+      .mobile-menu-content {
+        display: flex;
+        flex-direction: column;
+        height: 100%;
       }
-    }
-
-
-    
-/* TOP layer: chrome (logo + hamburger / X) */
-#top-bar-chrome {
-  z-index: 300; /* higher than everything else */
-}
-
-/* Menu: full-screen overlay, but under the chrome */
-#mobile-menu {
-  z-index: 200 !important; /* above modals (z-[80]) but below top-bar-chrome */
-}
-
-/* no special z-index needed on menu buttons */
-#mobile-menu button {
-  z-index: 250 !important;
-}
-
-
-    .chat-input-bar {
-      padding: 0.8rem 1rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      background: #f8fafc;
-      border-top: 1px solid #e2e8f0;
-      position: fixed;
-      left: 0;
-      right: 0;
-      bottom: 0rem;
-      /* above nav */
-      z-index: 30;
-    }
-
-    /* Default hidden state */
-    #mobile-menu .mobile-menu-content {
-      opacity: 0;
-      transform: translateY(-12px);
-      transition:
-        opacity .3s cubic-bezier(0.16, 1, 0.3, 1),
-        transform .35s cubic-bezier(0.16, 1, 0.3, 1);
-    }
-
-    /* Opening animation */
-    #mobile-menu.show-links {
-      opacity: 1;
-    }
-
-    #mobile-menu.show-links .mobile-menu-content {
-      opacity: 1;
-      transform: translateY(0);
-    }
-
-    /* Closing fade-out ONLY */
-    #mobile-menu.fade-out .mobile-menu-content {
-      opacity: 0;
-      transform: translateY(0);
-      /* no slide on close */
-      transition: opacity .25s ease;
-    }
-
-    /* When on chat screen: top bar becomes light grey */
-body.chat-screen #top-bar {
-  color: #020617 !important;
-  /* if you want text on avatar label darker (you already do) */
-}
-
-body.chat-screen #top-bar::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background: #f8fafc;      /* grey strip behind everything */
-  z-index: 0;               /* under avatar */
-}
-
-    
-#top-bar {
-  z-index: 20;              /* below menu, below chrome */
-}
-
-
-    
-/* chat screen: hamburger (closed) stays white */
-body.chat-screen #menu-toggle:not(.menu-toggle-open)::before,
-body.chat-screen #menu-toggle:not(.menu-toggle-open)::after,
-body.chat-screen #menu-toggle:not(.menu-toggle-open) .menu-toggle-middle {
-  background: #FFFFFF !important;
-}
-
-/* avatar on top of grey bar but under menu */
-#chat-header-sandy {
-  z-index: 1;
-}
-    
-    /* Switch logos appropriately */
-    body.chat-screen #logo-light {
-      display: none !important;
-    }
-
-    body.chat-screen #logo-dark {
-      display: block !important;
-    }
-
-    /* Show Sandy header only on chat screen */
-    body.chat-screen #chat-header-sandy {
-      display: flex;
-    }
-
-   
-
-    .chat-input-inner {
-      flex: 1;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      border-radius: 999px;
-      background: #ffffff;
-      border: 1px solid #e2e8f0;
-      padding: 0.6rem 0.75rem;
-    }
-
-    .chat-input-bar input[type="text"] {
-      flex: 1;
-      border: none;
-      background: transparent;
-      font-size: 1rem;
-      outline: none;
-      color: #1f2937;
-    }
-
-    .chat-plus {
-      background: #0b1120;
-      border: none;
-      width: 2.5rem;
-      height: 2.5rem;
-      font-size: 1.2rem;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: #e5e7eb;
-    }
-
-    .send-button {
-      background: #22c55e;
-      border: none;
-      width: 2.5rem;
-      height: 2.5rem;
-      border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      color: #022c22;
-    }
-
-    /* Light mode chat screen */
-    #screen-chat {
-      color: #1f2937;
-      /* DO NOT set display or height here so .hidden can control it */
-    }
-
-    #screen-chat>.flex-1 {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      min-height: 0;
-    }
-
-
-    .msg.user .bubble {
-      background: #e5e7eb;
-      color: #111827;
-    }
-
-    .msg.bot .bubble {
-      background: #22c55e;
-      color: #022c22;
-    }
-
-  
-
-    .timestamp {
-      color: #64748b;
-    }
-
-    /* Push chat content below the fixed top bar (h-20 = 5rem) */
-body.chat-screen #screen-chat {
-  padding-top: 5rem; /* match header height (h-20) */
-}
-
- /* NEW STYLES */
-
-/* Light surfaces for main screens (Home / Guides / Upgrades) */
-#screen-home,
-#screen-experiences,
-#screen-upgrades {
-  background: #f5f5f5;
-  color: #020617;
-}
-
-/* Home card heading + small label */
-.home-property-label {
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.16em;
-  color: #94a3b8;
-}
-
-/* Big hero heading on Home / Guides / Upgrades */
-.hero-heading {
-  font-size: 2rem;
-  line-height: 1.2;
-  font-weight: 600;
-}
-
-/* White “polaroid” card with image (Home + Upgrades cards) */
-.surface-card {
-  border-radius: 2rem;
-  background: #ffffff;
-  box-shadow:
-    0 20px 45px rgba(15, 23, 42, 0.16),
-    0 0 0 1px rgba(15, 23, 42, 0.04);
-}
-
-/* Pill CTA buttons (Door / WiFi / purchase) */
-.pill-button {
-  border-radius: 999px;
-  border-width: 1px;
-  padding: 0.9rem 1rem;
-  font-size: 0.95rem;
-  font-weight: 600;
-}
-
-/* Black full-screen menu */
-#mobile-menu {
-  background: #000000;
-  color: #f9fafb;
-}
-
-#mobile-menu .mobile-menu-content {
-  justify-content: flex-start;
-}
-
-#mobile-menu ul li button {
-  font-size: 2rem;       /* big menu items */
-  font-weight: 600;
-}
-
-#mobile-menu .menu-label {
-  font-size: 0.7rem;
-  letter-spacing: 0.24em;
-  text-transform: uppercase;
-  color: #9ca3af;
-}
-
-#mobile-menu .menu-footer {
-  font-size: 0.75rem;
-  color: #9ca3af;
-}
-
-/* Guide detail full-page layout */
-#guide-modal section {
-  border-radius: 0;
-  max-height: none;
-  max-width: 100%;
-}
-
-/* Make the guide/upgrades detail screens feel like full pages */
-#screen-guide-detail,
-#screen-upgrade-detail {
-  background: #f5f5f5;
-  color: #020617;
-}
-
-/* === Beats-style upgrades carousel === */
-
-.upgrades-carousel {
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: none;
-    overflow-x: auto;
-  overflow-y: hidden;
-}
-.upgrades-carousel::-webkit-scrollbar {
-  display: none;
-}
-
-.upgrades-track {
-  padding-left: 80px;
-  padding-right: 80px;
-}
-
-/* PARENT: do NOT clip shadow, give base z-index */
-/* PARENT: do NOT clip shadow */
-.upgrade-slide {
-  position: relative;
-  flex: 0 0 auto;
-  margin-right: -120px;  /* overlap */
-  transform-origin: center center;
-  will-change: transform;
-  cursor: pointer;
-  overflow: visible;      /* don't clip the shadow */
-  /* no z-index here; JS will control it */
-  transition:
-    transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 250ms ease;
-}
-
-/* Active slide is always in front */
-.upgrade-slide.is-active { }
-.upgrade-slide.is-inactive { }
-
-/* INNER CARD: rounded, clipped, thick border, gets shadow */
-.upgrade-card-inner {
-  width: 280px;
-  height: 360px;
-  background: #ffffff;
-  border-radius: 32px;
-  overflow: hidden;           /* clip image to rounded corners */
-  border: 4px solid #ffffff;  /* thick polaroid border */
-  transform-origin: center center;
-  transition:
-    box-shadow 300ms ease,
-    transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
-    opacity 250ms ease;
-}
-
-
-/* Make sure the image itself is clipped nicely */
-.upgrade-slide img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-}
-
-/* Active centered card pops */
-.upgrade-slide.is-active .upgrade-card-inner {
-  box-shadow: 0 10px 20px rgba(0,0,0,0.35);
-  transform: scale(1);
-}
-
-/* Inactive cards sit back */
-.upgrade-slide.is-inactive .upgrade-card-inner {
-  box-shadow: none;
-  transform: scale(0.7) translateY(4px);
-}
-
-/* Add a white circle behind the X when menu is open */
-#menu-toggle.menu-toggle-open {
-  background: white !important;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-}
-
-    body.guide-open #menu-toggle,
-body.modal-open #menu-toggle {
-  display: none !important;
-}
-
-/* open menu: black X on white circle */
-#menu-toggle.menu-toggle-open { background: #fff !important; }
-
-#menu-toggle.menu-toggle-open::before,
-#menu-toggle.menu-toggle-open::after,
-#menu-toggle.menu-toggle-open .menu-toggle-middle {
-  background: #000 !important;
-}
-
-.mobile-menu-content {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-}
-
-.mobile-menu-content ul {
-  margin-top: auto;
-  margin-bottom: auto; /* centers vertically */
-}
-
-    #upgrades-carousel {
-  overflow-y: hidden;
-}
-
-    /* Pinterest-style masonry using CSS columns */
-/*.masonry-columns {
-  column-count: 2;
-  column-gap: 12px;
-}
-@media (min-width: 768px) {
-  .masonry-columns { column-count: 3; }
-}
-.masonry-item {
-  break-inside: avoid;
-  -webkit-column-break-inside: avoid;
-  margin-bottom: 12px;
-  display: inline-block;
-  width: 100%;
-}*/
-
-    /* JS masonry (real columns) */
-.masonry-columns {
-  display: flex;
-  gap: 12px;
-  align-items: flex-start;
-}
-
-.masonry-col {
-  flex: 1;
-  min-width: 160px;   /* 👈 THIS IS THE KEY */
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-/* your existing card class can stay */
-.masonry-item {
-  width: 100%;
-}
-
-    body.guide-open #top-bar-chrome,
-body.guide-open #top-bar {
-  display: none !important;
-}
-
-    body.menu-open #top-bar-chrome {
-  display: block !important;
-}
-
-
-    /* Hide top chrome (logo + hamburger) whenever any modal is open 
-body.modal-open #top-bar-chrome {
-  display: none !important;
-}*/
-
-/* Also ensure menu itself can’t appear above a modal */
-body.modal-open #mobile-menu {
-  display: none !important;
-}
-
-
-    body.modal-open #top-bar-chrome,
-body.modal-open #top-bar {
-  display: none !important;
-}
-
-/* extra safety: if anything remains mounted, it can't steal taps */
-body.modal-open #top-bar-chrome,
-body.modal-open #mobile-menu {
-  pointer-events: none !important;
-}
-
-
-  </style>
-
-  <script>
-    window.PROPERTY_ID = {{ property_id | tojson }};
-    window.PROPERTY_NAME = {{ property_name | tojson }};
-    window.SANDY_LIVE = {{ ("true" if is_live else "false") | tojson }};
-    window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
-  </script>
-</head>
-
-<body class="min-h-screen bg-[#f5f5f5] text-slate-50 flex flex-col overflow-x-hidden">
-
-  <!-- App shell with shared background image + gradient -->
-  <div id="app-shell" class="relative min-h-screen w-full max-w-full flex flex-col overflow-x-hidden bg-[#f5f5f5]">
-
-    <!-- Gradient overlay -->
-    <div class="absolute inset-0 pointer-events-none"></div>
-
-
-    <!-- Foreground content -->
-    <div class="relative z-10 flex flex-col min-h-screen">
-
-      <!-- Top header / nav -->
-      <header id="app-header" class="relative w-full">
-
-  <!-- BOTTOM LAYER: grey bar + Sandy avatar -->
-  <div id="top-bar"
-       class="fixed top-0 inset-x-0 h-20 bg-transparent text-white
-              transition-colors duration-300">
-    <!-- Sandy avatar, centered in the bar -->
-    <div id="chat-header-sandy"
-         class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-                hidden flex flex-col items-center pointer-events-none">
-      <div class="avatar avatar-sandy shadow"></div>
-      <span class="text-xs text-slate-900 mt-1">Sandy</span>
-    </div>
-  </div>
-
-  <!-- TOP LAYER: logo + hamburger, always above menu + bar -->
-  <div id="top-bar-chrome"
-       class="fixed top-0 inset-x-0 h-20 z-[70]">
-    <div id="top-bar-inner"
-         class="max-w-3xl mx-auto flex items-center justify-between h-full px-5">
-      <!-- Logo -->
-      <a href="#" class="flex items-center gap-2">
-        <!-- default: white logo -->
-        <img id="logo-img"
-             src="/static/img/neat-sleeps-white.png"
-             alt="{{ property_name }}"
-             class="h-7" />
-      </a>
-
-      <!-- Hamburger -->
-      <button id="menu-toggle" type="button"
-              class="relative w-12 h-12 flex items-center justify-center rounded-full bg-black
-       transition-transform duration-300 ease-in-out
-       hover:scale-115 active:scale-90"
-              aria-label="Toggle navigation menu">
-        <span class="menu-toggle-middle"></span>
-      </button>
-    </div>
-  </div>
-
-</header>
-
-
-      <!-- Full-screen slide-down mobile menu -->
-<nav
-  id="mobile-menu"
-  class="fixed inset-0 z-[80]
-         transform -translate-y-full pointer-events-none
-         transition-transform duration-700 ease-out"
-  aria-label="Main navigation"
->
-  <div
-    class="mobile-menu-content pt-24 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full justify-center items-center"
-  >
-   
-
-    <!-- Main links -->
-    <ul class="space-y-8">
-      <li>
-        <button
-          type="button"
-          data-menu-screen="home"
-          class="w-full hover:text-[#CCCCCC] transition-colors"
-        >
-          Your Stay
-        </button>
-      </li>
-      <li>
-        <button
-          type="button"
-          data-menu-screen="chat"
-          class="w-full  hover:text-[#CCCCCC] transition-colors"
-        >
-          Chat with Sandy
-        </button>
-      </li>
-      <li>
-        <button
-          type="button"
-          data-menu-screen="experiences"
-          class="w-full hover:text-[#CCCCCC] transition-colors"
-        >
-          Guides
-        </button>
-      </li>
-      <li>
-        <button
-          type="button"
-          data-menu-screen="upgrades"
-          class="w-full hover:text-[#CCCCCC] transition-colors"
-        >
-          Upgrades
-        </button>
-      </li>
-    </ul>
-
-
-    <!-- Footer -->
-    <div class="mt-auto pt-8 menu-footer">
-      <a href="https://www.hostscout.ai/"
-   target="_blank"
-   rel="noopener noreferrer"
-   class="text-[12px] text-[#9ca3af] hover:text-white transition">Powered by HostScout.AI</a>
-    </div>
-  </div>
-</nav>
-
-
-
-
-
-
-      <!-- Main content area that swaps screens  overflow-hidden-->
-      <main id="screen-container" class="flex-1 flex flex-col" role="main">
-        
-        
-        
-        <!-- HOME -->
-<!-- HOME -->
-<section
-  id="screen-home"
-  class="flex flex-col flex-1 bg-[#f4f4f4] text-[0.95rem] px-4 pt-20"
-  aria-label="Home"
->
-  <!-- LOGIN STATE (unchanged) -->
-  <div id="home-login" class="space-y-4">
-    <div class="space-y-2">
-      <h2 class="font-semibold text-slate-900">Unlock your stay</h2>
-      <p class="text-slate-500">
-        Enter the
-        <span class="font-semibold">last 4 digits of the phone number</span>
-        on your booking to unlock your trip details, chat with Sandy, and
-        browse guides.
-      </p>
-    </div>
-
-    <div class="bg-white rounded-3xl p-4 space-y-3 shadow-sm">
-      <label
-        for="unlock-code"
-        class="block font-medium text-slate-700 mb-1"
+      
+      .mobile-menu-content ul {
+        margin-top: auto;
+        margin-bottom: auto; /* centers vertically */
+      }
+      
+          #upgrades-carousel {
+        overflow-y: hidden;
+      }
+      
+          /* Pinterest-style masonry using CSS columns */
+      /*.masonry-columns {
+        column-count: 2;
+        column-gap: 12px;
+      }
+      @media (min-width: 768px) {
+        .masonry-columns { column-count: 3; }
+      }
+      .masonry-item {
+        break-inside: avoid;
+        -webkit-column-break-inside: avoid;
+        margin-bottom: 12px;
+        display: inline-block;
+        width: 100%;
+      }*/
+      
+          /* JS masonry (real columns) */
+      .masonry-columns {
+        display: flex;
+        gap: 12px;
+        align-items: flex-start;
+      }
+      
+      .masonry-col {
+        flex: 1;
+        min-width: 160px;   /* 👈 THIS IS THE KEY */
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+      }
+      
+      /* your existing card class can stay */
+      .masonry-item {
+        width: 100%;
+      }
+      
+          body.guide-open #top-bar-chrome,
+      body.guide-open #top-bar {
+        display: none !important;
+      }
+      
+          body.menu-open #top-bar-chrome {
+        display: block !important;
+      }
+      
+      
+          /* Hide top chrome (logo + hamburger) whenever any modal is open 
+      body.modal-open #top-bar-chrome {
+        display: none !important;
+      }*/
+      
+      /* Also ensure menu itself can’t appear above a modal */
+      body.modal-open #mobile-menu {
+        display: none !important;
+      }
+      
+      
+          body.modal-open #top-bar-chrome,
+      body.modal-open #top-bar {
+        display: none !important;
+      }
+      
+      /* extra safety: if anything remains mounted, it can't steal taps */
+      body.modal-open #top-bar-chrome,
+      body.modal-open #mobile-menu {
+        pointer-events: none !important;
+      }
+      
+      
+        </style>
+      
+        <script>
+          window.PROPERTY_ID = {{ property_id | tojson }};
+          window.PROPERTY_NAME = {{ property_name | tojson }};
+          window.SANDY_LIVE = {{ ("true" if is_live else "false") | tojson }};
+          window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
+        </script>
+      </head>
+      
+      <body class="min-h-screen bg-[#f5f5f5] text-slate-50 flex flex-col overflow-x-hidden">
+      
+        <!-- App shell with shared background image + gradient -->
+        <div id="app-shell" class="relative min-h-screen w-full max-w-full flex flex-col overflow-x-hidden bg-[#f5f5f5]">
+      
+          <!-- Gradient overlay -->
+          <div class="absolute inset-0 pointer-events-none"></div>
+      
+      
+          <!-- Foreground content -->
+          <div class="relative z-10 flex flex-col min-h-screen">
+      
+            <!-- Top header / nav -->
+            <header id="app-header" class="relative w-full">
+      
+        <!-- BOTTOM LAYER: grey bar + Sandy avatar -->
+        <div id="top-bar"
+             class="fixed top-0 inset-x-0 h-20 bg-transparent text-white
+                    transition-colors duration-300">
+          <!-- Sandy avatar, centered in the bar -->
+          <div id="chat-header-sandy"
+               class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
+                      hidden flex flex-col items-center pointer-events-none">
+            <div class="avatar avatar-sandy shadow"></div>
+            <span class="text-xs text-slate-900 mt-1">Sandy</span>
+          </div>
+        </div>
+      
+        <!-- TOP LAYER: logo + hamburger, always above menu + bar -->
+        <div id="top-bar-chrome"
+             class="fixed top-0 inset-x-0 h-20 z-[70]">
+          <div id="top-bar-inner"
+               class="max-w-3xl mx-auto flex items-center justify-between h-full px-5">
+            <!-- Logo -->
+            <a href="#" class="flex items-center gap-2">
+              <!-- default: white logo -->
+              <img id="logo-img"
+                   src="/static/img/neat-sleeps-white.png"
+                   alt="{{ property_name }}"
+                   class="h-7" />
+            </a>
+      
+            <!-- Hamburger -->
+            <button id="menu-toggle" type="button"
+                    class="relative w-12 h-12 flex items-center justify-center rounded-full bg-black
+             transition-transform duration-300 ease-in-out
+             hover:scale-115 active:scale-90"
+                    aria-label="Toggle navigation menu">
+              <span class="menu-toggle-middle"></span>
+            </button>
+          </div>
+        </div>
+      
+      </header>
+      
+      
+            <!-- Full-screen slide-down mobile menu -->
+      <nav
+        id="mobile-menu"
+        class="fixed inset-0 z-[80]
+               transform -translate-y-full pointer-events-none
+               transition-transform duration-700 ease-out"
+        aria-label="Main navigation"
       >
-        Last 4 digits
-      </label>
-      <input
-        id="unlock-code"
-        type="text"
-        inputmode="numeric"
-        maxlength="4"
-        autocomplete="off"
-        placeholder="1234"
-        pattern="[0-9]*"
-        class="w-full rounded-2xl bg-slate-50 border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
-      />
-      <button
-        id="unlock-button"
-        type="button"
-        data-property-id="{{ property_id }}"
-        class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-2xl bg-slate-900 hover:bg-slate-800 font-semibold text-slate-50 py-3 transition"
-      >
-        <span>Unlock experience</span>
-        <span
-          id="unlock-spinner"
-          class="hidden w-4 h-4 border-2 border-slate-50 border-t-transparent rounded-full animate-spin"
-        ></span>
-      </button>
-      <p
-        id="unlock-error"
-        class="text-rose-500 min-h-[1.125rem]"
-        aria-live="polite"
-      ></p>
-      <p class="text-slate-500 text-xs">
-        Not sure which number is on the booking? Check your confirmation email
-        or message your host.
-      </p>
-    </div>
-
-    <div class="mt-2 text-slate-500 flex items-center gap-2 text-xs">
-      {% if is_live %}
-      <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
-      <span>Sandy is live for this property 🌊</span>
-      {% else %}
-      <span class="h-2 w-2 rounded-full bg-rose-500"></span>
-      <span>
-        Sandy is currently offline – you can still view trip details.
-      </span>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- UNLOCKED HOME (matches mock) -->
-  <div class="flex-1 flex flex-col justify-start">
-    <div
-      id="home-stay"
-      class="hidden pt-0"
-    >
-      <!-- Top labels / heading -->
-      <div class="text-center pb-3">
-        <p class="text-[11px] font-semibold text-[#666666]">
-          Casa {{ property_name or "Your stay" }}
-        </p>
-        <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
-          <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe.<br />
-          You’ve made it.
-        </h1>
-      </div>
-
-      <!-- Image card max-w-[407px] -->
-      <div class="w-full flex justify-center mt-2 pl-6 pr-6">
         <div
-          class="bg-white rounded-[32px] shadow-[0_10px_20px_rgba(0,0,0,0.35)] overflow-hidden w-full border-[4px] border-[#FFFFFF]"
+          class="mobile-menu-content pt-24 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full justify-center items-center"
         >
-          <div class="h-[430px] w-full overflow-hidden">
+         
+      
+          <!-- Main links -->
+          <ul class="space-y-8">
+            <li>
+              <button
+                type="button"
+                data-menu-screen="home"
+                class="w-full hover:text-[#CCCCCC] transition-colors"
+              >
+                Your Stay
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                data-menu-screen="chat"
+                class="w-full  hover:text-[#CCCCCC] transition-colors"
+              >
+                Chat with Sandy
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                data-menu-screen="experiences"
+                class="w-full hover:text-[#CCCCCC] transition-colors"
+              >
+                Guides
+              </button>
+            </li>
+            <li>
+              <button
+                type="button"
+                data-menu-screen="upgrades"
+                class="w-full hover:text-[#CCCCCC] transition-colors"
+              >
+                Upgrades
+              </button>
+            </li>
+          </ul>
+      
+      
+          <!-- Footer -->
+          <div class="mt-auto pt-8 menu-footer">
+            <a href="https://www.hostscout.ai/"
+         target="_blank"
+         rel="noopener noreferrer"
+         class="text-[12px] text-[#9ca3af] hover:text-white transition">Powered by HostScout.AI</a>
+          </div>
+        </div>
+      </nav>
+      
+      
+      
+      
+      
+      
+            <!-- Main content area that swaps screens  overflow-hidden-->
+            <main id="screen-container" class="flex-1 flex flex-col" role="main">
+              
+              
+              
+              <!-- HOME -->
+      <!-- HOME -->
+      <section
+        id="screen-home"
+        class="flex flex-col flex-1 bg-[#f4f4f4] text-[0.95rem] px-4 pt-20"
+        aria-label="Home"
+      >
+        <!-- LOGIN STATE (unchanged) -->
+        <div id="home-login" class="space-y-4">
+          <div class="space-y-2">
+            <h2 class="font-semibold text-slate-900">Unlock your stay</h2>
+            <p class="text-slate-500">
+              Enter the
+              <span class="font-semibold">last 4 digits of the phone number</span>
+              on your booking to unlock your trip details, chat with Sandy, and
+              browse guides.
+            </p>
+          </div>
+      
+          <div class="bg-white rounded-3xl p-4 space-y-3 shadow-sm">
+            <label
+              for="unlock-code"
+              class="block font-medium text-slate-700 mb-1"
+            >
+              Last 4 digits
+            </label>
+            <input
+              id="unlock-code"
+              type="text"
+              inputmode="numeric"
+              maxlength="4"
+              autocomplete="off"
+              placeholder="1234"
+              pattern="[0-9]*"
+              class="w-full rounded-2xl bg-slate-50 border border-slate-200 px-3 py-2 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-emerald-400"
+            />
+            <button
+              id="unlock-button"
+              type="button"
+              data-property-id="{{ property_id }}"
+              class="w-full mt-1 inline-flex justify-center items-center gap-2 rounded-2xl bg-slate-900 hover:bg-slate-800 font-semibold text-slate-50 py-3 transition"
+            >
+              <span>Unlock experience</span>
+              <span
+                id="unlock-spinner"
+                class="hidden w-4 h-4 border-2 border-slate-50 border-t-transparent rounded-full animate-spin"
+              ></span>
+            </button>
+            <p
+              id="unlock-error"
+              class="text-rose-500 min-h-[1.125rem]"
+              aria-live="polite"
+            ></p>
+            <p class="text-slate-500 text-xs">
+              Not sure which number is on the booking? Check your confirmation email
+              or message your host.
+            </p>
+          </div>
+      
+          <div class="mt-2 text-slate-500 flex items-center gap-2 text-xs">
+            {% if is_live %}
+            <span class="h-2 w-2 rounded-full bg-emerald-400"></span>
+            <span>Sandy is live for this property 🌊</span>
+            {% else %}
+            <span class="h-2 w-2 rounded-full bg-rose-500"></span>
+            <span>
+              Sandy is currently offline – you can still view trip details.
+            </span>
+            {% endif %}
+          </div>
+        </div>
+      
+        <!-- UNLOCKED HOME (matches mock) -->
+        <div class="flex-1 flex flex-col justify-start">
+          <div
+            id="home-stay"
+            class="hidden pt-0"
+          >
+            <!-- Top labels / heading -->
+            <div class="text-center pb-3">
+              <p class="text-[11px] font-semibold text-[#666666]">
+                Casa {{ property_name or "Your stay" }}
+              </p>
+              <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
+                <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe.<br />
+                You’ve made it.
+              </h1>
+            </div>
+      
+            <!-- Image card max-w-[407px] -->
+            <div class="w-full flex justify-center mt-2 pl-6 pr-6">
+              <div
+                class="bg-white rounded-[32px] shadow-[0_10px_20px_rgba(0,0,0,0.35)] overflow-hidden w-full border-[4px] border-[#FFFFFF]"
+              >
+                <div class="h-[430px] w-full overflow-hidden">
+                  <img
+                    src="{{ hero_image_url or default_image_url }}"
+                    alt="{{ property_name }}"
+                    class="w-full h-full object-cover"
+                  />
+                </div>
+              </div>
+            </div>
+      
+            <!-- Details + buttons -->
+            <div class="mt-8 space-y-8">
+              {% if arrival_date or departure_date %}
+              <!-- Arrival / Departure row -->
+              <div
+                class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm"
+              >
+                <div class="flex-1 pr-2">
+                  <p class="text-[11px] font-semibold text-[#666666] text-right">Arrival</p>
+                  <p id="arrival-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right">{{ arrival_date or "-" }}</p>
+                  <p class="mt-1 text-[20px] font-semibold text-[#000000] text-right pt-1">{{ checkin_time if checkin_time is defined and checkin_time else "4:00 PM" }}</p>
+                </div>
+                <div class="flex-1 pl-2">
+                  <p class="text-[11px] font-semibold text-[#666666] text-left">Departure</p>
+                  <p id="departure-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left">{{ departure_date or "-" }}</p>
+                  <p class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">{{ checkout_time if checkout_time is defined and checkout_time else "10:00 AM" }}</p>
+                </div>
+              </div>
+              {% endif %}
+      
+              <!-- Door / WiFi buttons -->
+              <div class="max-w-[360px] mx-auto grid grid-cols-2 gap-5">
+                <button
+                  id="checkin-button"
+                  type="button"
+                  class="w-full border border-slate-900 rounded-[999px] py-4 text-[15px] font-semibold 
+               bg-white text-slate-900 hover:bg-black hover:text-white 
+               transition-colors duration-200"
+                >
+                  Door
+                </button>
+      
+                <button
+                  id="wifi-button"
+                  type="button"
+                  class="w-full border border-slate-900 rounded-[999px] py-4 text-[15px] font-semibold
+             bg-white text-slate-900 hover:bg-black hover:text-white
+             transition-colors duration-200"
+                  >
+                  WiFi
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      
+      
+      
+              <!-- CHAT -->
+              <section id="screen-chat" class="hidden bg-white min-h-screen" aria-label="Chat">
+      
+                <!-- NEW: Spacer for top navigation (same height as header h-16) 
+        <div class="h-24"></div>-->
+      
+                <div id="chat-box" class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"></div>
+      
+      
+                <div class="chat-input-bar">
+                  <div class="chat-input-inner">
+                    <button type="button" class="chat-plus" aria-label="Insert a suggested question">+</button>
+                    <input id="chat-input" type="text" placeholder="Type a message here..." aria-label="Chat message" />
+                    <button id="chat-send" type="button" class="send-button" aria-label="Send message">
+                      <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
+                          d="M12 19V5M6.5 10.5L12 5l5.5 5.5" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </section>
+      
+              <!-- GUIDES -->
+      <!-- GUIDES -->
+      <section
+        id="screen-experiences"
+        class="hidden bg-[#f5f5f5] px-4 pt-24 pb-24 space-y-6"
+        aria-label="Guides and local tips"
+      >
+        <!-- Hero -->
+        <div class="text-center pb-3">
+          <p class="text-[11px] font-semibold text-[#666666]">Casa 
+            {{ property_name or "Your stay" }}
+          </p>
+           
+          <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
+            Your stay just got<br>easier,
+            <span>{{ reservation_name or "Guest" }}</span>.
+          </h1>
+            </div>
+          
+        <!-- Filters row -->
+        <div class="flex items-center gap-2 overflow-x-auto pb-1 pt-1 text-[11px] justify-center">
+          <!-- sort button -->
+          <button
+            type="button"
+            class="guide-filter whitespace-nowrap px-3 py-1.5 rounded-full border border-slate-300 bg-white text-slate-900 inline-flex items-center gap-1"
+            data-filter="all"
+          >
+            <span>All</span>
+          </button>
+      
+          <!-- dynamic filters injected here -->
+          <div
+            id="guides-filters"
+            class="flex gap-2 overflow-x-auto pb-1 pt-1 text-[11px]"
+          ></div>
+        </div>
+      
+        <!-- Guides grid: injected by JS -->
+        <div
+          id="guides-grid"
+          class="masonry-columns"
+        ></div>
+      
+        <!-- Fallback / empty state -->
+        <p
+          id="guides-empty-state"
+          class="hidden text-xs text-slate-500 mt-4"
+        >
+          We don’t have any guides yet for this stay. Check back soon or ask Sandy
+          for local tips.
+        </p>
+      </section>
+      
+      
+      
+      
+      <!-- UPGRADES -->
+      <section
+        id="screen-upgrades"
+        class="hidden bg-[#f5f5f5] flex flex-col flex-1 text-[0.95rem] px-4 pt-24 pb-24"
+        aria-label="Upgrades"
+      >
+        <!-- Heading -->
+        <div class="text-center pb-3">
+              <p class="text-[11px] font-semibold text-[#666666]">Casa 
+            {{ property_name or "Your stay" }}
+          </p>
+              <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
+            Upgrades you’ll love,<br>
+            <span>{{ reservation_name or "Guest" }}</span>.
+          </h1>
+            </div>
+      
+      
+        
+      
+        <!-- Beats-style carousel shell -->
+        <div
+          id="upgrades-carousel"
+          class="upgrades-carousel relative w-full max-w-[420px] mx-auto overflow-x-auto"
+        >
+          <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
+            {% if upgrades and upgrades|length > 0 %}
+              {% for up in upgrades %}
+                {% set slug = up.slug or "" %}
+                {% set title_lower = (up.title or "")|lower %}
+                {% set is_time_flex =
+                      slug in ["early-check-in", "late-checkout", "late-check-out"]
+                      or "early check" in title_lower
+                      or "late check" in title_lower
+                %}
+                {% if same_day_turnover and is_time_flex %}
+                  {# skip time-flex on same-day turnover #}
+                {% else %}
+                  <!-- each slide is still a button so your existing JS can use it -->
+                  <button
+        type="button"
+        class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
+        data-upgrade-id="{{ up.id }}"
+        data-upgrade-title="{{ up.title }}"
+        data-upgrade-price="{{ up.price_display or '' }}"
+      >
+        <div
+          class="upgrade-card-inner w-[280px] h-[360px] bg-white"
+        >
+          {% if up.image_url %}
             <img
-              src="{{ hero_image_url or default_image_url }}"
-              alt="{{ property_name }}"
+              src="{{ up.image_url }}"
+              alt="{{ up.title }}"
               class="w-full h-full object-cover"
             />
+          {% else %}
+            <img
+              src="{{ hero_image_url or default_image_url }}"
+              alt="{{ up.title }}"
+              class="w-full h-full object-cover"
+            />
+          {% endif %}
+        </div>
+      
+        <!-- hidden long copy so JS can read it -->
+        <p class="hidden upgrade-long">
+          {{ up.long_description or up.short_description }}
+        </p>
+      </button>
+      
+      
+                {% endif %}
+              {% endfor %}
+            {% else %}
+              <p class="text-xs text-slate-500">
+                Upgrades aren’t available for this stay yet.
+              </p>
+            {% endif %}
           </div>
         </div>
-      </div>
-
-      <!-- Details + buttons -->
-      <div class="mt-8 space-y-8">
-        {% if arrival_date or departure_date %}
-        <!-- Arrival / Departure row -->
-        <div
-          class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm"
-        >
-          <div class="flex-1 pr-2">
-            <p class="text-[11px] font-semibold text-[#666666] text-right">Arrival</p>
-            <p id="arrival-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right">{{ arrival_date or "-" }}</p>
-            <p class="mt-1 text-[20px] font-semibold text-[#000000] text-right pt-1">{{ checkin_time if checkin_time is defined and checkin_time else "4:00 PM" }}</p>
-          </div>
-          <div class="flex-1 pl-2">
-            <p class="text-[11px] font-semibold text-[#666666] text-left">Departure</p>
-            <p id="departure-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left">{{ departure_date or "-" }}</p>
-            <p class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">{{ checkout_time if checkout_time is defined and checkout_time else "10:00 AM" }}</p>
-          </div>
-        </div>
-        {% endif %}
-
-        <!-- Door / WiFi buttons -->
-        <div class="max-w-[360px] mx-auto grid grid-cols-2 gap-5">
-          <button
-            id="checkin-button"
-            type="button"
-            class="w-full border border-slate-900 rounded-[999px] py-4 text-[15px] font-semibold 
-         bg-white text-slate-900 hover:bg-black hover:text-white 
-         transition-colors duration-200"
+      
+        <!-- COPY + BUTTON for the ACTIVE card only 
+        <div id="upgrade-active-info" class="mt-6 text-center space-y-3 hidden">-->
+        <div id="upgrade-active-info" class="text-center hidden">
+          <h3
+            id="upgrade-active-title"
+            class="text-[20px] font-semibold text-[#000000]"
           >
-            Door
-          </button>
-
+            <!-- filled by JS -->
+          </h3>
+          <p
+            id="upgrade-active-description"
+            class="text-[14px] leading-relaxed text-[#000000] max-w-xs mx-auto pt-2"
+          >
+            <!-- filled by JS -->
+          </p>
+        </div>
+      
+        <div id="upgrade-active-cta" class="mt-6 flex justify-center hidden">
           <button
-            id="wifi-button"
+            id="upgrade-active-button"
             type="button"
-            class="w-full border border-slate-900 rounded-[999px] py-4 text-[15px] font-semibold
-       bg-white text-slate-900 hover:bg-black hover:text-white
-       transition-colors duration-200"
-            >
-            WiFi
+            class="inline-flex items-center justify-center rounded-[999px]
+                   border border-[#020617] px-10 py-4 text-[15px] font-semibold
+                   bg-white text-[#020617] hover:bg-black hover:text-white
+                   transition-colors duration-200"
+          >
+            <span id="upgrade-active-button-label">$0.00 – Purchase</span>
           </button>
         </div>
+      </section>
+      
+      
+      
+      
+      
+      <!-- UPGRADE DETAIL (full page with purchase bar) -->
+      <div
+        id="upgrade-modal"
+        class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[500]"
+      >
+        <section
+          id="screen-upgrade-detail"
+          class="bg-[#f5f5f5] text-slate-900 flex flex-col min-h-screen w-full"
+          aria-label="Upgrade details"
+        >
+          <!-- Hero image with close -->
+          <div class="relative h-64 w-full overflow-hidden">
+            <img
+              id="upgrade-detail-image"
+              src="{{ hero_image_url or default_image_url }}"
+              alt=""
+              class="w-full h-full object-cover"
+            />
+            <button
+              id="upgrade-modal-close"
+              type="button"
+              class="absolute top-6 right-5 w-9 h-9 rounded-full bg-black/80 flex items-center justify-center text-slate-50 text-xl leading-none z-[510]"
+            >
+              ×
+            </button>
+          </div>
+      
+          <!-- Text content -->
+          <div class="px-6 pt-6 pb-32 flex-1 overflow-y-auto">
+            <h2
+              id="upgrade-detail-title"
+              class="text-2xl font-semibold leading-tight"
+            >
+              Upgrade title
+            </h2>
+      
+            <p
+              id="upgrade-detail-body"
+              class="mt-4 text-sm text-slate-800 leading-relaxed whitespace-pre-line"
+            >
+              Full description goes here.
+            </p>
+      
+            <div class="mt-8 border border-slate-200 rounded-2xl p-4">
+              <p
+                class="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2"
+              >
+                Your upgrade
+              </p>
+              <div class="flex items-center justify-between text-sm">
+                <span id="upgrade-detail-name" class="font-medium">
+                  Upgrade name
+                </span>
+                <span id="upgrade-detail-price" class="font-semibold">
+                  $0.00
+                </span>
+              </div>
+            </div>
+          </div>
+      
+          <!-- Bottom purchase bar -->
+          <div
+            class="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 bg-[#f5f5f5]/95 backdrop-blur-sm shadow-[0_-12px_30px_rgba(15,23,42,0.18)]"
+          >
+            <button
+              id="upgrade-detail-purchase"
+              type="button"
+              class="w-full rounded-full py-3 text-sm font-semibold bg-slate-900 text-slate-50"
+            >
+              <span id="upgrade-detail-price-bottom">
+                $0.00 – Purchase
+              </span>
+            </button>
+          </div>
+        </section>
       </div>
-    </div>
-  </div>
-</section>
-
-
-
-        <!-- CHAT -->
-        <section id="screen-chat" class="hidden bg-white min-h-screen" aria-label="Chat">
-
-          <!-- NEW: Spacer for top navigation (same height as header h-16) 
-  <div class="h-24"></div>-->
-
-          <div id="chat-box" class="px-4 pt-4 pb-40 space-y-2 bg-white text-slate-800"></div>
-
-
-          <div class="chat-input-bar">
-            <div class="chat-input-inner">
-              <button type="button" class="chat-plus" aria-label="Insert a suggested question">+</button>
-              <input id="chat-input" type="text" placeholder="Type a message here..." aria-label="Chat message" />
-              <button id="chat-send" type="button" class="send-button" aria-label="Send message">
-                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
-                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.6"
-                    d="M12 19V5M6.5 10.5L12 5l5.5 5.5" />
-                </svg>
-              </button>
+      
+      
+      
+      
+              <!-- WiFi modal -->
+      <div
+        id="wifi-modal"
+        class="fixed inset-0 z-[500] bg-black hidden items-center justify-center px-6"
+           role="dialog"
+           aria-modal="true"
+        aria-labelledby="wifi-ssid"
+      >
+        <!-- Close button -->
+        <div class="absolute top-4 right-4">
+          <button
+            id="wifi-close"
+            type="button"
+            class="absolute top-1 right-1
+                   w-12 h-12
+                   rounded-full
+                   bg-white text-black
+                   flex items-center justify-center
+                   text-[32px] leading-none
+                   z-[510]"
+              aria-label="Close">
+            <span class="relative -top-[2px]">×</span>
+          </button>
+       </div>
+      
+        <!-- Content space-y-4  class="space-y-4" -->
+        <div class="text-center max-w-xs mx-auto">
+          <div>
+            <div>
+              <p id="wifi-network-title" class="text-[14px] text-[#CCCCCC] font-semibold uppercase">
+                WiFi Network
+              </p>
+              <p
+                id="wifi-ssid"
+                class="mt-1 text-[40px] font-semibold text-white break-all"
+              >
+                {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
+              </p>
+            </div>
+      
+            <div>
+              <p id="wifi-password-title" class="text-[14px] text-[#CCCCCC] font-semibold uppercase pt-3">
+                Password
+              </p>
+              <p
+                id="wifi-password"
+                class="mt-1 text-[40px] font-semibold text-white break-all" 
+              >
+                {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
+              </p>
+            </div>
+          </div>
+      
+          <p id="copy-title" class="text-[14px] text-[#CCCCCC] pt-3 font-semibold">
+            Tap and hold to copy on most devices.
+          </p>
+        </div>
+      </div>
+      
+              
+      
+        <!-- Check-in modal -->
+        <div id="checkin-modal"
+           class="fixed inset-0 z-[500] bg-black hidden items-center justify-center px-6"
+           role="dialog"
+           aria-modal="true"
+           aria-labelledby="checkin-title">
+          <div class="absolute top-4 right-4">
+            <button id="checkin-close"
+              type="button"
+            class="absolute top-1 right-1
+                   w-12 h-12
+                   rounded-full
+                   bg-white text-black
+                   flex items-center justify-center
+                   text-[32px] leading-none
+                   z-[510]"
+              aria-label="Close">
+            <span class="relative -top-[2px]">×</span>
+            </button>
+            
+          </div>
+          <div class="text-center space-y-4">
+            <p id="checkin-title" class="text-[14px] text-[#CCCCCC] font-semibold uppercase">
+              Your door code
+            </p>
+            <p id="checkin-code" class="text-[80px] text-white font-semibold">
+              ----
+            </p>
+            <p class="text-[14px] text-[#CCCCCC] font-semibold max-w-xs mx-auto">
+              This code matches the last 4 digits of the phone number on your reservation.
+              Enter it slowly on the keypad. If the lock gives you trouble, contact your host.
+            </p>
+          </div>
+        </div>
+      
+      
+      
+      <!-- GUIDE DETAIL (full page) -->
+      <div
+        id="guide-modal"
+        class="fixed inset-0 hidden bg-[#f5f5f5] z-[500] overflow-hidden"
+      >
+        <section
+          id="screen-guide-detail"
+          class="relative flex flex-col h-full w-full text-slate-900 overflow-hidden"
+          aria-label="Guide details"
+        >
+          <!-- Close button -->
+          <button
+            id="guide-modal-close"
+            type="button"
+            class="absolute top-4 right-5
+                   w-12 h-12
+                   rounded-full
+                   bg-black text-white
+                   flex items-center justify-center
+                   text-[32px] leading-none
+                   z-[510]"
+            aria-label="Close"
+          >
+            <span class="relative -top-[2px]">×</span>
+          </button>
+      
+          <!-- ONLY this area scrolls -->
+          <div class="flex-1 overflow-y-auto pt-28 pb-16 px-8">
+            <div class="max-w-[24rem] mx-auto">
+              <h2
+                id="guide-modal-title"
+                class="text-[30px] font-semibold leading-tight tracking-tight"
+              >
+                Headline
+              </h2>
+      
+              <p
+                id="guide-modal-body"
+                class="mt-8 text-[16px] font-semibold leading-[1.40]
+                       text-black whitespace-pre-line"
+              >
+                Full description goes here.
+              </p>
             </div>
           </div>
         </section>
-
-        <!-- GUIDES -->
-<!-- GUIDES -->
-<section
-  id="screen-experiences"
-  class="hidden bg-[#f5f5f5] px-4 pt-24 pb-24 space-y-6"
-  aria-label="Guides and local tips"
->
-  <!-- Hero -->
-  <div class="text-center pb-3">
-    <p class="text-[11px] font-semibold text-[#666666]">Casa 
-      {{ property_name or "Your stay" }}
-    </p>
-     
-    <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
-      Your stay just got<br>easier,
-      <span>{{ reservation_name or "Guest" }}</span>.
-    </h1>
       </div>
-    
-  <!-- Filters row -->
-  <div class="flex items-center gap-2 overflow-x-auto pb-1 pt-1 text-[11px] justify-center">
-    <!-- sort button -->
-    <button
-      type="button"
-      class="guide-filter whitespace-nowrap px-3 py-1.5 rounded-full border border-slate-300 bg-white text-slate-900 inline-flex items-center gap-1"
-      data-filter="all"
-    >
-      <span>All</span>
-    </button>
-
-    <!-- dynamic filters injected here -->
-    <div
-      id="guides-filters"
-      class="flex gap-2 overflow-x-auto pb-1 pt-1 text-[11px]"
-    ></div>
-  </div>
-
-  <!-- Guides grid: injected by JS -->
-  <div
-    id="guides-grid"
-    class="masonry-columns"
-  ></div>
-
-  <!-- Fallback / empty state -->
-  <p
-    id="guides-empty-state"
-    class="hidden text-xs text-slate-500 mt-4"
-  >
-    We don’t have any guides yet for this stay. Check back soon or ask Sandy
-    for local tips.
-  </p>
-</section>
-
-
-
-
-<!-- UPGRADES -->
-<section
-  id="screen-upgrades"
-  class="hidden bg-[#f5f5f5] flex flex-col flex-1 text-[0.95rem] px-4 pt-24 pb-24"
-  aria-label="Upgrades"
->
-  <!-- Heading -->
-  <div class="text-center pb-3">
-        <p class="text-[11px] font-semibold text-[#666666]">Casa 
-      {{ property_name or "Your stay" }}
-    </p>
-        <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
-      Upgrades you’ll love,<br>
-      <span>{{ reservation_name or "Guest" }}</span>.
-    </h1>
-      </div>
-
-
-  
-
-  <!-- Beats-style carousel shell -->
-  <div
-    id="upgrades-carousel"
-    class="upgrades-carousel relative w-full max-w-[420px] mx-auto overflow-x-auto"
-  >
-    <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
-      {% if upgrades and upgrades|length > 0 %}
-        {% for up in upgrades %}
-          {% set slug = up.slug or "" %}
-          {% set title_lower = (up.title or "")|lower %}
-          {% set is_time_flex =
-                slug in ["early-check-in", "late-checkout", "late-check-out"]
-                or "early check" in title_lower
-                or "late check" in title_lower
-          %}
-          {% if same_day_turnover and is_time_flex %}
-            {# skip time-flex on same-day turnover #}
-          {% else %}
-            <!-- each slide is still a button so your existing JS can use it -->
-            <button
-  type="button"
-  class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
-  data-upgrade-id="{{ up.id }}"
-  data-upgrade-title="{{ up.title }}"
-  data-upgrade-price="{{ up.price_display or '' }}"
->
-  <div
-    class="upgrade-card-inner w-[280px] h-[360px] bg-white"
-  >
-    {% if up.image_url %}
-      <img
-        src="{{ up.image_url }}"
-        alt="{{ up.title }}"
-        class="w-full h-full object-cover"
-      />
-    {% else %}
-      <img
-        src="{{ hero_image_url or default_image_url }}"
-        alt="{{ up.title }}"
-        class="w-full h-full object-cover"
-      />
-    {% endif %}
-  </div>
-
-  <!-- hidden long copy so JS can read it -->
-  <p class="hidden upgrade-long">
-    {{ up.long_description or up.short_description }}
-  </p>
-</button>
-
-
-          {% endif %}
-        {% endfor %}
-      {% else %}
-        <p class="text-xs text-slate-500">
-          Upgrades aren’t available for this stay yet.
-        </p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- COPY + BUTTON for the ACTIVE card only 
-  <div id="upgrade-active-info" class="mt-6 text-center space-y-3 hidden">-->
-  <div id="upgrade-active-info" class="text-center hidden">
-    <h3
-      id="upgrade-active-title"
-      class="text-[20px] font-semibold text-[#000000]"
-    >
-      <!-- filled by JS -->
-    </h3>
-    <p
-      id="upgrade-active-description"
-      class="text-[14px] leading-relaxed text-[#000000] max-w-xs mx-auto pt-2"
-    >
-      <!-- filled by JS -->
-    </p>
-  </div>
-
-  <div id="upgrade-active-cta" class="mt-6 flex justify-center hidden">
-    <button
-      id="upgrade-active-button"
-      type="button"
-      class="inline-flex items-center justify-center rounded-[999px]
-             border border-[#020617] px-10 py-4 text-[15px] font-semibold
-             bg-white text-[#020617] hover:bg-black hover:text-white
-             transition-colors duration-200"
-    >
-      <span id="upgrade-active-button-label">$0.00 – Purchase</span>
-    </button>
-  </div>
-</section>
-
-
-
-
-
-<!-- UPGRADE DETAIL (full page with purchase bar) -->
-<div
-  id="upgrade-modal"
-  class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[500]"
->
-  <section
-    id="screen-upgrade-detail"
-    class="bg-[#f5f5f5] text-slate-900 flex flex-col min-h-screen w-full"
-    aria-label="Upgrade details"
-  >
-    <!-- Hero image with close -->
-    <div class="relative h-64 w-full overflow-hidden">
-      <img
-        id="upgrade-detail-image"
-        src="{{ hero_image_url or default_image_url }}"
-        alt=""
-        class="w-full h-full object-cover"
-      />
-      <button
-        id="upgrade-modal-close"
-        type="button"
-        class="absolute top-6 right-5 w-9 h-9 rounded-full bg-black/80 flex items-center justify-center text-slate-50 text-xl leading-none z-[510]"
-      >
-        ×
-      </button>
-    </div>
-
-    <!-- Text content -->
-    <div class="px-6 pt-6 pb-32 flex-1 overflow-y-auto">
-      <h2
-        id="upgrade-detail-title"
-        class="text-2xl font-semibold leading-tight"
-      >
-        Upgrade title
-      </h2>
-
-      <p
-        id="upgrade-detail-body"
-        class="mt-4 text-sm text-slate-800 leading-relaxed whitespace-pre-line"
-      >
-        Full description goes here.
-      </p>
-
-      <div class="mt-8 border border-slate-200 rounded-2xl p-4">
-        <p
-          class="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2"
-        >
-          Your upgrade
-        </p>
-        <div class="flex items-center justify-between text-sm">
-          <span id="upgrade-detail-name" class="font-medium">
-            Upgrade name
-          </span>
-          <span id="upgrade-detail-price" class="font-semibold">
-            $0.00
-          </span>
-        </div>
-      </div>
-    </div>
-
-    <!-- Bottom purchase bar -->
-    <div
-      class="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 bg-[#f5f5f5]/95 backdrop-blur-sm shadow-[0_-12px_30px_rgba(15,23,42,0.18)]"
-    >
-      <button
-        id="upgrade-detail-purchase"
-        type="button"
-        class="w-full rounded-full py-3 text-sm font-semibold bg-slate-900 text-slate-50"
-      >
-        <span id="upgrade-detail-price-bottom">
-          $0.00 – Purchase
-        </span>
-      </button>
-    </div>
-  </section>
-</div>
-
-
-
-
-        <!-- WiFi modal -->
-<div
-  id="wifi-modal"
-  class="fixed inset-0 z-[500] bg-black hidden items-center justify-center px-6"
-     role="dialog"
-     aria-modal="true"
-  aria-labelledby="wifi-ssid"
->
-  <!-- Close button -->
-  <div class="absolute top-4 right-4">
-    <button
-      id="wifi-close"
-      type="button"
-      class="absolute top-1 right-1
-             w-12 h-12
-             rounded-full
-             bg-white text-black
-             flex items-center justify-center
-             text-[32px] leading-none
-             z-[510]"
-        aria-label="Close">
-      <span class="relative -top-[2px]">×</span>
-    </button>
- </div>
-
-  <!-- Content space-y-4  class="space-y-4" -->
-  <div class="text-center max-w-xs mx-auto">
-    <div>
-      <div>
-        <p id="wifi-network-title" class="text-[14px] text-[#CCCCCC] font-semibold uppercase">
-          WiFi Network
-        </p>
-        <p
-          id="wifi-ssid"
-          class="mt-1 text-[40px] font-semibold text-white break-all"
-        >
-          {{ wifi_ssid if wifi_ssid is defined and wifi_ssid else "Blueshore-5G" }}
-        </p>
-      </div>
-
-      <div>
-        <p id="wifi-password-title" class="text-[14px] text-[#CCCCCC] font-semibold uppercase pt-3">
-          Password
-        </p>
-        <p
-          id="wifi-password"
-          class="mt-1 text-[40px] font-semibold text-white break-all" 
-        >
-          {{ wifi_password if wifi_password is defined and wifi_password else "Shore6345" }}
-        </p>
-      </div>
-    </div>
-
-    <p id="copy-title" class="text-[14px] text-[#CCCCCC] pt-3 font-semibold">
-      Tap and hold to copy on most devices.
-    </p>
-  </div>
-</div>
-
-        
-
-  <!-- Check-in modal -->
-  <div id="checkin-modal"
-     class="fixed inset-0 z-[500] bg-black hidden items-center justify-center px-6"
-     role="dialog"
-     aria-modal="true"
-     aria-labelledby="checkin-title">
-    <div class="absolute top-4 right-4">
-      <button id="checkin-close"
-        type="button"
-      class="absolute top-1 right-1
-             w-12 h-12
-             rounded-full
-             bg-white text-black
-             flex items-center justify-center
-             text-[32px] leading-none
-             z-[510]"
-        aria-label="Close">
-      <span class="relative -top-[2px]">×</span>
-      </button>
       
-    </div>
-    <div class="text-center space-y-4">
-      <p id="checkin-title" class="text-[14px] text-[#CCCCCC] font-semibold uppercase">
-        Your door code
-      </p>
-      <p id="checkin-code" class="text-[80px] text-white font-semibold">
-        ----
-      </p>
-      <p class="text-[14px] text-[#CCCCCC] font-semibold max-w-xs mx-auto">
-        This code matches the last 4 digits of the phone number on your reservation.
-        Enter it slowly on the keypad. If the lock gives you trouble, contact your host.
-      </p>
-    </div>
-  </div>
-
-
-
-<!-- GUIDE DETAIL (full page) -->
-<div
-  id="guide-modal"
-  class="fixed inset-0 hidden bg-[#f5f5f5] z-[500] overflow-hidden"
->
-  <section
-    id="screen-guide-detail"
-    class="relative flex flex-col h-full w-full text-slate-900 overflow-hidden"
-    aria-label="Guide details"
-  >
-    <!-- Close button -->
-    <button
-      id="guide-modal-close"
-      type="button"
-      class="absolute top-4 right-5
-             w-12 h-12
-             rounded-full
-             bg-black text-white
-             flex items-center justify-center
-             text-[32px] leading-none
-             z-[510]"
-      aria-label="Close"
-    >
-      <span class="relative -top-[2px]">×</span>
-    </button>
-
-    <!-- ONLY this area scrolls -->
-    <div class="flex-1 overflow-y-auto pt-28 pb-16 px-8">
-      <div class="max-w-[24rem] mx-auto">
-        <h2
-          id="guide-modal-title"
-          class="text-[30px] font-semibold leading-tight tracking-tight"
-        >
-          Headline
-        </h2>
-
-        <p
-          id="guide-modal-body"
-          class="mt-8 text-[16px] font-semibold leading-[1.40]
-                 text-black whitespace-pre-line"
-        >
-          Full description goes here.
-        </p>
-      </div>
-    </div>
-  </section>
-</div>
-
-
-
-
-
-
-  <!-- Logout modal -->
-  <div id="logout-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
-    role="dialog" aria-modal="true" aria-labelledby="logout-title">
-    <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-      <div class="flex items-start justify-between gap-4">
-        <div>
-          <h2 id="logout-title" class="text-base font-semibold text-slate-900">Leaving already?</h2>
-          <p class="mt-1 text-sm text-slate-500">
-            To regain access to {{ property_name }}, you’ll need to enter the last 4 digits of your booking phone
-            number.
-          </p>
+      
+      
+      
+      
+      
+        <!-- Logout modal -->
+        <div id="logout-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
+          role="dialog" aria-modal="true" aria-labelledby="logout-title">
+          <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <h2 id="logout-title" class="text-base font-semibold text-slate-900">Leaving already?</h2>
+                <p class="mt-1 text-sm text-slate-500">
+                  To regain access to {{ property_name }}, you’ll need to enter the last 4 digits of your booking phone
+                  number.
+                </p>
+              </div>
+              <button id="logout-close" type="button"
+                class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
+                <span class="sr-only">Close</span>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
+                  aria-hidden="true">
+                  <path fill-rule="evenodd"
+                    d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z"
+                    clip-rule="evenodd" />
+                </svg>
+              </button>
+            </div>
+      
+            <div class="mt-5 flex items-center justify-end gap-3">
+              <button id="logout-cancel" type="button"
+                class="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
+                Cancel
+              </button>
+              <button id="logout-confirm" type="button"
+                class="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800">
+                Log out
+              </button>
+            </div>
+          </div>
         </div>
-        <button id="logout-close" type="button"
-          class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-          <span class="sr-only">Close</span>
-          <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
-            aria-hidden="true">
-            <path fill-rule="evenodd"
-              d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z"
-              clip-rule="evenodd" />
-          </svg>
-        </button>
-      </div>
-
-      <div class="mt-5 flex items-center justify-end gap-3">
-        <button id="logout-cancel" type="button"
-          class="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-          Cancel
-        </button>
-        <button id="logout-confirm" type="button"
-          class="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800">
-          Log out
-        </button>
-      </div>
-    </div>
-  </div>
-
-<script>
-  document.addEventListener("DOMContentLoaded", function () {
-    // --- Screens + core elements ---
-    const screens = {
-      home: document.getElementById("screen-home"),
-      chat: document.getElementById("screen-chat"),
-      experiences: document.getElementById("screen-experiences"),
-      upgrades: document.getElementById("screen-upgrades"),
-      //upgradeDetail: document.getElementById("screen-upgrade-detail"),
-    };
-
-    const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
-    const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
-
-    // helper: are we currently on the chat screen?
-    function isChatVisible() {
-      const chatScreen = screens.chat;
-      return chatScreen && !chatScreen.classList.contains("hidden");
-    }
-
-    const navButtons = document.querySelectorAll("nav .nav-item");
-    const homeLogin = document.getElementById("home-login");
-    const homeStay = document.getElementById("home-stay");
-    const headerEl = document.getElementById("app-header");
-    /*const upgradeModal = document.getElementById("upgrade-modal");
-    const upgradeModalClose = document.getElementById("upgrade-modal-close");*/
-
-        // --- Guides / experiences (local tips) ---
-        // --- Guides / experiences (local tips) ---
-
-    const guidesGrid = document.getElementById("guides-grid");
-    const guidesEmptyState = document.getElementById("guides-empty-state");
-    const guidesFiltersContainer = document.getElementById("guides-filters");
-
-    const guideModal = document.getElementById("guide-modal");
-    const guideModalClose = document.getElementById("guide-modal-close");
-    const guideModalTitle = document.getElementById("guide-modal-title");
-    const guideModalBody = document.getElementById("guide-modal-body");
-
-    const guidesState = {
-      loaded: false,
-      loading: false,
-      guides: [],
-      activeFilter: "all",
-    };
-
-    // Build one card per guide (2-col grid, “blocks” like your mock)
-function createGuideCard(guide, index) {
-  // 🔹 3-height masonry rhythm
-  let minHeight;
-  if (index % 4 === 0) {
-    minHeight = "320px"; // tall
-  } else if (index % 2 === 0) {
-    minHeight = "240px"; // medium
-  } else {
-    minHeight = "180px"; // short
-  }
-
-  const card = document.createElement("button");
-  card.type = "button";
-
-  // Required for CSS-columns masonry
-  card.className =
-    "masonry-item group relative overflow-hidden rounded-[24px] bg-slate-200 shadow-sm " +
-    "focus:outline-none focus:ring-2 focus:ring-slate-900 transition-transform active:scale-95 text-left w-full";
-
-  card.style.minHeight = minHeight;
-
-  const imageUrl =
-    guide.image_url ||
-    "{{ experiences_hero_url or hero_image_url or default_image_url }}";
-
-  const img = document.createElement("img");
-  img.src = imageUrl;
-  img.alt = guide.title || "Guide";
-  img.className =
-    "absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]";
-  card.appendChild(img);
-
-  const overlay = document.createElement("div");
-  overlay.className =
-    "absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent";
-  card.appendChild(overlay);
-
-  const textWrap = document.createElement("div");
-  textWrap.className =
-    "absolute inset-x-3 bottom-3 text-left text-white space-y-1";
-  card.appendChild(textWrap);
-
-  const titleEl = document.createElement("h2");
-  titleEl.className = "text-[13px] font-semibold leading-tight line-clamp-2";
-  titleEl.textContent = guide.title || "Guide";
-  textWrap.appendChild(titleEl);
-
-  if (guide.category) {
-    const catEl = document.createElement("p");
-    catEl.className = "text-[10px] opacity-80";
-    catEl.textContent = guide.category;
-    textWrap.appendChild(catEl);
-  }
-
-  card.addEventListener("click", () => openGuideModalFromGuide(guide));
-  return card;
-}
-
-
-
- function openGuideModalFromGuide(guide) {
-  if (!guideModal) return;
-
-  // If the menu is open, close it so it doesn't mess with z-index/state
-  if (typeof closeMenu === "function") closeMenu();
-
-  if (guideModalTitle) guideModalTitle.textContent = guide.title || "Guide";
-
-  // Prefer HTML body if available
-  if (guideModalBody) {
-    if (guide.body_html) {
-      guideModalBody.innerHTML = guide.body_html;
-      guideModalBody.classList.remove("whitespace-pre-line");
-    } else if (guide.long_description) {
-      guideModalBody.textContent = guide.long_description;
-      guideModalBody.classList.add("whitespace-pre-line");
-    } else if (guide.short_description) {
-      guideModalBody.textContent = guide.short_description;
-      guideModalBody.classList.add("whitespace-pre-line");
-    } else {
-      guideModalBody.textContent = "";
-      guideModalBody.classList.add("whitespace-pre-line");
-    }
-  }
-
-  // Show modal
-  guideModal.classList.remove("hidden");
-  guideModal.classList.add("flex");
-
-  // 🔒 Lock background scroll (BODY + HTML fixes double scroll)
-  document.body.classList.add("overflow-hidden", "guide-open");
-  document.documentElement.classList.add("overflow-hidden");
-
-  // ✅ Reset modal scroll to top (prevents weird mid-scroll opens)
-  const scroller = guideModal.querySelector(".overflow-y-auto");
-  if (scroller) scroller.scrollTop = 0;
-}
-
-function closeGuideModal() {
-  if (!guideModal) return;
-
-  guideModal.classList.add("hidden");
-  guideModal.classList.remove("flex");
-
-  // 🔓 Restore scroll + clear modal state
-  document.body.classList.remove("overflow-hidden", "guide-open");
-  document.documentElement.classList.remove("overflow-hidden");
-}
-
-
-// --- make sure handlers are bound exactly once ---
-if (guideModalClose) {
-  guideModalClose.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    closeGuideModal();
-  });
-}
-
-if (guideModal) {
-  // click outside the content closes
-  guideModal.addEventListener("click", (e) => {
-    if (e.target === guideModal) closeGuideModal();
-  });
-}
-
-// ESC closes
-document.addEventListener("keydown", (e) => {
-  if (e.key === "Escape" && guideModal && !guideModal.classList.contains("hidden")) {
-    closeGuideModal();
-  }
-});
-
-
-
-    // Build filter chips from guide categories
-    function buildGuideFiltersFromGuides(guides) {
-      if (!guidesFiltersContainer) return;
-
-      const categories = [
-        ...new Set(
-          guides
-            .map((g) => g.category)
-            .filter((c) => typeof c === "string" && c.trim() !== "")
-        ),
-      ];
-
-      guidesFiltersContainer.innerHTML = "";
-
-      // Make one button per category
-      categories.forEach((category) => {
-        const btn = document.createElement("button");
-        btn.type = "button";
-        btn.dataset.filter = category;
-        btn.textContent = category;
-        btn.className =
-          "guide-filter whitespace-nowrap px-3 py-1.5 rounded-full border " +
-          "border-slate-300 bg-white text-slate-900 text-[11px]";
-        btn.addEventListener("click", () => {
-          guidesState.activeFilter = category;
-          updateGuideFilterStates();
-          renderGuidesGrid();
-        });
-        guidesFiltersContainer.appendChild(btn);
-      });
-
-      // Hook up the fixed “Sort by” button to reset filter to all
-      const sortButton = document.querySelector(
-        'button.guide-filter[data-filter="all"]'
-      );
-      if (sortButton) {
-        sortButton.addEventListener("click", () => {
-          guidesState.activeFilter = "all";
-          updateGuideFilterStates();
-          renderGuidesGrid();
+      
+      <script>
+        document.addEventListener("DOMContentLoaded", function () {
+          // --- Screens + core elements ---
+          const screens = {
+            home: document.getElementById("screen-home"),
+            chat: document.getElementById("screen-chat"),
+            experiences: document.getElementById("screen-experiences"),
+            upgrades: document.getElementById("screen-upgrades"),
+            //upgradeDetail: document.getElementById("screen-upgrade-detail"),
+          };
+      
+          const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
+          const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
+      
+          // helper: are we currently on the chat screen?
+          function isChatVisible() {
+            const chatScreen = screens.chat;
+            return chatScreen && !chatScreen.classList.contains("hidden");
+          }
+      
+          const navButtons = document.querySelectorAll("nav .nav-item");
+          const homeLogin = document.getElementById("home-login");
+          const homeStay = document.getElementById("home-stay");
+          const headerEl = document.getElementById("app-header");
+          /*const upgradeModal = document.getElementById("upgrade-modal");
+          const upgradeModalClose = document.getElementById("upgrade-modal-close");*/
+      
+              // --- Guides / experiences (local tips) ---
+              // --- Guides / experiences (local tips) ---
+      
+          const guidesGrid = document.getElementById("guides-grid");
+          const guidesEmptyState = document.getElementById("guides-empty-state");
+          const guidesFiltersContainer = document.getElementById("guides-filters");
+      
+          const guideModal = document.getElementById("guide-modal");
+          const guideModalClose = document.getElementById("guide-modal-close");
+          const guideModalTitle = document.getElementById("guide-modal-title");
+          const guideModalBody = document.getElementById("guide-modal-body");
+      
+          const guidesState = {
+            loaded: false,
+            loading: false,
+            guides: [],
+            activeFilter: "all",
+          };
+      
+          // Build one card per guide (2-col grid, “blocks” like your mock)
+      function createGuideCard(guide, index) {
+        // 🔹 3-height masonry rhythm
+        let minHeight;
+        if (index % 4 === 0) {
+          minHeight = "320px"; // tall
+        } else if (index % 2 === 0) {
+          minHeight = "240px"; // medium
+        } else {
+          minHeight = "180px"; // short
+        }
+      
+        const card = document.createElement("button");
+        card.type = "button";
+      
+        // Required for CSS-columns masonry
+        card.className =
+          "masonry-item group relative overflow-hidden rounded-[24px] bg-slate-200 shadow-sm " +
+          "focus:outline-none focus:ring-2 focus:ring-slate-900 transition-transform active:scale-95 text-left w-full";
+      
+        card.style.minHeight = minHeight;
+      
+        const imageUrl =
+          guide.image_url ||
+          "{{ experiences_hero_url or hero_image_url or default_image_url }}";
+      
+        const img = document.createElement("img");
+        img.src = imageUrl;
+        img.alt = guide.title || "Guide";
+        img.className =
+          "absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]";
+        card.appendChild(img);
+      
+        const overlay = document.createElement("div");
+        overlay.className =
+          "absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent";
+        card.appendChild(overlay);
+      
+        const textWrap = document.createElement("div");
+        textWrap.className =
+          "absolute inset-x-3 bottom-3 text-left text-white space-y-1";
+        card.appendChild(textWrap);
+      
+        const titleEl = document.createElement("h2");
+        titleEl.className = "text-[13px] font-semibold leading-tight line-clamp-2";
+        titleEl.textContent = guide.title || "Guide";
+        textWrap.appendChild(titleEl);
+      
+        if (guide.category) {
+          const catEl = document.createElement("p");
+          catEl.className = "text-[10px] opacity-80";
+          catEl.textContent = guide.category;
+          textWrap.appendChild(catEl);
+        }
+      
+        card.addEventListener("click", () => openGuideModalFromGuide(guide));
+        return card;
+      }
+      
+      
+      
+       function openGuideModalFromGuide(guide) {
+        if (!guideModal) return;
+      
+        // If the menu is open, close it so it doesn't mess with z-index/state
+        if (typeof closeMenu === "function") closeMenu();
+      
+        if (guideModalTitle) guideModalTitle.textContent = guide.title || "Guide";
+      
+        // Prefer HTML body if available
+        if (guideModalBody) {
+          if (guide.body_html) {
+            guideModalBody.innerHTML = guide.body_html;
+            guideModalBody.classList.remove("whitespace-pre-line");
+          } else if (guide.long_description) {
+            guideModalBody.textContent = guide.long_description;
+            guideModalBody.classList.add("whitespace-pre-line");
+          } else if (guide.short_description) {
+            guideModalBody.textContent = guide.short_description;
+            guideModalBody.classList.add("whitespace-pre-line");
+          } else {
+            guideModalBody.textContent = "";
+            guideModalBody.classList.add("whitespace-pre-line");
+          }
+        }
+      
+        // Show modal
+        guideModal.classList.remove("hidden");
+        guideModal.classList.add("flex");
+      
+        // 🔒 Lock background scroll (BODY + HTML fixes double scroll)
+        document.body.classList.add("overflow-hidden", "guide-open");
+        document.documentElement.classList.add("overflow-hidden");
+      
+        // ✅ Reset modal scroll to top (prevents weird mid-scroll opens)
+        const scroller = guideModal.querySelector(".overflow-y-auto");
+        if (scroller) scroller.scrollTop = 0;
+      }
+      
+      function closeGuideModal() {
+        if (!guideModal) return;
+      
+        guideModal.classList.add("hidden");
+        guideModal.classList.remove("flex");
+      
+        // 🔓 Restore scroll + clear modal state
+        document.body.classList.remove("overflow-hidden", "guide-open");
+        document.documentElement.classList.remove("overflow-hidden");
+      }
+      
+      
+      // --- make sure handlers are bound exactly once ---
+      if (guideModalClose) {
+        guideModalClose.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          closeGuideModal();
         });
       }
-
-      updateGuideFilterStates();
-    }
-
-    function updateGuideFilterStates() {
-      const buttons = document.querySelectorAll(".guide-filter");
-      const active = guidesState.activeFilter;
-
-      buttons.forEach((btn) => {
-        const filter = btn.dataset.filter;
-        const isActive =
-          active === "all" ? filter === "all" : filter === active;
-
-        if (isActive) {
-          btn.classList.add("bg-slate-900", "text-white", "border-slate-900");
-          btn.classList.remove("bg-white", "text-slate-900", "border-slate-300");
-        } else if (filter !== "all") {
-          btn.classList.add("bg-white", "text-slate-900", "border-slate-300");
-          btn.classList.remove("bg-slate-900", "text-white", "border-slate-900");
+      
+      if (guideModal) {
+        // click outside the content closes
+        guideModal.addEventListener("click", (e) => {
+          if (e.target === guideModal) closeGuideModal();
+        });
+      }
+      
+      // ESC closes
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape" && guideModal && !guideModal.classList.contains("hidden")) {
+          closeGuideModal();
         }
       });
-    }
-
-function getMasonryColumnCount() {
-  // match your breakpoint: 3 columns on md+
-  return window.matchMedia("(min-width: 768px)").matches ? 3 : 2;
-}
-
-function renderGuidesGrid() {
-  if (!guidesGrid) return;
-
-  // clear
-  guidesGrid.innerHTML = "";
-
-  const filter = guidesState.activeFilter;
-  const visible =
-    filter === "all"
-      ? guidesState.guides
-      : guidesState.guides.filter((g) => g.category === filter);
-
-  if (!visible.length) {
-    guidesEmptyState?.classList.remove("hidden");
-    return;
-  }
-  guidesEmptyState?.classList.add("hidden");
-
-  // build columns
-  const colCount = getMasonryColumnCount();
-  const cols = [];
-
-  for (let i = 0; i < colCount; i++) {
-    const col = document.createElement("div");
-    col.className = "masonry-col";
-    guidesGrid.appendChild(col);
-    cols.push(col);
-  }
-
-  // helper: find shortest column
-  function getShortestCol() {
-    let best = cols[0];
-    let bestH = cols[0].offsetHeight;
-    for (let i = 1; i < cols.length; i++) {
-      const h = cols[i].offsetHeight;
-      if (h < bestH) {
-        bestH = h;
-        best = cols[i];
+      
+      
+      
+          // Build filter chips from guide categories
+          function buildGuideFiltersFromGuides(guides) {
+            if (!guidesFiltersContainer) return;
+      
+            const categories = [
+              ...new Set(
+                guides
+                  .map((g) => g.category)
+                  .filter((c) => typeof c === "string" && c.trim() !== "")
+              ),
+            ];
+      
+            guidesFiltersContainer.innerHTML = "";
+      
+            // Make one button per category
+            categories.forEach((category) => {
+              const btn = document.createElement("button");
+              btn.type = "button";
+              btn.dataset.filter = category;
+              btn.textContent = category;
+              btn.className =
+                "guide-filter whitespace-nowrap px-3 py-1.5 rounded-full border " +
+                "border-slate-300 bg-white text-slate-900 text-[11px]";
+              btn.addEventListener("click", () => {
+                guidesState.activeFilter = category;
+                updateGuideFilterStates();
+                renderGuidesGrid();
+              });
+              guidesFiltersContainer.appendChild(btn);
+            });
+      
+            // Hook up the fixed “Sort by” button to reset filter to all
+            const sortButton = document.querySelector(
+              'button.guide-filter[data-filter="all"]'
+            );
+            if (sortButton) {
+              sortButton.addEventListener("click", () => {
+                guidesState.activeFilter = "all";
+                updateGuideFilterStates();
+                renderGuidesGrid();
+              });
+            }
+      
+            updateGuideFilterStates();
+          }
+      
+          function updateGuideFilterStates() {
+            const buttons = document.querySelectorAll(".guide-filter");
+            const active = guidesState.activeFilter;
+      
+            buttons.forEach((btn) => {
+              const filter = btn.dataset.filter;
+              const isActive =
+                active === "all" ? filter === "all" : filter === active;
+      
+              if (isActive) {
+                btn.classList.add("bg-slate-900", "text-white", "border-slate-900");
+                btn.classList.remove("bg-white", "text-slate-900", "border-slate-300");
+              } else if (filter !== "all") {
+                btn.classList.add("bg-white", "text-slate-900", "border-slate-300");
+                btn.classList.remove("bg-slate-900", "text-white", "border-slate-900");
+              }
+            });
+          }
+      
+      function getMasonryColumnCount() {
+        // match your breakpoint: 3 columns on md+
+        return window.matchMedia("(min-width: 768px)").matches ? 3 : 2;
       }
-    }
-    return best;
-  }
-
-  // append cards into shortest column (Pinterest behavior)
-  visible.forEach((guide, index) => {
-    const card = createGuideCard(guide, index);
-    getShortestCol().appendChild(card);
-  });
-}
-
-// OPTIONAL but recommended: reflow on resize so filters keep masonry nice
-window.addEventListener("resize", () => {
-  if (screens?.experiences && !screens.experiences.classList.contains("hidden")) {
-    renderGuidesGrid();
-  }
-});
-
-
-   
-
-
-   
-
-    // --- Global state ---
-    let isUnlocked = window.INITIAL_VERIFIED === "true";
-
-    // TEMP: force unlocked during UI testing //REMOVE when live
-    //isUnlocked = true;
-
-    let lastUnlockCode = null;
-    let currentSessionId = null;
-    let guestName = null;
-    let arrivalDate = null;
-    let departureDate = null;
-
-    // 🔹 helper: keep guest name in sync across all places we show it
-    function updateGuestNameInUI(name) {
-      const nameEls = document.querySelectorAll("#guest-name-span, #guest-name-span-guides");
-      nameEls.forEach((el) => {
-        el.textContent = name;
+      
+      function renderGuidesGrid() {
+        if (!guidesGrid) return;
+      
+        // clear
+        guidesGrid.innerHTML = "";
+      
+        const filter = guidesState.activeFilter;
+        const visible =
+          filter === "all"
+            ? guidesState.guides
+            : guidesState.guides.filter((g) => g.category === filter);
+      
+        if (!visible.length) {
+          guidesEmptyState?.classList.remove("hidden");
+          return;
+        }
+        guidesEmptyState?.classList.add("hidden");
+      
+        // build columns
+        const colCount = getMasonryColumnCount();
+        const cols = [];
+      
+        for (let i = 0; i < colCount; i++) {
+          const col = document.createElement("div");
+          col.className = "masonry-col";
+          guidesGrid.appendChild(col);
+          cols.push(col);
+        }
+      
+        // helper: find shortest column
+        function getShortestCol() {
+          let best = cols[0];
+          let bestH = cols[0].offsetHeight;
+          for (let i = 1; i < cols.length; i++) {
+            const h = cols[i].offsetHeight;
+            if (h < bestH) {
+              bestH = h;
+              best = cols[i];
+            }
+          }
+          return best;
+        }
+      
+        // append cards into shortest column (Pinterest behavior)
+        visible.forEach((guide, index) => {
+          const card = createGuideCard(guide, index);
+          getShortestCol().appendChild(card);
+        });
+      }
+      
+      // OPTIONAL but recommended: reflow on resize so filters keep masonry nice
+      window.addEventListener("resize", () => {
+        if (screens?.experiences && !screens.experiences.classList.contains("hidden")) {
+          renderGuidesGrid();
+        }
       });
-    }
-
-    const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
-
-    function saveGuestState() {
-      try {
-        const state = {
-          isUnlocked,
-          lastUnlockCode,
-          sessionId: currentSessionId,
-          guestName,
-          arrivalDate,
-          departureDate,
-        };
-        window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
-      } catch (e) {
-        console.warn("Unable to save guest state:", e);
-      }
-    }
-
-    function loadGuestState() {
-      try {
-        const raw = window.localStorage.getItem(GUEST_STATE_KEY);
-        if (!raw) return null;
-        return JSON.parse(raw);
-      } catch (e) {
-        console.warn("Unable to load guest state:", e);
-        return null;
-      }
-    }
-
-    const storedState = loadGuestState();
-    if (storedState) {
-      if (!isUnlocked && storedState.isUnlocked) {
-        isUnlocked = true;
-      }
-      if (storedState.lastUnlockCode) {
-        lastUnlockCode = storedState.lastUnlockCode;
-      }
-      if (storedState.sessionId) {
-        currentSessionId = storedState.sessionId;
-      }
-
-      if (storedState.guestName) {
-        guestName = storedState.guestName;
-        updateGuestNameInUI(guestName);
-      }
+      
+      
+         
+      
+      
+         
+      
+          // --- Global state ---
+          let isUnlocked = window.INITIAL_VERIFIED === "true";
+      
+          // TEMP: force unlocked during UI testing //REMOVE when live
+          //isUnlocked = true;
+      
+          let lastUnlockCode = null;
+          let currentSessionId = null;
+          let guestName = null;
+          let arrivalDate = null;
+          let departureDate = null;
+      
+          // 🔹 helper: keep guest name in sync across all places we show it
+          function updateGuestNameInUI(name) {
+            const nameEls = document.querySelectorAll("#guest-name-span, #guest-name-span-guides");
+            nameEls.forEach((el) => {
+              el.textContent = name;
+            });
+          }
+      
+          const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
+      
+          function saveGuestState() {
+            try {
+              const state = {
+                isUnlocked,
+                lastUnlockCode,
+                sessionId: currentSessionId,
+                guestName,
+                arrivalDate,
+                departureDate,
+              };
+              window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
+            } catch (e) {
+              console.warn("Unable to save guest state:", e);
+            }
+          }
+      
+          function loadGuestState() {
+            try {
+              const raw = window.localStorage.getItem(GUEST_STATE_KEY);
+              if (!raw) return null;
+              return JSON.parse(raw);
+            } catch (e) {
+              console.warn("Unable to load guest state:", e);
+              return null;
+            }
+          }
+      
+          const storedState = loadGuestState();
+          if (storedState) {
+            if (!isUnlocked && storedState.isUnlocked) {
+              isUnlocked = true;
+            }
+            if (storedState.lastUnlockCode) {
+              lastUnlockCode = storedState.lastUnlockCode;
+            }
+            if (storedState.sessionId) {
+              currentSessionId = storedState.sessionId;
+            }
+      
+            if (storedState.guestName) {
+              guestName = storedState.guestName;
+              updateGuestNameInUI(guestName);
+            }
       if (storedState.arrivalDate) {
         arrivalDate = storedState.arrivalDate;
         const arrEl = document.getElementById("arrival-date-span");
-        if (arrEl) arrEl.textContent = arrivalDate;
+        if (arrEl) arrEl.textContent = formatDateLong(arrivalDate);
       }
+      
       if (storedState.departureDate) {
         departureDate = storedState.departureDate;
         const depEl = document.getElementById("departure-date-span");
-        if (depEl) depEl.textContent = departureDate;
+        if (depEl) depEl.textContent = formatDateLong(departureDate);
       }
+
     }
 
     function updateHomeState() {
@@ -2267,6 +2269,17 @@ function updateActiveUpgradeInfo(index) {
 
   activeInfoWrap?.classList.remove("hidden");
   activeButtonWrap?.classList.remove("hidden");
+}
+
+    function formatDateLong(dateStr) {
+  if (!dateStr) return "-";
+
+  const date = new Date(dateStr + "T00:00:00"); // avoid timezone issues
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function updateUpgradeSlides() {
@@ -2689,15 +2702,16 @@ if (upgradesCarousel && upgradeSlides.length) {
             updateGuestNameInUI(guestName);
           }
           if (data.arrival_date) {
-            arrivalDate = data.arrival_date;
-            const arrEl = document.getElementById("arrival-date-span");
-            if (arrEl) arrEl.textContent = arrivalDate;
-          }
-          if (data.departure_date) {
-            departureDate = data.departure_date;
-            const depEl = document.getElementById("departure-date-span");
-            if (depEl) depEl.textContent = departureDate;
-          }
+              arrivalDate = data.arrival_date;
+              const arrEl = document.getElementById("arrival-date-span");
+              if (arrEl) arrEl.textContent = formatDateLong(arrivalDate);
+            }
+            
+            if (data.departure_date) {
+              departureDate = data.departure_date;
+              const depEl = document.getElementById("departure-date-span");
+              if (depEl) depEl.textContent = formatDateLong(departureDate);
+            }
         } catch (e) {
           console.warn("Error applying PMS guest info to UI:", e);
         }
