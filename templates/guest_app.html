@@ -873,6 +873,11 @@ body.chat-screen #screen-chat {
   width: 100%;
 }
 
+    body.guide-open #top-bar-chrome,
+body.guide-open #top-bar {
+  display: none !important;
+}
+
 
   </style>
 
@@ -1742,6 +1747,7 @@ function createGuideCard(guide, index) {
       guideModal.classList.remove("hidden");
       guideModal.classList.add("flex");
       document.body.classList.add("overflow-hidden");
+      document.body.classList.add("guide-open"); // ✅ add this
     }
 
     function closeGuideModal() {
