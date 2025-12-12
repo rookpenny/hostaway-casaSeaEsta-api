@@ -89,6 +89,7 @@ def admin_chats(request: Request, db: Session = Depends(get_db)):
             "property_name": prop.property_name if prop else "Unknown property",
             "property_id": s.property_id,
             "guest_name": s.guest_name,
+            "guest_firstname": s.guest_firstname,
             "arrival_date": s.arrival_date,
             "departure_date": s.departure_date,
             "last_activity_at": s.last_activity_at,
