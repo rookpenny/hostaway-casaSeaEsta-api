@@ -27,6 +27,8 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from routes import admin, pmc_auth
+from seed_guides_route import router as seed_guides_router
+
 
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
@@ -55,6 +57,7 @@ app.include_router(admin.router)
 app.include_router(pmc_auth.router)
 app.include_router(prearrival_router)
 app.include_router(prearrival_debug_router)
+app.include_router(seed_guides_router)
 
 # Middleware
 app.add_middleware(
