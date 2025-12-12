@@ -154,6 +154,7 @@ class ChatSession(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     last_activity_at = Column(DateTime, default=datetime.utcnow)
     source = Column(String, default="guest_web")  # e.g. guest_web, widget, admin_test
+    reservation_status = Column(String, default="pre_booking")
 
     # for future guest verification
     is_verified = Column(Boolean, default=False)
