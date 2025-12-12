@@ -879,6 +879,17 @@ body.guide-open #top-bar {
 }
 
 
+    /* Hide top chrome (logo + hamburger) whenever any modal is open */
+body.modal-open #top-bar-chrome {
+  display: none !important;
+}
+
+/* Also ensure menu itself can’t appear above a modal */
+body.modal-open #mobile-menu {
+  display: none !important;
+}
+
+
   </style>
 
   <script>
@@ -2679,44 +2690,54 @@ if (upgradesCarousel && upgradeSlides.length) {
     const wifiModal = document.getElementById("wifi-modal");
     const wifiClose = document.getElementById("wifi-close");
 
-    function openWifiModal() {
-      if (!wifiModal) return;
-      wifiModal.classList.remove("hidden");
-      wifiModal.classList.add("flex");
-    }
+   function openWifiModal() {
+  if (!wifiModal) return;
 
-    function closeWifiModal() {
-      if (!wifiModal) return;
-      wifiModal.classList.add("hidden");
-      wifiModal.classList.remove("flex");
-    }
+  if (typeof closeMenu === "function") closeMenu();
 
-    if (wifiButton) {
-      wifiButton.addEventListener("click", openWifiModal);
-    }
-    if (wifiClose) {
-      wifiClose.addEventListener("click", closeWifiModal);
-    }
-    if (wifiModal) {
-      wifiModal.addEventListener("click", (e) => {
-        if (e.target === wifiModal) closeWifiModal();
-      });
-    }
+  wifiModal.classList.remove("hidden");
+  wifiModal.classList.add("flex");
+
+  document.body.classList.add("overflow-hidden", "modal-open");
+}
+
+function closeWifiModal() {
+  if (!wifiModal) return;
+
+  wifiModal.classList.add("hidden");
+  wifiModal.classList.remove("flex");
+
+  document.body.classList.remove("overflow-hidden", "modal-open");
+}
+
 
 
     function openCheckinModal() {
-      if (!checkinModal) return;
-      const code = lastUnlockCode || "----";
-      if (checkinCodeEl) checkinCodeEl.textContent = code;
-      checkinModal.classList.remove("hidden");
-      checkinModal.classList.add("flex");
-    }
+  if (!checkinModal) return;
 
-    function closeCheckinModal() {
-      if (!checkinModal) return;
-      checkinModal.classList.add("hidden");
-      checkinModal.classList.remove("flex");
-    }
+  // Close menu if it’s open
+  if (typeof closeMenu === "function") closeMenu();
+
+  const code = lastUnlockCode || "----";
+  if (checkinCodeEl) checkinCodeEl.textContent = code;
+
+  checkinModal.classList.remove("hidden");
+  checkinModal.classList.add("flex");
+
+  // ✅ hide top chrome + lock scroll
+  document.body.classList.add("overflow-hidden", "modal-open");
+}
+
+function closeCheckinModal() {
+  if (!checkinModal) return;
+
+  checkinModal.classList.add("hidden");
+  checkinModal.classList.remove("flex");
+
+  // ✅ restore
+  document.body.classList.remove("overflow-hidden", "modal-open");
+}
+
 
     if (checkinButton) {
       checkinButton.addEventListener("click", openCheckinModal);
