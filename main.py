@@ -125,6 +125,17 @@ def manual_sync():
             status_code=500
         )
 
+
+@app.get("/debug/session")
+def debug_session(request: Request):
+    return {
+        "has_session": True,
+        "cookies_present": bool(request.headers.get("cookie")),
+        "last_property": request.session.get("last_property"),
+        "verified_flags": {k: v for k, v in request.session.items() if str(k).startswith("guest_verified_")},
+    }
+
+
 # --- Root Health Check ---
 @app.get("/")
 def root():
