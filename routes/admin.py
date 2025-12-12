@@ -105,6 +105,8 @@ def admin_chats(
         snippet = (last_msg.content[:120] + "…") if last_msg else ""
         property_name = prop.property_name if prop else "Unknown property"
         guest_name = getattr(s, "guest_name", None) or ""
+        status_val = getattr(s, "reservation_status", "pre_booking")
+        needs_attention = (status_val == "active" and has_urgent) or (status_val == "active" and has_negative)
 
         # text search filter
         if q:
@@ -127,6 +129,7 @@ def admin_chats(
             "last_snippet": snippet,
             "has_urgent": has_urgent,
             "has_negative": has_negative,
+            "needs_attention": needs_attention,
         })
         
     return templates.TemplateResponse(
