@@ -58,8 +58,9 @@ class Guide(Base):
         onupdate=datetime.utcnow
     )
 
-    # relationship back to Property
-    property = relationship("Property", backref="guides")
+    # ✅ relationship back to Property (no backref here)
+    property = relationship("Property", back_populates="guides")
+
 
 
 class PMC(Base):
@@ -94,10 +95,12 @@ class Property(Base):
     data_folder_path = Column(String)
     last_synced = Column(DateTime)
 
-    # ✅ Back-reference to PMC
     pmc = relationship("PMC", back_populates="properties")
     reservations = relationship("Reservation", back_populates="property")
-    guides = relationship("Guide", backref="property", cascade="all, delete-orphan")
+
+    # ✅ match Guide.property
+    guides = relationship("Guide", back_populates="property", cascade="all, delete-orphan")
+
 
 
 class Upgrade(Base):
