@@ -37,7 +37,11 @@ def get_token_for_pmc(client_id: str, client_secret: str) -> str:
 
 @lru_cache(maxsize=32)
 def cached_token_for_pmc(client_id: str, client_secret: str) -> str:
-    """Cache a token per PMC credentials."""
+    """
+    Cache Hostaway access tokens per PMC credentials.
+    Prevents repeated OAuth calls.
+    """
+    print("[HOSTAWAY] fetching NEW token for PMC:", client_id)
     return get_token_for_pmc(client_id, client_secret)
 
 
@@ -104,7 +108,10 @@ def find_upcoming_guest_by_code(code: str, slug: str) -> dict | None:
         listing_id = config["listing_id"]
         property_name = config.get("property_name", slug.replace("-", " ").title())
 
-        token = cached_token()
+        token = cached_token_for_pmc(
+            config["client_id"],
+            config["client_secret"]
+        )
         reservations = fetch_reservations(listing_id, token)
 
         today = datetime.today().date()
