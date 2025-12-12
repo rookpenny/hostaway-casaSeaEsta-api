@@ -1641,23 +1641,26 @@ body.chat-screen #screen-chat {
     };
 
     // Build one card per guide (2-col grid, “blocks” like your mock)
-    function createGuideCard(guide, index) {
-  const isTall = index % 3 === 0; // every 3rd card taller for variety
+function createGuideCard(guide, index) {
+  // 🔹 3-height masonry rhythm
+  let minHeight;
+  if (index % 4 === 0) {
+    minHeight = "320px"; // tall
+  } else if (index % 2 === 0) {
+    minHeight = "240px"; // medium
+  } else {
+    minHeight = "180px"; // short
+  }
 
   const card = document.createElement("button");
   card.type = "button";
 
-  // ✅ required for CSS-columns masonry
+  // Required for CSS-columns masonry
   card.className =
     "masonry-item group relative overflow-hidden rounded-[24px] bg-slate-200 shadow-sm " +
     "focus:outline-none focus:ring-2 focus:ring-slate-900 transition-transform active:scale-95 text-left w-full";
 
-  // ✅ remove aspectRatio (it fights masonry)
-  // card.style.aspectRatio = ...
-
-  // Optional: give a baseline height so small images don’t get too tiny
-  // (Pinterest feel without forcing exact aspect ratios)
-  card.style.minHeight = isTall ? "260px" : "190px";
+  card.style.minHeight = minHeight;
 
   const imageUrl =
     guide.image_url ||
@@ -1666,9 +1669,6 @@ body.chat-screen #screen-chat {
   const img = document.createElement("img");
   img.src = imageUrl;
   img.alt = guide.title || "Guide";
-
-  // ✅ make image fill the card, but allow card height to be “natural”
-  // Using minHeight above gives the variety; object-cover keeps it pretty.
   img.className =
     "absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]";
   card.appendChild(img);
@@ -1698,6 +1698,7 @@ body.chat-screen #screen-chat {
   card.addEventListener("click", () => openGuideModalFromGuide(guide));
   return card;
 }
+
 
 
     function openGuideModalFromGuide(guide) {
