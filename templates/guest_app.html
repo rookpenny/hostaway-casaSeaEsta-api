@@ -97,12 +97,12 @@
 
 
 
-
+/* 
     .menu-toggle {
       position: relative;
-    }
+    }*/
 
-    /* Top + bottom bars */
+    /* Top + bottom bars 
     .menu-toggle::before,
     .menu-toggle::after {
       content: "";
@@ -114,26 +114,26 @@
       border-radius: 999px;
       transform: translateX(-50%);
       transition: transform 0.3s ease, opacity 0.3s ease;
-    }
+    }*/
 
-    /* Top bar (default) */
+    /* Top bar (default) 
     .menu-toggle::before {
       transform: translate(-50%, -6px);
-    }
+    }*/
 
-    /* Bottom bar (default) */
+    /* Bottom bar (default) 
     .menu-toggle::after {
       transform: translate(-50%, 6px);
-    }
+    }*/
 
-    /* Middle bar */
+    /* Middle bar 
     .menu-toggle-middle {
       width: 24px;
       height: 2px;
       background: #ffffff;
       border-radius: 999px;
       transition: opacity 0.3s ease, transform 0.3s ease;
-    }
+    }*/
 
     /* === OPEN STATE === */
     .menu-toggle.menu-toggle-open::before {
@@ -2458,7 +2458,7 @@ if (upgradesCarousel && upgradeSlides.length) {
     }
 
     // match Tailwind duration-400 on the panel
-    const MOBILE_MENU_SLIDE_DURATION = 400;  // ms
+    const MOBILE_MENU_SLIDE_DURATION = 700;  // ms
     const MOBILE_MENU_LINKS_FADE_DURATION = 250; // ms
 
     // Fade-out → swap image → fade-in
@@ -2728,15 +2728,15 @@ if (upgradesCarousel && upgradeSlides.length) {
     const wifiModal = document.getElementById("wifi-modal");
     const wifiClose = document.getElementById("wifi-close");
 
-   function openWifiModal() {
+function openWifiModal() {
   if (!wifiModal) return;
-
   if (typeof closeMenu === "function") closeMenu();
 
   wifiModal.classList.remove("hidden");
   wifiModal.classList.add("flex");
 
   document.body.classList.add("overflow-hidden", "modal-open");
+  document.documentElement.classList.add("overflow-hidden");
 }
 
 function closeWifiModal() {
@@ -2746,6 +2746,7 @@ function closeWifiModal() {
   wifiModal.classList.remove("flex");
 
   document.body.classList.remove("overflow-hidden", "modal-open");
+  document.documentElement.classList.remove("overflow-hidden");
 }
 
 if (wifiButton) {
