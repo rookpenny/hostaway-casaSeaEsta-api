@@ -1989,6 +1989,42 @@ window.addEventListener("resize", () => {
 
     let chatHasWelcome = false;
 
+
+async function loadGuidesIfNeeded() {
+  if (guidesState.loaded || guidesState.loading) return;
+  guidesState.loading = true;
+
+  try {
+    const res = await fetch(`/properties/${window.PROPERTY_ID}/guides`);
+    if (!res.ok) throw new Error("Failed to load guides");
+
+    const data = await res.json();
+    const guides = Array.isArray(data.guides) ? data.guides : [];
+
+    guidesState.guides = guides;
+    guidesState.loaded = true;
+
+    if (!guides.length) {
+      guidesEmptyState?.classList.remove("hidden");
+      guidesGrid.innerHTML = "";
+      return;
+    }
+
+    buildGuideFiltersFromGuides(guides);
+    renderGuidesGrid();
+  } catch (err) {
+    console.error("Error loading guides:", err);
+    if (guidesEmptyState) {
+      guidesEmptyState.textContent =
+        "We couldn’t load guides right now. Please try again in a moment.";
+      guidesEmptyState.classList.remove("hidden");
+    }
+  } finally {
+    guidesState.loading = false;
+  }
+}
+
+    
     function showScreen(name) {
       // Show / hide screens
       Object.entries(screens).forEach(([key, el]) => {
