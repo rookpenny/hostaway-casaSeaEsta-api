@@ -1487,7 +1487,7 @@ body.modal-open #mobile-menu {
   class="fixed inset-0 z-[500] bg-black hidden items-center justify-center px-6"
      role="dialog"
      aria-modal="true"
-  aria-labelledby="wifi-title"
+  aria-labelledby="wifi-ssid"
 >
   <!-- Close button -->
   <div class="absolute top-4 right-4">
@@ -2733,6 +2733,26 @@ function closeWifiModal() {
   document.body.classList.remove("overflow-hidden", "modal-open");
 }
 
+if (wifiButton) {
+  wifiButton.addEventListener("click", (e) => {
+    e.preventDefault();
+    openWifiModal();
+  });
+}
+
+if (wifiClose) {
+  wifiClose.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeWifiModal();
+  });
+}
+
+if (wifiModal) {
+  wifiModal.addEventListener("click", (e) => {
+    if (e.target === wifiModal) closeWifiModal();
+  });
+}
 
 
     function openCheckinModal() {
