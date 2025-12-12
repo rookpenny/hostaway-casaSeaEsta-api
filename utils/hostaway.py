@@ -131,6 +131,7 @@ def find_upcoming_guest_by_code(code: str, slug: str) -> dict | None:
             if 0 <= days_until_checkin <= 20:
                 return {
                     "name": r.get("guestName", "Guest"),
+                    "firstname": guestFirstName,
                     "phone": phone,
                     "property": property_name,
                     "checkin_date": checkin_str,
