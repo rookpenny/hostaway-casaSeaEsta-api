@@ -4,13 +4,14 @@ import requests
 import json
 import base64
 
-from fastapi import APIRouter, Depends, Request, Form, Body, status 
+from fastapi import APIRouter, Depends, Request, Form, Body, status, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
 from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
+from sqlalchemy import or_
 from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
@@ -51,12 +52,23 @@ from fastapi.responses import HTMLResponse
 
 # 💬 Recent Chats Overview
 @router.get("/admin/chats", response_class=HTMLResponse)
-def admin_chats(request: Request, db: Session = Depends(get_db)):
+def admin_chats(
+    request: Request,
+    db: Session = Depends(get_db),
+    status: Optional[str] = Query(None),          # pre_booking | active | post_stay
+    priority: Optional[str] = Query(None),        # urgent | unhappy
+    q: Optional[str] = Query(None),               # search guest/property/snippet
+):
+    query = db.query(ChatSession)
+
+    if status in {"pre_booking", "active", "post_stay"}:
+        query = query.filter(ChatSession.reservation_status == status)
+
     # Latest sessions first
     sessions = (
-        db.query(ChatSession)
+        # db.query(ChatSession)
         .order_by(ChatSession.last_activity_at.desc())
-        .limit(100)
+        .limit(200)
         .all()
     )
 
@@ -84,26 +96,45 @@ def admin_chats(request: Request, db: Session = Depends(get_db)):
             ChatMessage.sentiment == "negative",
         ).first() is not None
 
+        # priority filter
+        if priority == "urgent" and not has_urgent:
+            continue
+        if priority == "unhappy" and not has_negative:
+            continue
+
+        snippet = (last_msg.content[:120] + "…") if last_msg else ""
+        property_name = prop.property_name if prop else "Unknown property"
+        guest_name = getattr(s, "guest_name", None) or ""
+
+        # text search filter
+        if q:
+            hay = f"{property_name} {guest_name} {snippet}".lower()
+            if q.lower() not in hay:
+                continue
+
+
         items.append({
             "id": s.id,
-            "property_name": prop.property_name if prop else "Unknown property",
+            "property_name": property_name,
             "property_id": s.property_id,
             "guest_name": s.guest_name,
             "arrival_date": s.arrival_date,
             "departure_date": s.departure_date,
+            "reservation_status": getattr(s, "reservation_status", "pre_booking"),
             "last_activity_at": s.last_activity_at,
             "source": s.source,
-            "is_verified": s.is_verified,
-            "last_snippet": (last_msg.content[:120] + "…") if last_msg else "",
+            "is_verified": s.is_verified,  # keep for now
+            "last_snippet": snippet,
             "has_urgent": has_urgent,
             "has_negative": has_negative,
         })
-
+        
     return templates.TemplateResponse(
         "admin_chats.html",
         {
             "request": request,
             "sessions": items,
+            "filters": {"status": status, "priority": priority, "q": q},
         }
     )
 
