@@ -44,7 +44,7 @@ from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from apscheduler.schedulers.background import BackgroundScheduler
 from typing import List
 
-from openai import OpenAI
+from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -994,18 +994,39 @@ def property_chat(
 
     try:
         ai_response = client.chat.completions.create(
-            model="gpt-4",
+            model="gpt-4o-mini",   # cheaper + less quota pain
             temperature=0.7,
             messages=messages,
         )
         reply_text = ai_response.choices[0].message.content
+    except RateLimitError as e:
+        # quota / rate limit
+        logging.exception("OpenAI rate/quota limit")
+        reply_text = (
+            "I’m temporarily unavailable because we hit our AI usage limit. 🐚\n\n"
+            "Please try again in a little bit, or contact your host if it’s urgent."
+        )
+    
+    except AuthenticationError as e:
+        logging.exception("OpenAI auth error")
+        reply_text = (
+            "I’m temporarily unavailable due to a configuration issue. 🐚\n\n"
+            "Please contact your host for urgent help."
+        )
+    
+    except APIStatusError as e:
+        logging.exception("OpenAI API status error")
+        reply_text = (
+            "I’m having trouble connecting right now. 🐚\n\n"
+            "Please try again in a moment."
+        )
+    
     except Exception as e:
-        print(f"[LLM ERROR in /properties/{property_id}/chat]:", e)
+        logging.exception("OpenAI unknown error")
         reply_text = (
             "Oops, I ran into a technical issue while answering just now. 🐚\n\n"
             "Please try again in a moment, or contact your host directly if it’s urgent."
         )
-
     # Log assistant message for general replies
     assistant_msg = ChatMessage(
         session_id=session.id,
