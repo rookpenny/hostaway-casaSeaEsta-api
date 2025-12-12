@@ -1721,61 +1721,72 @@ function createGuideCard(guide, index) {
 
 
 
-  function openGuideModalFromGuide(guide) {
+ function openGuideModalFromGuide(guide) {
   if (!guideModal) return;
 
-  // ✅ If the mobile menu is open, close it first
-  try {
-    if (typeof closeMenu === "function") closeMenu();
-  } catch (e) {}
+  // If the menu is open, close it so it doesn't mess with z-index/state
+  if (typeof closeMenu === "function") closeMenu();
 
-  // ✅ Populate content
-  if (guideModalTitle) {
-    guideModalTitle.textContent = guide.title || "Guide";
+  if (guideModalTitle) guideModalTitle.textContent = guide.title || "Guide";
+
+  // Prefer HTML body if available
+  if (guideModalBody) {
+    if (guide.body_html) {
+      guideModalBody.innerHTML = guide.body_html;
+      guideModalBody.classList.remove("whitespace-pre-line");
+    } else if (guide.long_description) {
+      guideModalBody.textContent = guide.long_description;
+      guideModalBody.classList.add("whitespace-pre-line");
+    } else if (guide.short_description) {
+      guideModalBody.textContent = guide.short_description;
+      guideModalBody.classList.add("whitespace-pre-line");
+    } else {
+      guideModalBody.textContent = "";
+      guideModalBody.classList.add("whitespace-pre-line");
+    }
   }
 
-  if (guide.body_html) {
-    guideModalBody.innerHTML = guide.body_html;
-    guideModalBody.classList.remove("whitespace-pre-line");
-  } else if (guide.long_description) {
-    guideModalBody.textContent = guide.long_description;
-    guideModalBody.classList.add("whitespace-pre-line");
-  } else if (guide.short_description) {
-    guideModalBody.textContent = guide.short_description;
-    guideModalBody.classList.add("whitespace-pre-line");
-  } else {
-    guideModalBody.textContent = "";
-    guideModalBody.classList.add("whitespace-pre-line");
-  }
-
-  // ✅ Show modal
+  // Show modal
   guideModal.classList.remove("hidden");
   guideModal.classList.add("flex");
 
-  // ✅ Lock background + hide header chrome
+  // Lock background scroll
   document.body.classList.add("overflow-hidden", "guide-open");
 }
 
-
- function closeGuideModal() {
+function closeGuideModal() {
   if (!guideModal) return;
 
-  // ✅ Hide modal
   guideModal.classList.add("hidden");
   guideModal.classList.remove("flex");
 
-  // ✅ Restore scroll + header
+  // Restore scroll + clear modal state
   document.body.classList.remove("overflow-hidden", "guide-open");
-
-  // ✅ Restore correct logo state
-  try {
-    if (document.body.classList.contains("chat-screen")) {
-      swapLogoWithFade(LOGO_BLACK);
-    } else {
-      swapLogoWithFade(LOGO_WHITE);
-    }
-  } catch (e) {}
 }
+
+// --- make sure handlers are bound exactly once ---
+if (guideModalClose) {
+  guideModalClose.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    closeGuideModal();
+  });
+}
+
+if (guideModal) {
+  // click outside the content closes
+  guideModal.addEventListener("click", (e) => {
+    if (e.target === guideModal) closeGuideModal();
+  });
+}
+
+// ESC closes
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape" && guideModal && !guideModal.classList.contains("hidden")) {
+    closeGuideModal();
+  }
+});
+
 
 
     // Build filter chips from guide categories
