@@ -1840,7 +1840,6 @@ function createGuideCard(guide, index) {
 function renderGuidesGrid() {
   if (!guidesGrid) return;
 
-  // clear
   guidesGrid.innerHTML = "";
 
   const filter = guidesState.activeFilter;
@@ -1855,44 +1854,15 @@ function renderGuidesGrid() {
   }
   guidesEmptyState?.classList.add("hidden");
 
-  // build columns
-  const colCount = getMasonryColumnCount();
-  const cols = [];
-
-  for (let i = 0; i < colCount; i++) {
-    const col = document.createElement("div");
-    col.className = "masonry-col";
-    guidesGrid.appendChild(col);
-    cols.push(col);
-  }
-
-  // helper: find shortest column
-  function getShortestCol() {
-    let best = cols[0];
-    let bestH = cols[0].offsetHeight;
-    for (let i = 1; i < cols.length; i++) {
-      const h = cols[i].offsetHeight;
-      if (h < bestH) {
-        bestH = h;
-        best = cols[i];
-      }
-    }
-    return best;
-  }
-
-  // append cards into shortest column (Pinterest behavior)
   visible.forEach((guide, index) => {
     const card = createGuideCard(guide, index);
-    getShortestCol().appendChild(card);
+    guidesGrid.appendChild(card);
   });
+
+  // ✅ forces a proper repack in CSS columns (especially Safari/iOS)
+  guidesGrid.style.columnCount = getComputedStyle(guidesGrid).columnCount;
 }
 
-// OPTIONAL but recommended: reflow on resize so filters keep masonry nice
-window.addEventListener("resize", () => {
-  if (screens?.experiences && !screens.experiences.classList.contains("hidden")) {
-    renderGuidesGrid();
-  }
-});
 
 
 
