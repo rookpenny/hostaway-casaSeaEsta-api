@@ -1834,6 +1834,10 @@ function createGuideCard(guide, index) {
         const card = createGuideCard(guide, index);
         guidesGrid.appendChild(card);
       });
+
+      // ✅ forces a proper repack in CSS columns (especially Safari/iOS)
+  guidesGrid.style.columnCount = getComputedStyle(guidesGrid).columnCount;
+      
     }
 
     async function loadGuidesIfNeeded() {
