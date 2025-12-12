@@ -2187,6 +2187,7 @@ async function loadGuidesIfNeeded() {
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ guest_email: guestEmail || null }),
         }
       );
@@ -2663,6 +2664,7 @@ if (upgradesCarousel && upgradeSlides.length) {
         const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify({ code }),
         });
         const data = await res.json();
@@ -2978,6 +2980,7 @@ function closeCheckinModal() {
         const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
+          credentials: "include",
           body: JSON.stringify(body),
         });
 
