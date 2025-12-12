@@ -1832,66 +1832,68 @@ function createGuideCard(guide, index) {
       });
     }
 
-    function renderGuidesGrid() {
-      if (!guidesGrid) return;
+   function getMasonryColumnCount() {
+  // match your breakpoint: 3 columns on md+
+  return window.matchMedia("(min-width: 768px)").matches ? 3 : 2;
+}
 
-      guidesGrid.innerHTML = "";
+function renderGuidesGrid() {
+  if (!guidesGrid) return;
 
-      const filter = guidesState.activeFilter;
-      const visible =
-        filter === "all"
-          ? guidesState.guides
-          : guidesState.guides.filter((g) => g.category === filter);
+  // clear
+  guidesGrid.innerHTML = "";
 
-      if (!visible.length) {
-        guidesEmptyState?.classList.remove("hidden");
-        return;
-      }
-      guidesEmptyState?.classList.add("hidden");
+  const filter = guidesState.activeFilter;
+  const visible =
+    filter === "all"
+      ? guidesState.guides
+      : guidesState.guides.filter((g) => g.category === filter);
 
-      visible.forEach((guide, index) => {
-        const card = createGuideCard(guide, index);
-        guidesGrid.appendChild(card);
-      });
+  if (!visible.length) {
+    guidesEmptyState?.classList.remove("hidden");
+    return;
+  }
+  guidesEmptyState?.classList.add("hidden");
 
-      // ✅ forces a proper repack in CSS columns (especially Safari/iOS)
-  guidesGrid.style.columnCount = getComputedStyle(guidesGrid).columnCount;
-      
-    }
+  // build columns
+  const colCount = getMasonryColumnCount();
+  const cols = [];
 
-    async function loadGuidesIfNeeded() {
-      if (guidesState.loaded || guidesState.loading) return;
-      guidesState.loading = true;
+  for (let i = 0; i < colCount; i++) {
+    const col = document.createElement("div");
+    col.className = "masonry-col";
+    guidesGrid.appendChild(col);
+    cols.push(col);
+  }
 
-      try {
-        const res = await fetch(`/properties/${window.PROPERTY_ID}/guides`);
-        if (!res.ok) throw new Error("Failed to load guides");
-
-        const data = await res.json();
-        const guides = Array.isArray(data.guides) ? data.guides : [];
-
-        // Normalize tags/fields if needed in the future
-        guidesState.guides = guides;
-        guidesState.loaded = true;
-
-        if (!guides.length) {
-          guidesEmptyState?.classList.remove("hidden");
-          return;
-        }
-
-        buildGuideFiltersFromGuides(guides);
-        renderGuidesGrid();
-      } catch (err) {
-        console.error("Error loading guides:", err);
-        if (guidesEmptyState) {
-          guidesEmptyState.textContent =
-            "We couldn’t load guides right now. Please try again in a moment or ask Sandy for local tips.";
-          guidesEmptyState.classList.remove("hidden");
-        }
-      } finally {
-        guidesState.loading = false;
+  // helper: find shortest column
+  function getShortestCol() {
+    let best = cols[0];
+    let bestH = cols[0].offsetHeight;
+    for (let i = 1; i < cols.length; i++) {
+      const h = cols[i].offsetHeight;
+      if (h < bestH) {
+        bestH = h;
+        best = cols[i];
       }
     }
+    return best;
+  }
+
+  // append cards into shortest column (Pinterest behavior)
+  visible.forEach((guide, index) => {
+    const card = createGuideCard(guide, index);
+    getShortestCol().appendChild(card);
+  });
+}
+
+// OPTIONAL but recommended: reflow on resize so filters keep masonry nice
+window.addEventListener("resize", () => {
+  if (screens?.experiences && !screens.experiences.classList.contains("hidden")) {
+    renderGuidesGrid();
+  }
+});
+
 
 
    
