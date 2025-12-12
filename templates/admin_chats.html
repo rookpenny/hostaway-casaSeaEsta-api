@@ -11,6 +11,32 @@
     <h1 class="text-2xl font-bold mb-4">💬 Recent Chats</h1>
     <a href="/admin/dashboard" class="text-sm text-blue-600 hover:underline">← Back to Admin Dashboard</a>
 
+    <form class="mt-4 bg-white rounded-lg shadow p-3 flex flex-wrap gap-2 items-center" method="get">
+  <select name="status" class="border rounded px-2 py-1 text-sm">
+    <option value="">All statuses</option>
+    <option value="pre_booking" {% if filters.status=="pre_booking" %}selected{% endif %}>Pre-booking</option>
+    <option value="active" {% if filters.status=="active" %}selected{% endif %}>Active</option>
+    <option value="post_stay" {% if filters.status=="post_stay" %}selected{% endif %}>Post-stay</option>
+  </select>
+
+  <select name="priority" class="border rounded px-2 py-1 text-sm">
+    <option value="">All priorities</option>
+    <option value="urgent" {% if filters.priority=="urgent" %}selected{% endif %}>🔥 Urgent only</option>
+    <option value="unhappy" {% if filters.priority=="unhappy" %}selected{% endif %}>😟 Unhappy only</option>
+  </select>
+
+  <input
+    name="q"
+    value="{{ filters.q or '' }}"
+    class="border rounded px-2 py-1 text-sm flex-1 min-w-[220px]"
+    placeholder="Search guest, property, snippet..."
+  />
+
+  <button class="bg-slate-900 text-white rounded px-3 py-1 text-sm">Filter</button>
+
+  <a href="/admin/chats" class="text-sm text-slate-600 hover:underline ml-auto">Reset</a>
+</form>
+
     {% if sessions %}
       <div class="mt-4 bg-white rounded-lg shadow overflow-hidden">
         <table class="min-w-full text-sm">
