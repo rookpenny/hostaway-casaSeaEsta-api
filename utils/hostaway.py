@@ -34,10 +34,11 @@ def get_token_for_pmc(client_id: str, client_secret: str) -> str:
     return resp.json().get("access_token")
 
 
-@lru_cache(maxsize=1)
-def cached_token():
-    """Return a cached token to avoid repeat API calls."""
-    return get_token()
+@lru_cache(maxsize=32)
+def cached_token_for_pmc(client_id: str, client_secret: str) -> str:
+    """Cache a token per PMC credentials."""
+    return get_token_for_pmc(client_id, client_secret)
+
 
 
 def fetch_reservations(listing_id: str, token: str):
