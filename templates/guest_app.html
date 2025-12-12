@@ -901,6 +901,18 @@ body.modal-open #mobile-menu {
 }
 
 
+    body.modal-open #top-bar-chrome,
+body.modal-open #top-bar {
+  display: none !important;
+}
+
+/* extra safety: if anything remains mounted, it can't steal taps */
+body.modal-open #top-bar-chrome,
+body.modal-open #mobile-menu {
+  pointer-events: none !important;
+}
+
+
   </style>
 
   <script>
@@ -1392,7 +1404,7 @@ body.modal-open #mobile-menu {
 <!-- UPGRADE DETAIL (full page with purchase bar) -->
 <div
   id="upgrade-modal"
-  class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[80]"
+  class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[500]"
 >
   <section
     id="screen-upgrade-detail"
@@ -1410,7 +1422,7 @@ body.modal-open #mobile-menu {
       <button
         id="upgrade-modal-close"
         type="button"
-        class="absolute top-6 right-5 w-9 h-9 rounded-full bg-black/80 flex items-center justify-center text-slate-50 text-xl leading-none"
+        class="absolute top-6 right-5 w-9 h-9 rounded-full bg-black/80 flex items-center justify-center text-slate-50 text-xl leading-none z-[510]"
       >
         ×
       </button>
@@ -1472,7 +1484,7 @@ body.modal-open #mobile-menu {
         <!-- WiFi modal -->
 <div
   id="wifi-modal"
-  class="fixed inset-0 z-[80] bg-black hidden items-center justify-center px-6"
+  class="fixed inset-0 z-[500] bg-black hidden items-center justify-center px-6"
      role="dialog"
      aria-modal="true"
   aria-labelledby="wifi-title"
@@ -1482,7 +1494,7 @@ body.modal-open #mobile-menu {
     <button
       id="wifi-close"
       type="button"
-      class="w-12 h-12 rounded-full flex items-center justify-center text-[32px] text-white leading-none"
+      class="w-12 h-12 rounded-full flex items-center justify-center text-[32px] text-white leading-none z-[510]"
         aria-label="Close">
       ×
     </button>
@@ -1526,14 +1538,14 @@ body.modal-open #mobile-menu {
 
   <!-- Check-in modal -->
   <div id="checkin-modal"
-     class="fixed inset-0 z-[80] bg-black hidden items-center justify-center px-6"
+     class="fixed inset-0 z-[500] bg-black hidden items-center justify-center px-6"
      role="dialog"
      aria-modal="true"
      aria-labelledby="checkin-title">
     <div class="absolute top-4 right-4">
       <button id="checkin-close"
         type="button"
-      class="w-12 h-12 rounded-full flex items-center justify-center text-[32px] text-white leading-none"
+      class="w-12 h-12 rounded-full flex items-center justify-center text-[32px] text-white leading-none z-[510]"
         aria-label="Close">
       ×
       </button>
@@ -1557,7 +1569,7 @@ body.modal-open #mobile-menu {
 <!-- GUIDE DETAIL (full page) -->
 <div
   id="guide-modal"
-  class="fixed inset-0 hidden bg-[#f5f5f5] z-[100] overflow-hidden"
+  class="fixed inset-0 hidden bg-[#f5f5f5] z-[500] overflow-hidden"
 >
   <section
     id="screen-guide-detail"
@@ -1574,7 +1586,7 @@ body.modal-open #mobile-menu {
              bg-black text-white
              flex items-center justify-center
              text-[32px] leading-none
-             z-[110]"
+             z-[510]"
       aria-label="Close"
     >
       <span class="relative -top-[2px]">×</span>
@@ -2737,6 +2749,7 @@ function closeWifiModal() {
 
   // ✅ hide top chrome + lock scroll
   document.body.classList.add("overflow-hidden", "modal-open");
+      document.documentElement.classList.add("overflow-hidden");
 }
 
 function closeCheckinModal() {
@@ -2747,6 +2760,7 @@ function closeCheckinModal() {
 
   // ✅ restore
   document.body.classList.remove("overflow-hidden", "modal-open");
+  document.documentElement.classList.remove("overflow-hidden");
 }
 
 
@@ -2754,8 +2768,13 @@ function closeCheckinModal() {
       checkinButton.addEventListener("click", openCheckinModal);
     }
     if (checkinClose) {
-      checkinClose.addEventListener("click", closeCheckinModal);
+      checkinClose.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeCheckinModal();
+      });
     }
+
     if (checkinModal) {
       checkinModal.addEventListener("click", (e) => {
         if (e.target === checkinModal) closeCheckinModal();
