@@ -1532,36 +1532,39 @@ body.guide-open #top-bar {
 
 
 
- <!-- GUIDE DETAIL (full page) -->
+<!-- GUIDE DETAIL (full page) -->
 <div
   id="guide-modal"
-  class="fixed inset-0 hidden bg-[#f5f5f5] z-[100]"
+  class="fixed inset-0 hidden bg-[#f5f5f5] z-[100] overflow-hidden"
 >
   <section
     id="screen-guide-detail"
-    class="relative flex flex-col min-h-screen w-full text-slate-900"
+    class="relative flex flex-col h-full w-full text-slate-900 overflow-hidden"
     aria-label="Guide details"
   >
-    <!-- Close button (top-right, black circle, above everything) -->
+    <!-- Close button -->
     <button
       id="guide-modal-close"
       type="button"
       class="absolute top-4 right-5
-         w-12 h-12
-         rounded-full
-         bg-black text-white
-         flex items-center justify-center
-         text-[32px] leading-none"
+             w-12 h-12
+             rounded-full
+             bg-black text-white
+             flex items-center justify-center
+             text-[32px] leading-none
+             z-[110]"
       aria-label="Close"
-    ><span class="relative -top-[2px]">×</span>
+    >
+      <span class="relative -top-[2px]">×</span>
     </button>
 
-    <!-- Content -->
+    <!-- ONLY this area scrolls -->
     <div class="flex-1 overflow-y-auto pt-28 pb-16 px-8">
       <div class="max-w-[26rem] mx-auto">
         <h2
           id="guide-modal-title"
-          class="text-[30px] font-semibold leading-tight tracking-tight">
+          class="text-[30px] font-semibold leading-tight tracking-tight"
+        >
           Headline
         </h2>
 
@@ -1576,6 +1579,7 @@ body.guide-open #top-bar {
     </div>
   </section>
 </div>
+
 
 
 
@@ -1754,8 +1758,13 @@ function createGuideCard(guide, index) {
   guideModal.classList.remove("hidden");
   guideModal.classList.add("flex");
 
-  // Lock background scroll
+  // 🔒 Lock background scroll (BODY + HTML fixes double scroll)
   document.body.classList.add("overflow-hidden", "guide-open");
+  document.documentElement.classList.add("overflow-hidden");
+
+  // ✅ Reset modal scroll to top (prevents weird mid-scroll opens)
+  const scroller = guideModal.querySelector(".overflow-y-auto");
+  if (scroller) scroller.scrollTop = 0;
 }
 
 function closeGuideModal() {
@@ -1764,9 +1773,11 @@ function closeGuideModal() {
   guideModal.classList.add("hidden");
   guideModal.classList.remove("flex");
 
-  // Restore scroll + clear modal state
+  // 🔓 Restore scroll + clear modal state
   document.body.classList.remove("overflow-hidden", "guide-open");
+  document.documentElement.classList.remove("overflow-hidden");
 }
+
 
 // --- make sure handlers are bound exactly once ---
 if (guideModalClose) {
