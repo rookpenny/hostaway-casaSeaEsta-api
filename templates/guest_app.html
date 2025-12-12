@@ -836,6 +836,24 @@ body.chat-screen #screen-chat {
     #upgrades-carousel {
   overflow-y: hidden;
 }
+
+    /* Pinterest-style masonry using CSS columns */
+.masonry-columns {
+  column-count: 2;
+  column-gap: 12px;
+}
+@media (min-width: 768px) {
+  .masonry-columns { column-count: 3; }
+}
+.masonry-item {
+  break-inside: avoid;
+  -webkit-column-break-inside: avoid;
+  margin-bottom: 12px;
+  display: inline-block;
+  width: 100%;
+}
+
+
   </style>
 
   <script>
@@ -1193,7 +1211,7 @@ body.chat-screen #screen-chat {
   <!-- Guides grid: injected by JS -->
   <div
     id="guides-grid"
-    class="grid grid-cols-2 gap-3 items-start auto-rows-min"
+    class="masonry-columns"
   ></div>
 
   <!-- Fallback / empty state -->
@@ -1624,50 +1642,63 @@ body.chat-screen #screen-chat {
 
     // Build one card per guide (2-col grid, “blocks” like your mock)
     function createGuideCard(guide, index) {
-      const isTall = index % 3 === 0; // every 3rd card taller for variety
+  const isTall = index % 3 === 0; // every 3rd card taller for variety
 
-      const card = document.createElement("button");
-      card.type = "button";
-      card.className =
-        "group relative overflow-hidden rounded-[24px] bg-slate-200 shadow-sm " +
-        "focus:outline-none focus:ring-2 focus:ring-slate-900 transition-transform active:scale-95";
-      card.style.aspectRatio = isTall ? "3 / 4" : "4 / 3";
+  const card = document.createElement("button");
+  card.type = "button";
 
-      const imageUrl =
-        guide.image_url ||
-        "{{ experiences_hero_url or hero_image_url or default_image_url }}";
+  // ✅ required for CSS-columns masonry
+  card.className =
+    "masonry-item group relative overflow-hidden rounded-[24px] bg-slate-200 shadow-sm " +
+    "focus:outline-none focus:ring-2 focus:ring-slate-900 transition-transform active:scale-95 text-left w-full";
 
-      const img = document.createElement("img");
-      img.src = imageUrl;
-      img.alt = guide.title || "Guide";
-      img.className =
-        "h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]";
-      card.appendChild(img);
+  // ✅ remove aspectRatio (it fights masonry)
+  // card.style.aspectRatio = ...
 
-      const overlay = document.createElement("div");
-      overlay.className =
-        "absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent";
-      card.appendChild(overlay);
+  // Optional: give a baseline height so small images don’t get too tiny
+  // (Pinterest feel without forcing exact aspect ratios)
+  card.style.minHeight = isTall ? "260px" : "190px";
 
-      const textWrap = document.createElement("div");
-      textWrap.className =
-        "absolute inset-x-3 bottom-3 text-left text-white space-y-1";
+  const imageUrl =
+    guide.image_url ||
+    "{{ experiences_hero_url or hero_image_url or default_image_url }}";
 
-      const titleEl = document.createElement("h2");
-      titleEl.className = "text-[13px] font-semibold leading-tight line-clamp-2";
-      titleEl.textContent = guide.title || "Guide";
-      textWrap.appendChild(titleEl);
+  const img = document.createElement("img");
+  img.src = imageUrl;
+  img.alt = guide.title || "Guide";
 
-      if (guide.category) {
-        const catEl = document.createElement("p");
-        catEl.className = "text-[10px] opacity-80";
-        catEl.textContent = guide.category;
-        textWrap.appendChild(catEl);
-      }
+  // ✅ make image fill the card, but allow card height to be “natural”
+  // Using minHeight above gives the variety; object-cover keeps it pretty.
+  img.className =
+    "absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]";
+  card.appendChild(img);
 
-      card.addEventListener("click", () => openGuideModalFromGuide(guide));
-      return card;
-    }
+  const overlay = document.createElement("div");
+  overlay.className =
+    "absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent";
+  card.appendChild(overlay);
+
+  const textWrap = document.createElement("div");
+  textWrap.className =
+    "absolute inset-x-3 bottom-3 text-left text-white space-y-1";
+  card.appendChild(textWrap);
+
+  const titleEl = document.createElement("h2");
+  titleEl.className = "text-[13px] font-semibold leading-tight line-clamp-2";
+  titleEl.textContent = guide.title || "Guide";
+  textWrap.appendChild(titleEl);
+
+  if (guide.category) {
+    const catEl = document.createElement("p");
+    catEl.className = "text-[10px] opacity-80";
+    catEl.textContent = guide.category;
+    textWrap.appendChild(catEl);
+  }
+
+  card.addEventListener("click", () => openGuideModalFromGuide(guide));
+  return card;
+}
+
 
     function openGuideModalFromGuide(guide) {
       if (!guideModal) return;
