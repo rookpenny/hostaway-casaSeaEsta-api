@@ -857,15 +857,15 @@ body.chat-screen #screen-chat {
 .masonry-columns {
   display: flex;
   gap: 12px;
-  align-items: flex-start; /* keeps all columns top-aligned */
+  align-items: flex-start;
 }
 
 .masonry-col {
   flex: 1;
+  min-width: 160px;   /* 👈 THIS IS THE KEY */
   display: flex;
   flex-direction: column;
   gap: 12px;
-  min-width: 0;
 }
 
 /* your existing card class can stay */
