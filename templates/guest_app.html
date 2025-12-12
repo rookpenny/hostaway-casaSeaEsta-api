@@ -539,11 +539,13 @@ body.chat-screen #top-bar::before {
 #top-bar {
   z-index: 20;              /* below menu, below chrome */
 }
+
+
     
-    /* keep your existing color-swap rules for the hamburger */
-body.chat-screen #menu-toggle::before,
-body.chat-screen #menu-toggle::after,
-body.chat-screen #menu-toggle .menu-toggle-middle {
+/* chat screen: hamburger (closed) stays white */
+body.chat-screen #menu-toggle:not(.menu-toggle-open)::before,
+body.chat-screen #menu-toggle:not(.menu-toggle-open)::after,
+body.chat-screen #menu-toggle:not(.menu-toggle-open) .menu-toggle-middle {
   background: #FFFFFF !important;
 }
 
@@ -818,14 +820,13 @@ body.modal-open #menu-toggle {
   display: none !important;
 }
 
-#menu-toggle.menu-toggle-open::before,
-#menu-toggle.menu-toggle-open::after {
-  background: black !important; /* black X on white circle */
-}
+/* open menu: black X on white circle */
+#menu-toggle.menu-toggle-open { background: #fff !important; }
 
+#menu-toggle.menu-toggle-open::before,
+#menu-toggle.menu-toggle-open::after,
 #menu-toggle.menu-toggle-open .menu-toggle-middle {
- /* background: black !important;*/
-  opacity: 0;
+  background: #000 !important;
 }
 
 .mobile-menu-content {
