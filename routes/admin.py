@@ -4,6 +4,7 @@ import requests
 import json
 import base64
 
+
 from fastapi import APIRouter, Depends, Request, Form, Body, status, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -11,12 +12,12 @@ from fastapi.exceptions import RequestValidationError
 
 from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
-from sqlalchemy import or_
+from sqlalchemy import or_, func
 from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
 
-from database import SessionLocal
+from database import SessionLocal, datetime, timedelta, date
 from models import PMC, Property, ChatSession, ChatMessage
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
@@ -46,35 +47,34 @@ def get_db():
 
 
 
-from sqlalchemy.orm import Session
-from fastapi import Depends, Request
-from fastapi.responses import HTMLResponse
+
 
 # 💬 Recent Chats Overview
 @router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(
     request: Request,
     db: Session = Depends(get_db),
-    status: Optional[str] = Query(None),          # pre_booking | active | post_stay
-    priority: Optional[str] = Query(None),        # urgent | unhappy
-    q: Optional[str] = Query(None),               # search guest/property/snippet
+    status: Optional[str] = Query(None),      # pre_booking | active | post_stay
+    priority: Optional[str] = Query(None),    # urgent | unhappy
+    q: Optional[str] = Query(None),           # search guest/property/snippet
 ):
-    query = db.query(ChatSession)
+    base_q = db.query(ChatSession)
 
     if status in {"pre_booking", "active", "post_stay"}:
-        query = query.filter(ChatSession.reservation_status == status)
+        base_q = base_q.filter(ChatSession.reservation_status == status)
 
-    # Latest sessions first
     sessions = (
-        # db.query(ChatSession)
-        .order_by(ChatSession.last_activity_at.desc())
+        base_q.order_by(ChatSession.last_activity_at.desc())
         .limit(200)
         .all()
     )
 
     items = []
+    q_lower = (q or "").strip().lower()
+
     for s in sessions:
         prop = s.property
+        property_name = prop.property_name if prop else "Unknown property"
 
         last_msg = (
             db.query(ChatMessage)
@@ -83,7 +83,6 @@ def admin_chats(
             .first()
         )
 
-        # 🔎 Check if this session has urgent or negative guest messages
         has_urgent = db.query(ChatMessage).filter(
             ChatMessage.session_id == s.id,
             ChatMessage.sender == "guest",
@@ -96,42 +95,37 @@ def admin_chats(
             ChatMessage.sentiment == "negative",
         ).first() is not None
 
-        # priority filter
+        # Priority filter
         if priority == "urgent" and not has_urgent:
             continue
         if priority == "unhappy" and not has_negative:
             continue
 
         snippet = (last_msg.content[:120] + "…") if last_msg else ""
-        property_name = prop.property_name if prop else "Unknown property"
-        guest_name = getattr(s, "guest_name", None) or ""
-        status_val = getattr(s, "reservation_status", "pre_booking")
-        needs_attention = (status_val == "active" and has_urgent) or (status_val == "active" and has_negative)
+        guest_name = (getattr(s, "guest_name", None) or "").strip()
 
-        # text search filter
-        if q:
+        # Text search filter
+        if q_lower:
             hay = f"{property_name} {guest_name} {snippet}".lower()
-            if q.lower() not in hay:
+            if q_lower not in hay:
                 continue
-
 
         items.append({
             "id": s.id,
             "property_name": property_name,
             "property_id": s.property_id,
-            "guest_name": s.guest_name,
-            "arrival_date": s.arrival_date,
-            "departure_date": s.departure_date,
+            "guest_name": getattr(s, "guest_name", None),
+            "arrival_date": getattr(s, "arrival_date", None),
+            "departure_date": getattr(s, "departure_date", None),
             "reservation_status": getattr(s, "reservation_status", "pre_booking"),
             "last_activity_at": s.last_activity_at,
             "source": s.source,
-            "is_verified": s.is_verified,  # keep for now
+            "is_verified": s.is_verified,  # legacy; OK to keep for now
             "last_snippet": snippet,
             "has_urgent": has_urgent,
             "has_negative": has_negative,
-            "needs_attention": needs_attention,
         })
-        
+
     return templates.TemplateResponse(
         "admin_chats.html",
         {
@@ -140,6 +134,41 @@ def admin_chats(
             "filters": {"status": status, "priority": priority, "q": q},
         }
     )
+
+
+
+@router.get("/admin/analytics/chats")
+def chats_analytics(db: Session = Depends(get_db)):
+    by_status = dict(
+        db.query(ChatSession.reservation_status, func.count(ChatSession.id))
+          .group_by(ChatSession.reservation_status)
+          .all()
+    )
+
+    urgent = db.query(ChatMessage.id).filter(
+        ChatMessage.sender == "guest",
+        ChatMessage.category == "urgent",
+    ).count()
+
+    unhappy = db.query(ChatMessage.id).filter(
+        ChatMessage.sender == "guest",
+        ChatMessage.sentiment == "negative",
+    ).count()
+
+    total_sessions = db.query(ChatSession.id).count()
+
+    return {
+        "total_sessions": total_sessions,
+        "by_status": {
+            "pre_booking": int(by_status.get("pre_booking", 0)),
+            "active": int(by_status.get("active", 0)),
+            "post_stay": int(by_status.get("post_stay", 0)),
+        },
+        "messages": {
+            "urgent_guest_messages": urgent,
+            "negative_guest_messages": unhappy,
+        },
+    }
 
 
 # 💬 Single Chat Conversation View
@@ -199,7 +228,51 @@ def admin_dashboard(request: Request):
     })
 
 
+@router.post("/admin/jobs/refresh-session-status")
+def refresh_session_status(db: Session = Depends(get_db)):
+    cutoff = datetime.utcnow() - timedelta(days=60)
 
+    sessions = (
+        db.query(ChatSession)
+        .filter(ChatSession.last_activity_at >= cutoff)
+        .all()
+    )
+
+    updated = 0
+    today = date.today()
+
+    for s in sessions:
+        # compute from arrival/departure
+        a = getattr(s, "arrival_date", None)
+        d = getattr(s, "departure_date", None)
+
+        # reuse the helper you already made in utils/pms_access.py if you want
+        # but keeping here simple:
+        def to_date(x):
+            if not x: return None
+            if isinstance(x, date) and not isinstance(x, datetime): return x
+            if isinstance(x, datetime): return x.date()
+            if isinstance(x, str):
+                try: return datetime.fromisoformat(x[:10]).date()
+                except: return None
+            return None
+
+        aa, dd = to_date(a), to_date(d)
+        if not aa or not dd:
+            new_status = "pre_booking"
+        elif aa <= today <= dd:
+            new_status = "active"
+        elif today > dd:
+            new_status = "post_stay"
+        else:
+            new_status = "pre_booking"
+
+        if getattr(s, "reservation_status", "pre_booking") != new_status:
+            s.reservation_status = new_status
+            updated += 1
+
+    db.commit()
+    return {"ok": True, "updated": updated, "checked": len(sessions)}
 
 # Save Manual File to GitHub
 @router.post("/admin/save-manual")
