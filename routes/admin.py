@@ -48,21 +48,32 @@ def get_db():
     finally:
         db.close()
 
-
-
-
-
 # 💬 Recent Chats Overview
 @router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(
     request: Request,
     db: Session = Depends(get_db),
-    status: Optional[str] = Query(None),      # pre_booking | active | post_stay
-    priority: Optional[str] = Query(None),    # urgent | unhappy
-    q: Optional[str] = Query(None),           # search guest/property/snippet
+    status: Optional[str] = Query(None),          # pre_booking | active | post_stay
+    priority: Optional[str] = Query(None),        # urgent | unhappy
+    q: Optional[str] = Query(None),               # search guest/property/snippet
+    pmc_id: Optional[int] = Query(None),          # filter by PMC
+    property_id: Optional[int] = Query(None),     # filter by Property
 ):
+    # Dropdown data
+    pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
+    properties = db.query(Property).order_by(Property.property_name.asc()).all()
+
     base_q = db.query(ChatSession)
 
+    # PMC filter (requires joining property)
+    if pmc_id:
+        base_q = base_q.join(Property, ChatSession.property_id == Property.id).filter(Property.pmc_id == pmc_id)
+
+    # Property filter
+    if property_id:
+        base_q = base_q.filter(ChatSession.property_id == property_id)
+
+    # Reservation status filter
     if status in {"pre_booking", "active", "post_stay"}:
         base_q = base_q.filter(ChatSession.reservation_status == status)
 
@@ -72,12 +83,49 @@ def admin_chats(
         .all()
     )
 
+    session_ids = [s.id for s in sessions]
+    now = datetime.utcnow()
+    since_24h = now - timedelta(hours=24)
+    since_7d = now - timedelta(days=7)
+
+    # Pre-aggregate message counts (avoid per-session count queries)
+    counts_24h: Dict[int, int] = {}
+    counts_7d: Dict[int, int] = {}
+
+    if session_ids:
+        for sid, cnt in (
+            db.query(ChatMessage.session_id, func.count(ChatMessage.id))
+              .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_24h)
+              .group_by(ChatMessage.session_id)
+              .all()
+        ):
+            counts_24h[int(sid)] = int(cnt)
+
+        for sid, cnt in (
+            db.query(ChatMessage.session_id, func.count(ChatMessage.id))
+              .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_7d)
+              .group_by(ChatMessage.session_id)
+              .all()
+        ):
+            counts_7d[int(sid)] = int(cnt)
+
+    def heat_score(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int) -> int:
+        # Simple, readable, tunable scoring (0–100)
+        score = 0
+        score += 50 if has_urgent else 0
+        score += 25 if has_negative else 0
+        score += min(25, cnt24 * 5)   # up to 25 from last 24h activity
+        score += min(10, cnt7)        # small bump for week-long back-and-forth
+        return min(100, score)
+
     items = []
     q_lower = (q or "").strip().lower()
 
+    # Precompute urgent/negative flags for these sessions (still done per session for now; OK at 200)
     for s in sessions:
         prop = s.property
         property_name = prop.property_name if prop else "Unknown property"
+        guest_name = (getattr(s, "guest_name", None) or "").strip()
 
         last_msg = (
             db.query(ChatMessage)
@@ -85,6 +133,7 @@ def admin_chats(
             .order_by(ChatMessage.created_at.desc())
             .first()
         )
+        snippet = (last_msg.content[:120] + "…") if last_msg else ""
 
         has_urgent = db.query(ChatMessage).filter(
             ChatMessage.session_id == s.id,
@@ -104,38 +153,44 @@ def admin_chats(
         if priority == "unhappy" and not has_negative:
             continue
 
-        snippet = (last_msg.content[:120] + "…") if last_msg else ""
-        guest_name = (getattr(s, "guest_name", None) or "").strip()
-        status_val = getattr(s, "reservation_status", "pre_booking")
-        needs_attention = (status_val == "active" and (has_urgent or has_negative))
-
         # Text search filter
         if q_lower:
             hay = f"{property_name} {guest_name} {snippet}".lower()
             if q_lower not in hay:
                 continue
 
+        status_val = getattr(s, "reservation_status", "pre_booking")
+        needs_attention = (status_val == "active" and (has_urgent or has_negative))
+
+        cnt24 = counts_24h.get(s.id, 0)
+        cnt7 = counts_7d.get(s.id, 0)
+        score = heat_score(has_urgent, has_negative, cnt24, cnt7)
+
         items.append({
             "id": s.id,
             "property_name": property_name,
             "property_id": s.property_id,
+            "pmc_id": (prop.pmc_id if prop else None),
             "guest_name": getattr(s, "guest_name", None),
             "arrival_date": getattr(s, "arrival_date", None),
             "departure_date": getattr(s, "departure_date", None),
-            "reservation_status": getattr(s, "reservation_status", "pre_booking"),
+            "reservation_status": status_val,
             "last_activity_at": s.last_activity_at,
             "source": s.source,
-            "is_verified": s.is_verified,  # legacy; OK to keep for now
             "last_snippet": snippet,
             "has_urgent": has_urgent,
             "has_negative": has_negative,
             "needs_attention": needs_attention,
+            "msg_24h": cnt24,
+            "msg_7d": cnt7,
+            "heat": score,
         })
 
+    # Analytics (global)
     by_status = dict(
-    db.query(ChatSession.reservation_status, func.count(ChatSession.id))
-      .group_by(ChatSession.reservation_status)
-      .all()
+        db.query(ChatSession.reservation_status, func.count(ChatSession.id))
+          .group_by(ChatSession.reservation_status)
+          .all()
     )
     urgent_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
         ChatMessage.sender == "guest",
@@ -145,7 +200,7 @@ def admin_chats(
         ChatMessage.sender == "guest",
         ChatMessage.sentiment == "negative",
     ).distinct().count()
-    
+
     analytics = {
         "pre_booking": int(by_status.get("pre_booking", 0)),
         "active": int(by_status.get("active", 0)),
@@ -159,10 +214,16 @@ def admin_chats(
         {
             "request": request,
             "sessions": items,
-            "filters": {"status": status, "priority": priority, "q": q},
+            "filters": {
+                "status": status, "priority": priority, "q": q,
+                "pmc_id": pmc_id, "property_id": property_id
+            },
             "analytics": analytics,
+            "pmcs": pmcs,
+            "properties": properties,
         }
     )
+
 
 
 
