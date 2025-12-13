@@ -3,6 +3,7 @@ import os
 import requests
 import json
 import base64
+import re
 
 
 from fastapi import APIRouter, Depends, Request, Form, Body, status, Query
@@ -55,6 +56,107 @@ def get_db():
     finally:
         db.close()
 
+
+
+def get_current_admin_identity(request: Request) -> Optional[str]:
+    """
+    Best-effort guess of who the admin is.
+    Works with common patterns:
+      - request.state.user.email / .name
+      - request.user.email (Starlette auth)
+      - x-admin-user header (manual/dev)
+    """
+    # 1) Manual override (super handy in dev)
+    hdr = (request.headers.get("x-admin-user") or "").strip()
+    if hdr:
+        return hdr
+
+    # 2) request.state.user (custom middleware)
+    u = getattr(request.state, "user", None)
+    if u:
+        for attr in ("email", "name", "username"):
+            v = getattr(u, attr, None)
+            if v:
+                return str(v)
+
+    # 3) request.user (Starlette auth)
+    u2 = getattr(request, "user", None)
+    if u2:
+        for attr in ("email", "username"):
+            v = getattr(u2, attr, None)
+            if v:
+                return str(v)
+
+    return None
+
+
+def decay_heat(raw_heat: int, last_activity_at: Optional[datetime]) -> int:
+    """
+    Heat decay so old fires drop.
+    Simple rule: -10 per day since last activity (max -50).
+    """
+    if not last_activity_at:
+        return raw_heat
+
+    try:
+        # if last_activity_at is naive, treat as UTC
+        now = datetime.utcnow()
+        delta = now - last_activity_at
+        days = max(0, int(delta.total_seconds() // 86400))
+        penalty = min(50, days * 10)
+        return max(0, raw_heat - penalty)
+    except Exception:
+        return raw_heat
+
+
+def extract_next_action(ai_summary: Optional[str]) -> Optional[str]:
+    """
+    Pull a short 'next action' string from the AI summary markdown.
+
+    Tries:
+      1) a bullet under 'Recommended next action'
+      2) the first line after that header
+    """
+    if not ai_summary:
+        return None
+
+    text = ai_summary.strip()
+
+    # Look for the "Recommended next action" section
+    m = re.search(r"\*\*Recommended next action\*\*\s*(.*)", text, flags=re.IGNORECASE | re.DOTALL)
+    if not m:
+        return None
+
+    tail = m.group(1).strip()
+
+    # First bullet under that section
+    b = re.search(r"^\s*[-*]\s+(.+)$", tail, flags=re.MULTILINE)
+    if b:
+        return b.group(1).strip()[:140]
+
+    # Otherwise first non-empty line
+    for line in tail.splitlines():
+        line = line.strip()
+        if line:
+            return line[:140]
+
+    return None
+
+
+def desired_escalation_level(heat: int) -> Optional[str]:
+    if heat >= ESCALATE_HIGH_HEAT:
+        return "high"
+    if heat >= ESCALATE_MEDIUM_HEAT:
+        return "medium"
+    return None
+
+
+def escalation_rank(level: Optional[str]) -> int:
+    order = {None: 0, "": 0, "low": 1, "medium": 2, "high": 3}
+    return order.get((level or "").lower(), 0)
+
+
+
 # 💬 Recent Chats Overview
 @router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(
@@ -63,35 +165,41 @@ def admin_chats(
     status: Optional[str] = Query(None),          # pre_booking | active | post_stay
     priority: Optional[str] = Query(None),        # urgent | unhappy
     q: Optional[str] = Query(None),               # search guest/property/snippet
-    pmc_id: Optional[str] = Query(None),
-    property_id: Optional[str] = Query(None),
+    pmc_id: Optional[int] = Query(None),          # filter by PMC
+    property_id: Optional[int] = Query(None),     # filter by Property
+    mine: Optional[int] = Query(None),            # 1 = only my assigned chats
+    assigned_to: Optional[str] = Query(None),     # explicit assignee filter
 ):
-    from typing import Dict
-    from sqlalchemy import and_
-
-    # Normalize "" -> None, "123" -> 123
-    pmc_id_int = int(pmc_id) if (pmc_id and pmc_id.strip()) else None
-    property_id_int = int(property_id) if (property_id and property_id.strip()) else None
-
     # Dropdown data
     pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
     properties = db.query(Property).order_by(Property.property_name.asc()).all()
 
     base_q = db.query(ChatSession)
 
-    if pmc_id_int:
+    # PMC filter (requires joining property)
+    if pmc_id:
         base_q = (
             base_q.join(Property, ChatSession.property_id == Property.id)
-                  .filter(Property.pmc_id == pmc_id_int)
+                  .filter(Property.pmc_id == pmc_id)
         )
 
-    if property_id_int:
-        base_q = base_q.filter(ChatSession.property_id == property_id_int)
-
+    # Property filter
+    if property_id:
+        base_q = base_q.filter(ChatSession.property_id == property_id)
 
     # Reservation status filter
     if status in {"pre_booking", "active", "post_stay"}:
         base_q = base_q.filter(ChatSession.reservation_status == status)
+
+    # Assigned filters
+    effective_assignee = (assigned_to or "").strip() or None
+    if mine:
+        me = get_current_admin_identity(request)
+        if me:
+            effective_assignee = me
+
+    if effective_assignee:
+        base_q = base_q.filter(ChatSession.assigned_to == effective_assignee)
 
     sessions = (
         base_q.order_by(ChatSession.last_activity_at.desc())
@@ -104,7 +212,7 @@ def admin_chats(
     since_24h = now - timedelta(hours=24)
     since_7d = now - timedelta(days=7)
 
-    # Defaults for empty pages
+    # Defaults for empty result sets
     counts_24h: Dict[int, int] = {}
     counts_7d: Dict[int, int] = {}
     last_msg_map: Dict[int, ChatMessage] = {}
@@ -112,35 +220,15 @@ def admin_chats(
     negative_ids: set[int] = set()
 
     if session_ids:
-        # 1) Last message per session (portable, DB-agnostic)
-        last_ts_subq = (
-            db.query(
-                ChatMessage.session_id.label("sid"),
-                func.max(ChatMessage.created_at).label("max_created"),
-            )
-            .filter(ChatMessage.session_id.in_(session_ids))
-            .group_by(ChatMessage.session_id)
-            .subquery()
-        )
-
+        # 1) Last message per session (Postgres DISTINCT ON)
         latest_msgs = (
             db.query(ChatMessage)
-              .join(
-                  last_ts_subq,
-                  and_(
-                      ChatMessage.session_id == last_ts_subq.c.sid,
-                      ChatMessage.created_at == last_ts_subq.c.max_created,
-                  ),
-              )
-              # if ties on created_at, keep highest id
-              .order_by(ChatMessage.session_id.asc(), ChatMessage.id.desc())
+              .filter(ChatMessage.session_id.in_(session_ids))
+              .order_by(ChatMessage.session_id.asc(), ChatMessage.created_at.desc())
+              .distinct(ChatMessage.session_id)
               .all()
         )
-
-        for m in latest_msgs:
-            sid = int(m.session_id)
-            if sid not in last_msg_map:
-                last_msg_map[sid] = m
+        last_msg_map = {int(m.session_id): m for m in latest_msgs}
 
         # 2) Urgent flag per session (batched)
         urgent_ids = set(
@@ -170,11 +258,10 @@ def admin_chats(
             )
         )
 
-        # 4) Message counts (batched)
+        # 4) Message counts
         for sid, cnt in (
             db.query(ChatMessage.session_id, func.count(ChatMessage.id))
-              .filter(ChatMessage.session_id.in_(session_ids),
-                      ChatMessage.created_at >= since_24h)
+              .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_24h)
               .group_by(ChatMessage.session_id)
               .all()
         ):
@@ -182,8 +269,7 @@ def admin_chats(
 
         for sid, cnt in (
             db.query(ChatMessage.session_id, func.count(ChatMessage.id))
-              .filter(ChatMessage.session_id.in_(session_ids),
-                      ChatMessage.created_at >= since_7d)
+              .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_7d)
               .group_by(ChatMessage.session_id)
               .all()
         ):
@@ -193,8 +279,8 @@ def admin_chats(
         score = 0
         score += 50 if has_urgent else 0
         score += 25 if has_negative else 0
-        score += min(25, cnt24 * 5)   # up to +25 from last 24h activity
-        score += min(10, cnt7)        # up to +10 from last 7d activity
+        score += min(25, cnt24 * 5)
+        score += min(10, cnt7)
         return min(100, score)
 
     items = []
@@ -202,15 +288,16 @@ def admin_chats(
     auto_escalation_updates = 0
 
     for s in sessions:
+        sid = int(s.id)
         prop = s.property
         property_name = prop.property_name if prop else "Unknown property"
         guest_name = (getattr(s, "guest_name", None) or "").strip()
 
-        last_msg = last_msg_map.get(int(s.id))
-        snippet = (last_msg.content[:120] + "…") if last_msg else ""
+        last_msg = last_msg_map.get(sid)
+        snippet = (last_msg.content[:120] + "…") if last_msg and last_msg.content else ""
 
-        has_urgent = int(s.id) in urgent_ids
-        has_negative = int(s.id) in negative_ids
+        has_urgent = sid in urgent_ids
+        has_negative = sid in negative_ids
 
         # Priority filter
         if priority == "urgent" and not has_urgent:
@@ -227,14 +314,18 @@ def admin_chats(
         status_val = getattr(s, "reservation_status", "pre_booking")
         needs_attention = (status_val == "active" and (has_urgent or has_negative))
 
-        cnt24 = counts_24h.get(int(s.id), 0)
-        cnt7 = counts_7d.get(int(s.id), 0)
-        score = heat_score(has_urgent, has_negative, cnt24, cnt7)
+        cnt24 = counts_24h.get(sid, 0)
+        cnt7 = counts_7d.get(sid, 0)
 
-        # Auto-escalation (only escalates UP; never downgrades; skips resolved)
+        raw_heat = heat_score(has_urgent, has_negative, cnt24, cnt7)
+        heat = decay_heat(raw_heat, getattr(s, "last_activity_at", None))
+
+        next_action = extract_next_action(getattr(s, "ai_summary", None))
+
+        # Auto-escalation (only escalate up; never downgrade)
         is_resolved = bool(getattr(s, "is_resolved", False))
         current_level = (getattr(s, "escalation_level", None) or "").lower() or None
-        desired_level = desired_escalation_level(score)
+        desired_level = desired_escalation_level(heat)
 
         if (not is_resolved) and escalation_rank(desired_level) > escalation_rank(current_level):
             s.escalation_level = desired_level
@@ -246,10 +337,7 @@ def admin_chats(
             "id": s.id,
             "property_name": property_name,
             "property_id": s.property_id,
-            "pmc_id": (prop.pmc_id if prop else None),
             "guest_name": getattr(s, "guest_name", None),
-            "arrival_date": getattr(s, "arrival_date", None),
-            "departure_date": getattr(s, "departure_date", None),
             "reservation_status": status_val,
             "last_activity_at": s.last_activity_at,
             "source": s.source,
@@ -259,7 +347,12 @@ def admin_chats(
             "needs_attention": needs_attention,
             "msg_24h": cnt24,
             "msg_7d": cnt7,
-            "heat": score,
+            "heat": heat,
+            "heat_raw": raw_heat,
+            "next_action": next_action,
+            "assigned_to": getattr(s, "assigned_to", None),
+            "escalation_level": getattr(s, "escalation_level", None),
+            "is_resolved": bool(getattr(s, "is_resolved", False)),
         })
 
     if auto_escalation_updates:
@@ -277,20 +370,14 @@ def admin_chats(
           .group_by(ChatSession.reservation_status)
           .all()
     )
-    urgent_sessions = (
-        db.query(ChatSession.id)
-          .join(ChatMessage)
-          .filter(ChatMessage.sender == "guest", ChatMessage.category == "urgent")
-          .distinct()
-          .count()
-    )
-    unhappy_sessions = (
-        db.query(ChatSession.id)
-          .join(ChatMessage)
-          .filter(ChatMessage.sender == "guest", ChatMessage.sentiment == "negative")
-          .distinct()
-          .count()
-    )
+    urgent_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
+        ChatMessage.sender == "guest",
+        ChatMessage.category == "urgent",
+    ).distinct().count()
+    unhappy_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
+        ChatMessage.sender == "guest",
+        ChatMessage.sentiment == "negative",
+    ).distinct().count()
 
     analytics = {
         "pre_booking": int(by_status.get("pre_booking", 0)),
@@ -309,14 +396,17 @@ def admin_chats(
                 "status": status,
                 "priority": priority,
                 "q": q,
-                "pmc_id": pmc_id_int,               # 👈 pass int/None to template
-                "property_id": property_id_int,     # 👈 pass int/None to template
+                "pmc_id": pmc_id,
+                "property_id": property_id,
+                "mine": 1 if mine else 0,
+                "assigned_to": effective_assignee or "",
             },
             "analytics": analytics,
             "pmcs": pmcs,
             "properties": properties,
         }
     )
+
 
 
 
