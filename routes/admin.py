@@ -774,26 +774,45 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
     )
 
 
+from fastapi.responses import RedirectResponse, HTMLResponse
+from starlette.status import HTTP_302_FOUND
+
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    # ✅ If not logged in, show a login page at THIS SAME URL
+    user = request.session.get("user")
+    if not user:
+        # optional: remember where they were trying to go
+        request.session["post_login_redirect"] = "/admin/dashboard"
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "next": "/admin/dashboard",
+        })
+
+    # ✅ Logged in: continue with your existing role/scope logic
+    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
 
     if user_role == "pmc" and not pmc_obj:
-        return HTMLResponse("<h2>Access denied</h2><p>Your Google account isn’t linked to a PMC.</p>", status_code=403)
+        # Logged in but not authorized for PMC scope
+        return templates.TemplateResponse("admin_login.html", {
+            "request": request,
+            "next": "/admin/dashboard",
+            "error": "Your Google account isn’t linked to a PMC.",
+        })
 
     if user_role == "super":
         properties = db.query(Property).order_by(Property.property_name.asc()).all()
     else:
         properties = (
             db.query(Property)
-            .filter(Property.pmc_id == pmc_obj.id)
-            .order_by(Property.property_name.asc())
-            .all()
+              .filter(Property.pmc_id == pmc_obj.id)
+              .order_by(Property.property_name.asc())
+              .all()
         )
 
     pmc_data = []
     if user_role == "super":
-        def serialize_pmc(pmc: PMC):
+        def serialize_pmc(pmc):
             return {
                 "id": pmc.id,
                 "pmc_name": pmc.pmc_name,
@@ -806,7 +825,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
                 "pms_account_id": pmc.pms_account_id,
                 "active": pmc.active,
                 "sync_enabled": pmc.sync_enabled,
-                "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None,
+                "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None
             }
 
         pmc_list = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
@@ -821,8 +840,9 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "properties": properties,
             "now": datetime.utcnow(),
             "pmc": pmc_data,
-        },
+        }
     )
+
 
 
 @router.post("/admin/jobs/refresh-session-status")
