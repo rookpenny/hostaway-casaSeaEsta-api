@@ -34,7 +34,7 @@ logging.basicConfig(level=logging.INFO)
 # ✅ OpenAI client (optional)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-
+ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
 
 
 # 🔌 SQLAlchemy DB Session Dependency
@@ -148,15 +148,15 @@ def chats_analytics(db: Session = Depends(get_db)):
           .all()
     )
 
-    urgent = db.query(ChatMessage.id).filter(
+    urgent_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
         ChatMessage.sender == "guest",
         ChatMessage.category == "urgent",
-    ).count()
+    ).distinct().count()
 
-    unhappy = db.query(ChatMessage.id).filter(
+    unhappy_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
         ChatMessage.sender == "guest",
         ChatMessage.sentiment == "negative",
-    ).count()
+    ).distinct().count()
 
     total_sessions = db.query(ChatSession.id).count()
 
@@ -167,10 +167,10 @@ def chats_analytics(db: Session = Depends(get_db)):
             "active": int(by_status.get("active", 0)),
             "post_stay": int(by_status.get("post_stay", 0)),
         },
-        "messages": {
-            "urgent_guest_messages": urgent,
-            "negative_guest_messages": unhappy,
-        },
+        "sessions_flagged": {
+            "urgent": int(urgent_sessions),
+            "unhappy": int(unhappy_sessions),
+        }
     }
 
 
@@ -231,9 +231,19 @@ def admin_dashboard(request: Request):
     })
 
 
+from datetime import timedelta
+from sqlalchemy import and_
+
+ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
+
 @router.post("/admin/jobs/refresh-session-status")
-def refresh_session_status(db: Session = Depends(get_db)):
-    cutoff = datetime.utcnow() - timedelta(days=60)
+def refresh_session_status(request: Request, db: Session = Depends(get_db)):
+    # Simple token gate (set ADMIN_JOB_TOKEN in Render env)
+    token = request.headers.get("x-admin-job-token", "")
+    if not ADMIN_JOB_TOKEN or token != ADMIN_JOB_TOKEN:
+        return JSONResponse(status_code=401, content={"ok": False, "error": "Unauthorized"})
+
+    cutoff = datetime.utcnow() - timedelta(days=90)
 
     sessions = (
         db.query(ChatSession)
@@ -241,31 +251,32 @@ def refresh_session_status(db: Session = Depends(get_db)):
         .all()
     )
 
-    updated = 0
+    def to_date(x):
+        if not x:
+            return None
+        if isinstance(x, date) and not isinstance(x, datetime):
+            return x
+        if isinstance(x, datetime):
+            return x.date()
+        if isinstance(x, str):
+            try:
+                return datetime.fromisoformat(x[:10]).date()
+            except Exception:
+                return None
+        return None
+
     today = date.today()
+    updated = 0
 
     for s in sessions:
-        # compute from arrival/departure
-        a = getattr(s, "arrival_date", None)
-        d = getattr(s, "departure_date", None)
+        a = to_date(getattr(s, "arrival_date", None))
+        d = to_date(getattr(s, "departure_date", None))
 
-        # reuse the helper you already made in utils/pms_access.py if you want
-        # but keeping here simple:
-        def to_date(x):
-            if not x: return None
-            if isinstance(x, date) and not isinstance(x, datetime): return x
-            if isinstance(x, datetime): return x.date()
-            if isinstance(x, str):
-                try: return datetime.fromisoformat(x[:10]).date()
-                except: return None
-            return None
-
-        aa, dd = to_date(a), to_date(d)
-        if not aa or not dd:
+        if not a or not d:
             new_status = "pre_booking"
-        elif aa <= today <= dd:
+        elif a <= today <= d:
             new_status = "active"
-        elif today > dd:
+        elif today > d:
             new_status = "post_stay"
         else:
             new_status = "pre_booking"
@@ -275,7 +286,7 @@ def refresh_session_status(db: Session = Depends(get_db)):
             updated += 1
 
     db.commit()
-    return {"ok": True, "updated": updated, "checked": len(sessions)}
+    return {"ok": True, "checked": len(sessions), "updated": updated}
 
 # Save Manual File to GitHub
 @router.post("/admin/save-manual")
