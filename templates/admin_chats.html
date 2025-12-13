@@ -289,9 +289,18 @@
                 </td>
 
                 <td class="px-4 py-2 text-xs text-gray-700">
-                  {{ s.last_activity_at or "—" }}
+                  {% if s.last_activity_at %}
+                    <span
+                      class="js-rel-time"
+                      data-ts="{{ s.last_activity_at.isoformat() }}"
+                      title="{{ s.last_activity_at.strftime('%b %d, %Y · %I:%M %p') }}"
+                    >
+                      {{ s.last_activity_at.strftime("%b %d · %I:%M %p") }}
+                    </span>
+                  {% else %}
+                    —
+                  {% endif %}
                 </td>
-
                 <td class="px-4 py-2 text-xs text-gray-600">
                   <div>{{ s.last_snippet }}</div>
                 
@@ -317,5 +326,73 @@
       <p class="mt-4 text-gray-600">No chat sessions yet.</p>
     {% endif %}
   </div>
+  <script>
+  function parseTimestamp(ts) {
+    // FastAPI/Jinja may output ISO already. If not, normalize common cases.
+    // Accepts:
+    //  - "2025-12-12T13:24:33.351313"
+    //  - "2025-12-12 13:24:33.351313"
+    //  - With or without fractional seconds
+    if (!ts) return null;
+
+    // Convert "YYYY-MM-DD HH:MM:SS(.ffffff)" -> ISO-ish
+    const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
+
+    // If no timezone is provided, JS treats it as local time.
+    // If your DB times are UTC, you can force UTC by appending "Z".
+    // Uncomment the next line if your timestamps are UTC-naive:
+    // const utc = normalized.endsWith("Z") ? normalized : normalized + "Z";
+
+    const d = new Date(normalized);
+    return isNaN(d.getTime()) ? null : d;
+  }
+
+  function formatRelative(fromDate, now = new Date()) {
+    const diffMs = now - fromDate;
+    if (diffMs < 0) return "just now";
+
+    const sec = Math.floor(diffMs / 1000);
+    if (sec < 10) return "just now";
+    if (sec < 60) return `${sec}s ago`;
+
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+
+    const day = Math.floor(hr / 24);
+    if (day < 14) return `${day}d ago`;
+
+    const wk = Math.floor(day / 7);
+    if (wk < 8) return `${wk}w ago`;
+
+    const mo = Math.floor(day / 30);
+    if (mo < 12) return `${mo}mo ago`;
+
+    const yr = Math.floor(day / 365);
+    return `${yr}y ago`;
+  }
+
+  function updateRelativeTimes() {
+    const now = new Date();
+    document.querySelectorAll(".js-rel-time").forEach(el => {
+      const ts = el.getAttribute("data-ts");
+      const d = parseTimestamp(ts);
+      if (!d) return;
+
+      el.textContent = formatRelative(d, now);
+
+      // Optional: make very old items visually quieter
+      // const days = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+      // el.classList.toggle("text-gray-400", days >= 7);
+    });
+  }
+
+  // Initial render + refresh every minute
+  updateRelativeTimes();
+  setInterval(updateRelativeTimes, 60 * 1000);
+</script>
+
 </body>
 </html>
