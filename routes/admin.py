@@ -173,7 +173,6 @@ def escalation_rank(level: Optional[str]) -> int:
     return order.get((level or "").lower(), 0)
 
 
-
 # 💬 Recent Chats Overview
 @router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(
@@ -182,11 +181,19 @@ def admin_chats(
     status: Optional[str] = Query(None),          # pre_booking | active | post_stay
     priority: Optional[str] = Query(None),        # urgent | unhappy
     q: Optional[str] = Query(None),               # search guest/property/snippet
-    pmc_id: Optional[int] = Query(None),          # filter by PMC
-    property_id: Optional[int] = Query(None),     # filter by Property
+    pmc_id: Optional[str] = Query(None),          # filter by PMC (string to avoid "" int parsing)
+    property_id: Optional[str] = Query(None),     # filter by Property (string to avoid "" int parsing)
     mine: Optional[int] = Query(None),            # 1 = only my assigned chats
     assigned_to: Optional[str] = Query(None),     # explicit assignee filter
 ):
+    # ---- helpers ----
+    def to_int_or_none(v: Optional[str]) -> Optional[int]:
+        v = (v or "").strip()
+        return int(v) if v.isdigit() else None
+
+    pmc_id_int = to_int_or_none(pmc_id)
+    property_id_int = to_int_or_none(property_id)
+
     # Dropdown data
     pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
     properties = db.query(Property).order_by(Property.property_name.asc()).all()
@@ -194,40 +201,30 @@ def admin_chats(
     base_q = db.query(ChatSession)
 
     # PMC filter (requires joining property)
-    if pmc_id:
+    if pmc_id_int is not None:
         base_q = (
             base_q.join(Property, ChatSession.property_id == Property.id)
-                  .filter(Property.pmc_id == pmc_id)
+                  .filter(Property.pmc_id == pmc_id_int)
         )
 
     # Property filter
-    if property_id:
-        base_q = base_q.filter(ChatSession.property_id == property_id)
+    if property_id_int is not None:
+        base_q = base_q.filter(ChatSession.property_id == property_id_int)
 
     # Reservation status filter
     if status in {"pre_booking", "active", "post_stay"}:
         base_q = base_q.filter(ChatSession.reservation_status == status)
 
-    # Assigned filters
-    effective_assignee = (assigned_to or "").strip() or None
+    # ----- assignee filters -----
+    effective_assignee: Optional[str] = (assigned_to or "").strip() or None
+
     if mine:
-        me = get_current_admin_identity(request)
+        me = get_current_admin_identity(request)  # <-- must exist in your file
         if me:
             effective_assignee = me
 
-    # Assigned filters
-    if assigned_to and assigned_to.strip():
-        base_q = base_q.filter(ChatSession.assigned_to.ilike(f"%{assigned_to.strip()}%"))
-    
-    # "Mine" filter: treat mine=1 as "assigned_to is not null/empty"
-    if mine:
-        base_q = base_q.filter(
-            ChatSession.assigned_to.isnot(None),
-            ChatSession.assigned_to != ""
-        )
-
-
     if effective_assignee:
+        # exact match (change to ilike if you prefer partials)
         base_q = base_q.filter(ChatSession.assigned_to == effective_assignee)
 
     sessions = (
@@ -318,6 +315,7 @@ def admin_chats(
 
     for s in sessions:
         sid = int(s.id)
+
         prop = s.property
         property_name = prop.property_name if prop else "Unknown property"
         guest_name = (getattr(s, "guest_name", None) or "").strip()
@@ -346,9 +344,9 @@ def admin_chats(
         cnt24 = counts_24h.get(sid, 0)
         cnt7 = counts_7d.get(sid, 0)
 
+        # Heat: raw -> multiplier -> decay
         raw_heat = heat_score(has_urgent, has_negative, cnt24, cnt7)
-        
-        # Step 2: apply multipliers (context-aware boost)
+
         multiplier = 1.0
         if has_urgent:
             multiplier += 0.30
@@ -356,13 +354,10 @@ def admin_chats(
             multiplier += 0.15
         if status_val == "active":
             multiplier += 0.10
-        
+
         heat_boosted = int(min(100, round(raw_heat * multiplier)))
-        
-        # Step 3: decay AFTER multipliers (so urgency/sentiment still wins)
         heat = decay_heat(heat_boosted, getattr(s, "last_activity_at", None))
-        
-        # Step 4: lightweight UI helper from summary (optional column)
+
         next_action = extract_next_action(getattr(s, "ai_summary", None))
 
         # Auto-escalation (only escalate up; never downgrade)
@@ -385,30 +380,29 @@ def admin_chats(
             "last_activity_at": s.last_activity_at,
             "source": s.source,
             "last_snippet": snippet,
-        
+
             # Flags
             "has_urgent": has_urgent,
             "has_negative": has_negative,
             "needs_attention": needs_attention,
-        
+
             # Activity
             "msg_24h": cnt24,
             "msg_7d": cnt7,
-        
-            # Heat diagnostics (very useful during tuning)
+
+            # Heat diagnostics
             "heat_raw": raw_heat,
             "heat_boosted": heat_boosted,
             "heat": heat,
-        
+
             # AI assist
             "next_action": next_action,
-        
+
             # Ops state
             "assigned_to": getattr(s, "assigned_to", None),
             "escalation_level": getattr(s, "escalation_level", None),
-            "is_resolved": bool(getattr(s, "is_resolved", False)),
+            "is_resolved": is_resolved,
         })
-
 
     if auto_escalation_updates:
         db.commit()
@@ -425,14 +419,20 @@ def admin_chats(
           .group_by(ChatSession.reservation_status)
           .all()
     )
-    urgent_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
-        ChatMessage.sender == "guest",
-        ChatMessage.category == "urgent",
-    ).distinct().count()
-    unhappy_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
-        ChatMessage.sender == "guest",
-        ChatMessage.sentiment == "negative",
-    ).distinct().count()
+    urgent_sessions = (
+        db.query(ChatSession.id)
+          .join(ChatMessage)
+          .filter(ChatMessage.sender == "guest", ChatMessage.category == "urgent")
+          .distinct()
+          .count()
+    )
+    unhappy_sessions = (
+        db.query(ChatSession.id)
+          .join(ChatMessage)
+          .filter(ChatMessage.sender == "guest", ChatMessage.sentiment == "negative")
+          .distinct()
+          .count()
+    )
 
     analytics = {
         "pre_booking": int(by_status.get("pre_booking", 0)),
@@ -451,18 +451,17 @@ def admin_chats(
                 "status": status,
                 "priority": priority,
                 "q": q,
-                "pmc_id": pmc_id,
-                "property_id": property_id,
-                "mine": 1 if mine else 0,
-                "assigned_to": effective_assignee or "",
+                "pmc_id": pmc_id or "",
+                "property_id": property_id or "",
                 "mine": bool(mine),
-                "assigned_to": assigned_to,
+                "assigned_to": effective_assignee or "",
             },
             "analytics": analytics,
             "pmcs": pmcs,
             "properties": properties,
         }
     )
+
 
 
 
