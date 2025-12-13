@@ -5,28 +5,25 @@ import json
 import base64
 import re
 
-
-
 from fastapi import APIRouter, Depends, Request, Form, Body, status, Query
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
-
 from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
 from sqlalchemy import func, and_
 from pydantic import BaseModel
-from typing import Optional, Dict
+from typing import Optional, Dict, List
 from pathlib import Path
 
-#from database import SessionLocal, datetime, timedelta, date
 from database import SessionLocal
 from datetime import datetime, timedelta, date
 
 from models import PMC, Property, ChatSession, ChatMessage
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
+
 
 # ✅ Create the router object (do NOT create FastAPI app here)
 router = APIRouter()
@@ -57,8 +54,6 @@ def get_db():
         yield db
     finally:
         db.close()
-
-
 
 
 def get_current_admin_identity(request: Request) -> Optional[str]:
@@ -110,8 +105,6 @@ def get_current_admin_identity(request: Request) -> Optional[str]:
         pass
 
     return None
-
-
 
 
 def decay_heat(heat_value: int, last_activity_at: Optional[datetime]) -> int:
@@ -197,7 +190,8 @@ def escalation_rank(level: Optional[str]) -> int:
     return order.get((level or "").lower(), 0)
 
 
-# 💬 Recent Chats Overview
+
+
 # 💬 Recent Chats Overview
 @router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(
@@ -206,8 +200,8 @@ def admin_chats(
     status: Optional[str] = Query(None),          # pre_booking | active | post_stay
     priority: Optional[str] = Query(None),        # urgent | unhappy
     q: Optional[str] = Query(None),               # search guest/property/snippet
-    pmc_id: Optional[str] = Query(None),          # filter by PMC (string to avoid "" int parsing)
-    property_id: Optional[str] = Query(None),     # filter by Property (string to avoid "" int parsing)
+    pmc_id: Optional[str] = Query(None),          # string to avoid "" int parsing
+    property_id: Optional[str] = Query(None),     # string to avoid "" int parsing
     mine: Optional[int] = Query(None),            # 1 = only my assigned chats
     assigned_to: Optional[str] = Query(None),     # explicit assignee filter (exact match)
 ):
@@ -232,13 +226,14 @@ def admin_chats(
         cnt24: int,
         cnt7: int,
         status_val: str,
-    ) -> list[str]:
+    ) -> List[str]:
         """
         Signals are emotion-style tags derived from existing data.
-        No new tables/models needed.
+        Must match what admin_chats.html renders:
+        Panicked / Angry / Upset / Confused / Worried / Calm
         Keep to max 2 to prevent UI noise.
         """
-        signals: list[str] = []
+        signals: List[str] = []
 
         # Primary emotional signals
         if has_urgent:
@@ -254,16 +249,16 @@ def admin_chats(
         if (not has_urgent) and (not has_negative) and (cnt7 >= 3 or cnt24 >= 2):
             signals.append("Confused")
 
-        # Active stay adds context (optional, but useful)
+        # “Worried” contextual tag during active stays when there are flags
         if status_val == "active" and (has_urgent or has_negative):
-            signals.append("Stressed")
+            signals.append("Worried")
 
         if not signals:
             signals.append("Calm")
 
         # Unique + cap to 2
         seen = set()
-        deduped: list[str] = []
+        deduped: List[str] = []
         for s in signals:
             if s not in seen:
                 seen.add(s)
@@ -297,7 +292,7 @@ def admin_chats(
     # ----- assignee filters -----
     effective_assignee: Optional[str] = (assigned_to or "").strip() or None
     if mine:
-        me = get_current_admin_identity(request)  # should NEVER throw (your safe version)
+        me = get_current_admin_identity(request)  # safe version; never throws
         if me:
             effective_assignee = me
 
@@ -477,12 +472,12 @@ def admin_chats(
             "has_negative": has_negative,
             "needs_attention": needs_attention,
 
-            # Activity (keep counts for tooltips, UI can show label)
+            # Activity
             "msg_24h": cnt24,
             "msg_7d": cnt7,
             "activity_label": activity_label,
 
-            # Priority diagnostics (you can hide raw/boosted in UI later)
+            # Priority diagnostics
             "heat_raw": raw_heat,
             "heat_boosted": heat_boosted,
             "heat": heat,
