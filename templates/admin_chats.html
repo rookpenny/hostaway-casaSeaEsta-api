@@ -132,6 +132,7 @@
               <th class="px-4 py-2 text-left">Session ID</th>
               <th class="px-4 py-2 text-left">Property</th>
               <th class="px-4 py-2 text-left">Guest</th>
+              <th class="px-4 py-2 text-left">Assigned To</th>
               <th class="px-4 py-2 text-left">Source</th>
               <th class="px-4 py-2 text-left">Status</th>
               <th class="px-4 py-2 text-left">Priority</th>
@@ -178,6 +179,17 @@
                 <td class="px-4 py-2">
                   <div class="font-medium">{{ s.guest_name or "—" }}</div>
                 </td>
+
+                <td class="px-4 py-2 text-xs">
+                  {% if s.assigned_to %}
+                    <span class="inline-block px-2 py-1 rounded bg-slate-100 text-slate-800 font-semibold">
+                      {{ s.assigned_to }}
+                    </span>
+                  {% else %}
+                    <span class="text-gray-400">—</span>
+                  {% endif %}
+                </td>
+
 
                 <td class="px-4 py-2 text-xs text-gray-700">{{ s.source or "—" }}</td>
 
