@@ -12,7 +12,7 @@ from fastapi.exceptions import RequestValidationError
 
 from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
-from sqlalchemy import func, and_
+from sqlalchemy import func, sa, and_
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 from pathlib import Path
@@ -20,7 +20,7 @@ from pathlib import Path
 from database import SessionLocal
 from datetime import datetime, timedelta, date
 
-from models import PMC, Property, ChatSession, ChatMessage
+from models import PMC, Property, ChatSession, ChatMessage, PMCUser
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
 
@@ -60,6 +60,33 @@ def require_super(request: Request, db: Session):
     role, _ = get_user_role_and_scope(request, db)
     if role != "super":
         raise HTTPException(status_code=403, detail="Forbidden")
+
+
+def enforce_assignee_in_pmc(request: Request, db: Session, assigned_to: str):
+    assigned_to = (assigned_to or "").strip().lower()
+    if not assigned_to:
+        return
+
+    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
+
+    if user_role == "super":
+        return
+
+    if user_role == "pmc" and not pmc_obj:
+        raise HTTPException(status_code=403, detail="PMC account not linked")
+
+    ok = (
+        db.query(PMCUser)
+          .filter(
+              PMCUser.pmc_id == pmc_obj.id,
+              sa.func.lower(PMCUser.email) == assigned_to,
+              PMCUser.is_active == True
+          )
+          .first()
+    )
+    if not ok:
+        raise HTTPException(status_code=403, detail="Assignee not in your PMC team")
+
 
 
 def get_current_admin_identity(request: Request) -> Optional[str]:
@@ -132,27 +159,39 @@ def is_super_admin(email: Optional[str]) -> bool:
         "corbett.jarrod@gmail.com",   # <-- change
     }
 
-
 def get_user_role_and_scope(request: Request, db: Session):
     """
-    Returns: (user_role, pmc_obj_or_none)
-    Uses the logged-in identity (Google session) to decide role and PMC scope.
+    Returns: (user_role, pmc_obj_or_none, pmc_user_or_none)
+      - user_role: "super" | "pmc"
+      - pmc_obj: PMC row for scope (if pmc)
+      - pmc_user: PMCUser row (optional, useful for name/role)
     """
     email = get_current_admin_identity(request)
 
     if is_super_admin(email):
-        return "super", None
+        return "super", None, None
 
-    # PMC lookup by email (PMC.email field)
-    pmc = None
-    if email:
-        pmc = db.query(PMC).filter(func.lower(PMC.email) == email.lower()).first()
+    if not email:
+        return "pmc", None, None
 
-    # If it matches a PMC record -> PMC role; else treat as super-disabled PMC role (no access)
+    email_l = email.strip().lower()
+
+    # ✅ 1) PMC staff table lookup (preferred)
+    pmc_user = (
+        db.query(PMCUser)
+          .filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active == True)
+          .first()
+    )
+    if pmc_user:
+        pmc = db.query(PMC).filter(PMC.id == pmc_user.pmc_id).first()
+        return "pmc", pmc, pmc_user
+
+    # ✅ 2) Optional fallback: PMC “owner” email on PMC table
+    pmc = db.query(PMC).filter(func.lower(PMC.email) == email_l).first()
     if pmc:
-        return "pmc", pmc
+        return "pmc", pmc, None
 
-    return "pmc", None
+    return "pmc", None, None
 
 
 def require_pmc_linked(user_role: str, pmc_obj: Optional[PMC]):
@@ -165,7 +204,7 @@ def require_session_in_scope(request: Request, db: Session, session_id: int) -> 
     Super: can access any session
     PMC: can access only sessions whose property belongs to their PMC
     """
-    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
@@ -185,7 +224,7 @@ def require_property_in_scope(request: Request, db: Session, property_id: int) -
     Super: can access any property
     PMC: can access only properties that belong to their PMC
     """
-    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
     prop = db.query(Property).filter(Property.id == property_id).first()
@@ -206,7 +245,7 @@ def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
       - Find the property whose data_folder_path is a prefix of file_path
       - Ensure that property belongs to PMC
     """
-    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
     file_path = (file_path or "").strip().lstrip("/")  # normalize
@@ -333,7 +372,7 @@ def admin_chats(
     assigned_to: Optional[str] = Query(None),     # exact match
 ):
     # ---- role & scope ----
-    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
 
     # If PMC user but not mapped to a PMC record, block
     if user_role == "pmc" and not pmc_obj:
@@ -796,7 +835,7 @@ def assign_chat(session_id: int, request: Request, payload: dict = Body(...), db
     assigned_to = (payload.get("assigned_to") or "").strip()
 
     # Optional: enforce "their own staff" — see note below
-    # enforce_assignee_in_pmc(request, db, assigned_to)
+    enforce_assignee_in_pmc(request, db, assigned_to)
 
     s.assigned_to = assigned_to or None
     s.updated_at = datetime.utcnow()
@@ -932,7 +971,7 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
 # This route renders the admin dashboard with a list of all PMCs pulled from your new database.
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
-    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
 
     # If PMC user but not mapped to a PMC record, block
     if user_role == "pmc" and not pmc_obj:
@@ -1353,7 +1392,7 @@ def edit_file_from_github(request: Request, file: str, db: Session = Depends(get
         )
 
 def enforce_assignee_in_pmc(request: Request, db: Session, assigned_to: str):
-    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
     if user_role == "super":
         return
     # look up assigned_to in pmc_users where pmc_id == pmc_obj.id
