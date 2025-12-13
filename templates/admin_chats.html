@@ -303,16 +303,26 @@
                   </div-->
                 </td>
 
+                <!-- Last Activity -->
                 <td class="px-4 py-2 text-xs text-gray-700">
-                  <span class="js-rel-time"
-                        data-iso="{{ (s.last_activity_at.isoformat() if s.last_activity_at else '') }}"
-                        title="{{ s.last_activity_at or '—' }}">
-                    {{ s.last_activity_at or "—" }}
-                  </span>
+                  {% if s.last_activity_at %}
+                    <span
+                      class="js-rel-time cursor-help"
+                      data-ts="{{ s.last_activity_at.isoformat() }}"
+                      title="{{ s.last_activity_at.strftime('%A, %B %d, %Y · %I:%M:%S %p') }}"
+                    >
+                      {{ s.last_activity_at.strftime("%b %d · %I:%M %p") }}
+                    </span>
+                  {% else %}
+                    —
+                  {% endif %}
                 </td>
 
+
                 <td class="px-4 py-2 text-xs text-gray-600">
-                  <div>{{ s.last_snippet }}</div>
+                  <div class="line-clamp-2" title="{{ s.last_snippet }}">
+                    {{ s.last_snippet[:140] }}{% if s.last_snippet and s.last_snippet|length > 140 %}…{% endif %}
+                  </div>
                 
                   {% if s.next_action %}
                     <div class="mt-1 text-[11px] text-slate-700">
@@ -338,14 +348,20 @@
   </div>
 <script>
   function parseTimestamp(ts) {
+    // FastAPI/Jinja may output ISO already. If not, normalize common cases.
+    // Accepts:
+    //  - "2025-12-12T13:24:33.351313"
+    //  - "2025-12-12 13:24:33.351313"
+    //  - With or without fractional seconds
     if (!ts) return null;
 
     // Convert "YYYY-MM-DD HH:MM:SS(.ffffff)" -> ISO-ish
     const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
 
-    // If your DB times are UTC-naive, force UTC:
+    // If no timezone is provided, JS treats it as local time.
+    // If your DB times are UTC, you can force UTC by appending "Z".
+    // Uncomment the next line if your timestamps are UTC-naive:
     // const utc = normalized.endsWith("Z") ? normalized : normalized + "Z";
-    // const d = new Date(utc);
 
     const d = new Date(normalized);
     return isNaN(d.getTime()) ? null : d;
@@ -378,18 +394,6 @@
     return `${yr}y ago`;
   }
 
-  function formatExact(d) {
-    // exact local time string + seconds (nice for ops)
-    return d.toLocaleString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "2-digit",
-      hour: "numeric",
-      minute: "2-digit",
-      second: "2-digit"
-    });
-  }
-
   function updateRelativeTimes() {
     const now = new Date();
     document.querySelectorAll(".js-rel-time").forEach(el => {
@@ -399,14 +403,17 @@
 
       el.textContent = formatRelative(d, now);
 
-      // ✅ exact date/time on hover
-      el.title = formatExact(d);
+      // Optional: make very old items visually quieter
+      // const days = Math.floor((now - d) / (1000 * 60 * 60 * 24));
+      // el.classList.toggle("text-gray-400", days >= 7);
     });
   }
 
+  // Initial render + refresh every minute
   updateRelativeTimes();
   setInterval(updateRelativeTimes, 60 * 1000);
 </script>
+
 
 
 </body>
