@@ -12,7 +12,8 @@ from fastapi.exceptions import RequestValidationError
 
 from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
-from sqlalchemy import func, sa, and_
+import sqlalchemy as sa
+from sqlalchemy import func, and_
 from pydantic import BaseModel
 from typing import Optional, Dict, List
 from pathlib import Path
@@ -55,11 +56,13 @@ def get_db():
     finally:
         db.close()
 
-
-def require_super(request: Request, db: Session):
-    role, _ = get_user_role_and_scope(request, db)
+def require_super(request: Request, db: Session = Depends(get_db)):
+    role, _, _ = get_user_role_and_scope(request, db)
+   
+    
     if role != "super":
         raise HTTPException(status_code=403, detail="Forbidden")
+
 
 
 def enforce_assignee_in_pmc(request: Request, db: Session, assigned_to: str):
@@ -238,37 +241,26 @@ def require_property_in_scope(request: Request, db: Session, property_id: int) -
 
 
 def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
-    """
-    Super: can edit any file
-    PMC: can edit only files under *their* property data folders.
-    Strategy:
-      - Find the property whose data_folder_path is a prefix of file_path
-      - Ensure that property belongs to PMC
-    """
-    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
-    file_path = (file_path or "").strip().lstrip("/")  # normalize
+    file_path = (file_path or "").strip().lstrip("/").strip()
 
-    # SUPER can proceed
     if user_role == "super":
         return file_path
 
-    # PMC: find a matching property folder prefix
     props = (
         db.query(Property)
           .filter(Property.pmc_id == pmc_obj.id)
           .all()
     )
 
-    # data_folder_path examples: "pmcs/123/properties/456"
     for p in props:
         base = (getattr(p, "data_folder_path", None) or "").strip().strip("/")
         if base and (file_path == base or file_path.startswith(base + "/")):
             return file_path
 
     raise HTTPException(status_code=403, detail="Forbidden file")
-
 
 
 
@@ -952,7 +944,7 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
         .all()
     )
 
-    user_role, _ = get_user_role_and_scope(request, db)
+    user_role, _, _ = get_user_role_and_scope(request, db)
 
     return templates.TemplateResponse(
         "admin_chat_detail.html",
@@ -1126,6 +1118,10 @@ def save_manual_file(file_path: str = Form(...), content: str = Form(...)):
 # ✅ Add this new route here:
 @router.get("/admin/pmc-properties/{pmc_id}")
 def pmc_properties(request: Request, pmc_id: int, db: Session = Depends(get_db)):
+    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    if user_role == "pmc":
+        if not pmc_obj or pmc_obj.id != pmc_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
     properties = db.query(Property).filter(Property.pmc_id == pmc_id).all()
     return templates.TemplateResponse("pmc_properties.html", {
         "request": request,
@@ -1177,9 +1173,7 @@ def add_pmc(
 
 # 📖 Edit Manual File from GitHub
 @router.get("/edit-manual", response_class=HTMLResponse)
-def edit_manual_file(request: Request, file: str):
-    
-    require_super(request, db)
+def edit_manual_file(request: Request, file: str, db: Session = Depends(get_db)):
     
     try:
         # Convert local-style path to GitHub path
@@ -1223,9 +1217,12 @@ def sync_all():
 
 
 # ✅ Generate the next available PMS Account ID
-def get_next_account_id(db: Session):
+def get_next_account_id(db: Session) -> str:
     last = db.query(PMC).order_by(PMC.pms_account_id.desc()).first()
-    return (last.pms_account_id + 1) if last else 10000
+    if not last or not (last.pms_account_id or "").isdigit():
+        return "10000"
+    return str(int(last.pms_account_id) + 1)
+
 
 
 # 🔁 Trigger sync for one PMC by PMS Account ID
@@ -1313,9 +1310,7 @@ def save_config_file(file_path: str = Form(...), content: str = Form(...)):
 
 # ⚙️ Load a GitHub-hosted config file into the web editor
 @router.get("/edit-config", response_class=HTMLResponse)
-def edit_config_file(request: Request, file: str):
-    
-    require_super(request, db)
+def edit_config_file(request: Request, file: str, db: Session = Depends(get_db)):
     
     import base64
 
@@ -1385,24 +1380,15 @@ def edit_file_from_github(request: Request, file: str, db: Session = Depends(get
     })
 
 
-    except Exception as e:
-        return HTMLResponse(
-            f"<h2>Error loading file: {e}</h2>",
-            status_code=500
-        )
-
-def enforce_assignee_in_pmc(request: Request, db: Session, assigned_to: str):
-    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
-    if user_role == "super":
-        return
-    # look up assigned_to in pmc_users where pmc_id == pmc_obj.id
-    # if not found -> 403
-
-
 # 🔧 Save a file to GitHub using the GitHub API
 @router.post("/admin/save-github-file")
-def save_github_file(file_path: str = Form(...), content: str = Form(...)):
-    import base64
+def save_github_file(
+    request: Request,
+    file_path: str = Form(...),
+    content: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    file_path = require_file_in_scope(request, db, file_path)
 
     try:
         repo_owner = "rookpenny"
@@ -1533,28 +1519,20 @@ class PMCUpdateRequest(BaseModel):
     pms_account_id: Optional[str]  # ✅ <-- ADD THIS LINE
     active: bool
     
-
-from fastapi import HTTPException
-
 @router.post("/admin/update-pmc")
-def update_pmc(payload: PMCUpdateRequest):
-   
+def update_pmc(request: Request, payload: PMCUpdateRequest, db: Session = Depends(get_db)):
     require_super(request, db)
-    
-    logging.warning("Received payload: %s", payload)
-    db: Session = SessionLocal()
-    try:
-        print("🟡 Incoming payload:", payload)
 
+    logging.warning("Received payload: %s", payload)
+
+    try:
         if payload.id:
             pmc = db.query(PMC).filter(PMC.id == payload.id).first()
             if not pmc:
                 return JSONResponse(status_code=404, content={"error": "PMC not found"})
         else:
             pmc = PMC()
-            # ✅ assign account ID for new PMC
-            last = db.query(PMC).order_by(PMC.pms_account_id.desc()).first()
-            pmc.pms_account_id = (int(last.pms_account_id) + 1) if last and last.pms_account_id else 10000
+            pmc.pms_account_id = get_next_account_id(db)
             pmc.sync_enabled = True
 
         pmc.pmc_name = payload.pmc_name
@@ -1564,28 +1542,30 @@ def update_pmc(payload: PMCUpdateRequest):
         pmc.pms_integration = payload.pms_integration
         pmc.pms_api_key = payload.pms_api_key
         pmc.pms_api_secret = payload.pms_api_secret
-        pmc.pms_account_id = payload.pms_account_id  # ✅ add this to support form input
+
+        # If you want to allow editing it manually:
+        if payload.pms_account_id:
+            pmc.pms_account_id = payload.pms_account_id
+
         pmc.active = payload.active
 
         db.add(pmc)
         db.commit()
         return {"success": True}
+
     except RequestValidationError as ve:
         return JSONResponse(status_code=422, content={"error": ve.errors()})
     except Exception as e:
         db.rollback()
         logging.exception("🔥 Exception during PMC update")
         return JSONResponse(status_code=500, content={"error": str(e)})
-    finally:
-        db.close()
 
 
 # 🗑️ Delete PMC
 @router.delete("/admin/delete-pmc/{pmc_id}")
-def delete_pmc(pmc_id: int):
+def delete_pmc(pmc_id: int, request: Request, db: Session = Depends(get_db)):
     require_super(request, db)
-    
-    db = SessionLocal()
+
     try:
         pmc = db.query(PMC).filter(PMC.id == pmc_id).first()
         if not pmc:
@@ -1596,16 +1576,25 @@ def delete_pmc(pmc_id: int):
     except Exception as e:
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
-    finally:
-        db.close()
+
 
 @router.post("/admin/update-properties")
-def update_properties(payload: list[dict], db: Session = Depends(get_db)):
+def update_properties(request: Request, payload: list[dict], db: Session = Depends(get_db)):
+    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
     try:
         for item in payload:
-            prop = db.query(Property).filter(Property.id == item["id"]).first()
-            if prop:
-                prop.sandy_enabled = item["sandy_enabled"]
+            prop_id = int(item["id"])
+            prop = db.query(Property).filter(Property.id == prop_id).first()
+            if not prop:
+                continue
+
+            if user_role == "pmc" and prop.pmc_id != pmc_obj.id:
+                raise HTTPException(status_code=403, detail="Forbidden property update")
+
+            prop.sandy_enabled = bool(item["sandy_enabled"])
+
         db.commit()
         return {"success": True}
     except Exception as e:
@@ -1613,8 +1602,13 @@ def update_properties(payload: list[dict], db: Session = Depends(get_db)):
         return JSONResponse(status_code=500, content={"error": str(e)})
 
 
+
 @router.get("/admin/pmc-properties-json/{pmc_id}")
-def get_pmc_properties_json(pmc_id: int, db: Session = Depends(get_db)):
+def get_pmc_properties_json(request: Request, pmc_id: int, db: Session = Depends(get_db)):
+    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    if user_role == "pmc":
+        if not pmc_obj or pmc_obj.id != pmc_id:
+            raise HTTPException(status_code=403, detail="Forbidden")
     properties = db.query(Property).filter(Property.pmc_id == pmc_id).all()
     return {
         "properties": [
