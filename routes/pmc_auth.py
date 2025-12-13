@@ -253,10 +253,9 @@ def sync_single_property(property_id: int, request: Request, db: Session = Depen
 
 @router.get("/logout")
 def logout(request: Request):
-    property_id = request.session.get("last_property")
+    # Clear all auth + session state (admin + pmc users)
     request.session.clear()
 
-    if property_id:
-        return RedirectResponse(url=f"/guest/{property_id}", status_code=302)
+    # Single entry point: dashboard will show login if not authenticated
+    return RedirectResponse(url="/admin/dashboard", status_code=302)
 
-    return RedirectResponse(url="/", status_code=302)
