@@ -1243,6 +1243,7 @@ def edit_config_file(
 # 🔁 Sync All PMCs
 @router.post("/admin/sync-all")
 def sync_all():
+    require_super(request, db)
     try:
         sync_all_pmcs()
         return RedirectResponse(url="/admin/dashboard", status_code=303)
@@ -1264,9 +1265,8 @@ def get_next_account_id(db: Session) -> str:
 
 @router.post("/admin/sync-properties/{account_id}")
 def sync_properties_for_pmc(account_id: str):
-    from database import SessionLocal
-    from models import PMC
-    from utils.pms_sync import sync_properties
+
+    require_super(request, db)
 
     db = SessionLocal()
     try:
@@ -1298,7 +1298,7 @@ def save_config_file(
     content: str = Form(...),
     db: Session = Depends(get_db),
 ):
-  file_path = require_file_in_scope(request, db, file_path)
+    file_path = require_file_in_scope(request, db, file_path)
 
     try:
         repo_owner = "rookpenny"
@@ -1348,44 +1348,6 @@ def save_config_file(
 
 
 
-# ⚙️ Load a GitHub-hosted config file into the web editor
-@router.get("/edit-config", response_class=HTMLResponse)
-def edit_config_file(request: Request, file: str, db: Session = Depends(get_db)):
-    
-    import base64
-
-    try:
-        repo_owner = "rookpenny"
-        repo_name = "hostscout_data"
-        github_token = os.getenv("GITHUB_TOKEN")
-        github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
-
-        headers = {
-            "Authorization": f"Bearer {github_token}",
-            "Accept": "application/vnd.github+json"
-        }
-
-        response = requests.get(github_api_url, headers=headers)
-        if response.status_code != 200:
-            return HTMLResponse(
-                f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>",
-                status_code=404
-            )
-
-        data = response.json()
-        content = base64.b64decode(data['content']).decode('utf-8')
-
-        return templates.TemplateResponse("editor.html", {
-            "request": request,
-            "file_path": file,
-            "content": content
-        })
-
-    except Exception as e:
-        return HTMLResponse(
-            f"<h2>Error loading config file: {e}</h2>",
-            status_code=500
-        )
 
 
 # 📝 Edit a GitHub-hosted file by loading its contents into the editor
@@ -1478,7 +1440,9 @@ def chat_ui(request: Request):
 
 #💬 Chat Interface Route (Admin GPT Chat UI & Endpoint)
 @router.api_route("/admin/chat", methods=["GET", "POST"])
-async def chat_combined(request: Request):
+async def chat_combined(request: Request, db: Session = Depends(get_db)):
+    require_super(request, db)
+    
     if request.method == "GET":
         return templates.TemplateResponse("chat.html", {"request": request})
 
@@ -1523,9 +1487,8 @@ async def chat_combined(request: Request):
 
 #This replaces the Airtable patch call and updates the active status in your SQL database using SQLAlchemy.
 @router.post("/admin/update-status")
-def update_pmc_status(payload: dict = Body(...)):
-    from database import SessionLocal
-    from models import PMC
+def update_pmc_status(request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
+    require_super(request, db)
 
     record_id = payload.get("record_id")
     active = payload.get("active", False)
