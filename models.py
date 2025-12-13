@@ -1,9 +1,28 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, Text, Date, UniqueConstraint
 from sqlalchemy.orm import relationship
 from datetime import datetime
 
 from database import Base  # ✅ Use the shared Base from database.py
 
+
+class PMCUser(Base):
+    __tablename__ = "pmc_users"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    email = Column(String, nullable=False, index=True)  # store normalized lowercase
+    full_name = Column(String, nullable=True)
+    role = Column(String, nullable=False, default="staff")  # e.g. owner | manager | staff
+    is_active = Column(Boolean, default=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    pmc = relationship("PMC", back_populates="users")
+
+    __table_args__ = (
+        UniqueConstraint("pmc_id", "email", name="uq_pmc_users_pmc_email"),
+    )
 
 class Reservation(Base):
     __tablename__ = "reservations"
@@ -81,6 +100,7 @@ class PMC(Base):
 
     # ✅ One-to-many relationship
     properties = relationship("Property", back_populates="pmc", cascade="all, delete-orphan")
+    users = relationship("PMCUser", back_populates="pmc", cascade="all, delete-orphan")
 
 
 class Property(Base):
