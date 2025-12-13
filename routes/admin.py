@@ -1073,8 +1073,14 @@ def refresh_session_status(request: Request, db: Session = Depends(get_db)):
 
 # Save Manual File to GitHub
 @router.post("/admin/save-manual")
-def save_manual_file(file_path: str = Form(...), content: str = Form(...)):
-    import base64
+def save_manual_file(
+    request: Request,
+    file_path: str = Form(...),
+    content: str = Form(...),
+    db: Session = Depends(get_db),
+):
+    # 🔒 Scope check (super = all, PMC = own property folders only)
+    file_path = require_file_in_scope(request, db, file_path)
 
     try:
         repo_owner = "rookpenny"
@@ -1084,34 +1090,43 @@ def save_manual_file(file_path: str = Form(...), content: str = Form(...)):
 
         headers = {
             "Authorization": f"Bearer {github_token}",
-            "Accept": "application/vnd.github+json"
+            "Accept": "application/vnd.github+json",
         }
 
-        # 🔍 Fetch current file SHA from GitHub
+        # 🔍 Fetch current file SHA (file must exist for "manual" edits)
         get_response = requests.get(github_api_url, headers=headers)
         if get_response.status_code != 200:
-            return HTMLResponse(f"<h2>GitHub Fetch Error: {get_response.status_code}<br>{get_response.text}</h2>", status_code=404)
+            return HTMLResponse(
+                f"<h2>GitHub Fetch Error: {get_response.status_code}<br>{get_response.text}</h2>",
+                status_code=404,
+            )
 
-        sha = get_response.json()["sha"]
+        sha = get_response.json().get("sha")
+        if not sha:
+            return HTMLResponse("<h2>GitHub Fetch Error: missing SHA</h2>", status_code=500)
 
-        # 📝 Encode and prepare update payload
+        # 📝 Encode + commit
         encoded_content = base64.b64encode(content.encode("utf-8")).decode("utf-8")
         payload = {
             "message": f"Update manual file: {file_path}",
             "content": encoded_content,
-            "sha": sha
+            "sha": sha,
         }
 
         put_response = requests.put(github_api_url, headers=headers, json=payload)
 
         if put_response.status_code in (200, 201):
-            return HTMLResponse("<h2>Manual saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
-        else:
-            return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
+            return HTMLResponse(
+                "<h2>Manual saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>"
+            )
+
+        return HTMLResponse(
+            f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>",
+            status_code=500,
+        )
 
     except Exception as e:
         return HTMLResponse(f"<h2>Exception while saving: {e}</h2>", status_code=500)
-
 
 
 
@@ -1151,9 +1166,11 @@ def add_pmc(
     pms_integration: str = Form(...),
     pms_api_key: str = Form(...),
     pms_api_secret: str = Form(...),
-    active: bool = Form(False)
+    active: bool = Form(False),
+    db: Session = Depends(get_db),
 ):
-    db: Session = SessionLocal()
+    require_super(request, db)  # recommended
+
     new_pmc = PMC(
         pmc_name=pmc_name,
         email=contact_email,
@@ -1164,7 +1181,7 @@ def add_pmc(
         pms_api_secret=pms_api_secret,
         pms_account_id=get_next_account_id(db),
         active=active,
-        sync_enabled=active
+        sync_enabled=active,
     )
     db.add(new_pmc)
     db.commit()
@@ -1172,35 +1189,53 @@ def add_pmc(
 
 
 # 📖 Edit Manual File from GitHub
-@router.get("/edit-manual", response_class=HTMLResponse)
-def edit_manual_file(request: Request, file: str, db: Session = Depends(get_db)):
-    
+@router.get("/edit-config", response_class=HTMLResponse)
+def edit_config_file(
+    request: Request,
+    file: str,
+    db: Session = Depends(get_db),
+):
+    # 🔒 Scope check (super = all, PMC = own property folders only)
+    file = require_file_in_scope(request, db, file)
+
+    repo_owner = "rookpenny"
+    repo_name = "hostscout_data"
+    github_token = os.getenv("GITHUB_TOKEN")
+    github_api_url = (
+        f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
+    )
+
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json",
+    }
+
+    response = requests.get(github_api_url, headers=headers)
+
+    if response.status_code != 200:
+        return HTMLResponse(
+            f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>",
+            status_code=404,
+        )
+
+    data = response.json()
+
     try:
-        # Convert local-style path to GitHub path
-        repo_owner = "rookpenny"
-        repo_name = "hostscout_data"
-        github_token = os.getenv("GITHUB_TOKEN")
-        github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
+        content = base64.b64decode(data["content"]).decode("utf-8")
+    except Exception:
+        return HTMLResponse(
+            "<h2>Error decoding file content</h2>",
+            status_code=500,
+        )
 
-        headers = {
-            "Authorization": f"Bearer {github_token}",
-            "Accept": "application/vnd.github+json"
-        }
-
-        response = requests.get(github_api_url, headers=headers)
-        if response.status_code != 200:
-            return HTMLResponse(f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>", status_code=404)
-
-        data = response.json()
-        content = base64.b64decode(data['content']).decode('utf-8')
-
-        return templates.TemplateResponse("editor.html", {
+    return templates.TemplateResponse(
+        "editor.html",
+        {
             "request": request,
             "file_path": file,
-            "content": content
-        })
-    except Exception as e:
-        return HTMLResponse(f"<h2>Error loading file: {e}</h2>", status_code=500)
+            "content": content,
+        },
+    )
 
 
 
@@ -1257,8 +1292,13 @@ def sync_properties_for_pmc(account_id: str):
 
 # 💾 Save updated config content back to GitHub
 @router.post("/admin/save-config")
-def save_config_file(file_path: str = Form(...), content: str = Form(...)):
-    import base64
+def save_config_file(
+    request: Request,
+    file_path: str = Form(...),
+    content: str = Form(...),
+    db: Session = Depends(get_db),
+):
+  file_path = require_file_in_scope(request, db, file_path)
 
     try:
         repo_owner = "rookpenny"
