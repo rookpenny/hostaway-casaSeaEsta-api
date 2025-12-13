@@ -12,6 +12,31 @@
     <a href="/admin/dashboard" class="text-sm text-blue-600 hover:underline">← Back to Admin Dashboard</a>
 
   <form class="mt-4 bg-white rounded-lg shadow p-3 flex flex-wrap gap-2 items-center" method="get">
+
+    <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
+  <div class="bg-white rounded-lg shadow p-3">
+    <div class="text-xs text-gray-500">Pre-booking</div>
+    <div class="text-xl font-bold">{{ analytics.pre_booking }}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-3">
+    <div class="text-xs text-gray-500">Active</div>
+    <div class="text-xl font-bold">{{ analytics.active }}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-3">
+    <div class="text-xs text-gray-500">Post-stay</div>
+    <div class="text-xl font-bold">{{ analytics.post_stay }}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-3">
+    <div class="text-xs text-gray-500">Urgent sessions</div>
+    <div class="text-xl font-bold">{{ analytics.urgent_sessions }}</div>
+  </div>
+  <div class="bg-white rounded-lg shadow p-3">
+    <div class="text-xs text-gray-500">Unhappy sessions</div>
+    <div class="text-xl font-bold">{{ analytics.unhappy_sessions }}</div>
+  </div>
+</div>
+
+    
   <select name="status" class="border rounded px-2 py-1 text-sm">
     <option value="">All statuses</option>
     <option value="pre_booking" {% if filters.status=="pre_booking" %}selected{% endif %}>Pre-booking</option>
