@@ -35,6 +35,38 @@
       </div>
     </div>
 
+    <!-- Action Queue shortcuts -->
+    <div class="mt-3 flex flex-wrap gap-2">
+      <a
+        href="/admin/chats?status=active&priority=urgent"
+        class="text-xs bg-red-100 text-red-800 px-3 py-1 rounded-full font-semibold hover:bg-red-200"
+      >
+        🔥 Active + Urgent
+      </a>
+    
+      <a
+        href="/admin/chats?status=active&priority=unhappy"
+        class="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-semibold hover:bg-yellow-200"
+      >
+        😟 Active + Unhappy
+      </a>
+    
+      <a
+        href="/admin/chats?status=active"
+        class="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full font-semibold hover:bg-green-200"
+      >
+        🏖 Active stays
+      </a>
+    
+      <a
+        href="/admin/chats"
+        class="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-semibold hover:bg-slate-200"
+      >
+        ↩ Reset
+      </a>
+    </div>
+
+
     <!-- Filters -->
     <form class="mt-4 bg-white rounded-lg shadow p-3 flex flex-wrap gap-2 items-center" method="get">
       <select name="pmc_id" class="border rounded px-2 py-1 text-sm">
