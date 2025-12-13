@@ -41,6 +41,12 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
 SUMMARY_MODEL = os.getenv("OPENAI_SUMMARY_MODEL", "gpt-4o-mini")
 
+# Escalation thresholds (env override friendly)
+ESCALATE_LOW_HEAT = int(os.getenv("ESCALATE_LOW_HEAT", "35"))
+ESCALATE_MEDIUM_HEAT = int(os.getenv("ESCALATE_MEDIUM_HEAT", "60"))
+ESCALATE_HIGH_HEAT = int(os.getenv("ESCALATE_HIGH_HEAT", "85"))
+
+
 # 🔌 SQLAlchemy DB Session Dependency
 def get_db():
     db = SessionLocal()
@@ -60,15 +66,21 @@ def admin_chats(
     pmc_id: Optional[int] = Query(None),          # filter by PMC
     property_id: Optional[int] = Query(None),     # filter by Property
 ):
+    from typing import Dict
+    from sqlalchemy import and_
+
     # Dropdown data
     pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
     properties = db.query(Property).order_by(Property.property_name.asc()).all()
 
     base_q = db.query(ChatSession)
 
-    # PMC filter (requires joining property)
+    # PMC filter (join properties to access pmc_id)
     if pmc_id:
-        base_q = base_q.join(Property, ChatSession.property_id == Property.id).filter(Property.pmc_id == pmc_id)
+        base_q = (
+            base_q.join(Property, ChatSession.property_id == Property.id)
+                  .filter(Property.pmc_id == pmc_id)
+        )
 
     # Property filter
     if property_id:
@@ -80,11 +92,11 @@ def admin_chats(
 
     sessions = (
         base_q.order_by(ChatSession.last_activity_at.desc())
-        .limit(200)
-        .all()
+              .limit(200)
+              .all()
     )
 
-    session_ids = [s.id for s in sessions]
+    session_ids = [int(s.id) for s in sessions]
     now = datetime.utcnow()
     since_24h = now - timedelta(hours=24)
     since_7d = now - timedelta(days=7)
@@ -97,17 +109,35 @@ def admin_chats(
     negative_ids: set[int] = set()
 
     if session_ids:
-        # 1) Last message per session (batched)
-        # NOTE: this "distinct by session" approach is Postgres-friendly.
-        # If you're not on Postgres, tell me and I’ll swap this to a subquery join.
+        # 1) Last message per session (portable, DB-agnostic)
+        last_ts_subq = (
+            db.query(
+                ChatMessage.session_id.label("sid"),
+                func.max(ChatMessage.created_at).label("max_created"),
+            )
+            .filter(ChatMessage.session_id.in_(session_ids))
+            .group_by(ChatMessage.session_id)
+            .subquery()
+        )
+
         latest_msgs = (
             db.query(ChatMessage)
-              .filter(ChatMessage.session_id.in_(session_ids))
-              .order_by(ChatMessage.session_id.asc(), ChatMessage.created_at.desc())
-              .distinct(ChatMessage.session_id)
+              .join(
+                  last_ts_subq,
+                  and_(
+                      ChatMessage.session_id == last_ts_subq.c.sid,
+                      ChatMessage.created_at == last_ts_subq.c.max_created,
+                  ),
+              )
+              # if ties on created_at, keep highest id
+              .order_by(ChatMessage.session_id.asc(), ChatMessage.id.desc())
               .all()
         )
-        last_msg_map = {int(m.session_id): m for m in latest_msgs}
+
+        for m in latest_msgs:
+            sid = int(m.session_id)
+            if sid not in last_msg_map:
+                last_msg_map[sid] = m
 
         # 2) Urgent flag per session (batched)
         urgent_ids = set(
@@ -137,10 +167,11 @@ def admin_chats(
             )
         )
 
-        # 4) Pre-aggregate message counts (avoid per-session count queries)
+        # 4) Message counts (batched)
         for sid, cnt in (
             db.query(ChatMessage.session_id, func.count(ChatMessage.id))
-              .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_24h)
+              .filter(ChatMessage.session_id.in_(session_ids),
+                      ChatMessage.created_at >= since_24h)
               .group_by(ChatMessage.session_id)
               .all()
         ):
@@ -148,23 +179,24 @@ def admin_chats(
 
         for sid, cnt in (
             db.query(ChatMessage.session_id, func.count(ChatMessage.id))
-              .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_7d)
+              .filter(ChatMessage.session_id.in_(session_ids),
+                      ChatMessage.created_at >= since_7d)
               .group_by(ChatMessage.session_id)
               .all()
         ):
             counts_7d[int(sid)] = int(cnt)
 
     def heat_score(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int) -> int:
-        # Simple, readable, tunable scoring (0–100)
         score = 0
         score += 50 if has_urgent else 0
         score += 25 if has_negative else 0
-        score += min(25, cnt24 * 5)   # up to 25 from last 24h activity
-        score += min(10, cnt7)        # small bump for week-long back-and-forth
+        score += min(25, cnt24 * 5)   # up to +25 from last 24h activity
+        score += min(10, cnt7)        # up to +10 from last 7d activity
         return min(100, score)
 
     items = []
     q_lower = (q or "").strip().lower()
+    auto_escalation_updates = 0
 
     for s in sessions:
         prop = s.property
@@ -196,6 +228,17 @@ def admin_chats(
         cnt7 = counts_7d.get(int(s.id), 0)
         score = heat_score(has_urgent, has_negative, cnt24, cnt7)
 
+        # Auto-escalation (only escalates UP; never downgrades; skips resolved)
+        is_resolved = bool(getattr(s, "is_resolved", False))
+        current_level = (getattr(s, "escalation_level", None) or "").lower() or None
+        desired_level = desired_escalation_level(score)
+
+        if (not is_resolved) and escalation_rank(desired_level) > escalation_rank(current_level):
+            s.escalation_level = desired_level
+            s.updated_at = datetime.utcnow()
+            db.add(s)
+            auto_escalation_updates += 1
+
         items.append({
             "id": s.id,
             "property_name": property_name,
@@ -216,6 +259,9 @@ def admin_chats(
             "heat": score,
         })
 
+    if auto_escalation_updates:
+        db.commit()
+
     # Sort: heat first, then recency
     items.sort(
         key=lambda x: (x["heat"], x["last_activity_at"] or datetime.min),
@@ -228,14 +274,20 @@ def admin_chats(
           .group_by(ChatSession.reservation_status)
           .all()
     )
-    urgent_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
-        ChatMessage.sender == "guest",
-        ChatMessage.category == "urgent",
-    ).distinct().count()
-    unhappy_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
-        ChatMessage.sender == "guest",
-        ChatMessage.sentiment == "negative",
-    ).distinct().count()
+    urgent_sessions = (
+        db.query(ChatSession.id)
+          .join(ChatMessage)
+          .filter(ChatMessage.sender == "guest", ChatMessage.category == "urgent")
+          .distinct()
+          .count()
+    )
+    unhappy_sessions = (
+        db.query(ChatSession.id)
+          .join(ChatMessage)
+          .filter(ChatMessage.sender == "guest", ChatMessage.sentiment == "negative")
+          .distinct()
+          .count()
+    )
 
     analytics = {
         "pre_booking": int(by_status.get("pre_booking", 0)),
@@ -264,6 +316,20 @@ def admin_chats(
     )
 
 
+
+
+def desired_escalation_level(heat: int) -> Optional[str]:
+    if heat >= ESCALATE_HIGH_HEAT:
+        return "high"
+    if heat >= ESCALATE_MEDIUM_HEAT:
+        return "medium"
+    if heat >= ESCALATE_LOW_HEAT:
+        return "low"
+    return None
+
+def escalation_rank(level: Optional[str]) -> int:
+    order = {None: 0, "": 0, "low": 1, "medium": 2, "high": 3}
+    return order.get((level or "").lower(), 0)
 
 @router.post("/admin/chats/{session_id}/resolve")
 def resolve_chat(session_id: int, db: Session = Depends(get_db)):
