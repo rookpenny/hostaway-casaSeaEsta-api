@@ -225,6 +225,80 @@ def admin_chats(
     )
 
 
+@router.post("/admin/chats/{session_id}/resolve")
+def resolve_chat(session_id: int, db: Session = Depends(get_db)):
+    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not s:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+
+    s.is_resolved = True
+    s.resolved_at = datetime.utcnow()
+    s.updated_at = datetime.utcnow()
+    db.add(s)
+    db.commit()
+    return {"ok": True, "is_resolved": True, "resolved_at": s.resolved_at.isoformat()}
+
+
+@router.post("/admin/chats/{session_id}/unresolve")
+def unresolve_chat(session_id: int, db: Session = Depends(get_db)):
+    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not s:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+
+    s.is_resolved = False
+    s.resolved_at = None
+    s.updated_at = datetime.utcnow()
+    db.add(s)
+    db.commit()
+    return {"ok": True, "is_resolved": False}
+
+
+@router.post("/admin/chats/{session_id}/escalate")
+def escalate_chat(session_id: int, payload: dict = Body(...), db: Session = Depends(get_db)):
+    level = (payload.get("level") or "").strip().lower()
+    if level not in {"low", "medium", "high", ""}:
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Invalid level"})
+
+    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not s:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+
+    s.escalation_level = level or None
+    s.updated_at = datetime.utcnow()
+    db.add(s)
+    db.commit()
+    return {"ok": True, "escalation_level": s.escalation_level}
+
+
+@router.post("/admin/chats/{session_id}/assign")
+def assign_chat(session_id: int, payload: dict = Body(...), db: Session = Depends(get_db)):
+    assigned_to = (payload.get("assigned_to") or "").strip()
+
+    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not s:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+
+    s.assigned_to = assigned_to or None
+    s.updated_at = datetime.utcnow()
+    db.add(s)
+    db.commit()
+    return {"ok": True, "assigned_to": s.assigned_to}
+
+
+@router.post("/admin/chats/{session_id}/note")
+def set_internal_note(session_id: int, payload: dict = Body(...), db: Session = Depends(get_db)):
+    note = (payload.get("note") or "").strip()
+
+    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not s:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+
+    s.internal_note = note or None
+    s.updated_at = datetime.utcnow()
+    db.add(s)
+    db.commit()
+    return {"ok": True}
+
 
 @router.post("/admin/chats/{session_id}/summarize")
 async def summarize_chat(session_id: int, db: Session = Depends(get_db)):
