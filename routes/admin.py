@@ -38,7 +38,7 @@ logging.basicConfig(level=logging.INFO)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
-
+SUMMARY_MODEL = os.getenv("OPENAI_SUMMARY_MODEL", "gpt-4o-mini")
 
 # 🔌 SQLAlchemy DB Session Dependency
 def get_db():
@@ -225,6 +225,54 @@ def admin_chats(
     )
 
 
+
+@router.post("/admin/chats/{session_id}/summarize")
+async def summarize_chat(session_id: int, db: Session = Depends(get_db)):
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not session:
+        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.id)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(40)
+        .all()
+    )
+    messages = list(reversed(messages))
+
+    convo = "\n".join([f"{m.sender.upper()}: {m.content}" for m in messages])
+
+    system = (
+        "You are an operations assistant for a short-term rental host. "
+        "Summarize the conversation for an admin dashboard. "
+        "Output markdown with these sections:\n"
+        "1) **What the guest wants**\n"
+        "2) **Key facts** (dates, unit details, constraints)\n"
+        "3) **Risks / sentiment** (urgent/unhappy signals)\n"
+        "4) **Recommended next action** (clear steps)\n"
+        "Keep it short and scannable."
+    )
+
+    try:
+        resp = client.chat.completions.create(
+            model=SUMMARY_MODEL,
+            temperature=0.2,
+            messages=[
+                {"role": "system", "content": system},
+                {"role": "user", "content": convo},
+            ],
+        )
+        summary = resp.choices[0].message.content.strip()
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+
+    session.ai_summary = summary
+    session.ai_summary_updated_at = datetime.utcnow()
+    db.add(session)
+    db.commit()
+
+    return {"ok": True, "summary": summary, "updated_at": session.ai_summary_updated_at.isoformat()}
 
 
 
