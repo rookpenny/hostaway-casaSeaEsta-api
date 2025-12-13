@@ -297,10 +297,10 @@
                   {% endif %}
                 
                   {# --- Meaningful activity line --- #}
-                  <div class="text-[11px] text-gray-500 mt-1">
+                  <!--div class="text-[11px] text-gray-500 mt-1">
                     <span class="font-semibold text-gray-700">Activity: {{ s.activity_label }}</span>
-                    <!--span class="text-gray-400">• hover for counts</span-->
-                  </div>
+                    <span class="text-gray-400">• hover for counts</span>
+                  </div-->
                 </td>
 
                 <td class="px-4 py-2 text-xs text-gray-700">
@@ -336,22 +336,16 @@
       <p class="mt-4 text-gray-600">No chat sessions yet.</p>
     {% endif %}
   </div>
-  <script>
+<script>
   function parseTimestamp(ts) {
-    // FastAPI/Jinja may output ISO already. If not, normalize common cases.
-    // Accepts:
-    //  - "2025-12-12T13:24:33.351313"
-    //  - "2025-12-12 13:24:33.351313"
-    //  - With or without fractional seconds
     if (!ts) return null;
 
     // Convert "YYYY-MM-DD HH:MM:SS(.ffffff)" -> ISO-ish
     const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
 
-    // If no timezone is provided, JS treats it as local time.
-    // If your DB times are UTC, you can force UTC by appending "Z".
-    // Uncomment the next line if your timestamps are UTC-naive:
+    // If your DB times are UTC-naive, force UTC:
     // const utc = normalized.endsWith("Z") ? normalized : normalized + "Z";
+    // const d = new Date(utc);
 
     const d = new Date(normalized);
     return isNaN(d.getTime()) ? null : d;
@@ -384,6 +378,18 @@
     return `${yr}y ago`;
   }
 
+  function formatExact(d) {
+    // exact local time string + seconds (nice for ops)
+    return d.toLocaleString(undefined, {
+      year: "numeric",
+      month: "short",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "2-digit",
+      second: "2-digit"
+    });
+  }
+
   function updateRelativeTimes() {
     const now = new Date();
     document.querySelectorAll(".js-rel-time").forEach(el => {
@@ -393,16 +399,15 @@
 
       el.textContent = formatRelative(d, now);
 
-      // Optional: make very old items visually quieter
-      // const days = Math.floor((now - d) / (1000 * 60 * 60 * 24));
-      // el.classList.toggle("text-gray-400", days >= 7);
+      // ✅ exact date/time on hover
+      el.title = formatExact(d);
     });
   }
 
-  // Initial render + refresh every minute
   updateRelativeTimes();
   setInterval(updateRelativeTimes, 60 * 1000);
 </script>
+
 
 </body>
 </html>
