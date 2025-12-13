@@ -135,23 +135,33 @@
               <th class="px-4 py-2 text-left">Assigned To</th>
               <!--th class="px-4 py-2 text-left">Source</th-->
               <th class="px-4 py-2 text-left">
-                <span class="inline-flex items-center gap-1 group cursor-help">
+                <span class="relative inline-flex items-center gap-1 group cursor-help">
                   Stage
                   <span class="text-[11px] text-slate-500">ⓘ</span>
-                  <span class="pointer-events-none absolute left-0 top-full mt-2 w-72 rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg opacity-0 group-hover:opacity-100 transition">
+              
+                  <span
+                    class="pointer-events-none absolute left-0 top-full mt-2 w-72
+                           rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg
+                           opacity-0 group-hover:opacity-100 transition"
+                  >
                     Stage represents the guest’s reservation status at the time of the conversation.
                   </span>
                 </span>
               </th>
               <th class="px-4 py-2 text-left">
-               <span class="inline-flex items-center gap-1 group cursor-help">
-                  Priority
-                  <span class="text-[11px] text-slate-500">ⓘ</span>
-                  <span class="pointer-events-none absolute left-0 top-full mt-2 w-72 rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg opacity-0 group-hover:opacity-100 transition">
-                    Priority highlights conversations that may need immediate attention based on urgency or guest sentiment.
+                  <span class="relative inline-flex items-center gap-1 group cursor-help">
+                    Priority
+                    <span class="text-[11px] text-slate-500">ⓘ</span>
+                
+                    <span
+                      class="pointer-events-none absolute left-0 top-full mt-2 w-72
+                             rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg
+                             opacity-0 group-hover:opacity-100 transition"
+                    >
+                      Priority highlights conversations that may need immediate attention based on urgency or guest sentiment.
+                    </span>
                   </span>
-                </span>
-              </th>
+                </th>
               <th class="px-4 py-2 text-left">
                 <span class="inline-flex items-center gap-1 relative group cursor-help">
                   Pulse
