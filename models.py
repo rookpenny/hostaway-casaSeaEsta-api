@@ -172,6 +172,15 @@ class ChatSession(Base):
     ai_summary = Column(Text, nullable=True)
     ai_summary_updated_at = Column(DateTime, nullable=True)
 
+    is_resolved = Column(Boolean, default=False)
+    resolved_at = Column(DateTime, nullable=True)
+    
+    escalation_level = Column(String, nullable=True)  # low/medium/high
+    assigned_to = Column(String, nullable=True)
+    internal_note = Column(Text, nullable=True)
+    updated_at = Column(DateTime, nullable=True)
+
+
 
 
 class ChatMessage(Base):
