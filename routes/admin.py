@@ -169,6 +169,8 @@ def admin_chats(
     property_id: Optional[int] = Query(None),     # filter by Property
     mine: Optional[int] = Query(None),            # 1 = only my assigned chats
     assigned_to: Optional[str] = Query(None),     # explicit assignee filter
+    mine: Optional[int] = Query(None),
+    assigned_to: Optional[str] = Query(None),
 ):
     # Dropdown data
     pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
@@ -197,6 +199,18 @@ def admin_chats(
         me = get_current_admin_identity(request)
         if me:
             effective_assignee = me
+
+    # Assigned filters
+    if assigned_to and assigned_to.strip():
+        base_q = base_q.filter(ChatSession.assigned_to.ilike(f"%{assigned_to.strip()}%"))
+    
+    # "Mine" filter: treat mine=1 as "assigned_to is not null/empty"
+    if mine:
+        base_q = base_q.filter(
+            ChatSession.assigned_to.isnot(None),
+            ChatSession.assigned_to != ""
+        )
+
 
     if effective_assignee:
         base_q = base_q.filter(ChatSession.assigned_to == effective_assignee)
@@ -318,8 +332,22 @@ def admin_chats(
         cnt7 = counts_7d.get(sid, 0)
 
         raw_heat = heat_score(has_urgent, has_negative, cnt24, cnt7)
-        heat = decay_heat(raw_heat, getattr(s, "last_activity_at", None))
-
+        
+        # Step 2: apply multipliers (context-aware boost)
+        multiplier = 1.0
+        if has_urgent:
+            multiplier += 0.30
+        if has_negative:
+            multiplier += 0.15
+        if status_val == "active":
+            multiplier += 0.10
+        
+        heat_boosted = int(min(100, round(raw_heat * multiplier)))
+        
+        # Step 3: decay AFTER multipliers (so urgency/sentiment still wins)
+        heat = decay_heat(heat_boosted, getattr(s, "last_activity_at", None))
+        
+        # Step 4: lightweight UI helper from summary (optional column)
         next_action = extract_next_action(getattr(s, "ai_summary", None))
 
         # Auto-escalation (only escalate up; never downgrade)
@@ -342,18 +370,30 @@ def admin_chats(
             "last_activity_at": s.last_activity_at,
             "source": s.source,
             "last_snippet": snippet,
+        
+            # Flags
             "has_urgent": has_urgent,
             "has_negative": has_negative,
             "needs_attention": needs_attention,
+        
+            # Activity
             "msg_24h": cnt24,
             "msg_7d": cnt7,
-            "heat": heat,
+        
+            # Heat diagnostics (very useful during tuning)
             "heat_raw": raw_heat,
+            "heat_boosted": heat_boosted,
+            "heat": heat,
+        
+            # AI assist
             "next_action": next_action,
+        
+            # Ops state
             "assigned_to": getattr(s, "assigned_to", None),
             "escalation_level": getattr(s, "escalation_level", None),
             "is_resolved": bool(getattr(s, "is_resolved", False)),
         })
+
 
     if auto_escalation_updates:
         db.commit()
@@ -400,6 +440,8 @@ def admin_chats(
                 "property_id": property_id,
                 "mine": 1 if mine else 0,
                 "assigned_to": effective_assignee or "",
+                "mine": bool(mine),
+                "assigned_to": assigned_to,
             },
             "analytics": analytics,
             "pmcs": pmcs,
