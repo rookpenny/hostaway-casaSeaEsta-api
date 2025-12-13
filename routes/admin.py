@@ -66,16 +66,16 @@ def get_current_admin_identity(request: Request) -> Optional[str]:
     Future-proof identity lookup.
     Order of precedence:
       1) AuthenticationMiddleware (request.scope["user"]) if installed
-      2) Session (SessionMiddleware) via request.session[ADMIN_IDENTITY_SESSION_KEY]
-      3) Fallback headers (optional; useful for internal tools)
+      2) Session key ADMIN_IDENTITY_SESSION_KEY (explicit admin identity)
+      3) Session user dict (current Google login flow)
+      4) Optional headers (internal tooling / proxy auth)
     NEVER throws.
     """
 
-    # 1) Auth middleware (Starlette) — avoid request.user property because it asserts if middleware missing.
+    # 1) Auth middleware (safe access via scope)
     try:
         user = request.scope.get("user")
         if user and getattr(user, "is_authenticated", False):
-            # Prefer email/username/name in that order
             for attr in ("email", "username", "name"):
                 val = getattr(user, attr, None)
                 if val and str(val).strip():
@@ -83,7 +83,7 @@ def get_current_admin_identity(request: Request) -> Optional[str]:
     except Exception:
         pass
 
-    # 2) Session middleware
+    # 2) Explicit session key (best practice going forward)
     try:
         sess_val = request.session.get(ADMIN_IDENTITY_SESSION_KEY)
         if sess_val and str(sess_val).strip():
@@ -91,7 +91,17 @@ def get_current_admin_identity(request: Request) -> Optional[str]:
     except Exception:
         pass
 
-    # 3) Optional header fallback (handy for internal reverse-proxy auth later)
+    # 3) CURRENT Google login flow: request.session["user"]["email"]
+    try:
+        sess_user = request.session.get("user")
+        if isinstance(sess_user, dict):
+            email = (sess_user.get("email") or "").strip()
+            if email:
+                return email.lower()
+    except Exception:
+        pass
+
+    # 4) Optional header fallback
     try:
         hdr = request.headers.get("x-admin-email") or request.headers.get("x-admin-user")
         if hdr and hdr.strip():
@@ -100,6 +110,7 @@ def get_current_admin_identity(request: Request) -> Optional[str]:
         pass
 
     return None
+
 
 
 
