@@ -1306,6 +1306,12 @@ def update_properties(request: Request, payload: list[dict] = Body(...), db: Ses
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+def require_login(request: Request):
+    if not request.session.get("user"):
+        request.session["post_login_redirect"] = str(request.url.path)
+        raise HTTPException(status_code=401, detail="Login required")
+
+
 
 @router.get("/admin/pmc-properties-json/{pmc_id}")
 def get_pmc_properties_json(request: Request, pmc_id: int, db: Session = Depends(get_db)):
