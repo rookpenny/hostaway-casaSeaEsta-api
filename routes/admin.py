@@ -103,6 +103,8 @@ def admin_chats(
 
         snippet = (last_msg.content[:120] + "…") if last_msg else ""
         guest_name = (getattr(s, "guest_name", None) or "").strip()
+        status_val = getattr(s, "reservation_status", "pre_booking")
+        needs_attention = (status_val == "active" and (has_urgent or has_negative))
 
         # Text search filter
         if q_lower:
@@ -124,6 +126,7 @@ def admin_chats(
             "last_snippet": snippet,
             "has_urgent": has_urgent,
             "has_negative": has_negative,
+            "needs_attention": needs_attention,
         })
 
     return templates.TemplateResponse(
