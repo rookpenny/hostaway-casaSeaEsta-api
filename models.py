@@ -179,6 +179,7 @@ class ChatSession(Base):
     assigned_to = Column(String, nullable=True)
     internal_note = Column(Text, nullable=True)
     updated_at = Column(DateTime, nullable=True)
+    heat_score = Column(Integer, default=0)
 
 
 
