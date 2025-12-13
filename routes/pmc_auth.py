@@ -186,11 +186,17 @@ async def auth_callback(request: Request):
         name = userinfo.get("name")
 
         if not email:
-            return HTMLResponse("<h2>Access denied: No email returned from Google</h2>", status_code=400)
+            return HTMLResponse(
+                "<h2>Access denied: No email returned from Google</h2>",
+                status_code=400
+            )
 
         scope = resolve_login_scope(email)
         if not scope["ok"]:
-            return HTMLResponse(f"<h2>Access denied: {scope['error']}</h2>", status_code=403)
+            return HTMLResponse(
+                f"<h2>Access denied: {scope['error']}</h2>",
+                status_code=403
+            )
 
         # ✅ base identity (admin.py reads session["user"]["email"] and/or session["admin_email"])
         email_l = email.lower()
@@ -202,7 +208,11 @@ async def auth_callback(request: Request):
         request.session["pmc_id"] = scope["pmc_id"]
         request.session["pmc_user_id"] = scope["pmc_user_id"]
 
-        return RedirectResponse(url="/admin/dashboard", status_code=302)
+        # ✅ Redirect back to where they originally tried to go (default: /admin/dashboard)
+        next_url = request.session.get("post_login_redirect") or "/admin/dashboard"
+        request.session.pop("post_login_redirect", None)
+
+        return RedirectResponse(url=next_url, status_code=302)
 
     except Exception as e:
         print("[OAuth Error]", e)
