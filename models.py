@@ -13,16 +13,24 @@ class PMCUser(Base):
 
     email = Column(String, nullable=False, index=True)  # store normalized lowercase
     full_name = Column(String, nullable=True)
-    role = Column(String, nullable=False, default="staff")  # e.g. owner | manager | staff
+
+    # ✅ align roles with what we'll use everywhere
+    role = Column(String, nullable=False, default="staff")  # owner | admin | staff
+
     is_active = Column(Boolean, default=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # ✅ super useful for auditing / debugging
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    last_login_at = Column(DateTime, nullable=True)
 
     pmc = relationship("PMC", back_populates="users")
 
     __table_args__ = (
         UniqueConstraint("pmc_id", "email", name="uq_pmc_users_pmc_email"),
     )
+
 
 class Reservation(Base):
     __tablename__ = "reservations"
