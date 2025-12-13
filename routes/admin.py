@@ -155,6 +155,84 @@ def get_user_role_and_scope(request: Request, db: Session):
     return "pmc", None
 
 
+def require_pmc_linked(user_role: str, pmc_obj: Optional[PMC]):
+    if user_role == "pmc" and not pmc_obj:
+        raise HTTPException(status_code=403, detail="PMC account not linked")
+
+
+def require_session_in_scope(request: Request, db: Session, session_id: int) -> ChatSession:
+    """
+    Super: can access any session
+    PMC: can access only sessions whose property belongs to their PMC
+    """
+    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    if user_role == "pmc":
+        prop = db.query(Property).filter(Property.id == session.property_id).first()
+        if not prop or prop.pmc_id != pmc_obj.id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+    return session
+
+
+def require_property_in_scope(request: Request, db: Session, property_id: int) -> Property:
+    """
+    Super: can access any property
+    PMC: can access only properties that belong to their PMC
+    """
+    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    if user_role == "pmc" and prop.pmc_id != pmc_obj.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    return prop
+
+
+def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
+    """
+    Super: can edit any file
+    PMC: can edit only files under *their* property data folders.
+    Strategy:
+      - Find the property whose data_folder_path is a prefix of file_path
+      - Ensure that property belongs to PMC
+    """
+    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
+    file_path = (file_path or "").strip().lstrip("/")  # normalize
+
+    # SUPER can proceed
+    if user_role == "super":
+        return file_path
+
+    # PMC: find a matching property folder prefix
+    props = (
+        db.query(Property)
+          .filter(Property.pmc_id == pmc_obj.id)
+          .all()
+    )
+
+    # data_folder_path examples: "pmcs/123/properties/456"
+    for p in props:
+        base = (getattr(p, "data_folder_path", None) or "").strip().strip("/")
+        if base and (file_path == base or file_path.startswith(base + "/")):
+            return file_path
+
+    raise HTTPException(status_code=403, detail="Forbidden file")
+
+
+
+
 def decay_heat(heat_value: int, last_activity_at: Optional[datetime]) -> int:
     """
     Heat decay so old fires drop.
@@ -668,10 +746,8 @@ def escalation_rank(level: Optional[str]) -> int:
     return order.get((level or "").lower(), 0)
 
 @router.post("/admin/chats/{session_id}/resolve")
-def resolve_chat(session_id: int, db: Session = Depends(get_db)):
-    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not s:
-        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+def resolve_chat(session_id: int, request: Request, db: Session = Depends(get_db)):
+    s = require_session_in_scope(request, db, session_id)
 
     s.is_resolved = True
     s.resolved_at = datetime.utcnow()
@@ -681,11 +757,10 @@ def resolve_chat(session_id: int, db: Session = Depends(get_db)):
     return {"ok": True, "is_resolved": True, "resolved_at": s.resolved_at.isoformat()}
 
 
+
 @router.post("/admin/chats/{session_id}/unresolve")
-def unresolve_chat(session_id: int, db: Session = Depends(get_db)):
-    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not s:
-        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+def unresolve_chat(session_id: int, request: Request, db: Session = Depends(get_db)):
+    s = require_session_in_scope(request, db, session_id)
 
     s.is_resolved = False
     s.resolved_at = None
@@ -696,16 +771,13 @@ def unresolve_chat(session_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/admin/chats/{session_id}/escalate")
-def escalate_chat(session_id: int, payload: dict = Body(...), db: Session = Depends(get_db)):
+def escalate_chat(session_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
+    s = require_session_in_scope(request, db, session_id)
+
     level = (payload.get("level") or "").strip().lower()
     if level not in {"low", "medium", "high", ""}:
         return JSONResponse(status_code=400, content={"ok": False, "error": "Invalid level"})
 
-    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not s:
-        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
-
-    # ✅ Lock escalation if resolved
     if bool(getattr(s, "is_resolved", False)):
         return JSONResponse(status_code=400, content={"ok": False, "error": "Session is resolved. Reopen to change escalation."})
 
@@ -716,13 +788,15 @@ def escalate_chat(session_id: int, payload: dict = Body(...), db: Session = Depe
     return {"ok": True, "escalation_level": s.escalation_level}
 
 
+
 @router.post("/admin/chats/{session_id}/assign")
-def assign_chat(session_id: int, payload: dict = Body(...), db: Session = Depends(get_db)):
+def assign_chat(session_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
+    s = require_session_in_scope(request, db, session_id)
+
     assigned_to = (payload.get("assigned_to") or "").strip()
 
-    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not s:
-        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+    # Optional: enforce "their own staff" — see note below
+    # enforce_assignee_in_pmc(request, db, assigned_to)
 
     s.assigned_to = assigned_to or None
     s.updated_at = datetime.utcnow()
@@ -731,14 +805,12 @@ def assign_chat(session_id: int, payload: dict = Body(...), db: Session = Depend
     return {"ok": True, "assigned_to": s.assigned_to}
 
 
+
 @router.post("/admin/chats/{session_id}/note")
-def set_internal_note(session_id: int, payload: dict = Body(...), db: Session = Depends(get_db)):
+def set_internal_note(session_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
+    s = require_session_in_scope(request, db, session_id)
+
     note = (payload.get("note") or "").strip()
-
-    s = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not s:
-        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
-
     s.internal_note = note or None
     s.updated_at = datetime.utcnow()
     db.add(s)
@@ -746,11 +818,10 @@ def set_internal_note(session_id: int, payload: dict = Body(...), db: Session = 
     return {"ok": True}
 
 
+
 @router.post("/admin/chats/{session_id}/summarize")
-async def summarize_chat(session_id: int, db: Session = Depends(get_db)):
-    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not session:
-        return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
+async def summarize_chat(session_id: int, request: Request, db: Session = Depends(get_db)):
+    session = require_session_in_scope(request, db, session_id)
 
     messages = (
         db.query(ChatMessage)
@@ -760,7 +831,6 @@ async def summarize_chat(session_id: int, db: Session = Depends(get_db)):
         .all()
     )
     messages = list(reversed(messages))
-
     convo = "\n".join([f"{m.sender.upper()}: {m.content}" for m in messages])
 
     system = (
@@ -833,18 +903,17 @@ def chats_analytics(db: Session = Depends(get_db)):
 # 💬 Single Chat Conversation View
 @router.get("/admin/chats/{session_id}", response_class=HTMLResponse)
 def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(get_db)):
-    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not session:
-        return HTMLResponse("<h2>Chat session not found</h2>", status_code=404)
+    session = require_session_in_scope(request, db, session_id)
 
     prop = session.property
-
     messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == session.id)
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
+
+    user_role, _ = get_user_role_and_scope(request, db)
 
     return templates.TemplateResponse(
         "admin_chat_detail.html",
@@ -853,8 +922,11 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
             "session": session,
             "property": prop,
             "messages": messages,
+            "user_role": user_role,
         }
     )
+
+
 
 
 # This route renders the admin dashboard with a list of all PMCs pulled from your new database.
@@ -1244,44 +1316,48 @@ def edit_config_file(request: Request, file: str):
 
 # 📝 Edit a GitHub-hosted file by loading its contents into the editor
 @router.get("/edit-file", response_class=HTMLResponse)
-def edit_file_from_github(request: Request, file: str):
+def edit_file_from_github(request: Request, file: str, db: Session = Depends(get_db)):
+    file = require_file_in_scope(request, db, file)
 
-    require_super(request, db)
-    
-    import base64
+    repo_owner = "rookpenny"
+    repo_name = "hostscout_data"
+    github_token = os.getenv("GITHUB_TOKEN")
+    github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
 
-    try:
-        repo_owner = "rookpenny"
-        repo_name = "hostscout_data"
-        github_token = os.getenv("GITHUB_TOKEN")
-        github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
+    headers = {
+        "Authorization": f"Bearer {github_token}",
+        "Accept": "application/vnd.github+json"
+    }
 
-        headers = {
-            "Authorization": f"Bearer {github_token}",
-            "Accept": "application/vnd.github+json"
-        }
+    response = requests.get(github_api_url, headers=headers)
+    if response.status_code != 200:
+        return HTMLResponse(
+            f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>",
+            status_code=404
+        )
 
-        response = requests.get(github_api_url, headers=headers)
-        if response.status_code != 200:
-            return HTMLResponse(
-                f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>",
-                status_code=404
-            )
+    data = response.json()
+    content = base64.b64decode(data["content"]).decode("utf-8")
 
-        data = response.json()
-        content = base64.b64decode(data['content']).decode('utf-8')
+    return templates.TemplateResponse("editor.html", {
+        "request": request,
+        "file_path": file,
+        "content": content
+    })
 
-        return templates.TemplateResponse("editor.html", {
-            "request": request,
-            "file_path": file,
-            "content": content
-        })
 
     except Exception as e:
         return HTMLResponse(
             f"<h2>Error loading file: {e}</h2>",
             status_code=500
         )
+
+def enforce_assignee_in_pmc(request: Request, db: Session, assigned_to: str):
+    user_role, pmc_obj = get_user_role_and_scope(request, db)
+    if user_role == "super":
+        return
+    # look up assigned_to in pmc_users where pmc_id == pmc_obj.id
+    # if not found -> 403
 
 
 # 🔧 Save a file to GitHub using the GitHub API
