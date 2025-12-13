@@ -42,6 +42,7 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
 SUMMARY_MODEL = os.getenv("OPENAI_SUMMARY_MODEL", "gpt-4o-mini")
+ADMIN_IDENTITY_SESSION_KEY = os.getenv("ADMIN_IDENTITY_SESSION_KEY", "admin_email")
 
 # Escalation thresholds (env override friendly)
 ESCALATE_LOW_HEAT = int(os.getenv("ESCALATE_LOW_HEAT", "35"))
@@ -59,36 +60,47 @@ def get_db():
 
 
 
+
 def get_current_admin_identity(request: Request) -> Optional[str]:
     """
-    Best-effort guess of who the admin is.
-    Works with common patterns:
-      - request.state.user.email / .name
-      - request.user.email (Starlette auth)
-      - x-admin-user header (manual/dev)
+    Future-proof identity lookup.
+    Order of precedence:
+      1) AuthenticationMiddleware (request.scope["user"]) if installed
+      2) Session (SessionMiddleware) via request.session[ADMIN_IDENTITY_SESSION_KEY]
+      3) Fallback headers (optional; useful for internal tools)
+    NEVER throws.
     """
-    # 1) Manual override (super handy in dev)
-    hdr = (request.headers.get("x-admin-user") or "").strip()
-    if hdr:
-        return hdr
 
-    # 2) request.state.user (custom middleware)
-    u = getattr(request.state, "user", None)
-    if u:
-        for attr in ("email", "name", "username"):
-            v = getattr(u, attr, None)
-            if v:
-                return str(v)
+    # 1) Auth middleware (Starlette) — avoid request.user property because it asserts if middleware missing.
+    try:
+        user = request.scope.get("user")
+        if user and getattr(user, "is_authenticated", False):
+            # Prefer email/username/name in that order
+            for attr in ("email", "username", "name"):
+                val = getattr(user, attr, None)
+                if val and str(val).strip():
+                    return str(val).strip().lower()
+    except Exception:
+        pass
 
-    # 3) request.user (Starlette auth)
-    u2 = getattr(request, "user", None)
-    if u2:
-        for attr in ("email", "username"):
-            v = getattr(u2, attr, None)
-            if v:
-                return str(v)
+    # 2) Session middleware
+    try:
+        sess_val = request.session.get(ADMIN_IDENTITY_SESSION_KEY)
+        if sess_val and str(sess_val).strip():
+            return str(sess_val).strip().lower()
+    except Exception:
+        pass
+
+    # 3) Optional header fallback (handy for internal reverse-proxy auth later)
+    try:
+        hdr = request.headers.get("x-admin-email") or request.headers.get("x-admin-user")
+        if hdr and hdr.strip():
+            return hdr.strip().lower()
+    except Exception:
+        pass
 
     return None
+
 
 
 def decay_heat(heat_value: int, last_activity_at: Optional[datetime]) -> int:
