@@ -169,6 +169,9 @@ class ChatSession(Base):
 
     property = relationship("Property", backref="chat_sessions")
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
+    ai_summary = Column(Text, nullable=True)
+    ai_summary_updated_at = Column(DateTime, nullable=True)
+
 
 
 class ChatMessage(Base):
