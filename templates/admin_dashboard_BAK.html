@@ -1,0 +1,616 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Admin Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      padding: 2rem;
+      background: #f4f4f4;
+    }
+    h1 {
+      text-align: center;
+    }
+    .top-bar {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 2rem;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      background: white;
+      border-radius: 8px;
+      overflow: hidden;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    }
+    th, td {
+      padding: 1rem;
+      border-bottom: 1px solid #ddd;
+      text-align: left;
+    }
+    th {
+      background-color: #f0f0f0;
+    }
+    a.button, button.sync-one {
+      background: #2d72d9;
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      text-decoration: none;
+      border: none;
+      cursor: pointer;
+    }
+    button.sync-one:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+    .status-select {
+      padding: 0.4rem;
+    }
+    .warning-row {
+      background-color: #fff3cd;
+      color: #856404;
+    }
+    .sync-result.success {
+      color: #27ae60;
+    }
+    .sync-result.error {
+      color: #c0392b;
+    }
+    #sync-progress {
+      margin: 1rem 0;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body class="bg-gray-100 text-gray-800">
+
+ <div class="max-w-7xl mx-auto px-4 py-8">
+    <h1 class="text-3xl font-bold text-center mb-6">🛠️ Admin Dashboard</h1>
+
+
+ <!-- Top Bar -->
+    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
+      <input type="text" id="search" placeholder="Search PMCs..." class="w-full sm:w-1/3 px-3 py-2 border rounded shadow-sm" />
+      <div class="flex gap-2">
+        <button id="add-pmc-btn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow">➕ Add PMC</button>
+        <button id="sync-all" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow">🔄 Sync All</button>
+      </div>
+    </div>
+
+<!-- Sync Progress -->
+    <div id="sync-progress" class="italic text-sm text-gray-600 mb-2 hidden"></div>
+
+
+  <div class="overflow-x-auto bg-white shadow-md rounded-lg">
+<table class="min-w-full text-sm">
+        <thead class="bg-gray-100 text-left">
+          <tr>
+            <th class="px-4 py-3">PMC</th>
+            <th class="px-4 py-3">Account ID</th>
+            <th class="px-4 py-3">API Key</th>
+            <th class="px-4 py-3">Contact</th>
+            <th class="px-4 py-3">Integration</th>
+            <th class="px-4 py-3">Active</th>
+            <th class="px-4 py-3">Sync</th>
+            <th class="px-4 py-3">Last Synced</th>
+            <th class="px-4 py-3">Status</th>
+            <th class="px-4 py-3">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+    {% for record in pmc %}
+            {% if not record.pms_account_id or not record.pms_api_key %}
+              <tr class="bg-yellow-100 text-yellow-800">
+                <td colspan="10" class="px-4 py-3">
+                  ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials (API key or Account ID).
+                </td>
+              </tr>
+            {% else %}
+              <tr class="border-t hover:bg-gray-50">
+                <td class="px-4 py-3 font-medium">{{ record.pmc_name }}</td>
+                <td class="px-4 py-3">{{ record.pms_account_id }}</td>
+                <td class="px-4 py-3">{{ record.pms_api_key }}</td>
+                <td class="px-4 py-3">{{ record.email }}</td>
+                <td class="px-4 py-3">{{ record.pms_integration }}</td>
+                <td class="px-4 py-3">
+                  <select class="status-select border rounded px-2 py-1" data-record-id="{{ record.id }}">
+                    <option value="true" {% if record.active %}selected{% endif %}>✅</option>
+                    <option value="false" {% if not record.active %}selected{% endif %}>❌</option>
+                  </select>
+                </td>
+                <td class="px-4 py-3">
+                  <button
+                    class="sync-one bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs"
+                    data-account-id="{{ record.pms_account_id }}"
+                    {% if not record.pms_account_id %}disabled{% endif %}>
+                    🔄 Sync
+                  </button>
+                  <span id="status-{{ record.pms_account_id }}" class="ml-1 text-sm"></span>
+                </td>
+                <td class="px-4 py-3 text-sm text-gray-600" id="last-{{ record.pms_account_id }}">
+                  {% if record.last_synced_at %}
+                    <span class="last-synced" data-ts="{{ record.last_synced_at }}"></span>
+                  {% else %}
+                    Never
+                  {% endif %}
+                </td>
+                <td class="px-4 py-3">
+                  <span class="sync-result text-sm" id="result-{{ record.pms_account_id }}">—</span>
+                </td>
+                <td class="px-4 py-3">
+                  <div class="flex flex-col sm:flex-row gap-2">
+                    <button 
+                      class="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1 rounded text-xs"
+                      data-pmc='{{ record | tojson | safe }}'
+                      onclick="openEditModal(this)">
+                      ✏️ Edit
+                    </button>
+                    <button 
+                      class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded text-xs"
+                      onclick='openPropertiesModal({{ record | tojson | safe }})'>
+                      🏘️ Properties
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            {% endif %}
+          {% endfor %}
+  </tbody>
+</table>
+</div>
+  </div>
+  <!-- ✅ Toast Notification -->
+<div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-sm"></div>
+
+
+ <!-- 🔧 Edit PMC Modal -->
+<div id="editModal" class="fixed inset-0 hidden bg-black bg-opacity-50 z-50 flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
+    <h3 class="text-xl font-semibold mb-4">Edit PMC</h3>
+    <form id="editPmcForm" class="space-y-4">
+      <input type="hidden" id="edit-id">
+
+      <div>
+        <label class="block text-sm font-medium">Name</label>
+        <input type="text" id="edit-name" required class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Email</label>
+        <input type="email" id="edit-email" class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Main Contact</label>
+        <input type="text" id="edit-contact" class="mt-1 w-full border rounded px-3 py-2" />
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Subscription Plan</label>
+        <select id="edit-subscription" class="mt-1 w-full border rounded px-3 py-2 bg-white">
+          <option value="">-- Select a plan --</option>
+          <option value="basic">Basic</option>
+          <option value="pro">Pro</option>
+          <option value="enterprise">Enterprise</option>
+        </select>
+      </div>
+
+
+      <div>
+        <label class="block text-sm font-medium">PMS Integration</label>
+        <select id="edit-integration" class="mt-1 w-full border rounded px-3 py-2 bg-white">
+          <option value="">-- Select PMS --</option>
+          <option value="hostaway">Hostaway</option>
+          <option value="hostfully">Hostfully</option>
+          <option value="guesty">Guesty</option>
+          <option value="uplisting">Uplisting</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+
+
+      <div>
+        <label class="block text-sm font-medium">Client ID</label>
+        <input type="text" id="edit-client-id" required class="mt-1 w-full border rounded px-3 py-2" required/>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">Secret</label>
+        <input type="text" id="edit-secret" required class="mt-1 w-full border rounded px-3 py-2" required/>
+      </div>
+
+      <div>
+        <label class="block text-sm font-medium">PMS Account ID</label>
+        <input type="text" id="edit-account-id" class="mt-1 w-full border rounded px-3 py-2" />
+        <small class="text-xs text-gray-500">Required for syncing. For Hostaway, this is the same as the API Key.</small>
+      </div>
+
+      <div class="flex items-center">
+        <input type="checkbox" id="edit-active" class="mr-2" />
+        <label for="edit-active" class="text-sm">Active</label>
+      </div>
+
+      <div id="edit-spinner" class="text-sm text-blue-600 hidden">🌀 Saving...</div>
+      <div id="edit-success" class="text-sm text-green-600 hidden">✅ Saved!</div>
+      <div id="edit-error" class="text-sm text-red-600 hidden"></div>
+
+      <div class="flex justify-between mt-4">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">💾 Save</button>
+        <button type="button" onclick="closeModal()" class="text-gray-600 hover:underline">❌ Cancel</button>
+        <button type="button" id="delete-btn" class="text-red-600 hover:underline">🗑️ Delete</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<!-- 🏘️ Edit PMC Properties Modal -->
+<div id="propertiesModal" class="fixed inset-0 hidden bg-black bg-opacity-50 z-50 flex items-center justify-center">
+  <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 relative">
+    
+    <h3 class="text-xl font-semibold mb-2">
+      Enable Sandy for Properties in <span id="propertiesModalTitle" class="font-bold text-blue-700"></span>
+    </h3>
+    <p class="text-sm text-gray-600 mb-2">
+      ✅ Checked = Sandy will be enabled for this property<br>
+      ❌ Unchecked = This property will be ignored by Sandy
+    </p>
+
+    <!-- 🧩 Select All / None Toggle -->
+    <div class="flex justify-end text-sm text-blue-600 font-medium mb-2 gap-4">
+      <button type="button" onclick="selectAllProperties(true)" class="hover:underline">✅ Select All</button>
+      <button type="button" onclick="selectAllProperties(false)" class="hover:underline">❌ Deselect All</button>
+    </div>
+
+    <form id="propertiesForm" class="space-y-4">
+      <!-- Property Checkbox List -->
+      <div id="propertiesList" class="max-h-64 overflow-y-auto border rounded p-3 space-y-2 text-sm bg-gray-50">
+        <!-- Dynamically populated by JS -->
+      </div>
+
+      <!-- Save Feedback -->
+      <div id="properties-spinner" class="text-blue-600 hidden">🌀 Saving...</div>
+      <div id="properties-success" class="text-green-600 hidden">✅ Saved!</div>
+      <div id="properties-error" class="text-red-600 hidden"></div>
+
+      <!-- Buttons -->
+      <div class="flex justify-between mt-4">
+        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow flex items-center gap-1">
+          💾 <span>Save</span>
+        </button>
+        <button type="button" onclick="closePropertiesModal()" class="text-red-600 hover:underline flex items-center gap-1">
+          ❌ <span>Cancel</span>
+        </button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+
+  function selectAllProperties(checked) {
+  const checkboxes = document.querySelectorAll("#propertiesList input[name='sandy_enabled']");
+  checkboxes.forEach(cb => cb.checked = checked);
+  }
+
+
+  document.querySelectorAll(".last-synced").forEach(el => {
+  const ts = el.dataset.ts;
+  const dt = new Date(ts);
+  el.textContent = dt.toLocaleString(undefined, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit"
+  }) + " (your time)";
+  });
+
+
+  function openEditModal(button) {
+  const data = JSON.parse(button.dataset.pmc);
+  document.getElementById("edit-id").value = data.id || "";
+  document.getElementById("edit-name").value = data.pmc_name || "";
+  document.getElementById("edit-email").value = data.email || "";
+  document.getElementById("edit-contact").value = data.main_contact || "";
+  document.getElementById("edit-subscription").value = data.subscription_plan || "";
+  document.getElementById("edit-integration").value = data.pms_integration || "";
+  document.getElementById("edit-client-id").value = data.pms_api_key || "";
+  document.getElementById("edit-secret").value = data.pms_api_secret || "";
+  document.getElementById("edit-account-id").value = data.pms_account_id || "";
+  document.getElementById("edit-active").checked = !!data.active;
+
+  document.getElementById("editModal").classList.remove("hidden");
+}
+  
+  function openPropertiesModal(pmc) {
+  document.getElementById("propertiesModalTitle").textContent = pmc.pmc_name;
+  document.getElementById("propertiesModal").style.display = "flex";
+
+  fetch(`/admin/pmc-properties-json/${pmc.id}`)
+    .then(res => res.json())
+    .then(data => {
+      const container = document.getElementById("propertiesList");
+      container.innerHTML = "";
+
+      data.properties.forEach(prop => {
+        const row = document.createElement("div");
+          row.innerHTML = `
+            <label class="flex items-center gap-2">
+              <input type="checkbox" name="sandy_enabled" data-id="${prop.id}" ${prop.sandy_enabled ? 'checked' : ''}>
+              <span class="text-gray-800">${prop.property_name} <span class="text-gray-400 text-xs">(${prop.pms_property_id})</span></span>
+            </label>`;
+
+        container.appendChild(row);
+      });
+    })
+    .catch(err => {
+      showToast("❌ Failed to load properties", "error");
+      closePropertiesModal();
+    });
+}
+
+function closePropertiesModal() {
+  document.getElementById("propertiesModal").style.display = "none";
+  document.getElementById("properties-spinner").style.display = "none";
+  document.getElementById("properties-success").style.display = "none";
+  document.getElementById("properties-error").style.display = "none";
+}
+
+document.getElementById("propertiesForm").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  showPropertiesSpinner();
+
+  const checkboxes = document.querySelectorAll("#propertiesList input[name='sandy_enabled']");
+  const payload = Array.from(checkboxes).map(cb => ({
+    id: cb.dataset.id,
+    sandy_enabled: cb.checked
+  }));
+
+  try {
+    const res = await fetch("/admin/update-properties", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+
+    if (res.ok) {
+      hidePropertiesSpinner();
+      showToast("✅ Properties updated!", "success");
+      closePropertiesModal();
+    } else {
+      throw new Error("Server returned error");
+    }
+  } catch (err) {
+    hidePropertiesSpinner();
+    showToast("❌ Update failed", "error");
+  }
+});
+
+function showPropertiesSpinner() {
+  document.getElementById("properties-spinner").style.display = "block";
+}
+function hidePropertiesSpinner() {
+  document.getElementById("properties-spinner").style.display = "none";
+}
+
+  
+  async function syncPMC(accountId) {
+    const status = document.getElementById(`status-${accountId}`);
+    const result = document.getElementById(`result-${accountId}`);
+    const last = document.getElementById(`last-${accountId}`);
+
+    status.textContent = "⏳";
+    result.textContent = "Syncing...";
+
+    try {
+      const res = await fetch(`/admin/sync-properties/${accountId}`, { method: "POST" });
+      const data = await res.json();
+
+      if (res.ok && data.success) {
+        status.textContent = "✅";
+        result.textContent = data.message;
+        result.className = "sync-result success";
+        if (data.synced_at) {
+          const dt = new Date(data.synced_at);
+          const formatted = dt.toLocaleString(undefined, {
+            year: "numeric",
+            month: "short",
+            day: "numeric",
+            hour: "numeric",
+            minute: "2-digit"
+          });
+          last.textContent = `${formatted} (your time)`;
+        }
+
+      } else {
+        throw new Error(data.error || "Sync failed");
+      }
+    } catch (err) {
+      status.textContent = "❌";
+      result.textContent = `Error: ${err.message}`;
+      result.className = "sync-result error";
+    }
+
+    setTimeout(() => status.textContent = "", 5000);
+  }
+
+  document.querySelectorAll(".sync-one").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const id = btn.dataset.accountId;
+      syncPMC(id);
+    });
+  });
+
+  document.getElementById("sync-all")?.addEventListener("click", async () => {
+    const progress = document.getElementById("sync-progress");
+    const buttons = document.querySelectorAll(".sync-one:not([disabled])");
+    progress.style.display = "block";
+
+    let count = 0;
+    for (const btn of buttons) {
+      count++;
+      progress.textContent = `🔄 Syncing ${count} of ${buttons.length}...`;
+      await syncPMC(btn.dataset.accountId);
+    }
+
+    progress.textContent = "✅ All synced";
+    setTimeout(() => progress.style.display = "none", 4000);
+  });
+
+  document.querySelectorAll(".status-select").forEach(select => {
+    select.addEventListener("change", async e => {
+      const id = e.target.dataset.recordId;
+      const isActive = e.target.value === "true";
+      await fetch("/admin/update-status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ record_id: id, active: isActive })
+      });
+    });
+  });
+
+  document.getElementById("search")?.addEventListener("input", function (e) {
+    const query = e.target.value.toLowerCase();
+    document.querySelectorAll("tbody tr").forEach(row => {
+      const name = row.cells[0]?.textContent.toLowerCase() || "";
+      if (name.includes(query)) {
+        row.style.display = "";
+      } else {
+        row.style.display = "none";
+      }
+    });
+  });
+
+  function closeModal() {
+    document.getElementById("editModal").classList.add("hidden");
+  /*  document.getElementById("editModal").style.display = "none";
+    document.getElementById("edit-spinner").style.display = "none";
+    document.getElementById("edit-success").style.display = "none";
+    document.getElementById("edit-error").style.display = "none";*/
+  }
+
+  // Attach click listeners to all edit buttons
+document.querySelectorAll(".edit-pmc-btn").forEach(button => {
+  button.addEventListener("click", () => openEditModal(button));
+});
+  
+  // ➕ Add PMC
+document.getElementById("add-pmc-btn").addEventListener("click", () => {
+  document.getElementById("edit-id").value = "";
+  document.getElementById("edit-name").value = "";
+  document.getElementById("edit-email").value = "";
+  document.getElementById("edit-contact").value = "";
+  document.getElementById("edit-subscription").value = "";
+  document.getElementById("edit-integration").value = "";
+  document.getElementById("edit-client-id").value = "";
+  document.getElementById("edit-secret").value = "";
+  document.getElementById("edit-account-id").value = "";
+  document.getElementById("edit-active").checked = true;
+
+  document.getElementById("editModal").style.display = "flex";
+});
+
+
+
+
+// 💾 Submit form with inline feedback
+document.getElementById("editPmcForm").addEventListener("submit", async function (e) {
+  e.preventDefault();
+
+const payload = {
+  id: Number(document.getElementById("edit-id").value || 0),
+  pmc_name: document.getElementById("edit-name").value.trim(),
+  email: document.getElementById("edit-email").value.trim() || null,
+  main_contact: document.getElementById("edit-contact").value.trim() || null,
+  subscription_plan: document.getElementById("edit-subscription").value || null,
+  pms_integration: document.getElementById("edit-integration").value || null,
+  pms_api_key: document.getElementById("edit-client-id").value.trim(),
+  pms_api_secret: document.getElementById("edit-secret").value.trim(),
+  pms_account_id: document.getElementById("edit-account-id").value.trim(),
+  active: document.getElementById("edit-active").checked
+};
+
+  console.log("📦 Submitting payload:", payload); // ✅ LOG THE PAYLOAD
+  
+  const response = await fetch("/admin/update-pmc", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload)
+  });
+
+  const result = await response.json();
+
+if (response.ok && result.success) {
+  showToast("✅ PMC updated!", "success");
+  closeModal();
+  setTimeout(() => location.reload(), 500);
+} else {
+  const message = result.error || "❌ Unknown error";
+  showToast(`❌ Failed to update: ${message}`, "error");
+}
+
+});
+
+  // 🗑️ Delete PMC
+  document.getElementById("delete-btn").addEventListener("click", async () => {
+    const id = document.getElementById("edit-id").value;
+    if (!confirm("Are you sure you want to delete this PMC?")) return;
+
+    showSpinner();
+
+    try {
+      const res = await fetch(`/admin/delete-pmc/${id}`, {
+        method: "DELETE"
+      });
+
+      if (res.ok) {
+        showToast("🗑️ Deleted!", "success");
+        setTimeout(() => location.reload(), 1000);
+      } else {
+        const result = await res.json();
+        hideSpinner();
+        showToast(result.error || "❌ Message here", "error");
+      }
+    } catch (err) {
+      hideSpinner();
+      showToast("❌ Message here", "error");
+    }
+  });
+
+function showToast(message, type = "success") {
+      const toast = document.getElementById("toast");
+      toast.textContent = message;
+      toast.style.backgroundColor = type === "error" ? "#c0392b" : "#2ecc71";
+      toast.style.opacity = "1";
+      setTimeout(() => toast.style.opacity = "0", 3000);
+    }
+
+function showSpinner() {
+  document.getElementById("edit-spinner").style.display = "block";
+}
+
+function hideSpinner() {
+  document.getElementById("edit-spinner").style.display = "none";
+}
+
+  function showSuccess(msg = "✅ Saved!") {
+    document.getElementById("edit-spinner").style.display = "none";
+    document.getElementById("edit-success").textContent = msg;
+    document.getElementById("edit-success").style.display = "block";
+  }
+
+  function showError(message) {
+    document.getElementById("edit-spinner").style.display = "none";
+    document.getElementById("edit-error").textContent = message;
+    document.getElementById("edit-error").style.display = "block";
+  }
+</script>
+
+
+</body>
+</html>
