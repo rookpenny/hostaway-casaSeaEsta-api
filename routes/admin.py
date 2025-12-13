@@ -5,7 +5,7 @@ import json
 import base64
 import re
 
-from fastapi import APIRouter, Depends, Request, Form, Body, status, Query
+from fastapi import APIRouter, Depends, Request, Form, Body, status, Query, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
@@ -54,6 +54,12 @@ def get_db():
         yield db
     finally:
         db.close()
+
+
+def require_super(request: Request, db: Session):
+    role, _ = get_user_role_and_scope(request, db)
+    if role != "super":
+        raise HTTPException(status_code=403, detail="Forbidden")
 
 
 def get_current_admin_identity(request: Request) -> Optional[str]:
@@ -105,6 +111,48 @@ def get_current_admin_identity(request: Request) -> Optional[str]:
         pass
 
     return None
+
+
+def is_super_admin(email: Optional[str]) -> bool:
+    """
+    Minimal role check.
+    - If ADMIN_EMAILS env is set (comma-separated), those are super.
+    - Otherwise: fallback to allowlist of your own email (edit as needed).
+    """
+    if not email:
+        return False
+
+    allow = os.getenv("ADMIN_EMAILS", "")
+    if allow.strip():
+        allowed = {e.strip().lower() for e in allow.split(",") if e.strip()}
+        return email.lower() in allowed
+
+    # TODO: set ADMIN_EMAILS in Render and delete this fallback
+    return email.lower() in {
+        "corbett.jarrod@gmail.com",   # <-- change
+    }
+
+
+def get_user_role_and_scope(request: Request, db: Session):
+    """
+    Returns: (user_role, pmc_obj_or_none)
+    Uses the logged-in identity (Google session) to decide role and PMC scope.
+    """
+    email = get_current_admin_identity(request)
+
+    if is_super_admin(email):
+        return "super", None
+
+    # PMC lookup by email (PMC.email field)
+    pmc = None
+    if email:
+        pmc = db.query(PMC).filter(func.lower(PMC.email) == email.lower()).first()
+
+    # If it matches a PMC record -> PMC role; else treat as super-disabled PMC role (no access)
+    if pmc:
+        return "pmc", pmc
+
+    return "pmc", None
 
 
 def decay_heat(heat_value: int, last_activity_at: Optional[datetime]) -> int:
@@ -766,32 +814,61 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
 
 # This route renders the admin dashboard with a list of all PMCs pulled from your new database.
 @router.get("/admin/dashboard", response_class=HTMLResponse)
-def admin_dashboard(request: Request):
-    db: Session = SessionLocal()
+def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+    user_role, pmc_obj = get_user_role_and_scope(request, db)
 
-    def serialize_pmc(pmc):
-        return {
-            "id": pmc.id,
-            "pmc_name": pmc.pmc_name,
-            "email": pmc.email,
-            "main_contact": pmc.main_contact,
-            "subscription_plan": pmc.subscription_plan,
-            "pms_integration": pmc.pms_integration,
-            "pms_api_key": pmc.pms_api_key,
-            "pms_api_secret": pmc.pms_api_secret,
-            "pms_account_id": pmc.pms_account_id,
-            "active": pmc.active,
-            "sync_enabled": pmc.sync_enabled,
-            "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None
+    # If PMC user but not mapped to a PMC record, block
+    if user_role == "pmc" and not pmc_obj:
+        return HTMLResponse(
+            "<h2>Access denied</h2><p>Your Google account isn’t linked to a PMC.</p>",
+            status_code=403
+        )
+
+    # Properties scoped by role
+    if user_role == "super":
+        properties = db.query(Property).order_by(Property.property_name.asc()).all()
+    else:
+        properties = (
+            db.query(Property)
+              .filter(Property.pmc_id == pmc_obj.id)
+              .order_by(Property.property_name.asc())
+              .all()
+        )
+
+    # Optional: keep this for future super “PMCs” view
+    pmc_data = []
+    if user_role == "super":
+        def serialize_pmc(pmc):
+            return {
+                "id": pmc.id,
+                "pmc_name": pmc.pmc_name,
+                "email": pmc.email,
+                "main_contact": pmc.main_contact,
+                "subscription_plan": pmc.subscription_plan,
+                "pms_integration": pmc.pms_integration,
+                "pms_api_key": pmc.pms_api_key,
+                "pms_api_secret": pmc.pms_api_secret,
+                "pms_account_id": pmc.pms_account_id,
+                "active": pmc.active,
+                "sync_enabled": pmc.sync_enabled,
+                "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None
+            }
+
+        pmc_list = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
+        pmc_data = [serialize_pmc(p) for p in pmc_list]
+
+    return templates.TemplateResponse(
+        "admin_dashboard.html",
+        {
+            "request": request,
+            "user_role": user_role,                         # ✅ used to hide/show nav + views
+            "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),  # ✅ sidebar label
+            "properties": properties,                       # ✅ drives PMC property cards
+            "now": datetime.utcnow(),                       # ✅ last_synced relative text
+            "pmc": pmc_data,                                # optional (super only)
         }
+    )
 
-    pmc_list = db.query(PMC).all()
-    pmc_data = [serialize_pmc(p) for p in pmc_list]
-
-    return templates.TemplateResponse("admin_dashboard.html", {
-        "request": request,
-        "pmc": pmc_data  # ✅ Now it's safe to use `tojson` in the template
-    })
 
 
 @router.post("/admin/jobs/refresh-session-status")
@@ -945,6 +1022,9 @@ def add_pmc(
 # 📖 Edit Manual File from GitHub
 @router.get("/edit-manual", response_class=HTMLResponse)
 def edit_manual_file(request: Request, file: str):
+    
+    require_super(request, db)
+    
     try:
         # Convert local-style path to GitHub path
         repo_owner = "rookpenny"
@@ -1078,6 +1158,9 @@ def save_config_file(file_path: str = Form(...), content: str = Form(...)):
 # ⚙️ Load a GitHub-hosted config file into the web editor
 @router.get("/edit-config", response_class=HTMLResponse)
 def edit_config_file(request: Request, file: str):
+    
+    require_super(request, db)
+    
     import base64
 
     try:
@@ -1117,6 +1200,9 @@ def edit_config_file(request: Request, file: str):
 # 📝 Edit a GitHub-hosted file by loading its contents into the editor
 @router.get("/edit-file", response_class=HTMLResponse)
 def edit_file_from_github(request: Request, file: str):
+
+    require_super(request, db)
+    
     import base64
 
     try:
@@ -1292,6 +1378,9 @@ from fastapi import HTTPException
 
 @router.post("/admin/update-pmc")
 def update_pmc(payload: PMCUpdateRequest):
+   
+    require_super(request, db)
+    
     logging.warning("Received payload: %s", payload)
     db: Session = SessionLocal()
     try:
@@ -1334,6 +1423,8 @@ def update_pmc(payload: PMCUpdateRequest):
 # 🗑️ Delete PMC
 @router.delete("/admin/delete-pmc/{pmc_id}")
 def delete_pmc(pmc_id: int):
+    require_super(request, db)
+    
     db = SessionLocal()
     try:
         pmc = db.query(PMC).filter(PMC.id == pmc_id).first()
