@@ -37,6 +37,24 @@
 
     <!-- Filters -->
     <form class="mt-4 bg-white rounded-lg shadow p-3 flex flex-wrap gap-2 items-center" method="get">
+      <select name="pmc_id" class="border rounded px-2 py-1 text-sm">
+  <option value="">All PMCs</option>
+  {% for p in pmcs %}
+    <option value="{{ p.id }}" {% if filters.pmc_id==p.id %}selected{% endif %}>
+      {{ p.pmc_name }}
+    </option>
+  {% endfor %}
+</select>
+
+<select name="property_id" class="border rounded px-2 py-1 text-sm">
+  <option value="">All Properties</option>
+  {% for pr in properties %}
+    <option value="{{ pr.id }}" {% if filters.property_id==pr.id %}selected{% endif %}>
+      {{ pr.property_name }}
+    </option>
+  {% endfor %}
+</select>
+
       <select name="status" class="border rounded px-2 py-1 text-sm">
         <option value="">All statuses</option>
         <option value="pre_booking" {% if filters.status=="pre_booking" %}selected{% endif %}>Pre-booking</option>
@@ -72,6 +90,7 @@
               <th class="px-4 py-2 text-left">Source</th>
               <th class="px-4 py-2 text-left">Status</th>
               <th class="px-4 py-2 text-left">Priority</th>
+              <th class="px-4 py-2 text-left">Heat</th>
               <th class="px-4 py-2 text-left">Last Activity</th>
               <th class="px-4 py-2 text-left">Snippet</th>
               <th class="px-4 py-2 text-left"></th>
@@ -130,6 +149,29 @@
                     <span class="text-gray-400">Normal</span>
                   {% endif %}
                 </td>
+
+                <td class="px-4 py-2 text-xs">
+                    {% if s.heat >= 80 %}
+                      <span class="inline-block px-2 py-1 rounded-full bg-red-200 text-red-900 font-semibold">
+                        🔥 {{ s.heat }}
+                      </span>
+                    {% elif s.heat >= 50 %}
+                      <span class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-semibold">
+                        ⚡ {{ s.heat }}
+                      </span>
+                    {% elif s.heat >= 20 %}
+                      <span class="inline-block px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">
+                        • {{ s.heat }}
+                      </span>
+                    {% else %}
+                      <span class="text-gray-400">{{ s.heat }}</span>
+                    {% endif %}
+                  
+                    <div class="text-[10px] text-gray-400 mt-1">
+                      24h: {{ s.msg_24h }} · 7d: {{ s.msg_7d }}
+                    </div>
+                  </td>
+
 
                 <td class="px-4 py-2 text-xs text-gray-700">
                   {{ s.last_activity_at or "—" }}
