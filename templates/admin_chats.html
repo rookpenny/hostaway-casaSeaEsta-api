@@ -292,18 +292,18 @@
                   {# --- Pulse badge (your existing thresholds) --- #}
                   {% if s.heat >= 85 %}
                     <span class="inline-block px-2 py-1 rounded-full bg-red-200 text-red-900 font-semibold cursor-help">
-                      🔥 Critical • {{ s.heat }}
+                      🔥 Critical<!--• {{ s.heat }}-->
                     </span>
                   {% elif s.heat >= 60 %}
                     <span class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-semibold cursor-help">
-                      ⚠️ Elevated • {{ s.heat }}
+                      ⚠️ Elevated<!--• {{ s.heat }}-->
                     </span>
                   {% elif s.heat >= 35 %}
                     <span class="inline-block px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold cursor-help">
-                      😌 Calm • {{ s.heat }}
+                      😌 Calm<!--• {{ s.heat }}-->
                     </span>
                   {% else %}
-                    <span class="text-gray-400">Calm • {{ s.heat }}</span>
+                    <span class="text-gray-400">Calm<!--• {{ s.heat }}--></span>
                   {% endif %}
                 
                   {# --- Meaningful activity line --- #}
