@@ -129,14 +129,38 @@ def admin_chats(
             "needs_attention": needs_attention,
         })
 
+    by_status = dict(
+    db.query(ChatSession.reservation_status, func.count(ChatSession.id))
+      .group_by(ChatSession.reservation_status)
+      .all()
+    )
+    urgent_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
+        ChatMessage.sender == "guest",
+        ChatMessage.category == "urgent",
+    ).distinct().count()
+    unhappy_sessions = db.query(ChatSession.id).join(ChatMessage).filter(
+        ChatMessage.sender == "guest",
+        ChatMessage.sentiment == "negative",
+    ).distinct().count()
+    
+    analytics = {
+        "pre_booking": int(by_status.get("pre_booking", 0)),
+        "active": int(by_status.get("active", 0)),
+        "post_stay": int(by_status.get("post_stay", 0)),
+        "urgent_sessions": int(urgent_sessions),
+        "unhappy_sessions": int(unhappy_sessions),
+    }
+
     return templates.TemplateResponse(
         "admin_chats.html",
         {
             "request": request,
             "sessions": items,
             "filters": {"status": status, "priority": priority, "q": q},
+            "analytics": analytics,
         }
     )
+
 
 
 
