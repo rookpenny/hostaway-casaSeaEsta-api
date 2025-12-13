@@ -10,11 +10,12 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
+
 from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
-from sqlalchemy import func
+from sqlalchemy import func, and_
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict
 from pathlib import Path
 
 #from database import SessionLocal, datetime, timedelta, date
@@ -88,11 +89,55 @@ def admin_chats(
     since_24h = now - timedelta(hours=24)
     since_7d = now - timedelta(days=7)
 
-    # Pre-aggregate message counts (avoid per-session count queries)
+    # Defaults for empty pages
     counts_24h: Dict[int, int] = {}
     counts_7d: Dict[int, int] = {}
+    last_msg_map: Dict[int, ChatMessage] = {}
+    urgent_ids: set[int] = set()
+    negative_ids: set[int] = set()
 
     if session_ids:
+        # 1) Last message per session (batched)
+        # NOTE: this "distinct by session" approach is Postgres-friendly.
+        # If you're not on Postgres, tell me and I’ll swap this to a subquery join.
+        latest_msgs = (
+            db.query(ChatMessage)
+              .filter(ChatMessage.session_id.in_(session_ids))
+              .order_by(ChatMessage.session_id.asc(), ChatMessage.created_at.desc())
+              .distinct(ChatMessage.session_id)
+              .all()
+        )
+        last_msg_map = {int(m.session_id): m for m in latest_msgs}
+
+        # 2) Urgent flag per session (batched)
+        urgent_ids = set(
+            int(sid) for (sid,) in (
+                db.query(ChatMessage.session_id)
+                  .filter(
+                      ChatMessage.session_id.in_(session_ids),
+                      ChatMessage.sender == "guest",
+                      ChatMessage.category == "urgent",
+                  )
+                  .distinct()
+                  .all()
+            )
+        )
+
+        # 3) Negative flag per session (batched)
+        negative_ids = set(
+            int(sid) for (sid,) in (
+                db.query(ChatMessage.session_id)
+                  .filter(
+                      ChatMessage.session_id.in_(session_ids),
+                      ChatMessage.sender == "guest",
+                      ChatMessage.sentiment == "negative",
+                  )
+                  .distinct()
+                  .all()
+            )
+        )
+
+        # 4) Pre-aggregate message counts (avoid per-session count queries)
         for sid, cnt in (
             db.query(ChatMessage.session_id, func.count(ChatMessage.id))
               .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_24h)
@@ -121,31 +166,16 @@ def admin_chats(
     items = []
     q_lower = (q or "").strip().lower()
 
-    # Precompute urgent/negative flags for these sessions (still done per session for now; OK at 200)
     for s in sessions:
         prop = s.property
         property_name = prop.property_name if prop else "Unknown property"
         guest_name = (getattr(s, "guest_name", None) or "").strip()
 
-        last_msg = (
-            db.query(ChatMessage)
-            .filter(ChatMessage.session_id == s.id)
-            .order_by(ChatMessage.created_at.desc())
-            .first()
-        )
+        last_msg = last_msg_map.get(int(s.id))
         snippet = (last_msg.content[:120] + "…") if last_msg else ""
 
-        has_urgent = db.query(ChatMessage).filter(
-            ChatMessage.session_id == s.id,
-            ChatMessage.sender == "guest",
-            ChatMessage.category == "urgent",
-        ).first() is not None
-
-        has_negative = db.query(ChatMessage).filter(
-            ChatMessage.session_id == s.id,
-            ChatMessage.sender == "guest",
-            ChatMessage.sentiment == "negative",
-        ).first() is not None
+        has_urgent = int(s.id) in urgent_ids
+        has_negative = int(s.id) in negative_ids
 
         # Priority filter
         if priority == "urgent" and not has_urgent:
@@ -162,8 +192,8 @@ def admin_chats(
         status_val = getattr(s, "reservation_status", "pre_booking")
         needs_attention = (status_val == "active" and (has_urgent or has_negative))
 
-        cnt24 = counts_24h.get(s.id, 0)
-        cnt7 = counts_7d.get(s.id, 0)
+        cnt24 = counts_24h.get(int(s.id), 0)
+        cnt7 = counts_7d.get(int(s.id), 0)
         score = heat_score(has_urgent, has_negative, cnt24, cnt7)
 
         items.append({
@@ -185,6 +215,12 @@ def admin_chats(
             "msg_7d": cnt7,
             "heat": score,
         })
+
+    # Sort: heat first, then recency
+    items.sort(
+        key=lambda x: (x["heat"], x["last_activity_at"] or datetime.min),
+        reverse=True
+    )
 
     # Analytics (global)
     by_status = dict(
@@ -215,14 +251,18 @@ def admin_chats(
             "request": request,
             "sessions": items,
             "filters": {
-                "status": status, "priority": priority, "q": q,
-                "pmc_id": pmc_id, "property_id": property_id
+                "status": status,
+                "priority": priority,
+                "q": q,
+                "pmc_id": pmc_id,
+                "property_id": property_id,
             },
             "analytics": analytics,
             "pmcs": pmcs,
             "properties": properties,
         }
     )
+
 
 
 @router.post("/admin/chats/{session_id}/resolve")
