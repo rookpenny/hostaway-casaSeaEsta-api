@@ -241,6 +241,7 @@ def escalation_rank(level: Optional[str]) -> int:
 
 
 # 💬 Recent Chats Overview
+# 💬 Recent Chats Overview
 @router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(
     request: Request,
@@ -248,11 +249,18 @@ def admin_chats(
     status: Optional[str] = Query(None),          # pre_booking | active | post_stay
     priority: Optional[str] = Query(None),        # urgent | unhappy (filter by flags)
     q: Optional[str] = Query(None),               # search guest/property/snippet
-    pmc_id: Optional[str] = Query(None),          # string to avoid "" int parsing
+    pmc_id: Optional[str] = Query(None),          # string to avoid "" int parsing (super-only filter)
     property_id: Optional[str] = Query(None),     # string to avoid "" int parsing
     mine: Optional[int] = Query(None),            # 1 = only my assigned chats
     assigned_to: Optional[str] = Query(None),     # exact match
 ):
+    # ---- role & scope ----
+    user_role, pmc_obj = get_user_role_and_scope(request, db)
+
+    # If PMC user but not mapped to a PMC record, block
+    if user_role == "pmc" and not pmc_obj:
+        raise HTTPException(status_code=403, detail="PMC account not linked")
+
     # ---- helpers ----
     def to_int_or_none(v: Optional[str]) -> Optional[int]:
         v = (v or "").strip()
@@ -281,21 +289,18 @@ def admin_chats(
         """
         signals: list[str] = []
 
-        # Core signals
         if has_urgent:
             signals.append("panicked")
         if has_negative:
             signals.append("upset")
 
-        # Amplify if negativity is repeating quickly
         if has_negative and cnt24 >= 3:
             signals.append("angry")
 
-        # Confused = chatter without urgent/negative flags
+        # chatter without urgent/negative
         if (not has_urgent) and (not has_negative) and (cnt7 >= 3 or cnt24 >= 2):
             signals.append("confused")
 
-        # Optional context
         if status_val == "active" and (has_urgent or has_negative):
             signals.append("stressed")
 
@@ -332,21 +337,42 @@ def admin_chats(
     pmc_id_int = to_int_or_none(pmc_id)
     property_id_int = to_int_or_none(property_id)
 
-    # Dropdown data
-    pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
-    properties = db.query(Property).order_by(Property.property_name.asc()).all()
-
-    base_q = db.query(ChatSession)
-
-    # PMC filter (requires joining property)
-    if pmc_id_int is not None:
-        base_q = (
-            base_q.join(Property, ChatSession.property_id == Property.id)
-                  .filter(Property.pmc_id == pmc_id_int)
+    # ---- dropdown data (scoped) ----
+    if user_role == "super":
+        pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
+        properties = db.query(Property).order_by(Property.property_name.asc()).all()
+    else:
+        pmcs = [pmc_obj]
+        properties = (
+            db.query(Property)
+              .filter(Property.pmc_id == pmc_obj.id)
+              .order_by(Property.property_name.asc())
+              .all()
         )
 
-    # Property filter
+    allowed_property_ids = {p.id for p in properties} if user_role == "pmc" else None
+
+    # ---- base query (scoped) ----
+    base_q = db.query(ChatSession)
+
+    # PMC scope: force it for PMC users (ignore pmc_id param entirely)
+    if user_role == "pmc":
+        base_q = (
+            base_q.join(Property, ChatSession.property_id == Property.id)
+                  .filter(Property.pmc_id == pmc_obj.id)
+        )
+    else:
+        # super can filter by pmc_id
+        if pmc_id_int is not None:
+            base_q = (
+                base_q.join(Property, ChatSession.property_id == Property.id)
+                      .filter(Property.pmc_id == pmc_id_int)
+            )
+
+    # Property filter (PMC cannot access other properties)
     if property_id_int is not None:
+        if user_role == "pmc" and property_id_int not in allowed_property_ids:
+            raise HTTPException(status_code=403, detail="Forbidden property")
         base_q = base_q.filter(ChatSession.property_id == property_id_int)
 
     # Reservation status filter
@@ -356,7 +382,7 @@ def admin_chats(
     # ----- assignee filters -----
     effective_assignee: Optional[str] = (assigned_to or "").strip() or None
     if mine:
-        me = get_current_admin_identity(request)  # safe version; should NEVER throw
+        me = get_current_admin_identity(request)
         if me:
             effective_assignee = me
 
@@ -490,7 +516,6 @@ def admin_chats(
         next_action = extract_next_action(getattr(s, "ai_summary", None))
         activity_label = activity_bucket(cnt24, cnt7)
 
-        # Signals (emotion tokens)
         signals = derive_signals(
             has_urgent=has_urgent,
             has_negative=has_negative,
@@ -555,25 +580,42 @@ def admin_chats(
         reverse=True
     )
 
-    # Analytics
+    # ---- analytics (scoped) ----
+    analytics_q = db.query(ChatSession)
+    if user_role == "pmc":
+        analytics_q = (
+            analytics_q.join(Property, ChatSession.property_id == Property.id)
+                       .filter(Property.pmc_id == pmc_obj.id)
+        )
+
     by_status = dict(
-        db.query(ChatSession.reservation_status, func.count(ChatSession.id))
-          .group_by(ChatSession.reservation_status)
-          .all()
+        analytics_q.with_entities(ChatSession.reservation_status, func.count(ChatSession.id))
+                   .group_by(ChatSession.reservation_status)
+                   .all()
     )
+
+    urgent_q = db.query(ChatSession.id).join(ChatMessage)
+    unhappy_q = db.query(ChatSession.id).join(ChatMessage)
+
+    if user_role == "pmc":
+        urgent_q = (
+            urgent_q.join(Property, ChatSession.property_id == Property.id)
+                    .filter(Property.pmc_id == pmc_obj.id)
+        )
+        unhappy_q = (
+            unhappy_q.join(Property, ChatSession.property_id == Property.id)
+                     .filter(Property.pmc_id == pmc_obj.id)
+        )
+
     urgent_sessions = (
-        db.query(ChatSession.id)
-          .join(ChatMessage)
-          .filter(ChatMessage.sender == "guest", ChatMessage.category == "urgent")
-          .distinct()
-          .count()
+        urgent_q.filter(ChatMessage.sender == "guest", ChatMessage.category == "urgent")
+                .distinct()
+                .count()
     )
     unhappy_sessions = (
-        db.query(ChatSession.id)
-          .join(ChatMessage)
-          .filter(ChatMessage.sender == "guest", ChatMessage.sentiment == "negative")
-          .distinct()
-          .count()
+        unhappy_q.filter(ChatMessage.sender == "guest", ChatMessage.sentiment == "negative")
+                 .distinct()
+                 .count()
     )
 
     analytics = {
@@ -593,7 +635,8 @@ def admin_chats(
                 "status": status,
                 "priority": priority,
                 "q": q,
-                "pmc_id": pmc_id or "",
+                # PMC users should not use pmc_id filter (keep stable)
+                "pmc_id": (str(pmc_obj.id) if user_role == "pmc" else (pmc_id or "")),
                 "property_id": property_id or "",
                 "mine": bool(mine),
                 "assigned_to": effective_assignee or "",
@@ -601,8 +644,10 @@ def admin_chats(
             "analytics": analytics,
             "pmcs": pmcs,
             "properties": properties,
+            "user_role": user_role,  # ✅ lets template hide PMC dropdown for PMCs
         }
     )
+
 
 
 
