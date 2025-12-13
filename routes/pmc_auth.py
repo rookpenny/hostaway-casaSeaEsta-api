@@ -138,6 +138,7 @@ async def auth_callback(request: Request):
             "email": email,
             "name": user.get("name")
         }
+        request.session["admin_email"] = email.lower().strip()
 
         return RedirectResponse(url="/auth/dashboard")
 
