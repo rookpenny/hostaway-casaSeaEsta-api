@@ -63,8 +63,8 @@ def admin_chats(
     status: Optional[str] = Query(None),          # pre_booking | active | post_stay
     priority: Optional[str] = Query(None),        # urgent | unhappy
     q: Optional[str] = Query(None),               # search guest/property/snippet
-    pmc_id: Optional[int] = Query(None),          # filter by PMC
-    property_id: Optional[int] = Query(None),     # filter by Property
+    pmc_id: Optional[str] = Query(None),
+    property_id: Optional[str] = Query(None),
 ):
     from typing import Dict
     from sqlalchemy import and_
