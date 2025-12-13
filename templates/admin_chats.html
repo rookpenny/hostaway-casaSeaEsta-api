@@ -5,7 +5,18 @@
   <title>Recent Chats – Admin</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    /* Tailwind CDN doesn’t include the line-clamp plugin by default */
+    .line-clamp-2{
+      display:-webkit-box;
+      -webkit-line-clamp:2;
+      -webkit-box-orient:vertical;
+      overflow:hidden;
+    }
+  </style>
 </head>
+
 <body class="bg-gray-100 text-gray-900">
   <div class="max-w-5xl mx-auto px-4 py-6">
     <h1 class="text-2xl font-bold mb-4">💬 Recent Chats</h1>
@@ -43,21 +54,21 @@
       >
         🔥 Active + Urgent
       </a>
-    
+
       <a
         href="/admin/chats?status=active&priority=unhappy"
         class="text-xs bg-yellow-100 text-yellow-800 px-3 py-1 rounded-full font-semibold hover:bg-yellow-200"
       >
         😟 Active + Unhappy
       </a>
-    
+
       <a
         href="/admin/chats?status=active"
         class="text-xs bg-green-100 text-green-800 px-3 py-1 rounded-full font-semibold hover:bg-green-200"
       >
         🏖 Active stays
       </a>
-    
+
       <a
         href="/admin/chats"
         class="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full font-semibold hover:bg-slate-200"
@@ -65,7 +76,6 @@
         ↩ Reset
       </a>
     </div>
-
 
     <!-- Filters -->
     <form class="mt-4 bg-white rounded-lg shadow p-3 flex flex-wrap gap-2 items-center" method="get">
@@ -129,93 +139,99 @@
         <table class="min-w-full text-sm">
           <thead class="bg-gray-50">
             <tr>
-              <!--th class="px-4 py-2 text-left">Session ID</th-->
               <th class="px-4 py-2 text-left">Property</th>
               <th class="px-4 py-2 text-left">Guest</th>
               <th class="px-4 py-2 text-left">Assigned</th>
-              <!--th class="px-4 py-2 text-left">Source</th-->
+
               <th class="px-4 py-2 text-left">
                 <span class="relative inline-flex items-center gap-1 group cursor-help">
                   Stage
                   <span class="text-[11px] text-slate-500">ⓘ</span>
-              
                   <span
-                    class="pointer-events-none absolute left-0 top-full mt-2 w-72
+                    class="pointer-events-none absolute left-0 top-full mt-2 w-72 z-50
                            rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg
-                           opacity-0 group-hover:opacity-100 transition"
+                           opacity-0 group-hover:opacity-100 transition whitespace-normal"
                   >
                     Stage represents the guest’s booking status at the time of the conversation.
                   </span>
                 </span>
               </th>
+
               <th class="px-4 py-2 text-left">
-                  <span class="relative inline-flex items-center gap-1 group cursor-help">
-                    Signals
-                    <span class="text-[11px] text-slate-500">ⓘ</span>
-                
-                    <span
-                      class="pointer-events-none absolute left-0 top-full mt-2 w-72
-                             rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg
-                             opacity-0 group-hover:opacity-100 transition"
-                    >
-                      Signals flag specific moments of concern in a conversation, like urgent requests or negative sentiment.
-                    </span>
+                <span class="relative inline-flex items-center gap-1 group cursor-help">
+                  Signals
+                  <span class="text-[11px] text-slate-500">ⓘ</span>
+                  <span
+                    class="pointer-events-none absolute left-0 top-full mt-2 w-72 z-50
+                           rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg
+                           opacity-0 group-hover:opacity-100 transition whitespace-normal"
+                  >
+                    Signals reflect how the guest seems to be feeling (derived from urgency, sentiment, and patterns).
                   </span>
-                </th>
+                </span>
+              </th>
+
               <th class="px-4 py-2 text-left">
-                <span class="inline-flex items-center gap-1 relative group cursor-help">
+                <span class="relative inline-flex items-center gap-1 group cursor-help">
                   Priority
                   <span class="text-[11px] text-slate-500">ⓘ</span>
-              
-                  <!-- tooltip -->
-                  <span class="pointer-events-none absolute left-0 top-full mt-2 w-72 rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg opacity-0 group-hover:opacity-100 transition">
+                  <span
+                    class="pointer-events-none absolute left-0 top-full mt-2 w-72 z-50
+                           rounded-lg bg-slate-900 text-white text-xs p-3 shadow-lg
+                           opacity-0 group-hover:opacity-100 transition whitespace-normal"
+                  >
                     Priority shows how urgently a conversation needs attention right now, based on signals, activity, and recency.
                   </span>
                 </span>
               </th>
-              <th class="px-4 py-2 text-left">Activity</th>
+
+              <th class="px-4 py-2 text-left">Last activity</th>
               <th class="px-4 py-2 text-left">Snippet</th>
               <th class="px-4 py-2 text-left"></th>
             </tr>
           </thead>
+
           <tbody>
             {% for s in sessions %}
-              <tr class="border-t hover:bg-gray-50 {% if s.needs_attention %}bg-red-50{% endif %}">
-                <!--td class="px-4 py-2 font-mono text-xs">#{{ s.id }}</td-->
+              {# Defensive: allow s.signals to be missing/null #}
+              {% set sig = (s.signals or []) | map('lower') | list %}
 
+              <tr class="border-t hover:bg-gray-50 {% if s.needs_attention %}bg-red-50{% endif %}">
+
+                <!-- Property -->
                 <td class="px-4 py-2">
                   <div class="font-semibold text-gray-900">
                     {{ s.property_name or "Unknown property" }}
                   </div>
-                
+
                   <div class="text-xs text-gray-500">
                     Property ID: {{ s.property_id }}
                   </div>
-                
+
                   {% if s.assigned_to %}
                     <div class="mt-1 text-[11px] text-gray-500">
                       Assigned: <span class="font-semibold text-gray-700">{{ s.assigned_to }}</span>
                     </div>
                   {% endif %}
-                
+
                   {% if s.escalation_level %}
                     <div class="mt-1">
                       {% if s.escalation_level == "high" %}
                         <span class="inline-block px-2 py-0.5 rounded-full bg-red-200 text-red-900 font-semibold text-[11px]">
-                          🔴 Escalation<!--: High-->
+                          🔴 Escalation
                         </span>
                       {% elif s.escalation_level == "medium" %}
                         <span class="inline-block px-2 py-0.5 rounded-full bg-yellow-100 text-yellow-800 font-semibold text-[11px]">
-                          🟡 Escalation<!--: Medium-->
+                          🟡 Escalation
                         </span>
                       {% elif s.escalation_level == "low" %}
                         <span class="inline-block px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-semibold text-[11px]">
-                          🟢 Escalation<!--: Low-->
+                          🟢 Escalation
                         </span>
                       {% endif %}
                     </div>
                   {% endif %}
-                
+
                   {% if s.is_resolved %}
                     <div class="mt-1">
                       <span class="inline-block px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-semibold text-[11px]">
@@ -225,10 +241,12 @@
                   {% endif %}
                 </td>
 
+                <!-- Guest -->
                 <td class="px-4 py-2">
                   <div class="font-medium">{{ s.guest_name or "—" }}</div>
                 </td>
 
+                <!-- Assigned -->
                 <td class="px-4 py-2 text-xs">
                   {% if s.assigned_to %}
                     <span class="inline-block px-2 py-1 rounded bg-slate-100 text-slate-800 font-semibold">
@@ -239,10 +257,7 @@
                   {% endif %}
                 </td>
 
-
-                <!--td class="px-4 py-2 text-xs text-gray-700">{{ s.source or "—" }}</td-->
-
-                <!-- Status -->
+                <!-- Stage -->
                 <td class="px-4 py-2 text-xs">
                   {% if s.reservation_status == "active" %}
                     <span class="inline-block px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold">🏖 Active</span>
@@ -255,77 +270,53 @@
                   {% endif %}
                 </td>
 
-                <!-- Signals -->
+                <!-- Signals (customer emotion words) -->
                 <td class="px-4 py-2 text-xs">
-                  {% if "panicked" in s.signals %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold mr-1">
-                      😰 Panicked
-                    </span>
+                  {% if "panicked" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-red-100 text-red-700 font-semibold mr-1">😰 Panicked</span>
                   {% endif %}
-                
-                  {% if "angry" in s.signals %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-red-200 text-red-900 font-semibold mr-1">
-                      😡 Angry
-                    </span>
+
+                  {% if "angry" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-red-200 text-red-900 font-semibold mr-1">😡 Angry</span>
                   {% endif %}
-                
-                  {% if "upset" in s.signals %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-semibold mr-1">
-                      😟 Upset
-                    </span>
+
+                  {% if "upset" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-semibold mr-1">😟 Upset</span>
                   {% endif %}
-                
-                  {% if "confused" in s.signals %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold mr-1">
-                      😕 Confused
-                    </span>
+
+                  {% if "confused" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold mr-1">😕 Confused</span>
                   {% endif %}
-                
-                  {% if "worried" in s.signals %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold mr-1">
-                      🥺 Worried
-                    </span>
+
+                  {% if "worried" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold mr-1">🥺 Worried</span>
                   {% endif %}
-                
-                  {% if s.signals == ["calm"] %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold">
-                      🙂 Calm
-                    </span>
+
+                  {% if sig|length == 0 or (sig|length == 1 and "calm" in sig) %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-green-100 text-green-700 font-semibold">🙂 Calm</span>
                   {% endif %}
                 </td>
 
-
-                <!-- Pulse -->
+                <!-- Priority (was Pulse/heat) -->
                 <td class="px-4 py-2 text-xs"
-                    title="Pulse details:
-                Raw: {{ s.heat_raw }}
-                Boosted: {{ s.heat_boosted }}
-                24h: {{ s.msg_24h }} messages
-                7d: {{ s.msg_7d }} messages
-                Urgent: {{ 'yes' if s.has_urgent else 'no' }}">
-                  
-                  {# --- Pulse badge (your existing thresholds) --- #}
+                    title="Why this is high:
+Score: {{ s.heat }}
+Raw: {{ s.heat_raw }}
+Boosted: {{ s.heat_boosted }}
+24h msgs: {{ s.msg_24h }}
+7d msgs: {{ s.msg_7d }}
+Urgent: {{ 'yes' if s.has_urgent else 'no' }}
+Unhappy: {{ 'yes' if s.has_negative else 'no' }}"
+                >
                   {% if s.heat >= 85 %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-red-200 text-red-900 font-semibold cursor-help">
-                      🔥 Critical<!--• {{ s.heat }}-->
-                    </span>
+                    <span class="inline-block px-2 py-1 rounded-full bg-red-200 text-red-900 font-semibold cursor-help">🔥 Critical</span>
                   {% elif s.heat >= 60 %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-semibold cursor-help">
-                      ⚠️ Elevated<!--• {{ s.heat }}-->
-                    </span>
+                    <span class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-semibold cursor-help">⚠️ Elevated</span>
                   {% elif s.heat >= 35 %}
-                    <span class="inline-block px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold cursor-help">
-                      😌 Calm<!--• {{ s.heat }}-->
-                    </span>
+                    <span class="inline-block px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold cursor-help">😌 Calm</span>
                   {% else %}
-                    <span class="text-gray-400">Calm<!--• {{ s.heat }}--></span>
+                    <span class="text-gray-400">Calm</span>
                   {% endif %}
-                
-                  {# --- Meaningful activity line --- #}
-                  <!--div class="text-[11px] text-gray-500 mt-1">
-                    <span class="font-semibold text-gray-700">Activity: {{ s.activity_label }}</span>
-                    <span class="text-gray-400">• hover for counts</span>
-                  </div-->
                 </td>
 
                 <!-- Last Activity -->
@@ -343,26 +334,30 @@
                   {% endif %}
                 </td>
 
-
+                <!-- Snippet -->
                 <td class="px-4 py-2 text-xs text-gray-600">
-                  <div class="line-clamp-2" title="{{ s.last_snippet }}">
-                    {{ s.last_snippet[:140] }}{% if s.last_snippet and s.last_snippet|length > 140 %}…{% endif %}
+                  {% set snip = (s.last_snippet or "") %}
+                  <div class="line-clamp-2" title="{{ snip }}">
+                    {{ snip[:140] }}{% if snip|length > 140 %}…{% endif %}
                   </div>
-                
+
                   {% if s.next_action %}
                     <div class="mt-1 text-[11px] text-slate-700">
                       <span class="text-blue-600">
                         <span class="font-semibold">Recommendation:</span>
-                      {{ s.next_action }}</span>
+                        {{ s.next_action }}
+                      </span>
                     </div>
                   {% endif %}
                 </td>
 
+                <!-- View -->
                 <td class="px-4 py-2 text-right">
-                  <a href="/admin/chats/{{ s.id }}" class="text-blue-600 hover:underline text-xs text-bold">
+                  <a href="/admin/chats/{{ s.id }}" class="text-blue-600 hover:underline text-xs font-semibold">
                     View →
                   </a>
                 </td>
+
               </tr>
             {% endfor %}
           </tbody>
@@ -372,75 +367,54 @@
       <p class="mt-4 text-gray-600">No chat sessions yet.</p>
     {% endif %}
   </div>
-<script>
-  function parseTimestamp(ts) {
-    // FastAPI/Jinja may output ISO already. If not, normalize common cases.
-    // Accepts:
-    //  - "2025-12-12T13:24:33.351313"
-    //  - "2025-12-12 13:24:33.351313"
-    //  - With or without fractional seconds
-    if (!ts) return null;
 
-    // Convert "YYYY-MM-DD HH:MM:SS(.ffffff)" -> ISO-ish
-    const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
+  <script>
+    function parseTimestamp(ts) {
+      if (!ts) return null;
+      const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
+      const d = new Date(normalized);
+      return isNaN(d.getTime()) ? null : d;
+    }
 
-    // If no timezone is provided, JS treats it as local time.
-    // If your DB times are UTC, you can force UTC by appending "Z".
-    // Uncomment the next line if your timestamps are UTC-naive:
-    // const utc = normalized.endsWith("Z") ? normalized : normalized + "Z";
+    function formatRelative(fromDate, now = new Date()) {
+      const diffMs = now - fromDate;
+      if (diffMs < 0) return "just now";
 
-    const d = new Date(normalized);
-    return isNaN(d.getTime()) ? null : d;
-  }
+      const sec = Math.floor(diffMs / 1000);
+      if (sec < 10) return "just now";
+      if (sec < 60) return `${sec}s ago`;
 
-  function formatRelative(fromDate, now = new Date()) {
-    const diffMs = now - fromDate;
-    if (diffMs < 0) return "just now";
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}m ago`;
 
-    const sec = Math.floor(diffMs / 1000);
-    if (sec < 10) return "just now";
-    if (sec < 60) return `${sec}s ago`;
+      const hr = Math.floor(min / 60);
+      if (hr < 24) return `${hr}h ago`;
 
-    const min = Math.floor(sec / 60);
-    if (min < 60) return `${min}m ago`;
+      const day = Math.floor(hr / 24);
+      if (day < 14) return `${day}d ago`;
 
-    const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}h ago`;
+      const wk = Math.floor(day / 7);
+      if (wk < 8) return `${wk}w ago`;
 
-    const day = Math.floor(hr / 24);
-    if (day < 14) return `${day}d ago`;
+      const mo = Math.floor(day / 30);
+      if (mo < 12) return `${mo}mo ago`;
 
-    const wk = Math.floor(day / 7);
-    if (wk < 8) return `${wk}w ago`;
+      const yr = Math.floor(day / 365);
+      return `${yr}y ago`;
+    }
 
-    const mo = Math.floor(day / 30);
-    if (mo < 12) return `${mo}mo ago`;
+    function updateRelativeTimes() {
+      const now = new Date();
+      document.querySelectorAll(".js-rel-time").forEach(el => {
+        const ts = el.getAttribute("data-ts");
+        const d = parseTimestamp(ts);
+        if (!d) return;
+        el.textContent = formatRelative(d, now);
+      });
+    }
 
-    const yr = Math.floor(day / 365);
-    return `${yr}y ago`;
-  }
-
-  function updateRelativeTimes() {
-    const now = new Date();
-    document.querySelectorAll(".js-rel-time").forEach(el => {
-      const ts = el.getAttribute("data-ts");
-      const d = parseTimestamp(ts);
-      if (!d) return;
-
-      el.textContent = formatRelative(d, now);
-
-      // Optional: make very old items visually quieter
-      // const days = Math.floor((now - d) / (1000 * 60 * 60 * 24));
-      // el.classList.toggle("text-gray-400", days >= 7);
-    });
-  }
-
-  // Initial render + refresh every minute
-  updateRelativeTimes();
-  setInterval(updateRelativeTimes, 60 * 1000);
-</script>
-
-
-
+    updateRelativeTimes();
+    setInterval(updateRelativeTimes, 60 * 1000);
+  </script>
 </body>
 </html>
