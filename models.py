@@ -14,14 +14,12 @@ class PMCUser(Base):
     email = Column(String, nullable=False, index=True)  # store normalized lowercase
     full_name = Column(String, nullable=True)
 
-    # ✅ align roles with what we'll use everywhere
-    role = Column(String, nullable=False, default="staff")  # owner | admin | staff
+    # owner | admin | staff
+    role = Column(String, nullable=False, default="staff")
 
     is_active = Column(Boolean, default=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-
-    # ✅ super useful for auditing / debugging
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
     last_login_at = Column(DateTime, nullable=True)
 
@@ -30,6 +28,7 @@ class PMCUser(Base):
     __table_args__ = (
         UniqueConstraint("pmc_id", "email", name="uq_pmc_users_pmc_email"),
     )
+
 
 
 class Reservation(Base):
