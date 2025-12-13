@@ -413,6 +413,17 @@ def admin_chats(
             # Activity
             "msg_24h": cnt24,
             "msg_7d": cnt7,
+            "activity_label": activity_label,
+
+            # Activity label (meaning > numbers)
+            if cnt24 >= 5:
+                activity_label = "Spiking"
+            elif cnt24 >= 2:
+                activity_label = "Active"
+            elif cnt7 > 0:
+                activity_label = "Cooling"
+            else:
+                activity_label = "Quiet"
 
             # Heat diagnostics
             "heat_raw": raw_heat,
