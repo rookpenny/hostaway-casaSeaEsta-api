@@ -186,8 +186,6 @@ def admin_chats(
     property_id: Optional[int] = Query(None),     # filter by Property
     mine: Optional[int] = Query(None),            # 1 = only my assigned chats
     assigned_to: Optional[str] = Query(None),     # explicit assignee filter
-    mine: Optional[int] = Query(None),
-    assigned_to: Optional[str] = Query(None),
 ):
     # Dropdown data
     pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
