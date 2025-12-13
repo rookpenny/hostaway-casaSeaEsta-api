@@ -504,6 +504,10 @@ def escalate_chat(session_id: int, payload: dict = Body(...), db: Session = Depe
     if not s:
         return JSONResponse(status_code=404, content={"ok": False, "error": "Not found"})
 
+    # ✅ Lock escalation if resolved
+    if bool(getattr(s, "is_resolved", False)):
+        return JSONResponse(status_code=400, content={"ok": False, "error": "Session is resolved. Reopen to change escalation."})
+
     s.escalation_level = level or None
     s.updated_at = datetime.utcnow()
     db.add(s)
