@@ -303,6 +303,13 @@
                   </div>
                 </td>
 
+                <td class="px-4 py-2 text-xs text-gray-700">
+                  <span class="js-rel-time"
+                        data-iso="{{ (s.last_activity_at.isoformat() if s.last_activity_at else '') }}"
+                        title="{{ s.last_activity_at or '—' }}">
+                    {{ s.last_activity_at or "—" }}
+                  </span>
+                </td>
 
                 <td class="px-4 py-2 text-xs text-gray-600">
                   <div>{{ s.last_snippet }}</div>
