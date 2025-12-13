@@ -198,12 +198,12 @@ def admin_chats(
     request: Request,
     db: Session = Depends(get_db),
     status: Optional[str] = Query(None),          # pre_booking | active | post_stay
-    priority: Optional[str] = Query(None),        # urgent | unhappy
+    priority: Optional[str] = Query(None),        # urgent | unhappy (filter by flags)
     q: Optional[str] = Query(None),               # search guest/property/snippet
     pmc_id: Optional[str] = Query(None),          # string to avoid "" int parsing
     property_id: Optional[str] = Query(None),     # string to avoid "" int parsing
     mine: Optional[int] = Query(None),            # 1 = only my assigned chats
-    assigned_to: Optional[str] = Query(None),     # explicit assignee filter (exact match)
+    assigned_to: Optional[str] = Query(None),     # exact match
 ):
     # ---- helpers ----
     def to_int_or_none(v: Optional[str]) -> Optional[int]:
@@ -211,7 +211,6 @@ def admin_chats(
         return int(v) if v.isdigit() else None
 
     def activity_bucket(cnt24: int, cnt7: int) -> str:
-        """Human label for activity instead of confusing raw counts."""
         if cnt24 >= 5:
             return "Spiking"
         if cnt24 >= 2:
@@ -226,44 +225,61 @@ def admin_chats(
         cnt24: int,
         cnt7: int,
         status_val: str,
-    ) -> List[str]:
+    ) -> list[str]:
         """
-        Signals are emotion-style tags derived from existing data.
-        Must match what admin_chats.html renders:
-        Panicked / Angry / Upset / Confused / Worried / Calm
-        Keep to max 2 to prevent UI noise.
+        Signals = emotion-style tags derived from existing data (no new models).
+        Returned as lowercase tokens to match your Jinja checks.
+        Caps to 2 for readability.
         """
-        signals: List[str] = []
+        signals: list[str] = []
 
-        # Primary emotional signals
+        # Core signals
         if has_urgent:
-            signals.append("Panicked")
+            signals.append("panicked")
         if has_negative:
-            signals.append("Upset")
+            signals.append("upset")
 
-        # Escalate intensity if there’s repeated negative activity
+        # Amplify if negativity is repeating quickly
         if has_negative and cnt24 >= 3:
-            signals.append("Angry")
+            signals.append("angry")
 
-        # “Confused” if there’s back-and-forth but no urgent/negative flags
+        # Confused = chatter without urgent/negative flags
         if (not has_urgent) and (not has_negative) and (cnt7 >= 3 or cnt24 >= 2):
-            signals.append("Confused")
+            signals.append("confused")
 
-        # “Worried” contextual tag during active stays when there are flags
+        # Optional context
         if status_val == "active" and (has_urgent or has_negative):
-            signals.append("Worried")
+            signals.append("stressed")
 
         if not signals:
-            signals.append("Calm")
+            signals.append("calm")
 
-        # Unique + cap to 2
+        # Dedup + cap
+        out: list[str] = []
         seen = set()
-        deduped: List[str] = []
         for s in signals:
             if s not in seen:
                 seen.add(s)
-                deduped.append(s)
-        return deduped[:2]
+                out.append(s)
+        return out[:2]
+
+    def heat_score(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int) -> int:
+        score = 0
+        score += 50 if has_urgent else 0
+        score += 25 if has_negative else 0
+        score += min(25, cnt24 * 5)
+        score += min(10, cnt7)
+        return min(100, score)
+
+    def priority_bucket(heat: int) -> str:
+        """
+        Topic/ops-based priority levels (not emotional).
+        """
+        if heat >= 85:
+            return "critical"
+        if heat >= 60:
+            return "attention"
+        return "routine"
 
     pmc_id_int = to_int_or_none(pmc_id)
     property_id_int = to_int_or_none(property_id)
@@ -292,7 +308,7 @@ def admin_chats(
     # ----- assignee filters -----
     effective_assignee: Optional[str] = (assigned_to or "").strip() or None
     if mine:
-        me = get_current_admin_identity(request)  # safe version; never throws
+        me = get_current_admin_identity(request)  # safe version; should NEVER throw
         if me:
             effective_assignee = me
 
@@ -310,7 +326,6 @@ def admin_chats(
     since_24h = now - timedelta(hours=24)
     since_7d = now - timedelta(days=7)
 
-    # Defaults for empty result sets
     counts_24h: Dict[int, int] = {}
     counts_7d: Dict[int, int] = {}
     last_msg_map: Dict[int, ChatMessage] = {}
@@ -318,7 +333,7 @@ def admin_chats(
     negative_ids: set[int] = set()
 
     if session_ids:
-        # 1) Last message per session (Postgres DISTINCT ON)
+        # Last message per session (Postgres DISTINCT ON)
         latest_msgs = (
             db.query(ChatMessage)
               .filter(ChatMessage.session_id.in_(session_ids))
@@ -328,7 +343,6 @@ def admin_chats(
         )
         last_msg_map = {int(m.session_id): m for m in latest_msgs}
 
-        # 2) Urgent flag per session (batched)
         urgent_ids = set(
             int(sid) for (sid,) in (
                 db.query(ChatMessage.session_id)
@@ -342,7 +356,6 @@ def admin_chats(
             )
         )
 
-        # 3) Negative flag per session (batched)
         negative_ids = set(
             int(sid) for (sid,) in (
                 db.query(ChatMessage.session_id)
@@ -356,7 +369,6 @@ def admin_chats(
             )
         )
 
-        # 4) Message counts
         for sid, cnt in (
             db.query(ChatMessage.session_id, func.count(ChatMessage.id))
               .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_24h)
@@ -372,14 +384,6 @@ def admin_chats(
               .all()
         ):
             counts_7d[int(sid)] = int(cnt)
-
-    def heat_score(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int) -> int:
-        score = 0
-        score += 50 if has_urgent else 0
-        score += 25 if has_negative else 0
-        score += min(25, cnt24 * 5)
-        score += min(10, cnt7)
-        return min(100, score)
 
     items = []
     q_lower = (q or "").strip().lower()
@@ -401,13 +405,12 @@ def admin_chats(
         has_urgent = sid in urgent_ids
         has_negative = sid in negative_ids
 
-        # Priority filter (based on raw flags)
+        # Filter dropdown "priority" is still based on flags
         if priority == "urgent" and not has_urgent:
             continue
         if priority == "unhappy" and not has_negative:
             continue
 
-        # Text search filter
         if q_lower:
             hay = f"{property_name} {guest_name} {snippet}".lower()
             if q_lower not in hay:
@@ -419,7 +422,7 @@ def admin_chats(
         cnt24 = counts_24h.get(sid, 0)
         cnt7 = counts_7d.get(sid, 0)
 
-        # --- Priority score (raw -> multiplier -> decay) ---
+        # Score (raw -> multiplier -> decay)
         raw_heat = heat_score(has_urgent, has_negative, cnt24, cnt7)
 
         multiplier = 1.0
@@ -433,10 +436,13 @@ def admin_chats(
         heat_boosted = int(min(100, round(raw_heat * multiplier)))
         heat = decay_heat(heat_boosted, getattr(s, "last_activity_at", None))
 
+        # Ops priority bucket (topic-based labels)
+        priority_level = priority_bucket(heat)
+
         next_action = extract_next_action(getattr(s, "ai_summary", None))
         activity_label = activity_bucket(cnt24, cnt7)
 
-        # --- Signals (emotion words derived from existing data) ---
+        # Signals (emotion tokens)
         signals = derive_signals(
             has_urgent=has_urgent,
             has_negative=has_negative,
@@ -466,7 +472,7 @@ def admin_chats(
             "source": getattr(s, "source", None),
             "last_snippet": snippet,
 
-            # Signals + flags
+            # Signals
             "signals": signals,
             "has_urgent": has_urgent,
             "has_negative": has_negative,
@@ -477,10 +483,11 @@ def admin_chats(
             "msg_7d": cnt7,
             "activity_label": activity_label,
 
-            # Priority diagnostics
+            # Priority score + label
             "heat_raw": raw_heat,
             "heat_boosted": heat_boosted,
             "heat": heat,
+            "priority_level": priority_level,
 
             # AI assist
             "next_action": next_action,
@@ -494,13 +501,13 @@ def admin_chats(
     if auto_escalation_updates:
         db.commit()
 
-    # Sort: heat first, then recency
+    # Sort: priority score first, then recency
     items.sort(
         key=lambda x: (x["heat"], x["last_activity_at"] or datetime.min),
         reverse=True
     )
 
-    # Analytics (global)
+    # Analytics
     by_status = dict(
         db.query(ChatSession.reservation_status, func.count(ChatSession.id))
           .group_by(ChatSession.reservation_status)
@@ -548,6 +555,7 @@ def admin_chats(
             "properties": properties,
         }
     )
+
 
 
 
