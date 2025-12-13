@@ -9,6 +9,10 @@
   <style>
     .card { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.06); }
     .hairline { box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
+    /* Active nav state */
+    .nav-item[aria-current="page"] { background: rgb(248 250 252); color: rgb(15 23 42); }
+    .nav-item[aria-current="page"] .nav-icon-wrap { background: rgb(15 23 42); border-color: rgb(15 23 42); }
+    .nav-item[aria-current="page"] svg { color: white; }
   </style>
 </head>
 
@@ -49,8 +53,9 @@
         <!-- Overview -->
         <button data-view="overview"
           class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-          aria-current="page">
-          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+          aria-current="page"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
             <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
               <path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-18v6h8V3h-8z"
                 stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -60,10 +65,10 @@
         </button>
 
         {% if user_role == "super" %}
-        <!-- Super-only -->
         <button data-view="chats"
-          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
-          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
             <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
               <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z"
                 stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -73,8 +78,9 @@
         </button>
 
         <button data-view="pmcs"
-          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
-          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
             <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
               <path d="M4 21V3h10v18M14 9h6v12M8 7h2M8 11h2M8 15h2M18 13h2M18 17h2"
                 stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
@@ -84,8 +90,9 @@
         </button>
 
         <button data-view="files"
-          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
-          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
             <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
                 stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -96,8 +103,9 @@
         </button>
 
         <button data-view="analytics"
-          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
-          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
             <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
               <path d="M4 19V5M4 19h16M8 15v-6M12 19V9M16 13v-4M20 19V7"
                 stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
@@ -107,10 +115,10 @@
         </button>
         {% endif %}
 
-        <!-- Shared: Properties + Settings -->
         <button data-view="properties"
-          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
-          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
             <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
               <path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10.5z"
                 stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
@@ -120,8 +128,9 @@
         </button>
 
         <button data-view="settings"
-          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
-          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
             <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
               <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.7"/>
               <path d="M19.4 15a7.8 7.8 0 0 0 .1-2l2-1.3-2-3.4-2.3.6a8 8 0 0 0-1.7-1L15 3h-6l-.5 2.9a8 8 0 0 0-1.7 1L4.5 6.3l-2 3.4 2 1.3a7.8 7.8 0 0 0 0 2l-2 1.3 2 3.4 2.3-.6a8 8 0 0 0 1.7 1L9 21h6l.5-2.9a8 8 0 0 0 1.7-1l2.3.6 2-3.4-2-1.3z"
@@ -131,7 +140,6 @@
           <span class="sidebar-label font-medium">Settings</span>
         </button>
 
-        <!-- Auth -->
         <a href="/auth/logout"
            class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-slate-700">
           <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
@@ -192,12 +200,14 @@
 
           {% if user_role == "super" %}
           <div class="flex items-center gap-2">
-            <button class="h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">
-              Export
-            </button>
-            <button class="h-10 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm">
+            <a href="/admin/chats"
+              class="h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm grid place-items-center">
+              Chats
+            </a>
+            <a href="/admin/new-pmc"
+              class="h-10 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm grid place-items-center">
               New PMC
-            </button>
+            </a>
           </div>
           {% endif %}
         </div>
@@ -214,34 +224,42 @@
           {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
 
           <div class="grid grid-cols-12 gap-4">
-            <div class="col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-xs text-slate-500">Properties</div>
               <div class="mt-2 text-3xl font-semibold">{{ total_props }}</div>
               <div class="mt-2 text-xs text-slate-500">Portfolio size</div>
             </div>
 
-            <div class="col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-xs text-slate-500">Live</div>
               <div class="mt-2 text-3xl font-semibold">{{ live_props }}</div>
               <div class="mt-2 text-xs text-emerald-600">Sandy enabled</div>
             </div>
 
-            <div class="col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-xs text-slate-500">Offline</div>
               <div class="mt-2 text-3xl font-semibold">{{ offline_props }}</div>
               <div class="mt-2 text-xs text-rose-600">Needs attention</div>
             </div>
 
-            <div class="col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-xs text-slate-500">Last Sync</div>
               <div class="mt-2 text-lg font-semibold">
-                {{ properties[0]["last_synced_fmt"] if properties else "—" }}
+                {% if properties and properties[0].last_synced %}
+                  {% set seconds = (now - properties[0].last_synced).total_seconds() %}
+                  {% if seconds < 60 %} just now
+                  {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+                  {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+                  {% else %} {{ (seconds // 86400)|int }} days ago
+                  {% endif %}
+                {% else %}
+                  —
+                {% endif %}
               </div>
               <div class="mt-2 text-xs text-slate-500">Most recent property record</div>
             </div>
           </div>
 
-          <!-- Status Overview Chart -->
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
             <div class="flex items-center justify-between">
               <div>
@@ -256,15 +274,14 @@
           </div>
 
           {% if user_role == "super" %}
-          <!-- Super-only: keep your epic “system” cards here -->
           <div class="grid grid-cols-12 gap-4">
-            <div class="col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="col-span-12 xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-sm font-semibold">Chat Volume</div>
               <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
                 Chart placeholder
               </div>
             </div>
-            <div class="col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="col-span-12 xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-sm font-semibold">Priority Inbox</div>
               <div class="mt-2 text-xs text-slate-500">Escalations & time-sensitive issues</div>
               <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
@@ -275,10 +292,9 @@
           {% endif %}
         </section>
 
-        <!-- PROPERTIES (PMC dashboard merged into new UI) -->
+        <!-- PROPERTIES -->
         <section id="view-properties" class="view hidden space-y-4">
 
-          <!-- Controls -->
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
             <div class="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
               <div>
@@ -305,7 +321,6 @@
             </div>
           </div>
 
-          <!-- Grid -->
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {% for prop in properties %}
             <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
@@ -317,7 +332,7 @@
                 <div class="min-w-0">
                   <div class="text-lg font-semibold truncate">{{ prop.property_name }}</div>
                   <div class="mt-1 text-xs text-slate-500">
-                    ID: {{ prop.id }} • PMS: {{ prop.pms_property_id }}
+                    ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %}
                   </div>
                 </div>
 
@@ -347,29 +362,28 @@
               </div>
 
               <div class="mt-4 flex gap-2 flex-wrap items-center">
-                {% if user_role == "super" %}
-                  <!-- Super can edit files -->
-                  <a href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json"
+                {% if user_role == "super" and prop.data_folder_path %}
+                  <a href="/edit-file?file={{ prop.data_folder_path }}/config.json"
                      class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800">
                     Edit Config
                   </a>
-                  <a href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+                  <a href="/edit-file?file={{ prop.data_folder_path }}/manual.txt"
                      class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50">
                     Edit Manual
                   </a>
                 {% endif %}
 
                 <button onclick="syncProperty({{ prop.id }}, this)"
-                        class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50">
+                        class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50"
+                        type="button">
                   Sync
                 </button>
 
                 <button onclick="toggleProperty({{ prop.id }}, this)"
-                        class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700">
+                        class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700"
+                        type="button">
                   {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
                 </button>
-
-                <span id="status-{{ prop.id }}" class="text-xs text-slate-500"></span>
               </div>
             </div>
             {% endfor %}
@@ -377,11 +391,12 @@
         </section>
 
         {% if user_role == "super" %}
-        <!-- CHATS / PMCS / FILES / ANALYTICS placeholders (super only) -->
         <section id="view-chats" class="view hidden">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
             <div class="text-sm font-semibold">Chats</div>
-            <div class="mt-2 text-sm text-slate-500">Wire your /admin/chats view here.</div>
+            <div class="mt-2 text-sm text-slate-500">
+              Go to <a class="underline font-semibold" href="/admin/chats">/admin/chats</a>.
+            </div>
           </div>
         </section>
 
@@ -407,7 +422,6 @@
         </section>
         {% endif %}
 
-        <!-- SETTINGS -->
         <section id="view-settings" class="view hidden">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
             <div class="text-sm font-semibold">Settings</div>
@@ -420,7 +434,6 @@
             </div>
 
             <div class="mt-4">
-              <!-- Google auth note (UI side) -->
               <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
                 Login uses Google OAuth for all users. If you need to re-authenticate, use
                 <a class="underline font-semibold" href="/auth/login/google">Google Sign-In</a>.
@@ -433,7 +446,6 @@
     </main>
   </div>
 
-  <!-- Chart.js (kept from your PMC dashboard) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <script>
@@ -460,6 +472,14 @@
       setCollapsed(!isCollapsed);
     });
 
+    // ⌘K focus
+    document.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        document.getElementById("globalSearch")?.focus();
+      }
+    });
+
     // --- View routing ---
     const pageTitle = document.getElementById("page-title");
     const pageSubtitle = document.getElementById("page-subtitle");
@@ -477,9 +497,12 @@
     };
 
     function showView(key) {
-      views.forEach(v => v.classList.add("hidden"));
+      // If hash points to a view the user can't see, fall back.
       const target = document.getElementById(`view-${key}`);
-      if (target) target.classList.remove("hidden");
+      if (!target) key = "overview";
+
+      views.forEach(v => v.classList.add("hidden"));
+      document.getElementById(`view-${key}`)?.classList.remove("hidden");
 
       navItems.forEach(btn => btn.setAttribute("aria-current", "false"));
       const activeBtn = navItems.find(b => b.dataset.view === key);
@@ -491,7 +514,6 @@
 
       history.replaceState(null, "", `#${key}`);
 
-      // If properties view, sync global search into properties search
       if (key === "properties") {
         const global = document.getElementById("globalSearch");
         const local = document.getElementById("searchInput");
@@ -507,9 +529,8 @@
     const initial = (location.hash || "#overview").replace("#", "");
     showView(initial);
 
-    // --- PMC Properties: Chart + filter + actions ---
+    // --- Chart + filter + actions ---
     document.addEventListener("DOMContentLoaded", () => {
-      // Chart
       const ctx = document.getElementById("statusChart");
       if (ctx) {
         new Chart(ctx, {
@@ -518,8 +539,7 @@
             labels: ["LIVE", "OFFLINE"],
             datasets: [{
               label: "Properties",
-              data: [{{ live_props }}, {{ offline_props }}],
-              backgroundColor: ["#22c55e", "#ef4444"]
+              data: [{{ live_props }}, {{ offline_props }}]
             }]
           },
           options: {
@@ -530,7 +550,6 @@
         });
       }
 
-      // Filters
       window.filterProperties = function () {
         const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
         const status = document.getElementById("statusFilter")?.value || "all";
@@ -552,27 +571,20 @@
       document.getElementById("searchInput")?.addEventListener("input", filterProperties);
       document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
 
-      // Actions
       window.syncProperty = async function (id, btn) {
         btn.disabled = true;
         const original = btn.innerHTML;
         btn.innerHTML = "Syncing…";
 
         try {
-          const res = await fetch(`/auth/sync-property/${id}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" }
-          });
+          const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
           const data = await res.json();
           btn.innerHTML = data.status === "success" ? "Synced ✓" : "Failed";
         } catch (err) {
           btn.innerHTML = "Error";
         }
 
-        setTimeout(() => {
-          btn.innerHTML = original;
-          btn.disabled = false;
-        }, 1200);
+        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1200);
       };
 
       window.toggleProperty = async function (id, btn) {
@@ -581,10 +593,7 @@
         btn.innerHTML = "Toggling…";
 
         try {
-          const res = await fetch(`/auth/toggle-property/${id}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" }
-          });
+          const res = await fetch(`/auth/toggle-property/${id}`, { method: "POST" });
           const data = await res.json();
 
           if (data.status === "success") {
@@ -594,7 +603,6 @@
             if (card) {
               card.dataset.live = (data.new_status === "LIVE") ? "true" : "false";
 
-              // update badge (first status pill in header area)
               const pill = card.querySelector("span.rounded-full");
               if (pill) {
                 if (data.new_status === "LIVE") {
@@ -606,7 +614,6 @@
                 }
               }
 
-              // reapply filter so it disappears/appears correctly
               filterProperties();
             }
           } else {
@@ -616,10 +623,7 @@
           btn.innerHTML = "Error";
         }
 
-        setTimeout(() => {
-          btn.innerHTML = original;
-          btn.disabled = false;
-        }, 1200);
+        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1200);
       };
     });
   </script>
