@@ -270,17 +270,14 @@
                   {% endif %}
                 </td>
 
-                <!-- Heat -->
+                <!-- Pulse -->
                 <td class="px-4 py-2 text-xs"
                     title="Pulse details:
                 Raw: {{ s.heat_raw }}
                 Boosted: {{ s.heat_boosted }}
                 24h messages: {{ s.msg_24h }}
                 7d messages: {{ s.msg_7d }}
-                Urgent: {{ 'yes' if s.has_urgent else 'no' }}
-                Unhappy: {{ 'yes' if s.has_negative else 'no' }}
-                Status: {{ s.reservation_status }}
-                Last activity: {{ s.last_activity_at or '—' }}">
+                Urgent: {{ 'yes' if s.has_urgent else 'no' }}">
                   
                   {# --- Pulse badge (your existing thresholds) --- #}
                   {% if s.heat >= 85 %}
@@ -301,8 +298,8 @@
                 
                   {# --- Meaningful activity line --- #}
                   <div class="text-[11px] text-gray-500 mt-1">
-                    Activity: <span class="font-semibold text-gray-700">{{ s.activity_label }}</span>
-                    <span class="text-gray-400">• hover for counts</span>
+                    <span class="font-semibold text-gray-700">Activity: {{ s.activity_label }}</span>
+                    <!--span class="text-gray-400">• hover for counts</span-->
                   </div>
                 </td>
 
