@@ -69,22 +69,25 @@ def admin_chats(
     from typing import Dict
     from sqlalchemy import and_
 
+    # Normalize "" -> None, "123" -> 123
+    pmc_id_int = int(pmc_id) if (pmc_id and pmc_id.strip()) else None
+    property_id_int = int(property_id) if (property_id and property_id.strip()) else None
+
     # Dropdown data
     pmcs = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
     properties = db.query(Property).order_by(Property.property_name.asc()).all()
 
     base_q = db.query(ChatSession)
 
-    # PMC filter (join properties to access pmc_id)
-    if pmc_id:
+    if pmc_id_int:
         base_q = (
             base_q.join(Property, ChatSession.property_id == Property.id)
-                  .filter(Property.pmc_id == pmc_id)
+                  .filter(Property.pmc_id == pmc_id_int)
         )
 
-    # Property filter
-    if property_id:
-        base_q = base_q.filter(ChatSession.property_id == property_id)
+    if property_id_int:
+        base_q = base_q.filter(ChatSession.property_id == property_id_int)
+
 
     # Reservation status filter
     if status in {"pre_booking", "active", "post_stay"}:
@@ -306,8 +309,8 @@ def admin_chats(
                 "status": status,
                 "priority": priority,
                 "q": q,
-                "pmc_id": pmc_id,
-                "property_id": property_id,
+                "pmc_id": pmc_id_int,               # 👈 pass int/None to template
+                "property_id": property_id_int,     # 👈 pass int/None to template
             },
             "analytics": analytics,
             "pmcs": pmcs,
