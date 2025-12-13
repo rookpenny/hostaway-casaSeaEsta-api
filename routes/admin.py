@@ -243,12 +243,12 @@ def admin_chats(
     effective_assignee: Optional[str] = (assigned_to or "").strip() or None
 
     if mine:
-        me = get_current_admin_identity(request)  # <-- must exist in your file
+        me = get_current_admin_identity(request)  # must exist; should NEVER throw
         if me:
             effective_assignee = me
 
     if effective_assignee:
-        # exact match (change to ilike if you prefer partials)
+        # exact match (swap to ilike for partials if you want)
         base_q = base_q.filter(ChatSession.assigned_to == effective_assignee)
 
     sessions = (
@@ -333,6 +333,18 @@ def admin_chats(
         score += min(10, cnt7)
         return min(100, score)
 
+    def activity_bucket(cnt24: int, cnt7: int) -> str:
+        """
+        Replace confusing '24h: 14 · 7d: 14' with a human label.
+        """
+        if cnt24 >= 5:
+            return "Spiking"
+        if cnt24 >= 2:
+            return "Active"
+        if cnt7 > 0:
+            return "Cooling"
+        return "Quiet"
+
     items = []
     q_lower = (q or "").strip().lower()
     auto_escalation_updates = 0
@@ -345,7 +357,7 @@ def admin_chats(
         guest_name = (getattr(s, "guest_name", None) or "").strip()
 
         last_msg = last_msg_map.get(sid)
-        snippet = (last_msg.content[:120] + "…") if last_msg and last_msg.content else ""
+        snippet = (last_msg.content[:120] + "…") if last_msg and getattr(last_msg, "content", None) else ""
 
         has_urgent = sid in urgent_ids
         has_negative = sid in negative_ids
@@ -368,7 +380,7 @@ def admin_chats(
         cnt24 = counts_24h.get(sid, 0)
         cnt7 = counts_7d.get(sid, 0)
 
-        # Heat: raw -> multiplier -> decay
+        # Pulse (raw -> multiplier -> decay)
         raw_heat = heat_score(has_urgent, has_negative, cnt24, cnt7)
 
         multiplier = 1.0
@@ -383,6 +395,7 @@ def admin_chats(
         heat = decay_heat(heat_boosted, getattr(s, "last_activity_at", None))
 
         next_action = extract_next_action(getattr(s, "ai_summary", None))
+        activity_label = activity_bucket(cnt24, cnt7)
 
         # Auto-escalation (only escalate up; never downgrade)
         is_resolved = bool(getattr(s, "is_resolved", False))
@@ -410,22 +423,12 @@ def admin_chats(
             "has_negative": has_negative,
             "needs_attention": needs_attention,
 
-            # Activity
+            # Activity (keep counts for tooltips, but UI can show label)
             "msg_24h": cnt24,
             "msg_7d": cnt7,
             "activity_label": activity_label,
 
-            # Activity label (meaning > numbers)
-            if cnt24 >= 5:
-                activity_label = "Spiking"
-            elif cnt24 >= 2:
-                activity_label = "Active"
-            elif cnt7 > 0:
-                activity_label = "Cooling"
-            else:
-                activity_label = "Quiet"
-
-            # Heat diagnostics
+            # Pulse diagnostics
             "heat_raw": raw_heat,
             "heat_boosted": heat_boosted,
             "heat": heat,
@@ -496,8 +499,6 @@ def admin_chats(
             "properties": properties,
         }
     )
-
-
 
 
 
