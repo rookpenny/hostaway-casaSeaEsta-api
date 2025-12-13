@@ -12,12 +12,15 @@ from fastapi.exceptions import RequestValidationError
 
 from starlette.status import HTTP_303_SEE_OTHER
 from sqlalchemy.orm import Session
-from sqlalchemy import or_, func
+from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional
 from pathlib import Path
 
-from database import SessionLocal, datetime, timedelta, date
+#from database import SessionLocal, datetime, timedelta, date
+from database import SessionLocal
+from datetime import datetime, timedelta, date
+
 from models import PMC, Property, ChatSession, ChatMessage
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
@@ -254,11 +257,6 @@ def admin_dashboard(request: Request):
         "pmc": pmc_data  # ✅ Now it's safe to use `tojson` in the template
     })
 
-
-from datetime import timedelta
-from sqlalchemy import and_
-
-ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
 
 @router.post("/admin/jobs/refresh-session-status")
 def refresh_session_status(request: Request, db: Session = Depends(get_db)):
