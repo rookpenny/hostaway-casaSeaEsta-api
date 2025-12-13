@@ -90,57 +90,74 @@ def get_current_admin_identity(request: Request) -> Optional[str]:
     return None
 
 
-def decay_heat(raw_heat: int, last_activity_at: Optional[datetime]) -> int:
+def decay_heat(heat_value: int, last_activity_at: Optional[datetime]) -> int:
     """
     Heat decay so old fires drop.
     Simple rule: -10 per day since last activity (max -50).
     """
     if not last_activity_at:
-        return raw_heat
+        return heat_value
 
     try:
-        # if last_activity_at is naive, treat as UTC
         now = datetime.utcnow()
+
+        # If last_activity_at is timezone-aware, make "now" aware too
+        if getattr(last_activity_at, "tzinfo", None) is not None:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+
         delta = now - last_activity_at
         days = max(0, int(delta.total_seconds() // 86400))
         penalty = min(50, days * 10)
-        return max(0, raw_heat - penalty)
+        return max(0, int(heat_value) - penalty)
     except Exception:
-        return raw_heat
+        return heat_value
+
 
 
 def extract_next_action(ai_summary: Optional[str]) -> Optional[str]:
     """
     Pull a short 'next action' string from the AI summary markdown.
 
-    Tries:
-      1) a bullet under 'Recommended next action'
-      2) the first line after that header
+    Looks for the section header "Recommended next action" (markdown bold),
+    then returns:
+      1) first bullet/numbered item under it, else
+      2) first non-empty line under it
+    Stops when the next bold-section header starts.
     """
     if not ai_summary:
         return None
 
     text = ai_summary.strip()
 
-    # Look for the "Recommended next action" section
-    m = re.search(r"\*\*Recommended next action\*\*\s*(.*)", text, flags=re.IGNORECASE | re.DOTALL)
+    # Find start of the section
+    m = re.search(r"\*\*Recommended next action\*\*\s*", text, flags=re.IGNORECASE)
     if not m:
         return None
 
-    tail = m.group(1).strip()
+    tail = text[m.end():].lstrip()
 
-    # First bullet under that section
-    b = re.search(r"^\s*[-*]\s+(.+)$", tail, flags=re.MULTILINE)
-    if b:
-        return b.group(1).strip()[:140]
+    # Stop at the next bold section header (**Something**)
+    stop = re.search(r"\n\s*\*\*[^*]+\*\*\s*", tail)
+    if stop:
+        tail = tail[:stop.start()].strip()
+
+    if not tail:
+        return None
+
+    # Prefer first bullet or numbered item
+    item = re.search(r"^\s*(?:[-*]|[0-9]+\.)\s+(.+)$", tail, flags=re.MULTILINE)
+    if item:
+        return item.group(1).strip()[:140]
 
     # Otherwise first non-empty line
     for line in tail.splitlines():
-        line = line.strip()
+        line = line.strip().lstrip("-*").strip()
         if line:
             return line[:140]
 
     return None
+
 
 
 def desired_escalation_level(heat: int) -> Optional[str]:
