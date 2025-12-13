@@ -198,6 +198,7 @@ def escalation_rank(level: Optional[str]) -> int:
 
 
 # 💬 Recent Chats Overview
+# 💬 Recent Chats Overview
 @router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(
     request: Request,
@@ -208,12 +209,66 @@ def admin_chats(
     pmc_id: Optional[str] = Query(None),          # filter by PMC (string to avoid "" int parsing)
     property_id: Optional[str] = Query(None),     # filter by Property (string to avoid "" int parsing)
     mine: Optional[int] = Query(None),            # 1 = only my assigned chats
-    assigned_to: Optional[str] = Query(None),     # explicit assignee filter
+    assigned_to: Optional[str] = Query(None),     # explicit assignee filter (exact match)
 ):
     # ---- helpers ----
     def to_int_or_none(v: Optional[str]) -> Optional[int]:
         v = (v or "").strip()
         return int(v) if v.isdigit() else None
+
+    def activity_bucket(cnt24: int, cnt7: int) -> str:
+        """Human label for activity instead of confusing raw counts."""
+        if cnt24 >= 5:
+            return "Spiking"
+        if cnt24 >= 2:
+            return "Active"
+        if cnt7 > 0:
+            return "Cooling"
+        return "Quiet"
+
+    def derive_signals(
+        has_urgent: bool,
+        has_negative: bool,
+        cnt24: int,
+        cnt7: int,
+        status_val: str,
+    ) -> list[str]:
+        """
+        Signals are emotion-style tags derived from existing data.
+        No new tables/models needed.
+        Keep to max 2 to prevent UI noise.
+        """
+        signals: list[str] = []
+
+        # Primary emotional signals
+        if has_urgent:
+            signals.append("Panicked")
+        if has_negative:
+            signals.append("Upset")
+
+        # Escalate intensity if there’s repeated negative activity
+        if has_negative and cnt24 >= 3:
+            signals.append("Angry")
+
+        # “Confused” if there’s back-and-forth but no urgent/negative flags
+        if (not has_urgent) and (not has_negative) and (cnt7 >= 3 or cnt24 >= 2):
+            signals.append("Confused")
+
+        # Active stay adds context (optional, but useful)
+        if status_val == "active" and (has_urgent or has_negative):
+            signals.append("Stressed")
+
+        if not signals:
+            signals.append("Calm")
+
+        # Unique + cap to 2
+        seen = set()
+        deduped: list[str] = []
+        for s in signals:
+            if s not in seen:
+                seen.add(s)
+                deduped.append(s)
+        return deduped[:2]
 
     pmc_id_int = to_int_or_none(pmc_id)
     property_id_int = to_int_or_none(property_id)
@@ -241,14 +296,12 @@ def admin_chats(
 
     # ----- assignee filters -----
     effective_assignee: Optional[str] = (assigned_to or "").strip() or None
-
     if mine:
-        me = get_current_admin_identity(request)  # must exist; should NEVER throw
+        me = get_current_admin_identity(request)  # should NEVER throw (your safe version)
         if me:
             effective_assignee = me
 
     if effective_assignee:
-        # exact match (swap to ilike for partials if you want)
         base_q = base_q.filter(ChatSession.assigned_to == effective_assignee)
 
     sessions = (
@@ -333,18 +386,6 @@ def admin_chats(
         score += min(10, cnt7)
         return min(100, score)
 
-    def activity_bucket(cnt24: int, cnt7: int) -> str:
-        """
-        Replace confusing '24h: 14 · 7d: 14' with a human label.
-        """
-        if cnt24 >= 5:
-            return "Spiking"
-        if cnt24 >= 2:
-            return "Active"
-        if cnt7 > 0:
-            return "Cooling"
-        return "Quiet"
-
     items = []
     q_lower = (q or "").strip().lower()
     auto_escalation_updates = 0
@@ -357,12 +398,15 @@ def admin_chats(
         guest_name = (getattr(s, "guest_name", None) or "").strip()
 
         last_msg = last_msg_map.get(sid)
-        snippet = (last_msg.content[:120] + "…") if last_msg and getattr(last_msg, "content", None) else ""
+        snippet = ""
+        if last_msg and getattr(last_msg, "content", None):
+            snippet = last_msg.content.strip()
+            snippet = (snippet[:120] + "…") if len(snippet) > 120 else snippet
 
         has_urgent = sid in urgent_ids
         has_negative = sid in negative_ids
 
-        # Priority filter
+        # Priority filter (based on raw flags)
         if priority == "urgent" and not has_urgent:
             continue
         if priority == "unhappy" and not has_negative:
@@ -380,7 +424,7 @@ def admin_chats(
         cnt24 = counts_24h.get(sid, 0)
         cnt7 = counts_7d.get(sid, 0)
 
-        # Pulse (raw -> multiplier -> decay)
+        # --- Priority score (raw -> multiplier -> decay) ---
         raw_heat = heat_score(has_urgent, has_negative, cnt24, cnt7)
 
         multiplier = 1.0
@@ -396,6 +440,15 @@ def admin_chats(
 
         next_action = extract_next_action(getattr(s, "ai_summary", None))
         activity_label = activity_bucket(cnt24, cnt7)
+
+        # --- Signals (emotion words derived from existing data) ---
+        signals = derive_signals(
+            has_urgent=has_urgent,
+            has_negative=has_negative,
+            cnt24=cnt24,
+            cnt7=cnt7,
+            status_val=status_val,
+        )
 
         # Auto-escalation (only escalate up; never downgrade)
         is_resolved = bool(getattr(s, "is_resolved", False))
@@ -415,20 +468,21 @@ def admin_chats(
             "guest_name": getattr(s, "guest_name", None),
             "reservation_status": status_val,
             "last_activity_at": s.last_activity_at,
-            "source": s.source,
+            "source": getattr(s, "source", None),
             "last_snippet": snippet,
 
-            # Flags
+            # Signals + flags
+            "signals": signals,
             "has_urgent": has_urgent,
             "has_negative": has_negative,
             "needs_attention": needs_attention,
 
-            # Activity (keep counts for tooltips, but UI can show label)
+            # Activity (keep counts for tooltips, UI can show label)
             "msg_24h": cnt24,
             "msg_7d": cnt7,
             "activity_label": activity_label,
 
-            # Pulse diagnostics
+            # Priority diagnostics (you can hide raw/boosted in UI later)
             "heat_raw": raw_heat,
             "heat_boosted": heat_boosted,
             "heat": heat,
@@ -499,6 +553,7 @@ def admin_chats(
             "properties": properties,
         }
     )
+
 
 
 
