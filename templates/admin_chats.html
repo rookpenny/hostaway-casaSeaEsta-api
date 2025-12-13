@@ -299,15 +299,12 @@
 
                 <!-- Priority (was Pulse/heat) -->
                 <td class="px-4 py-2 text-xs"
-                    title="Why this is high:
-Score: {{ s.heat }}
-Raw: {{ s.heat_raw }}
-Boosted: {{ s.heat_boosted }}
-24h msgs: {{ s.msg_24h }}
-7d msgs: {{ s.msg_7d }}
-Urgent: {{ 'yes' if s.has_urgent else 'no' }}
-Unhappy: {{ 'yes' if s.has_negative else 'no' }}"
-                >
+                    title="Priority details:
+                    Base score: {{ s.heat_raw }}
+                    Adjusted score: {{ s.heat_boosted }}
+                    Recent activity (24h): {{ s.msg_24h }} messages
+                    Recent activity (7d): {{ s.msg_7d }} messages
+                    Urgent flag: {{ 'yes' if s.has_urgent else 'no' }}">
                   {% if s.heat >= 85 %}
                     <span class="inline-block px-2 py-1 rounded-full bg-red-200 text-red-900 font-semibold cursor-help">🔥 Critical</span>
                   {% elif s.heat >= 60 %}
