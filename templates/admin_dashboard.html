@@ -1,616 +1,443 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <title>Admin Dashboard</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HostScout Admin</title>
+
+  <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+
   <style>
-    body {
-      font-family: Arial, sans-serif;
-      padding: 2rem;
-      background: #f4f4f4;
-    }
-    h1 {
-      text-align: center;
-    }
-    .top-bar {
-      display: flex;
-      justify-content: space-between;
-      margin-bottom: 2rem;
-    }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      background: white;
-      border-radius: 8px;
-      overflow: hidden;
-      box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    }
-    th, td {
-      padding: 1rem;
-      border-bottom: 1px solid #ddd;
-      text-align: left;
-    }
-    th {
-      background-color: #f0f0f0;
-    }
-    a.button, button.sync-one {
-      background: #2d72d9;
-      color: white;
-      padding: 0.5rem 1rem;
-      border-radius: 6px;
-      text-decoration: none;
-      border: none;
-      cursor: pointer;
-    }
-    button.sync-one:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-    .status-select {
-      padding: 0.4rem;
-    }
-    .warning-row {
-      background-color: #fff3cd;
-      color: #856404;
-    }
-    .sync-result.success {
-      color: #27ae60;
-    }
-    .sync-result.error {
-      color: #c0392b;
-    }
-    #sync-progress {
-      margin: 1rem 0;
-      font-style: italic;
-    }
+    /* Small niceties without changing your stack */
+    .card { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.06); }
+    .hairline { box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
   </style>
 </head>
-<body class="bg-gray-100 text-gray-800">
 
- <div class="max-w-7xl mx-auto px-4 py-8">
-    <h1 class="text-3xl font-bold text-center mb-6">🛠️ Admin Dashboard</h1>
+<body class="bg-slate-50 text-slate-900">
+  <div class="min-h-screen flex">
 
+    <!-- Sidebar -->
+    <aside id="sidebar"
+      class="sticky top-0 h-screen bg-white border-r border-slate-200 flex flex-col
+             w-72 transition-[width] duration-200 ease-out">
 
- <!-- Top Bar -->
-    <div class="flex flex-col sm:flex-row justify-between items-center mb-4 gap-3">
-      <input type="text" id="search" placeholder="Search PMCs..." class="w-full sm:w-1/3 px-3 py-2 border rounded shadow-sm" />
-      <div class="flex gap-2">
-        <button id="add-pmc-btn" class="bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded shadow">➕ Add PMC</button>
-        <button id="sync-all" class="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded shadow">🔄 Sync All</button>
+      <!-- Brand -->
+      <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200">
+        <a href="#" class="flex items-center gap-2 overflow-hidden">
+          <div class="w-9 h-9 rounded-xl bg-slate-900 text-white grid place-items-center font-semibold">
+            H
+          </div>
+          <div class="sidebar-label whitespace-nowrap">
+            <div class="text-sm font-semibold leading-4">HostScout</div>
+            <div class="text-xs text-slate-500">Admin</div>
+          </div>
+        </a>
+
+        <button id="sidebar-toggle"
+          class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50 grid place-items-center"
+          aria-label="Toggle sidebar">
+          <!-- collapse icon -->
+          <svg class="h-5 w-5 text-slate-600" viewBox="0 0 24 24" fill="none">
+            <path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
       </div>
-    </div>
 
-<!-- Sync Progress -->
-    <div id="sync-progress" class="italic text-sm text-gray-600 mb-2 hidden"></div>
+      <!-- Nav -->
+      <nav class="p-3 space-y-1">
+        <!-- item template: data-view ties to content panels -->
+        <button data-view="overview"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="page">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <!-- dashboard icon -->
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-18v6h8V3h-8z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Overview</span>
+        </button>
 
+        <button data-view="chats"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <!-- chat icon -->
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Chats</span>
+          <span class="sidebar-label ml-auto text-xs px-2 py-1 rounded-full bg-slate-100 border border-slate-200 text-slate-600">Live</span>
+        </button>
 
-  <div class="overflow-x-auto bg-white shadow-md rounded-lg">
-<table class="min-w-full text-sm">
-        <thead class="bg-gray-100 text-left">
-          <tr>
-            <th class="px-4 py-3">PMC</th>
-            <th class="px-4 py-3">Account ID</th>
-            <th class="px-4 py-3">API Key</th>
-            <th class="px-4 py-3">Contact</th>
-            <th class="px-4 py-3">Integration</th>
-            <th class="px-4 py-3">Active</th>
-            <th class="px-4 py-3">Sync</th>
-            <th class="px-4 py-3">Last Synced</th>
-            <th class="px-4 py-3">Status</th>
-            <th class="px-4 py-3">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-    {% for record in pmc %}
-            {% if not record.pms_account_id or not record.pms_api_key %}
-              <tr class="bg-yellow-100 text-yellow-800">
-                <td colspan="10" class="px-4 py-3">
-                  ⚠️ <strong>{{ record.pmc_name }}</strong> is missing PMS credentials (API key or Account ID).
-                </td>
-              </tr>
-            {% else %}
-              <tr class="border-t hover:bg-gray-50">
-                <td class="px-4 py-3 font-medium">{{ record.pmc_name }}</td>
-                <td class="px-4 py-3">{{ record.pms_account_id }}</td>
-                <td class="px-4 py-3">{{ record.pms_api_key }}</td>
-                <td class="px-4 py-3">{{ record.email }}</td>
-                <td class="px-4 py-3">{{ record.pms_integration }}</td>
-                <td class="px-4 py-3">
-                  <select class="status-select border rounded px-2 py-1" data-record-id="{{ record.id }}">
-                    <option value="true" {% if record.active %}selected{% endif %}>✅</option>
-                    <option value="false" {% if not record.active %}selected{% endif %}>❌</option>
-                  </select>
-                </td>
-                <td class="px-4 py-3">
-                  <button
-                    class="sync-one bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded text-xs"
-                    data-account-id="{{ record.pms_account_id }}"
-                    {% if not record.pms_account_id %}disabled{% endif %}>
-                    🔄 Sync
-                  </button>
-                  <span id="status-{{ record.pms_account_id }}" class="ml-1 text-sm"></span>
-                </td>
-                <td class="px-4 py-3 text-sm text-gray-600" id="last-{{ record.pms_account_id }}">
-                  {% if record.last_synced_at %}
-                    <span class="last-synced" data-ts="{{ record.last_synced_at }}"></span>
-                  {% else %}
-                    Never
-                  {% endif %}
-                </td>
-                <td class="px-4 py-3">
-                  <span class="sync-result text-sm" id="result-{{ record.pms_account_id }}">—</span>
-                </td>
-                <td class="px-4 py-3">
-                  <div class="flex flex-col sm:flex-row gap-2">
-                    <button 
-                      class="bg-gray-700 hover:bg-gray-800 text-white px-3 py-1 rounded text-xs"
-                      data-pmc='{{ record | tojson | safe }}'
-                      onclick="openEditModal(this)">
-                      ✏️ Edit
-                    </button>
-                    <button 
-                      class="bg-indigo-500 hover:bg-indigo-600 text-white px-3 py-1 rounded text-xs"
-                      onclick='openPropertiesModal({{ record | tojson | safe }})'>
-                      🏘️ Properties
-                    </button>
+        <button data-view="pmcs"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <!-- building icon -->
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 21V3h10v18M14 9h6v12M8 7h2M8 11h2M8 15h2M18 13h2M18 17h2"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">PMCs</span>
+        </button>
+
+        <button data-view="properties"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <!-- home icon -->
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10.5z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Properties</span>
+        </button>
+
+        <button data-view="files"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <!-- file icon -->
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Configs & Manuals</span>
+        </button>
+
+        <button data-view="analytics"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <!-- chart icon -->
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5M4 19h16M8 15v-6M12 19V9M16 13v-4M20 19V7"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Analytics</span>
+        </button>
+
+        <div class="pt-3 mt-3 border-t border-slate-200"></div>
+
+        <button data-view="settings"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <!-- gear icon -->
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M19.4 15a7.8 7.8 0 0 0 .1-2l2-1.3-2-3.4-2.3.6a8 8 0 0 0-1.7-1L15 3h-6l-.5 2.9a8 8 0 0 0-1.7 1L4.5 6.3l-2 3.4 2 1.3a7.8 7.8 0 0 0 0 2l-2 1.3 2 3.4 2.3-.6a8 8 0 0 0 1.7 1L9 21h6l.5-2.9a8 8 0 0 0 1.7-1l2.3.6 2-3.4-2-1.3z"
+                stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Settings</span>
+        </button>
+      </nav>
+
+      <!-- Footer -->
+      <div class="mt-auto p-3 border-t border-slate-200">
+        <div class="flex items-center gap-3 px-2">
+          <div class="h-10 w-10 rounded-xl bg-slate-900 text-white grid place-items-center font-semibold">
+            J
+          </div>
+          <div class="sidebar-label overflow-hidden">
+            <div class="text-sm font-semibold leading-4 truncate">Jarrod</div>
+            <div class="text-xs text-slate-500 truncate">Super User</div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 min-w-0">
+      <!-- Topbar -->
+      <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200 hairline">
+        <div class="h-16 px-6 flex items-center gap-4">
+          <!-- Breadcrumb / Title -->
+          <div class="min-w-0">
+            <div id="page-title" class="text-sm font-semibold truncate">Overview</div>
+            <div class="text-xs text-slate-500 truncate">System health & activity</div>
+          </div>
+
+          <div class="flex-1"></div>
+
+          <!-- Search -->
+          <div class="hidden lg:block w-[420px]">
+            <div class="flex items-center gap-2 px-3 h-10 rounded-xl border border-slate-200 bg-white">
+              <svg class="h-4 w-4 text-slate-500" viewBox="0 0 24 24" fill="none">
+                <path d="M21 21l-4.3-4.3m1.3-5.2a7 7 0 1 1-14 0 7 7 0 0 1 14 0z"
+                  stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+              </svg>
+              <input
+                class="w-full text-sm outline-none placeholder:text-slate-400"
+                placeholder="Search chats, guests, properties…"
+                />
+              <kbd class="text-[11px] px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-500">⌘ K</kbd>
+            </div>
+          </div>
+
+          <!-- Actions -->
+          <div class="flex items-center gap-2">
+            <button class="h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">
+              Export
+            </button>
+            <button class="h-10 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm">
+              New PMC
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Content -->
+      <div class="p-6">
+        <!-- OVERVIEW -->
+        <section id="view-overview" class="view space-y-6">
+          <!-- KPI row -->
+          <div class="grid grid-cols-12 gap-4">
+            <div class="col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Active Chats</div>
+              <div class="mt-2 text-3xl font-semibold">128</div>
+              <div class="mt-2 text-xs text-emerald-600">+12% vs last 7d</div>
+            </div>
+            <div class="col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Avg Response Time</div>
+              <div class="mt-2 text-3xl font-semibold">2.5m</div>
+              <div class="mt-2 text-xs text-emerald-600">-0.3m</div>
+            </div>
+            <div class="col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Automation Ratio</div>
+              <div class="mt-2 text-3xl font-semibold">85%</div>
+              <div class="mt-2 text-xs text-emerald-600">+12</div>
+            </div>
+            <div class="col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Urgent Queue</div>
+              <div class="mt-2 text-3xl font-semibold">6</div>
+              <div class="mt-2 text-xs text-rose-600">Needs attention</div>
+            </div>
+          </div>
+
+          <!-- Two-column row -->
+          <div class="grid grid-cols-12 gap-4">
+            <div class="col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="flex items-center justify-between">
+                <div>
+                  <div class="text-sm font-semibold">Chat Volume</div>
+                  <div class="text-xs text-slate-500">By day (placeholder)</div>
+                </div>
+                <div class="flex items-center gap-2">
+                  <button class="h-9 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">7d</button>
+                  <button class="h-9 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm">30d</button>
+                </div>
+              </div>
+              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
+                Chart placeholder
+              </div>
+            </div>
+
+            <div class="col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-sm font-semibold">Priority Inbox</div>
+              <div class="text-xs text-slate-500">Most important right now</div>
+
+              <div class="mt-4 space-y-2">
+                <div class="p-3 rounded-xl border border-slate-200 hover:bg-slate-50">
+                  <div class="flex items-center justify-between">
+                    <div class="text-sm font-medium truncate">WiFi down — Casa Sea Esta</div>
+                    <span class="text-xs px-2 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100">Urgent</span>
                   </div>
-                </td>
-              </tr>
-            {% endif %}
-          {% endfor %}
-  </tbody>
-</table>
-</div>
+                  <div class="mt-1 text-xs text-slate-500 truncate">Guest can’t connect to network “CasaSea…”</div>
+                </div>
+
+                <div class="p-3 rounded-xl border border-slate-200 hover:bg-slate-50">
+                  <div class="flex items-center justify-between">
+                    <div class="text-sm font-medium truncate">Door code mismatch — Surf Rider</div>
+                    <span class="text-xs px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-100">Time-sensitive</span>
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500 truncate">Code in PMS differs from guide</div>
+                </div>
+
+                <div class="p-3 rounded-xl border border-slate-200 hover:bg-slate-50">
+                  <div class="flex items-center justify-between">
+                    <div class="text-sm font-medium truncate">Noise complaint — Unit 3B</div>
+                    <span class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">Review</span>
+                  </div>
+                  <div class="mt-1 text-xs text-slate-500 truncate">Neighbor message logged, needs response</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- CHATS -->
+        <section id="view-chats" class="view hidden space-y-4">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-center justify-between gap-4">
+              <div>
+                <div class="text-sm font-semibold">Chats</div>
+                <div class="text-xs text-slate-500">Filter by lifecycle, priority, assignment</div>
+              </div>
+              <div class="flex items-center gap-2">
+                <select class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+                  <option>Status: All</option>
+                  <option>pre_booking</option>
+                  <option>active</option>
+                  <option>post_stay</option>
+                </select>
+                <select class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+                  <option>Priority: All</option>
+                  <option>urgent</option>
+                  <option>needs_review</option>
+                  <option>billing</option>
+                </select>
+                <button class="h-10 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800">
+                  Escalations
+                </button>
+              </div>
+            </div>
+
+            <div class="mt-4 overflow-hidden rounded-xl border border-slate-200">
+              <div class="grid grid-cols-12 bg-slate-50 text-xs text-slate-500 px-3 py-2">
+                <div class="col-span-3">Guest / Property</div>
+                <div class="col-span-3">Stage</div>
+                <div class="col-span-3">Last message</div>
+                <div class="col-span-2">Assigned</div>
+                <div class="col-span-1 text-right">Priority</div>
+              </div>
+
+              <div class="divide-y divide-slate-200">
+                <div class="grid grid-cols-12 px-3 py-3 hover:bg-slate-50">
+                  <div class="col-span-3">
+                    <div class="text-sm font-medium">Doug D.</div>
+                    <div class="text-xs text-slate-500">Casa Sea Esta</div>
+                  </div>
+                  <div class="col-span-3 text-sm">active</div>
+                  <div class="col-span-3 text-sm truncate">“WiFi keeps dropping…”</div>
+                  <div class="col-span-2 text-sm">Aspen</div>
+                  <div class="col-span-1 text-right">
+                    <span class="text-xs px-2 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100">Urgent</span>
+                  </div>
+                </div>
+
+                <div class="grid grid-cols-12 px-3 py-3 hover:bg-slate-50">
+                  <div class="col-span-3">
+                    <div class="text-sm font-medium">Kelly B.</div>
+                    <div class="text-xs text-slate-500">Surf Rider Lido</div>
+                  </div>
+                  <div class="col-span-3 text-sm">post_stay</div>
+                  <div class="col-span-3 text-sm truncate">“The place was smaller…”</div>
+                  <div class="col-span-2 text-sm">—</div>
+                  <div class="col-span-1 text-right">
+                    <span class="text-xs px-2 py-1 rounded-full bg-slate-100 text-slate-700 border border-slate-200">Review</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- PMCS -->
+        <section id="view-pmcs" class="view hidden">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="text-sm font-semibold">PMCs</div>
+            <div class="mt-2 text-sm text-slate-500">Create/manage PMCs, subscription plans, integrations.</div>
+          </div>
+        </section>
+
+        <!-- PROPERTIES -->
+        <section id="view-properties" class="view hidden">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="text-sm font-semibold">Properties</div>
+            <div class="mt-2 text-sm text-slate-500">Manage property records, toggles, and health checks.</div>
+          </div>
+        </section>
+
+        <!-- FILES -->
+        <section id="view-files" class="view hidden">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="text-sm font-semibold">Configs & House Manuals</div>
+            <div class="mt-2 text-sm text-slate-500">Upload, version, and link files to properties.</div>
+          </div>
+        </section>
+
+        <!-- ANALYTICS -->
+        <section id="view-analytics" class="view hidden">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="text-sm font-semibold">Analytics</div>
+            <div class="mt-2 text-sm text-slate-500">Trends, response time, containment, and outcomes.</div>
+          </div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="view-settings" class="view hidden">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="text-sm font-semibold">Settings</div>
+            <div class="mt-2 text-sm text-slate-500">Users, roles, permissions, audit, system configuration.</div>
+          </div>
+        </section>
+      </div>
+    </main>
   </div>
-  <!-- ✅ Toast Notification -->
-<div id="toast" class="fixed bottom-4 right-4 bg-gray-800 text-white px-4 py-2 rounded-lg shadow-lg opacity-0 transition-opacity duration-300 pointer-events-none z-50 text-sm"></div>
 
+  <script>
+    // --- Sidebar collapse/expand ---
+    const sidebar = document.getElementById("sidebar");
+    const toggleBtn = document.getElementById("sidebar-toggle");
+    const labelEls = () => Array.from(document.querySelectorAll(".sidebar-label"));
 
- <!-- 🔧 Edit PMC Modal -->
-<div id="editModal" class="fixed inset-0 hidden bg-black bg-opacity-50 z-50 flex items-center justify-center">
-  <div class="bg-white rounded-xl shadow-lg w-full max-w-md p-6 relative">
-    <h3 class="text-xl font-semibold mb-4">Edit PMC</h3>
-    <form id="editPmcForm" class="space-y-4">
-      <input type="hidden" id="edit-id">
+    function setCollapsed(isCollapsed) {
+      sidebar.classList.toggle("w-72", !isCollapsed);
+      sidebar.classList.toggle("w-20", isCollapsed);
 
-      <div>
-        <label class="block text-sm font-medium">Name</label>
-        <input type="text" id="edit-name" required class="mt-1 w-full border rounded px-3 py-2" />
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium">Email</label>
-        <input type="email" id="edit-email" class="mt-1 w-full border rounded px-3 py-2" />
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium">Main Contact</label>
-        <input type="text" id="edit-contact" class="mt-1 w-full border rounded px-3 py-2" />
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium">Subscription Plan</label>
-        <select id="edit-subscription" class="mt-1 w-full border rounded px-3 py-2 bg-white">
-          <option value="">-- Select a plan --</option>
-          <option value="basic">Basic</option>
-          <option value="pro">Pro</option>
-          <option value="enterprise">Enterprise</option>
-        </select>
-      </div>
-
-
-      <div>
-        <label class="block text-sm font-medium">PMS Integration</label>
-        <select id="edit-integration" class="mt-1 w-full border rounded px-3 py-2 bg-white">
-          <option value="">-- Select PMS --</option>
-          <option value="hostaway">Hostaway</option>
-          <option value="hostfully">Hostfully</option>
-          <option value="guesty">Guesty</option>
-          <option value="uplisting">Uplisting</option>
-          <option value="other">Other</option>
-        </select>
-      </div>
-
-
-      <div>
-        <label class="block text-sm font-medium">Client ID</label>
-        <input type="text" id="edit-client-id" required class="mt-1 w-full border rounded px-3 py-2" required/>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium">Secret</label>
-        <input type="text" id="edit-secret" required class="mt-1 w-full border rounded px-3 py-2" required/>
-      </div>
-
-      <div>
-        <label class="block text-sm font-medium">PMS Account ID</label>
-        <input type="text" id="edit-account-id" class="mt-1 w-full border rounded px-3 py-2" />
-        <small class="text-xs text-gray-500">Required for syncing. For Hostaway, this is the same as the API Key.</small>
-      </div>
-
-      <div class="flex items-center">
-        <input type="checkbox" id="edit-active" class="mr-2" />
-        <label for="edit-active" class="text-sm">Active</label>
-      </div>
-
-      <div id="edit-spinner" class="text-sm text-blue-600 hidden">🌀 Saving...</div>
-      <div id="edit-success" class="text-sm text-green-600 hidden">✅ Saved!</div>
-      <div id="edit-error" class="text-sm text-red-600 hidden"></div>
-
-      <div class="flex justify-between mt-4">
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow">💾 Save</button>
-        <button type="button" onclick="closeModal()" class="text-gray-600 hover:underline">❌ Cancel</button>
-        <button type="button" id="delete-btn" class="text-red-600 hover:underline">🗑️ Delete</button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<!-- 🏘️ Edit PMC Properties Modal -->
-<div id="propertiesModal" class="fixed inset-0 hidden bg-black bg-opacity-50 z-50 flex items-center justify-center">
-  <div class="bg-white rounded-xl shadow-lg w-full max-w-lg p-6 relative">
-    
-    <h3 class="text-xl font-semibold mb-2">
-      Enable Sandy for Properties in <span id="propertiesModalTitle" class="font-bold text-blue-700"></span>
-    </h3>
-    <p class="text-sm text-gray-600 mb-2">
-      ✅ Checked = Sandy will be enabled for this property<br>
-      ❌ Unchecked = This property will be ignored by Sandy
-    </p>
-
-    <!-- 🧩 Select All / None Toggle -->
-    <div class="flex justify-end text-sm text-blue-600 font-medium mb-2 gap-4">
-      <button type="button" onclick="selectAllProperties(true)" class="hover:underline">✅ Select All</button>
-      <button type="button" onclick="selectAllProperties(false)" class="hover:underline">❌ Deselect All</button>
-    </div>
-
-    <form id="propertiesForm" class="space-y-4">
-      <!-- Property Checkbox List -->
-      <div id="propertiesList" class="max-h-64 overflow-y-auto border rounded p-3 space-y-2 text-sm bg-gray-50">
-        <!-- Dynamically populated by JS -->
-      </div>
-
-      <!-- Save Feedback -->
-      <div id="properties-spinner" class="text-blue-600 hidden">🌀 Saving...</div>
-      <div id="properties-success" class="text-green-600 hidden">✅ Saved!</div>
-      <div id="properties-error" class="text-red-600 hidden"></div>
-
-      <!-- Buttons -->
-      <div class="flex justify-between mt-4">
-        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded shadow flex items-center gap-1">
-          💾 <span>Save</span>
-        </button>
-        <button type="button" onclick="closePropertiesModal()" class="text-red-600 hover:underline flex items-center gap-1">
-          ❌ <span>Cancel</span>
-        </button>
-      </div>
-    </form>
-  </div>
-</div>
-
-<script>
-
-  function selectAllProperties(checked) {
-  const checkboxes = document.querySelectorAll("#propertiesList input[name='sandy_enabled']");
-  checkboxes.forEach(cb => cb.checked = checked);
-  }
-
-
-  document.querySelectorAll(".last-synced").forEach(el => {
-  const ts = el.dataset.ts;
-  const dt = new Date(ts);
-  el.textContent = dt.toLocaleString(undefined, {
-    year: "numeric",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit"
-  }) + " (your time)";
-  });
-
-
-  function openEditModal(button) {
-  const data = JSON.parse(button.dataset.pmc);
-  document.getElementById("edit-id").value = data.id || "";
-  document.getElementById("edit-name").value = data.pmc_name || "";
-  document.getElementById("edit-email").value = data.email || "";
-  document.getElementById("edit-contact").value = data.main_contact || "";
-  document.getElementById("edit-subscription").value = data.subscription_plan || "";
-  document.getElementById("edit-integration").value = data.pms_integration || "";
-  document.getElementById("edit-client-id").value = data.pms_api_key || "";
-  document.getElementById("edit-secret").value = data.pms_api_secret || "";
-  document.getElementById("edit-account-id").value = data.pms_account_id || "";
-  document.getElementById("edit-active").checked = !!data.active;
-
-  document.getElementById("editModal").classList.remove("hidden");
-}
-  
-  function openPropertiesModal(pmc) {
-  document.getElementById("propertiesModalTitle").textContent = pmc.pmc_name;
-  document.getElementById("propertiesModal").style.display = "flex";
-
-  fetch(`/admin/pmc-properties-json/${pmc.id}`)
-    .then(res => res.json())
-    .then(data => {
-      const container = document.getElementById("propertiesList");
-      container.innerHTML = "";
-
-      data.properties.forEach(prop => {
-        const row = document.createElement("div");
-          row.innerHTML = `
-            <label class="flex items-center gap-2">
-              <input type="checkbox" name="sandy_enabled" data-id="${prop.id}" ${prop.sandy_enabled ? 'checked' : ''}>
-              <span class="text-gray-800">${prop.property_name} <span class="text-gray-400 text-xs">(${prop.pms_property_id})</span></span>
-            </label>`;
-
-        container.appendChild(row);
-      });
-    })
-    .catch(err => {
-      showToast("❌ Failed to load properties", "error");
-      closePropertiesModal();
-    });
-}
-
-function closePropertiesModal() {
-  document.getElementById("propertiesModal").style.display = "none";
-  document.getElementById("properties-spinner").style.display = "none";
-  document.getElementById("properties-success").style.display = "none";
-  document.getElementById("properties-error").style.display = "none";
-}
-
-document.getElementById("propertiesForm").addEventListener("submit", async (e) => {
-  e.preventDefault();
-  showPropertiesSpinner();
-
-  const checkboxes = document.querySelectorAll("#propertiesList input[name='sandy_enabled']");
-  const payload = Array.from(checkboxes).map(cb => ({
-    id: cb.dataset.id,
-    sandy_enabled: cb.checked
-  }));
-
-  try {
-    const res = await fetch("/admin/update-properties", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    });
-
-    if (res.ok) {
-      hidePropertiesSpinner();
-      showToast("✅ Properties updated!", "success");
-      closePropertiesModal();
-    } else {
-      throw new Error("Server returned error");
-    }
-  } catch (err) {
-    hidePropertiesSpinner();
-    showToast("❌ Update failed", "error");
-  }
-});
-
-function showPropertiesSpinner() {
-  document.getElementById("properties-spinner").style.display = "block";
-}
-function hidePropertiesSpinner() {
-  document.getElementById("properties-spinner").style.display = "none";
-}
-
-  
-  async function syncPMC(accountId) {
-    const status = document.getElementById(`status-${accountId}`);
-    const result = document.getElementById(`result-${accountId}`);
-    const last = document.getElementById(`last-${accountId}`);
-
-    status.textContent = "⏳";
-    result.textContent = "Syncing...";
-
-    try {
-      const res = await fetch(`/admin/sync-properties/${accountId}`, { method: "POST" });
-      const data = await res.json();
-
-      if (res.ok && data.success) {
-        status.textContent = "✅";
-        result.textContent = data.message;
-        result.className = "sync-result success";
-        if (data.synced_at) {
-          const dt = new Date(data.synced_at);
-          const formatted = dt.toLocaleString(undefined, {
-            year: "numeric",
-            month: "short",
-            day: "numeric",
-            hour: "numeric",
-            minute: "2-digit"
-          });
-          last.textContent = `${formatted} (your time)`;
-        }
-
-      } else {
-        throw new Error(data.error || "Sync failed");
-      }
-    } catch (err) {
-      status.textContent = "❌";
-      result.textContent = `Error: ${err.message}`;
-      result.className = "sync-result error";
-    }
-
-    setTimeout(() => status.textContent = "", 5000);
-  }
-
-  document.querySelectorAll(".sync-one").forEach(btn => {
-    btn.addEventListener("click", () => {
-      const id = btn.dataset.accountId;
-      syncPMC(id);
-    });
-  });
-
-  document.getElementById("sync-all")?.addEventListener("click", async () => {
-    const progress = document.getElementById("sync-progress");
-    const buttons = document.querySelectorAll(".sync-one:not([disabled])");
-    progress.style.display = "block";
-
-    let count = 0;
-    for (const btn of buttons) {
-      count++;
-      progress.textContent = `🔄 Syncing ${count} of ${buttons.length}...`;
-      await syncPMC(btn.dataset.accountId);
-    }
-
-    progress.textContent = "✅ All synced";
-    setTimeout(() => progress.style.display = "none", 4000);
-  });
-
-  document.querySelectorAll(".status-select").forEach(select => {
-    select.addEventListener("change", async e => {
-      const id = e.target.dataset.recordId;
-      const isActive = e.target.value === "true";
-      await fetch("/admin/update-status", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ record_id: id, active: isActive })
-      });
-    });
-  });
-
-  document.getElementById("search")?.addEventListener("input", function (e) {
-    const query = e.target.value.toLowerCase();
-    document.querySelectorAll("tbody tr").forEach(row => {
-      const name = row.cells[0]?.textContent.toLowerCase() || "";
-      if (name.includes(query)) {
-        row.style.display = "";
-      } else {
-        row.style.display = "none";
-      }
-    });
-  });
-
-  function closeModal() {
-    document.getElementById("editModal").classList.add("hidden");
-  /*  document.getElementById("editModal").style.display = "none";
-    document.getElementById("edit-spinner").style.display = "none";
-    document.getElementById("edit-success").style.display = "none";
-    document.getElementById("edit-error").style.display = "none";*/
-  }
-
-  // Attach click listeners to all edit buttons
-document.querySelectorAll(".edit-pmc-btn").forEach(button => {
-  button.addEventListener("click", () => openEditModal(button));
-});
-  
-  // ➕ Add PMC
-document.getElementById("add-pmc-btn").addEventListener("click", () => {
-  document.getElementById("edit-id").value = "";
-  document.getElementById("edit-name").value = "";
-  document.getElementById("edit-email").value = "";
-  document.getElementById("edit-contact").value = "";
-  document.getElementById("edit-subscription").value = "";
-  document.getElementById("edit-integration").value = "";
-  document.getElementById("edit-client-id").value = "";
-  document.getElementById("edit-secret").value = "";
-  document.getElementById("edit-account-id").value = "";
-  document.getElementById("edit-active").checked = true;
-
-  document.getElementById("editModal").style.display = "flex";
-});
-
-
-
-
-// 💾 Submit form with inline feedback
-document.getElementById("editPmcForm").addEventListener("submit", async function (e) {
-  e.preventDefault();
-
-const payload = {
-  id: Number(document.getElementById("edit-id").value || 0),
-  pmc_name: document.getElementById("edit-name").value.trim(),
-  email: document.getElementById("edit-email").value.trim() || null,
-  main_contact: document.getElementById("edit-contact").value.trim() || null,
-  subscription_plan: document.getElementById("edit-subscription").value || null,
-  pms_integration: document.getElementById("edit-integration").value || null,
-  pms_api_key: document.getElementById("edit-client-id").value.trim(),
-  pms_api_secret: document.getElementById("edit-secret").value.trim(),
-  pms_account_id: document.getElementById("edit-account-id").value.trim(),
-  active: document.getElementById("edit-active").checked
-};
-
-  console.log("📦 Submitting payload:", payload); // ✅ LOG THE PAYLOAD
-  
-  const response = await fetch("/admin/update-pmc", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload)
-  });
-
-  const result = await response.json();
-
-if (response.ok && result.success) {
-  showToast("✅ PMC updated!", "success");
-  closeModal();
-  setTimeout(() => location.reload(), 500);
-} else {
-  const message = result.error || "❌ Unknown error";
-  showToast(`❌ Failed to update: ${message}`, "error");
-}
-
-});
-
-  // 🗑️ Delete PMC
-  document.getElementById("delete-btn").addEventListener("click", async () => {
-    const id = document.getElementById("edit-id").value;
-    if (!confirm("Are you sure you want to delete this PMC?")) return;
-
-    showSpinner();
-
-    try {
-      const res = await fetch(`/admin/delete-pmc/${id}`, {
-        method: "DELETE"
+      labelEls().forEach(el => {
+        el.classList.toggle("hidden", isCollapsed);
       });
 
-      if (res.ok) {
-        showToast("🗑️ Deleted!", "success");
-        setTimeout(() => location.reload(), 1000);
-      } else {
-        const result = await res.json();
-        hideSpinner();
-        showToast(result.error || "❌ Message here", "error");
-      }
-    } catch (err) {
-      hideSpinner();
-      showToast("❌ Message here", "error");
-    }
-  });
-
-function showToast(message, type = "success") {
-      const toast = document.getElementById("toast");
-      toast.textContent = message;
-      toast.style.backgroundColor = type === "error" ? "#c0392b" : "#2ecc71";
-      toast.style.opacity = "1";
-      setTimeout(() => toast.style.opacity = "0", 3000);
+      // Rotate chevron
+      const svg = toggleBtn.querySelector("svg");
+      svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
+      svg.style.transition = "transform 200ms ease";
+      localStorage.setItem("admin_sidebar_collapsed", isCollapsed ? "1" : "0");
     }
 
-function showSpinner() {
-  document.getElementById("edit-spinner").style.display = "block";
-}
+    const saved = localStorage.getItem("admin_sidebar_collapsed") === "1";
+    setCollapsed(saved);
 
-function hideSpinner() {
-  document.getElementById("edit-spinner").style.display = "none";
-}
+    toggleBtn.addEventListener("click", () => {
+      const isCollapsed = sidebar.classList.contains("w-20");
+      setCollapsed(!isCollapsed);
+    });
 
-  function showSuccess(msg = "✅ Saved!") {
-    document.getElementById("edit-spinner").style.display = "none";
-    document.getElementById("edit-success").textContent = msg;
-    document.getElementById("edit-success").style.display = "block";
-  }
+    // --- View routing (swap right-side panels) ---
+    const pageTitle = document.getElementById("page-title");
+    const navItems = Array.from(document.querySelectorAll(".nav-item"));
+    const views = Array.from(document.querySelectorAll(".view"));
 
-  function showError(message) {
-    document.getElementById("edit-spinner").style.display = "none";
-    document.getElementById("edit-error").textContent = message;
-    document.getElementById("edit-error").style.display = "block";
-  }
-</script>
+    function showView(key) {
+      views.forEach(v => v.classList.add("hidden"));
+      const target = document.getElementById(`view-${key}`);
+      if (target) target.classList.remove("hidden");
 
+      navItems.forEach(btn => btn.setAttribute("aria-current", "false"));
+      const activeBtn = navItems.find(b => b.dataset.view === key);
+      if (activeBtn) activeBtn.setAttribute("aria-current", "page");
 
+      const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
+      pageTitle.textContent = label;
+
+      history.replaceState(null, "", `#${key}`);
+    }
+
+    navItems.forEach(btn => {
+      btn.addEventListener("click", () => showView(btn.dataset.view));
+    });
+
+    // initial route
+    const initial = (location.hash || "#overview").replace("#", "");
+    showView(initial);
+  </script>
 </body>
 </html>
