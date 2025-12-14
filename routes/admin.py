@@ -1221,17 +1221,16 @@ def sync_all(request: Request, db: Session = Depends(get_db)):
 
 
 @router.post("/admin/sync-properties/{account_id}")
-def sync_properties_for_pmc(account_id: str, request: Request, db: Session = Depends(get_db)):
+def admin_sync_properties_for_pmc(account_id: str, request: Request, db: Session = Depends(get_db)):
     require_super(request, db)
     try:
-        count = sync_properties(account_id)
+        count = sync_properties(account_id)  # keep using old name, no breakage
         pmc = db.query(PMC).filter(PMC.pms_account_id == str(account_id)).first()
         synced_at = pmc.last_synced_at.isoformat() if pmc and pmc.last_synced_at else None
         return JSONResponse({"success": True, "message": f"Synced {count} properties", "synced_at": synced_at})
     except Exception as e:
         print(f"[ERROR] Failed to sync: {e}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
-
 
 # ----------------------------
 # Admin GPT chat
