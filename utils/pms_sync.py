@@ -1,13 +1,11 @@
 import os
 import requests
 from models import PMC
-from database import SessionLocal
+from database import SessionLocal, engine
 from datetime import datetime
 from utils.github_sync import sync_pmc_to_github
 from dotenv import load_dotenv
 from utils.config import LOCAL_CLONE_PATH
-
-
 from sqlalchemy import create_engine, text
 
 # Set up PostgreSQL connection (via Render or your environment variable)
@@ -93,49 +91,61 @@ def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str
 
     return response.json()["access_token"]
 
-def save_to_postgres(properties, client_id, pmc_record_id, pms, account_id):
-    """Save property records to the PostgreSQL 'properties' table."""
-    from sqlalchemy import text
+def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id):
+    """
+    Save property records to PostgreSQL 'properties' table.
+
+    IMPORTANT:
+    - Uses your existing UNIQUE constraint:
+      uq_properties_provider_external (pmc_id, provider, external_property_id)
+    - 'provider' should be like: "hostaway", "lodgify", etc.
+    """
 
     insert_stmt = text("""
-        INSERT INTO properties (
+        INSERT INTO public.properties (
             property_name,
-            pms_property_id,
             pmc_id,
-            pms_integration,
+            provider,
+            external_property_id,
             sandy_enabled,
             data_folder_path,
             last_synced
         ) VALUES (
             :property_name,
-            :pms_property_id,
             :pmc_id,
-            :pms_integration,
+            :provider,
+            :external_property_id,
             :sandy_enabled,
             :data_folder_path,
             :last_synced
         )
-        ON CONFLICT (pms_property_id) DO UPDATE SET
-            property_name = EXCLUDED.property_name,
-            last_synced = EXCLUDED.last_synced,
-            sandy_enabled = EXCLUDED.sandy_enabled,
-            data_folder_path = EXCLUDED.data_folder_path;
+        ON CONFLICT (pmc_id, provider, external_property_id)
+        DO UPDATE SET
+            property_name   = EXCLUDED.property_name,
+            sandy_enabled   = EXCLUDED.sandy_enabled,
+            data_folder_path= EXCLUDED.data_folder_path,
+            last_synced     = EXCLUDED.last_synced;
     """)
 
     with engine.begin() as conn:
         for prop in properties:
-            prop_id = str(prop.get("id"))
-            name = prop.get("internalListingName") or prop.get("name")
-            folder = ensure_pmc_structure(pmc_name=client_id, property_id=prop_id, property_name=name)
+            external_id = str(prop.get("id"))
+            name = prop.get("internalListingName") or prop.get("name") or f"Property {external_id}"
+
+            folder = ensure_pmc_structure(
+                pmc_name=client_id,
+                property_id=external_id,
+                property_name=name
+            )
 
             conn.execute(insert_stmt, {
                 "property_name": name,
-                "pms_property_id": prop_id,
-                "pmc_id": pmc_record_id,  # ✅ Use the correct foreign key column
-                "pms_integration": pms,
+                "pmc_id": pmc_record_id,          # FK to pmc.id
+                "provider": provider,              # e.g. "hostaway"
+                "external_property_id": external_id,
                 "sandy_enabled": True,
                 "data_folder_path": folder,
-                "last_synced": datetime.utcnow()
+                "last_synced": datetime.utcnow(),
             })
 
 
@@ -205,11 +215,15 @@ def save_to_airtable(properties, client_id, pmc_record_id, pms):
     return results  # ⬅️ now correctly returns a list of result dicts
 '''
 
-
-
-
-def sync_properties(account_id: str):
-    """Sync a single PMC by account ID and push created folders/files to GitHub."""
+def sync_properties(account_id: str) -> int:
+    """
+    Sync a single PMC by PMS account ID:
+    - fetch PMC config from fetch_pmc_lookup()
+    - fetch access token + properties from PMS
+    - upsert into Postgres using (pmc_id, provider, external_property_id)
+    - (optional) push config/manual skeletons to GitHub
+    - update pmc.last_synced_at
+    """
     pmcs = fetch_pmc_lookup()
     print(f"[DEBUG] Fetched PMCs: {list(pmcs.keys())}")
 
@@ -217,41 +231,55 @@ def sync_properties(account_id: str):
         raise Exception(f"PMC not found for account ID: {account_id}")
 
     pmc = pmcs[account_id]
+
+    provider = (pmc.get("pms") or "").strip().lower()  # e.g. "hostaway"
+    if not provider:
+        raise Exception(f"PMC {account_id} missing 'pms' provider value")
+
     token = get_access_token(
         pmc["client_id"],
         pmc["client_secret"],
         pmc["base_url"],
-        pmc["pms"]
+        provider,
     )
-    properties = fetch_properties(token, pmc["base_url"], pmc["pms"])
 
-    # ✅ Save to PostgreSQL instead of Airtable
+    properties = fetch_properties(token, pmc["base_url"], provider) or []
+
+    # ✅ Save to PostgreSQL (upsert by pmc_id + provider + external_property_id)
     save_to_postgres(
         properties,
         client_id=pmc["client_id"],
-        pmc_record_id=pmc["record_id"],
-        pms=pmc["pms"],
-        account_id=account_id
+        pmc_record_id=pmc["record_id"],   # this must be the *pmc.id* FK
+        provider=provider,
+        account_id=account_id,
     )
 
-    # 🔁 Optional GitHub sync
+    # 🔁 Optional GitHub sync (kept exactly like your flow)
     try:
         for prop in properties:
-            name = prop.get("internalListingName") or prop.get("name")
+            name = prop.get("internalListingName") or prop.get("name") or "Property"
             prop_id = str(prop.get("id"))
-            base_dir = ensure_pmc_structure(pmc_name=pmc["client_id"], property_id=prop_id, property_name=name)
+
+            base_dir = ensure_pmc_structure(
+                pmc_name=pmc["client_id"],
+                property_id=prop_id,
+                property_name=name,
+            )
 
             rel_config = os.path.join("data", pmc["client_id"], prop_id, "config.json")
             rel_manual = os.path.join("data", pmc["client_id"], prop_id, "manual.txt")
 
-            sync_pmc_to_github(base_dir, {
-                rel_config: os.path.join(base_dir, "config.json"),
-                rel_manual: os.path.join(base_dir, "manual.txt")
-            })
+            sync_pmc_to_github(
+                base_dir,
+                {
+                    rel_config: os.path.join(base_dir, "config.json"),
+                    rel_manual: os.path.join(base_dir, "manual.txt"),
+                },
+            )
     except Exception as e:
         print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
 
-    # ✅ Update last_synced_at in the database
+    # ✅ Update last_synced_at on PMC (by pms_account_id)
     db = SessionLocal()
     try:
         db_pmc = db.query(PMC).filter(PMC.pms_account_id == str(account_id)).first()
@@ -259,14 +287,18 @@ def sync_properties(account_id: str):
             db_pmc.last_synced_at = datetime.utcnow()
             db.commit()
             print(f"[SYNC] ✅ Updated last_synced_at for PMC {account_id}")
+        else:
+            print(f"[SYNC] ⚠️ No PMC row found for pms_account_id={account_id} to update last_synced_at")
     except Exception as db_err:
         db.rollback()
         print(f"[DB] ❌ Failed to update last_synced_at: {db_err}")
+        raise
     finally:
         db.close()
 
     print(f"[SYNC] ✅ Saved {len(properties)} properties for {account_id}")
     return len(properties)
+
 
 
 
