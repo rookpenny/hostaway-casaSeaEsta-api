@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Signup canceled • HostScout</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+  <div class="min-h-screen">
+    <header class="border-b border-slate-200 bg-white/80 backdrop-blur">
+      <div class="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-slate-900 text-white grid place-items-center font-semibold">H</div>
+          <div>
+            <div class="text-sm font-semibold leading-4">HostScout</div>
+            <div class="text-xs text-slate-500">PMC signup</div>
+          </div>
+        </div>
+        <a href="/pmc/signup" class="text-sm font-semibold text-slate-700 hover:underline">
+          Try again →
+        </a>
+      </div>
+    </header>
+
+    <main class="max-w-3xl mx-auto px-6 py-12">
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <div class="flex items-start gap-3">
+          <div class="h-10 w-10 rounded-xl bg-rose-50 border border-rose-100 grid place-items-center">
+            <span class="text-lg">✕</span>
+          </div>
+
+          <div class="min-w-0">
+            <h1 class="text-2xl font-semibold">Signup canceled</h1>
+            <p class="mt-2 text-sm text-slate-600">
+              No worries — you weren’t charged. You can restart signup anytime.
+            </p>
+          </div>
+        </div>
+
+        <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div class="text-sm font-semibold text-slate-900">Common reasons</div>
+          <ul class="mt-2 text-sm text-slate-600 list-disc pl-5 space-y-1">
+            <li>You closed the checkout window</li>
+            <li>The card was declined or needs verification</li>
+            <li>You wanted to review pricing before continuing</li>
+          </ul>
+        </div>
+
+        <div class="mt-6 flex flex-col sm:flex-row gap-2 sm:items-center">
+          <a href="/pmc/signup"
+             class="h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold inline-flex items-center justify-center">
+            Try signup again
+          </a>
+
+          <a href="/admin/dashboard"
+             class="h-11 px-5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-800 text-sm font-semibold inline-flex items-center justify-center">
+            Back to dashboard
+          </a>
+        </div>
+
+        <p class="mt-4 text-xs text-slate-500">
+          If you keep getting stuck, try signing in with Google first, then come back to this page.
+        </p>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
