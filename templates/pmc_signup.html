@@ -1,19 +1,102 @@
-<!doctype html>
-<html>
-<head><meta charset="utf-8"><title>HostScout - PMC Signup</title></head>
-<body style="font-family: system-ui; max-width: 520px; margin: 40px auto;">
-  <h2>Create your HostScout PMC account</h2>
-  <form method="post" action="/pmc/signup">
-    <label>PMC name</label><br/>
-    <input name="pmc_name" required style="width:100%; padding:10px; margin:6px 0 14px;"/>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Create your HostScout PMC account</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
 
-    <label>Admin name</label><br/>
-    <input name="admin_name" style="width:100%; padding:10px; margin:6px 0 14px;"/>
+<body class="bg-slate-50 text-slate-900">
+  <div class="min-h-screen">
+    <header class="border-b border-slate-200 bg-white/80 backdrop-blur">
+      <div class="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-slate-900 text-white grid place-items-center font-semibold">H</div>
+          <div>
+            <div class="text-sm font-semibold leading-4">HostScout</div>
+            <div class="text-xs text-slate-500">PMC signup</div>
+          </div>
+        </div>
+        <a href="/admin/dashboard" class="text-sm font-semibold text-slate-700 hover:underline">
+          ← Back to dashboard
+        </a>
+      </div>
+    </header>
 
-    <label>Admin email</label><br/>
-    <input name="admin_email" type="email" required style="width:100%; padding:10px; margin:6px 0 14px;"/>
+    <main class="max-w-3xl mx-auto px-6 py-10">
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <h1 class="text-2xl font-semibold">Create your HostScout PMC account</h1>
+        <p class="mt-2 text-sm text-slate-600">
+          To activate your account, you’ll pay a <span class="font-semibold">one-time setup fee</span>,
+          then add properties on a <span class="font-semibold">monthly per-property plan</span>.
+        </p>
 
-    <button type="submit" style="padding:12px 16px;">Continue to payment</button>
-  </form>
+        <div class="mt-4 rounded-xl border border-amber-300/60 bg-amber-50 p-4">
+          <div class="text-sm font-semibold text-amber-900">What happens next</div>
+          <ul class="mt-2 text-sm text-amber-900/80 list-disc pl-5 space-y-1">
+            <li>Confirm your PMC + admin details</li>
+            <li>Pay the one-time setup fee</li>
+            <li>Connect your PMS (Hostaway, etc.)</li>
+            <li>Choose which properties to enable Sandy for (monthly per property)</li>
+          </ul>
+        </div>
+
+        <form method="post" action="/pmc/signup" class="mt-6 space-y-4">
+          <div>
+            <label class="text-sm font-semibold text-slate-700">PMC name</label>
+            <input
+              name="pmc_name"
+              required
+              value="{{ pmc_name_prefill or '' }}"
+              class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+              placeholder="Neat Sleeps"
+            />
+          </div>
+
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div>
+              <label class="text-sm font-semibold text-slate-700">Admin name</label>
+              <input
+                name="admin_name"
+                required
+                value="{{ admin_name_prefill or '' }}"
+                class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Jarrod Corbett"
+              />
+            </div>
+
+            <div>
+              <label class="text-sm font-semibold text-slate-700">Admin email</label>
+              <input
+                name="admin_email"
+                required
+                value="{{ admin_email_prefill or '' }}"
+                class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="you@company.com"
+                {% if admin_email_prefill %}readonly{% endif %}
+              />
+              <p class="mt-1 text-xs text-slate-500">
+                For security, we recommend using your Google login email.
+              </p>
+            </div>
+          </div>
+
+          <div class="pt-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+            <div class="text-xs text-slate-500">
+              By continuing, you’ll be redirected to secure checkout.
+            </div>
+
+            <button
+              type="submit"
+              class="h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
+            >
+              Continue to payment →
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
 </body>
 </html>
