@@ -118,7 +118,9 @@ start_scheduler()
 
 # --- Sync Trigger ---
 @app.post("/admin/sync-properties")
-def manual_sync():
+def manual_sync(request: Request):
+    if request.session.get("role") != "super":
+        raise HTTPException(status_code=403, detail="Forbidden")
     try:
         count = sync_all_pmcs()
         return HTMLResponse(
