@@ -24,7 +24,8 @@
             ← Back to dashboard
           </a>
         {% else %}
-          <a href="/auth/login/google?next=/pmc/signup" class="text-sm font-semibold text-slate-700 hover:underline">
+          <a href="/auth/login/google?next=/pmc/signup"
+             class="text-sm font-semibold text-slate-700 hover:underline">
             Sign in with Google →
           </a>
         {% endif %}
@@ -46,7 +47,7 @@
               Sign in with Google first so your admin email is locked to your account for security.
             </p>
             <div class="mt-3">
-              <a href="/auth/login/google"
+              <a href="/auth/login/google?next=/pmc/signup"
                  class="inline-flex h-10 items-center px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
                 Sign in with Google →
               </a>
@@ -65,8 +66,6 @@
         </div>
 
         <form method="post" action="/pmc/signup" class="mt-6 space-y-4">
-          <input type="hidden" name="next" value="/admin/dashboard" />
-
           <div>
             <label for="pmc_name" class="text-sm font-semibold text-slate-700">PMC name</label>
             <input
