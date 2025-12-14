@@ -17,6 +17,8 @@ from models import PMC, Property, PMCUser
 from utils.pms_sync import sync_properties  # sync by account_id
 
 from utils.billing import sync_property_quantity
+from utils.billing_guard import require_pmc_is_paid
+
 
 
 router = APIRouter(prefix="/auth")
@@ -233,13 +235,15 @@ def dashboard(request: Request):
 @router.post("/toggle-property/{property_id}")
 def toggle_property(property_id: int, request: Request, db: Session = Depends(get_db)):
     prop = require_property_in_scope(request, db, property_id)
+
+    # ✅ Paywall: PMC must be paid+active to toggle Sandy
+    require_pmc_is_paid(db, prop.pmc_id)
+
     prop.sandy_enabled = not bool(prop.sandy_enabled)
     db.commit()
 
-    # NEW: update Stripe quantity
-    sync_property_quantity(db, prop.pmc_id, proration_behavior="none")
-
     return JSONResponse({"status": "success", "new_status": "LIVE" if prop.sandy_enabled else "OFFLINE"})
+
 
 
 
@@ -247,11 +251,10 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
 def sync_single_property(property_id: int, request: Request, db: Session = Depends(get_db)):
     prop = require_property_in_scope(request, db, property_id)
 
-    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
-
-     # NEW: paywall
+    # ✅ Paywall: PMC must be paid+active to sync
     require_pmc_is_paid(db, prop.pmc_id)
-    
+
+    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
     if not pmc:
         raise HTTPException(status_code=404, detail="PMC not found")
 
@@ -260,6 +263,8 @@ def sync_single_property(property_id: int, request: Request, db: Session = Depen
         return JSONResponse({"status": "success", "message": "Synced!"})
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
+
+
 
 
 @router.get("/logout")
