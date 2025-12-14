@@ -248,8 +248,15 @@
         <section id="view-overview" class="view space-y-6">
 
           {% set total_props = properties|length %}
-          {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
-          {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
+
+          {% if is_locked %}
+            {% set live_props = 0 %}
+            {% set offline_props = total_props %}
+          {% else %}
+            {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
+            {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
+          {% endif %}
+
 
           <div class="grid grid-cols-12 gap-4">
             <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
