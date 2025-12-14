@@ -16,7 +16,7 @@ from models import PMC, PMCIntegration, PMCUser
 # IMPORTANT: adjust this import to your real path if needed:
 # - project root: from pms_sync import sync_properties
 # - utils folder: from utils.pms_sync import sync_properties
-from pms_sync import sync_properties
+from utils.pms_sync import sync_properties
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
