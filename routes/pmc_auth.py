@@ -276,11 +276,38 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
     # ✅ Paywall: PMC must be paid+active to toggle Sandy
     require_pmc_is_paid(db, prop.pmc_id)
 
-    prop.sandy_enabled = not bool(prop.sandy_enabled)
+    # Flip status
+    previous = bool(prop.sandy_enabled)
+    prop.sandy_enabled = not previous
     db.commit()
 
-    return JSONResponse({"status": "success", "new_status": "LIVE" if prop.sandy_enabled else "OFFLINE"})
+    # ✅ Keep Stripe subscription quantity in sync with enabled properties
+    try:
+        # Support either signature:
+        #   sync_property_quantity(db, pmc_id)
+        # or
+        #   sync_property_quantity(pmc_id=..., db=...)
+        try:
+            sync_property_quantity(db=db, pmc_id=prop.pmc_id)
+        except TypeError:
+            sync_property_quantity(db, prop.pmc_id)
 
+    except Exception as e:
+        # If billing sync fails, revert the toggle to avoid mismatch
+        prop.sandy_enabled = previous
+        db.commit()
+
+        raise HTTPException(
+            status_code=500,
+            detail=f"Billing update failed, change reverted: {str(e)}",
+        )
+
+    return JSONResponse(
+        {
+            "status": "success",
+            "new_status": "LIVE" if prop.sandy_enabled else "OFFLINE",
+        }
+    )
 
 
 
