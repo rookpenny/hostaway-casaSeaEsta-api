@@ -14,14 +14,10 @@ from models import PMC, PMCUser
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-# Stripe
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 
-PRICE_SIGNUP_ONETIME = os.getenv("STRIPE_PRICE_SIGNUP_ONETIME", "")
-PRICE_PROPERTY_MONTHLY = os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY", "")  # used later
-APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
-
-
+# ----------------------------
+# Helpers
+# ----------------------------
 def _required_env() -> None:
     missing = []
     for k in [
@@ -34,6 +30,19 @@ def _required_env() -> None:
             missing.append(k)
     if missing:
         raise HTTPException(status_code=500, detail=f"Missing env vars: {', '.join(missing)}")
+
+
+def _stripe_config() -> tuple[str, str, str]:
+    """
+    Pull Stripe configuration at request time (safer than import-time),
+    and apply stripe.api_key.
+    """
+    stripe_secret = os.getenv("STRIPE_SECRET_KEY", "").strip()
+    price_signup = os.getenv("STRIPE_PRICE_SIGNUP_ONETIME", "").strip()
+    app_base_url = os.getenv("APP_BASE_URL", "").rstrip("/")
+
+    stripe.api_key = stripe_secret
+    return stripe_secret, price_signup, app_base_url
 
 
 def _session_email(request: Request) -> str | None:
@@ -53,6 +62,9 @@ def _set_if_attr(obj, attr: str, value) -> None:
         setattr(obj, attr, value)
 
 
+# ----------------------------
+# Pages
+# ----------------------------
 @router.get("/pmc/signup", response_class=HTMLResponse)
 def pmc_signup_page(request: Request):
     _required_env()
@@ -67,6 +79,9 @@ def pmc_signup_page(request: Request):
     )
 
 
+# ----------------------------
+# Start Signup Checkout (one-time fee)
+# ----------------------------
 @router.post("/pmc/signup")
 def pmc_signup_start(
     request: Request,
@@ -78,8 +93,21 @@ def pmc_signup_start(
     """
     Create/reuse PMC in locked state, start Stripe Checkout for one-time signup fee.
     Activation + billing fields are set by Stripe webhook after payment succeeds.
+
+    IMPORTANT:
+    - customer_creation="always" ensures a Stripe Customer is created
+    - payment_intent_data.setup_future_usage="off_session" stores the payment method
+      so you can later create monthly subscriptions for enabled properties
     """
     _required_env()
+    stripe_secret, price_signup_onetime, app_base_url = _stripe_config()
+
+    if not stripe_secret:
+        raise HTTPException(status_code=500, detail="STRIPE_SECRET_KEY is not set")
+    if not price_signup_onetime:
+        raise HTTPException(status_code=500, detail="STRIPE_PRICE_SIGNUP_ONETIME is not set")
+    if not app_base_url:
+        raise HTTPException(status_code=500, detail="APP_BASE_URL is not set")
 
     pmc_name_clean = (pmc_name or "").strip()
     if not pmc_name_clean:
@@ -151,22 +179,22 @@ def pmc_signup_start(
         db.commit()
 
     # --- Stripe Checkout (one-time signup fee) ---
-    success_url = f"{APP_BASE_URL}/pmc/signup/success?session_id={{CHECKOUT_SESSION_ID}}"
-    cancel_url = f"{APP_BASE_URL}/pmc/signup/cancel"
+    success_url = f"{app_base_url}/pmc/signup/success?session_id={{CHECKOUT_SESSION_ID}}"
+    cancel_url = f"{app_base_url}/pmc/signup/cancel"
 
     try:
-        # Configure a one‑time payment for the signup fee and save the card on file
         checkout = stripe.checkout.Session.create(
             mode="payment",
             customer_email=email_l,
-            
-            # Force Stripe to create a Customer so obj["customer"] isn’t None in the webhook
+
+            # ✅ Ensure Stripe creates a Customer record
             customer_creation="always",
-            
-            # Save the payment method for future monthly subscriptions
+
+            # ✅ Store card for future recurring subscription billing
             payment_intent_data={"setup_future_usage": "off_session"},
+
             line_items=[
-                {"price": PRICE_SIGNUP_ONETIME, "quantity": 1},
+                {"price": price_signup_onetime, "quantity": 1},
             ],
             success_url=success_url,
             cancel_url=cancel_url,
@@ -175,20 +203,32 @@ def pmc_signup_start(
                 "type": "pmc_signup_onetime",
             },
         )
-
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Stripe checkout failed: {str(e)}")
 
-    return RedirectResponse(checkout.url, status_code=303)
+    # Save the checkout session id for debugging/correlation (webhook is still source of truth)
+    _set_if_attr(pmc, "stripe_signup_checkout_session_id", getattr(checkout, "id", None))
+    db.commit()
+
+    checkout_url = getattr(checkout, "url", None)
+    if not checkout_url:
+        raise HTTPException(status_code=500, detail="Stripe checkout session missing URL")
+
+    return RedirectResponse(checkout_url, status_code=303)
 
 
-
+# ----------------------------
+# Success / Cancel
+# ----------------------------
 @router.get("/pmc/signup/success", response_class=HTMLResponse)
-def pmc_signup_success(request: Request, db: Session = Depends(get_db), session_id: str | None = None):
+def pmc_signup_success(
+    request: Request,
+    db: Session = Depends(get_db),
+    session_id: str | None = None,
+):
     """
     This page is NOT proof of payment. Webhook is truth.
-    But we can route them into onboarding.
+    If webhook has already set billing_status=active, route user into onboarding.
     """
     user = request.session.get("user") or {}
     email_l = (user.get("email") or "").strip().lower()
@@ -205,7 +245,7 @@ def pmc_signup_success(request: Request, db: Session = Depends(get_db), session_
         .first()
     )
 
-    # If webhook hasn't updated yet, show your success template (or a simple message)
+    # Webhook not processed yet → show success page with guidance
     if not pmc or (getattr(pmc, "billing_status", "") or "").lower() != "active":
         return templates.TemplateResponse(
             "pmc_signup_success.html",
@@ -219,7 +259,6 @@ def pmc_signup_success(request: Request, db: Session = Depends(get_db), session_
 
     # Paid: go to onboarding PMS connect
     return RedirectResponse("/pmc/onboarding/pms", status_code=303)
-
 
 
 @router.get("/pmc/signup/cancel", response_class=HTMLResponse)
