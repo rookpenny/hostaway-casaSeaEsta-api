@@ -179,16 +179,43 @@ def pmc_signup_start(
     return RedirectResponse(checkout.url, status_code=303)
 
 
+
 @router.get("/pmc/signup/success", response_class=HTMLResponse)
-def pmc_signup_success(request: Request, session_id: str | None = None):
-    # NOT proof of payment — webhook is source of truth.
-    return templates.TemplateResponse(
-        "pmc_signup_success.html",
-        {
-            "request": request,
-            "session_id": session_id or "",
-        },
+def pmc_signup_success(request: Request, db: Session = Depends(get_db), session_id: str | None = None):
+    """
+    This page is NOT proof of payment. Webhook is truth.
+    But we can route them into onboarding.
+    """
+    user = request.session.get("user") or {}
+    email_l = (user.get("email") or "").strip().lower()
+
+    # If not logged in, send them to login, then return here
+    if not email_l:
+        request.session["post_login_redirect"] = "/pmc/signup/success"
+        return RedirectResponse("/auth/login/google?next=/pmc/signup/success", status_code=303)
+
+    pmc = (
+        db.query(PMC)
+        .filter(func.lower(PMC.email) == email_l)
+        .order_by(PMC.id.desc())
+        .first()
     )
+
+    # If webhook hasn't updated yet, show your success template (or a simple message)
+    if not pmc or (getattr(pmc, "billing_status", "") or "").lower() != "active":
+        return templates.TemplateResponse(
+            "pmc_signup_success.html",
+            {
+                "request": request,
+                "session_id": session_id or "",
+                "next_url": "/pmc/onboarding/pms",
+                "is_paid": False,
+            },
+        )
+
+    # Paid: go to onboarding PMS connect
+    return RedirectResponse("/pmc/onboarding/pms", status_code=303)
+
 
 
 @router.get("/pmc/signup/cancel", response_class=HTMLResponse)
