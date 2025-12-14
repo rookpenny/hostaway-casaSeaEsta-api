@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Choose your properties</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="min-h-screen">
+    <header class="border-b border-slate-200 bg-white/80 backdrop-blur">
+      <div class="max-w-3xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-9 h-9 rounded-xl bg-slate-900 text-white grid place-items-center font-semibold">H</div>
+          <div>
+            <div class="text-sm font-semibold leading-4">HostScout</div>
+            <div class="text-xs text-slate-500">Onboarding</div>
+          </div>
+        </div>
+        <a href="/admin/dashboard" class="text-sm font-semibold text-slate-700 hover:underline">
+          Skip for now →
+        </a>
+      </div>
+    </header>
+    <main class="max-w-3xl mx-auto px-6 py-10 space-y-6">
+      <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
+        <h1 class="text-2xl font-semibold">Choose properties to enable Sandy</h1>
+        <p class="mt-2 text-sm text-slate-600">Select the properties you want to activate. You can change this later in your dashboard.</p>
+        <form method="post" action="/pmc/onboarding/properties" class="mt-6 space-y-4">
+          <div class="space-y-2">
+            {% for property in properties %}
+            <label class="flex items-center gap-3">
+              <input type="checkbox"
+                     name="property_ids"
+                     value="{{ property.id }}"
+                     class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-500"
+                     {% if property.sandy_enabled %}checked{% endif %} />
+              <span class="text-sm">{{ property.property_name }}</span>
+            </label>
+            {% endfor %}
+          </div>
+          <div class="pt-4 flex items-center justify-between">
+            <div class="text-xs text-slate-500">You can always adjust which properties are live in your dashboard.</div>
+            <button type="submit" class="h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+              Continue to dashboard →
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+  </div>
+</body>
+</html>
