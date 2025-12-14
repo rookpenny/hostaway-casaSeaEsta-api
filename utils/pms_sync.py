@@ -91,15 +91,42 @@ def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str
 
     return response.json()["access_token"]
 
+
+
 def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id):
     """
     Save property records to PostgreSQL 'properties' table.
 
     IMPORTANT:
-    - Uses your existing UNIQUE constraint:
+    - Uses UNIQUE constraint:
       uq_properties_provider_external (pmc_id, provider, external_property_id)
-    - 'provider' should be like: "hostaway", "lodgify", etc.
+    - provider examples: "hostaway", "lodgify", "guesty", etc.
     """
+
+    provider = (provider or "").strip().lower()
+    if not provider:
+        raise Exception("save_to_postgres: provider is required")
+
+    if pmc_record_id is None:
+        raise Exception("save_to_postgres: pmc_record_id is required")
+
+    # ---- Normalizers (cross-PMS safe) ----
+    def _external_id(p: dict) -> str:
+        # Prefer standard/likely keys across PMS providers
+        for k in ("id", "listingId", "propertyId", "uid", "externalId"):
+            v = p.get(k)
+            if v is not None and str(v).strip():
+                return str(v).strip()
+
+        # Last resort: deterministic-ish fallback (still upserts consistently for same payload)
+        return str(abs(hash(str(p))))
+
+    def _name(p: dict, ext_id: str) -> str:
+        for k in ("internalListingName", "name", "title", "listingName", "propertyName"):
+            v = p.get(k)
+            if v and str(v).strip():
+                return str(v).strip()
+        return f"Property {ext_id}"
 
     insert_stmt = text("""
         INSERT INTO public.properties (
@@ -121,32 +148,38 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id)
         )
         ON CONFLICT (pmc_id, provider, external_property_id)
         DO UPDATE SET
-            property_name   = EXCLUDED.property_name,
-            sandy_enabled   = EXCLUDED.sandy_enabled,
-            data_folder_path= EXCLUDED.data_folder_path,
-            last_synced     = EXCLUDED.last_synced;
+            property_name    = EXCLUDED.property_name,
+            sandy_enabled    = EXCLUDED.sandy_enabled,
+            data_folder_path = EXCLUDED.data_folder_path,
+            last_synced      = EXCLUDED.last_synced;
     """)
 
+    # NOTE: engine must exist in this module (as in your current setup)
     with engine.begin() as conn:
-        for prop in properties:
-            external_id = str(prop.get("id"))
-            name = prop.get("internalListingName") or prop.get("name") or f"Property {external_id}"
+        for prop in (properties or []):
+            ext_id = _external_id(prop)
+            name = _name(prop, ext_id)
+
+            # Folder key MUST be collision-proof across providers
+            # (hostaway_123, lodgify_123, etc.)
+            folder_property_id = f"{provider}_{ext_id}"
 
             folder = ensure_pmc_structure(
-                pmc_name=client_id,
-                property_id=external_id,
-                property_name=name
+                pmc_name=(client_id or str(pmc_record_id)),
+                property_id=folder_property_id,
+                property_name=name,
             )
 
             conn.execute(insert_stmt, {
                 "property_name": name,
-                "pmc_id": pmc_record_id,          # FK to pmc.id
-                "provider": provider,              # e.g. "hostaway"
-                "external_property_id": external_id,
-                "sandy_enabled": True,
+                "pmc_id": int(pmc_record_id),  # FK to pmc.id
+                "provider": provider,
+                "external_property_id": ext_id,
+                "sandy_enabled": True,         # default; later you’ll let them choose + bill
                 "data_folder_path": folder,
                 "last_synced": datetime.utcnow(),
             })
+
 
 
 def fetch_properties(access_token: str, base_url: str, pms: str):
