@@ -267,6 +267,15 @@ def sync_properties(account_id: str):
 
     print(f"[SYNC] ✅ Saved {len(properties)} properties for {account_id}")
     return len(properties)
+
+
+
+def sync_properties_for_account_id(account_id: str):
+    """
+    Alias/wrapper for clarity. Keeps backward compatibility.
+    """
+    return sync_properties(account_id)
+
     
 def save_properties_to_db(properties, client_id, pmc_id, pms):
     from sqlalchemy.dialects.postgresql import insert as pg_insert
