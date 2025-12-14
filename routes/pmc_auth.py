@@ -172,14 +172,24 @@ def login_page(request: Request):
 
 @router.get("/login/google")
 async def login_with_google(request: Request, next: str = "/admin/dashboard"):
+    """
+    Starts Google OAuth and remembers where to send the user afterward.
+    IMPORTANT: public signup must call /auth/login/google?next=/pmc/signup
+    """
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         return HTMLResponse(
             "<h2>OAuth not configured</h2><p>Missing GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET</p>",
             status_code=500,
         )
 
-    # ✅ allow public signup flow to set redirect target
-    request.session["post_login_redirect"] = next or "/admin/dashboard"
+    # ✅ Only allow safe internal redirects
+    next_clean = (next or "/admin/dashboard").strip()
+    if not next_clean.startswith("/"):
+        next_clean = "/admin/dashboard"
+    if next_clean.startswith("//") or next_clean.startswith("/\\"):
+        next_clean = "/admin/dashboard"
+
+    request.session["post_login_redirect"] = next_clean
 
     redirect_uri = request.url_for("auth_callback")
     return await oauth.google.authorize_redirect(request, redirect_uri)
