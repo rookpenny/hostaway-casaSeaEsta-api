@@ -45,7 +45,7 @@ from typing import List
 
 from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
 
-from routes import admin, pmc_auth, pmc_signup, stripe_webhook
+from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
@@ -61,6 +61,7 @@ app.include_router(prearrival_debug_router)
 app.include_router(seed_guides_router)
 app.include_router(pmc_signup.router)
 app.include_router(stripe_webhook.router)
+app.include_router(pmc_onboarding.router)
 
 
 # Middleware
