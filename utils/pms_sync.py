@@ -224,50 +224,84 @@ def sync_properties(account_id: str) -> int:
     - (optional) push config/manual skeletons to GitHub
     - update pmc.last_synced_at
     """
-    pmcs = fetch_pmc_lookup()
-    print(f"[DEBUG] Fetched PMCs: {list(pmcs.keys())}")
+    pmcs = fetch_pmc_lookup() or {}
+    print(f"[SYNC] fetch_pmc_lookup() keys={list(pmcs.keys())}")
 
-    if account_id not in pmcs:
-        raise Exception(f"PMC not found for account ID: {account_id}")
+    account_id_clean = (account_id or "").strip()
+    if not account_id_clean:
+        raise Exception("account_id is required")
 
-    pmc = pmcs[account_id]
+    if account_id_clean not in pmcs:
+        raise Exception(f"PMC not found for account ID: {account_id_clean}")
 
-    provider = (pmc.get("pms") or "").strip().lower()  # e.g. "hostaway"
+    pmc_cfg = pmcs[account_id_clean] or {}
+
+    # Required values from your lookup
+    pmc_id = pmc_cfg.get("record_id")  # this must be pmc.id (FK)
+    client_id = pmc_cfg.get("client_id")  # used for folder naming in ensure_pmc_structure
+    base_url = pmc_cfg.get("base_url")
+    api_key = pmc_cfg.get("client_id") or pmc_cfg.get("api_key")     # legacy naming in your config
+    api_secret = pmc_cfg.get("client_secret") or pmc_cfg.get("api_secret")
+
+    provider = (pmc_cfg.get("pms") or pmc_cfg.get("provider") or "").strip().lower()
+
+    if not pmc_id:
+        raise Exception(f"PMC config for account_id={account_id_clean} missing record_id (pmc.id)")
     if not provider:
-        raise Exception(f"PMC {account_id} missing 'pms' provider value")
+        raise Exception(f"PMC config for account_id={account_id_clean} missing provider (pms)")
+    if not base_url:
+        raise Exception(f"PMC config for account_id={account_id_clean} missing base_url")
+    if not api_key or not api_secret:
+        raise Exception(f"PMC config for account_id={account_id_clean} missing api credentials")
 
-    token = get_access_token(
-        pmc["client_id"],
-        pmc["client_secret"],
-        pmc["base_url"],
-        provider,
-    )
+    # 1) Auth + fetch
+    token = get_access_token(api_key, api_secret, base_url, provider)
+    properties = fetch_properties(token, base_url, provider) or []
 
-    properties = fetch_properties(token, pmc["base_url"], provider) or []
+    # 2) Normalize properties for cross-PMS safety
+    def _external_id(p: dict) -> str:
+        # Prefer explicit id; otherwise provider-specific fallbacks
+        for k in ("id", "listingId", "propertyId", "uid", "externalId"):
+            v = p.get(k)
+            if v is not None and str(v).strip():
+                return str(v).strip()
+        # Last resort: stable-ish hash (still deterministic per payload)
+        return str(abs(hash(str(p))) )
 
-    # ✅ Save to PostgreSQL (upsert by pmc_id + provider + external_property_id)
+    def _name(p: dict) -> str:
+        for k in ("internalListingName", "name", "title", "listingName", "propertyName"):
+            v = p.get(k)
+            if v and str(v).strip():
+                return str(v).strip()
+        return "Property"
+
+    # 3) Save to PostgreSQL (your upsert should be on pmc_id+provider+external_property_id)
+    # NOTE: keep your save_to_postgres signature aligned with your latest function
     save_to_postgres(
         properties,
-        client_id=pmc["client_id"],
-        pmc_record_id=pmc["record_id"],   # this must be the *pmc.id* FK
+        client_id=client_id or str(pmc_id),
+        pmc_record_id=int(pmc_id),
         provider=provider,
-        account_id=account_id,
+        account_id=account_id_clean,
     )
 
-    # 🔁 Optional GitHub sync (kept exactly like your flow)
+    # 4) Optional GitHub sync (folder key uses provider+external_id to avoid collisions)
     try:
         for prop in properties:
-            name = prop.get("internalListingName") or prop.get("name") or "Property"
-            prop_id = str(prop.get("id"))
+            name = _name(prop)
+            ext_id = _external_id(prop)
+
+            # Use a stable folder id that won't collide across providers
+            folder_property_id = f"{provider}_{ext_id}"
 
             base_dir = ensure_pmc_structure(
-                pmc_name=pmc["client_id"],
-                property_id=prop_id,
+                pmc_name=(client_id or str(pmc_id)),
+                property_id=folder_property_id,
                 property_name=name,
             )
 
-            rel_config = os.path.join("data", pmc["client_id"], prop_id, "config.json")
-            rel_manual = os.path.join("data", pmc["client_id"], prop_id, "manual.txt")
+            rel_config = os.path.join("data", (client_id or str(pmc_id)), folder_property_id, "config.json")
+            rel_manual = os.path.join("data", (client_id or str(pmc_id)), folder_property_id, "manual.txt")
 
             sync_pmc_to_github(
                 base_dir,
@@ -277,18 +311,21 @@ def sync_properties(account_id: str) -> int:
                 },
             )
     except Exception as e:
-        print(f"[GITHUB] ⚠️ Failed to push PMC {account_id} to GitHub: {e}")
+        print(f"[GITHUB] ⚠️ Failed to push PMC account_id={account_id_clean} to GitHub: {e}")
 
-    # ✅ Update last_synced_at on PMC (by pms_account_id)
+    # 5) Update last_synced_at (prefer pmc.id; fallback to pms_account_id)
     db = SessionLocal()
     try:
-        db_pmc = db.query(PMC).filter(PMC.pms_account_id == str(account_id)).first()
+        db_pmc = db.query(PMC).filter(PMC.id == int(pmc_id)).first()
+        if not db_pmc:
+            db_pmc = db.query(PMC).filter(PMC.pms_account_id == account_id_clean).first()
+
         if db_pmc:
             db_pmc.last_synced_at = datetime.utcnow()
             db.commit()
-            print(f"[SYNC] ✅ Updated last_synced_at for PMC {account_id}")
+            print(f"[SYNC] ✅ Updated last_synced_at for pmc_id={db_pmc.id} account_id={account_id_clean}")
         else:
-            print(f"[SYNC] ⚠️ No PMC row found for pms_account_id={account_id} to update last_synced_at")
+            print(f"[SYNC] ⚠️ No PMC row found for pmc_id={pmc_id} or pms_account_id={account_id_clean}")
     except Exception as db_err:
         db.rollback()
         print(f"[DB] ❌ Failed to update last_synced_at: {db_err}")
@@ -296,8 +333,9 @@ def sync_properties(account_id: str) -> int:
     finally:
         db.close()
 
-    print(f"[SYNC] ✅ Saved {len(properties)} properties for {account_id}")
+    print(f"[SYNC] ✅ Upserted {len(properties)} properties for account_id={account_id_clean} provider={provider}")
     return len(properties)
+
 
 
 
