@@ -178,7 +178,7 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id)
                 "pmc_id": int(pmc_record_id),  # FK to pmc.id
                 "provider": provider,
                 "external_property_id": ext_id,
-                "sandy_enabled": True,         # default; later you’ll let them choose + bill
+                "sandy_enabled": False,         # default; later you’ll let them choose + bill
                 "data_folder_path": folder,
                 "last_synced": datetime.utcnow(),
             })
