@@ -1,5 +1,8 @@
 import os
 import requests
+import re
+import unicodedata
+
 from models import PMC
 from database import SessionLocal, engine
 from datetime import datetime
@@ -438,27 +441,68 @@ def sync_all_pmcs():
     print(f"[SYNC] ✅ Total properties synced: {total}")
     return total
 
-def ensure_pmc_structure(pmc_name: str, property_id: str, property_name: str):
-    # Clean folder names for filesystem safety
-    safe_pmc_name = pmc_name.replace(" ", "_")
-    safe_prop_name = property_name.replace(" ", "_").replace("/", "-")
-    base_dir = f"data/{safe_pmc_name}/{property_id}"
 
+
+def _slugify(value: str, max_length: int = 64) -> str:
+    """
+    Filesystem-safe slug:
+    - ASCII only
+    - lowercase
+    - hyphen/underscore safe
+    - length capped
+    """
+    if not value:
+        return "unknown"
+
+    value = unicodedata.normalize("NFKD", value)
+    value = value.encode("ascii", "ignore").decode("ascii")
+    value = value.lower()
+    value = re.sub(r"[^\w\-]+", "_", value)
+    value = re.sub(r"_+", "_", value).strip("_")
+
+    return value[:max_length]
+
+
+def ensure_pmc_structure(pmc_name: str, property_id: str, property_name: str) -> str:
+    """
+    Create and return the filesystem folder for a property.
+
+    Structure:
+      data/{pmc_slug}/{property_id}/
+        ├── config.json
+        └── manual.txt
+
+    IMPORTANT:
+    - property_id should already be provider-prefixed (e.g. hostaway_123)
+    - property_name is for readability only (not used in folder path)
+    """
+
+    if not pmc_name:
+        raise ValueError("ensure_pmc_structure: pmc_name is required")
+
+    if not property_id:
+        raise ValueError("ensure_pmc_structure: property_id is required")
+
+    pmc_slug = _slugify(pmc_name)
+    prop_id_safe = _slugify(property_id, max_length=128)
+
+    base_dir = os.path.join("data", pmc_slug, prop_id_safe)
     os.makedirs(base_dir, exist_ok=True)
 
-    # Create empty config and manual if missing
     config_path = os.path.join(base_dir, "config.json")
     manual_path = os.path.join(base_dir, "manual.txt")
 
+    # Idempotent file creation
     if not os.path.exists(config_path):
-        with open(config_path, "w") as f:
+        with open(config_path, "w", encoding="utf-8") as f:
             f.write("{}")
 
     if not os.path.exists(manual_path):
-        with open(manual_path, "w") as f:
+        with open(manual_path, "w", encoding="utf-8") as f:
             f.write("")
 
     return base_dir
+
 
 
 
