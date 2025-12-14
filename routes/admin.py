@@ -812,7 +812,7 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         )
 
     # ✅ Resolve role + scope
-    user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
 
     # Logged in but not authorized for PMC scope
     if user_role == "pmc" and not pmc_obj:
