@@ -25,68 +25,226 @@
     </header>
 
     <main class="max-w-3xl mx-auto px-6 py-10 space-y-6">
+
+      <!-- Title -->
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
         <h1 class="text-2xl font-semibold">Connect your Property Management System</h1>
         <p class="mt-2 text-sm text-slate-600">
-          This pulls your listings into HostScout so you can choose which ones to enable Sandy for.
+          Connect once, import your properties, then choose which ones to enable Sandy for.
         </p>
 
-        <div class="mt-4 rounded-xl border border-amber-300/60 bg-amber-50 p-4">
-          <div class="text-sm font-semibold text-amber-900">Hostaway (first integration)</div>
-          <p class="mt-1 text-sm text-amber-900/80">
-            Paste your credentials below. Then we’ll import your properties in one click.
-          </p>
-        </div>
-
-        <form method="post" action="/pmc/onboarding/pms/hostaway/import" class="mt-6 space-y-4">
-          <div>
-            <label class="text-sm font-semibold text-slate-700">Hostaway Account ID</label>
-            <input
-              name="account_id"
-              required
-              value="{{ existing.account_id if existing else '' }}"
-              class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-              placeholder="e.g. 12345"
-            />
-          </div>
-
-          <div>
-            <label class="text-sm font-semibold text-slate-700">API Key (Client ID)</label>
-            <input
-              name="api_key"
-              required
-              value="{{ existing.api_key if existing else '' }}"
-              class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-              placeholder="Paste your Hostaway API key"
-            />
-          </div>
-
-          <div>
-            <label class="text-sm font-semibold text-slate-700">API Secret</label>
-            <input
-              name="api_secret"
-              required
-              value="{{ existing.api_secret if existing else '' }}"
-              class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-              placeholder="Paste your Hostaway API secret"
-            />
-          </div>
-
-          <div class="pt-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-            <div class="text-xs text-slate-500">
-              We’ll save this connection and import your properties immediately.
+        <!-- Provider selector (scale-ready UI) -->
+        <div class="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <div class="text-sm font-semibold text-slate-900">Choose your PMS</div>
+              <p class="mt-1 text-sm text-slate-600">
+                We’re starting with Hostaway, and this flow is built to support Lodgify, Guesty, and more.
+              </p>
             </div>
 
-            <button
-              type="submit"
-              class="h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
-            >
-              Test + Import properties →
-            </button>
+            <div class="min-w-[210px]">
+              <label for="provider" class="sr-only">Provider</label>
+              <select
+                id="provider"
+                class="h-10 w-full px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+              >
+                <option value="hostaway" selected>Hostaway</option>
+                <option value="lodgify" disabled>Lodgify (coming soon)</option>
+                <option value="guesty" disabled>Guesty (coming soon)</option>
+                <option value="ownerrez" disabled>OwnerRez (coming soon)</option>
+              </select>
+              <p class="mt-1 text-[12px] text-slate-500">
+                More PMS options will appear here as we add connectors.
+              </p>
+            </div>
           </div>
-        </form>
+        </div>
+
+        <!-- Connected state (optional, shows if existing integration exists) -->
+        {% if existing and existing.is_connected %}
+          <div class="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="text-sm font-semibold text-emerald-900">Hostaway is connected</div>
+                <p class="mt-1 text-sm text-emerald-900/80">
+                  Account ID: <span class="font-semibold">{{ existing.account_id }}</span>
+                  {% if existing.last_synced_at %}
+                    • Last sync: <span class="font-semibold">{{ existing.last_synced_at }}</span>
+                  {% endif %}
+                </p>
+              </div>
+              <a href="/admin/dashboard" class="text-sm font-semibold text-emerald-900 hover:underline">
+                Go to dashboard →
+              </a>
+            </div>
+          </div>
+        {% endif %}
+
+        <!-- Hostaway block -->
+        <section id="panel-hostaway" class="mt-6">
+          <div class="rounded-xl border border-amber-300/60 bg-amber-50 p-4">
+            <div class="text-sm font-semibold text-amber-900">Hostaway (available now)</div>
+            <p class="mt-1 text-sm text-amber-900/80">
+              Paste your Hostaway credentials and we’ll import your properties in one click.
+            </p>
+          </div>
+
+          <form id="hostaway-form" method="post" action="/pmc/onboarding/pms/hostaway/import" class="mt-6 space-y-4">
+            <div>
+              <label class="text-sm font-semibold text-slate-700">Hostaway Account ID</label>
+              <input
+                name="account_id"
+                required
+                value="{{ existing.account_id if existing else '' }}"
+                class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="e.g. 12345"
+                autocomplete="off"
+              />
+            </div>
+
+            <div>
+              <label class="text-sm font-semibold text-slate-700">API Key (Client ID)</label>
+              <input
+                name="api_key"
+                required
+                value="{{ existing.api_key if existing else '' }}"
+                class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Paste your Hostaway API key"
+                autocomplete="off"
+              />
+            </div>
+
+            <div>
+              <label class="text-sm font-semibold text-slate-700">API Secret</label>
+              <input
+                name="api_secret"
+                required
+                value="{{ existing.api_secret if existing else '' }}"
+                class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+                placeholder="Paste your Hostaway API secret"
+                autocomplete="off"
+              />
+              <div class="mt-2 text-xs text-slate-500">
+                Tip: If you don’t know where to find these, click
+                <button type="button" id="howto-btn" class="underline font-semibold hover:text-slate-700">How do I get my Hostaway keys?</button>
+              </div>
+            </div>
+
+            <div class="pt-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+              <div class="text-xs text-slate-500">
+                We’ll save this connection and import your properties immediately.
+              </div>
+
+              <button
+                id="import-btn"
+                type="submit"
+                class="h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Test + Import properties →
+              </button>
+            </div>
+
+            <div id="import-hint" class="hidden mt-3 text-sm text-slate-600">
+              Importing… this can take a moment depending on how many listings you have.
+            </div>
+          </form>
+        </section>
+
+        <!-- Coming soon providers -->
+        <section id="panel-coming-soon" class="hidden mt-6">
+          <div class="rounded-xl border border-slate-200 bg-white p-6">
+            <div class="text-sm font-semibold">This PMS is coming soon</div>
+            <p class="mt-2 text-sm text-slate-600">
+              The onboarding flow stays the same: connect → import properties → enable Sandy per property.
+            </p>
+            <p class="mt-2 text-sm text-slate-600">
+              For now, choose <span class="font-semibold">Hostaway</span> to continue.
+            </p>
+          </div>
+        </section>
+
       </div>
     </main>
   </div>
+
+  <!-- How-to modal -->
+  <div id="howto-modal" class="fixed inset-0 hidden items-center justify-center bg-black/50 p-6 z-50">
+    <div class="w-full max-w-lg rounded-2xl bg-white border border-slate-200 shadow-lg">
+      <div class="p-5 border-b border-slate-200 flex items-center justify-between">
+        <div class="text-sm font-semibold">Getting your Hostaway API credentials</div>
+        <button id="howto-close" class="h-9 w-9 rounded-xl hover:bg-slate-50 grid place-items-center" aria-label="Close">
+          ✕
+        </button>
+      </div>
+
+      <div class="p-5 space-y-3 text-sm text-slate-700">
+        <ol class="list-decimal pl-5 space-y-2">
+          <li>Log in to Hostaway as an admin.</li>
+          <li>Go to <span class="font-semibold">Settings → Integrations / API</span> (wording may vary).</li>
+          <li>Create a new API application / API keys.</li>
+          <li>Copy the <span class="font-semibold">Account ID</span>, <span class="font-semibold">API Key</span>, and <span class="font-semibold">API Secret</span> into this form.</li>
+        </ol>
+        <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
+          Don’t worry — we’ll improve this with an in-app “Connect Hostaway” flow (OAuth-style) so most users never touch keys.
+        </div>
+      </div>
+
+      <div class="p-5 border-t border-slate-200 flex justify-end">
+        <button id="howto-ok" class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+          Got it
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Provider selector (scale-ready UI)
+    const providerSel = document.getElementById("provider");
+    const hostawayPanel = document.getElementById("panel-hostaway");
+    const comingSoonPanel = document.getElementById("panel-coming-soon");
+
+    function renderProvider() {
+      const v = providerSel.value;
+      const isHostaway = v === "hostaway";
+      hostawayPanel.classList.toggle("hidden", !isHostaway);
+      comingSoonPanel.classList.toggle("hidden", isHostaway);
+    }
+    providerSel.addEventListener("change", renderProvider);
+    renderProvider();
+
+    // Disable button + show hint on submit
+    const form = document.getElementById("hostaway-form");
+    const btn = document.getElementById("import-btn");
+    const hint = document.getElementById("import-hint");
+
+    form.addEventListener("submit", () => {
+      btn.disabled = true;
+      hint.classList.remove("hidden");
+      btn.textContent = "Importing…";
+    });
+
+    // How-to modal
+    const modal = document.getElementById("howto-modal");
+    const openBtn = document.getElementById("howto-btn");
+    const closeBtn = document.getElementById("howto-close");
+    const okBtn = document.getElementById("howto-ok");
+
+    function openModal() {
+      modal.classList.remove("hidden");
+      modal.classList.add("flex");
+    }
+    function closeModal() {
+      modal.classList.add("hidden");
+      modal.classList.remove("flex");
+    }
+
+    openBtn?.addEventListener("click", openModal);
+    closeBtn?.addEventListener("click", closeModal);
+    okBtn?.addEventListener("click", closeModal);
+    modal?.addEventListener("click", (e) => {
+      if (e.target === modal) closeModal();
+    });
+  </script>
 </body>
 </html>
