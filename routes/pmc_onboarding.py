@@ -1,4 +1,4 @@
-# routes/pmc_onboarding.py
+import os
 from __future__ import annotations
 
 from datetime import datetime
@@ -11,7 +11,10 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import get_db
-from models import PMC, PMCIntegration, PMCUser
+from models import PMC, PMCIntegration, PMCUser, Property
+
+import stripe
+
 
 # IMPORTANT: adjust this import to your real path if needed:
 # - project root: from pms_sync import sync_properties
@@ -287,19 +290,25 @@ def onboarding_properties_page(request: Request, db: Session = Depends(get_db)):
         },
     )
 
+
+
 @router.post("/pmc/onboarding/properties")
 async def onboarding_properties_submit(request: Request, db: Session = Depends(get_db)):
     """
     Process the property selection form. The submitted form contains a list of
     property IDs that the user wants to enable. All other properties will be
-    left disabled. After updating the database, redirect to the admin dashboard.
+    left disabled. After updating the database, either redirect to the admin
+    dashboard or send the user through a subscription checkout if one or more
+    properties were selected.
     """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/properties")
     if redirect:
         return redirect
+
     pmc = _require_pmc_for_session(db, request)
     if not _is_paid(pmc):
         return RedirectResponse("/pmc/signup", status_code=303)
+
     form = await request.form()
     # Extract selected property IDs from the form (checkboxes share the same name)
     selected_ids = set()
@@ -308,10 +317,44 @@ async def onboarding_properties_submit(request: Request, db: Session = Depends(g
             selected_ids.add(int(pid))
         except (ValueError, TypeError):
             continue
+
     # Update each property: enable if selected, disable otherwise
     props = db.query(Property).filter(Property.pmc_id == pmc.id).all()
     for prop in props:
         prop.sandy_enabled = prop.id in selected_ids
     db.commit()
-    return RedirectResponse("/admin/dashboard", status_code=303)
 
+    # Determine how many properties were enabled
+    enabled_count = len(selected_ids)
+    # If none selected, nothing to bill; send user straight to the dashboard
+    if enabled_count <= 0:
+        return RedirectResponse("/admin/dashboard", status_code=303)
+
+    # Ensure we have a Stripe Customer ID from the signup checkout
+    customer_id = getattr(pmc, "stripe_customer_id", None)
+    if not customer_id:
+        # Without a customer ID we can't start a subscription; require signup
+        return RedirectResponse("/pmc/signup", status_code=303)
+
+    # Configure Stripe
+    stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "").strip()
+    PRICE_PROPERTY_MONTHLY = os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY", "").strip()
+    APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
+
+    # Create a subscription checkout session with quantity = enabled_count
+    checkout = stripe.checkout.Session.create(
+        mode="subscription",
+        customer=customer_id,
+        line_items=[
+            {"price": PRICE_PROPERTY_MONTHLY, "quantity": enabled_count},
+        ],
+        success_url=f"{APP_BASE_URL}/pmc/onboarding/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{APP_BASE_URL}/pmc/onboarding/properties",
+        metadata={
+            "pmc_id": str(pmc.id),
+            "type": "pmc_property_subscription",
+            "quantity": str(enabled_count),
+        },
+    )
+    # Redirect the user to Stripe to confirm the subscription
+    return RedirectResponse(checkout.url, status_code=303)
