@@ -217,3 +217,32 @@ def onboarding_hostaway_import(
     #return RedirectResponse("/admin/dashboard#properties", status_code=303)
     return RedirectResponse("/pmc/onboarding/properties", status_code=303)
 
+@router.post("/pmc/onboarding/pms/lodgify/import")
+def onboarding_lodgify_import(request: Request, db: Session = Depends(get_db)):
+    """
+    Placeholder endpoint for Lodgify PMS integrations.
+    Once Lodgify support is implemented, this endpoint should accept the
+    necessary credentials (e.g., API key, secret) and import properties.
+    """
+    redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
+    if redirect:
+        return redirect
+    pmc = _require_pmc_for_session(db, request)
+    if not _is_paid(pmc):
+        return RedirectResponse("/pmc/signup", status_code=303)
+    raise HTTPException(status_code=501, detail="Lodgify integration is coming soon")
+
+@router.post("/pmc/onboarding/pms/guesty/import")
+def onboarding_guesty_import(request: Request, db: Session = Depends(get_db)):
+    """
+    Placeholder endpoint for Guesty PMS integrations.
+    Once Guesty support is implemented, this endpoint should accept the
+    necessary credentials (e.g., API token) and import properties.
+    """
+    redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
+    if redirect:
+        return redirect
+    pmc = _require_pmc_for_session(db, request)
+    if not _is_paid(pmc):
+        return RedirectResponse("/pmc/signup", status_code=303)
+    raise HTTPException(status_code=501, detail="Guesty integration is coming soon")
