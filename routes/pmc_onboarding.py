@@ -21,8 +21,9 @@ from utils.pms_sync import sync_properties
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
-# Scale hook: central list of supported providers
-SUPPORTED_PROVIDERS = {"hostaway"}  # later: {"hostaway", "lodgify", "guesty", ...}
+# List of PMS providers that can be selected during onboarding.
+# When adding support for a new provider, add its slug here and create a corresponding import route.
+SUPPORTED_PROVIDERS = {"hostaway", "lodgify", "guesty"}
 
 
 # ----------------------------
@@ -213,4 +214,6 @@ def onboarding_hostaway_import(
         db.commit()
 
     # Land them directly on properties view (optional)
-    return RedirectResponse("/admin/dashboard#properties", status_code=303)
+    #return RedirectResponse("/admin/dashboard#properties", status_code=303)
+    return RedirectResponse("/pmc/onboarding/properties", status_code=303)
+
