@@ -248,6 +248,10 @@ def sync_single_property(property_id: int, request: Request, db: Session = Depen
     prop = require_property_in_scope(request, db, property_id)
 
     pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
+
+     # NEW: paywall
+    require_pmc_is_paid(db, prop.pmc_id)
+    
     if not pmc:
         raise HTTPException(status_code=404, detail="PMC not found")
 
