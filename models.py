@@ -11,8 +11,40 @@ from sqlalchemy import (
     UniqueConstraint,
 )
 from sqlalchemy.orm import relationship
-
+import json
 from database import Base  # ✅ Use the shared Base from database.py
+
+
+# -------------------------------------------------------------------
+# PMSConnection model
+# -------------------------------------------------------------------
+
+class PMSConnection(Base):
+    __tablename__ = "pms_connections"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    provider = Column(String, nullable=False, index=True)  # hostaway, lodgify, guesty, etc.
+    status = Column(String, nullable=False, default="connected")  # connected, error, disconnected
+
+    external_account_id = Column(String, nullable=True)  # account id / org id in provider
+    auth_json = Column(Text, nullable=True)              # store creds/tokens (encrypt later)
+    access_token = Column(String, nullable=True)
+    refresh_token = Column(String, nullable=True)
+    token_expires_at = Column(DateTime, nullable=True)
+
+    last_sync_at = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    pmc = relationship("PMC", backref="pms_connections")
+
+    __table_args__ = (
+        UniqueConstraint("pmc_id", "provider", name="uq_pms_conn_pmc_provider"),
+    )
 
 
 # -------------------------------------------------------------------
@@ -141,28 +173,39 @@ class Property(Base):
     __tablename__ = "properties"
 
     id = Column(Integer, primary_key=True, index=True)
-    property_name = Column(String, nullable=False)
-
-    # If different PMCs can have the same PMS listing id, this should NOT be globally unique.
-    # If it truly is unique across the whole system, keep unique=True.
-    pms_property_id = Column(String, unique=True, index=True)
-
-    pms_integration = Column(String, nullable=True)
 
     pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    sandy_enabled = Column(Boolean, default=True)
+    # ✅ Provider-agnostic identifiers (scales to Hostaway, Lodgify, Guesty, etc.)
+    # Examples: provider="hostaway", external_property_id="12345"
+    provider = Column(String, nullable=True, index=True)
+    external_property_id = Column(String, nullable=True, index=True)
+
+    # Display name
+    property_name = Column(String, nullable=False)
+
+    # Legacy / compatibility fields (safe to keep while you transition)
+    # IMPORTANT: not globally unique. If you want uniqueness, do it by (pmc_id, pms_integration, pms_property_id).
+    pms_property_id = Column(String, nullable=True, index=True)
+    pms_integration = Column(String, nullable=True)
+
+    # Billing toggle (opt-in per property)
+    sandy_enabled = Column(Boolean, default=False, nullable=False)
 
     data_folder_path = Column(String, nullable=True)
-
-    # ✅ Your dashboard uses prop.last_synced
     last_synced = Column(DateTime, nullable=True)
 
+    # Relationships
     pmc = relationship("PMC", back_populates="properties")
     reservations = relationship("Reservation", back_populates="property", cascade="all, delete-orphan")
     guides = relationship("Guide", back_populates="property", cascade="all, delete-orphan")
     upgrades = relationship("Upgrade", back_populates="property", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="property", cascade="all, delete-orphan")
+
+    __table_args__ = (
+        # ✅ Enforces uniqueness in a scalable way across providers
+        UniqueConstraint("pmc_id", "provider", "external_property_id", name="uq_properties_provider_external"),
+    )
 
 
 # -------------------------------------------------------------------
