@@ -155,13 +155,16 @@ def pmc_signup_start(
     cancel_url = f"{APP_BASE_URL}/pmc/signup/cancel"
 
     try:
+        # Configure a one‑time payment for the signup fee and save the card on file
         checkout = stripe.checkout.Session.create(
             mode="payment",
             customer_email=email_l,
-        
-            # ✅ Force Stripe to create a Customer so obj["customer"] is not None in the webhook
+            
+            # Force Stripe to create a Customer so obj["customer"] isn’t None in the webhook
             customer_creation="always",
-        
+            
+            # Save the payment method for future monthly subscriptions
+            payment_intent_data={"setup_future_usage": "off_session"},
             line_items=[
                 {"price": PRICE_SIGNUP_ONETIME, "quantity": 1},
             ],
@@ -172,6 +175,7 @@ def pmc_signup_start(
                 "type": "pmc_signup_onetime",
             },
         )
+
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Stripe checkout failed: {str(e)}")
