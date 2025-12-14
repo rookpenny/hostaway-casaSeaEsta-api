@@ -22,6 +22,8 @@ from models import PMC, Property, ChatSession, ChatMessage, PMCUser
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
 
+from services.pms_sync import sync_properties_for_pmc  # <- service layer
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -229,6 +231,22 @@ def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
 
     raise HTTPException(status_code=403, detail="Forbidden file")
 
+
+# ----------------------------
+# SYNC Properties
+# ----------------------------
+@router.post("/admin/pmcs/{pmc_id}/sync-properties")
+def admin_sync_properties(pmc_id: int, request: Request, db: Session = Depends(get_db)):
+    require_super(request, db)
+
+    try:
+        count, synced_at = sync_properties_for_pmc(db, pmc_id=pmc_id)
+        return JSONResponse({"success": True, "message": f"Synced {count} properties", "synced_at": synced_at})
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[ERROR] Failed to sync for pmc_id={pmc_id}: {e}")
+        return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 # ----------------------------
 # Heat / escalation helpers
