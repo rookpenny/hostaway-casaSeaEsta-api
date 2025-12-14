@@ -18,7 +18,7 @@ templates = Jinja2Templates(directory="templates")
 stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "")
 
 PRICE_SIGNUP_ONETIME = os.getenv("STRIPE_PRICE_SIGNUP_ONETIME", "")
-PRICE_PROPERTY_MONTHLY = os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY", "")  # used later when properties are added
+PRICE_PROPERTY_MONTHLY = os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY", "")  # used later
 APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
 
 
@@ -48,11 +48,14 @@ def _session_name(request: Request) -> str | None:
     return name or None
 
 
+def _set_if_attr(obj, attr: str, value) -> None:
+    if hasattr(obj, attr):
+        setattr(obj, attr, value)
+
+
 @router.get("/pmc/signup", response_class=HTMLResponse)
 def pmc_signup_page(request: Request):
     _required_env()
-
-    # Prefill from Google session if available (recommended)
     return templates.TemplateResponse(
         "pmc_signup.html",
         {
@@ -69,13 +72,12 @@ def pmc_signup_start(
     request: Request,
     pmc_name: str = Form(...),
     admin_name: str = Form(""),
-    # NOTE: we still accept the field for UX, but we do NOT trust it.
-    admin_email: str = Form(""),
+    admin_email: str = Form(""),  # accepted for UX, but session email is preferred
     db: Session = Depends(get_db),
 ):
     """
-    Creates a PMC in a locked state, then starts Stripe Checkout for ONE-TIME signup fee.
-    Account activation is done ONLY by webhook after payment succeeds.
+    Create/reuse PMC in locked state, start Stripe Checkout for one-time signup fee.
+    Activation + billing fields are set by Stripe webhook after payment succeeds.
     """
     _required_env()
 
@@ -83,7 +85,7 @@ def pmc_signup_start(
     if not pmc_name_clean:
         raise HTTPException(status_code=400, detail="PMC name is required")
 
-    # ✅ DO NOT trust form email. Use Google session email if present.
+    # Prefer Google session email (trust boundary); fallback to form field if needed
     email_l = _session_email(request) or (admin_email or "").strip().lower()
     if not email_l:
         raise HTTPException(
@@ -93,48 +95,51 @@ def pmc_signup_start(
 
     admin_name_clean = (_session_name(request) or admin_name or "").strip() or None
 
-    # Prevent duplicates: reuse existing PMC for this email if it already exists
-    existing = (
+    # --- Find or create PMC ---
+    pmc = (
         db.query(PMC)
         .filter(func.lower(PMC.email) == email_l)
         .order_by(PMC.id.desc())
         .first()
     )
 
-    if existing:
-        # If already active, no need to pay signup again
-        if bool(getattr(existing, "active", False)) and (getattr(existing, "billing_status", "") or "").lower() == "active":
+    if pmc:
+        # If already active, skip charging again
+        billing_status = (getattr(pmc, "billing_status", "") or "").lower()
+        if bool(getattr(pmc, "active", False)) and billing_status == "active":
             return RedirectResponse("/admin/dashboard", status_code=303)
 
-        # If pending/inactive, reuse it (and ensure it’s locked)
-        pmc = existing
+        # Reuse existing record but ensure it's locked
         pmc.pmc_name = pmc_name_clean
         pmc.main_contact = admin_name_clean
         pmc.active = False
         pmc.sync_enabled = False
-        if hasattr(pmc, "billing_status"):
-            pmc.billing_status = (getattr(pmc, "billing_status", None) or "pending")
+        _set_if_attr(pmc, "billing_status", "pending")
         db.commit()
         db.refresh(pmc)
     else:
-        # Create PMC in locked state
         pmc = PMC(
             pmc_name=pmc_name_clean,
             email=email_l,
             main_contact=admin_name_clean,
-            active=False,        # 🔒 locked until webhook confirms payment
-            sync_enabled=False,  # 🔒 locked until paid
+            active=False,
+            sync_enabled=False,
         )
-        # If your PMC model has billing_status, set it; if not, this is a no-op.
-        if hasattr(pmc, "billing_status"):
-            pmc.billing_status = "pending"
-
+        _set_if_attr(pmc, "billing_status", "pending")
         db.add(pmc)
         db.commit()
         db.refresh(pmc)
 
-        # Create the PMC admin user record too (so OAuth membership is explicit)
-        # role: owner | admin | staff (you already commented this convention in the model)
+    # --- Ensure PMCUser exists (owner) ---
+    existing_user = (
+        db.query(PMCUser)
+        .filter(
+            PMCUser.pmc_id == pmc.id,
+            func.lower(PMCUser.email) == email_l,
+        )
+        .first()
+    )
+    if not existing_user:
         pmc_user = PMCUser(
             pmc_id=pmc.id,
             email=email_l,
@@ -145,7 +150,7 @@ def pmc_signup_start(
         db.add(pmc_user)
         db.commit()
 
-    # Stripe Checkout (ONE-TIME signup fee)
+    # --- Stripe Checkout (one-time signup fee) ---
     success_url = f"{APP_BASE_URL}/pmc/signup/success?session_id={{CHECKOUT_SESSION_ID}}"
     cancel_url = f"{APP_BASE_URL}/pmc/signup/cancel"
 
@@ -158,6 +163,9 @@ def pmc_signup_start(
             ],
             success_url=success_url,
             cancel_url=cancel_url,
+
+            # 🔑 These two make webhook matching reliable
+            client_reference_id=f"pmc_{pmc.id}",
             metadata={
                 "pmc_id": str(pmc.id),
                 "type": "pmc_signup_onetime",
@@ -171,8 +179,7 @@ def pmc_signup_start(
 
 @router.get("/pmc/signup/success", response_class=HTMLResponse)
 def pmc_signup_success(request: Request, session_id: str | None = None):
-    # ✅ IMPORTANT: This page is NOT proof of payment. Webhook is the truth.
-    # Keep it simple: tell them to log in / refresh.
+    # NOT proof of payment — webhook is source of truth.
     return templates.TemplateResponse(
         "pmc_signup_success.html",
         {
