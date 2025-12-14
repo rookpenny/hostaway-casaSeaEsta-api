@@ -58,27 +58,7 @@ def _is_paid(pmc: PMC) -> bool:
 # ----------------------------
 # Step 1: Redirect success -> onboarding
 # ----------------------------
-@router.get("/pmc/signup/success", response_class=HTMLResponse)
-def pmc_signup_success_router(request: Request, db: Session = Depends(get_db)):
-    """
-    This is NOT proof of payment. Webhook is truth.
-    But it *is* the moment to route them to onboarding.
-    """
-    pmc = _require_pmc_for_session(db, request)
 
-    # If not paid yet, show a holding page (webhook might be a few seconds behind)
-    if not _is_paid(pmc):
-        return templates.TemplateResponse(
-            "pmc_signup_success.html",
-            {
-                "request": request,
-                "next_url": "/pmc/onboarding/pms",
-                "is_paid": False,
-            },
-        )
-
-    # Paid: go directly to connect PMS
-    return RedirectResponse("/pmc/onboarding/pms", status_code=303)
 
 
 # ----------------------------
