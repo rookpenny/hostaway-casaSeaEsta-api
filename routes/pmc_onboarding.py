@@ -1,6 +1,9 @@
-import os
-import requests
+# routes/pmc_onboarding.py
+from __future__ import annotations
+
 from datetime import datetime
+from typing import Optional
+
 from fastapi import APIRouter, Request, Depends, Form, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -8,16 +11,31 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import get_db
-from models import PMC, PMCIntegration, Property, PMCUser
+from models import PMC, PMCIntegration, PMCUser
+
+# IMPORTANT: this should match your actual module path
+# If your sync file is at project root: from pms_sync import sync_properties
+# If it's in utils/: from utils.pms_sync import sync_properties
+from pms_sync import sync_properties  # <-- adjust if needed
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 
 
-def _session_email(request: Request) -> str | None:
+# ----------------------------
+# Session helpers
+# ----------------------------
+def _session_email(request: Request) -> Optional[str]:
     user = request.session.get("user") or {}
     email = (user.get("email") or "").strip().lower()
     return email or None
+
+
+def _require_login_or_redirect(request: Request, next_path: str) -> Optional[RedirectResponse]:
+    if not _session_email(request):
+        # preserve intended destination
+        return RedirectResponse(f"/auth/login/google?next={next_path}", status_code=302)
+    return None
 
 
 def _require_pmc_for_session(db: Session, request: Request) -> PMC:
@@ -32,7 +50,7 @@ def _require_pmc_for_session(db: Session, request: Request) -> PMC:
 
     pmc_user = (
         db.query(PMCUser)
-        .filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active == True)
+        .filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active.is_(True))
         .first()
     )
     if pmc_user:
@@ -48,49 +66,55 @@ def _require_pmc_for_session(db: Session, request: Request) -> PMC:
 
 
 def _is_paid(pmc: PMC) -> bool:
-    # Use billing_status if present, otherwise fall back to active
-    status = (getattr(pmc, "billing_status", "") or "").lower()
+    """
+    Treat webhook as truth:
+    - billing_status == 'active' means paid
+    - fallback: pmc.active True (legacy)
+    """
+    status = (getattr(pmc, "billing_status", "") or "").strip().lower()
     if status:
         return status == "active"
     return bool(getattr(pmc, "active", False))
 
 
-# ----------------------------
-# Step 1: Redirect success -> onboarding
-# ----------------------------
-
-
-
-# ----------------------------
-# Step 2: Connect PMS screen
-# ----------------------------
-@router.get("/pmc/onboarding/pms", response_class=HTMLResponse)
-def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
-    pmc = _require_pmc_for_session(db, request)
-
-    if not _is_paid(pmc):
-        # Guard: don’t allow onboarding if they didn’t pay
-        return RedirectResponse("/pmc/signup", status_code=303)
-
-    # prefill any existing integration
-    existing = (
-        db.query(PMCIntegration)
-        .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == "hostaway")
-        .first()
-    )
-
+def _render_pms_page(request: Request, pmc: PMC, existing: Optional[PMCIntegration], error: Optional[str] = None):
     return templates.TemplateResponse(
         "pmc_onboarding_pms.html",
         {
             "request": request,
             "pmc": pmc,
             "existing": existing,
+            "error": error,
         },
     )
 
 
 # ----------------------------
-# Step 3: Test + Save + Import properties (Hostaway v1)
+# Step 1: Connect PMS screen
+# ----------------------------
+@router.get("/pmc/onboarding/pms", response_class=HTMLResponse)
+def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
+    redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
+    if redirect:
+        return redirect
+
+    pmc = _require_pmc_for_session(db, request)
+
+    if not _is_paid(pmc):
+        # Guard: don’t allow onboarding if they didn’t pay
+        return RedirectResponse("/pmc/signup", status_code=303)
+
+    existing = (
+        db.query(PMCIntegration)
+        .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == "hostaway")
+        .first()
+    )
+
+    return _render_pms_page(request, pmc, existing)
+
+
+# ----------------------------
+# Step 2: Save creds + import properties (Hostaway v1)
 # ----------------------------
 @router.post("/pmc/onboarding/pms/hostaway/import")
 def onboarding_hostaway_import(
@@ -100,6 +124,10 @@ def onboarding_hostaway_import(
     api_secret: str = Form(...),
     db: Session = Depends(get_db),
 ):
+    redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
+    if redirect:
+        return redirect
+
     pmc = _require_pmc_for_session(db, request)
 
     if not _is_paid(pmc):
@@ -112,7 +140,7 @@ def onboarding_hostaway_import(
     if not account_id or not api_key or not api_secret:
         raise HTTPException(status_code=400, detail="Missing Hostaway credentials")
 
-    # 1) Save/update integration record (provider-agnostic design)
+    # 1) Upsert provider-agnostic integration record
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == "hostaway")
@@ -127,37 +155,35 @@ def onboarding_hostaway_import(
     integ.api_secret = api_secret
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
+
+    # 2) Mirror into PMC table too (keeps your existing app logic working)
+    # (You already have these columns on PMC)
+    pmc.pms_integration = "hostaway"
+    pmc.pms_account_id = account_id
+    pmc.pms_api_key = api_key
+    pmc.pms_api_secret = api_secret
+
     db.commit()
     db.refresh(integ)
+    db.refresh(pmc)
 
-    # 2) Test connection + list properties from Hostaway
-    # NOTE: You likely already have Hostaway helpers. If so, swap this block to your existing client.
+    # 3) Import properties using your existing sync util
+    # This also acts as the connectivity test.
     try:
-        # Example endpoint pattern varies by Hostaway setup;
-        # replace with your known-good Hostaway call used in utils.hostaway.
-        # We’ll do a “minimal connectivity check” by calling an endpoint you already use.
-        #
-        # ✅ BEST: reuse your get_listing_overview / get_upcoming_phone_for_listing auth approach.
-        #
-        # For now, we’ll keep this as a placeholder and rely on your existing sync util.
-        pass
+        count = sync_properties(account_id=str(account_id))
     except Exception as e:
-        raise HTTPException(status_code=400, detail=f"Hostaway connection failed: {str(e)}")
+        # Render the page with the error, keep creds saved (so they can retry)
+        existing = integ
+        return _render_pms_page(
+            request,
+            pmc,
+            existing,
+            error=f"Hostaway import failed: {str(e)}",
+        )
 
-    # 3) Import properties using YOUR existing sync util
-    # If you already have sync_properties(db, pmc_id) you can call it here.
-    # If you have sync_properties(pmc_id) without db, call that.
-    from utils.pms_sync import sync_properties  # adjust import to your real function
-
-    try:
-        # Expectation: sync_properties should upsert properties for THIS pmc
-        # and set property.pms_integration/provider fields.
-        count = sync_properties(db=db, pmc_id=pmc.id, provider="hostaway")
-    except TypeError:
-        # fallback to older signature (if your function doesn't accept provider yet)
-        count = sync_properties(db=db, pmc_id=pmc.id)
-
-    integ.last_synced_at = datetime.utcnow()
-    db.commit()
+    # Track sync time on integration (optional but nice)
+    if hasattr(integ, "last_synced_at"):
+        integ.last_synced_at = datetime.utcnow()
+        db.commit()
 
     return RedirectResponse("/admin/dashboard", status_code=303)
