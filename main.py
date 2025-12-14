@@ -26,7 +26,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-from routes import admin, pmc_auth
 from seed_guides_route import router as seed_guides_router
 
 
@@ -46,6 +45,8 @@ from typing import List
 
 from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
 
+from routes import admin, pmc_auth, pmc_signup, stripe_webhook
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- Init ---
@@ -58,6 +59,9 @@ app.include_router(pmc_auth.router)
 app.include_router(prearrival_router)
 app.include_router(prearrival_debug_router)
 app.include_router(seed_guides_router)
+app.include_router(pmc_signup.router)
+app.include_router(stripe_webhook.router)
+
 
 # Middleware
 
