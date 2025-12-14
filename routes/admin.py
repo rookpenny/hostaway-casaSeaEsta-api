@@ -107,30 +107,54 @@ def is_super_admin(email: Optional[str]) -> bool:
 
 
 def get_user_role_and_scope(request: Request, db: Session):
+    """
+    Returns:
+      (user_role, pmc_obj, pmc_user, billing_status, needs_payment)
+
+    - user_role: "super" | "pmc"
+    - pmc_obj: PMC | None
+    - pmc_user: PMCUser | None
+    - billing_status: "active" | "pending" | "past_due" | ... | None
+    - needs_payment: bool (True if PMC exists but is not allowed to "begin")
+    """
     email = get_current_admin_identity(request)
 
     if is_super_admin(email):
-        return "super", None, None
+        return "super", None, None, None, False
 
     if not email:
-        return "pmc", None, None
+        return "pmc", None, None, None, False
 
-    email_l = email.strip().lower()
+    email_l = (email or "").strip().lower()
 
+    # 1) Prefer explicit PMCUser membership
     pmc_user = (
         db.query(PMCUser)
         .filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active == True)
         .first()
     )
+
+    pmc = None
     if pmc_user:
         pmc = db.query(PMC).filter(PMC.id == pmc_user.pmc_id).first()
-        return "pmc", pmc, pmc_user
+    else:
+        # 2) Fallback: PMC owner email on PMC table
+        pmc = db.query(PMC).filter(func.lower(PMC.email) == email_l).first()
 
-    pmc = db.query(PMC).filter(func.lower(PMC.email) == email_l).first()
-    if pmc:
-        return "pmc", pmc, None
+    if not pmc:
+        return "pmc", None, None, None, False
 
-    return "pmc", None, None
+    # --- Billing gating ---
+    billing_status = (getattr(pmc, "billing_status", None) or "pending").strip().lower()
+
+    # "Begin" requires both:
+    # - billing_status == active
+    # - pmc.active == True
+    is_paid_and_active = (billing_status == "active") and bool(getattr(pmc, "active", False))
+    needs_payment = not is_paid_and_active
+
+    return "pmc", pmc, pmc_user, billing_status, needs_payment
+
 
 
 def require_super(request: Request, db: Session):
