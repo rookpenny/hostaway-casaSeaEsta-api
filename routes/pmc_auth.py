@@ -171,51 +171,78 @@ def login_page(request: Request):
 
 
 @router.get("/login/google")
-async def login_with_google(request: Request):
+async def login_with_google(request: Request, next: str = "/admin/dashboard"):
     if not GOOGLE_CLIENT_ID or not GOOGLE_CLIENT_SECRET:
         return HTMLResponse(
             "<h2>OAuth not configured</h2><p>Missing GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET</p>",
             status_code=500,
         )
+
+    # ✅ allow public signup flow to set redirect target
+    request.session["post_login_redirect"] = next or "/admin/dashboard"
+
     redirect_uri = request.url_for("auth_callback")
     return await oauth.google.authorize_redirect(request, redirect_uri)
 
 
 @router.get("/callback")
 async def auth_callback(request: Request):
+    """
+    Google OAuth callback.
+
+    Behavior:
+    - If user is an authorized Super user or PMC user -> normal login.
+    - If user is NOT authorized but they were trying to reach /pmc/signup -> allow a limited "signup" session.
+    - Otherwise -> 403.
+    """
     try:
         token = await oauth.google.authorize_access_token(request)
         userinfo = await oauth.google.userinfo(token=token)
 
         email = (userinfo.get("email") or "").strip()
-        name = userinfo.get("name")
+        name = (userinfo.get("name") or "").strip() or None
 
         if not email:
             return HTMLResponse(
                 "<h2>Access denied: No email returned from Google</h2>",
-                status_code=400
+                status_code=400,
             )
 
-        scope = resolve_login_scope(email)
-        if not scope["ok"]:
-            return HTMLResponse(
-                f"<h2>Access denied: {scope['error']}</h2>",
-                status_code=403
-            )
-
-        # ✅ base identity (admin.py reads session["user"]["email"] and/or session["admin_email"])
         email_l = email.lower()
+
+        # Where should we send them after login?
+        next_url = request.session.get("post_login_redirect") or "/admin/dashboard"
+        request.session.pop("post_login_redirect", None)
+
+        # Check authorization scope
+        scope = resolve_login_scope(email_l)
+
+        # ✅ If unauthorized BUT they were headed to public signup, allow limited session
+        if not scope["ok"]:
+            if (next_url or "").startswith("/pmc/signup"):
+                # Base identity (so signup can prefill + lock email)
+                request.session["user"] = {"email": email_l, "name": name}
+                request.session["admin_email"] = email_l
+
+                # Limited role/scope (no PMC access yet)
+                request.session["role"] = "signup"
+                request.session["pmc_id"] = None
+                request.session["pmc_user_id"] = None
+
+                return RedirectResponse(url=next_url, status_code=302)
+
+            return HTMLResponse(
+                f"<h2>Access denied: {scope.get('error') or 'Unauthorized email'}</h2>",
+                status_code=403,
+            )
+
+        # ✅ Normal authorized login
         request.session["user"] = {"email": email_l, "name": name}
         request.session["admin_email"] = email_l  # matches ADMIN_IDENTITY_SESSION_KEY default
 
-        # ✅ role + scope
-        request.session["role"] = scope["role"]
+        request.session["role"] = scope["role"]          # "super" | "pmc"
         request.session["pmc_id"] = scope["pmc_id"]
         request.session["pmc_user_id"] = scope["pmc_user_id"]
-
-        # ✅ Redirect back to where they originally tried to go (default: /admin/dashboard)
-        next_url = request.session.get("post_login_redirect") or "/admin/dashboard"
-        request.session.pop("post_login_redirect", None)
 
         return RedirectResponse(url=next_url, status_code=302)
 
