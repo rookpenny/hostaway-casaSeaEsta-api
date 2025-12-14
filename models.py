@@ -16,6 +16,40 @@ from database import Base  # ✅ Use the shared Base from database.py
 
 
 # -------------------------------------------------------------------
+# Integrations
+# -------------------------------------------------------------------
+class PMCIntegration(Base):
+    __tablename__ = "pmc_integrations"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # hostaway | lodgify | guesty | ownerrez | etc
+    provider = Column(String, nullable=False, index=True)
+
+    account_id = Column(String, nullable=True)
+    api_key = Column(String, nullable=True)
+    api_secret = Column(String, nullable=True)
+
+    # for OAuth providers later
+    access_token = Column(String, nullable=True)
+    refresh_token = Column(String, nullable=True)
+    token_expires_at = Column(DateTime, nullable=True)
+
+    is_connected = Column(Boolean, default=False)
+
+    last_synced_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    pmc = relationship("PMC", back_populates="integrations")
+
+    __table_args__ = (
+        UniqueConstraint("pmc_id", "provider", name="uq_pmc_integrations_pmc_provider"),
+    )
+
+# -------------------------------------------------------------------
 # PMSConnection model
 # -------------------------------------------------------------------
 
@@ -164,6 +198,7 @@ class PMC(Base):
 
     properties = relationship("Property", back_populates="pmc", cascade="all, delete-orphan")
     users = relationship("PMCUser", back_populates="pmc", cascade="all, delete-orphan")
+    integrations = relationship("PMCIntegration", back_populates="pmc", cascade="all, delete-orphan")
 
 
 # -------------------------------------------------------------------
