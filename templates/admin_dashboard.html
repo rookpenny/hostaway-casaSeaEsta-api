@@ -626,25 +626,50 @@
       document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
 
       window.syncProperty = async function (id, btn) {
-        if (IS_LOCKED) {
-          toast("Complete payment to unlock syncing and activation.");
-          return;
-        }
+  // 🔒 Client-side gate (fast feedback)
+  if (IS_LOCKED) {
+    toast("Complete payment to unlock property syncing.");
+    return;
+  }
 
-        btn.disabled = true;
-        const original = btn.innerHTML;
-        btn.innerHTML = "Syncing…";
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = "Syncing…";
 
-        try {
-          const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
-          const data = await res.json();
-          btn.innerHTML = data.status === "success" ? "Synced ✓" : "Failed";
-        } catch (err) {
-          btn.innerHTML = "Error";
-        }
+  try {
+    const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
 
-        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1200);
-      };
+    // 🔐 Server-side paywall (authoritative)
+    if (res.status === 402) {
+      toast("Payment required to sync properties.");
+      window.location.href = "/pmc/signup";
+      return;
+    }
+
+    let data = {};
+    try {
+      data = await res.json();
+    } catch (_) {
+      // Non-JSON response
+    }
+
+    if (res.ok && data.status === "success") {
+      btn.innerHTML = "Synced ✓";
+    } else {
+      btn.innerHTML = data.message || "Failed";
+    }
+
+  } catch (err) {
+    console.error("Sync error:", err);
+    btn.innerHTML = "Error";
+  } finally {
+    setTimeout(() => {
+      btn.innerHTML = original;
+      btn.disabled = false;
+    }, 1200);
+  }
+};
+
 
       window.toggleProperty = async function (id, btn) {
         if (IS_LOCKED) {
