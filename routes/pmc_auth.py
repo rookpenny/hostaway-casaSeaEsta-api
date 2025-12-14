@@ -16,6 +16,8 @@ from database import SessionLocal, get_db
 from models import PMC, Property, PMCUser
 from utils.pms_sync import sync_properties  # sync by account_id
 
+from utils.billing import sync_property_quantity
+
 
 router = APIRouter(prefix="/auth")
 templates = Jinja2Templates(directory="templates")
@@ -42,6 +44,7 @@ oauth.register(
     server_metadata_url="https://accounts.google.com/.well-known/openid-configuration",
     client_kwargs={"scope": "openid email profile"},
 )
+
 
 
 # ----------------------------
@@ -233,7 +236,11 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
     prop.sandy_enabled = not bool(prop.sandy_enabled)
     db.commit()
 
+    # NEW: update Stripe quantity
+    sync_property_quantity(db, prop.pmc_id, proration_behavior="none")
+
     return JSONResponse({"status": "success", "new_status": "LIVE" if prop.sandy_enabled else "OFFLINE"})
+
 
 
 @router.post("/sync-property/{property_id}")
