@@ -217,6 +217,10 @@ def onboarding_hostaway_import(
     #return RedirectResponse("/admin/dashboard#properties", status_code=303)
     return RedirectResponse("/pmc/onboarding/properties", status_code=303)
 
+# ----------------------------
+# POST: Save creds + import properties (Logify v1)
+# ----------------------------
+
 @router.post("/pmc/onboarding/pms/lodgify/import")
 def onboarding_lodgify_import(request: Request, db: Session = Depends(get_db)):
     """
@@ -232,6 +236,9 @@ def onboarding_lodgify_import(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/pmc/signup", status_code=303)
     raise HTTPException(status_code=501, detail="Lodgify integration is coming soon")
 
+# ----------------------------
+# POST: Save creds + import properties (Guesty v1)
+# ----------------------------
 @router.post("/pmc/onboarding/pms/guesty/import")
 def onboarding_guesty_import(request: Request, db: Session = Depends(get_db)):
     """
@@ -246,3 +253,65 @@ def onboarding_guesty_import(request: Request, db: Session = Depends(get_db)):
     if not _is_paid(pmc):
         return RedirectResponse("/pmc/signup", status_code=303)
     raise HTTPException(status_code=501, detail="Guesty integration is coming soon")
+
+# ----------------------------
+# GET/POST: Choose properties after import
+# ----------------------------
+
+@router.get("/pmc/onboarding/properties", response_class=HTMLResponse)
+def onboarding_properties_page(request: Request, db: Session = Depends(get_db)):
+    """
+    Display a list of imported properties for the PMC and allow the user to
+    choose which ones to enable Sandy for. This step follows a successful
+    PMS import and precedes unlocking the admin dashboard.
+    """
+    redirect = _require_login_or_redirect(request, "/pmc/onboarding/properties")
+    if redirect:
+        return redirect
+    pmc = _require_pmc_for_session(db, request)
+    if not _is_paid(pmc):
+        return RedirectResponse("/pmc/signup", status_code=303)
+    # Fetch all properties belonging to this PMC, sorted by name
+    properties = (
+        db.query(Property)
+        .filter(Property.pmc_id == pmc.id)
+        .order_by(Property.property_name)
+        .all()
+    )
+    return templates.TemplateResponse(
+        "pmc_onboarding_properties.html",
+        {
+            "request": request,
+            "pmc": pmc,
+            "properties": properties,
+        },
+    )
+
+@router.post("/pmc/onboarding/properties")
+async def onboarding_properties_submit(request: Request, db: Session = Depends(get_db)):
+    """
+    Process the property selection form. The submitted form contains a list of
+    property IDs that the user wants to enable. All other properties will be
+    left disabled. After updating the database, redirect to the admin dashboard.
+    """
+    redirect = _require_login_or_redirect(request, "/pmc/onboarding/properties")
+    if redirect:
+        return redirect
+    pmc = _require_pmc_for_session(db, request)
+    if not _is_paid(pmc):
+        return RedirectResponse("/pmc/signup", status_code=303)
+    form = await request.form()
+    # Extract selected property IDs from the form (checkboxes share the same name)
+    selected_ids = set()
+    for pid in form.getlist("property_ids"):
+        try:
+            selected_ids.add(int(pid))
+        except (ValueError, TypeError):
+            continue
+    # Update each property: enable if selected, disable otherwise
+    props = db.query(Property).filter(Property.pmc_id == pmc.id).all()
+    for prop in props:
+        prop.sandy_enabled = prop.id in selected_ids
+    db.commit()
+    return RedirectResponse("/admin/dashboard", status_code=303)
+
