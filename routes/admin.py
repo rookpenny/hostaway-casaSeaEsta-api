@@ -9,7 +9,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
-from starlette.status import HTTP_303_SEE_OTHER
+from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
 from sqlalchemy.orm import Session
 import sqlalchemy as sa
 from sqlalchemy import func
@@ -774,32 +774,57 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
     )
 
 
-from fastapi.responses import RedirectResponse, HTMLResponse
-from starlette.status import HTTP_302_FOUND
+
 
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     # ✅ If not logged in, show a login page at THIS SAME URL
     user = request.session.get("user")
     if not user:
-        # optional: remember where they were trying to go
         request.session["post_login_redirect"] = "/admin/dashboard"
-        return templates.TemplateResponse("admin_login.html", {
-            "request": request,
-            "next": "/admin/dashboard",
-        })
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {"request": request, "next": "/admin/dashboard"},
+        )
 
-    # ✅ Logged in: continue with your existing role/scope logic
+    # ✅ Resolve role + scope
     user_role, pmc_obj, pmc_user = get_user_role_and_scope(request, db)
 
+    # Logged in but not authorized for PMC scope
     if user_role == "pmc" and not pmc_obj:
-        # Logged in but not authorized for PMC scope
-        return templates.TemplateResponse("admin_login.html", {
-            "request": request,
-            "next": "/admin/dashboard",
-            "error": "Your Google account isn’t linked to a PMC.",
-        })
+        return templates.TemplateResponse(
+            "admin_login.html",
+            {
+                "request": request,
+                "next": "/admin/dashboard",
+                "error": "Your Google account isn’t linked to a PMC.",
+            },
+        )
 
+    # ----------------------------
+    # Billing gating flags (PMC only)
+    # ----------------------------
+    billing_status = None
+    is_paid = True
+    needs_payment = False
+    billing_banner_title = None
+    billing_banner_body = None
+
+    if user_role == "pmc" and pmc_obj:
+        billing_status = (getattr(pmc_obj, "billing_status", None) or "pending").lower()
+        is_paid = (billing_status == "active") and bool(getattr(pmc_obj, "active", False))
+        needs_payment = not is_paid
+
+        if needs_payment:
+            billing_banner_title = "Complete payment to activate your account"
+            billing_banner_body = (
+                "Your account is currently pending. Once payment is confirmed, you’ll be able to "
+                "connect your PMS, sync properties, and enable Sandy per property."
+            )
+
+    # ----------------------------
+    # Properties list (respect scope)
+    # ----------------------------
     if user_role == "super":
         properties = db.query(Property).order_by(Property.property_name.asc()).all()
     else:
@@ -810,9 +835,12 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
               .all()
         )
 
+    # ----------------------------
+    # Superuser-only PMC list
+    # ----------------------------
     pmc_data = []
     if user_role == "super":
-        def serialize_pmc(pmc):
+        def serialize_pmc(pmc: PMC):
             return {
                 "id": pmc.id,
                 "pmc_name": pmc.pmc_name,
@@ -825,12 +853,16 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
                 "pms_account_id": pmc.pms_account_id,
                 "active": pmc.active,
                 "sync_enabled": pmc.sync_enabled,
-                "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None
+                "billing_status": getattr(pmc, "billing_status", None),
+                "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None,
             }
 
         pmc_list = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
         pmc_data = [serialize_pmc(p) for p in pmc_list]
 
+    # ----------------------------
+    # Render
+    # ----------------------------
     return templates.TemplateResponse(
         "admin_dashboard.html",
         {
@@ -839,9 +871,22 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
             "properties": properties,
             "now": datetime.utcnow(),
+
+            # existing
             "pmc": pmc_data,
+
+            # NEW: billing + UI gating
+            "billing_status": billing_status,
+            "is_paid": is_paid,
+            "needs_payment": needs_payment,
+            "billing_banner_title": billing_banner_title,
+            "billing_banner_body": billing_banner_body,
+
+            # handy: for showing "you are admin/staff" in UI if desired
+            "pmc_user_role": (pmc_user.role if pmc_user else None),
         }
     )
+
 
 
 
