@@ -22,7 +22,6 @@ from models import PMC, Property, ChatSession, ChatMessage, PMCUser
 from utils.pms_sync import sync_properties, sync_all_pmcs
 from openai import OpenAI
 
-from services.pms_sync import sync_properties_for_pmc  # <- service layer
 
 
 router = APIRouter()
