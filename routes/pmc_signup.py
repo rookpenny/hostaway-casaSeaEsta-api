@@ -158,19 +158,21 @@ def pmc_signup_start(
         checkout = stripe.checkout.Session.create(
             mode="payment",
             customer_email=email_l,
+        
+            # ✅ Force Stripe to create a Customer so obj["customer"] is not None in the webhook
+            customer_creation="always",
+        
             line_items=[
                 {"price": PRICE_SIGNUP_ONETIME, "quantity": 1},
             ],
             success_url=success_url,
             cancel_url=cancel_url,
-
-            # 🔑 These two make webhook matching reliable
-            client_reference_id=f"pmc_{pmc.id}",
             metadata={
                 "pmc_id": str(pmc.id),
                 "type": "pmc_signup_onetime",
             },
         )
+
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Stripe checkout failed: {str(e)}")
 
