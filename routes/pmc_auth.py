@@ -115,6 +115,33 @@ def resolve_login_scope(email: str) -> Dict[str, Any]:
 
 
 
+@router.get("/email-callback")
+def email_callback(token: str, request: Request, db: Session = Depends(get_db)):
+    stored_token = request.session.get("email_login_token")
+    target_email = request.session.get("email_login_target")
+
+    # Validate token and email
+    if not stored_token or token != stored_token or not target_email:
+        return HTMLResponse("<h2>Invalid or expired login link.</h2>", status_code=403)
+
+    scope = resolve_login_scope(target_email)
+    if not scope["ok"]:
+        return HTMLResponse("<h2>Unauthorized email.</h2>", status_code=403)
+
+    # Clear the one‑time token
+    request.session.pop("email_login_token", None)
+    request.session.pop("email_login_target", None)
+
+    # Set session just like OAuth
+    request.session["user"] = {"email": target_email, "name": None}
+    request.session["admin_email"] = target_email
+    request.session["role"] = scope["role"]
+    request.session["pmc_id"] = scope["pmc_id"]
+    request.session["pmc_user_id"] = scope["pmc_user_id"]
+
+    return RedirectResponse("/admin/dashboard", status_code=302)
+
+
 @router.post("/login/email")
 async def login_with_email(
     request: Request,
