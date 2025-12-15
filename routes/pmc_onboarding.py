@@ -145,8 +145,7 @@ def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
 def onboarding_hostaway_import(
     request: Request,
     account_id: str = Form(...),
-    api_key: str = Form(...),
-    api_secret: str = Form(...),
+    api_secret: str = Form(...),  # Hostaway API Key (treated as secret)
     db: Session = Depends(get_db),
 ):
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
@@ -162,9 +161,9 @@ def onboarding_hostaway_import(
         raise HTTPException(status_code=400, detail="Unsupported provider")
 
     account_id = (account_id or "").strip()
-    api_key = (api_key or "").strip()
-    api_secret = (api_secret or "").strip()
-    if not account_id or not api_key or not api_secret:
+    hostaway_api_key = (api_secret or "").strip()
+
+    if not account_id or not hostaway_api_key:
         raise HTTPException(status_code=400, detail="Missing Hostaway credentials")
 
     # 1) Upsert integration record
@@ -178,16 +177,19 @@ def onboarding_hostaway_import(
         db.add(integ)
 
     integ.account_id = account_id
-    integ.api_key = api_key
-    integ.api_secret = api_secret
+    # Hostaway does not need a separate API key/client ID concept; leave it blank.
+    integ.api_key = None
+    integ.api_secret = hostaway_api_key
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
 
     # 2) Mirror into PMC table (backwards compatible)
     _set_if_attr(pmc, "pms_integration", provider)
     _set_if_attr(pmc, "pms_account_id", account_id)
-    _set_if_attr(pmc, "pms_api_key", api_key)
-    _set_if_attr(pmc, "pms_api_secret", api_secret)
+    # Leave pms_api_key empty for Hostaway
+    _set_if_attr(pmc, "pms_api_key", None)
+    # Store Hostaway API Key in the "secret" field
+    _set_if_attr(pmc, "pms_api_secret", hostaway_api_key)
 
     db.commit()
     db.refresh(integ)
