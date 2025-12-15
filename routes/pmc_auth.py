@@ -1,4 +1,5 @@
 import os
+import stripe
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
@@ -18,7 +19,6 @@ from utils.pms_sync import sync_properties  # sync by account_id
 
 from utils.billing import sync_property_quantity
 from utils.billing_guard import require_pmc_is_paid
-
 
 
 router = APIRouter(prefix="/auth")
@@ -269,45 +269,112 @@ def dashboard(request: Request):
     return RedirectResponse(url="/admin/dashboard", status_code=302)
 
 
+
+
 @router.post("/toggle-property/{property_id}")
 def toggle_property(property_id: int, request: Request, db: Session = Depends(get_db)):
     prop = require_property_in_scope(request, db, property_id)
 
-    # ✅ Paywall: PMC must be paid+active to toggle Sandy
+    # ✅ Paywall: initial signup fee must be paid
     require_pmc_is_paid(db, prop.pmc_id)
 
-    # Flip status
+    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
+    if not pmc:
+        raise HTTPException(status_code=404, detail="PMC not found")
+
     previous = bool(prop.sandy_enabled)
     prop.sandy_enabled = not previous
     db.commit()
 
-    # ✅ Keep Stripe subscription quantity in sync with enabled properties
-    try:
-        # Support either signature:
-        #   sync_property_quantity(db, pmc_id)
-        # or
-        #   sync_property_quantity(pmc_id=..., db=...)
+    # If turning OFF, just sync quantity (no proration => next renewal adjusts)
+    if prop.sandy_enabled is False:
         try:
-            sync_property_quantity(db=db, pmc_id=prop.pmc_id)
-        except TypeError:
-            sync_property_quantity(db, prop.pmc_id)
+            sync_property_quantity(db, pmc.id, proration_behavior="none")
+        except Exception as e:
+            # revert toggle on failure
+            prop.sandy_enabled = previous
+            db.commit()
+            raise HTTPException(status_code=500, detail=f"Billing update failed, change reverted: {str(e)}")
 
-    except Exception as e:
-        # If billing sync fails, revert the toggle to avoid mismatch
+        return JSONResponse({"status": "success", "new_status": "OFFLINE"})
+
+    # If turning ON, make sure we have an active (not fully canceled) subscription
+    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+    price_property = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
+    app_base_url = (os.getenv("APP_BASE_URL") or "").rstrip("/")
+
+    if not stripe_secret or not price_property or not app_base_url:
+        # revert toggle if billing config is missing
+        prop.sandy_enabled = previous
+        db.commit()
+        raise HTTPException(status_code=500, detail="Missing Stripe env vars required for billing")
+
+    stripe.api_key = stripe_secret
+
+    subscription_id = getattr(pmc, "stripe_subscription_id", None)
+    customer_id = getattr(pmc, "stripe_customer_id", None)
+
+    # No subscription (or no customer) => must start billing again via Checkout
+    if not subscription_id or not customer_id:
+        # revert so they don't get "free live"
         prop.sandy_enabled = previous
         db.commit()
 
-        raise HTTPException(
-            status_code=500,
-            detail=f"Billing update failed, change reverted: {str(e)}",
+        # Create a new subscription checkout for 1 property (or you can compute count)
+        checkout = stripe.checkout.Session.create(
+            mode="subscription",
+            customer=customer_id,
+            line_items=[{"price": price_property, "quantity": 1}],
+            success_url=f"{app_base_url}/pmc/onboarding/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{app_base_url}/admin/dashboard#properties",
+            metadata={
+                "pmc_id": str(pmc.id),
+                "type": "pmc_property_subscription",
+                "quantity": "1",
+            },
         )
 
-    return JSONResponse(
-        {
-            "status": "success",
-            "new_status": "LIVE" if prop.sandy_enabled else "OFFLINE",
-        }
-    )
+        return JSONResponse({"status": "needs_billing", "checkout_url": checkout.url})
+
+    # Subscription exists: if it is fully canceled/ended, require new checkout
+    try:
+        sub = stripe.Subscription.retrieve(subscription_id)
+        status = (sub.get("status") or "").lower()
+        if status in {"canceled", "incomplete_expired"}:
+            # revert toggle so they don't get "free live"
+            prop.sandy_enabled = previous
+            db.commit()
+
+            checkout = stripe.checkout.Session.create(
+                mode="subscription",
+                customer=customer_id,
+                line_items=[{"price": price_property, "quantity": 1}],
+                success_url=f"{app_base_url}/pmc/onboarding/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+                cancel_url=f"{app_base_url}/admin/dashboard#properties",
+                metadata={
+                    "pmc_id": str(pmc.id),
+                    "type": "pmc_property_subscription",
+                    "quantity": "1",
+                },
+            )
+
+            return JSONResponse({"status": "needs_billing", "checkout_url": checkout.url})
+    except Exception as e:
+        # revert on Stripe fetch failure
+        prop.sandy_enabled = previous
+        db.commit()
+        raise HTTPException(status_code=500, detail=f"Stripe subscription lookup failed: {str(e)}")
+
+    # Subscription is active (possibly cancel_at_period_end). Sync quantity and un-cancel if needed.
+    try:
+        sync_property_quantity(db, pmc.id, proration_behavior="none")
+    except Exception as e:
+        prop.sandy_enabled = previous
+        db.commit()
+        raise HTTPException(status_code=500, detail=f"Billing update failed, change reverted: {str(e)}")
+
+    return JSONResponse({"status": "success", "new_status": "LIVE"})
+
 
 
 
