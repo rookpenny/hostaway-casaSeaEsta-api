@@ -1,6 +1,8 @@
 import os
 import stripe
 import secrets
+import smtplib
+
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
@@ -22,6 +24,7 @@ from utils.billing import sync_property_quantity
 from utils.billing_guard import require_pmc_is_paid
 
 from starlette.background import BackgroundTasks
+from email.mime.text import MIMEText
 
 router = APIRouter(prefix="/auth")
 templates = Jinja2Templates(directory="templates")
@@ -112,6 +115,49 @@ def resolve_login_scope(email: str) -> Dict[str, Any]:
         return {"ok": False, "role": None, "pmc_id": None, "pmc_user_id": None, "error": "Unauthorized email"}
     finally:
         db.close()
+
+
+
+def send_magic_email(to: str, magic_url: str) -> None:
+    """
+    Send a one‑time login link via email.
+    Replace this implementation with your preferred email service (SendGrid, SES, etc.)
+    and secure environment variables.
+    """
+    # Compose the email
+    subject = "Your Casa Sea Esta login link"
+    body = f"""Hi there,
+
+We received a request to log in to Casa Sea Esta using this email address.
+
+Click the link below to sign in:
+
+{magic_url}
+
+If you did not request this email, you can safely ignore it.
+
+— Casa Sea Esta Team
+"""
+    msg = MIMEText(body)
+    msg["Subject"] = subject
+    msg["From"] = os.getenv("SMTP_FROM", "no-reply@casaseaesta.com")
+    msg["To"] = to
+
+    # Send using SMTP (replace with your mail provider credentials)
+    smtp_host = os.getenv("SMTP_HOST")
+    smtp_port = int(os.getenv("SMTP_PORT", "587"))
+    smtp_user = os.getenv("SMTP_USER")
+    smtp_pass = os.getenv("SMTP_PASS")
+
+    if not all([smtp_host, smtp_port, smtp_user, smtp_pass]):
+        # In development, fall back to console logging
+        print(f"[Email mock] To: {to}, URL: {magic_url}")
+        return
+
+    with smtplib.SMTP(smtp_host, smtp_port) as server:
+        server.starttls()
+        server.login(smtp_user, smtp_pass)
+        server.sendmail(msg["From"], [to], msg.as_string())
 
 
 
