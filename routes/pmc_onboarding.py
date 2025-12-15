@@ -58,25 +58,46 @@ def _require_login_or_redirect(request: Request, next_path: str) -> Optional[Red
 
 def _require_pmc_for_session(db: Session, request: Request) -> PMC:
     """
-    Determine the PMC for the logged-in user. Supports:
-    - PMCUser membership
-    - PMC.email fallback
+    Determine the PMC for the logged-in user.
+
+    Resolution order:
+    1) Active PMCUser membership (most explicit)
+    2) Fallback to PMC.email (latest PMC wins)
+
+    Always returns the MOST RECENT PMC to avoid stale onboarding data.
     """
     email_l = _session_email(request)
     if not email_l:
         raise HTTPException(status_code=403, detail="Not logged in")
 
+    # 1️⃣ Preferred: PMCUser membership
     pmc_user = (
         db.query(PMCUser)
-        .filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active.is_(True))
+        .filter(
+            func.lower(PMCUser.email) == email_l,
+            PMCUser.is_active.is_(True),
+        )
+        .order_by(PMCUser.id.desc())
         .first()
     )
+
     if pmc_user:
-        pmc = db.query(PMC).filter(PMC.id == pmc_user.pmc_id).first()
+        pmc = (
+            db.query(PMC)
+            .filter(PMC.id == pmc_user.pmc_id)
+            .first()
+        )
         if pmc:
             return pmc
 
-    pmc = db.query(PMC).filter(func.lower(PMC.email) == email_l).first()
+    # 2️⃣ Fallback: PMC owner email
+    pmc = (
+        db.query(PMC)
+        .filter(func.lower(PMC.email) == email_l)
+        .order_by(PMC.id.desc())   # 🔑 CRITICAL FIX
+        .first()
+    )
+
     if pmc:
         return pmc
 
