@@ -15,7 +15,7 @@
           <div class="w-9 h-9 rounded-xl bg-slate-900 text-white grid place-items-center font-semibold">H</div>
           <div>
             <div class="text-sm font-semibold leading-4">HostScout</div>
-            <div class="text-xs text-slate-500">PMC signup</div>
+            <div class="text-xs text-slate-500">Onboarding</div>
           </div>
         </div>
 
@@ -34,10 +34,24 @@
 
     <main class="max-w-3xl mx-auto px-6 py-10">
       <div class="bg-white border border-slate-200 rounded-2xl p-6 shadow-sm">
-        <h1 class="text-2xl font-semibold">Create your HostScout PMC account</h1>
+
+        <!-- Progress indicator -->
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="text-xs font-semibold text-slate-500">Step 1 of 4</div>
+            <div class="mt-1 h-2 w-44 rounded-full bg-slate-100 overflow-hidden">
+              <div class="h-2 w-1/4 bg-slate-900 rounded-full"></div>
+            </div>
+          </div>
+          <div class="text-xs text-slate-500">
+            Create → Connect PMS → Choose properties → Review & Pay
+          </div>
+        </div>
+
+        <h1 class="mt-5 text-2xl font-semibold">Create your HostScout PMC account</h1>
         <p class="mt-2 text-sm text-slate-600">
-          To activate your account, you’ll pay a <span class="font-semibold">one-time setup fee</span>,
-          then add properties on a <span class="font-semibold">monthly per-property plan</span>.
+          You’ll connect your PMS and choose which properties to activate first.
+          <span class="font-semibold">You’ll review the full pricing and pay at the end.</span>
         </p>
 
         {% if not admin_email_prefill %}
@@ -58,10 +72,11 @@
         <div class="mt-4 rounded-xl border border-amber-300/60 bg-amber-50 p-4">
           <div class="text-sm font-semibold text-amber-900">What happens next</div>
           <ul class="mt-2 text-sm text-amber-900/80 list-disc pl-5 space-y-1">
-            <li>Confirm your PMC + admin details</li>
-            <li>Pay the one-time setup fee</li>
-            <li>Connect your PMS (Hostaway, etc.)</li>
-            <li>Choose which properties to enable Sandy for (monthly per property)</li>
+            <li>Create your PMC + admin profile</li>
+            <li>Connect your PMS (Hostaway, etc.) and import properties</li>
+            <li>Choose which properties to activate</li>
+            <li>Review charges (<span class="font-semibold">$499 one-time</span> + <span class="font-semibold">$9.99/mo per active property</span>)</li>
+            <li>Pay via Stripe and go live</li>
           </ul>
         </div>
 
@@ -109,7 +124,7 @@
               />
               <p class="mt-1 text-xs text-slate-500">
                 {% if admin_email_prefill %}
-                  Locked to your Google login email for security.
+                  Locked to your login email for security.
                 {% else %}
                   You can enter an email, but Google sign-in is recommended.
                 {% endif %}
@@ -119,17 +134,18 @@
 
           <div class="pt-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
             <div class="text-xs text-slate-500">
-              By continuing, you’ll be redirected to secure checkout.
+              Next step: connect your PMS and import properties (payment comes later).
             </div>
 
             <button
               type="submit"
               class="h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
             >
-              Continue to payment →
+              Continue → Connect PMS
             </button>
           </div>
         </form>
+
       </div>
     </main>
   </div>
