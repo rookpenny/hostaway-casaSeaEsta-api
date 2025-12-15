@@ -214,6 +214,7 @@ def onboarding_hostaway_import(
     return RedirectResponse("/pmc/onboarding/properties", status_code=303)
 
 
+
 # ----------------------------
 # POST: Lodgify placeholder
 # ----------------------------
