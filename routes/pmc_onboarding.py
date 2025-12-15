@@ -1,6 +1,7 @@
+from __future__ import annotations
+
 import os
 import stripe
-from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
@@ -13,21 +14,6 @@ from sqlalchemy import func
 
 from database import get_db
 from models import PMC, PMCIntegration, PMCUser, Property
-
-
-
-
-# IMPORTANT: adjust this import to your real path if needed:
-# - project root: from pms_sync import sync_properties
-# - utils folder: from utils.pms_sync import sync_properties
-from utils.pms_sync import sync_properties
-
-router = APIRouter()
-templates = Jinja2Templates(directory="templates")
-
-# List of PMS providers that can be selected during onboarding.
-# When adding support for a new provider, add its slug here and create a corresponding import route.
-SUPPORTED_PROVIDERS = {"hostaway", "lodgify", "guesty"}
 
 
 # ----------------------------
