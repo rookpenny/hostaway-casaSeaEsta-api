@@ -1,10 +1,11 @@
 import os
+import stripe
 from __future__ import annotations
 
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Request, Depends, Form, HTTPException
+from fastapi import APIRouter, Request, Depends, Form, HTTPException, Query
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from sqlalchemy.orm import Session
@@ -13,7 +14,7 @@ from sqlalchemy import func
 from database import get_db
 from models import PMC, PMCIntegration, PMCUser, Property
 
-import stripe
+
 
 
 # IMPORTANT: adjust this import to your real path if needed:
@@ -133,6 +134,8 @@ def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
     )
 
     return _render_pms_page(request, pmc, existing, provider=provider)
+
+
 
 
 # ----------------------------
@@ -358,3 +361,68 @@ async def onboarding_properties_submit(request: Request, db: Session = Depends(g
     )
     # Redirect the user to Stripe to confirm the subscription
     return RedirectResponse(checkout.url, status_code=303)
+
+
+@router.get("/pmc/onboarding/billing/success")
+def onboarding_billing_success(
+    request: Request,
+    session_id: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    """
+    Stripe subscription checkout success handler.
+    This makes onboarding deterministic by immediately storing:
+      - pmc.stripe_subscription_id
+      - pmc.stripe_customer_id (if missing)
+    Then redirects user to dashboard.
+    """
+    redirect = _require_login_or_redirect(request, "/pmc/onboarding/billing/success")
+    if redirect:
+        return redirect
+
+    pmc = _require_pmc_for_session(db, request)
+    if not _is_paid(pmc):
+        return RedirectResponse("/pmc/signup", status_code=303)
+
+    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+    if not stripe_secret:
+        raise HTTPException(status_code=500, detail="Missing STRIPE_SECRET_KEY")
+
+    stripe.api_key = stripe_secret
+
+    try:
+        cs = stripe.checkout.Session.retrieve(session_id)
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Invalid Stripe session_id: {str(e)}")
+
+    # Basic integrity checks
+    metadata = cs.get("metadata") or {}
+    cs_pmc_id = (metadata.get("pmc_id") or "").strip()
+    cs_type = (metadata.get("type") or "").strip()
+
+    if cs_type and cs_type != "pmc_property_subscription":
+        # If someone hits this endpoint from the wrong checkout type, just send them onward
+        return RedirectResponse("/admin/dashboard#properties", status_code=303)
+
+    # Ensure the checkout session matches this PMC (prevents cross-account poisoning)
+    if cs_pmc_id and str(pmc.id) != cs_pmc_id:
+        raise HTTPException(status_code=403, detail="Checkout session does not match your account")
+
+    subscription_id = cs.get("subscription")  # sub_...
+    customer_id = cs.get("customer")          # cus_...
+
+    if subscription_id:
+        if hasattr(pmc, "stripe_subscription_id"):
+            pmc.stripe_subscription_id = subscription_id
+
+    if customer_id and not getattr(pmc, "stripe_customer_id", None):
+        if hasattr(pmc, "stripe_customer_id"):
+            pmc.stripe_customer_id = customer_id
+
+    # Record latest checkout session for traceability
+    _set_if_attr(pmc, "last_stripe_checkout_session_id", cs.get("id"))
+
+    db.commit()
+
+    return RedirectResponse("/admin/dashboard#properties", status_code=303)
+
