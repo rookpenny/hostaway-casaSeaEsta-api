@@ -679,48 +679,80 @@
 
 
       window.toggleProperty = async function (id, btn) {
-        if (IS_LOCKED) {
-          toast("Complete payment to unlock Sandy activation.");
-          return;
-        }
+  if (IS_LOCKED) {
+    toast("Complete payment to unlock Sandy activation.");
+    return;
+  }
 
-        btn.disabled = true;
-        const original = btn.innerHTML;
-        btn.innerHTML = "Toggling…";
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = "Toggling…";
 
-        try {
-          const res = await fetch(`/auth/toggle-property/${id}`, { method: "POST" });
-          const data = await res.json();
+  try {
+    const res = await fetch(`/auth/toggle-property/${id}`, { method: "POST" });
 
-          if (data.status === "success") {
-            btn.innerHTML = (data.new_status === "LIVE") ? "Take Offline" : "Go Live";
+    // If server returns non-JSON error, handle gracefully
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
+    }
 
-            const card = btn.closest("[data-property-card]");
-            if (card) {
-              card.dataset.live = (data.new_status === "LIVE") ? "true" : "false";
+    // ✅ If backend says we must start billing again, redirect to Stripe
+    if (data && data.status === "needs_billing" && data.checkout_url) {
+      window.location.href = data.checkout_url;
+      return;
+    }
 
-              const pill = card.querySelector("span.rounded-full");
-              if (pill) {
-                if (data.new_status === "LIVE") {
-                  pill.textContent = "LIVE";
-                  pill.className = "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
-                } else {
-                  pill.textContent = "OFFLINE";
-                  pill.className = "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
-                }
-              }
+    // Handle explicit error from backend
+    if (!res.ok) {
+      const msg = (data && (data.detail || data.message)) || "Request failed";
+      toast(msg);
+      btn.innerHTML = original;
+      return;
+    }
 
-              filterProperties();
-            }
+    // Normal success path
+    if (data && data.status === "success") {
+      const isLive = data.new_status === "LIVE";
+      btn.innerHTML = isLive ? "Take Offline" : "Go Live";
+
+      const card = btn.closest("[data-property-card]");
+      if (card) {
+        card.dataset.live = isLive ? "true" : "false";
+
+        const pill = card.querySelector("span.rounded-full");
+        if (pill) {
+          if (isLive) {
+            pill.textContent = "LIVE";
+            pill.className =
+              "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
           } else {
-            btn.innerHTML = "Failed";
+            pill.textContent = "OFFLINE";
+            pill.className =
+              "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
           }
-        } catch (err) {
-          btn.innerHTML = "Error";
         }
 
-        setTimeout(() => { btn.innerHTML = original; btn.disabled = false; }, 1200);
-      };
+        filterProperties();
+      }
+
+      // Optional: show a helpful toast about next-billing behavior
+      if (data.billing_note) toast(data.billing_note);
+
+    } else {
+      btn.innerHTML = original;
+      toast("Toggle failed.");
+    }
+  } catch (err) {
+    btn.innerHTML = original;
+    toast("Network error. Please try again.");
+  } finally {
+    btn.disabled = false;
+  }
+};
+
     });
   </script>
 </body>
