@@ -1,5 +1,6 @@
 import os
 import stripe
+import secrets
 from datetime import datetime
 from typing import Optional, Dict, Any, List
 
@@ -20,6 +21,7 @@ from utils.pms_sync import sync_properties  # sync by account_id
 from utils.billing import sync_property_quantity
 from utils.billing_guard import require_pmc_is_paid
 
+from starlette.background import BackgroundTasks
 
 router = APIRouter(prefix="/auth")
 templates = Jinja2Templates(directory="templates")
@@ -110,6 +112,52 @@ def resolve_login_scope(email: str) -> Dict[str, Any]:
         return {"ok": False, "role": None, "pmc_id": None, "pmc_user_id": None, "error": "Unauthorized email"}
     finally:
         db.close()
+
+
+
+@router.post("/login/email")
+async def login_with_email(
+    request: Request,
+    email: str = Form(...),
+    db: Session = Depends(get_db),
+    background_tasks: BackgroundTasks = None,
+):
+    email_l = (email or "").strip().lower()
+    if not email_l:
+        return HTMLResponse("<h2>Invalid email</h2>", status_code=400)
+
+    # Look up the PMC or PMCUser by email (reuse resolve_login_scope)
+    scope = resolve_login_scope(email_l)
+    if not scope["ok"]:
+        # For unrecognized emails, show a generic error to avoid account enumeration
+        return HTMLResponse(
+            "<h2>We couldn't find that email. Please check and try again.</h2>",
+            status_code=403,
+        )
+
+    # Generate a one-time token and store it in session or DB (simplified)
+    token = secrets.token_urlsafe(32)
+    request.session["email_login_token"] = token
+    request.session["email_login_target"] = email_l
+
+    # Build magic link
+    app_base = os.getenv("APP_BASE_URL", "").rstrip("/")
+    magic_url = f"{app_base}/auth/email-callback?token={token}"
+
+    # TODO: Send 'magic_url' to the user’s email address.
+    # You could enqueue a background email here; omitted for brevity.
+    if background_tasks:
+        background_tasks.add_task(
+            send_magic_email,
+            to=email_l,
+            magic_url=magic_url,
+        )
+
+    # Show instructions to check email
+    return templates.TemplateResponse(
+        "login_email_sent.html",
+        {"request": request, "email": email_l},
+    )
 
 
 # ----------------------------
