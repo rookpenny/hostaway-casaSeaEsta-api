@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import os
 import stripe
-
 from datetime import datetime
 from typing import Optional
 
@@ -14,6 +13,25 @@ from sqlalchemy import func
 
 from database import get_db
 from models import PMC, PMCIntegration, PMCUser, Property
+
+# ✅ Import your sync function (you referenced it below)
+from utils.pms_sync import sync_properties
+
+
+# ✅ MUST exist before any @router usage
+router = APIRouter()
+templates = Jinja2Templates(directory="templates")
+
+# ✅ MUST exist before any onboarding_hostaway_import usage
+SUPPORTED_PROVIDERS = {"hostaway", "lodgify", "guesty"}
+
+
+# ----------------------------
+# Small helpers
+# ----------------------------
+def _set_if_attr(obj, attr: str, value) -> None:
+    if hasattr(obj, attr):
+        setattr(obj, attr, value)
 
 
 # ----------------------------
@@ -29,7 +47,6 @@ def _session_email(request: Request) -> Optional[str]:
 
 
 def _redirect_to_google_login(next_path: str) -> RedirectResponse:
-    # keep query param simple and consistent
     return RedirectResponse(url=f"/auth/login/google?next={next_path}", status_code=302)
 
 
@@ -109,10 +126,9 @@ def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
     pmc = _require_pmc_for_session(db, request)
 
     if not _is_paid(pmc):
-        # Guard: don’t allow onboarding if they didn’t pay
         return RedirectResponse("/pmc/signup", status_code=303)
 
-    provider = "hostaway"  # default for now; later you can accept ?provider=
+    provider = "hostaway"
     existing = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == provider)
@@ -120,8 +136,6 @@ def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
     )
 
     return _render_pms_page(request, pmc, existing, provider=provider)
-
-
 
 
 # ----------------------------
@@ -153,7 +167,7 @@ def onboarding_hostaway_import(
     if not account_id or not api_key or not api_secret:
         raise HTTPException(status_code=400, detail="Missing Hostaway credentials")
 
-    # 1) Upsert provider-agnostic integration record
+    # 1) Upsert integration record
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == provider)
@@ -169,127 +183,100 @@ def onboarding_hostaway_import(
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
 
-    # 2) Mirror into PMC table (backwards compatible with existing code paths)
-    # Only set if those columns exist on PMC (safe across migrations)
-    if hasattr(pmc, "pms_integration"):
-        pmc.pms_integration = provider
-    if hasattr(pmc, "pms_account_id"):
-        pmc.pms_account_id = account_id
-    if hasattr(pmc, "pms_api_key"):
-        pmc.pms_api_key = api_key
-    if hasattr(pmc, "pms_api_secret"):
-        pmc.pms_api_secret = api_secret
+    # 2) Mirror into PMC table (backwards compatible)
+    _set_if_attr(pmc, "pms_integration", provider)
+    _set_if_attr(pmc, "pms_account_id", account_id)
+    _set_if_attr(pmc, "pms_api_key", api_key)
+    _set_if_attr(pmc, "pms_api_secret", api_secret)
 
     db.commit()
     db.refresh(integ)
     db.refresh(pmc)
 
-    # 3) Import properties using your existing sync util
-    # NOTE: your current sync_properties(account_id) looks up creds by account_id
-    # via fetch_pmc_lookup(). That must include this PMC + creds.
+    # 3) Import properties
     try:
-        count = sync_properties(account_id=str(account_id))
+        sync_properties(account_id=str(account_id))
     except Exception as e:
-        # Keep creds saved so they can fix + retry
-        existing = integ
         return _render_pms_page(
             request,
             pmc,
-            existing,
+            integ,
             error=f"Hostaway import failed: {str(e)}",
             provider=provider,
         )
 
-    # 4) Mark last sync (nice for UI)
+    # 4) Mark last sync (optional)
     if hasattr(integ, "last_synced_at"):
         integ.last_synced_at = datetime.utcnow()
         db.commit()
 
-    # Land them directly on properties view (optional)
-    #return RedirectResponse("/admin/dashboard#properties", status_code=303)
+    # ✅ After import, go to property selection
     return RedirectResponse("/pmc/onboarding/properties", status_code=303)
 
-# ----------------------------
-# POST: Save creds + import properties (Logify v1)
-# ----------------------------
 
+# ----------------------------
+# POST: Lodgify placeholder
+# ----------------------------
 @router.post("/pmc/onboarding/pms/lodgify/import")
 def onboarding_lodgify_import(request: Request, db: Session = Depends(get_db)):
-    """
-    Placeholder endpoint for Lodgify PMS integrations.
-    Once Lodgify support is implemented, this endpoint should accept the
-    necessary credentials (e.g., API key, secret) and import properties.
-    """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
     if redirect:
         return redirect
+
     pmc = _require_pmc_for_session(db, request)
     if not _is_paid(pmc):
         return RedirectResponse("/pmc/signup", status_code=303)
+
     raise HTTPException(status_code=501, detail="Lodgify integration is coming soon")
 
+
 # ----------------------------
-# POST: Save creds + import properties (Guesty v1)
+# POST: Guesty placeholder
 # ----------------------------
 @router.post("/pmc/onboarding/pms/guesty/import")
 def onboarding_guesty_import(request: Request, db: Session = Depends(get_db)):
-    """
-    Placeholder endpoint for Guesty PMS integrations.
-    Once Guesty support is implemented, this endpoint should accept the
-    necessary credentials (e.g., API token) and import properties.
-    """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
     if redirect:
         return redirect
+
     pmc = _require_pmc_for_session(db, request)
     if not _is_paid(pmc):
         return RedirectResponse("/pmc/signup", status_code=303)
+
     raise HTTPException(status_code=501, detail="Guesty integration is coming soon")
 
-# ----------------------------
-# GET/POST: Choose properties after import
-# ----------------------------
 
+# ----------------------------
+# GET: Choose properties after import
+# ----------------------------
 @router.get("/pmc/onboarding/properties", response_class=HTMLResponse)
 def onboarding_properties_page(request: Request, db: Session = Depends(get_db)):
-    """
-    Display a list of imported properties for the PMC and allow the user to
-    choose which ones to enable Sandy for. This step follows a successful
-    PMS import and precedes unlocking the admin dashboard.
-    """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/properties")
     if redirect:
         return redirect
+
     pmc = _require_pmc_for_session(db, request)
     if not _is_paid(pmc):
         return RedirectResponse("/pmc/signup", status_code=303)
-    # Fetch all properties belonging to this PMC, sorted by name
+
     properties = (
         db.query(Property)
         .filter(Property.pmc_id == pmc.id)
         .order_by(Property.property_name)
         .all()
     )
+
     return templates.TemplateResponse(
         "pmc_onboarding_properties.html",
-        {
-            "request": request,
-            "pmc": pmc,
-            "properties": properties,
-        },
+        {"request": request, "pmc": pmc, "properties": properties},
     )
 
 
-
+# ----------------------------
+# POST: Save property choices + start subscription checkout if needed
+# ----------------------------
 @router.post("/pmc/onboarding/properties")
 async def onboarding_properties_submit(request: Request, db: Session = Depends(get_db)):
-    """
-    Process the property selection form. The submitted form contains a list of
-    property IDs that the user wants to enable. All other properties will be
-    left disabled. After updating the database, either redirect to the admin
-    dashboard or send the user through a subscription checkout if one or more
-    properties were selected.
-    """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/properties")
     if redirect:
         return redirect
@@ -299,7 +286,7 @@ async def onboarding_properties_submit(request: Request, db: Session = Depends(g
         return RedirectResponse("/pmc/signup", status_code=303)
 
     form = await request.form()
-    # Extract selected property IDs from the form (checkboxes share the same name)
+
     selected_ids = set()
     for pid in form.getlist("property_ids"):
         try:
@@ -307,63 +294,53 @@ async def onboarding_properties_submit(request: Request, db: Session = Depends(g
         except (ValueError, TypeError):
             continue
 
-    # Update each property: enable if selected, disable otherwise
     props = db.query(Property).filter(Property.pmc_id == pmc.id).all()
     for prop in props:
         prop.sandy_enabled = prop.id in selected_ids
     db.commit()
 
-    # Determine how many properties were enabled
     enabled_count = len(selected_ids)
-    # If none selected, nothing to bill; send user straight to the dashboard
     if enabled_count <= 0:
-        return RedirectResponse("/admin/dashboard", status_code=303)
+        return RedirectResponse("/admin/dashboard#properties", status_code=303)
 
-    # Ensure we have a Stripe Customer ID from the signup checkout
     customer_id = getattr(pmc, "stripe_customer_id", None)
     if not customer_id:
-        # Without a customer ID we can't start a subscription; require signup
         return RedirectResponse("/pmc/signup", status_code=303)
 
-    # Configure Stripe
-    stripe.api_key = os.getenv("STRIPE_SECRET_KEY", "").strip()
-    PRICE_PROPERTY_MONTHLY = os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY", "").strip()
-    APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
+    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+    price_monthly = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
+    app_base = (os.getenv("APP_BASE_URL") or "").rstrip("/")
 
-    # Create a subscription checkout session with quantity = enabled_count
+    if not stripe_secret or not price_monthly or not app_base:
+        raise HTTPException(status_code=500, detail="Missing Stripe env vars for subscription checkout")
+
+    stripe.api_key = stripe_secret
+
     checkout = stripe.checkout.Session.create(
         mode="subscription",
         customer=customer_id,
-        line_items=[
-            {"price": PRICE_PROPERTY_MONTHLY, "quantity": enabled_count},
-        ],
-        success_url=f"{APP_BASE_URL}/pmc/onboarding/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{APP_BASE_URL}/pmc/onboarding/properties",
+        line_items=[{"price": price_monthly, "quantity": enabled_count}],
+        success_url=f"{app_base}/pmc/onboarding/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
+        cancel_url=f"{app_base}/pmc/onboarding/properties",
         metadata={
             "pmc_id": str(pmc.id),
             "type": "pmc_property_subscription",
             "quantity": str(enabled_count),
         },
     )
-    # Redirect the user to Stripe to confirm the subscription
+
     return RedirectResponse(checkout.url, status_code=303)
 
 
+# ----------------------------
+# GET: Subscription checkout success
+# ----------------------------
 @router.get("/pmc/onboarding/billing/success")
 def onboarding_billing_success(
     request: Request,
     session_id: str = Query(...),
     db: Session = Depends(get_db),
 ):
-    """
-    Stripe subscription checkout success handler.
-
-    Stores:
-      - pmc.stripe_subscription_id
-      - pmc.stripe_customer_id (if missing)
-      - pmc.last_stripe_checkout_session_id (optional)
-    Then redirects user to dashboard.
-    """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/billing/success")
     if redirect:
         return redirect
@@ -383,44 +360,26 @@ def onboarding_billing_success(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid Stripe session_id: {str(e)}")
 
-    # Optional sanity checks: status/payment_status exist on checkout sessions
-    cs_status = (cs.get("status") or "").strip().lower()
-    if cs_status and cs_status not in {"complete"}:
-        # Not a completed checkout session; send them back to dashboard
-        return RedirectResponse("/admin/dashboard#properties", status_code=303)
-
-    payment_status = (cs.get("payment_status") or "").strip().lower()
-    if payment_status and payment_status not in {"paid", "no_payment_required"}:
-        return RedirectResponse("/admin/dashboard#properties", status_code=303)
-
     metadata = cs.get("metadata") or {}
     cs_type = (metadata.get("type") or "").strip()
     cs_pmc_id = (metadata.get("pmc_id") or "").strip()
 
-    # Only accept the property subscription checkout here
     if cs_type and cs_type != "pmc_property_subscription":
         return RedirectResponse("/admin/dashboard#properties", status_code=303)
 
-    # Prevent cross-account poisoning
     if cs_pmc_id and cs_pmc_id != str(pmc.id):
         raise HTTPException(status_code=403, detail="Checkout session does not match your account")
 
-    subscription_id = cs.get("subscription")  # sub_...
-    customer_id = cs.get("customer")          # cus_...
+    subscription_id = cs.get("subscription")
+    customer_id = cs.get("customer")
 
-    # If we don't have a subscription id, there's nothing to store
-    if not subscription_id:
-        return RedirectResponse("/admin/dashboard#properties", status_code=303)
-
-    if hasattr(pmc, "stripe_subscription_id"):
+    if subscription_id and hasattr(pmc, "stripe_subscription_id"):
         pmc.stripe_subscription_id = subscription_id
 
     if customer_id and not getattr(pmc, "stripe_customer_id", None) and hasattr(pmc, "stripe_customer_id"):
         pmc.stripe_customer_id = customer_id
 
-    # Traceability (safe even if column doesn't exist)
     _set_if_attr(pmc, "last_stripe_checkout_session_id", cs.get("id"))
-
     db.commit()
 
     return RedirectResponse("/admin/dashboard#properties", status_code=303)
