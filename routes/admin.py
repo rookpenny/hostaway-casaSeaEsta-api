@@ -174,7 +174,7 @@ def enforce_assignee_in_pmc(request: Request, db: Session, assigned_to: str):
     if not assigned_to:
         return
 
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
 
     if user_role == "super":
         return
