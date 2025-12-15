@@ -91,64 +91,62 @@
           </div>
 
           <form id="hostaway-form" method="post" action="/pmc/onboarding/pms/hostaway/import" class="mt-6 space-y-4">
-            <div>
-              <label class="text-sm font-semibold text-slate-700">Hostaway Account ID</label>
-              <input
-                name="account_id"
-                required
-                value="{{ existing.account_id if existing else '' }}"
-                class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="e.g. 12345"
-                autocomplete="off"
-              />
-            </div>
-
-            <div>
-              <label class="text-sm font-semibold text-slate-700">API Key (Client ID)</label>
-              <input
-                name="api_key"
-                required
-                value="{{ existing.api_key if existing else '' }}"
-                class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Paste your Hostaway API key"
-                autocomplete="off"
-              />
-            </div>
-
-            <div>
-              <label class="text-sm font-semibold text-slate-700">API Secret</label>
-              <input
-                name="api_secret"
-                required
-                value="{{ existing.api_secret if existing else '' }}"
-                class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Paste your Hostaway API secret"
-                autocomplete="off"
-              />
-              <div class="mt-2 text-xs text-slate-500">
-                Tip: If you don’t know where to find these, click
-                <button type="button" id="howto-btn" class="underline font-semibold hover:text-slate-700">How do I get my Hostaway keys?</button>
-              </div>
-            </div>
-
-            <div class="pt-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
-              <div class="text-xs text-slate-500">
-                We’ll save this connection and import your properties immediately.
-              </div>
-
-              <button
-                id="import-btn"
-                type="submit"
-                class="h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-              >
-                Test + Import properties →
+          <div>
+            <label class="text-sm font-semibold text-slate-700">Hostaway Account ID</label>
+            <input
+              name="account_id"
+              required
+              value="{{ existing.account_id if existing else '' }}"
+              class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+              placeholder="e.g. 12345"
+              autocomplete="off"
+            />
+          </div>
+        
+          <!-- ✅ Hostaway only needs ONE secret: their “API Key”.
+               We submit it as api_secret so the backend doesn’t need to change. -->
+          <div>
+            <label class="text-sm font-semibold text-slate-700">API Key</label>
+            <input
+              type="password"
+              name="api_secret"
+              required
+              value="{{ existing.api_secret if existing else '' }}"
+              class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
+              placeholder="Paste your Hostaway API key"
+              autocomplete="off"
+            />
+            <div class="mt-2 text-xs text-slate-500">
+              Tip: If you don’t know where to find these, click
+              <button type="button" id="howto-btn" class="underline font-semibold hover:text-slate-700">
+                How do I get my Hostaway keys?
               </button>
             </div>
-
-            <div id="import-hint" class="hidden mt-3 text-sm text-slate-600">
-              Importing… this can take a moment depending on how many listings you have.
+          </div>
+        
+          <!-- ✅ Hidden field to satisfy older backend signatures if they still expect api_key.
+               If you update the backend to remove api_key, you can delete this. -->
+          <input type="hidden" name="api_key" value="" />
+        
+          <div class="pt-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
+            <div class="text-xs text-slate-500">
+              We’ll save this connection and import your properties immediately.
             </div>
-          </form>
+        
+            <button
+              id="import-btn"
+              type="submit"
+              class="h-11 px-5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              Test + Import properties →
+            </button>
+          </div>
+        
+          <div id="import-hint" class="hidden mt-3 text-sm text-slate-600">
+            Importing… this can take a moment depending on how many listings you have.
+          </div>
+        </form>
+
         </section>
 
         <!-- Coming soon providers -->
@@ -181,9 +179,10 @@
       <div class="p-5 space-y-3 text-sm text-slate-700">
         <ol class="list-decimal pl-5 space-y-2">
           <li>Log in to Hostaway as an admin.</li>
-          <li>Go to <span class="font-semibold">Settings → Integrations / API</span> (wording may vary).</li>
-          <li>Create a new API application / API keys.</li>
-          <li>Copy the <span class="font-semibold">Account ID</span>, <span class="font-semibold">API Key</span>, and <span class="font-semibold">API Secret</span> into this form.</li>
+          <li>Go to <span class="font-semibold">Settings → Hostaway API</span>.</li>
+          <li>Create a new Hostaway API Key.</li>
+          <li>Enter a Name [HostScout] Partner [Hostaway Public API] Press [Create]</li>
+          <li>Copy the <span class="font-semibold">Account ID</span> and <span class="font-semibold">API Key</span> into this form.</li>
         </ol>
         <div class="rounded-xl border border-slate-200 bg-slate-50 p-3 text-xs text-slate-600">
           Don’t worry — we’ll improve this with an in-app “Connect Hostaway” flow (OAuth-style) so most users never touch keys.
