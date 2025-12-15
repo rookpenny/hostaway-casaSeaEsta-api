@@ -191,9 +191,9 @@ def email_callback(token: str, request: Request, db: Session = Depends(get_db)):
 @router.post("/login/email")
 async def login_with_email(
     request: Request,
+    background_tasks: BackgroundTasks,
     email: str = Form(...),
     db: Session = Depends(get_db),
-    background_tasks: BackgroundTasks | None = None,
 ):
     # Normalize and validate the email
     email_l = (email or "").strip().lower()
@@ -209,7 +209,7 @@ async def login_with_email(
             status_code=403,
         )
 
-    # Generate a one‑time token and store it in the session
+    # Generate a one-time token and store it in the session
     token = secrets.token_urlsafe(32)
     request.session["email_login_token"] = token
     request.session["email_login_target"] = email_l
@@ -218,19 +218,19 @@ async def login_with_email(
     app_base = (os.getenv("APP_BASE_URL") or "").rstrip("/")
     magic_url = f"{app_base}/auth/email-callback?token={token}"
 
-    # Queue email sending (placeholder implementation)
-    if background_tasks:
-        background_tasks.add_task(
-            send_magic_email,
-            to=email_l,
-            magic_url=magic_url,
-        )
+    # Queue email sending
+    background_tasks.add_task(
+        send_magic_email,
+        to=email_l,
+        magic_url=magic_url,
+    )
 
     # Show instructions to check the user’s inbox
     return templates.TemplateResponse(
         "login_email_sent.html",
         {"request": request, "email": email_l},
     )
+
 
 
 # ----------------------------
