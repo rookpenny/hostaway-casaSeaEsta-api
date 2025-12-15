@@ -198,18 +198,19 @@ def onboarding_hostaway_import(
         db.add(integ)
 
     integ.account_id = account_id
-    # Hostaway does not need a separate API key/client ID concept; leave it blank.
-    integ.api_key = None
-    integ.api_secret = hostaway_api_key
+    integ.api_key = None                 # Hostaway: no separate client_id concept
+    integ.api_secret = hostaway_api_key  # store Hostaway API Key here
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
 
     # 2) Mirror into PMC table (backwards compatible)
     _set_if_attr(pmc, "pms_integration", provider)
     _set_if_attr(pmc, "pms_account_id", account_id)
-    # Leave pms_api_key empty for Hostaway
-    _set_if_attr(pmc, "pms_api_key", None)
-    # Store Hostaway API Key in the "secret" field
+
+    # ✅ IMPORTANT: your current fetch_pmc_lookup() requires pms_api_key NOT NULL
+    _set_if_attr(pmc, "pms_api_key", hostaway_api_key)
+
+    # Store Hostaway API Key in secret field as well (fine + future-proof)
     _set_if_attr(pmc, "pms_api_secret", hostaway_api_key)
 
     db.commit()
@@ -228,15 +229,38 @@ def onboarding_hostaway_import(
             provider=provider,
         )
 
+    # ✅ Verify: did we actually insert any properties for THIS pmc.id?
+    imported_count = (
+        db.query(Property)
+        .filter(Property.pmc_id == pmc.id)
+        .count()
+    )
+
+    print(
+        "[hostaway_import] pmc_id=", pmc.id,
+        "account_id=", account_id,
+        "imported_count=", imported_count
+    )
+
+    if imported_count == 0:
+        return _render_pms_page(
+            request,
+            pmc,
+            integ,
+            error=(
+                "Hostaway import completed but 0 properties were saved. "
+                "This usually means the Hostaway Account ID/API Key pair is not producing listings, "
+                "or the sync is writing to a different PMC record."
+            ),
+            provider=provider,
+        )
+
     # 4) Mark last sync (optional)
     if hasattr(integ, "last_synced_at"):
         integ.last_synced_at = datetime.utcnow()
         db.commit()
 
-    # ✅ After import, go to property selection
     return RedirectResponse("/pmc/onboarding/properties", status_code=303)
-
-
 
 # ----------------------------
 # POST: Lodgify placeholder
