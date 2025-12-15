@@ -371,9 +371,11 @@ def onboarding_billing_success(
 ):
     """
     Stripe subscription checkout success handler.
-    This makes onboarding deterministic by immediately storing:
+
+    Stores:
       - pmc.stripe_subscription_id
       - pmc.stripe_customer_id (if missing)
+      - pmc.last_stripe_checkout_session_id (optional)
     Then redirects user to dashboard.
     """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/billing/success")
@@ -395,34 +397,44 @@ def onboarding_billing_success(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid Stripe session_id: {str(e)}")
 
-    # Basic integrity checks
-    metadata = cs.get("metadata") or {}
-    cs_pmc_id = (metadata.get("pmc_id") or "").strip()
-    cs_type = (metadata.get("type") or "").strip()
-
-    if cs_type and cs_type != "pmc_property_subscription":
-        # If someone hits this endpoint from the wrong checkout type, just send them onward
+    # Optional sanity checks: status/payment_status exist on checkout sessions
+    cs_status = (cs.get("status") or "").strip().lower()
+    if cs_status and cs_status not in {"complete"}:
+        # Not a completed checkout session; send them back to dashboard
         return RedirectResponse("/admin/dashboard#properties", status_code=303)
 
-    # Ensure the checkout session matches this PMC (prevents cross-account poisoning)
-    if cs_pmc_id and str(pmc.id) != cs_pmc_id:
+    payment_status = (cs.get("payment_status") or "").strip().lower()
+    if payment_status and payment_status not in {"paid", "no_payment_required"}:
+        return RedirectResponse("/admin/dashboard#properties", status_code=303)
+
+    metadata = cs.get("metadata") or {}
+    cs_type = (metadata.get("type") or "").strip()
+    cs_pmc_id = (metadata.get("pmc_id") or "").strip()
+
+    # Only accept the property subscription checkout here
+    if cs_type and cs_type != "pmc_property_subscription":
+        return RedirectResponse("/admin/dashboard#properties", status_code=303)
+
+    # Prevent cross-account poisoning
+    if cs_pmc_id and cs_pmc_id != str(pmc.id):
         raise HTTPException(status_code=403, detail="Checkout session does not match your account")
 
     subscription_id = cs.get("subscription")  # sub_...
     customer_id = cs.get("customer")          # cus_...
 
-    if subscription_id:
-        if hasattr(pmc, "stripe_subscription_id"):
-            pmc.stripe_subscription_id = subscription_id
+    # If we don't have a subscription id, there's nothing to store
+    if not subscription_id:
+        return RedirectResponse("/admin/dashboard#properties", status_code=303)
 
-    if customer_id and not getattr(pmc, "stripe_customer_id", None):
-        if hasattr(pmc, "stripe_customer_id"):
-            pmc.stripe_customer_id = customer_id
+    if hasattr(pmc, "stripe_subscription_id"):
+        pmc.stripe_subscription_id = subscription_id
 
-    # Record latest checkout session for traceability
+    if customer_id and not getattr(pmc, "stripe_customer_id", None) and hasattr(pmc, "stripe_customer_id"):
+        pmc.stripe_customer_id = customer_id
+
+    # Traceability (safe even if column doesn't exist)
     _set_if_attr(pmc, "last_stripe_checkout_session_id", cs.get("id"))
 
     db.commit()
 
     return RedirectResponse("/admin/dashboard#properties", status_code=303)
-
