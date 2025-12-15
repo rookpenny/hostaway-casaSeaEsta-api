@@ -166,14 +166,13 @@ def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
 def onboarding_hostaway_import(
     request: Request,
     account_id: str = Form(...),
-    api_secret: str = Form(...),  # Hostaway API key (secret)
+    api_secret: str = Form(...),
     db: Session = Depends(get_db),
 ):
-    # 0) Require login and paid PMC
+    # Require login and payment
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
     if redirect:
         return redirect
-
     pmc = _require_pmc_for_session(db, request)
     if not _is_paid(pmc):
         return RedirectResponse("/pmc/signup", status_code=303)
@@ -187,7 +186,7 @@ def onboarding_hostaway_import(
     if not account_id_clean or not hostaway_api_key:
         raise HTTPException(status_code=400, detail="Missing Hostaway credentials")
 
-    # 1) Upsert or update the integration record for Hostaway
+    # Upsert integration record
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == provider)
@@ -197,23 +196,24 @@ def onboarding_hostaway_import(
         integ = PMCIntegration(pmc_id=pmc.id, provider=provider)
         db.add(integ)
 
+    # Hostaway: set api_key to None; secret to API key
     integ.account_id = account_id_clean
-    integ.api_key = None                        # Hostaway: no separate client_id concept
-    integ.api_secret = hostaway_api_key         # Hostaway API key stored here
+    integ.api_key = None
+    integ.api_secret = hostaway_api_key
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
 
-    # 2) Mirror into PMC record
+    # Mirror into PMC: store account_id in pms_api_key; secret in pms_api_secret
     _set_if_attr(pmc, "pms_integration", provider)
     _set_if_attr(pmc, "pms_account_id", account_id_clean)
-    _set_if_attr(pmc, "pms_api_key", account_id_clean)    # pms_api_key MUST equal pms_account_id
-    _set_if_attr(pmc, "pms_api_secret", hostaway_api_key)  # secret stored separately
+    _set_if_attr(pmc, "pms_api_key", account_id_clean)
+    _set_if_attr(pmc, "pms_api_secret", hostaway_api_key)
 
     db.commit()
     db.refresh(integ)
     db.refresh(pmc)
 
-    # 3) Import properties using the updated credentials
+    # Import properties
     try:
         sync_properties(account_id=str(account_id_clean))
     except Exception as e:
@@ -225,36 +225,32 @@ def onboarding_hostaway_import(
             provider=provider,
         )
 
-    # 4) Verify that properties were actually saved for this pmc.id
-    imported_count = (
-        db.query(Property)
-        .filter(Property.pmc_id == pmc.id)
-        .count()
-    )
+    # Verify properties were saved
+    imported_count = db.query(Property).filter(Property.pmc_id == pmc.id).count()
     print(
         "[hostaway_import] pmc_id=", pmc.id,
         "account_id=", account_id_clean,
         "imported_count=", imported_count
     )
-
     if imported_count == 0:
         return _render_pms_page(
             request,
             pmc,
             integ,
             error=(
-                "Hostaway import completed but 0 properties were saved. "
-                "This usually means your Account ID/API Key pair did not yield listings, "
+                "Hostaway import completed but no properties were saved. "
+                "This usually means your Account ID or API key didn’t match any listings, "
                 "or the sync wrote to a different PMC record."
             ),
             provider=provider,
         )
 
-    # 5) Optionally update last_synced_at if the integration supports it
+    # Mark last sync if supported
     if hasattr(integ, "last_synced_at"):
         integ.last_synced_at = datetime.utcnow()
         db.commit()
 
+    # Redirect to Step 3
     return RedirectResponse("/pmc/onboarding/properties", status_code=303)
 
 
