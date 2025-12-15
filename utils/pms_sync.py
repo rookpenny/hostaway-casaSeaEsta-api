@@ -23,7 +23,7 @@ def fetch_pmc_lookup():
 
     query = text("""
         SELECT 
-            id,  -- ✅ This is the actual primary key used as ForeignKey in Property
+            id,
             pms_account_id AS account_id,
             pms_api_key AS client_id,
             pms_api_secret AS client_secret,
@@ -33,9 +33,15 @@ def fetch_pmc_lookup():
             sync_enabled
         FROM pmc
         WHERE pms_account_id IS NOT NULL
-          AND pms_api_key IS NOT NULL
           AND pms_api_secret IS NOT NULL
-          AND sync_enabled = TRUE;
+          AND sync_enabled = TRUE
+          AND (
+            -- Hostaway: uses account_id + api_secret only
+            (LOWER(pms_integration) = 'hostaway')
+            OR
+            -- Other PMSs: require both client_id + client_secret
+            (LOWER(pms_integration) <> 'hostaway' AND pms_api_key IS NOT NULL)
+          );
     """)
 
     with engine.connect() as conn:
@@ -43,10 +49,11 @@ def fetch_pmc_lookup():
 
         for row in result:
             base_url = row.base_url or default_base_url(row.pms)
+
             lookup[str(row.account_id)] = {
-                "record_id": row.id,  # ✅ Now works correctly
-                "client_id": row.client_id,
-                "client_secret": row.client_secret,
+                "record_id": row.id,
+                "client_id": row.client_id,          # None for Hostaway (expected)
+                "client_secret": row.client_secret,  # Hostaway API Key lives here
                 "pms": row.pms.lower(),
                 "base_url": base_url,
                 "version": row.version,
