@@ -229,22 +229,30 @@ async def auth_callback(request: Request):
 
         # ✅ If unauthorized BUT they were headed to public signup, allow limited session
         if not scope["ok"]:
+            # Allow limited signup session when the user was trying to reach /pmc/signup
             if (next_url or "").startswith("/pmc/signup"):
                 # Base identity (so signup can prefill + lock email)
                 request.session["user"] = {"email": email_l, "name": name}
                 request.session["admin_email"] = email_l
-
+        
                 # Limited role/scope (no PMC access yet)
                 request.session["role"] = "signup"
                 request.session["pmc_id"] = None
                 request.session["pmc_user_id"] = None
-
+        
                 return RedirectResponse(url=next_url, status_code=302)
-
-            return HTMLResponse(
-                f"<h2>Access denied: {scope.get('error') or 'Unauthorized email'}</h2>",
+        
+            # Render a friendly access-denied page using a template
+            return templates.TemplateResponse(
+                "access_denied.html",
+                {
+                    "request": request,
+                    "error": scope.get("error") or "Unauthorized email",
+                    "email": email_l,
+                },
                 status_code=403,
             )
+
 
         # ✅ Normal authorized login
         request.session["user"] = {"email": email_l, "name": name}
