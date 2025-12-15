@@ -1,1 +1,19 @@
-asdf
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Email Sent – Casa Sea Esta</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 text-slate-900">
+  <div class="min-h-screen flex flex-col items-center justify-center px-6 text-center space-y-4">
+    <h1 class="text-2xl font-semibold">Check your email</h1>
+    <p class="text-slate-700">
+      We’ve sent a sign‑in link to <strong>{{ email }}</strong>.
+      Open that link on this device to finish logging in.
+    </p>
+    <a href="/" class="mt-4 text-sm font-semibold text-blue-600 hover:underline">Return to home</a>
+  </div>
+</body>
+</html>
