@@ -261,6 +261,41 @@ async def onboarding_properties_submit(request: Request, db: Session = Depends(g
 
 
 # ----------------------------
+# POST: Save property choices -> go to billing review (NO STRIPE HERE)
+# ----------------------------
+@router.post("/pmc/onboarding/properties")
+async def onboarding_properties_submit(request: Request, db: Session = Depends(get_db)):
+    redirect = _require_login_or_redirect(request, "/pmc/onboarding/properties")
+    if redirect:
+        return redirect
+
+    # If they somehow don't have a PMC yet, send them to create one
+    try:
+        pmc = _require_pmc_for_session(db, request)
+    except HTTPException:
+        return RedirectResponse("/pmc/signup", status_code=303)
+
+    form = await request.form()
+
+    selected_ids: set[int] = set()
+    for pid in form.getlist("property_ids"):
+        try:
+            selected_ids.add(int(pid))
+        except (ValueError, TypeError):
+            continue
+
+    # Update enabled flags for this PMC
+    props = db.query(Property).filter(Property.pmc_id == pmc.id).all()
+    for prop in props:
+        prop.sandy_enabled = (prop.id in selected_ids)
+
+    db.commit()
+
+    # Next step: billing breakdown + pay
+    return RedirectResponse("/pmc/onboarding/billing-review", status_code=303)
+
+
+# ----------------------------
 # GET: Billing review screen (NEW)
 # ----------------------------
 @router.get("/pmc/onboarding/billing-review", response_class=HTMLResponse)
@@ -269,7 +304,11 @@ def onboarding_billing_review(request: Request, db: Session = Depends(get_db)):
     if redirect:
         return redirect
 
-    pmc = _require_pmc_for_session(db, request)
+    # If they somehow don't have a PMC yet, send them to create one
+    try:
+        pmc = _require_pmc_for_session(db, request)
+    except HTTPException:
+        return RedirectResponse("/pmc/signup", status_code=303)
 
     enabled_count = (
         db.query(Property)
@@ -277,9 +316,9 @@ def onboarding_billing_review(request: Request, db: Session = Depends(get_db)):
         .count()
     )
 
-    # You can show these constants in the template
-    setup_fee_cents = 49900
-    monthly_cents_each = 999
+    # Constants for display (Stripe will be created on NEXT step, not here)
+    setup_fee_cents = 49900          # $499.00
+    monthly_cents_each = 999         # $9.99 / property / month
     monthly_total_cents = enabled_count * monthly_cents_each
 
     return templates.TemplateResponse(
@@ -293,6 +332,7 @@ def onboarding_billing_review(request: Request, db: Session = Depends(get_db)):
             "monthly_total_cents": monthly_total_cents,
         },
     )
+
 
 
 # ----------------------------
