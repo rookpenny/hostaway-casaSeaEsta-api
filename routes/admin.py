@@ -196,7 +196,7 @@ def enforce_assignee_in_pmc(request: Request, db: Session, assigned_to: str):
 
 
 def require_session_in_scope(request: Request, db: Session, session_id: int) -> ChatSession:
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
     session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
@@ -212,7 +212,7 @@ def require_session_in_scope(request: Request, db: Session, session_id: int) -> 
 
 
 def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
     file_path = (file_path or "").strip().lstrip("/").strip()
@@ -327,7 +327,7 @@ def admin_chats(
     mine: Optional[int] = Query(None),
     assigned_to: Optional[str] = Query(None),
 ):
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     if user_role == "pmc" and not pmc_obj:
         raise HTTPException(status_code=403, detail="PMC account not linked")
 
@@ -752,7 +752,7 @@ async def summarize_chat(session_id: int, request: Request, db: Session = Depend
 # ✅ FIXED: scoped analytics by role
 @router.get("/admin/analytics/chats")
 def chats_analytics(request: Request, db: Session = Depends(get_db)):
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
     base_sessions = db.query(ChatSession)
@@ -1152,7 +1152,7 @@ def save_github_file(
 # ----------------------------
 @router.get("/admin/pmc-properties/{pmc_id}")
 def pmc_properties(request: Request, pmc_id: int, db: Session = Depends(get_db)):
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     if user_role == "pmc":
         if not pmc_obj or pmc_obj.id != pmc_id:
             raise HTTPException(status_code=403, detail="Forbidden")
@@ -1370,7 +1370,7 @@ def delete_pmc(pmc_id: int, request: Request, db: Session = Depends(get_db)):
 
 @router.post("/admin/update-properties")
 def update_properties(request: Request, payload: list[dict] = Body(...), db: Session = Depends(get_db)):
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
     try:
@@ -1400,7 +1400,7 @@ def require_login(request: Request):
 
 @router.get("/admin/pmc-properties-json/{pmc_id}")
 def get_pmc_properties_json(request: Request, pmc_id: int, db: Session = Depends(get_db)):
-    user_role, pmc_obj, _ = get_user_role_and_scope(request, db)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     if user_role == "pmc":
         if not pmc_obj or pmc_obj.id != pmc_id:
             raise HTTPException(status_code=403, detail="Forbidden")
