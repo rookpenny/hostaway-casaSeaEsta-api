@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import stripe
-from datetime import datetime
+from datetime import datetime, timezone 
 from typing import Optional
 
 from fastapi import APIRouter, Request, Depends, Form, HTTPException, Query
@@ -384,17 +384,20 @@ def onboarding_billing_checkout(request: Request, db: Session = Depends(get_db))
 
 
 # ----------------------------
-# GET: Checkout success -> store IDs and activate PMC
+# GET: Checkout success -> store IDs and activate PMC (then show success page)
 # ----------------------------
-@router.get("/pmc/onboarding/billing/success")
+@router.get("/pmc/onboarding/billing/success", response_class=HTMLResponse)
 def onboarding_billing_success(
     request: Request,
     session_id: str = Query(...),
     db: Session = Depends(get_db),
 ):
     """
-    When Stripe checkout completes, record the subscription and customer IDs,
-    activate the PMC, and redirect to the dashboard.
+    After Stripe checkout completes:
+    - verify this session belongs to this PMC
+    - store Stripe customer/subscription IDs
+    - activate the PMC
+    - show a friendly "Payment received" page (pmc_signup_success.html)
     """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/billing/success")
     if redirect:
@@ -405,7 +408,6 @@ def onboarding_billing_success(
     stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
     if not stripe_secret:
         raise HTTPException(status_code=500, detail="Missing STRIPE_SECRET_KEY")
-
     stripe.api_key = stripe_secret
 
     try:
@@ -413,40 +415,52 @@ def onboarding_billing_success(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid Stripe session_id: {str(e)}")
 
+    # Must be completed/paid
+    cs_status = (cs.get("status") or "").strip().lower()
+    payment_status = (cs.get("payment_status") or "").strip().lower()
+    if cs_status != "complete" or payment_status not in {"paid", "no_payment_required"}:
+        return RedirectResponse("/pmc/onboarding/billing-review", status_code=303)
+
     metadata = cs.get("metadata") or {}
     cs_type = (metadata.get("type") or "").strip()
     cs_pmc_id = (metadata.get("pmc_id") or "").strip()
 
-    # Only handle the full activation checkout here
-    if cs_type and cs_type != "pmc_full_activation":
+    # Only accept the combined checkout here
+    if cs_type != "pmc_full_activation":
         return RedirectResponse("/admin/dashboard#properties", status_code=303)
 
+    # Prevent cross-account poisoning
     if cs_pmc_id and cs_pmc_id != str(pmc.id):
         raise HTTPException(status_code=403, detail="Checkout session does not match your account")
 
-    # Ensure session is completed and payment is confirmed
-    cs_status = (cs.get("status") or "").strip().lower()
-    payment_status = (cs.get("payment_status") or "").strip().lower()
-    if cs_status not in {"complete"} or payment_status not in {"paid", "no_payment_required"}:
-        return RedirectResponse("/pmc/onboarding/billing-review", status_code=303)
+    checkout_session_id = cs.get("id")
 
-    subscription_id = cs.get("subscription")
-    customer_id = cs.get("customer")
+    # Idempotency: if already processed, just show success page
+    last_seen = getattr(pmc, "last_stripe_checkout_session_id", None)
+    if not last_seen or last_seen != checkout_session_id:
+        customer_id = cs.get("customer")          # cus_...
+        subscription_id = cs.get("subscription")  # sub_...
 
-    # Save Stripe IDs
-    if customer_id:
-        _set_if_attr(pmc, "stripe_customer_id", customer_id)
-    if subscription_id:
-        _set_if_attr(pmc, "stripe_subscription_id", subscription_id)
+        if customer_id:
+            _set_if_attr(pmc, "stripe_customer_id", customer_id)
+        if subscription_id:
+            _set_if_attr(pmc, "stripe_subscription_id", subscription_id)
 
-    _set_if_attr(pmc, "last_stripe_checkout_session_id", cs.get("id"))
+        _set_if_attr(pmc, "last_stripe_checkout_session_id", checkout_session_id)
 
-    # Activate the account right away (webhook will also run)
-    _set_if_attr(pmc, "billing_status", "active")
-    _set_if_attr(pmc, "active", True)
-    _set_if_attr(pmc, "sync_enabled", True)
-    _set_if_attr(pmc, "signup_paid_at", datetime.utcnow())
+        # Activate now (webhook can still backfill; this makes UX immediate)
+        _set_if_attr(pmc, "billing_status", "active")
+        _set_if_attr(pmc, "active", True)
+        _set_if_attr(pmc, "sync_enabled", True)
+        _set_if_attr(pmc, "signup_paid_at", datetime.now(timezone.utc))
 
-    db.commit()
+        db.commit()
 
-    return RedirectResponse("/admin/dashboard#properties", status_code=303)
+    # ✅ Show friendly success screen
+    return templates.TemplateResponse(
+        "pmc_signup_success.html",
+        {
+            "request": request,
+            "session_id": session_id,
+        },
+    )
