@@ -317,15 +317,24 @@ async def onboarding_properties_submit(
 
 
 
+from fastapi import Query
+
 # ----------------------------
 # GET: Billing review screen
 # ----------------------------
 @router.get("/pmc/onboarding/billing-review", response_class=HTMLResponse)
-def onboarding_billing_review(request: Request, db: Session = Depends(get_db)):
+def onboarding_billing_review(
+    request: Request,
+    integration_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
     """
-    Display breakdown of one-time setup fee and monthly per-property fees.
+    Display breakdown of one-time setup fee and monthly per-property fees
+    for the selected PMS integration.
     """
-    redirect = _require_login_or_redirect(request, "/pmc/onboarding/billing-review")
+    redirect = _require_login_or_redirect(
+        request, f"/pmc/onboarding/billing-review?integration_id={integration_id}"
+    )
     if redirect:
         return redirect
 
@@ -335,15 +344,23 @@ def onboarding_billing_review(request: Request, db: Session = Depends(get_db)):
     except HTTPException:
         return RedirectResponse("/pmc/signup", status_code=303)
 
-    # Count how many properties were enabled
+    # Verify integration belongs to this PMC
+    integ = (
+        db.query(PMCIntegration)
+        .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
+        .first()
+    )
+    if not integ:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    # Count how many properties were enabled (scoped to this integration)
     enabled_count = (
         db.query(Property)
         .filter(Property.integration_id == integration_id, Property.sandy_enabled.is_(True))
         .count()
     )
 
-
-    # Prices in cents (adjust as needed)
+    # Prices in cents
     setup_fee_cents = 49900       # $499.00 one-time
     monthly_cents_each = 999      # $9.99 per property per month
     monthly_total_cents = enabled_count * monthly_cents_each
@@ -353,6 +370,7 @@ def onboarding_billing_review(request: Request, db: Session = Depends(get_db)):
         {
             "request": request,
             "pmc": pmc,
+            "integration_id": integration_id,
             "enabled_count": enabled_count,
             "setup_fee_cents": setup_fee_cents,
             "monthly_cents_each": monthly_cents_each,
@@ -361,34 +379,62 @@ def onboarding_billing_review(request: Request, db: Session = Depends(get_db)):
     )
 
 
+
+from fastapi import Form, HTTPException
+from fastapi.responses import RedirectResponse
+
 # ----------------------------
 # POST: Create one Stripe checkout (setup fee + subscription)
 # ----------------------------
 @router.post("/pmc/onboarding/billing/checkout")
-def onboarding_billing_checkout(request: Request, db: Session = Depends(get_db)):
+def onboarding_billing_checkout(
+    request: Request,
+    integration_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
     """
-    Build a single Stripe Checkout that includes both the one-time setup fee and
-    the monthly subscription for enabled properties.
+    Create a Stripe Checkout Session that includes:
+    - one-time setup fee (price_setup, qty=1)
+    - recurring monthly fee per enabled property (price_monthly, qty=enabled_count)
     """
-    redirect = _require_login_or_redirect(request, "/pmc/onboarding/billing-review")
+    redirect = _require_login_or_redirect(
+        request, f"/pmc/onboarding/billing-review?integration_id={integration_id}"
+    )
     if redirect:
         return redirect
 
     pmc = _require_pmc_for_session(db, request)
 
+    # ✅ Verify integration belongs to this PMC
+    integ = (
+        db.query(PMCIntegration)
+        .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
+        .first()
+    )
+    if not integ:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
+    # ✅ Count enabled properties ONLY for this integration
     enabled_count = (
         db.query(Property)
-        .filter(Property.pmc_id == pmc.id, Property.sandy_enabled.is_(True))
+        .filter(
+            Property.integration_id == integration_id,
+            Property.sandy_enabled.is_(True),
+        )
         .count()
     )
+
     if enabled_count <= 0:
-        return RedirectResponse("/pmc/onboarding/properties", status_code=303)
+        return RedirectResponse(
+            f"/pmc/onboarding/properties?integration_id={integration_id}",
+            status_code=303,
+        )
 
     # Load env variables
     stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
     app_base = (os.getenv("APP_BASE_URL") or "").rstrip("/")
-    price_setup = (os.getenv("STRIPE_PRICE_SETUP_ONETIME") or "").strip()        # One-time price ID
-    price_monthly = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()  # Monthly price ID
+    price_setup = (os.getenv("STRIPE_PRICE_SETUP_ONETIME") or "").strip()
+    price_monthly = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
 
     if not stripe_secret or not app_base or not price_setup or not price_monthly:
         raise HTTPException(status_code=500, detail="Missing Stripe environment variables")
@@ -398,9 +444,6 @@ def onboarding_billing_checkout(request: Request, db: Session = Depends(get_db))
     email_l = _session_email(request)
     customer_id = getattr(pmc, "stripe_customer_id", None)
 
-    # Build a subscription-mode checkout with two line items:
-    # 1. Setup fee, quantity 1 (one-time)
-    # 2. Monthly per-property, quantity = enabled_count (recurring)
     checkout_kwargs = dict(
         mode="subscription",
         line_items=[
@@ -408,22 +451,27 @@ def onboarding_billing_checkout(request: Request, db: Session = Depends(get_db))
             {"price": price_monthly, "quantity": int(enabled_count)},
         ],
         success_url=f"{app_base}/pmc/onboarding/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
-        cancel_url=f"{app_base}/pmc/onboarding/billing-review",
+        cancel_url=f"{app_base}/pmc/onboarding/billing-review?integration_id={integration_id}",
         metadata={
             "pmc_id": str(pmc.id),
+            "integration_id": str(integration_id),
             "type": "pmc_full_activation",
             "quantity": str(enabled_count),
         },
     )
 
-    # If a customer ID exists, reuse it; otherwise let Stripe create a customer
+    # Reuse Stripe customer if available; otherwise create one
     if customer_id:
         checkout_kwargs["customer"] = customer_id
     else:
         checkout_kwargs["customer_email"] = email_l or pmc.email
         checkout_kwargs["customer_creation"] = "always"
 
-    checkout = stripe.checkout.Session.create(**checkout_kwargs)
+    try:
+        checkout = stripe.checkout.Session.create(**checkout_kwargs)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Stripe checkout failed: {str(e)}")
+
     return RedirectResponse(checkout.url, status_code=303)
 
 
