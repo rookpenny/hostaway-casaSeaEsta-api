@@ -109,6 +109,43 @@ def _count_billable(db: Session, pmc_id: int) -> int:
     return int(billable)
 
 
+def sync_subscription_quantity_for_integration(db, pmc, integration_id: int) -> int:
+    """
+    Set Stripe subscription quantity = enabled properties for this integration.
+    Uses proration_behavior='none' so changes apply at next invoice (renewal).
+    Returns enabled_count.
+    """
+    enabled_count = db.execute(
+        text("""
+            SELECT COUNT(*)
+            FROM public.properties
+            WHERE integration_id = :iid
+              AND sandy_enabled = TRUE
+        """),
+        {"iid": int(integration_id)},
+    ).scalar_one()
+
+    sub_id = getattr(pmc, "stripe_subscription_id", None)
+    item_id = getattr(pmc, "stripe_subscription_item_id", None)
+    if not sub_id or not item_id:
+        return int(enabled_count)
+
+    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+    if not stripe_secret:
+        raise Exception("Missing STRIPE_SECRET_KEY")
+
+    stripe.api_key = stripe_secret
+
+    stripe.Subscription.modify(
+        sub_id,
+        items=[{"id": item_id, "quantity": int(enabled_count)}],
+        proration_behavior="none",
+    )
+
+    return int(enabled_count)
+
+
+
 def sync_property_quantity(db: Session, pmc_id: int, proration_behavior: str = "none") -> int:
     """
     Policy implemented:
