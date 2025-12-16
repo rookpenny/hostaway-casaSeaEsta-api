@@ -9,6 +9,7 @@
   <style>
     .card { box-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 10px 24px rgba(15, 23, 42, 0.06); }
     .hairline { box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
+
     /* Active nav state */
     .nav-item[aria-current="page"] { background: rgb(248 250 252); color: rgb(15 23 42); }
     .nav-item[aria-current="page"] .nav-icon-wrap { background: rgb(15 23 42); border-color: rgb(15 23 42); }
@@ -40,7 +41,8 @@
 
         <button id="sidebar-toggle"
           class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50 grid place-items-center"
-          aria-label="Toggle sidebar">
+          aria-label="Toggle sidebar"
+          type="button">
           <svg class="h-5 w-5 text-slate-600" viewBox="0 0 24 24" fill="none">
             <path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
           </svg>
@@ -256,7 +258,6 @@
             {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
             {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
           {% endif %}
-
 
           <div class="grid grid-cols-12 gap-4">
             <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
@@ -511,6 +512,12 @@
       setTimeout(() => el.remove(), 2400);
     }
 
+    function loginRedirect() {
+      // preserve current path so you come back after login
+      const next = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+      window.location.href = `/auth/login/google?next=${next}`;
+    }
+
     // --- Sidebar collapse/expand ---
     const sidebar = document.getElementById("sidebar");
     const toggleBtn = document.getElementById("sidebar-toggle");
@@ -541,6 +548,26 @@
         document.getElementById("globalSearch")?.focus();
       }
     });
+
+    // --- Property filtering (defined early so showView can call it) ---
+    function filterProperties() {
+      const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
+      const status = document.getElementById("statusFilter")?.value || "all";
+      const cards = document.querySelectorAll("[data-property-card]");
+
+      cards.forEach((card) => {
+        const name = (card.dataset.name || "").toLowerCase();
+        const live = card.dataset.live === "true";
+        const matchesSearch = name.includes(search);
+        const matchesStatus =
+          status === "all" ||
+          (status === "live" && live) ||
+          (status === "offline" && !live);
+
+        card.style.display = (matchesSearch && matchesStatus) ? "" : "none";
+      });
+    }
+    window.filterProperties = filterProperties;
 
     // --- View routing ---
     const pageTitle = document.getElementById("page-title");
@@ -580,18 +607,143 @@
         const local = document.getElementById("searchInput");
         if (global && local && global.value && !local.value) {
           local.value = global.value;
-          filterProperties();
         }
+        filterProperties();
       }
     }
 
     navItems.forEach(btn => btn.addEventListener("click", () => showView(btn.dataset.view)));
-
     const initial = (location.hash || "#overview").replace("#", "");
     showView(initial);
 
-    // --- Chart + filter + actions ---
+    // --- API helpers ---
+    async function postJson(url) {
+      return fetch(url, {
+        method: "POST",
+        credentials: "include", // ✅ ensures session cookie is sent (fixes common 403s)
+        headers: { "Accept": "application/json" }
+      });
+    }
+
+    // --- Actions (must be global for inline onclick=) ---
+    window.syncProperty = async function (id, btn) {
+      if (IS_LOCKED) {
+        toast("Complete payment to unlock property syncing.");
+        return;
+      }
+
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = "Syncing…";
+
+      try {
+        const res = await postJson(`/auth/sync-property/${id}`);
+
+        if (res.status === 401 || res.status === 403) {
+          toast("Session expired. Please sign in again.");
+          loginRedirect();
+          return;
+        }
+        if (res.status === 402) {
+          toast("Payment required to sync properties.");
+          window.location.href = "/pmc/signup";
+          return;
+        }
+
+        let data = {};
+        try { data = await res.json(); } catch (_) {}
+
+        if (res.ok && data.status === "success") {
+          btn.innerHTML = "Synced ✓";
+        } else {
+          btn.innerHTML = data.message || data.detail || "Failed";
+        }
+      } catch (err) {
+        console.error("Sync error:", err);
+        btn.innerHTML = "Error";
+      } finally {
+        setTimeout(() => {
+          btn.innerHTML = original;
+          btn.disabled = false;
+        }, 1200);
+      }
+    };
+
+    window.toggleProperty = async function (id, btn) {
+      if (IS_LOCKED) {
+        toast("Complete payment to unlock Sandy activation.");
+        return;
+      }
+
+      btn.disabled = true;
+      const original = btn.innerHTML;
+      btn.innerHTML = "Toggling…";
+
+      try {
+        const res = await postJson(`/auth/toggle-property/${id}`);
+
+        if (res.status === 401 || res.status === 403) {
+          toast("Session expired. Please sign in again.");
+          loginRedirect();
+          return;
+        }
+
+        let data = null;
+        try { data = await res.json(); } catch { data = null; }
+
+        if (data && data.status === "needs_billing" && data.checkout_url) {
+          window.location.href = data.checkout_url;
+          return;
+        }
+
+        if (!res.ok) {
+          const msg = (data && (data.detail || data.message)) || "Request failed";
+          toast(msg);
+          btn.innerHTML = original;
+          return;
+        }
+
+        if (data && data.status === "success") {
+          const isLive = data.new_status === "LIVE";
+          btn.innerHTML = isLive ? "Take Offline" : "Go Live";
+
+          const card = btn.closest("[data-property-card]");
+          if (card) {
+            card.dataset.live = isLive ? "true" : "false";
+
+            // Update the first status pill in card header (LIVE/OFFLINE/LOCKED)
+            const pill = card.querySelector("span.rounded-full");
+            if (pill) {
+              if (isLive) {
+                pill.textContent = "LIVE";
+                pill.className =
+                  "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
+              } else {
+                pill.textContent = "OFFLINE";
+                pill.className =
+                  "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
+              }
+            }
+          }
+
+          filterProperties();
+          if (data.billing_note) toast(data.billing_note);
+        } else {
+          btn.innerHTML = original;
+          toast("Toggle failed.");
+        }
+      } catch (err) {
+        console.error("Toggle error:", err);
+        btn.innerHTML = original;
+        toast("Network error. Please try again.");
+      } finally {
+        btn.disabled = false;
+      }
+    };
+
+    // --- DOM ready setup ---
     document.addEventListener("DOMContentLoaded", () => {
+      // Chart
       const ctx = document.getElementById("statusChart");
       if (ctx) {
         new Chart(ctx, {
@@ -611,148 +763,9 @@
         });
       }
 
-      window.filterProperties = function () {
-        const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
-        const status = document.getElementById("statusFilter")?.value || "all";
-        const cards = document.querySelectorAll("[data-property-card]");
-
-        cards.forEach((card) => {
-          const name = (card.dataset.name || "").toLowerCase();
-          const live = card.dataset.live === "true";
-          const matchesSearch = name.includes(search);
-          const matchesStatus =
-            status === "all" ||
-            (status === "live" && live) ||
-            (status === "offline" && !live);
-
-          card.style.display = (matchesSearch && matchesStatus) ? "" : "none";
-        });
-      };
-
+      // Filters
       document.getElementById("searchInput")?.addEventListener("input", filterProperties);
       document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
-
-      window.syncProperty = async function (id, btn) {
-  // 🔒 Client-side gate (fast feedback)
-  if (IS_LOCKED) {
-    toast("Complete payment to unlock property syncing.");
-    return;
-  }
-
-  btn.disabled = true;
-  const original = btn.innerHTML;
-  btn.innerHTML = "Syncing…";
-
-  try {
-    const res = await fetch(`/auth/sync-property/${id}`, { method: "POST" });
-
-    // 🔐 Server-side paywall (authoritative)
-    if (res.status === 402) {
-      toast("Payment required to sync properties.");
-      window.location.href = "/pmc/signup";
-      return;
-    }
-
-    let data = {};
-    try {
-      data = await res.json();
-    } catch (_) {
-      // Non-JSON response
-    }
-
-    if (res.ok && data.status === "success") {
-      btn.innerHTML = "Synced ✓";
-    } else {
-      btn.innerHTML = data.message || "Failed";
-    }
-
-  } catch (err) {
-    console.error("Sync error:", err);
-    btn.innerHTML = "Error";
-  } finally {
-    setTimeout(() => {
-      btn.innerHTML = original;
-      btn.disabled = false;
-    }, 1200);
-  }
-};
-
-
-      window.toggleProperty = async function (id, btn) {
-  if (IS_LOCKED) {
-    toast("Complete payment to unlock Sandy activation.");
-    return;
-  }
-
-  btn.disabled = true;
-  const original = btn.innerHTML;
-  btn.innerHTML = "Toggling…";
-
-  try {
-    const res = await fetch(`/auth/toggle-property/${id}`, { method: "POST" });
-
-    // If server returns non-JSON error, handle gracefully
-    let data = null;
-    try {
-      data = await res.json();
-    } catch {
-      data = null;
-    }
-
-    // ✅ If backend says we must start billing again, redirect to Stripe
-    if (data && data.status === "needs_billing" && data.checkout_url) {
-      window.location.href = data.checkout_url;
-      return;
-    }
-
-    // Handle explicit error from backend
-    if (!res.ok) {
-      const msg = (data && (data.detail || data.message)) || "Request failed";
-      toast(msg);
-      btn.innerHTML = original;
-      return;
-    }
-
-    // Normal success path
-    if (data && data.status === "success") {
-      const isLive = data.new_status === "LIVE";
-      btn.innerHTML = isLive ? "Take Offline" : "Go Live";
-
-      const card = btn.closest("[data-property-card]");
-      if (card) {
-        card.dataset.live = isLive ? "true" : "false";
-
-        const pill = card.querySelector("span.rounded-full");
-        if (pill) {
-          if (isLive) {
-            pill.textContent = "LIVE";
-            pill.className =
-              "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
-          } else {
-            pill.textContent = "OFFLINE";
-            pill.className =
-              "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
-          }
-        }
-
-        filterProperties();
-      }
-
-      // Optional: show a helpful toast about next-billing behavior
-      if (data.billing_note) toast(data.billing_note);
-
-    } else {
-      btn.innerHTML = original;
-      toast("Toggle failed.");
-    }
-  } catch (err) {
-    btn.innerHTML = original;
-    toast("Network error. Please try again.");
-  } finally {
-    btn.disabled = false;
-  }
-};
-
     });
   </script>
 </body>
