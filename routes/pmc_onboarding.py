@@ -132,10 +132,6 @@ def onboarding_hostaway_import(
     api_secret: str = Form(...),  # Hostaway API key
     db: Session = Depends(get_db),
 ):
-    """
-    Save Hostaway credentials and import properties BEFORE payment.
-    Hostaway requires pms_api_key == account_id; we map accordingly.
-    """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
     if redirect:
         return redirect
@@ -162,26 +158,24 @@ def onboarding_hostaway_import(
         db.add(integ)
 
     integ.account_id = account_id_clean
-    integ.api_key = None  # Hostaway has no separate client ID
+    integ.api_key = None
     integ.api_secret = hostaway_api_key
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
 
-    # Mirror into PMC (only if columns exist)
+    # Optional legacy mirror into PMC (safe if columns exist)
     _set_if_attr(pmc, "pms_integration", provider)
     _set_if_attr(pmc, "pms_account_id", account_id_clean)
-    _set_if_attr(pmc, "pms_api_key", account_id_clean)  # must equal account ID
+    _set_if_attr(pmc, "pms_api_key", account_id_clean)
     _set_if_attr(pmc, "pms_api_secret", hostaway_api_key)
 
     db.commit()
     db.refresh(integ)
     db.refresh(pmc)
 
-    # Import properties immediately
+    # ✅ Import properties immediately (THIS WAS MISSING)
     try:
-        # NOTE: This requires your sync_properties signature to accept pmc_id.
-        # If it doesn't yet, see note below.
-        db.query(Property).filter(Property.integration_id == integ.id).count()
+        sync_properties(integration_id=integ.id)
     except Exception as e:
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
@@ -194,19 +188,18 @@ def onboarding_hostaway_import(
             },
         )
 
-    # IMPORTANT: sync_properties writes using a different engine/connection.
-    # Expire ORM state so we read fresh data.
+    # Ensure this session sees new rows (sync uses separate Session/engine)
     db.expire_all()
-    
+
     imported_count = (
         db.query(Property)
         .filter(Property.integration_id == integ.id)
         .count()
     )
 
-
     print(
         "[hostaway_import] pmc_id=", pmc.id,
+        "integration_id=", integ.id,
         "account_id=", account_id_clean,
         "imported_count=", imported_count
     )
@@ -220,7 +213,7 @@ def onboarding_hostaway_import(
                 "existing": integ,
                 "error": (
                     "Hostaway import completed but no properties were saved. "
-                    "Check your Account ID and API key, or ensure the sync writes to this PMC."
+                    "Check your Account ID and API key."
                 ),
                 "provider": provider,
             },
