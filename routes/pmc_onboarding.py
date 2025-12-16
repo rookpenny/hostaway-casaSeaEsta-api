@@ -178,18 +178,26 @@ def onboarding_hostaway_import(
     db.refresh(pmc)
 
     # Import properties immediately
+    
     try:
-        sync_properties(account_id=str(account_id_clean))
+        sync_properties(pmc_id=pmc.id, account_id=str(account_id_clean))
     except Exception as e:
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
             {"request": request, "pmc": pmc, "existing": integ, "error": f"Hostaway import failed: {str(e)}", "provider": provider},
         )
-
-    # Verify that properties were inserted
-    imported_count = db.query(Property).filter(Property.pmc_id == pmc.id).count()
+    
+    # ensure DB session sees new rows if sync used a different session/engine
+    db.expire_all()
+    
+    imported_count = (
+        db.query(Property)
+        .filter(Property.pmc_id == pmc.id, Property.provider == provider)
+        .count()
+    )
+    
     print("[hostaway_import] pmc_id=", pmc.id, "account_id=", account_id_clean, "imported_count=", imported_count)
-
+            
     if imported_count == 0:
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
