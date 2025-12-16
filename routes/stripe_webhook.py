@@ -19,8 +19,8 @@ router = APIRouter()
 # Helpers
 # ----------------------------
 def _load_env() -> tuple[str, str]:
-    stripe_secret = os.getenv("STRIPE_SECRET_KEY", "").strip()
-    webhook_secret = os.getenv("STRIPE_WEBHOOK_SECRET", "").strip()
+    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+    webhook_secret = (os.getenv("STRIPE_WEBHOOK_SECRET") or "").strip()
     return stripe_secret, webhook_secret
 
 
@@ -37,13 +37,11 @@ def _require_env() -> tuple[str, str]:
 
 
 def _set_if_attr(obj, attr: str, value) -> None:
-    # Only set if your DB/model actually has the column
     if hasattr(obj, attr):
         setattr(obj, attr, value)
 
 
 def _get_email_from_session(obj: dict) -> Optional[str]:
-    # Stripe can put email in a few places depending on Checkout config
     try:
         cd = obj.get("customer_details") or {}
         email = cd.get("email") or obj.get("customer_email")
@@ -84,17 +82,21 @@ async def stripe_webhook(request: Request):
         return JSONResponse({"ok": True})
 
     metadata = obj.get("metadata") or {}
-    pmc_id = metadata.get("pmc_id")
+    pmc_id = (metadata.get("pmc_id") or "").strip() or None
     checkout_type = (metadata.get("type") or "").strip()
 
-    # Allowlist the checkout types we care about
-    ALLOWED_TYPES = {"pmc_signup_onetime", "pmc_property_subscription"}
+    # ✅ Allowlist the checkout types we care about (includes NEW combined flow)
+    ALLOWED_TYPES = {
+        "pmc_signup_onetime",
+        "pmc_property_subscription",
+        "pmc_setup_plus_property_subscription",  # NEW: $499 + per-property subscription in one checkout
+    }
     if checkout_type and checkout_type not in ALLOWED_TYPES:
         return JSONResponse({"ok": True})
 
-    customer_id = obj.get("customer")         # cus_... (requires customer_creation="always" on signup checkout)
-    checkout_session_id = obj.get("id")       # cs_...
-    subscription_id = obj.get("subscription") # sub_... (mode="subscription")
+    customer_id = obj.get("customer")          # cus_...
+    checkout_session_id = obj.get("id")        # cs_...
+    subscription_id = obj.get("subscription")  # sub_... (only for mode="subscription")
     email_l = _get_email_from_session(obj)
 
     db: Session = SessionLocal()
@@ -108,7 +110,7 @@ async def stripe_webhook(request: Request):
             except Exception:
                 pmc = None
 
-        # 2) Fallback: match PMC.email (latest wins) - normalize case
+        # 2) Fallback: match PMC.email (latest wins)
         if pmc is None and email_l:
             pmc = (
                 db.query(PMC)
@@ -118,7 +120,6 @@ async def stripe_webhook(request: Request):
             )
 
         if pmc is None:
-            # Return 200 so Stripe doesn't retry forever, but log what we saw.
             print(
                 "[stripe_webhook] No PMC matched.",
                 "pmc_id=", pmc_id,
@@ -130,12 +131,12 @@ async def stripe_webhook(request: Request):
             )
             return JSONResponse({"ok": True})
 
-        # Optional idempotency: if we've already recorded this session id, do nothing
+        # ✅ Idempotency: if we already processed this session, do nothing
         last_seen = getattr(pmc, "last_stripe_checkout_session_id", None)
         if last_seen and last_seen == checkout_session_id:
             return JSONResponse({"ok": True})
 
-        # Always ensure PMC is active once we receive a successful checkout event
+        # ✅ Always ensure PMC is active once we receive a successful checkout event
         pmc.active = True
         pmc.sync_enabled = True
 
@@ -143,29 +144,36 @@ async def stripe_webhook(request: Request):
         if customer_id:
             _set_if_attr(pmc, "stripe_customer_id", customer_id)
 
-        # Record the latest checkout session id (generic)
+        # Record latest checkout session id
         _set_if_attr(pmc, "last_stripe_checkout_session_id", checkout_session_id)
 
-        # Branch by checkout type
+        # ---- Branch by checkout type ----
         if checkout_type == "pmc_signup_onetime":
-            # Signup fee: mark billing as active + store paid timestamp
+            # Old flow: setup fee paid separately
             _set_if_attr(pmc, "billing_status", "active")
             _set_if_attr(pmc, "signup_paid_at", datetime.now(timezone.utc))
-            # Store the signup session id (matches your model field)
             _set_if_attr(pmc, "stripe_signup_checkout_session_id", checkout_session_id)
 
         elif checkout_type == "pmc_property_subscription":
-            # Property subscription: record subscription id
+            # Old flow: subscription started after selecting properties
             if subscription_id:
                 _set_if_attr(pmc, "stripe_subscription_id", subscription_id)
-            # Do NOT overwrite billing_status here unless you want subscriptions to activate billing too.
-            # If you DO want it, uncomment:
+            # If you want the subscription to also unlock billing, enable this:
             # _set_if_attr(pmc, "billing_status", "active")
+
+        elif checkout_type == "pmc_setup_plus_property_subscription":
+            # ✅ New flow: one checkout creates subscription AND charges setup fee
+            # Treat this as the moment the account becomes "paid".
+            _set_if_attr(pmc, "billing_status", "active")
+            _set_if_attr(pmc, "signup_paid_at", datetime.now(timezone.utc))
+
+            if subscription_id:
+                _set_if_attr(pmc, "stripe_subscription_id", subscription_id)
 
         db.commit()
 
         print(
-            "[stripe_webhook] Processed checkout",
+            "[stripe_webhook] ✅ Processed checkout",
             "pmc_id=", pmc.id,
             "email=", pmc.email,
             "type=", checkout_type,
