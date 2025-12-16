@@ -34,7 +34,7 @@ from database import SessionLocal, engine, get_db
 from models import Property, ChatSession, ChatMessage, PMC, Upgrade, Reservation, Guide
 
 from utils.message_helpers import classify_category, smart_response, detect_log_types
-from utils.pms_sync import sync_properties, sync_all_pmcs
+from utils.pms_sync import sync_properties, sync_all_integrations
 from utils.pms_access import get_pms_access_info, ensure_pms_data
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
@@ -104,7 +104,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 # --- Startup Jobs ---
 def start_scheduler():
     scheduler = BackgroundScheduler()
-    scheduler.add_job(sync_all_pmcs, "interval", hours=24)
+    scheduler.add_job(sync_all_integrations, "interval", hours=24)
     scheduler.start()
 
 # --- DB Connection Test ---
@@ -124,7 +124,7 @@ def manual_sync(request: Request):
     if request.session.get("role") != "super":
         raise HTTPException(status_code=403, detail="Forbidden")
     try:
-        count = sync_all_pmcs()
+        count = sync_all_integrations()
         return HTMLResponse(
             f"<h2>Synced {count} properties across all PMCs.</h2>"
             "<a href='/admin/dashboard'>Back to Dashboard</a>"
