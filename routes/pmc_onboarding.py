@@ -256,6 +256,7 @@ def onboarding_properties_page(
     )
 
 
+
 # ----------------------------
 # POST: Save property choices and go to billing review
 # ----------------------------
