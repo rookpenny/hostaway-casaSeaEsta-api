@@ -388,11 +388,6 @@ def onboarding_billing_checkout(
     integration_id: int = Form(...),
     db: Session = Depends(get_db),
 ):
-    """
-    Create a Stripe Checkout Session that includes:
-    - one-time setup fee (price_setup, qty=1)
-    - recurring monthly fee per enabled property (price_monthly, qty=enabled_count)
-    """
     redirect = _require_login_or_redirect(
         request, f"/pmc/onboarding/billing-review?integration_id={integration_id}"
     )
@@ -401,7 +396,7 @@ def onboarding_billing_checkout(
 
     pmc = _require_pmc_for_session(db, request)
 
-    # ✅ Verify integration belongs to this PMC
+    # Verify integration belongs to this PMC
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
@@ -410,7 +405,7 @@ def onboarding_billing_checkout(
     if not integ:
         raise HTTPException(status_code=404, detail="Integration not found")
 
-    # ✅ Count enabled properties ONLY for this integration
+    # Count enabled properties for this integration
     enabled_count = (
         db.query(Property)
         .filter(
@@ -419,21 +414,25 @@ def onboarding_billing_checkout(
         )
         .count()
     )
-
     if enabled_count <= 0:
         return RedirectResponse(
             f"/pmc/onboarding/properties?integration_id={integration_id}",
             status_code=303,
         )
 
-    # Load env variables
+    # Env vars
     stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
     app_base = (os.getenv("APP_BASE_URL") or "").rstrip("/")
-    price_setup = (os.getenv("STRIPE_PRICE_SETUP_ONETIME") or "").strip()
+    price_setup = (os.getenv("STRIPE_PRICE_SETUP_ONETIME") or "").strip()  # rename env var or change this key
     price_monthly = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
 
-    if not stripe_secret or not app_base or not price_setup or not price_monthly:
-        raise HTTPException(status_code=500, detail="Missing Stripe environment variables")
+    missing = []
+    if not stripe_secret: missing.append("STRIPE_SECRET_KEY")
+    if not app_base: missing.append("APP_BASE_URL")
+    if not price_setup: missing.append("STRIPE_PRICE_SETUP_ONETIME")
+    if not price_monthly: missing.append("STRIPE_PRICE_PROPERTY_MONTHLY")
+    if missing:
+        raise HTTPException(status_code=500, detail=f"Missing Stripe env vars: {', '.join(missing)}")
 
     stripe.api_key = stripe_secret
 
@@ -456,12 +455,11 @@ def onboarding_billing_checkout(
         },
     )
 
-    # Reuse Stripe customer if available; otherwise create one
+    # ✅ IMPORTANT: do NOT use customer_creation in subscription mode
     if customer_id:
         checkout_kwargs["customer"] = customer_id
     else:
         checkout_kwargs["customer_email"] = email_l or pmc.email
-        checkout_kwargs["customer_creation"] = "always"
 
     try:
         checkout = stripe.checkout.Session.create(**checkout_kwargs)
