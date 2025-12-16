@@ -209,20 +209,24 @@ class Property(Base):
 
     id = Column(Integer, primary_key=True, index=True)
 
-    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+    pmc_id = Column(
+        Integer,
+        ForeignKey("pmc.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
 
-    # ✅ Provider-agnostic identifiers (scales to Hostaway, Lodgify, Guesty, etc.)
-    # Examples: provider="hostaway", external_property_id="12345"
+    # ✅ PMS provider (Hostaway/Lodgify/Guesty/etc.)
+    # Keep nullable=True during transition; ideally make nullable=False later.
     provider = Column(String, nullable=True, index=True)
-    external_property_id = Column(String, nullable=True, index=True)
+
+    # ✅ External property ID from the PMS (Hostaway listing id)
+    # This is the ID you said must be saved for each retrieved property.
+    # Keep nullable=True during transition; ideally make nullable=False later.
+    pms_property_id = Column(String, nullable=True, index=True)
 
     # Display name
     property_name = Column(String, nullable=False)
-
-    # Legacy / compatibility fields (safe to keep while you transition)
-    # IMPORTANT: not globally unique. If you want uniqueness, do it by (pmc_id, pms_integration, pms_property_id).
-    pms_property_id = Column(String, nullable=True, index=True)
-    pms_integration = Column(String, nullable=True)
 
     # Billing toggle (opt-in per property)
     sandy_enabled = Column(Boolean, default=False, nullable=False)
@@ -238,9 +242,10 @@ class Property(Base):
     chat_sessions = relationship("ChatSession", back_populates="property", cascade="all, delete-orphan")
 
     __table_args__ = (
-        # ✅ Enforces uniqueness in a scalable way across providers
-        UniqueConstraint("pmc_id", "provider", "external_property_id", name="uq_properties_provider_external"),
+        # ✅ Enforces uniqueness across providers
+        UniqueConstraint("pmc_id", "provider", "pms_property_id", name="uq_properties_provider_pms_id"),
     )
+
 
 
 # -------------------------------------------------------------------
