@@ -175,7 +175,7 @@ def onboarding_hostaway_import(
 
     # ✅ Import properties immediately (THIS WAS MISSING)
     try:
-        sync_properties(integration_id=integ.id)
+        sync_properties(integ.id)
     except Exception as e:
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
