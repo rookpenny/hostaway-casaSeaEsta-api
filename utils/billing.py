@@ -2,9 +2,96 @@
 import os
 import stripe
 from sqlalchemy.orm import Session
-from sqlalchemy import func
-
+from sqlalchemy import func, text
+from datetime import datetime, timezone, date
 from models import PMC, Property
+
+
+def month_start_utc(dt: datetime) -> date:
+    """Return first day of month for a datetime."""
+    return date(dt.year, dt.month, 1)
+
+
+def charge_property_for_month_if_needed(db, pmc, prop) -> bool:
+    """
+    Charge the monthly price for this property if it has not been
+    charged yet for the current month.
+
+    Returns:
+      True  -> charged now
+      False -> already charged this month or cannot charge
+    """
+
+    stripe_price_monthly = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
+    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+
+    if not stripe_price_monthly or not stripe_secret:
+        raise Exception("Stripe billing env vars missing")
+
+    if not pmc.stripe_customer_id:
+        # Customer must already exist (created at onboarding checkout)
+        return False
+
+    stripe.api_key = stripe_secret
+
+    now = datetime.now(timezone.utc)
+    month_start = month_start_utc(now)
+
+    # 🔒 Idempotency: check ledger
+    exists = db.execute(
+        text("""
+            SELECT 1
+            FROM property_monthly_charges
+            WHERE property_id = :pid
+              AND charge_month = :month_start
+            LIMIT 1
+        """),
+        {
+            "pid": prop.id,
+            "month_start": month_start,
+        },
+    ).first()
+
+    if exists:
+        return False
+
+    # 1) Create invoice line item
+    invoice_item = stripe.InvoiceItem.create(
+        customer=pmc.stripe_customer_id,
+        price=stripe_price_monthly,
+        quantity=1,
+        description=f"HostScout monthly — property {prop.id} ({month_start.isoformat()})",
+    )
+
+    # 2) Create & finalize invoice (charge immediately)
+    invoice = stripe.Invoice.create(
+        customer=pmc.stripe_customer_id,
+        collection_method="charge_automatically",
+        auto_advance=True,
+    )
+
+    invoice = stripe.Invoice.finalize_invoice(invoice.id)
+
+    # 3) Record ledger entry
+    db.execute(
+        text("""
+            INSERT INTO property_monthly_charges (
+                property_id,
+                charge_month,
+                stripe_invoice_id,
+                stripe_invoice_item_id
+            )
+            VALUES (:pid, :month_start, :inv, :ii)
+        """),
+        {
+            "pid": prop.id,
+            "month_start": month_start,
+            "inv": invoice.id,
+            "ii": invoice_item.id,
+        },
+    )
+
+    return True
 
 
 def _stripe_config() -> tuple[str, str]:
