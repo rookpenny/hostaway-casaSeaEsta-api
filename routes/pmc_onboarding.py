@@ -365,6 +365,9 @@ def onboarding_billing_review(
     monthly_cents_each = 999      # $9.99 per property per month
     monthly_total_cents = enabled_count * monthly_cents_each
 
+    # Stripe subscription checkout generally charges setup + first month immediately
+    due_today_cents = setup_fee_cents + monthly_total_cents
+
     return templates.TemplateResponse(
         "pmc_onboarding_billing_review.html",
         {
@@ -375,6 +378,7 @@ def onboarding_billing_review(
             "setup_fee_cents": setup_fee_cents,
             "monthly_cents_each": monthly_cents_each,
             "monthly_total_cents": monthly_total_cents,
+            "due_today_cents": due_today_cents,
         },
     )
 
