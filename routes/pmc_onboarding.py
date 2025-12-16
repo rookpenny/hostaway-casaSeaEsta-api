@@ -129,7 +129,7 @@ def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
 def onboarding_hostaway_import(
     request: Request,
     account_id: str = Form(...),
-    api_secret: str = Form(...),  # Hostaway API key
+    api_secret: str = Form(...),
     db: Session = Depends(get_db),
 ):
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
@@ -147,7 +147,7 @@ def onboarding_hostaway_import(
     if not account_id_clean or not hostaway_api_key:
         raise HTTPException(status_code=400, detail="Missing Hostaway credentials")
 
-    # Upsert integration row
+    # 1) Upsert integration row (source of truth)
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == provider)
@@ -163,19 +163,12 @@ def onboarding_hostaway_import(
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
 
-    # Optional legacy mirror into PMC (safe if columns exist)
-    _set_if_attr(pmc, "pms_integration", provider)
-    _set_if_attr(pmc, "pms_account_id", account_id_clean)
-    _set_if_attr(pmc, "pms_api_key", account_id_clean)
-    _set_if_attr(pmc, "pms_api_secret", hostaway_api_key)
-
     db.commit()
     db.refresh(integ)
-    db.refresh(pmc)
 
-    # ✅ Import properties immediately (THIS WAS MISSING)
+    # 2) Run sync (THIS is what was missing)
     try:
-        sync_properties(integ.id)
+        synced = sync_properties(integration_id=integ.id)
     except Exception as e:
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
@@ -188,7 +181,7 @@ def onboarding_hostaway_import(
             },
         )
 
-    # Ensure this session sees new rows (sync uses separate Session/engine)
+    # 3) Refresh ORM view (sync uses its own Session/engine)
     db.expire_all()
 
     imported_count = (
@@ -201,6 +194,7 @@ def onboarding_hostaway_import(
         "[hostaway_import] pmc_id=", pmc.id,
         "integration_id=", integ.id,
         "account_id=", account_id_clean,
+        "synced=", synced,
         "imported_count=", imported_count
     )
 
@@ -219,54 +213,80 @@ def onboarding_hostaway_import(
             },
         )
 
-    # Mark last_synced_at after successful import
-    if hasattr(integ, "last_synced_at"):
-        integ.last_synced_at = datetime.utcnow()
-        db.commit()
+    # 4) Timestamp integration (optional but nice)
+    integ.last_synced_at = datetime.utcnow()
+    db.commit()
 
-    return RedirectResponse("/pmc/onboarding/properties", status_code=303)
+    # 5) Redirect to properties selection and carry integration_id
+    return RedirectResponse(f"/pmc/onboarding/properties?integration_id={integ.id}", status_code=303)
 
 # ----------------------------
 # GET: Choose properties to enable
 # ----------------------------
 @router.get("/pmc/onboarding/properties", response_class=HTMLResponse)
-def onboarding_properties_page(request: Request, db: Session = Depends(get_db)):
-    """
-    Show imported properties; user selects which ones to enable Sandy for.
-    """
-    redirect = _require_login_or_redirect(request, "/pmc/onboarding/properties")
+def onboarding_properties_page(
+    request: Request,
+    integration_id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    redirect = _require_login_or_redirect(request, f"/pmc/onboarding/properties?integration_id={integration_id}")
     if redirect:
         return redirect
 
     pmc = _require_pmc_for_session(db, request)
 
+    integ = (
+        db.query(PMCIntegration)
+        .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
+        .first()
+    )
+    if not integ:
+        raise HTTPException(status_code=404, detail="Integration not found")
+
     properties = (
         db.query(Property)
-        .filter(Property.pmc_id == pmc.id)
+        .filter(Property.integration_id == integ.id)
         .order_by(Property.property_name)
         .all()
     )
 
     return templates.TemplateResponse(
         "pmc_onboarding_properties.html",
-        {"request": request, "pmc": pmc, "properties": properties},
+        {"request": request, "pmc": pmc, "properties": properties, "integration_id": integ.id},
     )
 
 
 # ----------------------------
 # POST: Save property choices and go to billing review
 # ----------------------------
+from fastapi import Form
+
 @router.post("/pmc/onboarding/properties")
-async def onboarding_properties_submit(request: Request, db: Session = Depends(get_db)):
-    redirect = _require_login_or_redirect(request, "/pmc/onboarding/properties")
+async def onboarding_properties_submit(
+    request: Request,
+    integration_id: int = Form(...),
+    db: Session = Depends(get_db),
+):
+    redirect = _require_login_or_redirect(
+        request, f"/pmc/onboarding/properties?integration_id={integration_id}"
+    )
     if redirect:
         return redirect
 
-    # If no PMC exists (unlikely), send the user to create one
+    # Ensure PMC exists for this session
     try:
         pmc = _require_pmc_for_session(db, request)
     except HTTPException:
         return RedirectResponse("/pmc/signup", status_code=303)
+
+    # Verify integration belongs to this PMC (prevents cross-account poisoning)
+    integ = (
+        db.query(PMCIntegration)
+        .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
+        .first()
+    )
+    if not integ:
+        raise HTTPException(status_code=404, detail="Integration not found")
 
     form = await request.form()
 
@@ -277,15 +297,23 @@ async def onboarding_properties_submit(request: Request, db: Session = Depends(g
         except (ValueError, TypeError):
             continue
 
-    # Mark enabled properties
-    props = db.query(Property).filter(Property.pmc_id == pmc.id).all()
+    # Only update properties for THIS integration
+    props = (
+        db.query(Property)
+        .filter(Property.integration_id == integration_id)
+        .all()
+    )
+
     for prop in props:
         prop.sandy_enabled = (prop.id in selected_ids)
 
     db.commit()
 
-    # Go to the billing-review page (no Stripe here yet)
-    return RedirectResponse("/pmc/onboarding/billing-review", status_code=303)
+    return RedirectResponse(
+        f"/pmc/onboarding/billing-review?integration_id={integration_id}",
+        status_code=303,
+    )
+
 
 
 # ----------------------------
@@ -309,9 +337,10 @@ def onboarding_billing_review(request: Request, db: Session = Depends(get_db)):
     # Count how many properties were enabled
     enabled_count = (
         db.query(Property)
-        .filter(Property.pmc_id == pmc.id, Property.sandy_enabled.is_(True))
+        .filter(Property.integration_id == integration_id, Property.sandy_enabled.is_(True))
         .count()
     )
+
 
     # Prices in cents (adjust as needed)
     setup_fee_cents = 49900       # $499.00 one-time
