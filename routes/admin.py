@@ -19,7 +19,7 @@ from datetime import datetime, timedelta, date
 
 from database import SessionLocal
 from models import PMC, Property, ChatSession, ChatMessage, PMCUser
-from utils.pms_sync import sync_properties, sync_all_pmcs
+from utils.pms_sync import sync_properties, sync_all_integrations
 from openai import OpenAI
 
 
@@ -1212,7 +1212,7 @@ def add_pmc(
 def sync_all(request: Request, db: Session = Depends(get_db)):
     require_super(request, db)
     try:
-        sync_all_pmcs()
+        sync_all_integrations()
         return RedirectResponse(url="/admin/dashboard", status_code=303)
     except Exception as e:
         print(f"[ERROR] Failed to sync all: {e}")
