@@ -103,33 +103,25 @@ def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str
 
 
 
-from datetime import datetime
-from sqlalchemy import text
-
-# assumes these exist in your module like before:
-# - engine
-# - ensure_pmc_structure
 
 
-def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id):
+def save_to_postgres(properties, client_id, pmc_record_id, provider):
     """
     Save property records to PostgreSQL 'properties' table.
 
     ✅ Upserts by UNIQUE(pmc_id, provider, pms_property_id)
     ✅ Stores PMS listing/property id into properties.pms_property_id
+    ✅ Mirrors id into properties.external_property_id (for uniform lookups)
     ✅ Does NOT overwrite sandy_enabled on re-sync (keeps user choices)
     """
 
     provider = (provider or "").strip().lower()
     if not provider:
         raise Exception("save_to_postgres: provider is required")
-
     if pmc_record_id is None:
         raise Exception("save_to_postgres: pmc_record_id is required")
 
-    # ---- Normalizers (cross-PMS safe) ----
     def _pms_property_id(p: dict) -> str | None:
-        # Hostaway uses "id" (listing id). Keep a few fallbacks for other PMS.
         for k in ("id", "listingId", "propertyId", "uid", "externalId"):
             v = p.get(k)
             if v is not None and str(v).strip():
@@ -169,20 +161,16 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id)
             last_synced          = EXCLUDED.last_synced;
     """)
 
-
     now = datetime.utcnow()
+    upserted = 0
 
-    # NOTE: engine must exist in this module (as in your current setup)
     with engine.begin() as conn:
         for prop in (properties or []):
             pid = _pms_property_id(prop)
             if not pid:
-                # Skip invalid payloads instead of creating "hashed" ghost rows
                 continue
 
             name = _name(prop, pid)
-
-            # Folder key MUST be collision-proof across providers
             folder_property_id = f"{provider}_{pid}"
 
             folder = ensure_pmc_structure(
@@ -198,11 +186,14 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id)
                     "pmc_id": int(pmc_record_id),
                     "provider": provider,
                     "pms_property_id": pid,
-                    "external_property_id": pid,   # ✅ add this
+                    "external_property_id": pid,  # ✅ mirror
                     "data_folder_path": folder,
                     "last_synced": now,
                 },
             )
+            upserted += 1
+
+    return upserted
 
 
 def fetch_properties(access_token: str, base_url: str, pms: str):
