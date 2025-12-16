@@ -15,6 +15,8 @@ from database import get_db
 from models import PMC, PMCIntegration, PMCUser, Property
 
 from utils.pms_sync import sync_properties
+from utils.billing import charge_property_for_month_if_needed, sync_subscription_quantity_for_integration
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -260,7 +262,6 @@ def onboarding_properties_page(
 # ----------------------------
 # POST: Save property choices and go to billing review
 # ----------------------------
-from fastapi import Form
 
 @router.post("/pmc/onboarding/properties")
 async def onboarding_properties_submit(
@@ -274,13 +275,9 @@ async def onboarding_properties_submit(
     if redirect:
         return redirect
 
-    # Ensure PMC exists for this session
-    try:
-        pmc = _require_pmc_for_session(db, request)
-    except HTTPException:
-        return RedirectResponse("/pmc/signup", status_code=303)
+    pmc = _require_pmc_for_session(db, request)
 
-    # Verify integration belongs to this PMC (prevents cross-account poisoning)
+    # Validate integration belongs to this PMC
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
@@ -298,17 +295,34 @@ async def onboarding_properties_submit(
         except (ValueError, TypeError):
             continue
 
-    # Only update properties for THIS integration
+    # Only update properties under this integration
     props = (
         db.query(Property)
         .filter(Property.integration_id == integration_id)
         .all()
     )
 
+    # Track transitions OFF -> ON
+    turned_on = []
     for prop in props:
-        prop.sandy_enabled = (prop.id in selected_ids)
+        old = bool(prop.sandy_enabled)
+        new = (prop.id in selected_ids)
+        if (not old) and new:
+            turned_on.append(prop)
+        prop.sandy_enabled = new
 
     db.commit()
+
+    # If already active customer, charge immediately for newly-enabled properties (once/month)
+    # If they haven't paid yet (no stripe_customer_id), this will no-op.
+    if getattr(pmc, "billing_status", None) == "active":
+        for prop in turned_on:
+            charge_property_for_month_if_needed(db, pmc, prop)
+        db.commit()
+
+        # Also set subscription quantity for next renewal (no proration)
+        sync_subscription_quantity_for_integration(db, pmc, integration_id)
+        db.commit()
 
     return RedirectResponse(
         f"/pmc/onboarding/billing-review?integration_id={integration_id}",
