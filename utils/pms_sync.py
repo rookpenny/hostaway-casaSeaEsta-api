@@ -105,13 +105,17 @@ def get_access_token(client_id: str, client_secret: str, base_url: str, pms: str
 
 
 
-def save_to_postgres(properties, client_id, pmc_record_id, provider):
+from datetime import datetime
+from sqlalchemy import text
+
+def save_to_postgres(properties, client_id, pmc_record_id, provider, integration_id: int):
     """
     Save property records to PostgreSQL 'properties' table.
 
-    ✅ Upserts by UNIQUE(pmc_id, provider, pms_property_id)
-    ✅ Stores PMS listing/property id into properties.pms_property_id
-    ✅ Mirrors id into properties.external_property_id (for uniform lookups)
+    ✅ Upserts by UNIQUE(integration_id, external_property_id)
+    ✅ Stores PMS listing/property id into pms_property_id
+    ✅ Mirrors into external_property_id (for uniform lookups)
+    ✅ Writes integration_id to bind properties to the specific PMS integration
     ✅ Does NOT overwrite sandy_enabled on re-sync (keeps user choices)
     """
 
@@ -120,8 +124,11 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider):
         raise Exception("save_to_postgres: provider is required")
     if pmc_record_id is None:
         raise Exception("save_to_postgres: pmc_record_id is required")
+    if integration_id is None:
+        raise Exception("save_to_postgres: integration_id is required")
 
-    def _pms_property_id(p: dict) -> str | None:
+    def _external_id(p: dict) -> str | None:
+        # Hostaway uses "id"; keep fallbacks for other PMSs
         for k in ("id", "listingId", "propertyId", "uid", "externalId"):
             v = p.get(k)
             if v is not None and str(v).strip():
@@ -139,6 +146,7 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider):
         INSERT INTO public.properties (
             property_name,
             pmc_id,
+            integration_id,
             provider,
             pms_property_id,
             external_property_id,
@@ -147,18 +155,21 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider):
         ) VALUES (
             :property_name,
             :pmc_id,
+            :integration_id,
             :provider,
             :pms_property_id,
             :external_property_id,
             :data_folder_path,
             :last_synced
         )
-        ON CONFLICT (pmc_id, provider, pms_property_id)
+        ON CONFLICT (integration_id, external_property_id)
         DO UPDATE SET
-            property_name        = EXCLUDED.property_name,
-            external_property_id = EXCLUDED.external_property_id,
-            data_folder_path     = EXCLUDED.data_folder_path,
-            last_synced          = EXCLUDED.last_synced;
+            property_name    = EXCLUDED.property_name,
+            pmc_id           = EXCLUDED.pmc_id,
+            provider         = EXCLUDED.provider,
+            pms_property_id  = EXCLUDED.pms_property_id,
+            data_folder_path = EXCLUDED.data_folder_path,
+            last_synced      = EXCLUDED.last_synced;
     """)
 
     now = datetime.utcnow()
@@ -166,12 +177,12 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider):
 
     with engine.begin() as conn:
         for prop in (properties or []):
-            pid = _pms_property_id(prop)
-            if not pid:
+            ext_id = _external_id(prop)
+            if not ext_id:
                 continue
 
-            name = _name(prop, pid)
-            folder_property_id = f"{provider}_{pid}"
+            name = _name(prop, ext_id)
+            folder_property_id = f"{provider}_{ext_id}"
 
             folder = ensure_pmc_structure(
                 pmc_name=(client_id or str(pmc_record_id)),
@@ -184,9 +195,10 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider):
                 {
                     "property_name": name,
                     "pmc_id": int(pmc_record_id),
+                    "integration_id": int(integration_id),
                     "provider": provider,
-                    "pms_property_id": pid,
-                    "external_property_id": pid,  # ✅ mirror
+                    "pms_property_id": ext_id,        # Hostaway: same id
+                    "external_property_id": ext_id,   # mirror
                     "data_folder_path": folder,
                     "last_synced": now,
                 },
@@ -262,119 +274,138 @@ def save_to_airtable(properties, client_id, pmc_record_id, pms):
     return results  # ⬅️ now correctly returns a list of result dicts
 '''
 
-def sync_properties(pmc_id: int, account_id: str) -> int:
+
+# Make sure these imports exist in your file:
+# from models import PMC, PMCIntegration
+# from database import SessionLocal
+# and: default_base_url, get_access_token, fetch_properties, save_to_postgres,
+# ensure_pmc_structure, sync_pmc_to_github
+
+def sync_properties(integration_id: int) -> int:
     """
-    Sync a single PMC by PMS account ID:
-    - fetch PMS config from fetch_pmc_lookup() by account_id
-    - fetch access token + properties from PMS
-    - upsert into Postgres
-    - (optional) push config/manual skeletons to GitHub
-    - update pmc.last_synced_at for *this pmc_id*
+    Sync properties for a single PMS integration (source of truth: pmc_integrations).
+
+    Steps:
+    - Load integration row (provider + credentials)
+    - Fetch access token + listings
+    - Upsert into properties with integration_id + external_property_id
+    - (Optional) sync folder skeletons to GitHub
+    - Update last_synced_at on integration + pmc
     """
-    account_id_clean = (account_id or "").strip()
-    if not account_id_clean:
-        raise Exception("account_id is required")
+    if integration_id is None:
+        raise Exception("integration_id is required")
 
-    if pmc_id is None:
-        raise Exception("pmc_id is required")
-
-    pmcs = fetch_pmc_lookup() or {}
-    print(f"[SYNC] fetch_pmc_lookup() keys={list(pmcs.keys())}")
-
-    if account_id_clean not in pmcs:
-        raise Exception(f"PMC not found for account ID: {account_id_clean}")
-
-    pmc_cfg = pmcs[account_id_clean] or {}
-
-    # Pull PMS connection details from lookup
-    client_id = pmc_cfg.get("client_id")  # may be None for Hostaway (ok)
-    base_url = pmc_cfg.get("base_url")
-
-    api_key = pmc_cfg.get("client_id") or pmc_cfg.get("api_key")  # legacy naming
-    api_secret = pmc_cfg.get("client_secret") or pmc_cfg.get("api_secret")
-
-    provider = (pmc_cfg.get("pms") or pmc_cfg.get("provider") or "").strip().lower()
-
-    if not provider:
-        raise Exception(f"PMC config for account_id={account_id_clean} missing provider (pms)")
-    if not base_url:
-        raise Exception(f"PMC config for account_id={account_id_clean} missing base_url")
-    if not api_key or not api_secret:
-        raise Exception(f"PMC config for account_id={account_id_clean} missing api credentials")
-
-    # 1) Auth + fetch
-    token = get_access_token(api_key, api_secret, base_url, provider)
-    properties = fetch_properties(token, base_url, provider) or []
-
-    # 2) Save to PostgreSQL (IMPORTANT: we use the passed-in pmc_id)
-    save_to_postgres(
-        properties,
-        client_id=client_id or str(pmc_id),
-        pmc_record_id=int(pmc_id),
-        provider=provider,
-        account_id=account_id_clean,
-    )
-
-    # 3) Optional GitHub sync
-    def _external_id(p: dict) -> str:
-        for k in ("id", "listingId", "propertyId", "uid", "externalId"):
-            v = p.get(k)
-            if v is not None and str(v).strip():
-                return str(v).strip()
-        return str(abs(hash(str(p))))
-
-    def _name(p: dict) -> str:
-        for k in ("internalListingName", "name", "title", "listingName", "propertyName"):
-            v = p.get(k)
-            if v and str(v).strip():
-                return str(v).strip()
-        return "Property"
-
+    db: Session = SessionLocal()
     try:
-        for prop in properties:
-            name = _name(prop)
-            ext_id = _external_id(prop)
-            folder_property_id = f"{provider}_{ext_id}"
+        integ = db.query(PMCIntegration).filter(PMCIntegration.id == int(integration_id)).first()
+        if not integ:
+            raise Exception(f"Integration not found: id={integration_id}")
 
-            base_dir = ensure_pmc_structure(
-                pmc_name=(client_id or str(pmc_id)),
-                property_id=folder_property_id,
-                property_name=name,
-            )
+        provider = (integ.provider or "").strip().lower()
+        if not provider:
+            raise Exception(f"Integration id={integration_id} missing provider")
 
-            rel_config = os.path.join("data", (client_id or str(pmc_id)), folder_property_id, "config.json")
-            rel_manual = os.path.join("data", (client_id or str(pmc_id)), folder_property_id, "manual.txt")
+        pmc_id = integ.pmc_id
+        if not pmc_id:
+            raise Exception(f"Integration id={integration_id} missing pmc_id")
 
-            sync_pmc_to_github(
-                base_dir,
-                {
-                    rel_config: os.path.join(base_dir, "config.json"),
-                    rel_manual: os.path.join(base_dir, "manual.txt"),
-                },
-            )
-    except Exception as e:
-        print(f"[GITHUB] ⚠️ Failed to push PMC account_id={account_id_clean} to GitHub: {e}")
+        account_id = (integ.account_id or "").strip()
+        api_secret = (integ.api_secret or "").strip()
 
-    # 4) Update last_synced_at for *this pmc_id*
-    db = SessionLocal()
-    try:
-        db_pmc = db.query(PMC).filter(PMC.id == int(pmc_id)).first()
-        if db_pmc:
-            db_pmc.last_synced_at = datetime.utcnow()
-            db.commit()
-            print(f"[SYNC] ✅ Updated last_synced_at for pmc_id={db_pmc.id} account_id={account_id_clean}")
-        else:
-            print(f"[SYNC] ⚠️ No PMC row found for pmc_id={pmc_id}")
-    except Exception as db_err:
+        if not account_id:
+            raise Exception(f"Integration id={integration_id} missing account_id")
+        if not api_secret:
+            raise Exception(f"Integration id={integration_id} missing api_secret")
+
+        # Base URL
+        base_url = default_base_url(provider)
+
+        # Hostaway auth model: client_id == account_id, client_secret == api_secret
+        token = get_access_token(
+            client_id=account_id,
+            client_secret=api_secret,
+            base_url=base_url,
+            pms=provider,
+        )
+
+        properties = fetch_properties(token, base_url, provider) or []
+
+        # Upsert into Postgres (IMPORTANT: uses integration_id)
+        # client_id here is only used for folder naming; account_id is fine.
+        save_to_postgres(
+            properties=properties,
+            client_id=account_id,
+            pmc_record_id=int(pmc_id),
+            provider=provider,
+            integration_id=int(integration_id),
+        )
+
+        # Optional GitHub sync (folder key uses provider + external id)
+        def _external_id(p: dict) -> str | None:
+            for k in ("id", "listingId", "propertyId", "uid", "externalId"):
+                v = p.get(k)
+                if v is not None and str(v).strip():
+                    return str(v).strip()
+            return None
+
+        def _name(p: dict) -> str:
+            for k in ("internalListingName", "name", "title", "listingName", "propertyName"):
+                v = p.get(k)
+                if v and str(v).strip():
+                    return str(v).strip()
+            return "Property"
+
+        try:
+            for prop in properties:
+                ext_id = _external_id(prop)
+                if not ext_id:
+                    continue
+
+                name = _name(prop)
+                folder_property_id = f"{provider}_{ext_id}"
+
+                base_dir = ensure_pmc_structure(
+                    pmc_name=account_id,  # folder grouping key
+                    property_id=folder_property_id,
+                    property_name=name,
+                )
+
+                rel_config = os.path.join("data", account_id, folder_property_id, "config.json")
+                rel_manual = os.path.join("data", account_id, folder_property_id, "manual.txt")
+
+                sync_pmc_to_github(
+                    base_dir,
+                    {
+                        rel_config: os.path.join(base_dir, "config.json"),
+                        rel_manual: os.path.join(base_dir, "manual.txt"),
+                    },
+                )
+        except Exception as e:
+            print(f"[GITHUB] ⚠️ Failed to push integration_id={integration_id} to GitHub: {e}")
+
+        # Update timestamps
+        now = datetime.utcnow()
+
+        if hasattr(integ, "last_synced_at"):
+            integ.last_synced_at = now
+
+        pmc = db.query(PMC).filter(PMC.id == int(pmc_id)).first()
+        if pmc and hasattr(pmc, "last_synced_at"):
+            pmc.last_synced_at = now
+
+        db.commit()
+
+        print(
+            f"[SYNC] ✅ Upserted {len(properties)} properties "
+            f"for integration_id={integration_id} pmc_id={pmc_id} provider={provider}"
+        )
+        return len(properties)
+
+    except Exception:
         db.rollback()
-        print(f"[DB] ❌ Failed to update last_synced_at: {db_err}")
         raise
     finally:
         db.close()
-
-    print(f"[SYNC] ✅ Upserted {len(properties)} properties for pmc_id={pmc_id} account_id={account_id_clean} provider={provider}")
-    return len(properties)
-
 
 
 
