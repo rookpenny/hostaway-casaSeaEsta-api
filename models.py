@@ -44,6 +44,8 @@ class PMCIntegration(Base):
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
     pmc = relationship("PMC", back_populates="integrations")
+    properties = relationship("Property", back_populates="integration", cascade="all, delete-orphan")
+
 
     __table_args__ = (
         UniqueConstraint("pmc_id", "provider", name="uq_pmc_integrations_pmc_provider"),
@@ -216,19 +218,23 @@ class Property(Base):
         index=True,
     )
 
-    # ✅ PMS provider (Hostaway/Lodgify/Guesty/etc.)
-    # Keep nullable=True during transition; ideally make nullable=False later.
+    # ✅ NEW: tie each property row to the exact pmc_integrations row
+    integration_id = Column(
+        Integer,
+        ForeignKey("pmc_integrations.id", ondelete="CASCADE"),
+        nullable=True,   # keep nullable during transition; make False later
+        index=True,
+    )
+
     provider = Column(String, nullable=True, index=True)
 
-    # ✅ External property ID from the PMS (Hostaway listing id)
-    # This is the ID you said must be saved for each retrieved property.
-    # Keep nullable=True during transition; ideally make nullable=False later.
+    # PMS-native ID (Hostaway listing id)
     pms_property_id = Column(String, nullable=True, index=True)
 
-    # Display name
-    property_name = Column(String, nullable=False)
+    # ✅ NEW: normalized external id (for uniform lookups; same as pms_property_id for Hostaway)
+    external_property_id = Column(String, nullable=True, index=True)
 
-    # Billing toggle (opt-in per property)
+    property_name = Column(String, nullable=False)
     sandy_enabled = Column(Boolean, default=False, nullable=False)
 
     data_folder_path = Column(String, nullable=True)
@@ -236,16 +242,21 @@ class Property(Base):
 
     # Relationships
     pmc = relationship("PMC", back_populates="properties")
+
+    integration = relationship("PMCIntegration", back_populates="properties")
+
     reservations = relationship("Reservation", back_populates="property", cascade="all, delete-orphan")
     guides = relationship("Guide", back_populates="property", cascade="all, delete-orphan")
     upgrades = relationship("Upgrade", back_populates="property", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="property", cascade="all, delete-orphan")
 
     __table_args__ = (
-        # ✅ Enforces uniqueness across providers
+        # ✅ New correct uniqueness rule (what your sync uses)
+        UniqueConstraint("integration_id", "external_property_id", name="uq_properties_integration_external"),
+
+        # Optional: keep legacy uniqueness during transition (safe)
         UniqueConstraint("pmc_id", "provider", "pms_property_id", name="uq_properties_provider_pms_id"),
     )
-
 
 
 # -------------------------------------------------------------------
