@@ -181,7 +181,7 @@ def onboarding_hostaway_import(
     try:
         # NOTE: This requires your sync_properties signature to accept pmc_id.
         # If it doesn't yet, see note below.
-        sync_properties(pmc_id=pmc.id, account_id=str(account_id_clean))
+        sync_properties(integration_id=integ.id)
     except Exception as e:
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
@@ -197,12 +197,13 @@ def onboarding_hostaway_import(
     # IMPORTANT: sync_properties writes using a different engine/connection.
     # Expire ORM state so we read fresh data.
     db.expire_all()
-
+    
     imported_count = (
         db.query(Property)
-        .filter(Property.pmc_id == pmc.id, Property.provider == provider)
+        .filter(Property.integration_id == integ.id)
         .count()
     )
+
 
     print(
         "[hostaway_import] pmc_id=", pmc.id,
