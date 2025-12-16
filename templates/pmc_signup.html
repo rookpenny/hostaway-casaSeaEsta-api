@@ -44,14 +44,14 @@
             </div>
           </div>
           <div class="text-xs text-slate-500">
-            Create → Connect PMS → Choose properties → Review & Pay
+            Create → Integrate PMS → Configure properties → Review & activate
           </div>
         </div>
 
-        <h1 class="mt-5 text-2xl font-semibold">Create your HostScout PMC account</h1>
+        <h1 class="mt-5 text-2xl font-semibold">Create your HostScout account</h1>
         <p class="mt-2 text-sm text-slate-600">
-          You’ll connect your PMS and choose which properties to activate first.
-          <span class="font-semibold">You’ll review the full pricing and pay at the end.</span>
+          You’ll integrate your PMS, configure which properties to activate, 
+          <span class="font-semibold">and review pricing before completing setup.</span>
         </p>
 
         {% if not admin_email_prefill %}
@@ -82,14 +82,14 @@
 
         <form method="post" action="/pmc/signup" class="mt-6 space-y-4">
           <div>
-            <label for="pmc_name" class="text-sm font-semibold text-slate-700">PMC name</label>
+            <label for="pmc_name" class="text-sm font-semibold text-slate-700">Company</label>
             <input
               id="pmc_name"
               name="pmc_name"
               required
               value="{{ pmc_name_prefill or '' }}"
               class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-              placeholder="Neat Sleeps"
+              placeholder="The Happy Stay Co"
               autocomplete="organization"
             />
           </div>
@@ -103,7 +103,7 @@
                 required
                 value="{{ admin_name_prefill or '' }}"
                 class="mt-1 w-full h-11 px-3 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-slate-900/20"
-                placeholder="Jarrod Corbett"
+                placeholder="Your full name"
                 autocomplete="name"
               />
             </div>
@@ -134,7 +134,7 @@
 
           <div class="pt-2 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between">
             <div class="text-xs text-slate-500">
-              Next step: connect your PMS and import properties (payment comes later).
+              Next step: Integrate your PMS and import properties.
             </div>
 
             <button
