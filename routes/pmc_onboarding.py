@@ -151,6 +151,7 @@ def onboarding_hostaway_import(
     if not account_id_clean or not hostaway_api_key:
         raise HTTPException(status_code=400, detail="Missing Hostaway credentials")
 
+    # Upsert integration row
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == provider)
@@ -160,14 +161,13 @@ def onboarding_hostaway_import(
         integ = PMCIntegration(pmc_id=pmc.id, provider=provider)
         db.add(integ)
 
-    # Save integration credentials
     integ.account_id = account_id_clean
     integ.api_key = None  # Hostaway has no separate client ID
     integ.api_secret = hostaway_api_key
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
 
-    # Mirror into PMC
+    # Mirror into PMC (only if columns exist)
     _set_if_attr(pmc, "pms_integration", provider)
     _set_if_attr(pmc, "pms_account_id", account_id_clean)
     _set_if_attr(pmc, "pms_api_key", account_id_clean)  # must equal account ID
@@ -178,26 +178,38 @@ def onboarding_hostaway_import(
     db.refresh(pmc)
 
     # Import properties immediately
-    
     try:
+        # NOTE: This requires your sync_properties signature to accept pmc_id.
+        # If it doesn't yet, see note below.
         sync_properties(pmc_id=pmc.id, account_id=str(account_id_clean))
     except Exception as e:
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
-            {"request": request, "pmc": pmc, "existing": integ, "error": f"Hostaway import failed: {str(e)}", "provider": provider},
+            {
+                "request": request,
+                "pmc": pmc,
+                "existing": integ,
+                "error": f"Hostaway import failed: {str(e)}",
+                "provider": provider,
+            },
         )
-    
-    # ensure DB session sees new rows if sync used a different session/engine
+
+    # IMPORTANT: sync_properties writes using a different engine/connection.
+    # Expire ORM state so we read fresh data.
     db.expire_all()
-    
+
     imported_count = (
         db.query(Property)
         .filter(Property.pmc_id == pmc.id, Property.provider == provider)
         .count()
     )
-    
-    print("[hostaway_import] pmc_id=", pmc.id, "account_id=", account_id_clean, "imported_count=", imported_count)
-            
+
+    print(
+        "[hostaway_import] pmc_id=", pmc.id,
+        "account_id=", account_id_clean,
+        "imported_count=", imported_count
+    )
+
     if imported_count == 0:
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
@@ -213,12 +225,12 @@ def onboarding_hostaway_import(
             },
         )
 
+    # Mark last_synced_at after successful import
     if hasattr(integ, "last_synced_at"):
         integ.last_synced_at = datetime.utcnow()
         db.commit()
 
     return RedirectResponse("/pmc/onboarding/properties", status_code=303)
-
 
 # ----------------------------
 # GET: Choose properties to enable
