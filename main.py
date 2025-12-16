@@ -47,6 +47,7 @@ from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
 
 from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- Init ---
@@ -243,6 +244,8 @@ def debug_properties(db: Session = Depends(get_db)):
         for p in props
     ]
 
+
+
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
     # store the property ID so logout can redirect correctly
@@ -252,12 +255,17 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    pmc = prop.pmc
-    is_live = bool(prop.sandy_enabled and pmc and pmc.active)
+    pmc = getattr(prop, "pmc", None)
+
+    # Property/provider compatibility: new field is Property.provider
+    prop_provider = (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "").strip().lower()
+    pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
+
+    is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
     # ---- Load config/manual from disk ----
     context = load_property_context(prop)
-    cfg = context.get("config", {}) or {}
+    cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
     wifi = cfg.get("wifi") or {}
 
     address = cfg.get("address")
@@ -266,21 +274,24 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     experiences_hero_url = cfg.get("experiences_hero_url")
 
     # ---- Hostaway overrides (if configured) ----
+    # Conditions:
+    # - PMC provider is hostaway
+    # - Property provider is hostaway
+    # - Property has pms_property_id
+    # - PMC has pms_api_key + pms_api_secret (Hostaway auth)
     if (
         pmc
-        and pmc.pms_integration
-        and pmc.pms_integration.lower() == "hostaway"
-        and prop.pms_integration
-        and prop.pms_integration.lower() == "hostaway"
-        and prop.pms_property_id
-        and pmc.pms_api_key
-        and pmc.pms_api_secret
+        and pmc_provider == "hostaway"
+        and prop_provider == "hostaway"
+        and getattr(prop, "pms_property_id", None)
+        and getattr(pmc, "pms_api_key", None)
+        and getattr(pmc, "pms_api_secret", None)
     ):
         try:
             hero, ha_address, ha_city = get_listing_overview(
                 listing_id=str(prop.pms_property_id),
-                client_id=pmc.pms_api_key,
-                client_secret=pmc.pms_api_secret,
+                client_id=str(pmc.pms_api_key),
+                client_secret=str(pmc.pms_api_secret),
             )
 
             if hero and not hero_image_url:
@@ -322,7 +333,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         db.query(Upgrade)
         .filter(
             Upgrade.property_id == prop.id,
-            Upgrade.is_active == True,
+            Upgrade.is_active.is_(True),
         )
         .order_by(Upgrade.id.asc())
         .all()
@@ -334,9 +345,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         slug = (up.slug or "").lower()
         title_lower = (up.title or "").lower() if up.title else ""
 
-        # What counts as an early/late "time flexibility" upgrade?
+        # early/late "time flexibility" upgrade?
         is_time_flex = (
-            slug in ["early-check-in", "late-checkout", "late-check-out"]
+            slug in {"early-check-in", "late-checkout", "late-check-out"}
             or "early check" in title_lower
             or "late check" in title_lower
         )
@@ -351,7 +362,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             currency = (up.currency or "usd").lower()
             amount = up.price_cents / 100.0
             if currency == "usd":
-                # e.g. $50
                 price_display = f"${amount:,.0f}"
             else:
                 price_display = f"{amount:,.2f} {currency.upper()}"
@@ -367,7 +377,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "price_currency": up.currency or "usd",
                 "price_display": price_display,
                 "stripe_price_id": up.stripe_price_id,
-                # These may not exist on your model yet, so use getattr
                 "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
             }
@@ -375,6 +384,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
     # ---- Google Maps link ----
     from urllib.parse import quote_plus
+
     google_maps_link = None
     if address or city_name:
         q = " ".join(filter(None, [address, city_name]))
@@ -409,13 +419,12 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "is_live": is_live,
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
 
-            # 🔹 Upgrades + turnover flag for the template
+            # Upgrades + turnover flags for the template
             "upgrades": visible_upgrades,
             "same_day_turnover": same_day_turnover,
-            "hide_time_flex": same_day_turnover,   # 👈 ADD THIS LINE
+            "hide_time_flex": same_day_turnover,
         },
     )
-
 
 
 
