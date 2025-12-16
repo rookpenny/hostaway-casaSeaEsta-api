@@ -149,6 +149,7 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id)
             pmc_id,
             provider,
             pms_property_id,
+            external_property_id,
             data_folder_path,
             last_synced
         ) VALUES (
@@ -156,15 +157,18 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id)
             :pmc_id,
             :provider,
             :pms_property_id,
+            :external_property_id,
             :data_folder_path,
             :last_synced
         )
         ON CONFLICT (pmc_id, provider, pms_property_id)
         DO UPDATE SET
-            property_name    = EXCLUDED.property_name,
-            data_folder_path = EXCLUDED.data_folder_path,
-            last_synced      = EXCLUDED.last_synced;
+            property_name        = EXCLUDED.property_name,
+            external_property_id = EXCLUDED.external_property_id,
+            data_folder_path     = EXCLUDED.data_folder_path,
+            last_synced          = EXCLUDED.last_synced;
     """)
+
 
     now = datetime.utcnow()
 
@@ -194,11 +198,11 @@ def save_to_postgres(properties, client_id, pmc_record_id, provider, account_id)
                     "pmc_id": int(pmc_record_id),
                     "provider": provider,
                     "pms_property_id": pid,
+                    "external_property_id": pid,   # ✅ add this
                     "data_folder_path": folder,
                     "last_synced": now,
                 },
             )
-
 
 
 def fetch_properties(access_token: str, base_url: str, pms: str):
