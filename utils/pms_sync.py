@@ -3,7 +3,7 @@ import requests
 import re
 import unicodedata
 
-from models import PMC
+from models import PMC, PMCIntegration
 from database import SessionLocal, engine
 from datetime import datetime
 from utils.github_sync import sync_pmc_to_github
