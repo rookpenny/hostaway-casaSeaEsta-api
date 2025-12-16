@@ -177,8 +177,10 @@
         if (countEl) countEl.textContent = String(count);
         if (monthlyEl) monthlyEl.textContent = `$${fmtMoney(monthly)}/mo`;
 
-        // Due today: only the $499 setup fee (subscription starts and renews monthly)
-        if (dueTodayEl) dueTodayEl.textContent = `$${fmtMoney(ONE_TIME_FEE)}`;
+        // Due today in Stripe Checkout (subscription): setup fee + first month
+        const dueToday = ONE_TIME_FEE + monthly;
+        if (dueTodayEl) dueTodayEl.textContent = `$${fmtMoney(dueToday)}`;
+
       }
 
       form.addEventListener("change", (e) => {
