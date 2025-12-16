@@ -317,7 +317,6 @@ async def onboarding_properties_submit(
 
 
 
-from fastapi import Query
 
 # ----------------------------
 # GET: Billing review screen
@@ -329,8 +328,8 @@ def onboarding_billing_review(
     db: Session = Depends(get_db),
 ):
     """
-    Display breakdown of one-time setup fee and monthly per-property fees
-    for the selected PMS integration.
+    Display pricing for the selected PMS integration.
+    Note: Stripe subscription checkout charges setup + first month at checkout.
     """
     redirect = _require_login_or_redirect(
         request, f"/pmc/onboarding/billing-review?integration_id={integration_id}"
@@ -338,13 +337,11 @@ def onboarding_billing_review(
     if redirect:
         return redirect
 
-    # Ensure a PMC exists; otherwise redirect to signup
     try:
         pmc = _require_pmc_for_session(db, request)
     except HTTPException:
         return RedirectResponse("/pmc/signup", status_code=303)
 
-    # Verify integration belongs to this PMC
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
@@ -353,19 +350,18 @@ def onboarding_billing_review(
     if not integ:
         raise HTTPException(status_code=404, detail="Integration not found")
 
-    # Count how many properties were enabled (scoped to this integration)
     enabled_count = (
         db.query(Property)
-        .filter(Property.integration_id == integration_id, Property.sandy_enabled.is_(True))
+        .filter(
+            Property.integration_id == integration_id,
+            Property.sandy_enabled.is_(True),
+        )
         .count()
     )
 
-    # Prices in cents
-    setup_fee_cents = 49900       # $499.00 one-time
-    monthly_cents_each = 999      # $9.99 per property per month
+    setup_fee_cents = 49900
+    monthly_cents_each = 999
     monthly_total_cents = enabled_count * monthly_cents_each
-
-    # Stripe subscription checkout generally charges setup + first month immediately
     due_today_cents = setup_fee_cents + monthly_total_cents
 
     return templates.TemplateResponse(
@@ -382,10 +378,6 @@ def onboarding_billing_review(
         },
     )
 
-
-
-from fastapi import Form, HTTPException
-from fastapi.responses import RedirectResponse
 
 # ----------------------------
 # POST: Create one Stripe checkout (setup fee + subscription)
