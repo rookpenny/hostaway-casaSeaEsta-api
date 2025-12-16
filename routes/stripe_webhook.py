@@ -26,28 +26,51 @@ def _load_env() -> tuple[str, str]:
 
 def _require_env() -> tuple[str, str]:
     stripe_secret, webhook_secret = _load_env()
+
+    stripe_secret = (stripe_secret or "").strip()
+    webhook_secret = (webhook_secret or "").strip()
+
     missing = []
     if not stripe_secret:
         missing.append("STRIPE_SECRET_KEY")
     if not webhook_secret:
         missing.append("STRIPE_WEBHOOK_SECRET")
+
     if missing:
-        raise HTTPException(status_code=500, detail=f"Missing env vars: {', '.join(missing)}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Missing env vars: {', '.join(missing)}",
+        )
+
     return stripe_secret, webhook_secret
 
 
+
 def _set_if_attr(obj, attr: str, value) -> None:
+    """
+    Set an attribute only if it exists on the object.
+    Useful for backward-compatible migrations.
+    """
     if hasattr(obj, attr):
         setattr(obj, attr, value)
 
 
 def _get_email_from_session(obj: dict) -> Optional[str]:
-    try:
-        cd = obj.get("customer_details") or {}
-        email = cd.get("email") or obj.get("customer_email")
-        return (email or "").strip().lower() or None
-    except Exception:
+    """
+    Extract a normalized email address from a Stripe Checkout session object.
+    Works for both subscription and payment mode checkouts.
+    """
+    if not isinstance(obj, dict):
         return None
+
+    customer_details = obj.get("customer_details") or {}
+    email = customer_details.get("email") or obj.get("customer_email")
+
+    if not email:
+        return None
+
+    return email.strip().lower()
+
 
 
 from datetime import datetime, timezone
