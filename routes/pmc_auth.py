@@ -1,10 +1,11 @@
 import os
-import stripe
 import secrets
 import smtplib
-
 from datetime import datetime
 from typing import Optional, Dict, Any, List
+
+import stripe
+from email.mime.text import MIMEText
 
 from fastapi import APIRouter, Request, Depends, HTTPException, BackgroundTasks, Form
 from fastapi.responses import RedirectResponse, HTMLResponse, JSONResponse
@@ -17,14 +18,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy import func
 
 from database import SessionLocal, get_db
-from models import PMC, Property, PMCUser
-from utils.pms_sync import sync_properties  # sync by account_id
+from models import PMC, Property, PMCUser, PMCIntegration
 
+from utils.pms_sync import sync_properties
 from utils.billing import sync_property_quantity
 from utils.billing_guard import require_pmc_is_paid
-
-from starlette.background import BackgroundTasks
-from email.mime.text import MIMEText
 
 router = APIRouter(prefix="/auth")
 templates = Jinja2Templates(directory="templates")
@@ -411,27 +409,7 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="PMC not found")
 
     previous = bool(prop.sandy_enabled)
-    prop.sandy_enabled = not previous
-    db.commit()
-
-    # If turning OFF: just sync billing (next renewal adjusts; no mid-cycle proration)
-    if prop.sandy_enabled is False:
-        try:
-            sync_property_quantity(db, pmc.id, proration_behavior="none")
-        except Exception as e:
-            prop.sandy_enabled = previous
-            db.commit()
-            raise HTTPException(status_code=500, detail=f"Billing update failed, change reverted: {str(e)}")
-
-        return JSONResponse({"status": "success", "new_status": "OFFLINE"})
-
-    # If turning ON: compute how many will be LIVE (billable) if we proceed
-    enabled_count = (
-        db.query(func.count(Property.id))
-        .filter(Property.pmc_id == pmc.id, Property.sandy_enabled.is_(True))
-        .scalar()
-    ) or 0
-    enabled_count = int(enabled_count)
+    new_value = not previous
 
     # Stripe config
     stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
@@ -439,66 +417,90 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
     app_base_url = (os.getenv("APP_BASE_URL") or "").rstrip("/")
 
     if not stripe_secret or not price_property or not app_base_url:
-        prop.sandy_enabled = previous
-        db.commit()
         raise HTTPException(status_code=500, detail="Missing Stripe env vars required for billing")
 
     stripe.api_key = stripe_secret
 
-    subscription_id = getattr(pmc, "stripe_subscription_id", None)
+    # Compute enabled_count *as if we apply the toggle*
+    # (so billing quantity matches what the user is trying to do)
+    current_enabled = (
+        db.query(func.count(Property.id))
+        .filter(Property.pmc_id == pmc.id, Property.sandy_enabled.is_(True))
+        .scalar()
+    ) or 0
+    current_enabled = int(current_enabled)
+
+    desired_enabled = current_enabled + (1 if new_value and not previous else 0) - (1 if (not new_value) and previous else 0)
+    desired_enabled = max(0, int(desired_enabled))
+
     customer_id = getattr(pmc, "stripe_customer_id", None)
+    subscription_id = getattr(pmc, "stripe_subscription_id", None)
 
-    # If no customer id, we can't start subscription checkout
-    if not customer_id:
-        prop.sandy_enabled = previous
+    # If turning OFF: apply toggle + update quantity (no proration)
+    if new_value is False:
+        prop.sandy_enabled = False
         db.commit()
-        raise HTTPException(status_code=500, detail="Missing stripe_customer_id on PMC (signup checkout must create a customer)")
 
-    # If no subscription, or subscription is fully canceled => require checkout to restart billing
+        try:
+            sync_property_quantity(db, pmc.id, proration_behavior="none")
+        except Exception as e:
+            # revert
+            prop.sandy_enabled = previous
+            db.commit()
+            raise HTTPException(status_code=500, detail=f"Billing update failed, change reverted: {str(e)}")
+
+        return JSONResponse({"status": "success", "new_status": "OFFLINE"})
+
+    # Turning ON from OFF -> requires customer id
+    if not customer_id:
+        raise HTTPException(
+            status_code=500,
+            detail="Missing stripe_customer_id on PMC (signup checkout must create a customer)",
+        )
+
+    # Determine if subscription is missing/canceled -> need a new checkout
     needs_new_checkout = False
     if not subscription_id:
         needs_new_checkout = True
     else:
         try:
             sub = stripe.Subscription.retrieve(subscription_id)
-            status = (sub.get("status") or "").lower()
-            if status in {"canceled", "incomplete_expired"}:
+            sub_status = (sub.get("status") or "").lower()
+            if sub_status in {"canceled", "incomplete_expired"}:
                 needs_new_checkout = True
         except Exception as e:
-            prop.sandy_enabled = previous
-            db.commit()
             raise HTTPException(status_code=500, detail=f"Stripe subscription lookup failed: {str(e)}")
 
     if needs_new_checkout:
-        # Revert toggle so they don't go LIVE without billing
-        prop.sandy_enabled = previous
-        db.commit()
-
-        # Create subscription checkout for ALL enabled properties (including the one they tried to enable)
+        # Do NOT enable the property yet — require checkout first
         checkout = stripe.checkout.Session.create(
             mode="subscription",
             customer=customer_id,
-            line_items=[{"price": price_property, "quantity": enabled_count}],
+            line_items=[{"price": price_property, "quantity": desired_enabled}],
             success_url=f"{app_base_url}/pmc/onboarding/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
             cancel_url=f"{app_base_url}/admin/dashboard#properties",
             metadata={
                 "pmc_id": str(pmc.id),
                 "type": "pmc_property_subscription",
-                "quantity": str(enabled_count),
+                "quantity": str(desired_enabled),
             },
         )
-
         return JSONResponse({"status": "needs_billing", "checkout_url": checkout.url})
 
-    # Subscription exists and is not fully canceled: sync quantity + cancel_at_period_end policy
+    # Subscription exists -> toggle ON, then sync quantity
+    prop.sandy_enabled = True
+    db.commit()
+
     try:
         sync_property_quantity(db, pmc.id, proration_behavior="none")
     except Exception as e:
+        # revert
         prop.sandy_enabled = previous
         db.commit()
         raise HTTPException(status_code=500, detail=f"Billing update failed, change reverted: {str(e)}")
 
     return JSONResponse({"status": "success", "new_status": "LIVE"})
+
 
 
 
@@ -509,13 +511,22 @@ def sync_single_property(property_id: int, request: Request, db: Session = Depen
     # ✅ Paywall: PMC must be paid+active to sync
     require_pmc_is_paid(db, prop.pmc_id)
 
-    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
-    if not pmc:
-        raise HTTPException(status_code=404, detail="PMC not found")
+    integration_id = getattr(prop, "integration_id", None)
+    if not integration_id:
+        raise HTTPException(status_code=400, detail="Property missing integration_id")
+
+    integ = (
+        db.query(PMCIntegration)
+        .filter(PMCIntegration.id == int(integration_id), PMCIntegration.pmc_id == int(prop.pmc_id))
+        .first()
+    )
+    if not integ:
+        raise HTTPException(status_code=404, detail="Integration not found for this property")
 
     try:
-        sync_properties(pmc.pms_account_id)
-        return JSONResponse({"status": "success", "message": "Synced!"})
+        # ✅ New contract: sync by integration_id
+        synced_count = sync_properties(int(integ.id))
+        return JSONResponse({"status": "success", "message": f"Synced ({synced_count})!"})
     except Exception as e:
         return JSONResponse({"status": "error", "message": str(e)}, status_code=500)
 
