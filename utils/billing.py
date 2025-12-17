@@ -89,10 +89,12 @@ def _record_charge(
 
 def _invoice_item_args_from_price(price_id: str) -> Tuple[dict, str]:
     """
-    InvoiceItems cannot accept Prices with type=recurring.
+    Stripe InvoiceItems cannot accept Prices with type=recurring.
     - If price is one_time: we can pass {"price": price_id}
     - If price is recurring: we must pass {"unit_amount": ..., "currency": ...}
-    Returns (invoice_item_kwargs, source_type_label)
+
+    Returns:
+      (invoice_item_kwargs, source_type_label)
     """
     price_obj = stripe.Price.retrieve(price_id)
     price_type = (price_obj.get("type") or "").strip().lower()  # "one_time" or "recurring"
@@ -104,8 +106,12 @@ def _invoice_item_args_from_price(price_id: str) -> Tuple[dict, str]:
     unit_amount = price_obj.get("unit_amount")
     currency = price_obj.get("currency")
 
+    # Some Stripe price types (tiered/usage-based) may not have unit_amount.
     if unit_amount is None or not currency:
-        raise RuntimeError("Stripe Price missing unit_amount/currency; cannot invoice")
+        raise RuntimeError(
+            "STRIPE_PRICE_PROPERTY_MONTHLY is recurring but has no unit_amount/currency "
+            "(tiered or metered prices can't be converted to one-time invoice items automatically)."
+        )
 
     return {"unit_amount": int(unit_amount), "currency": str(currency)}, "recurring_as_onetime"
 
@@ -115,14 +121,11 @@ def _invoice_item_args_from_price(price_id: str) -> Tuple[dict, str]:
 # ----------------------------
 def sync_subscription_quantity_for_integration(db: Session, pmc: PMC, integration_id: int) -> int:
     """
-    If you're using a Stripe subscription-based per-property model:
-    Set Stripe subscription quantity = number of enabled properties for THIS integration.
-
-    Uses proration_behavior='none' so changes apply next renewal (no mid-cycle charge/refund).
-    Returns enabled_count.
+    If you are (still) using subscription quantity billing, this updates quantity for an integration.
 
     Safe behavior:
     - If subscription IDs are missing, this is a no-op and simply returns enabled_count.
+    - If Stripe call fails, it prints and returns enabled_count (won't crash your app).
     """
     enabled_count = db.execute(
         text(
@@ -138,7 +141,6 @@ def sync_subscription_quantity_for_integration(db: Session, pmc: PMC, integratio
 
     sub_id = (getattr(pmc, "stripe_subscription_id", None) or "").strip()
     item_id = (getattr(pmc, "stripe_subscription_item_id", None) or "").strip()
-
     if not sub_id or not item_id:
         return int(enabled_count)
 
@@ -152,7 +154,6 @@ def sync_subscription_quantity_for_integration(db: Session, pmc: PMC, integratio
             proration_behavior="none",
         )
     except Exception as e:
-        # Don't hard-fail app flows on billing sync; return the count and let caller decide.
         print("[billing] sync_subscription_quantity_for_integration failed:", e)
 
     return int(enabled_count)
@@ -164,21 +165,17 @@ def sync_subscription_quantity_for_integration(db: Session, pmc: PMC, integratio
 def charge_property_for_month_if_needed(db: Session, pmc: PMC, prop: Property) -> bool:
     """
     RULES (calendar month):
-      - If the property was already charged in this calendar month => NO charge.
+      - If already charged this calendar month => NO charge.
       - If property is OFF => NO charge.
       - If property is turned ON mid-month and not charged this month => charge NOW.
       - Toggling OFF then back ON in same month => NO additional charge.
-    Returns:
-      True if we charged now, False otherwise.
     """
     if not prop or not pmc:
         return False
 
-    # Only charge when it's actually ON
     if not bool(getattr(prop, "sandy_enabled", False)):
         return False
 
-    # PMC must have Stripe customer
     customer_id = (getattr(pmc, "stripe_customer_id", None) or "").strip()
     if not customer_id:
         return False
@@ -189,11 +186,10 @@ def charge_property_for_month_if_needed(db: Session, pmc: PMC, prop: Property) -
     now = datetime.now(timezone.utc)
     cm = month_start_utc(now)
 
-    # Idempotent check (ledger)
     if _already_charged_this_month(db, prop.id, cm):
         return False
 
-    # InvoiceItems cannot use recurring Prices => adapt automatically
+    # Adapt recurring vs one_time Stripe price automatically
     price_kwargs, source_type = _invoice_item_args_from_price(cfg.monthly_price_id)
 
     # 1) Create invoice item (line item)
@@ -241,9 +237,7 @@ def charge_property_for_month_if_needed(db: Session, pmc: PMC, prop: Property) -
 
 def charge_all_enabled_properties_for_month(db: Session, pmc_id: int, when: Optional[datetime] = None) -> int:
     """
-    Use this for a cron/scheduler job (e.g. daily).
-    It charges any ENABLED properties that have NOT been charged yet this calendar month.
-
+    Cron/scheduler helper: charges any ENABLED properties not yet charged this calendar month.
     Returns number of charges created.
     """
     pmc = db.query(PMC).filter(PMC.id == int(pmc_id)).first()
