@@ -8,7 +8,7 @@ import uvicorn
 import re
 import stripe
 
-stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+
 
 from typing import Optional
 from datetime import datetime, timedelta
@@ -31,7 +31,7 @@ from seed_guides_route import router as seed_guides_router
 
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
-from models import Property, ChatSession, ChatMessage, PMC, Upgrade, Reservation, Guide
+from models import Property, ChatSession, ChatMessage, PMC, PMCIntegration, Upgrade, Reservation, Guide
 
 from utils.message_helpers import classify_category, smart_response, detect_log_types
 from utils.pms_sync import sync_properties, sync_all_integrations
@@ -245,6 +245,22 @@ def debug_properties(db: Session = Depends(get_db)):
     ]
 
 
+def get_integration_for_property(db: Session, prop: Property) -> PMCIntegration:
+    integration_id = getattr(prop, "integration_id", None)
+    if not integration_id:
+        raise HTTPException(status_code=400, detail="Property is missing integration_id")
+
+    integ = (
+        db.query(PMCIntegration)
+        .filter(PMCIntegration.id == int(integration_id), PMCIntegration.pmc_id == int(prop.pmc_id))
+        .first()
+    )
+    if not integ:
+        raise HTTPException(status_code=400, detail="Integration not found for property")
+
+    return integ
+
+
 
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
@@ -279,34 +295,36 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     # - Property provider is hostaway
     # - Property has pms_property_id
     # - PMC has pms_api_key + pms_api_secret (Hostaway auth)
-    if (
-        pmc
-        and pmc_provider == "hostaway"
-        and prop_provider == "hostaway"
-        and getattr(prop, "pms_property_id", None)
-        and getattr(pmc, "pms_api_key", None)
-        and getattr(pmc, "pms_api_secret", None)
-    ):
+    if pmc and prop_provider == "hostaway" and getattr(prop, "pms_property_id", None):
         try:
-            hero, ha_address, ha_city = get_listing_overview(
-                listing_id=str(prop.pms_property_id),
-                client_id=str(pmc.pms_api_key),
-                client_secret=str(pmc.pms_api_secret),
-            )
-
-            if hero and not hero_image_url:
-                hero_image_url = hero
-                if not experiences_hero_url:
-                    experiences_hero_url = hero
-
-            if ha_address and not address:
-                address = ha_address
-
-            if ha_city and not city_name:
-                city_name = ha_city
-
+            integ = get_integration_for_property(db, prop)
+            provider = (integ.provider or "").strip().lower()
+            if provider == "hostaway":
+                account_id = (integ.account_id or "").strip()
+                api_secret = (integ.api_secret or "").strip()
+                if not account_id or not api_secret:
+                    raise Exception("Missing Hostaway creds on integration")
+    
+                hero, ha_address, ha_city = get_listing_overview(
+                    listing_id=str(prop.pms_property_id),
+                    client_id=account_id,         # Hostaway: account_id
+                    client_secret=api_secret,     # Hostaway: api_secret
+                )
+    
+                if hero and not hero_image_url:
+                    hero_image_url = hero
+                    if not experiences_hero_url:
+                        experiences_hero_url = hero
+    
+                if ha_address and not address:
+                    address = ha_address
+    
+                if ha_city and not city_name:
+                    city_name = ha_city
+    
         except Exception as e:
             print("[Hostaway] Failed to fetch listing overview:", e)
+
 
     # If no separate experiences hero, reuse main hero
     if not experiences_hero_url and hero_image_url:
@@ -598,55 +616,38 @@ def verify_json(
 ):
     code = (payload.code or "").strip()
 
-    # 1) Quick format check
     if not code.isdigit() or len(code) != 4:
-        return JSONResponse(
-            {"success": False, "error": "Please enter exactly 4 digits."},
-            status_code=400,
-        )
+        return JSONResponse({"success": False, "error": "Please enter exactly 4 digits."}, status_code=400)
 
-    # 2) TEST OVERRIDE (for your own testing)
     test_code = os.getenv("TEST_UNLOCK_CODE")
     if test_code and code == test_code:
-        # Mark this browser as verified
         request.session[f"guest_verified_{property_id}"] = True
-
-        # Fake but realistic-looking guest meta for the UI
         today = datetime.utcnow().date()
-        arrival = today.strftime("%Y-%m-%d")
-        departure = (today + timedelta(days=3)).strftime("%Y-%m-%d")
-
         return {
             "success": True,
             "guest_name": "Test Guest",
-            "arrival_date": arrival,
-            "departure_date": departure,
+            "arrival_date": today.strftime("%Y-%m-%d"),
+            "departure_date": (today + timedelta(days=3)).strftime("%Y-%m-%d"),
         }
 
-    # 3) Load property + PMC
-    prop = db.query(Property).filter(Property.id == property_id).first()
+    prop = db.query(Property).filter(Property.id == int(property_id)).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    pmc = prop.pmc
-    if not pmc:
-        return JSONResponse(
-            {"success": False, "error": "This property is not linked to a PMS."},
-            status_code=400,
-        )
+    if not prop.pmc:
+        return JSONResponse({"success": False, "error": "This property is not linked to a PMC."}, status_code=400)
 
-    # 4) Get PMS-linked last 4 digits + guest info
+    # ✅ new source of truth
+    integ = get_integration_for_property(db, prop)
+    provider = ((getattr(prop, "provider", None) or integ.provider) or "").strip().lower()
+
     try:
-        # For Hostaway, use "upcoming or in-house" reservation lookup
-        if (
-            pmc.pms_integration
-            and pmc.pms_integration.lower() == "hostaway"
-            and prop.pms_integration
-            and prop.pms_integration.lower() == "hostaway"
-            and prop.pms_property_id
-            and pmc.pms_api_key
-            and pmc.pms_api_secret
-        ):
+        if provider == "hostaway" and prop.pms_property_id:
+            account_id = (integ.account_id or "").strip()
+            api_secret = (integ.api_secret or "").strip()
+            if not account_id or not api_secret:
+                raise Exception("Missing Hostaway creds on integration")
+
             (
                 phone_last4,
                 door_code,
@@ -656,88 +657,46 @@ def verify_json(
                 departure_date,
             ) = get_upcoming_phone_for_listing(
                 listing_id=str(prop.pms_property_id),
-                client_id=pmc.pms_api_key,
-                client_secret=pmc.pms_api_secret,
+                client_id=account_id,
+                client_secret=api_secret,
             )
         else:
-            # fallback for other PMS types
-            (
-                phone_last4,
-                door_code,
-                reservation_id,
-                guest_name,
-                arrival_date,
-                departure_date,
-            ) = get_pms_access_info(pmc, prop)
+            (phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date) = get_pms_access_info(
+                prop.pmc, prop
+            )
 
     except Exception as e:
         print("[VERIFY PMS ERROR]", e)
-        return JSONResponse(
-            {
-                "success": False,
-                "error": "Could not verify your reservation. Please try again.",
-            },
-            status_code=500,
-        )
+        return JSONResponse({"success": False, "error": "Could not verify your reservation. Please try again."}, status_code=500)
 
-    # 5) Enforce a 30-day arrival window
+    # 30-day arrival window
     WINDOW_DAYS = 30
+
     def parse_ymd(d: Optional[str]):
         if not d:
             return None
         try:
-            # PMS dates are typically "YYYY-MM-DD"
             return datetime.strptime(d, "%Y-%m-%d").date()
         except Exception:
             return None
 
     today = datetime.utcnow().date()
-    arrival_date_obj = parse_ymd(arrival_date)
-
-    if arrival_date_obj is not None:
-        # if arrival is more than 30 days in the future, block unlock
-        if arrival_date_obj > today + timedelta(days=WINDOW_DAYS):
-            return JSONResponse(
-                {
-                    "success": False,
-                    "error": (
-                        "You can only unlock this stay within "
-                        f"{WINDOW_DAYS} days of arrival."
-                    ),
-                },
-                status_code=400,
-            )
-
-
-    # 5) No upcoming/current reservation / phone found
-    if not phone_last4 or not reservation_id:
+    arrival_obj = parse_ymd(arrival_date)
+    if arrival_obj and arrival_obj > today + timedelta(days=WINDOW_DAYS):
         return JSONResponse(
-            {
-                "success": False,
-                "error": "No upcoming reservation found for this property.",
-            },
+            {"success": False, "error": f"You can only unlock this stay within {WINDOW_DAYS} days of arrival."},
             status_code=400,
         )
 
-    # 6) Wrong code → deny access
+    if not phone_last4 or not reservation_id:
+        return JSONResponse({"success": False, "error": "No upcoming reservation found for this property."}, status_code=400)
+
     if code != phone_last4:
-        return JSONResponse(
-            {
-                "success": False,
-                "error": "That code does not match the reservation phone number.",
-            },
-            status_code=403,
-        )
+        return JSONResponse({"success": False, "error": "That code does not match the reservation phone number."}, status_code=403)
 
-    # 7) Correct: mark this browser as verified and return guest + stay info
     request.session[f"guest_verified_{property_id}"] = True
+    return {"success": True, "guest_name": guest_name, "arrival_date": arrival_date, "departure_date": departure_date}
 
-    return {
-        "success": True,
-        "guest_name": guest_name,
-        "arrival_date": arrival_date,
-        "departure_date": departure_date,
-    }
 
 
 
