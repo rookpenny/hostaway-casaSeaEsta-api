@@ -1,239 +1,184 @@
 # utils/billing.py
+from __future__ import annotations
+
 import os
+from dataclasses import dataclass
+from datetime import datetime, timezone, date
+from typing import Optional
+
 import stripe
 from sqlalchemy.orm import Session
-from sqlalchemy import func, text
-from datetime import datetime, timezone, date
+from sqlalchemy import text
+
 from models import PMC, Property
 
 
+# ----------------------------
+# Config + helpers
+# ----------------------------
+@dataclass(frozen=True)
+class StripeBillingConfig:
+    secret_key: str
+    monthly_price_id: str
+
+
+def _stripe_config() -> StripeBillingConfig:
+    secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+    price = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
+
+    if not secret:
+        raise RuntimeError("Missing STRIPE_SECRET_KEY")
+    if not price:
+        raise RuntimeError("Missing STRIPE_PRICE_PROPERTY_MONTHLY")
+
+    return StripeBillingConfig(secret_key=secret, monthly_price_id=price)
+
+
 def month_start_utc(dt: datetime) -> date:
-    """Return first day of month for a datetime."""
+    """First day of the month in UTC (calendar-month billing key)."""
+    dt = dt.astimezone(timezone.utc)
     return date(dt.year, dt.month, 1)
 
 
-def charge_property_for_month_if_needed(db, pmc, prop) -> bool:
-    """
-    Charge the monthly price for this property if it has not been
-    charged yet for the current month.
-
-    Returns:
-      True  -> charged now
-      False -> already charged this month or cannot charge
-    """
-
-    stripe_price_monthly = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
-    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
-
-    if not stripe_price_monthly or not stripe_secret:
-        raise Exception("Stripe billing env vars missing")
-
-    if not pmc.stripe_customer_id:
-        # Customer must already exist (created at onboarding checkout)
-        return False
-
-    stripe.api_key = stripe_secret
-
-    now = datetime.now(timezone.utc)
-    month_start = month_start_utc(now)
-
-    # 🔒 Idempotency: check ledger
-    exists = db.execute(
+def _already_charged_this_month(db: Session, property_id: int, charge_month: date) -> bool:
+    row = db.execute(
         text("""
             SELECT 1
             FROM property_monthly_charges
             WHERE property_id = :pid
-              AND charge_month = :month_start
+              AND charge_month = :cm
             LIMIT 1
         """),
-        {
-            "pid": prop.id,
-            "month_start": month_start,
-        },
+        {"pid": int(property_id), "cm": charge_month},
     ).first()
+    return bool(row)
 
-    if exists:
-        return False
 
-    # 1) Create invoice line item
-    invoice_item = stripe.InvoiceItem.create(
-        customer=pmc.stripe_customer_id,
-        price=stripe_price_monthly,
-        quantity=1,
-        description=f"HostScout monthly — property {prop.id} ({month_start.isoformat()})",
-    )
-
-    # 2) Create & finalize invoice (charge immediately)
-    invoice = stripe.Invoice.create(
-        customer=pmc.stripe_customer_id,
-        collection_method="charge_automatically",
-        auto_advance=True,
-    )
-
-    invoice = stripe.Invoice.finalize_invoice(invoice.id)
-
-    # 3) Record ledger entry
+def _record_charge(
+    db: Session,
+    *,
+    property_id: int,
+    charge_month: date,
+    stripe_invoice_id: str,
+    stripe_invoice_item_id: str,
+) -> None:
     db.execute(
         text("""
             INSERT INTO property_monthly_charges (
                 property_id,
                 charge_month,
                 stripe_invoice_id,
-                stripe_invoice_item_id
+                stripe_invoice_item_id,
+                created_at
             )
-            VALUES (:pid, :month_start, :inv, :ii)
+            VALUES (:pid, :cm, :inv, :ii, NOW())
+            ON CONFLICT (property_id, charge_month) DO NOTHING
         """),
         {
-            "pid": prop.id,
-            "month_start": month_start,
-            "inv": invoice.id,
-            "ii": invoice_item.id,
+            "pid": int(property_id),
+            "cm": charge_month,
+            "inv": stripe_invoice_id,
+            "ii": stripe_invoice_item_id,
         },
+    )
+
+
+# ----------------------------
+# Public API
+# ----------------------------
+def charge_property_for_month_if_needed(db: Session, pmc: PMC, prop: Property) -> bool:
+    """
+    RULES (calendar month):
+      - If the property was already charged in this calendar month => NO charge.
+      - If property is OFF => NO charge.
+      - If property is turned ON mid-month and not charged this month => charge NOW.
+      - Toggling OFF then back ON in same month => NO additional charge.
+    Returns:
+      True if we charged now, False otherwise.
+    """
+    if not prop or not pmc:
+        return False
+
+    # Only charge when it's actually ON
+    if not bool(getattr(prop, "sandy_enabled", False)):
+        return False
+
+    # PMC must have Stripe customer
+    customer_id = (getattr(pmc, "stripe_customer_id", None) or "").strip()
+    if not customer_id:
+        return False
+
+    cfg = _stripe_config()
+    stripe.api_key = cfg.secret_key
+
+    now = datetime.now(timezone.utc)
+    cm = month_start_utc(now)
+
+    # Idempotent check (ledger)
+    if _already_charged_this_month(db, prop.id, cm):
+        return False
+
+    # Create invoice item for this one property for this month
+    invoice_item = stripe.InvoiceItem.create(
+        customer=customer_id,
+        price=cfg.monthly_price_id,
+        quantity=1,
+        description=f"HostScout monthly — Property {prop.id} — {cm.isoformat()}",
+    )
+
+    # Create invoice + finalize (attempt charge automatically)
+    invoice = stripe.Invoice.create(
+        customer=customer_id,
+        collection_method="charge_automatically",
+        auto_advance=True,
+        metadata={
+            "pmc_id": str(pmc.id),
+            "property_id": str(prop.id),
+            "charge_month": cm.isoformat(),
+            "type": "property_monthly_charge",
+        },
+    )
+
+    invoice = stripe.Invoice.finalize_invoice(invoice.id)
+
+    # Persist ledger (so we never double-charge this month)
+    _record_charge(
+        db,
+        property_id=prop.id,
+        charge_month=cm,
+        stripe_invoice_id=invoice.id,
+        stripe_invoice_item_id=invoice_item.id,
     )
 
     return True
 
 
-def _stripe_config() -> tuple[str, str]:
-    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
-    price_property = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
-    return stripe_secret, price_property
-
-
-def _count_billable(db: Session, pmc_id: int) -> int:
-    billable = (
-        db.query(func.count(Property.id))
-        .filter(Property.pmc_id == pmc_id, Property.sandy_enabled.is_(True))
-        .scalar()
-    ) or 0
-    return int(billable)
-
-
-def sync_subscription_quantity_for_integration(db, pmc, integration_id: int) -> int:
+def charge_all_enabled_properties_for_month(db: Session, pmc_id: int, when: Optional[datetime] = None) -> int:
     """
-    Set Stripe subscription quantity = enabled properties for this integration.
-    Uses proration_behavior='none' so changes apply at next invoice (renewal).
-    Returns enabled_count.
+    Use this for a cron/scheduler job (e.g. daily).
+    It charges any ENABLED properties that have NOT been charged yet this calendar month.
+
+    Returns number of charges created.
     """
-    enabled_count = db.execute(
-        text("""
-            SELECT COUNT(*)
-            FROM public.properties
-            WHERE integration_id = :iid
-              AND sandy_enabled = TRUE
-        """),
-        {"iid": int(integration_id)},
-    ).scalar_one()
-
-    sub_id = getattr(pmc, "stripe_subscription_id", None)
-    item_id = getattr(pmc, "stripe_subscription_item_id", None)
-    if not sub_id or not item_id:
-        return int(enabled_count)
-
-    stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
-    if not stripe_secret:
-        raise Exception("Missing STRIPE_SECRET_KEY")
-
-    stripe.api_key = stripe_secret
-
-    stripe.Subscription.modify(
-        sub_id,
-        items=[{"id": item_id, "quantity": int(enabled_count)}],
-        proration_behavior="none",
-    )
-
-    return int(enabled_count)
-
-
-
-def sync_property_quantity(db: Session, pmc_id: int, proration_behavior: str = "none") -> int:
-    """
-    Policy implemented:
-    - Quantity changes apply at NEXT renewal (no mid-cycle charge/refund) via proration_behavior="none".
-    - If billable count becomes 0 => set subscription cancel_at_period_end=True.
-    - If billable count becomes >0 => ensure cancel_at_period_end=False.
-    - If subscription is already canceled/ended, we do NOT create a new one here; we return billable.
-      (Caller should send user to subscription checkout when re-enabling after full cancel.)
-    """
-    stripe_secret, price_property = _stripe_config()
-    if not stripe_secret or not price_property:
-        return 0
-
-    stripe.api_key = stripe_secret
-
-    pmc = db.query(PMC).filter(PMC.id == pmc_id).first()
+    pmc = db.query(PMC).filter(PMC.id == int(pmc_id)).first()
     if not pmc:
         return 0
 
-    # They keep access even if no subscription; only gate billing changes
-    if (getattr(pmc, "billing_status", "") or "").strip().lower() != "active":
-        return 0
+    when = when or datetime.now(timezone.utc)
+    cm = month_start_utc(when)
 
-    subscription_id = getattr(pmc, "stripe_subscription_id", None)
-    if not subscription_id:
-        # No subscription yet (or cleared) — caller should create one when enabling properties.
-        return _count_billable(db, pmc_id)
-
-    billable = _count_billable(db, pmc_id)
-
-    # Retrieve subscription (we need status + items)
-    sub = stripe.Subscription.retrieve(subscription_id, expand=["items.data.price"])
-
-    status = (sub.get("status") or "").lower()
-    # If it's fully canceled/ended, do not modify; caller should create a new subscription
-    if status in {"canceled", "incomplete_expired"}:
-        return billable
-
-    # Find or create the subscription item for our per-property price
-    item_id = getattr(pmc, "stripe_subscription_item_id", None)
-
-    # Validate cached item_id (it might be stale)
-    if item_id:
-        found = False
-        for it in (sub.get("items") or {}).get("data", []):
-            if it.get("id") == item_id:
-                found = True
-                break
-        if not found:
-            item_id = None
-
-    if not item_id:
-        for it in (sub.get("items") or {}).get("data", []):
-            price = it.get("price") or {}
-            if price.get("id") == price_property:
-                item_id = it.get("id")
-                break
-
-    if not item_id:
-        # If subscription doesn't yet have the per-property line item, add it
-        created = stripe.SubscriptionItem.create(
-            subscription=subscription_id,
-            price=price_property,
-            quantity=billable,
-            proration_behavior=proration_behavior,
-        )
-        item_id = created.get("id")
-
-    # 1) Update quantity (no proration => applies next invoice)
-    stripe.SubscriptionItem.modify(
-        item_id,
-        quantity=billable,
-        proration_behavior=proration_behavior,
+    props = (
+        db.query(Property)
+        .filter(Property.pmc_id == pmc.id, Property.sandy_enabled.is_(True))
+        .all()
     )
 
-    # 2) Cancel behavior
-    # If they turned OFF all properties, cancel at period end (so no renewal).
-    # If they turned ON any property again, ensure it will renew.
-    if billable <= 0:
-        if not sub.get("cancel_at_period_end", False):
-            stripe.Subscription.modify(subscription_id, cancel_at_period_end=True)
-    else:
-        if sub.get("cancel_at_period_end", False):
-            stripe.Subscription.modify(subscription_id, cancel_at_period_end=False)
+    charged = 0
+    for prop in props:
+        if _already_charged_this_month(db, prop.id, cm):
+            continue
+        did = charge_property_for_month_if_needed(db, pmc, prop)
+        if did:
+            charged += 1
 
-    # Cache item id for next time
-    if hasattr(pmc, "stripe_subscription_item_id"):
-        pmc.stripe_subscription_item_id = item_id
-    db.commit()
-
-    return billable
+    return charged
