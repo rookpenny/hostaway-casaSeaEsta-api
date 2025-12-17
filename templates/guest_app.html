@@ -1167,12 +1167,20 @@
                 <div class="flex-1 pr-2">
                   <p class="text-[11px] font-semibold text-[#666666] text-right">Arrival</p>
                   <p id="arrival-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right">{{ arrival_date or "-" }}</p>
-                  <p class="mt-1 text-[20px] font-semibold text-[#000000] text-right pt-1">{{ checkin_time if checkin_time is defined and checkin_time else "4:00 PM" }}</p>
+                  <p id="checkin-time-span"
+                     class="mt-1 text-[20px] font-semibold text-[#000000] text-right pt-1">
+                    {{ checkin_time if checkin_time is defined and checkin_time else "4:00 PM" }}
+                  </p>
+
                 </div>
                 <div class="flex-1 pl-2">
                   <p class="text-[11px] font-semibold text-[#666666] text-left">Departure</p>
                   <p id="departure-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left">{{ departure_date or "-" }}</p>
-                  <p class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">{{ checkout_time if checkout_time is defined and checkout_time else "10:00 AM" }}</p>
+                  <p id="checkout-time-span"
+                     class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">
+                    {{ checkout_time if checkout_time is defined and checkout_time else "10:00 AM" }}
+                  </p>
+
                 </div>
               </div>
               {% endif %}
@@ -1995,6 +2003,8 @@
           let guestName = null;
           let arrivalDate = null;
           let departureDate = null;
+              let checkinTime = null;
+              let checkoutTime = null;
       
           // 🔹 helper: keep guest name in sync across all places we show it
           function updateGuestNameInUI(name) {
@@ -2007,61 +2017,85 @@
           const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
       
           function saveGuestState() {
-            try {
-              const state = {
-                isUnlocked,
-                lastUnlockCode,
-                sessionId: currentSessionId,
-                guestName,
-                arrivalDate,
-                departureDate,
-              };
-              window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
-            } catch (e) {
-              console.warn("Unable to save guest state:", e);
+              try {
+                const state = {
+                  isUnlocked,
+                  lastUnlockCode,
+                  sessionId: currentSessionId,
+                  guestName,
+                  arrivalDate,
+                  departureDate,
+                  checkinTime,
+                  checkoutTime,
+                };
+                window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
+              } catch (e) {
+                console.warn("Unable to save guest state:", e);
+              }
             }
-          }
-      
-          function loadGuestState() {
-            try {
-              const raw = window.localStorage.getItem(GUEST_STATE_KEY);
-              if (!raw) return null;
-              return JSON.parse(raw);
-            } catch (e) {
-              console.warn("Unable to load guest state:", e);
-              return null;
-            }
-          }
-      
-          const storedState = loadGuestState();
-          if (storedState) {
-            if (!isUnlocked && storedState.isUnlocked) {
-              isUnlocked = true;
-            }
-            if (storedState.lastUnlockCode) {
-              lastUnlockCode = storedState.lastUnlockCode;
-            }
-            if (storedState.sessionId) {
-              currentSessionId = storedState.sessionId;
-            }
-      
-            if (storedState.guestName) {
-              guestName = storedState.guestName;
-              updateGuestNameInUI(guestName);
-            }
-      if (storedState.arrivalDate) {
-        arrivalDate = storedState.arrivalDate;
-        const arrEl = document.getElementById("arrival-date-span");
-        if (arrEl) arrEl.textContent = formatDateLong(arrivalDate);
-      }
-      
-      if (storedState.departureDate) {
-        departureDate = storedState.departureDate;
-        const depEl = document.getElementById("departure-date-span");
-        if (depEl) depEl.textContent = formatDateLong(departureDate);
-      }
 
+      function loadGuestState() {
+  try {
+    const raw = window.localStorage.getItem(GUEST_STATE_KEY);
+    if (!raw) return null;
+
+    const state = JSON.parse(raw);
+    if (!state || typeof state !== "object") return null;
+
+    // ✅ Pro tip: clear stale guest state after checkout (departure date passed)
+    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+    if (state.departureDate && typeof state.departureDate === "string" && state.departureDate < today) {
+      window.localStorage.removeItem(GUEST_STATE_KEY);
+      return null;
     }
+
+    // Restore core flags
+    if (state.isUnlocked === true) isUnlocked = true;
+    if (state.lastUnlockCode) lastUnlockCode = state.lastUnlockCode;
+    if (state.sessionId) currentSessionId = state.sessionId;
+
+    // Guest name
+    if (state.guestName) {
+      guestName = state.guestName;
+      updateGuestNameInUI(guestName);
+    }
+
+    // Arrival date
+    if (state.arrivalDate) {
+      arrivalDate = state.arrivalDate;
+      const el = document.getElementById("arrival-date-span");
+      if (el) el.textContent = formatDateLong(arrivalDate);
+    }
+
+    // Departure date
+    if (state.departureDate) {
+      departureDate = state.departureDate;
+      const el = document.getElementById("departure-date-span");
+      if (el) el.textContent = formatDateLong(departureDate);
+    }
+
+    // Check-in time
+    if (state.checkinTime) {
+      checkinTime = state.checkinTime;
+      const el = document.getElementById("checkin-time-span");
+      if (el) el.textContent = checkinTime;
+    }
+
+    // Check-out time
+    if (state.checkoutTime) {
+      checkoutTime = state.checkoutTime;
+      const el = document.getElementById("checkout-time-span");
+      if (el) el.textContent = checkoutTime;
+    }
+
+    return state;
+  } catch (err) {
+    console.warn("Failed to load guest state:", err);
+    return null;
+  }
+}
+
+
 
     function updateHomeState() {
       if (isUnlocked) {
