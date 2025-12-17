@@ -159,7 +159,7 @@ def get_user_role_and_scope(request: Request, db: Session):
 
 
 def require_super(request: Request, db: Session):
-    role, _, _ = get_user_role_and_scope(request, db)
+    role, *_ = get_user_role_and_scope(request, db)
     if role != "super":
         raise HTTPException(status_code=403, detail="Forbidden")
 
@@ -807,7 +807,7 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
-    user_role, _, _ = get_user_role_and_scope(request, db)
+    user_role, *_ = get_user_role_and_scope(request, db)
 
     return templates.TemplateResponse(
         "admin_chat_detail.html",
@@ -842,26 +842,22 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             },
         )
 
-    # ----------------------------
-    # Billing gating flags (PMC only)
-    # ----------------------------
-    billing_status = None
     is_paid = True
-    needs_payment = False
     billing_banner_title = None
     billing_banner_body = None
-
+    
     if user_role == "pmc" and pmc_obj:
-        billing_status = (getattr(pmc_obj, "billing_status", None) or "pending").lower()
+        billing_status = (billing_status or "pending").lower()
         is_paid = (billing_status == "active") and bool(getattr(pmc_obj, "active", False))
         needs_payment = not is_paid
-
+    
         if needs_payment:
             billing_banner_title = "Complete payment to activate your account"
             billing_banner_body = (
                 "Your account is currently pending. Once payment is confirmed, you’ll be able to "
                 "connect your PMS, sync properties, and enable Sandy per property."
             )
+
 
     # ----------------------------
     # Properties list (respect scope)
@@ -1367,7 +1363,7 @@ def delete_pmc(pmc_id: int, request: Request, db: Session = Depends(get_db)):
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-
+'''
 @router.post("/admin/update-properties")
 def update_properties(request: Request, payload: list[dict] = Body(...), db: Session = Depends(get_db)):
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
@@ -1390,7 +1386,7 @@ def update_properties(request: Request, payload: list[dict] = Body(...), db: Ses
     except Exception as e:
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
-
+'''
 def require_login(request: Request):
     if not request.session.get("user"):
         request.session["post_login_redirect"] = str(request.url.path)
