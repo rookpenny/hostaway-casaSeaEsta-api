@@ -96,6 +96,24 @@ templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 
+def hour_to_ampm(hour):
+    if hour is None:
+        return None
+    try:
+        hour = int(hour)
+    except Exception:
+        return None
+
+    hour = hour % 24
+    suffix = "AM" if hour < 12 else "PM"
+    hour12 = hour % 12
+    if hour12 == 0:
+        hour12 = 12
+
+    return f"{hour12}:00 {suffix}"
+
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     print("❌ Validation Error:")
