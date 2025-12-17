@@ -431,6 +431,10 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         q = " ".join(filter(None, [address, city_name]))
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
+    checkin_time_display = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
+    checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkOutTime"))
+
+
     # ---- Render template ----
     return templates.TemplateResponse(
         "guest_app.html",
@@ -442,8 +446,8 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "property_address": address,
             "wifi_ssid": wifi.get("ssid"),
             "wifi_password": wifi.get("password"),
-            "checkin_time": cfg.get("checkin_time"),
-            "checkout_time": cfg.get("checkout_time"),
+            "checkin_time": checkin_time_display,
+            "checkout_time": checkout_time_display,
 
             # PMS dates override config if present
             "arrival_date": arrival_date_db or cfg.get("arrival_date"),
@@ -657,6 +661,9 @@ def verify_json(
             "guest_name": "Test Guest",
             "arrival_date": today.strftime("%Y-%m-%d"),
             "departure_date": (today + timedelta(days=3)).strftime("%Y-%m-%d"),
+            "checkin_time": "4:00 PM",
+            "checkout_time": "10:00 AM",
+
         }
 
     # 3) load property + pmc
@@ -761,8 +768,8 @@ def verify_json(
       "guest_name": guest_name,
       "arrival_date": arrival_date,
       "departure_date": departure_date,
-      "checkin_time": cfg.get("checkin_time"),
-      "checkout_time": cfg.get("checkout_time"),
+      "checkin_time": checkin_time_display,
+        "checkout_time": checkout_time_display,
     }
 
 
