@@ -1,1059 +1,531 @@
-      <!DOCTYPE html>
-      <html lang="en">
-      
-      <head>
-        <meta charset="UTF-8" />
-        <title>{{ property_name }} – Guest Experience</title>
-        <meta name="viewport" content="width=device-width, initial-scale=1" />
-      
-        <!-- PWA / icons -->
-        <link rel="manifest" href="/manifest/{{ property_id }}.webmanifest" />
-        <meta name="apple-mobile-web-app-capable" content="yes" />
-        <meta name="apple-mobile-web-app-status-bar-style" content="black" />
-        <meta name="theme-color" content="#020617" />
-        <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
-      
-        <!-- Tailwind CDN -->
-        <script src="https://cdn.tailwindcss.com"></script>
-      
-        <style>
-          html,
-          body {
-            font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-            font-size: 0.95rem;
-            overflow-x: hidden;
-            /* only block horizontal scroll */
-          }
-      
-      
-          * {
-            box-sizing: border-box;
-          }
-      
-          body.menu-open {
-            overflow: hidden;
-          }
-      
-      
-          /* === Hamburger / X toggle for #menu-toggle === */
-          #menu-toggle {
-            position: relative;
-          }
-      
-          /* Top + bottom bars */
-          #menu-toggle::before,
-          #menu-toggle::after {
-            content: "";
-            position: absolute;
-            left: 50%;
-            width: 24px;
-            height: 2px;
-            border-radius: 999px;
-            background: #FFFFFF;
-            /* closed: white bars on blue */
-            transform: translateX(-50%);
-            transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
-          }
-      
-          /* Top bar (hamburger) */
-          #menu-toggle::before {
-            transform: translate(-50%, -6px);
-          }
-      
-          /* Bottom bar (hamburger) */
-          #menu-toggle::after {
-            transform: translate(-50%, 6px);
-          }
-      
-          /* Middle bar */
-          #menu-toggle .menu-toggle-middle {
-            width: 24px;
-            height: 2px;
-            border-radius: 999px;
-            background: #FFFFFF !important; /* black */
-            transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
-          }
-      
-          /* === OPEN STATE transforms hamburger into "X" === */
-          #menu-toggle.menu-toggle-open::before {
-            transform: translate(-50%, 0) rotate(45deg);
-          }
-      
-          #menu-toggle.menu-toggle-open::after {
-            transform: translate(-50%, 0) rotate(-45deg);
-          }
-      
-          #menu-toggle.menu-toggle-open .menu-toggle-middle {
-            opacity: 0;
-            transform: scaleX(0.5);
-          }
-      
-       /* When menu is open → switch to white (on black menu) 
-      #menu-toggle.menu-toggle-open::before,
-      #menu-toggle.menu-toggle-open::after,
-      #menu-toggle.menu-toggle-open .menu-toggle-middle {
-        background: #FFFFFF !important; 
-      }*/
-      
-      
-      
-      /* 
-          .menu-toggle {
-            position: relative;
-          }*/
-      
-          /* Top + bottom bars 
-          .menu-toggle::before,
-          .menu-toggle::after {
-            content: "";
-            position: absolute;
-            left: 50%;
-            width: 24px;
-            height: 2px;
-            background: #ffffff;
-            border-radius: 999px;
-            transform: translateX(-50%);
-            transition: transform 0.3s ease, opacity 0.3s ease;
-          }*/
-      
-          /* Top bar (default) 
-          .menu-toggle::before {
-            transform: translate(-50%, -6px);
-          }*/
-      
-          /* Bottom bar (default) 
-          .menu-toggle::after {
-            transform: translate(-50%, 6px);
-          }*/
-      
-          /* Middle bar 
-          .menu-toggle-middle {
-            width: 24px;
-            height: 2px;
-            background: #ffffff;
-            border-radius: 999px;
-            transition: opacity 0.3s ease, transform 0.3s ease;
-          }*/
-      
-          /* === OPEN STATE === */
-          .menu-toggle.menu-toggle-open::before {
-            transform: translate(-50%, 0) rotate(45deg);
-          }
-      
-          .menu-toggle.menu-toggle-open::after {
-            transform: translate(-50%, 0) rotate(-45deg);
-          }
-      
-          .menu-toggle.menu-toggle-open .menu-toggle-middle {
-            opacity: 0;
-            transform: scaleX(0.5);
-          }
-      
-          /* Smooth fade on logo when we swap pngs */
-      #logo-img {
-        transition: opacity 180ms ease;
-      }
-      
-          /* Keep Tailwind layout; only tweak visuals
-      nav[role="navigation"] {
-        height: 120px !important; 
-      }
-       */
-          /* Make the nav buttons visually clean but DO NOT touch layout */
-          nav .nav-item {
-            background: none !important;
-            border: none !important;
-            padding: 0;
-            margin: 0;
-            box-shadow: none !important;
-          }
-      
-          /* Icon images */
-          .nav-icon-img {
-            width: 60px;
-            height: 60px;
-            object-fit: contain;
-            opacity: 0.65;
-            transition: opacity 0.25s ease;
-          }
-      
-          /* Hover + active: just change opacity, nothing else */
-          nav .nav-item:hover .nav-icon-img,
-          nav .nav-item[aria-current="page"] .nav-icon-img {
-            opacity: 1;
-          }
-      
-      
-      
-          /* REMOVE any unwanted Tailwind classes JS might apply */
-          nav .nav-icon {
-            background: none !important;
-            border: none !important;
-            box-shadow: none !important;
-            transform: none !important;
-            /* stops scale-110 */
-          }
-      
-      
-          /* OPTIONAL — dim inactive icons (if JS toggles text-slate-400/50) */
-          .nav-item.text-slate-400 .nav-icon-img {
-            opacity: 0.6;
-          }
-      
-          .nav-item.text-slate-50 .nav-icon-img {
-            opacity: 1;
-          }
-      
-      
-      
-          /* header labels (Arrival, Check-in, WiFi Network, etc.) */
-          .detail-label {
-            font-size: 0.65rem !important;
-            font-weight: 700 !important;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-            color: rgb(148 163 184);
-            /* slate-400 */
-          }
-      
-          .detail-label-results {
-            font-size: 1rem !important;
-            font-weight: 600 !important;
-            text-transform: uppercase;
-            /* letter-spacing: 0.05em;*/
-            color: rgb(255 255 255);
-            /* slate-400 */
-          }
-      
-          /* Sandy avatar photo */
-          .avatar-sandy {
-            background-image: url("/static/img/sandy.png");
-            background-size: cover;
-            background-position: center;
-            background-color: transparent;
-          }
-      
-      
-          #chat-box {
-            font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
-          }
-      
-      
-          .msg {
-            display: flex;
-            align-items: flex-start;
-            margin-bottom: 0.75rem;
-            animation: fadeInUp 0.35s ease-out;
-            animation-fill-mode: both;
-            scroll-margin-bottom: 7rem;
-          }
-      
-      
-          .msg.user {
-            justify-content: flex-end;
-          }
-      
-          /* Column that wraps bubble + timestamp for user messages */
-          .msg.user>div {
-            max-width: 70%;
-            display: inline-flex;
-            flex-direction: column;
-            align-items: flex-end;
-            /* bubble & timestamp align to right together */
-      
-          }
-      
-          /* Column that wraps bubble + timestamp for bot messages */
-          .msg.bot>div:last-child {
-            max-width: 70%;
-            display: inline-flex;
-            flex-direction: column;
-            align-items: flex-start;
-          }
-      
-      
-          .msg.bot {
-            justify-content: flex-start;
-          }
-      
-      
-      
-          .bubble {
-            display: inline-block;
-            /* hug contents */
-            padding: 0.6rem 1rem;
-            border-radius: 1rem;
-            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-            max-width: 100%;
-            /* let parent control width */
-            font-size: 0.95rem;
-            line-height: 1.5;
-            word-wrap: break-word;
-          }
-      
-      
-          .avatar {
-            width: 44px;
-            height: 44px;
-            border-radius: 999px; /* full circle */
-            overflow: hidden;     /* prevents distortion */
-            /* rounded square
-            margin: 0 0.5rem;
-            background-size: cover;
-            background-position: center;
-            flex-shrink: 0; */
-          }
-      
-      
-          .msg.bot .avatar {
-            /*background-color: #22c55e;*/
-            color: #022c22;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 0.75rem;
-            font-weight: 600;
-            margin-top: 1.25rem; /* adjust to taste */
-            margin-right: 0.50rem; /* 12px */
-          }
-      
-          /* Timestamp above bubble */
-          .timestamp {
-            font-size: 0.65rem;
-            color: #64748b;
-            margin-bottom: 0.25rem;  /* spacing below timestamp */
-            margin-top: 0;           /* remove old spacing */
-          }
-      
-      
-          /* Bot timestamps align left under the bubble */
-          .msg.bot .timestamp {
-            text-align: left;
-            align-self: flex-start;
-            padding-left: 4px;
-          }
-      
-          /* User timestamps align right, directly under user bubble */
-          .msg.user .timestamp {
-            text-align: right;
-            align-self: flex-end;
-            padding-right: 4px;
-          }
-      
-      
-          .message-text p {
-            margin: 0.5rem 0;
-          }
-      
-          .message-text ul {
-            margin: 0.5rem 0;
-            padding-left: 1.2rem;
-          }
-      
-          .message-text li {
-            margin-bottom: 0.3rem;
-          }
-      
-          .message-text a {
-            color: #22c55e;
-            text-decoration: none;
-            word-break: break-word;
-          }
-      
-          .message-text a:hover {
-            text-decoration: underline;
-          }
-      
-          .message-text strong {
-            font-weight: 600;
-          }
-      
-          .message-text em {
-            font-style: italic;
-          }
-      
-          .typing-dots {
-            display: inline-flex;
-            align-items: center;
-            transform: translateY(-2px);
-            /* raise it */
-          }
-      
-          .typing-dots span {
-            width: 6px;
-            height: 6px;
-            margin: 0 3px;
-            background-color: #022c22;
-            border-radius: 50%;
-            display: inline-block;
-            animation: pulse 1s infinite ease-in-out;
-          }
-      
-          .typing-dots span:nth-child(2) {
-            animation-delay: 0.2s;
-          }
-      
-          .typing-dots span:nth-child(3) {
-            animation-delay: 0.4s;
-          }
-      
-          @keyframes pulse {
-      
-            0%,
-            100% {
-              opacity: 0.3;
-              transform: scale(0.7);
-            }
-      
-            50% {
-              opacity: 1;
-              transform: scale(1);
-            }
-          }
-      
-      
-      
-          .dots-anim {
-            display: inline-block;
-          }
-      
-          .dots-anim span {
-            font-size: 1.25rem;
-            animation: blink 1.4s infinite both;
-            opacity: 0.3;
-          }
-      
-          .dots-anim span:nth-child(1) {
-            animation-delay: 0s;
-          }
-      
-          .dots-anim span:nth-child(2) {
-            animation-delay: 0.2s;
-          }
-      
-          .dots-anim span:nth-child(3) {
-            animation-delay: 0.4s;
-          }
-      
-          @keyframes blink {
-            0% {
-              opacity: 0.3;
-            }
-      
-            20% {
-              opacity: 1;
-            }
-      
-            100% {
-              opacity: 0.3;
-            }
-          }
-      
-          @keyframes fadeInUp {
-            from {
-              opacity: 0;
-              transform: translateY(12px);
-            }
-      
-            to {
-              opacity: 1;
-              transform: translateY(0);
-            }
-          }
-      
-      
-          
-      /* TOP layer: chrome (logo + hamburger / X) */
-      #top-bar-chrome {
-        z-index: 300; /* higher than everything else */
-      }
-      
-      /* Menu: full-screen overlay, but under the chrome */
-      #mobile-menu {
-        z-index: 200 !important; /* above modals (z-[80]) but below top-bar-chrome */
-      }
-      
-      /* no special z-index needed on menu buttons */
-      #mobile-menu button {
-        z-index: 250 !important;
-      }
-      
-      
-          .chat-input-bar {
-            padding: 0.8rem 1rem;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            background: #f8fafc;
-            border-top: 1px solid #e2e8f0;
-            position: fixed;
-            left: 0;
-            right: 0;
-            bottom: 0rem;
-            /* above nav */
-            z-index: 30;
-          }
-      
-          /* Default hidden state */
-          #mobile-menu .mobile-menu-content {
-            opacity: 0;
-            transform: translateY(-12px);
-            transition:
-              opacity .3s cubic-bezier(0.16, 1, 0.3, 1),
-              transform .35s cubic-bezier(0.16, 1, 0.3, 1);
-          }
-      
-          /* Opening animation */
-          #mobile-menu.show-links {
-            opacity: 1;
-          }
-      
-          #mobile-menu.show-links .mobile-menu-content {
-            opacity: 1;
-            transform: translateY(0);
-          }
-      
-          /* Closing fade-out ONLY */
-          #mobile-menu.fade-out .mobile-menu-content {
-            opacity: 0;
-            transform: translateY(0);
-            /* no slide on close */
-            transition: opacity .25s ease;
-          }
-      
-          /* When on chat screen: top bar becomes light grey */
-      body.chat-screen #top-bar {
-        color: #020617 !important;
-        /* if you want text on avatar label darker (you already do) */
-      }
-      
-      body.chat-screen #top-bar::before {
-        content: "";
-        position: absolute;
-        inset: 0;
-        background: #f8fafc;      /* grey strip behind everything */
-        z-index: 0;               /* under avatar */
-      }
-      
-          
-      #top-bar {
-        z-index: 20;              /* below menu, below chrome */
-      }
-      
-      
-          
-      /* chat screen: hamburger (closed) stays white */
-      body.chat-screen #menu-toggle:not(.menu-toggle-open)::before,
-      body.chat-screen #menu-toggle:not(.menu-toggle-open)::after,
-      body.chat-screen #menu-toggle:not(.menu-toggle-open) .menu-toggle-middle {
-        background: #FFFFFF !important;
-      }
-      
-      /* avatar on top of grey bar but under menu */
-      #chat-header-sandy {
-        z-index: 1;
-      }
-          
-          /* Switch logos appropriately */
-          body.chat-screen #logo-light {
-            display: none !important;
-          }
-      
-          body.chat-screen #logo-dark {
-            display: block !important;
-          }
-      
-          /* Show Sandy header only on chat screen */
-          body.chat-screen #chat-header-sandy {
-            display: flex;
-          }
-      
-         
-      
-          .chat-input-inner {
-            flex: 1;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-            border-radius: 999px;
-            background: #ffffff;
-            border: 1px solid #e2e8f0;
-            padding: 0.6rem 0.75rem;
-          }
-      
-          .chat-input-bar input[type="text"] {
-            flex: 1;
-            border: none;
-            background: transparent;
-            font-size: 1rem;
-            outline: none;
-            color: #1f2937;
-          }
-      
-          .chat-plus {
-            background: #0b1120;
-            border: none;
-            width: 2.5rem;
-            height: 2.5rem;
-            font-size: 1.2rem;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: #e5e7eb;
-          }
-      
-          .send-button {
-            background: #22c55e;
-            border: none;
-            width: 2.5rem;
-            height: 2.5rem;
-            border-radius: 50%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-            color: #022c22;
-          }
-      
-          /* Light mode chat screen */
-          #screen-chat {
-            color: #1f2937;
-            /* DO NOT set display or height here so .hidden can control it */
-          }
-      
-          #screen-chat>.flex-1 {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            min-height: 0;
-          }
-      
-      
-          .msg.user .bubble {
-            background: #e5e7eb;
-            color: #111827;
-          }
-      
-          .msg.bot .bubble {
-            background: #22c55e;
-            color: #022c22;
-          }
-      
-        
-      
-          .timestamp {
-            color: #64748b;
-          }
-      
-          /* Push chat content below the fixed top bar (h-20 = 5rem) */
-      body.chat-screen #screen-chat {
-        padding-top: 5rem; /* match header height (h-20) */
-      }
-      
-       /* NEW STYLES */
-      
-      /* Light surfaces for main screens (Home / Guides / Upgrades) */
-      #screen-home,
-      #screen-experiences,
-      #screen-upgrades {
-        background: #f5f5f5;
-        color: #020617;
-      }
-      
-      /* Home card heading + small label */
-      .home-property-label {
-        font-size: 0.7rem;
-        text-transform: uppercase;
-        letter-spacing: 0.16em;
-        color: #94a3b8;
-      }
-      
-      /* Big hero heading on Home / Guides / Upgrades */
-      .hero-heading {
-        font-size: 2rem;
-        line-height: 1.2;
-        font-weight: 600;
-      }
-      
-      /* White “polaroid” card with image (Home + Upgrades cards) */
-      .surface-card {
-        border-radius: 2rem;
-        background: #ffffff;
-        box-shadow:
-          0 20px 45px rgba(15, 23, 42, 0.16),
-          0 0 0 1px rgba(15, 23, 42, 0.04);
-      }
-      
-      /* Pill CTA buttons (Door / WiFi / purchase) */
-      .pill-button {
-        border-radius: 999px;
-        border-width: 1px;
-        padding: 0.9rem 1rem;
-        font-size: 0.95rem;
-        font-weight: 600;
-      }
-      
-      /* Black full-screen menu */
-      #mobile-menu {
-        background: #000000;
-        color: #f9fafb;
-      }
-      
-      #mobile-menu .mobile-menu-content {
-        justify-content: flex-start;
-      }
-      
-      #mobile-menu ul li button {
-        font-size: 2rem;       /* big menu items */
-        font-weight: 600;
-      }
-      
-      #mobile-menu .menu-label {
-        font-size: 0.7rem;
-        letter-spacing: 0.24em;
-        text-transform: uppercase;
-        color: #9ca3af;
-      }
-      
-      #mobile-menu .menu-footer {
-        font-size: 0.75rem;
-        color: #9ca3af;
-      }
-      
-      /* Guide detail full-page layout */
-      #guide-modal section {
-        border-radius: 0;
-        max-height: none;
-        max-width: 100%;
-      }
-      
-      /* Make the guide/upgrades detail screens feel like full pages */
-      #screen-guide-detail,
-      #screen-upgrade-detail {
-        background: #f5f5f5;
-        color: #020617;
-      }
-      
-      /* === Beats-style upgrades carousel === */
-      
-      .upgrades-carousel {
-        -webkit-overflow-scrolling: touch;
-        scrollbar-width: none;
-          overflow-x: auto;
-        overflow-y: hidden;
-      }
-      .upgrades-carousel::-webkit-scrollbar {
-        display: none;
-      }
-      
-      .upgrades-track {
-        padding-left: 80px;
-        padding-right: 80px;
-      }
-      
-      /* PARENT: do NOT clip shadow, give base z-index */
-      /* PARENT: do NOT clip shadow */
-      .upgrade-slide {
-        position: relative;
-        flex: 0 0 auto;
-        margin-right: -120px;  /* overlap */
-        transform-origin: center center;
-        will-change: transform;
-        cursor: pointer;
-        overflow: visible;      /* don't clip the shadow */
-        /* no z-index here; JS will control it */
-        transition:
-          transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
-          opacity 250ms ease;
-      }
-      
-      /* Active slide is always in front */
-      .upgrade-slide.is-active { }
-      .upgrade-slide.is-inactive { }
-      
-      /* INNER CARD: rounded, clipped, thick border, gets shadow */
-      .upgrade-card-inner {
-        width: 280px;
-        height: 360px;
-        background: #ffffff;
-        border-radius: 32px;
-        overflow: hidden;           /* clip image to rounded corners */
-        border: 4px solid #ffffff;  /* thick polaroid border */
-        transform-origin: center center;
-        transition:
-          box-shadow 300ms ease,
-          transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1),
-          opacity 250ms ease;
-      }
-      
-      
-      /* Make sure the image itself is clipped nicely */
-      .upgrade-slide img {
-        width: 100%;
-        height: 100%;
-        object-fit: cover;
-        display: block;
-      }
-      
-      /* Active centered card pops */
-      .upgrade-slide.is-active .upgrade-card-inner {
-        box-shadow: 0 10px 20px rgba(0,0,0,0.35);
-        transform: scale(1);
-      }
-      
-      /* Inactive cards sit back */
-      .upgrade-slide.is-inactive .upgrade-card-inner {
-        box-shadow: none;
-        transform: scale(0.7) translateY(4px);
-      }
-      
-      /* Add a white circle behind the X when menu is open */
-      #menu-toggle.menu-toggle-open {
-        background: white !important;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.15);
-      }
-      
-          body.guide-open #menu-toggle,
-      body.modal-open #menu-toggle {
-        display: none !important;
-      }
-      
-      /* open menu: black X on white circle */
-      #menu-toggle.menu-toggle-open { background: #fff !important; }
-      
-      #menu-toggle.menu-toggle-open::before,
-      #menu-toggle.menu-toggle-open::after,
-      #menu-toggle.menu-toggle-open .menu-toggle-middle {
-        background: #000 !important;
-      }
-      
-      .mobile-menu-content {
-        display: flex;
-        flex-direction: column;
-        height: 100%;
-      }
-      
-      .mobile-menu-content ul {
-        margin-top: auto;
-        margin-bottom: auto; /* centers vertically */
-      }
-      
-          #upgrades-carousel {
-        overflow-y: hidden;
-      }
-      
-          /* Pinterest-style masonry using CSS columns */
-      /*.masonry-columns {
-        column-count: 2;
-        column-gap: 12px;
-      }
-      @media (min-width: 768px) {
-        .masonry-columns { column-count: 3; }
-      }
-      .masonry-item {
-        break-inside: avoid;
-        -webkit-column-break-inside: avoid;
-        margin-bottom: 12px;
-        display: inline-block;
-        width: 100%;
-      }*/
-      
-          /* JS masonry (real columns) */
-      .masonry-columns {
-        display: flex;
-        gap: 12px;
-        align-items: flex-start;
-      }
-      
-      .masonry-col {
-        flex: 1;
-        min-width: 160px;   /* 👈 THIS IS THE KEY */
-        display: flex;
-        flex-direction: column;
-        gap: 12px;
-      }
-      
-      /* your existing card class can stay */
-      .masonry-item {
-        width: 100%;
-      }
-      
-          body.guide-open #top-bar-chrome,
-      body.guide-open #top-bar {
-        display: none !important;
-      }
-      
-          body.menu-open #top-bar-chrome {
-        display: block !important;
-      }
-      
-      
-          /* Hide top chrome (logo + hamburger) whenever any modal is open 
-      body.modal-open #top-bar-chrome {
-        display: none !important;
-      }*/
-      
-      /* Also ensure menu itself can’t appear above a modal */
-      body.modal-open #mobile-menu {
-        display: none !important;
-      }
-      
-      
-          body.modal-open #top-bar-chrome,
-      body.modal-open #top-bar {
-        display: none !important;
-      }
-      
-      /* extra safety: if anything remains mounted, it can't steal taps */
-      body.modal-open #top-bar-chrome,
-      body.modal-open #mobile-menu {
-        pointer-events: none !important;
-      }
-      
-      
-        </style>
-      
-        <script>
-          window.PROPERTY_ID = {{ property_id | tojson }};
-          window.PROPERTY_NAME = {{ property_name | tojson }};
-          window.SANDY_LIVE = {{ ("true" if is_live else "false") | tojson }};
-          window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
-        </script>
-      </head>
-      
-      <body class="min-h-screen bg-[#f5f5f5] text-slate-50 flex flex-col overflow-x-hidden">
-      
-        <!-- App shell with shared background image + gradient -->
-        <div id="app-shell" class="relative min-h-screen w-full max-w-full flex flex-col overflow-x-hidden bg-[#f5f5f5]">
-      
-          <!-- Gradient overlay -->
-          <div class="absolute inset-0 pointer-events-none"></div>
-      
-      
-          <!-- Foreground content -->
-          <div class="relative z-10 flex flex-col min-h-screen">
-      
-            <!-- Top header / nav -->
-            <header id="app-header" class="relative w-full">
-      
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>{{ property_name }} – Guest Experience</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!-- PWA / icons -->
+  <link rel="manifest" href="/manifest/{{ property_id }}.webmanifest" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="theme-color" content="#020617" />
+  <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
+
+  <!-- Tailwind CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <style>
+    html,
+    body {
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: 0.95rem;
+      overflow-x: hidden; /* only block horizontal scroll */
+    }
+
+    * { box-sizing: border-box; }
+
+    body.menu-open { overflow: hidden; }
+
+    /* Smooth fade on logo when we swap pngs */
+    #logo-img { transition: opacity 180ms ease; }
+
+    /* === Hamburger / X toggle for #menu-toggle === */
+    #menu-toggle { position: relative; }
+
+    /* Top + bottom bars (hamburger) */
+    #menu-toggle::before,
+    #menu-toggle::after {
+      content: "";
+      position: absolute;
+      left: 50%;
+      width: 24px;
+      height: 2px;
+      border-radius: 999px;
+      background: #ffffff; /* closed: white bars */
+      transform: translateX(-50%);
+      transition: transform 0.3s ease, opacity 0.3s ease, background-color 0.3s ease;
+    }
+    #menu-toggle::before { transform: translate(-50%, -6px); }
+    #menu-toggle::after  { transform: translate(-50%,  6px); }
+
+    /* Middle bar */
+    #menu-toggle .menu-toggle-middle {
+      width: 24px;
+      height: 2px;
+      border-radius: 999px;
+      background: #ffffff;
+      transition: opacity 0.3s ease, transform 0.3s ease, background-color 0.3s ease;
+    }
+
+    /* OPEN STATE → X */
+    #menu-toggle.menu-toggle-open::before { transform: translate(-50%, 0) rotate(45deg); }
+    #menu-toggle.menu-toggle-open::after  { transform: translate(-50%, 0) rotate(-45deg); }
+    #menu-toggle.menu-toggle-open .menu-toggle-middle {
+      opacity: 0;
+      transform: scaleX(0.5);
+    }
+
+    /* Chat screen: hamburger (closed) stays white (and visible on grey bar) */
+    body.chat-screen #menu-toggle:not(.menu-toggle-open)::before,
+    body.chat-screen #menu-toggle:not(.menu-toggle-open)::after,
+    body.chat-screen #menu-toggle:not(.menu-toggle-open) .menu-toggle-middle {
+      background: #ffffff !important;
+    }
+
+    /* Add a white circle behind the X when menu is open */
+    #menu-toggle.menu-toggle-open {
+      background: #ffffff !important;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    }
+    /* open menu: black X on white circle */
+    #menu-toggle.menu-toggle-open::before,
+    #menu-toggle.menu-toggle-open::after,
+    #menu-toggle.menu-toggle-open .menu-toggle-middle {
+      background: #000000 !important;
+    }
+
+    /* Hide hamburger while guide/modal is open */
+    body.guide-open #menu-toggle,
+    body.modal-open #menu-toggle {
+      display: none !important;
+    }
+
+    /* === Top bar layering === */
+    /* TOP layer: chrome (logo + hamburger / X) */
+    #top-bar-chrome { z-index: 300; }
+
+    /* Menu: full-screen overlay, but under chrome */
+    #mobile-menu { z-index: 200 !important; }
+
+    /* no special z-index needed on menu buttons, but safe */
+    #mobile-menu button { z-index: 250 !important; }
+
+    /* When on chat screen: top bar becomes light grey strip */
+    body.chat-screen #top-bar {
+      color: #020617 !important;
+    }
+    body.chat-screen #top-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: #f8fafc;
+      z-index: 0;
+    }
+
+    /* avatar on top of grey bar but under menu */
+    #chat-header-sandy { z-index: 1; }
+
+    /* base top-bar layer below chrome/menu */
+    #top-bar { z-index: 20; }
+
+    /* Push chat content below the fixed top bar (h-20 = 5rem) */
+    body.chat-screen #screen-chat { padding-top: 5rem; }
+
+    /* Default hidden state for menu content */
+    #mobile-menu .mobile-menu-content {
+      opacity: 0;
+      transform: translateY(-12px);
+      transition:
+        opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+        transform 0.35s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    /* Opening animation */
+    #mobile-menu.show-links { opacity: 1; }
+    #mobile-menu.show-links .mobile-menu-content {
+      opacity: 1;
+      transform: translateY(0);
+    }
+
+    /* Closing fade-out ONLY */
+    #mobile-menu.fade-out .mobile-menu-content {
+      opacity: 0;
+      transform: translateY(0);
+      transition: opacity 0.25s ease;
+    }
+
+    /* Black full-screen menu */
+    #mobile-menu {
+      background: #000000;
+      color: #f9fafb;
+    }
+
+    #mobile-menu .mobile-menu-content { justify-content: flex-start; }
+    #mobile-menu ul li button { font-size: 2rem; font-weight: 600; }
+    #mobile-menu .menu-footer { font-size: 0.75rem; color: #9ca3af; }
+
+    .mobile-menu-content {
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .mobile-menu-content ul {
+      margin-top: auto;
+      margin-bottom: auto; /* centers vertically */
+    }
+
+    /* Light surfaces for main screens (Home / Guides / Upgrades) */
+    #screen-home,
+    #screen-experiences,
+    #screen-upgrades {
+      background: #f5f5f5;
+      color: #020617;
+    }
+
+    /* ===== Chat UI ===== */
+    #chat-box {
+      font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+    }
+
+    .msg {
+      display: flex;
+      align-items: flex-start;
+      margin-bottom: 0.75rem;
+      animation: fadeInUp 0.35s ease-out both;
+      scroll-margin-bottom: 7rem;
+    }
+    .msg.user { justify-content: flex-end; }
+    .msg.bot  { justify-content: flex-start; }
+
+    .msg.user > div {
+      max-width: 70%;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-end;
+    }
+    .msg.bot > div:last-child {
+      max-width: 70%;
+      display: inline-flex;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .bubble {
+      display: inline-block;
+      padding: 0.6rem 1rem;
+      border-radius: 1rem;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      max-width: 100%;
+      font-size: 0.95rem;
+      line-height: 1.5;
+      word-wrap: break-word;
+    }
+
+    .msg.user .bubble { background: #e5e7eb; color: #111827; }
+    .msg.bot  .bubble { background: #22c55e; color: #022c22; }
+
+    .avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+    .avatar-sandy {
+      background-image: url("/static/img/sandy.png");
+      background-size: cover;
+      background-position: center;
+      background-color: transparent;
+    }
+    .msg.bot .avatar {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-top: 1.25rem;
+      margin-right: 0.5rem;
+    }
+
+    .timestamp {
+      font-size: 0.65rem;
+      color: #64748b;
+      margin-bottom: 0.25rem;
+      margin-top: 0;
+    }
+    .msg.bot  .timestamp { text-align: left;  align-self: flex-start; padding-left: 4px; }
+    .msg.user .timestamp { text-align: right; align-self: flex-end;  padding-right: 4px; }
+
+    .message-text p { margin: 0.5rem 0; }
+    .message-text ul { margin: 0.5rem 0; padding-left: 1.2rem; }
+    .message-text li { margin-bottom: 0.3rem; }
+    .message-text a { color: #22c55e; text-decoration: none; word-break: break-word; }
+    .message-text a:hover { text-decoration: underline; }
+    .message-text strong { font-weight: 600; }
+    .message-text em { font-style: italic; }
+
+    .typing-dots {
+      display: inline-flex;
+      align-items: center;
+      transform: translateY(-2px);
+    }
+    .typing-dots span {
+      width: 6px;
+      height: 6px;
+      margin: 0 3px;
+      background-color: #022c22;
+      border-radius: 50%;
+      display: inline-block;
+      animation: pulse 1s infinite ease-in-out;
+    }
+    .typing-dots span:nth-child(2) { animation-delay: 0.2s; }
+    .typing-dots span:nth-child(3) { animation-delay: 0.4s; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(0.7); }
+      50%      { opacity: 1;   transform: scale(1); }
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .chat-input-bar {
+      padding: 0.8rem 1rem;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: #f8fafc;
+      border-top: 1px solid #e2e8f0;
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 30;
+    }
+    .chat-input-inner {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      border-radius: 999px;
+      background: #ffffff;
+      border: 1px solid #e2e8f0;
+      padding: 0.6rem 0.75rem;
+    }
+    .chat-input-bar input[type="text"] {
+      flex: 1;
+      border: none;
+      background: transparent;
+      font-size: 1rem;
+      outline: none;
+      color: #1f2937;
+    }
+    .chat-plus {
+      background: #0b1120;
+      border: none;
+      width: 2.5rem;
+      height: 2.5rem;
+      font-size: 1.2rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #e5e7eb;
+    }
+    .send-button {
+      background: #22c55e;
+      border: none;
+      width: 2.5rem;
+      height: 2.5rem;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      color: #022c22;
+    }
+
+    #screen-chat {
+      color: #1f2937;
+      /* do NOT set display/height; .hidden controls it */
+    }
+    #screen-chat > .flex-1 {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    /* ===== Upgrades / masonry bits (kept minimal; your later CSS can extend) ===== */
+    .upgrades-carousel {
+      -webkit-overflow-scrolling: touch;
+      scrollbar-width: none;
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+    .upgrades-carousel::-webkit-scrollbar { display: none; }
+
+    .upgrades-track { padding-left: 80px; padding-right: 80px; }
+
+    .upgrade-slide {
+      position: relative;
+      flex: 0 0 auto;
+      margin-right: -120px;
+      transform-origin: center center;
+      will-change: transform;
+      cursor: pointer;
+      overflow: visible;
+      transition: transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 250ms ease;
+    }
+    .upgrade-card-inner {
+      width: 280px;
+      height: 360px;
+      background: #ffffff;
+      border-radius: 32px;
+      overflow: hidden;
+      border: 4px solid #ffffff;
+      transform-origin: center center;
+      transition: box-shadow 300ms ease, transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 250ms ease;
+    }
+    .upgrade-slide img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .upgrade-slide.is-active .upgrade-card-inner {
+      box-shadow: 0 10px 20px rgba(0,0,0,0.35);
+      transform: scale(1);
+    }
+    .upgrade-slide.is-inactive .upgrade-card-inner {
+      box-shadow: none;
+      transform: scale(0.7) translateY(4px);
+    }
+
+    /* JS masonry columns */
+    .masonry-columns {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+    }
+    .masonry-col {
+      flex: 1;
+      min-width: 160px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+    .masonry-item { width: 100%; }
+
+    /* Modal/menu safety */
+    body.guide-open #top-bar-chrome,
+    body.guide-open #top-bar { display: none !important; }
+
+    body.menu-open #top-bar-chrome { display: block !important; }
+
+    body.modal-open #mobile-menu { display: none !important; }
+
+    body.modal-open #top-bar-chrome,
+    body.modal-open #top-bar { display: none !important; }
+
+    body.modal-open #top-bar-chrome,
+    body.modal-open #mobile-menu { pointer-events: none !important; }
+  </style>
+
+  <script>
+    window.PROPERTY_ID = {{ property_id | tojson }};
+    window.PROPERTY_NAME = {{ property_name | tojson }};
+    window.SANDY_LIVE = {{ ("true" if is_live else "false") | tojson }};
+    window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
+  </script>
+</head>
+
+<body class="min-h-screen bg-[#f5f5f5] text-slate-50 flex flex-col overflow-x-hidden">
+  <!-- App shell -->
+  <div id="app-shell" class="relative min-h-screen w-full max-w-full flex flex-col overflow-x-hidden bg-[#f5f5f5]">
+    <div class="absolute inset-0 pointer-events-none"></div>
+
+    <div class="relative z-10 flex flex-col min-h-screen">
+      <!-- Top header / nav -->
+      <header id="app-header" class="relative w-full">
         <!-- BOTTOM LAYER: grey bar + Sandy avatar -->
-        <div id="top-bar"
-             class="fixed top-0 inset-x-0 h-20 bg-transparent text-white
-                    transition-colors duration-300">
-          <!-- Sandy avatar, centered in the bar -->
-          <div id="chat-header-sandy"
-               class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2
-                      hidden flex flex-col items-center pointer-events-none">
+        <div
+          id="top-bar"
+          class="fixed top-0 inset-x-0 h-20 bg-transparent text-white transition-colors duration-300"
+        >
+          <div
+            id="chat-header-sandy"
+            class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 hidden flex flex-col items-center pointer-events-none"
+          >
             <div class="avatar avatar-sandy shadow"></div>
             <span class="text-xs text-slate-900 mt-1">Sandy</span>
           </div>
         </div>
-      
-        <!-- TOP LAYER: logo + hamburger, always above menu + bar -->
-        <div id="top-bar-chrome"
-             class="fixed top-0 inset-x-0 h-20 z-[70]">
-          <div id="top-bar-inner"
-               class="max-w-3xl mx-auto flex items-center justify-between h-full px-5">
-            <!-- Logo -->
-            <a href="#" class="flex items-center gap-2">
-              <!-- default: white logo -->
-              <img id="logo-img"
-                   src="/static/img/neat-sleeps-white.png"
-                   alt="{{ property_name }}"
-                   class="h-7" />
+
+        <!-- TOP LAYER: logo + hamburger -->
+        <div id="top-bar-chrome" class="fixed top-0 inset-x-0 h-20">
+          <div id="top-bar-inner" class="max-w-3xl mx-auto flex items-center justify-between h-full px-5">
+            <a href="#" class="flex items-center gap-2" aria-label="Home">
+              <img
+                id="logo-img"
+                src="/static/img/neat-sleeps-white.png"
+                alt="{{ property_name }}"
+                class="h-7"
+              />
             </a>
-      
-            <!-- Hamburger -->
-            <button id="menu-toggle" type="button"
-                    class="relative w-12 h-12 flex items-center justify-center rounded-full bg-black
-             transition-transform duration-300 ease-in-out
-             hover:scale-115 active:scale-90"
-                    aria-label="Toggle navigation menu">
+
+            <button
+              id="menu-toggle"
+              type="button"
+              class="relative w-12 h-12 flex items-center justify-center rounded-full bg-black transition-transform duration-300 ease-in-out hover:scale-115 active:scale-90"
+              aria-label="Toggle navigation menu"
+              aria-controls="mobile-menu"
+              aria-expanded="false"
+            >
               <span class="menu-toggle-middle"></span>
             </button>
           </div>
         </div>
-      
       </header>
-      
-      
-            <!-- Full-screen slide-down mobile menu -->
+
+      <!-- Full-screen slide-down mobile menu -->
       <nav
         id="mobile-menu"
-        class="fixed inset-0 z-[80]
-               transform -translate-y-full pointer-events-none
-               transition-transform duration-700 ease-out"
+        class="fixed inset-0 transform -translate-y-full pointer-events-none transition-transform duration-700 ease-out"
         aria-label="Main navigation"
       >
-        <div
-          class="mobile-menu-content pt-24 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full justify-center items-center"
-        >
-         
-      
-          <!-- Main links -->
+        <div class="mobile-menu-content pt-24 pb-10 max-w-3xl mx-auto px-6 flex flex-col h-full justify-center items-center">
           <ul class="space-y-8">
             <li>
-              <button
-                type="button"
-                data-menu-screen="home"
-                class="w-full hover:text-[#CCCCCC] transition-colors"
-              >
+              <button type="button" data-menu-screen="home" class="w-full hover:text-[#CCCCCC] transition-colors">
                 Your Stay
               </button>
             </li>
             <li>
-              <button
-                type="button"
-                data-menu-screen="chat"
-                class="w-full  hover:text-[#CCCCCC] transition-colors"
-              >
+              <button type="button" data-menu-screen="chat" class="w-full hover:text-[#CCCCCC] transition-colors">
                 Chat with Sandy
               </button>
             </li>
             <li>
-              <button
-                type="button"
-                data-menu-screen="experiences"
-                class="w-full hover:text-[#CCCCCC] transition-colors"
-              >
+              <button type="button" data-menu-screen="experiences" class="w-full hover:text-[#CCCCCC] transition-colors">
                 Guides
               </button>
             </li>
             <li>
-              <button
-                type="button"
-                data-menu-screen="upgrades"
-                class="w-full hover:text-[#CCCCCC] transition-colors"
-              >
+              <button type="button" data-menu-screen="upgrades" class="w-full hover:text-[#CCCCCC] transition-colors">
                 Upgrades
               </button>
             </li>
           </ul>
-      
-      
-          <!-- Footer -->
+
           <div class="mt-auto pt-8 menu-footer">
-            <a href="https://www.hostscout.ai/"
-         target="_blank"
-         rel="noopener noreferrer"
-         class="text-[12px] text-[#9ca3af] hover:text-white transition">Powered by HostScout.AI</a>
+            <a
+              href="https://www.hostscout.ai/"
+              target="_blank"
+              rel="noopener noreferrer"
+              class="text-[12px] text-[#9ca3af] hover:text-white transition"
+            >
+              Powered by HostScout.AI
+            </a>
           </div>
         </div>
       </nav>
-      
-      
-      
-      
-      
-      
-            <!-- Main content area that swaps screens  overflow-hidden-->
-            <main id="screen-container" class="flex-1 flex flex-col" role="main">
-              
-              
-              
-              <!-- HOME -->
+
+      <!-- Main content area -->
+      <main id="screen-container" class="flex-1 flex flex-col" role="main">
+
+
+            
       <!-- HOME -->
       <section
         id="screen-home"
@@ -1635,47 +1107,7 @@
         </section>
       </div>
       
-      
-      
-      
-      
-      
-        <!-- Logout modal -->
-        <div id="logout-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/50 backdrop-blur-sm"
-          role="dialog" aria-modal="true" aria-labelledby="logout-title">
-          <div class="mx-4 w-full max-w-sm rounded-2xl bg-white p-5 shadow-xl">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <h2 id="logout-title" class="text-base font-semibold text-slate-900">Leaving already?</h2>
-                <p class="mt-1 text-sm text-slate-500">
-                  To regain access to {{ property_name }}, you’ll need to enter the last 4 digits of your booking phone
-                  number.
-                </p>
-              </div>
-              <button id="logout-close" type="button"
-                class="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700">
-                <span class="sr-only">Close</span>
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor"
-                  aria-hidden="true">
-                  <path fill-rule="evenodd"
-                    d="M10 8.586l4.95-4.95a1 1 0 111.414 1.414L11.414 10l4.95 4.95a1 1 0 01-1.414 1.414L10 11.414l-4.95 4.95a1 1 0 01-1.414-1.414L8.586 10l-4.95-4.95A1 1 0 115.05 3.636L10 8.586z"
-                    clip-rule="evenodd" />
-                </svg>
-              </button>
-            </div>
-      
-            <div class="mt-5 flex items-center justify-end gap-3">
-              <button id="logout-cancel" type="button"
-                class="rounded-full border border-slate-200 px-4 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
-                Cancel
-              </button>
-              <button id="logout-confirm" type="button"
-                class="rounded-full bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-800">
-                Log out
-              </button>
-            </div>
-          </div>
-        </div>
+
       
       <script>
   document.addEventListener("DOMContentLoaded", function () {
