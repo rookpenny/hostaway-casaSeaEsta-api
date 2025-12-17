@@ -633,31 +633,29 @@
       
             <!-- Details + buttons -->
             <div class="mt-8 space-y-8">
-              {% if arrival_date or departure_date %}
-              <!-- Arrival / Departure row -->
-              <div
-                class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm"
-              >
-                <div class="flex-1 pr-2">
-                  <p class="text-[11px] font-semibold text-[#666666] text-right">Arrival</p>
-                  <p id="arrival-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right">{{ arrival_date or "-" }}</p>
-                  <p id="checkin-time-span"
-                     class="mt-1 text-[20px] font-semibold text-[#000000] text-right pt-1">
-                    {{ checkin_time if checkin_time is defined and checkin_time else "4:00 PM" }}
-                  </p>
-
+              <!-- Arrival / Departure row (always present so JS can populate it after unlock) -->
+                <div class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm">
+                  <div class="flex-1 pr-2">
+                    <p class="text-[11px] font-semibold text-[#666666] text-right">Arrival</p>
+                    <p id="arrival-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right">
+                      {{ arrival_date or "-" }}
+                    </p>
+                    <p id="checkin-time-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right pt-1">
+                      {{ checkin_time if checkin_time is defined and checkin_time else "-" }}
+                    </p>
+                  </div>
+                
+                  <div class="flex-1 pl-2">
+                    <p class="text-[11px] font-semibold text-[#666666] text-left">Departure</p>
+                    <p id="departure-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left">
+                      {{ departure_date or "-" }}
+                    </p>
+                    <p id="checkout-time-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">
+                      {{ checkout_time if checkout_time is defined and checkout_time else "-" }}
+                    </p>
+                  </div>
                 </div>
-                <div class="flex-1 pl-2">
-                  <p class="text-[11px] font-semibold text-[#666666] text-left">Departure</p>
-                  <p id="departure-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left">{{ departure_date or "-" }}</p>
-                  <p id="checkout-time-span"
-                     class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">
-                    {{ checkout_time if checkout_time is defined and checkout_time else "10:00 AM" }}
-                  </p>
 
-                </div>
-              </div>
-              {% endif %}
       
               <!-- Door / WiFi buttons -->
               <div class="max-w-[360px] mx-auto grid grid-cols-2 gap-5">
@@ -1988,16 +1986,21 @@ function closeMenu() {
           }
 
           if (data.arrival_date) {
-            arrivalDate = data.arrival_date;
             const el = document.getElementById("arrival-date-span");
-            if (el) el.textContent = formatDateLong(arrivalDate);
+            if (el) el.textContent = formatDateLong(data.arrival_date);
           }
-
+          
           if (data.departure_date) {
-            departureDate = data.departure_date;
             const el = document.getElementById("departure-date-span");
-            if (el) el.textContent = formatDateLong(departureDate);
+            if (el) el.textContent = formatDateLong(data.departure_date);
           }
+          
+          const inEl = document.getElementById("checkin-time-span");
+          if (inEl) inEl.textContent = data.checkin_time || inEl.textContent || "-";
+          
+          const outEl = document.getElementById("checkout-time-span");
+          if (outEl) outEl.textContent = data.checkout_time || outEl.textContent || "-";
+
 
           // ✅ NEW: apply times if provided by backend
           if (data.checkin_time) {
