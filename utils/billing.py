@@ -82,6 +82,47 @@ def _record_charge(
         },
     )
 
+def sync_subscription_quantity_for_integration(db: Session, pmc: PMC, integration_id: int) -> int:
+    """
+    If you're using a Stripe subscription-based per-property model:
+    Set Stripe subscription quantity = number of enabled properties for THIS integration.
+
+    Uses proration_behavior='none' so changes apply next renewal (no mid-cycle charge/refund).
+    Returns enabled_count.
+
+    NOTE:
+    - This only works if pmc.stripe_subscription_id and pmc.stripe_subscription_item_id are set.
+    - If you aren't using subscription quantities anymore (because you're invoicing per-property),
+      you can still keep this function just to satisfy imports, and it will no-op safely.
+    """
+    enabled_count = db.execute(
+        text("""
+            SELECT COUNT(*)
+            FROM public.properties
+            WHERE integration_id = :iid
+              AND sandy_enabled = TRUE
+        """),
+        {"iid": int(integration_id)},
+    ).scalar_one()
+
+    sub_id = (getattr(pmc, "stripe_subscription_id", None) or "").strip()
+    item_id = (getattr(pmc, "stripe_subscription_item_id", None) or "").strip()
+
+    # If you don't have a subscription wired up, just return the count (no-op)
+    if not sub_id or not item_id:
+        return int(enabled_count)
+
+    cfg = _stripe_config()
+    stripe.api_key = cfg.secret_key
+
+    stripe.Subscription.modify(
+        sub_id,
+        items=[{"id": item_id, "quantity": int(enabled_count)}],
+        proration_behavior="none",
+    )
+
+    return int(enabled_count)
+
 
 # ----------------------------
 # Public API
