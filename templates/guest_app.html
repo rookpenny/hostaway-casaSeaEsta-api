@@ -14,6 +14,7 @@
 
   <!-- Tailwind CDN -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/dompurify@3.1.6/dist/purify.min.js"></script>
 
   <style>
     html,
@@ -467,7 +468,7 @@
             <button
               id="menu-toggle"
               type="button"
-              class="relative w-12 h-12 flex items-center justify-center rounded-full bg-black transition-transform duration-300 ease-in-out hover:scale-115 active:scale-90"
+              class="relative w-12 h-12 flex items-center justify-center rounded-full bg-black transition-transform duration-300 ease-in-out hover:scale-125 active:scale-90"
               aria-label="Toggle navigation menu"
               aria-controls="mobile-menu"
               aria-expanded="false"
@@ -1131,7 +1132,6 @@
       return chatScreen && !chatScreen.classList.contains("hidden");
     }
 
-    const navButtons = document.querySelectorAll("nav .nav-item");
     const homeLogin = document.getElementById("home-login");
     const homeStay = document.getElementById("home-stay");
 
@@ -1211,7 +1211,12 @@
 
       if (guideModalBody) {
         if (guide.body_html) {
-          guideModalBody.innerHTML = guide.body_html;
+          guideModalBody.innerHTML = DOMPurify.sanitize(guide.body_html, {
+          USE_PROFILES: { html: true },
+          FORBID_TAGS: ["script", "iframe", "object", "embed"],
+          // keep STYLE allowed unless you truly want to strip all inline formatting
+          FORBID_ATTR: ["onerror", "onclick", "onload"],
+        });
           guideModalBody.classList.remove("whitespace-pre-line");
         } else if (guide.long_description) {
           guideModalBody.textContent = guide.long_description;
@@ -1259,11 +1264,7 @@
       });
     }
 
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && guideModal && !guideModal.classList.contains("hidden")) {
-        closeGuideModal();
-      }
-    });
+    
 
     function buildGuideFiltersFromGuides(guides) {
       if (!guidesFiltersContainer) return;
@@ -1354,22 +1355,10 @@
         cols.push(col);
       }
 
-      function getShortestCol() {
-        let best = cols[0];
-        let bestH = cols[0].offsetHeight;
-        for (let i = 1; i < cols.length; i++) {
-          const h = cols[i].offsetHeight;
-          if (h < bestH) {
-            bestH = h;
-            best = cols[i];
-          }
-        }
-        return best;
-      }
 
       visible.forEach((guide, index) => {
         const card = createGuideCard(guide, index);
-        getShortestCol().appendChild(card);
+        cols[index % cols.length].appendChild(card);
       });
     }
 
@@ -1391,7 +1380,7 @@
 
     // Keep guest name in sync across UI
     function updateGuestNameInUI(name) {
-      const nameEls = document.querySelectorAll("#guest-name-span, #guest-name-span-guides");
+      const nameEls = document.querySelectorAll("#guest-name-span");
       nameEls.forEach((el) => (el.textContent = name));
     }
 
@@ -1499,41 +1488,86 @@
 
     let chatHasWelcome = false;
 
-    async function loadGuidesIfNeeded() {
-      if (guidesState.loaded || guidesState.loading) return;
-      guidesState.loading = true;
+    let guidesAbortController = null;
 
-      try {
-        const res = await fetch(`/properties/${window.PROPERTY_ID}/guides`);
-        if (!res.ok) throw new Error("Failed to load guides");
+async function loadGuidesIfNeeded() {
+  if (guidesState.loaded || guidesState.loading) return;
 
-        const data = await res.json();
-        const guides = Array.isArray(data.guides) ? data.guides : [];
+  guidesState.loading = true;
 
-        guidesState.guides = guides;
-        guidesState.loaded = true;
+  // Abort any in-flight request
+  if (guidesAbortController) guidesAbortController.abort();
+  guidesAbortController = new AbortController();
 
-        if (!guides.length) {
-          guidesEmptyState?.classList.remove("hidden");
-          if (guidesGrid) guidesGrid.innerHTML = "";
-          return;
-        }
-
-        buildGuideFiltersFromGuides(guides);
-        renderGuidesGrid();
-      } catch (err) {
-        console.error("Error loading guides:", err);
-        if (guidesEmptyState) {
-          guidesEmptyState.textContent =
-            "We couldn’t load guides right now. Please try again in a moment.";
-          guidesEmptyState.classList.remove("hidden");
-        }
-      } finally {
-        guidesState.loading = false;
-      }
+  try {
+    // Reset UI state
+    guidesEmptyState?.classList.add("hidden");
+    if (guidesEmptyState) {
+      guidesEmptyState.textContent =
+        "We don’t have any guides yet for this stay. Check back soon or ask Sandy for local tips.";
     }
 
+    const res = await fetch(`/properties/${window.PROPERTY_ID}/guides`, {
+      signal: guidesAbortController.signal,
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+      credentials: "include",
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to load guides (${res.status})`);
+    }
+
+    let data;
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error("Guides response was not valid JSON");
+    }
+
+    const guides = Array.isArray(data?.guides) ? data.guides : [];
+
+    guidesState.guides = guides;
+    guidesState.loaded = true;
+
+    if (!guides.length) {
+      if (guidesGrid) guidesGrid.innerHTML = "";
+      guidesEmptyState?.classList.remove("hidden");
+      return;
+    }
+
+    buildGuideFiltersFromGuides(guides);
+    renderGuidesGrid();
+  } catch (err) {
+    // Ignore abort errors (navigation / re-call)
+    if (err?.name === "AbortError") return;
+
+    console.error("Error loading guides:", err);
+
+    // Optional: clear grid so you don’t show stale content
+    if (guidesGrid) guidesGrid.innerHTML = "";
+
+    if (guidesEmptyState) {
+      guidesEmptyState.textContent =
+        "We couldn’t load guides right now. Please try again in a moment.";
+      guidesEmptyState.classList.remove("hidden");
+    }
+
+    // Let it retry later
+    guidesState.loaded = false;
+  } finally {
+    guidesState.loading = false;
+  }
+}
+
+
     function showScreen(name) {
+      const sandy = document.getElementById("chat-header-sandy");
+      if (sandy) {
+        if (name === "chat") sandy.classList.remove("hidden");
+        else sandy.classList.add("hidden");
+      }
+            
       Object.entries(screens).forEach(([key, el]) => {
         if (!el) return;
         if (key === name) el.classList.remove("hidden");
@@ -1790,49 +1824,54 @@
       }, 120);
     }
 
-    function openMenu() {
-      if (!mobileMenu) return;
-      isMenuOpen = true;
+function openMenu() {
+  if (!mobileMenu) return;
+  isMenuOpen = true;
 
-      mobileMenu.classList.remove("fade-out");
-      mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
-      mobileMenu.classList.add("translate-y-0");
+  mobileMenu.classList.remove("fade-out");
+  mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
+  mobileMenu.classList.add("translate-y-0");
 
-      topBar?.classList.remove("bg-transparent", "text-white");
-      topBar?.classList.add("bg-slate-50", "text-slate-900");
+  topBar?.classList.remove("bg-transparent", "text-white");
+  topBar?.classList.add("bg-slate-50", "text-slate-900");
 
-      swapLogoWithFade(LOGO_BLACK);
-      menuToggle?.classList.add("menu-toggle-open");
-      document.body.classList.add("menu-open");
+  swapLogoWithFade(LOGO_BLACK);
+  menuToggle?.classList.add("menu-toggle-open");
+  document.body.classList.add("menu-open");
+  menuToggle?.setAttribute("aria-expanded", "true");
 
-      setTimeout(() => {
-        if (isMenuOpen && mobileMenu) mobileMenu.classList.add("show-links");
-      }, MOBILE_MENU_SLIDE_DURATION);
+  // show menu links after slide settles
+  setTimeout(() => {
+    if (isMenuOpen && mobileMenu) mobileMenu.classList.add("show-links");
+  }, MOBILE_MENU_SLIDE_DURATION);
+}
+
+function closeMenu() {
+  if (!mobileMenu) return;
+  isMenuOpen = false;
+
+  mobileMenu.classList.add("fade-out");
+  mobileMenu.classList.remove("show-links");
+
+  topBar?.classList.add("bg-transparent", "text-white");
+  topBar?.classList.remove("bg-slate-50", "text-slate-900");
+
+  if (document.body.classList.contains("chat-screen")) swapLogoWithFade(LOGO_BLACK);
+  else swapLogoWithFade(LOGO_WHITE);
+
+  menuToggle?.classList.remove("menu-toggle-open");
+  document.body.classList.remove("menu-open");
+  menuToggle?.setAttribute("aria-expanded", "false");
+
+  // wait for the slide to finish before yanking it offscreen
+  setTimeout(() => {
+    if (!isMenuOpen && mobileMenu) {
+      mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
+      mobileMenu.classList.remove("translate-y-0", "fade-out");
     }
+  }, MOBILE_MENU_SLIDE_DURATION);
+}
 
-    function closeMenu() {
-      if (!mobileMenu) return;
-      isMenuOpen = false;
-
-      mobileMenu.classList.add("fade-out");
-      mobileMenu.classList.remove("show-links");
-
-      topBar?.classList.add("bg-transparent", "text-white");
-      topBar?.classList.remove("bg-slate-50", "text-slate-900");
-
-      if (document.body.classList.contains("chat-screen")) swapLogoWithFade(LOGO_BLACK);
-      else swapLogoWithFade(LOGO_WHITE);
-
-      menuToggle?.classList.remove("menu-toggle-open");
-      document.body.classList.remove("menu-open");
-
-      setTimeout(() => {
-        if (!isMenuOpen && mobileMenu) {
-          mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
-          mobileMenu.classList.remove("translate-y-0", "fade-out");
-        }
-      }, MOBILE_MENU_LINKS_FADE_DURATION);
-    }
 
     menuToggle?.addEventListener("click", () => {
       if (isMenuOpen) closeMenu();
@@ -1875,39 +1914,14 @@
       });
     }
 
-    // Legacy bottom nav (safe if empty)
-    navButtons.forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const target = btn.getAttribute("data-screen");
-        if (!target) return;
-
-        if (!isUnlocked && target !== "home") {
-          const err = document.getElementById("unlock-error");
-          if (err) err.textContent =
-            "Please unlock your stay first with the last 4 digits of your booking phone number.";
-          showScreen("home");
-          return;
-        }
-        showScreen(target);
-      });
-    });
+    
 
     // Initial render
     updateHomeState();
     showScreen("home");
 
-    // Language
-    const langSelect = document.getElementById("language-select");
     function getSelectedLanguage() {
-      if (!langSelect) return "auto";
-      return langSelect.value || "auto";
-    }
-    if (langSelect) {
-      const saved = window.localStorage.getItem("guest_language");
-      if (saved) langSelect.value = saved;
-      langSelect.addEventListener("change", () => {
-        window.localStorage.setItem("guest_language", langSelect.value);
-      });
+      return "auto";
     }
 
     // Unlock flow
@@ -2013,7 +2027,7 @@
 
     // Check-in modal
     const checkinButton = document.getElementById("checkin-button");
-    const upgradesButton = document.getElementById("upgrades-button");
+    //const upgradesButton = document.getElementById("upgrades-button");
     const checkinModal = document.getElementById("checkin-modal");
     const checkinClose = document.getElementById("checkin-close");
     const checkinCodeEl = document.getElementById("checkin-code");
@@ -2095,10 +2109,10 @@
       if (e.target === checkinModal) closeCheckinModal();
     });
 
-    upgradesButton?.addEventListener("click", () => {
+    /*upgradesButton?.addEventListener("click", () => {
       if (!isUnlocked) return;
       showScreen("upgrades");
-    });
+    });*/
 
     // Chat logic
     const chatBox = document.getElementById("chat-box");
@@ -2141,9 +2155,8 @@
 
       escaped = escaped.replace(
         /(https?:\/\/[^\s]+)/g,
-        '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+        (m) => `<a href="${m}" target="_blank" rel="noopener noreferrer">${m}</a>`
       );
-
       return escaped.replace(/\n/g, "<br>");
     }
 
@@ -2216,6 +2229,16 @@
     function removeTyping() {
       document.getElementById("typing-indicator")?.remove();
     }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Escape") return;
+    
+      if (wifiModal && !wifiModal.classList.contains("hidden")) closeWifiModal();
+      if (checkinModal && !checkinModal.classList.contains("hidden")) closeCheckinModal();
+      if (guideModal && !guideModal.classList.contains("hidden")) closeGuideModal(); // ✅ add this
+    });
+
+
 
     async function sendChat() {
       const text = (chatInput?.value || "").trim();
