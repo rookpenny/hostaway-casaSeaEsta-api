@@ -1678,501 +1678,444 @@
         </div>
       
       <script>
-        document.addEventListener("DOMContentLoaded", function () {
-          // --- Screens + core elements ---
-          const screens = {
-            home: document.getElementById("screen-home"),
-            chat: document.getElementById("screen-chat"),
-            experiences: document.getElementById("screen-experiences"),
-            upgrades: document.getElementById("screen-upgrades"),
-            //upgradeDetail: document.getElementById("screen-upgrade-detail"),
-          };
-      
-          const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
-          const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
-      
-          // helper: are we currently on the chat screen?
-          function isChatVisible() {
-            const chatScreen = screens.chat;
-            return chatScreen && !chatScreen.classList.contains("hidden");
-          }
-      
-          const navButtons = document.querySelectorAll("nav .nav-item");
-          const homeLogin = document.getElementById("home-login");
-          const homeStay = document.getElementById("home-stay");
-          const headerEl = document.getElementById("app-header");
-          /*const upgradeModal = document.getElementById("upgrade-modal");
-          const upgradeModalClose = document.getElementById("upgrade-modal-close");*/
-      
-              // --- Guides / experiences (local tips) ---
-              // --- Guides / experiences (local tips) ---
-      
-          const guidesGrid = document.getElementById("guides-grid");
-          const guidesEmptyState = document.getElementById("guides-empty-state");
-          const guidesFiltersContainer = document.getElementById("guides-filters");
-      
-          const guideModal = document.getElementById("guide-modal");
-          const guideModalClose = document.getElementById("guide-modal-close");
-          const guideModalTitle = document.getElementById("guide-modal-title");
-          const guideModalBody = document.getElementById("guide-modal-body");
-      
-          const guidesState = {
-            loaded: false,
-            loading: false,
-            guides: [],
-            activeFilter: "all",
-          };
-      
-          // Build one card per guide (2-col grid, “blocks” like your mock)
-      function createGuideCard(guide, index) {
-        // 🔹 3-height masonry rhythm
-        let minHeight;
-        if (index % 4 === 0) {
-          minHeight = "320px"; // tall
-        } else if (index % 2 === 0) {
-          minHeight = "240px"; // medium
+  document.addEventListener("DOMContentLoaded", function () {
+    // --- Screens + core elements ---
+    const screens = {
+      home: document.getElementById("screen-home"),
+      chat: document.getElementById("screen-chat"),
+      experiences: document.getElementById("screen-experiences"),
+      upgrades: document.getElementById("screen-upgrades"),
+    };
+
+    const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
+    const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
+
+    // helper: are we currently on the chat screen?
+    function isChatVisible() {
+      const chatScreen = screens.chat;
+      return chatScreen && !chatScreen.classList.contains("hidden");
+    }
+
+    const navButtons = document.querySelectorAll("nav .nav-item");
+    const homeLogin = document.getElementById("home-login");
+    const homeStay = document.getElementById("home-stay");
+
+    // --- Guides / experiences (local tips) ---
+    const guidesGrid = document.getElementById("guides-grid");
+    const guidesEmptyState = document.getElementById("guides-empty-state");
+    const guidesFiltersContainer = document.getElementById("guides-filters");
+
+    const guideModal = document.getElementById("guide-modal");
+    const guideModalClose = document.getElementById("guide-modal-close");
+    const guideModalTitle = document.getElementById("guide-modal-title");
+    const guideModalBody = document.getElementById("guide-modal-body");
+
+    const guidesState = {
+      loaded: false,
+      loading: false,
+      guides: [],
+      activeFilter: "all",
+    };
+
+    // Build one card per guide (masonry rhythm)
+    function createGuideCard(guide, index) {
+      let minHeight;
+      if (index % 4 === 0) minHeight = "320px";
+      else if (index % 2 === 0) minHeight = "240px";
+      else minHeight = "180px";
+
+      const card = document.createElement("button");
+      card.type = "button";
+      card.className =
+        "masonry-item group relative overflow-hidden rounded-[24px] bg-slate-200 shadow-sm " +
+        "focus:outline-none focus:ring-2 focus:ring-slate-900 transition-transform active:scale-95 text-left w-full";
+      card.style.minHeight = minHeight;
+
+      const imageUrl =
+        guide.image_url ||
+        "{{ experiences_hero_url or hero_image_url or default_image_url }}";
+
+      const img = document.createElement("img");
+      img.src = imageUrl;
+      img.alt = guide.title || "Guide";
+      img.className =
+        "absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]";
+      card.appendChild(img);
+
+      const overlay = document.createElement("div");
+      overlay.className =
+        "absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent";
+      card.appendChild(overlay);
+
+      const textWrap = document.createElement("div");
+      textWrap.className =
+        "absolute inset-x-3 bottom-3 text-left text-white space-y-1";
+      card.appendChild(textWrap);
+
+      const titleEl = document.createElement("h2");
+      titleEl.className = "text-[13px] font-semibold leading-tight line-clamp-2";
+      titleEl.textContent = guide.title || "Guide";
+      textWrap.appendChild(titleEl);
+
+      if (guide.category) {
+        const catEl = document.createElement("p");
+        catEl.className = "text-[10px] opacity-80";
+        catEl.textContent = guide.category;
+        textWrap.appendChild(catEl);
+      }
+
+      card.addEventListener("click", () => openGuideModalFromGuide(guide));
+      return card;
+    }
+
+    function openGuideModalFromGuide(guide) {
+      if (!guideModal) return;
+      if (typeof closeMenu === "function") closeMenu();
+
+      if (guideModalTitle) guideModalTitle.textContent = guide.title || "Guide";
+
+      if (guideModalBody) {
+        if (guide.body_html) {
+          guideModalBody.innerHTML = guide.body_html;
+          guideModalBody.classList.remove("whitespace-pre-line");
+        } else if (guide.long_description) {
+          guideModalBody.textContent = guide.long_description;
+          guideModalBody.classList.add("whitespace-pre-line");
+        } else if (guide.short_description) {
+          guideModalBody.textContent = guide.short_description;
+          guideModalBody.classList.add("whitespace-pre-line");
         } else {
-          minHeight = "180px"; // short
+          guideModalBody.textContent = "";
+          guideModalBody.classList.add("whitespace-pre-line");
         }
-      
-        const card = document.createElement("button");
-        card.type = "button";
-      
-        // Required for CSS-columns masonry
-        card.className =
-          "masonry-item group relative overflow-hidden rounded-[24px] bg-slate-200 shadow-sm " +
-          "focus:outline-none focus:ring-2 focus:ring-slate-900 transition-transform active:scale-95 text-left w-full";
-      
-        card.style.minHeight = minHeight;
-      
-        const imageUrl =
-          guide.image_url ||
-          "{{ experiences_hero_url or hero_image_url or default_image_url }}";
-      
-        const img = document.createElement("img");
-        img.src = imageUrl;
-        img.alt = guide.title || "Guide";
-        img.className =
-          "absolute inset-0 h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]";
-        card.appendChild(img);
-      
-        const overlay = document.createElement("div");
-        overlay.className =
-          "absolute inset-0 bg-gradient-to-t from-black/60 via-black/10 to-transparent";
-        card.appendChild(overlay);
-      
-        const textWrap = document.createElement("div");
-        textWrap.className =
-          "absolute inset-x-3 bottom-3 text-left text-white space-y-1";
-        card.appendChild(textWrap);
-      
-        const titleEl = document.createElement("h2");
-        titleEl.className = "text-[13px] font-semibold leading-tight line-clamp-2";
-        titleEl.textContent = guide.title || "Guide";
-        textWrap.appendChild(titleEl);
-      
-        if (guide.category) {
-          const catEl = document.createElement("p");
-          catEl.className = "text-[10px] opacity-80";
-          catEl.textContent = guide.category;
-          textWrap.appendChild(catEl);
-        }
-      
-        card.addEventListener("click", () => openGuideModalFromGuide(guide));
-        return card;
       }
-      
-      
-      
-       function openGuideModalFromGuide(guide) {
-        if (!guideModal) return;
-      
-        // If the menu is open, close it so it doesn't mess with z-index/state
-        if (typeof closeMenu === "function") closeMenu();
-      
-        if (guideModalTitle) guideModalTitle.textContent = guide.title || "Guide";
-      
-        // Prefer HTML body if available
-        if (guideModalBody) {
-          if (guide.body_html) {
-            guideModalBody.innerHTML = guide.body_html;
-            guideModalBody.classList.remove("whitespace-pre-line");
-          } else if (guide.long_description) {
-            guideModalBody.textContent = guide.long_description;
-            guideModalBody.classList.add("whitespace-pre-line");
-          } else if (guide.short_description) {
-            guideModalBody.textContent = guide.short_description;
-            guideModalBody.classList.add("whitespace-pre-line");
-          } else {
-            guideModalBody.textContent = "";
-            guideModalBody.classList.add("whitespace-pre-line");
-          }
-        }
-      
-        // Show modal
-        guideModal.classList.remove("hidden");
-        guideModal.classList.add("flex");
-      
-        // 🔒 Lock background scroll (BODY + HTML fixes double scroll)
-        document.body.classList.add("overflow-hidden", "guide-open");
-        document.documentElement.classList.add("overflow-hidden");
-      
-        // ✅ Reset modal scroll to top (prevents weird mid-scroll opens)
-        const scroller = guideModal.querySelector(".overflow-y-auto");
-        if (scroller) scroller.scrollTop = 0;
-      }
-      
-      function closeGuideModal() {
-        if (!guideModal) return;
-      
-        guideModal.classList.add("hidden");
-        guideModal.classList.remove("flex");
-      
-        // 🔓 Restore scroll + clear modal state
-        document.body.classList.remove("overflow-hidden", "guide-open");
-        document.documentElement.classList.remove("overflow-hidden");
-      }
-      
-      
-      // --- make sure handlers are bound exactly once ---
-      if (guideModalClose) {
-        guideModalClose.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          closeGuideModal();
-        });
-      }
-      
-      if (guideModal) {
-        // click outside the content closes
-        guideModal.addEventListener("click", (e) => {
-          if (e.target === guideModal) closeGuideModal();
-        });
-      }
-      
-      // ESC closes
-      document.addEventListener("keydown", (e) => {
-        if (e.key === "Escape" && guideModal && !guideModal.classList.contains("hidden")) {
-          closeGuideModal();
-        }
+
+      guideModal.classList.remove("hidden");
+      guideModal.classList.add("flex");
+
+      document.body.classList.add("overflow-hidden", "guide-open");
+      document.documentElement.classList.add("overflow-hidden");
+
+      const scroller = guideModal.querySelector(".overflow-y-auto");
+      if (scroller) scroller.scrollTop = 0;
+    }
+
+    function closeGuideModal() {
+      if (!guideModal) return;
+
+      guideModal.classList.add("hidden");
+      guideModal.classList.remove("flex");
+
+      document.body.classList.remove("overflow-hidden", "guide-open");
+      document.documentElement.classList.remove("overflow-hidden");
+    }
+
+    if (guideModalClose) {
+      guideModalClose.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        closeGuideModal();
       });
-      
-      
-      
-          // Build filter chips from guide categories
-          function buildGuideFiltersFromGuides(guides) {
-            if (!guidesFiltersContainer) return;
-      
-            const categories = [
-              ...new Set(
-                guides
-                  .map((g) => g.category)
-                  .filter((c) => typeof c === "string" && c.trim() !== "")
-              ),
-            ];
-      
-            guidesFiltersContainer.innerHTML = "";
-      
-            // Make one button per category
-            categories.forEach((category) => {
-              const btn = document.createElement("button");
-              btn.type = "button";
-              btn.dataset.filter = category;
-              btn.textContent = category;
-              btn.className =
-                "guide-filter whitespace-nowrap px-3 py-1.5 rounded-full border " +
-                "border-slate-300 bg-white text-slate-900 text-[11px]";
-              btn.addEventListener("click", () => {
-                guidesState.activeFilter = category;
-                updateGuideFilterStates();
-                renderGuidesGrid();
-              });
-              guidesFiltersContainer.appendChild(btn);
-            });
-      
-            // Hook up the fixed “Sort by” button to reset filter to all
-            const sortButton = document.querySelector(
-              'button.guide-filter[data-filter="all"]'
-            );
-            if (sortButton) {
-              sortButton.addEventListener("click", () => {
-                guidesState.activeFilter = "all";
-                updateGuideFilterStates();
-                renderGuidesGrid();
-              });
-            }
-      
-            updateGuideFilterStates();
-          }
-      
-          function updateGuideFilterStates() {
-            const buttons = document.querySelectorAll(".guide-filter");
-            const active = guidesState.activeFilter;
-      
-            buttons.forEach((btn) => {
-              const filter = btn.dataset.filter;
-              const isActive =
-                active === "all" ? filter === "all" : filter === active;
-      
-              if (isActive) {
-                btn.classList.add("bg-slate-900", "text-white", "border-slate-900");
-                btn.classList.remove("bg-white", "text-slate-900", "border-slate-300");
-              } else if (filter !== "all") {
-                btn.classList.add("bg-white", "text-slate-900", "border-slate-300");
-                btn.classList.remove("bg-slate-900", "text-white", "border-slate-900");
-              }
-            });
-          }
-      
-      function getMasonryColumnCount() {
-        // match your breakpoint: 3 columns on md+
-        return window.matchMedia("(min-width: 768px)").matches ? 3 : 2;
+    }
+
+    if (guideModal) {
+      guideModal.addEventListener("click", (e) => {
+        if (e.target === guideModal) closeGuideModal();
+      });
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && guideModal && !guideModal.classList.contains("hidden")) {
+        closeGuideModal();
       }
-      
-      function renderGuidesGrid() {
-        if (!guidesGrid) return;
-      
-        // clear
-        guidesGrid.innerHTML = "";
-      
-        const filter = guidesState.activeFilter;
-        const visible =
-          filter === "all"
-            ? guidesState.guides
-            : guidesState.guides.filter((g) => g.category === filter);
-      
-        if (!visible.length) {
-          guidesEmptyState?.classList.remove("hidden");
-          return;
-        }
-        guidesEmptyState?.classList.add("hidden");
-      
-        // build columns
-        const colCount = getMasonryColumnCount();
-        const cols = [];
-      
-        for (let i = 0; i < colCount; i++) {
-          const col = document.createElement("div");
-          col.className = "masonry-col";
-          guidesGrid.appendChild(col);
-          cols.push(col);
-        }
-      
-        // helper: find shortest column
-        function getShortestCol() {
-          let best = cols[0];
-          let bestH = cols[0].offsetHeight;
-          for (let i = 1; i < cols.length; i++) {
-            const h = cols[i].offsetHeight;
-            if (h < bestH) {
-              bestH = h;
-              best = cols[i];
-            }
-          }
-          return best;
-        }
-      
-        // append cards into shortest column (Pinterest behavior)
-        visible.forEach((guide, index) => {
-          const card = createGuideCard(guide, index);
-          getShortestCol().appendChild(card);
-        });
-      }
-      
-      // OPTIONAL but recommended: reflow on resize so filters keep masonry nice
-      window.addEventListener("resize", () => {
-        if (screens?.experiences && !screens.experiences.classList.contains("hidden")) {
+    });
+
+    function buildGuideFiltersFromGuides(guides) {
+      if (!guidesFiltersContainer) return;
+
+      const categories = [
+        ...new Set(
+          guides
+            .map((g) => g.category)
+            .filter((c) => typeof c === "string" && c.trim() !== "")
+        ),
+      ];
+
+      guidesFiltersContainer.innerHTML = "";
+
+      categories.forEach((category) => {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.dataset.filter = category;
+        btn.textContent = category;
+        btn.className =
+          "guide-filter whitespace-nowrap px-3 py-1.5 rounded-full border border-slate-300 bg-white text-slate-900 text-[11px]";
+        btn.addEventListener("click", () => {
+          guidesState.activeFilter = category;
+          updateGuideFilterStates();
           renderGuidesGrid();
+        });
+        guidesFiltersContainer.appendChild(btn);
+      });
+
+      const sortButton = document.querySelector('button.guide-filter[data-filter="all"]');
+      if (sortButton) {
+        sortButton.addEventListener("click", () => {
+          guidesState.activeFilter = "all";
+          updateGuideFilterStates();
+          renderGuidesGrid();
+        });
+      }
+
+      updateGuideFilterStates();
+    }
+
+    function updateGuideFilterStates() {
+      const buttons = document.querySelectorAll(".guide-filter");
+      const active = guidesState.activeFilter;
+
+      buttons.forEach((btn) => {
+        const filter = btn.dataset.filter;
+        const isActive = active === "all" ? filter === "all" : filter === active;
+
+        if (isActive) {
+          btn.classList.add("bg-slate-900", "text-white", "border-slate-900");
+          btn.classList.remove("bg-white", "text-slate-900", "border-slate-300");
+        } else if (filter !== "all") {
+          btn.classList.add("bg-white", "text-slate-900", "border-slate-300");
+          btn.classList.remove("bg-slate-900", "text-white", "border-slate-900");
         }
       });
-      
-      
-         
-      
-      
-         
-      
-          // --- Global state ---
-          let isUnlocked = window.INITIAL_VERIFIED === "true";
-      
-          // TEMP: force unlocked during UI testing //REMOVE when live
-          //isUnlocked = true;
-      
-          let lastUnlockCode = null;
-          let currentSessionId = null;
-          let guestName = null;
-          let arrivalDate = null;
-          let departureDate = null;
-              let checkinTime = null;
-              let checkoutTime = null;
-      
-          // 🔹 helper: keep guest name in sync across all places we show it
-          function updateGuestNameInUI(name) {
-            const nameEls = document.querySelectorAll("#guest-name-span, #guest-name-span-guides");
-            nameEls.forEach((el) => {
-              el.textContent = name;
-            });
+    }
+
+    function getMasonryColumnCount() {
+      return window.matchMedia("(min-width: 768px)").matches ? 3 : 2;
+    }
+
+    function renderGuidesGrid() {
+      if (!guidesGrid) return;
+
+      guidesGrid.innerHTML = "";
+
+      const filter = guidesState.activeFilter;
+      const visible =
+        filter === "all"
+          ? guidesState.guides
+          : guidesState.guides.filter((g) => g.category === filter);
+
+      if (!visible.length) {
+        guidesEmptyState?.classList.remove("hidden");
+        return;
+      }
+      guidesEmptyState?.classList.add("hidden");
+
+      const colCount = getMasonryColumnCount();
+      const cols = [];
+
+      for (let i = 0; i < colCount; i++) {
+        const col = document.createElement("div");
+        col.className = "masonry-col";
+        guidesGrid.appendChild(col);
+        cols.push(col);
+      }
+
+      function getShortestCol() {
+        let best = cols[0];
+        let bestH = cols[0].offsetHeight;
+        for (let i = 1; i < cols.length; i++) {
+          const h = cols[i].offsetHeight;
+          if (h < bestH) {
+            bestH = h;
+            best = cols[i];
           }
-      
-          const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
-      
-          function saveGuestState() {
-              try {
-                const state = {
-                  isUnlocked,
-                  lastUnlockCode,
-                  sessionId: currentSessionId,
-                  guestName,
-                  arrivalDate,
-                  departureDate,
-                  checkinTime,
-                  checkoutTime,
-                };
-                window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
-              } catch (e) {
-                console.warn("Unable to save guest state:", e);
-              }
-            }
+        }
+        return best;
+      }
 
-      function loadGuestState() {
-  try {
-    const raw = window.localStorage.getItem(GUEST_STATE_KEY);
-    if (!raw) return null;
-
-    const state = JSON.parse(raw);
-    if (!state || typeof state !== "object") return null;
-
-    // ✅ Pro tip: clear stale guest state after checkout (departure date passed)
-    const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-    if (state.departureDate && typeof state.departureDate === "string" && state.departureDate < today) {
-      window.localStorage.removeItem(GUEST_STATE_KEY);
-      return null;
+      visible.forEach((guide, index) => {
+        const card = createGuideCard(guide, index);
+        getShortestCol().appendChild(card);
+      });
     }
 
-    // Restore core flags
-    if (state.isUnlocked === true) isUnlocked = true;
-    if (state.lastUnlockCode) lastUnlockCode = state.lastUnlockCode;
-    if (state.sessionId) currentSessionId = state.sessionId;
+    window.addEventListener("resize", () => {
+      if (screens?.experiences && !screens.experiences.classList.contains("hidden")) {
+        renderGuidesGrid();
+      }
+    });
 
-    // Guest name
-    if (state.guestName) {
-      guestName = state.guestName;
-      updateGuestNameInUI(guestName);
+    // --- Global state ---
+    let isUnlocked = window.INITIAL_VERIFIED === "true";
+    let lastUnlockCode = null;
+    let currentSessionId = null;
+    let guestName = null;
+    let arrivalDate = null;
+    let departureDate = null;
+    let checkinTime = null;
+    let checkoutTime = null;
+
+    // Keep guest name in sync across UI
+    function updateGuestNameInUI(name) {
+      const nameEls = document.querySelectorAll("#guest-name-span, #guest-name-span-guides");
+      nameEls.forEach((el) => (el.textContent = name));
     }
 
-    // Arrival date
-    if (state.arrivalDate) {
-      arrivalDate = state.arrivalDate;
-      const el = document.getElementById("arrival-date-span");
-      if (el) el.textContent = formatDateLong(arrivalDate);
+    const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
+
+    function saveGuestState() {
+      try {
+        const state = {
+          isUnlocked,
+          lastUnlockCode,
+          sessionId: currentSessionId,
+          guestName,
+          arrivalDate,
+          departureDate,
+          checkinTime,
+          checkoutTime,
+        };
+        window.localStorage.setItem(GUEST_STATE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn("Unable to save guest state:", e);
+      }
     }
 
-    // Departure date
-    if (state.departureDate) {
-      departureDate = state.departureDate;
-      const el = document.getElementById("departure-date-span");
-      if (el) el.textContent = formatDateLong(departureDate);
+    function formatDateLong(dateStr) {
+      if (!dateStr) return "-";
+      const date = new Date(dateStr + "T00:00:00"); // avoid timezone issues
+      return date.toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      });
     }
 
-    // Check-in time
-    if (state.checkinTime) {
-      checkinTime = state.checkinTime;
-      const el = document.getElementById("checkin-time-span");
-      if (el) el.textContent = checkinTime;
+    function loadGuestState() {
+      try {
+        const raw = window.localStorage.getItem(GUEST_STATE_KEY);
+        if (!raw) return null;
+
+        const state = JSON.parse(raw);
+        if (!state || typeof state !== "object") return null;
+
+        // ✅ Pro tip: clear stale guest state after checkout (departure date passed)
+        const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+        if (
+          state.departureDate &&
+          typeof state.departureDate === "string" &&
+          state.departureDate < today
+        ) {
+          window.localStorage.removeItem(GUEST_STATE_KEY);
+          return null;
+        }
+
+        if (state.isUnlocked === true) isUnlocked = true;
+        if (state.lastUnlockCode) lastUnlockCode = state.lastUnlockCode;
+        if (state.sessionId) currentSessionId = state.sessionId;
+
+        if (state.guestName) {
+          guestName = state.guestName;
+          updateGuestNameInUI(guestName);
+        }
+
+        if (state.arrivalDate) {
+          arrivalDate = state.arrivalDate;
+          const el = document.getElementById("arrival-date-span");
+          if (el) el.textContent = formatDateLong(arrivalDate);
+        }
+
+        if (state.departureDate) {
+          departureDate = state.departureDate;
+          const el = document.getElementById("departure-date-span");
+          if (el) el.textContent = formatDateLong(departureDate);
+        }
+
+        if (state.checkinTime) {
+          checkinTime = state.checkinTime;
+          const el = document.getElementById("checkin-time-span");
+          if (el) el.textContent = checkinTime;
+        }
+
+        if (state.checkoutTime) {
+          checkoutTime = state.checkoutTime;
+          const el = document.getElementById("checkout-time-span");
+          if (el) el.textContent = checkoutTime;
+        }
+
+        return state;
+      } catch (err) {
+        console.warn("Failed to load guest state:", err);
+        return null;
+      }
     }
 
-    // Check-out time
-    if (state.checkoutTime) {
-      checkoutTime = state.checkoutTime;
-      const el = document.getElementById("checkout-time-span");
-      if (el) el.textContent = checkoutTime;
-    }
-
-    return state;
-  } catch (err) {
-    console.warn("Failed to load guest state:", err);
-    return null;
-  }
-}
-
-
+    // Load any stored guest state immediately
+    loadGuestState();
 
     function updateHomeState() {
       if (isUnlocked) {
-        if (homeLogin) homeLogin.classList.add("hidden");
-        if (homeStay) homeStay.classList.remove("hidden");
+        homeLogin?.classList.add("hidden");
+        homeStay?.classList.remove("hidden");
       } else {
-        if (homeLogin) homeLogin.classList.remove("hidden");
-        if (homeStay) homeStay.classList.add("hidden");
+        homeLogin?.classList.remove("hidden");
+        homeStay?.classList.add("hidden");
       }
     }
 
     let chatHasWelcome = false;
 
+    async function loadGuidesIfNeeded() {
+      if (guidesState.loaded || guidesState.loading) return;
+      guidesState.loading = true;
 
-async function loadGuidesIfNeeded() {
-  if (guidesState.loaded || guidesState.loading) return;
-  guidesState.loading = true;
+      try {
+        const res = await fetch(`/properties/${window.PROPERTY_ID}/guides`);
+        if (!res.ok) throw new Error("Failed to load guides");
 
-  try {
-    const res = await fetch(`/properties/${window.PROPERTY_ID}/guides`);
-    if (!res.ok) throw new Error("Failed to load guides");
+        const data = await res.json();
+        const guides = Array.isArray(data.guides) ? data.guides : [];
 
-    const data = await res.json();
-    const guides = Array.isArray(data.guides) ? data.guides : [];
+        guidesState.guides = guides;
+        guidesState.loaded = true;
 
-    guidesState.guides = guides;
-    guidesState.loaded = true;
+        if (!guides.length) {
+          guidesEmptyState?.classList.remove("hidden");
+          if (guidesGrid) guidesGrid.innerHTML = "";
+          return;
+        }
 
-    if (!guides.length) {
-      guidesEmptyState?.classList.remove("hidden");
-      guidesGrid.innerHTML = "";
-      return;
+        buildGuideFiltersFromGuides(guides);
+        renderGuidesGrid();
+      } catch (err) {
+        console.error("Error loading guides:", err);
+        if (guidesEmptyState) {
+          guidesEmptyState.textContent =
+            "We couldn’t load guides right now. Please try again in a moment.";
+          guidesEmptyState.classList.remove("hidden");
+        }
+      } finally {
+        guidesState.loading = false;
+      }
     }
 
-    buildGuideFiltersFromGuides(guides);
-    renderGuidesGrid();
-  } catch (err) {
-    console.error("Error loading guides:", err);
-    if (guidesEmptyState) {
-      guidesEmptyState.textContent =
-        "We couldn’t load guides right now. Please try again in a moment.";
-      guidesEmptyState.classList.remove("hidden");
-    }
-  } finally {
-    guidesState.loading = false;
-  }
-}
-
-    
     function showScreen(name) {
-      // Show / hide screens
       Object.entries(screens).forEach(([key, el]) => {
         if (!el) return;
         if (key === name) el.classList.remove("hidden");
         else el.classList.add("hidden");
       });
 
-      // Toggle body class for chat-specific styling (top nav, hamburger, etc.)
-      if (name === "chat") {
-        document.body.classList.add("chat-screen");
-      } else {
-        document.body.classList.remove("chat-screen");
-      }
+      if (name === "chat") document.body.classList.add("chat-screen");
+      else document.body.classList.remove("chat-screen");
 
-      if (name === "experiences") {
-        loadGuidesIfNeeded();
-      }
+      if (name === "experiences") loadGuidesIfNeeded();
 
-      // After switching screens, update logo accordingly
       if (name === "chat") {
-        swapLogoWithFade(LOGO_BLACK);      // chat = black logo
+        swapLogoWithFade(LOGO_BLACK);
       } else if (!isMenuOpen) {
-        // Only switch back if the menu is not covering it
-        swapLogoWithFade(LOGO_WHITE);      // home/experiences = white logo
+        swapLogoWithFade(LOGO_WHITE);
       }
 
-      // Chat-specific behavior
       if (name === "chat") {
         if (
           window.SANDY_LIVE === "true" &&
@@ -2190,30 +2133,6 @@ async function loadGuidesIfNeeded() {
 
         scrollChatToBottom();
       }
-
-    }
-
-    // --- Upgrade cards → detail screen + purchase ---
-    const upgradeDetailTitle = document.getElementById("upgrade-detail-title");
-    const upgradeDetailBody = document.getElementById("upgrade-detail-body");
-    const upgradeDetailName = document.getElementById("upgrade-detail-name");
-    const upgradeDetailPrice = document.getElementById("upgrade-detail-price");
-    const upgradeDetailPriceBottom = document.getElementById("upgrade-detail-price-bottom");
-    const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
-
-
-    let currentUpgradeId = null;
-
-    if (upgradeDetailPurchase) {
-      upgradeDetailPurchase.addEventListener("click", async () => {
-        if (!currentUpgradeId) return;
-        try {
-          await purchaseUpgrade(currentUpgradeId, null);
-        } catch (e) {
-          console.error(e);
-          alert("Something went wrong starting checkout.");
-        }
-      });
     }
 
     // --- Stripe checkout for upgrades ---
@@ -2229,331 +2148,230 @@ async function loadGuidesIfNeeded() {
       );
 
       const data = await res.json();
-      if (data.checkout_url) {
-        window.location.href = data.checkout_url;
-      } else {
-        alert(data.detail || "Unable to start checkout, please try again.");
-      }
+      if (data.checkout_url) window.location.href = data.checkout_url;
+      else alert(data.detail || "Unable to start checkout, please try again.");
     }
 
+    // === Beats-style upgrades carousel behaviour ===
+    const upgradesCarousel = document.getElementById("upgrades-carousel");
+    const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
+    const upgradesTrack = document.querySelector(".upgrades-track");
 
-// === Beats-style upgrades carousel behaviour ===
-const upgradesCarousel = document.getElementById("upgrades-carousel");
-const upgradeSlides   = Array.from(document.querySelectorAll(".upgrade-slide"));
-const upgradesTrack   = document.querySelector(".upgrades-track");
+    const activeTitleEl = document.getElementById("upgrade-active-title");
+    const activeDescEl = document.getElementById("upgrade-active-description");
+    const activeButtonWrap = document.getElementById("upgrade-active-cta");
+    const activeInfoWrap = document.getElementById("upgrade-active-info");
+    const activeButton = document.getElementById("upgrade-active-button");
+    const activeButtonLabel = document.getElementById("upgrade-active-button-label");
 
-const activeTitleEl     = document.getElementById("upgrade-active-title");
-const activeDescEl      = document.getElementById("upgrade-active-description");
-const activeButtonWrap  = document.getElementById("upgrade-active-cta");
-const activeInfoWrap    = document.getElementById("upgrade-active-info");
-const activeButton      = document.getElementById("upgrade-active-button");
-const activeButtonLabel = document.getElementById("upgrade-active-button-label");
+    let activeUpgradeIndex = 0;
+    let activeUpgradeId = null;
 
-let activeUpgradeIndex = 0;
-let activeUpgradeId    = null;
+    let lastComputedActiveIndex = 0;
+    let scrollSnapTimeout = null;
 
-// keep track of the last “best” slide & a debounce timer
-let lastComputedActiveIndex = 0;
-let scrollSnapTimeout       = null;
-
-// Scroll so the slide's CENTER lines up with the container CENTER
-function snapToSlide(index) {
-  if (!upgradesCarousel) return;
-  const slide = upgradeSlides[index];
-  if (!slide) return;
-
-  const slideCenterX =
-    slide.offsetLeft + slide.offsetWidth / 2;
-  const targetScroll =
-    slideCenterX - upgradesCarousel.clientWidth / 2;
-
-  const maxScroll =
-    upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
-  const safeTarget = Math.min(Math.max(targetScroll, 0), maxScroll);
-
-  upgradesCarousel.scrollTo({
-    left: safeTarget,
-    behavior: "smooth",
-  });
-}
-
-function updateActiveUpgradeInfo(index) {
-  if (
-    !upgradeSlides.length ||
-    !activeTitleEl ||
-    !activeDescEl ||
-    !activeButton ||
-    !activeButtonLabel
-  ) return;
-
-  const slide = upgradeSlides[index];
-  if (!slide) return;
-
-  activeUpgradeIndex = index;
-  activeUpgradeId    = slide.getAttribute("data-upgrade-id") || null;
-
-  const title  = slide.getAttribute("data-upgrade-title")  || "";
-  const price  = slide.getAttribute("data-upgrade-price")  || "";
-  const longEl = slide.querySelector(".upgrade-long");
-  const body   = longEl ? longEl.textContent.trim() : "";
-
-  activeTitleEl.textContent     = title;
-  activeDescEl.textContent      = body || "";
-  activeButtonLabel.textContent = price ? `${price} – Purchase` : "Purchase";
-
-  activeInfoWrap?.classList.remove("hidden");
-  activeButtonWrap?.classList.remove("hidden");
-}
-
-    function formatDateLong(dateStr) {
-  if (!dateStr) return "-";
-
-  const date = new Date(dateStr + "T00:00:00"); // avoid timezone issues
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function updateUpgradeSlides() {
-  if (!upgradesCarousel || !upgradeSlides.length) return;
-
-  const containerRect = upgradesCarousel.getBoundingClientRect();
-  const centerX       = containerRect.left + containerRect.width / 2;
-
-  let bestIndex        = 0;
-  let smallestDistance = Infinity;
-
-  // 1) find the index of the center slide
-  upgradeSlides.forEach((slide, index) => {
-    const rect        = slide.getBoundingClientRect();
-    const slideCenter = rect.left + rect.width / 2;
-    const distance    = slideCenter - centerX;
-    const absDist     = Math.abs(distance);
-
-    if (absDist < smallestDistance) {
-      smallestDistance = absDist;
-      bestIndex        = index;
-    }
-  });
-
-  // 2) apply transforms + scale
-  upgradeSlides.forEach((slide, index) => {
-    const rect        = slide.getBoundingClientRect();
-    const slideCenter = rect.left + rect.width / 2;
-    const distance    = slideCenter - centerX;
-    const normalized  = distance / rect.width;
-
-    const maxShift   = 80;
-    const translateX = -normalized * maxShift;
-
-    const maxTilt = 14;
-    const rotateY = -normalized * maxTilt;
-
-    const cardInner = slide.querySelector(".upgrade-card-inner");
-    if (cardInner) {
-      const scaleBase = 0.7; // how small the back cards are
-      let scale;
-
-      if (index === bestIndex) {
-        // center card → full size
-        scale = 1;
-      } else {
-        // neighbors stay smaller (tweak factor 0.3 if you want)
-        const t = Math.min(Math.abs(normalized), 1); // 0 near center, 1 far
-        scale   = scaleBase + (1 - scaleBase) * (0.3 * (1 - t));
-        // if you want them all the SAME small size: scale = scaleBase;
-      }
-
-      cardInner.style.transform =
-        `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
-    }
-
-    const isActive = index === bestIndex;
-    slide.classList.toggle("is-active", isActive);
-    slide.classList.toggle("is-inactive", !isActive);
-
-    const indexDistance = Math.abs(index - bestIndex);
-    slide.style.zIndex  = String(100 - indexDistance);
-  });
-
-  updateActiveUpgradeInfo(bestIndex);
-  lastComputedActiveIndex = bestIndex;
-}
-
-// 🔹 NEW: one place that sets padding for the last slide AND
-// perfectly centers the first slide once everything has loaded
-function centerFirstSlide() {
-  if (!upgradesCarousel || !upgradeSlides.length) return;
-
-  const firstSlide     = upgradeSlides[0];
-  const containerWidth = upgradesCarousel.clientWidth;
-  const slideWidth     = firstSlide.offsetWidth;
-
-  // Ensure last slide can also center → add right padding
-  const lastSlide = upgradeSlides[upgradeSlides.length - 1];
-  if (upgradesTrack && lastSlide) {
-    const lastWidth          = lastSlide.offsetWidth;
-    const neededPaddingRight = (containerWidth - lastWidth) / 2;
-    const currentPaddingRight =
-      parseFloat(getComputedStyle(upgradesTrack).paddingRight) || 0;
-
-    upgradesTrack.style.paddingRight =
-      `${currentPaddingRight + neededPaddingRight}px`;
-  }
-
-  // Center the very first slide
-  const targetScroll =
-    firstSlide.offsetLeft - (containerWidth - slideWidth) / 2;
-
-  const maxScroll =
-    upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
-  const safeTarget = Math.min(Math.max(targetScroll, 0), maxScroll);
-
-  upgradesCarousel.scrollLeft = safeTarget;
-
-  // Once scroll is applied, compute transforms based on final positions
-  requestAnimationFrame(() => {
-    updateUpgradeSlides();
-  });
-}
-
-if (upgradesCarousel && upgradeSlides.length) {
-  // make sure vertical scroll doesn't appear
-  upgradesCarousel.style.overflowY = "hidden";
-
-  // Scroll handler: update transforms + schedule a snap
-  upgradesCarousel.addEventListener("scroll", () => {
-    updateUpgradeSlides();
-
-    if (scrollSnapTimeout) clearTimeout(scrollSnapTimeout);
-
-    scrollSnapTimeout = setTimeout(() => {
+    function snapToSlide(index) {
       if (!upgradesCarousel) return;
+      const slide = upgradeSlides[index];
+      if (!slide) return;
 
-      const maxScroll =
-        upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
-      const current       = upgradesCarousel.scrollLeft;
-      const edgeThreshold = 40; // px
+      const slideCenterX = slide.offsetLeft + slide.offsetWidth / 2;
+      const targetScroll = slideCenterX - upgradesCarousel.clientWidth / 2;
 
-      let indexToSnap = lastComputedActiveIndex;
+      const maxScroll = upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
+      const safeTarget = Math.min(Math.max(targetScroll, 0), maxScroll);
 
-      // If we’re near the right edge → force last card to center
-      if (maxScroll - current <= edgeThreshold) {
-        indexToSnap = upgradeSlides.length - 1;
-      }
-      // near left edge → force first card to center
-      else if (current <= edgeThreshold) {
-        indexToSnap = 0;
-      }
+      upgradesCarousel.scrollTo({ left: safeTarget, behavior: "smooth" });
+    }
 
-      snapToSlide(indexToSnap);
-    }, 120); // wait for user to stop scrolling
-  });
+    function updateActiveUpgradeInfo(index) {
+      if (!upgradeSlides.length || !activeTitleEl || !activeDescEl || !activeButtonLabel) return;
 
-  // Recalculate transforms on resize
-  window.addEventListener("resize", updateUpgradeSlides);
+      const slide = upgradeSlides[index];
+      if (!slide) return;
 
-  // Click a card → snap it into center
-  upgradeSlides.forEach((slide, index) => {
-    slide.addEventListener("click", () => {
-      snapToSlide(index);
-    });
-  });
+      activeUpgradeIndex = index;
+      activeUpgradeId = slide.getAttribute("data-upgrade-id") || null;
 
-  // 🔹 Perfect initial centering once the whole page (images/fonts) is ready
-  window.addEventListener("load", () => {
-    setTimeout(centerFirstSlide, 50);
-  });
-}
+      const title = slide.getAttribute("data-upgrade-title") || "";
+      const price = slide.getAttribute("data-upgrade-price") || "";
+      const longEl = slide.querySelector(".upgrade-long");
+      const body = longEl ? longEl.textContent.trim() : "";
 
+      activeTitleEl.textContent = title;
+      activeDescEl.textContent = body || "";
+      activeButtonLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 
+      activeInfoWrap?.classList.remove("hidden");
+      activeButtonWrap?.classList.remove("hidden");
+    }
 
-      // CTA button: purchase the currently active upgrade directly
-      if (activeButton) {
-        activeButton.addEventListener("click", async () => {
-          if (!activeUpgradeId) return;
-      
-          try {
-            await purchaseUpgrade(activeUpgradeId, null);
-          } catch (e) {
-            console.error(e);
-            alert("Something went wrong starting checkout.");
+    function updateUpgradeSlides() {
+      if (!upgradesCarousel || !upgradeSlides.length) return;
+
+      const containerRect = upgradesCarousel.getBoundingClientRect();
+      const centerX = containerRect.left + containerRect.width / 2;
+
+      let bestIndex = 0;
+      let smallestDistance = Infinity;
+
+      upgradeSlides.forEach((slide, index) => {
+        const rect = slide.getBoundingClientRect();
+        const slideCenter = rect.left + rect.width / 2;
+        const absDist = Math.abs(slideCenter - centerX);
+        if (absDist < smallestDistance) {
+          smallestDistance = absDist;
+          bestIndex = index;
+        }
+      });
+
+      upgradeSlides.forEach((slide, index) => {
+        const rect = slide.getBoundingClientRect();
+        const slideCenter = rect.left + rect.width / 2;
+        const distance = slideCenter - centerX;
+        const normalized = distance / rect.width;
+
+        const maxShift = 80;
+        const translateX = -normalized * maxShift;
+
+        const maxTilt = 14;
+        const rotateY = -normalized * maxTilt;
+
+        const cardInner = slide.querySelector(".upgrade-card-inner");
+        if (cardInner) {
+          const scaleBase = 0.7;
+          let scale;
+
+          if (index === bestIndex) scale = 1;
+          else {
+            const t = Math.min(Math.abs(normalized), 1);
+            scale = scaleBase + (1 - scaleBase) * (0.3 * (1 - t));
           }
-        });
+
+          cardInner.style.transform =
+            `translateX(${translateX}px) scale(${scale}) rotateY(${rotateY}deg)`;
+        }
+
+        const isActive = index === bestIndex;
+        slide.classList.toggle("is-active", isActive);
+        slide.classList.toggle("is-inactive", !isActive);
+
+        const indexDistance = Math.abs(index - bestIndex);
+        slide.style.zIndex = String(100 - indexDistance);
+      });
+
+      updateActiveUpgradeInfo(bestIndex);
+      lastComputedActiveIndex = bestIndex;
+    }
+
+    function centerFirstSlide() {
+      if (!upgradesCarousel || !upgradeSlides.length) return;
+
+      const firstSlide = upgradeSlides[0];
+      const containerWidth = upgradesCarousel.clientWidth;
+      const slideWidth = firstSlide.offsetWidth;
+
+      const lastSlide = upgradeSlides[upgradeSlides.length - 1];
+      if (upgradesTrack && lastSlide) {
+        const lastWidth = lastSlide.offsetWidth;
+        const neededPaddingRight = (containerWidth - lastWidth) / 2;
+        const currentPaddingRight =
+          parseFloat(getComputedStyle(upgradesTrack).paddingRight) || 0;
+
+        upgradesTrack.style.paddingRight = `${currentPaddingRight + neededPaddingRight}px`;
       }
 
+      const targetScroll = firstSlide.offsetLeft - (containerWidth - slideWidth) / 2;
+      const maxScroll = upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
+      upgradesCarousel.scrollLeft = Math.min(Math.max(targetScroll, 0), maxScroll);
 
+      requestAnimationFrame(updateUpgradeSlides);
+    }
 
+    if (upgradesCarousel && upgradeSlides.length) {
+      upgradesCarousel.style.overflowY = "hidden";
+
+      upgradesCarousel.addEventListener("scroll", () => {
+        updateUpgradeSlides();
+
+        if (scrollSnapTimeout) clearTimeout(scrollSnapTimeout);
+
+        scrollSnapTimeout = setTimeout(() => {
+          if (!upgradesCarousel) return;
+
+          const maxScroll = upgradesCarousel.scrollWidth - upgradesCarousel.clientWidth;
+          const current = upgradesCarousel.scrollLeft;
+          const edgeThreshold = 40;
+
+          let indexToSnap = lastComputedActiveIndex;
+          if (maxScroll - current <= edgeThreshold) indexToSnap = upgradeSlides.length - 1;
+          else if (current <= edgeThreshold) indexToSnap = 0;
+
+          snapToSlide(indexToSnap);
+        }, 120);
+      });
+
+      window.addEventListener("resize", updateUpgradeSlides);
+
+      upgradeSlides.forEach((slide, index) => {
+        slide.addEventListener("click", () => snapToSlide(index));
+      });
+
+      window.addEventListener("load", () => setTimeout(centerFirstSlide, 50));
+    }
+
+    if (activeButton) {
+      activeButton.addEventListener("click", async () => {
+        if (!activeUpgradeId) return;
+        try {
+          await purchaseUpgrade(activeUpgradeId, null);
+        } catch (e) {
+          console.error(e);
+          alert("Something went wrong starting checkout.");
+        }
+      });
+    }
 
     // --- Top bar sliding menu nav ---
     const topBar = document.getElementById("top-bar");
     const mobileMenu = document.getElementById("mobile-menu");
     const menuToggle = document.getElementById("menu-toggle");
-    const logoImg = document.getElementById("logo-img");   // 👈 new single logo
+    const logoImg = document.getElementById("logo-img");
     const menuLinks = document.querySelectorAll("[data-menu-screen]");
-    const topBarChrome = document.getElementById("top-bar-chrome");
     let isMenuOpen = false;
 
-    function hideHeaderChrome() {
-      topBarChrome?.classList.add("hidden");
-    }
-    
-    function showHeaderChrome() {
-      topBarChrome?.classList.remove("hidden");
-    }
+    const MOBILE_MENU_SLIDE_DURATION = 700;
+    const MOBILE_MENU_LINKS_FADE_DURATION = 250;
 
-    // match Tailwind duration-400 on the panel
-    const MOBILE_MENU_SLIDE_DURATION = 700;  // ms
-    const MOBILE_MENU_LINKS_FADE_DURATION = 250; // ms
-
-    // Fade-out → swap image → fade-in
     function swapLogoWithFade(newSrc) {
       if (!logoImg) return;
-
       const currentSrc = logoImg.getAttribute("src");
-      // If we're already on this logo (e.g. black → black), do nothing
       if (currentSrc === newSrc) return;
 
-      // fade out
       logoImg.style.opacity = "0";
-
-      // after fade-out, swap src, then fade back in
       setTimeout(() => {
         logoImg.src = newSrc;
         logoImg.style.opacity = "1";
-      }, 120); // slightly less than CSS transition (180ms)
+      }, 120);
     }
 
     function openMenu() {
       if (!mobileMenu) return;
       isMenuOpen = true;
 
-      // Reset any closing state
       mobileMenu.classList.remove("fade-out");
-
-      // Slide panel down from top
       mobileMenu.classList.remove("-translate-y-full", "pointer-events-none");
       mobileMenu.classList.add("translate-y-0");
 
-      // Change top bar to light theme
       topBar?.classList.remove("bg-transparent", "text-white");
       topBar?.classList.add("bg-slate-50", "text-slate-900");
 
-      // fade to dark logo
       swapLogoWithFade(LOGO_BLACK);
-
-      // Animate hamburger → X
       menuToggle?.classList.add("menu-toggle-open");
-
       document.body.classList.add("menu-open");
 
-      // After panel finishes sliding, fade/slide in the links
       setTimeout(() => {
-        if (isMenuOpen && mobileMenu) {
-          mobileMenu.classList.add("show-links");
-        }
+        if (isMenuOpen && mobileMenu) mobileMenu.classList.add("show-links");
       }, MOBILE_MENU_SLIDE_DURATION);
     }
 
@@ -2561,27 +2379,18 @@ if (upgradesCarousel && upgradeSlides.length) {
       if (!mobileMenu) return;
       isMenuOpen = false;
 
-      // Start fade-out on menu links ONLY (no slide)
       mobileMenu.classList.add("fade-out");
       mobileMenu.classList.remove("show-links");
 
-      // Change top bar back to dark while content is fading
       topBar?.classList.add("bg-transparent", "text-white");
       topBar?.classList.remove("bg-slate-50", "text-slate-900");
 
-      // fade back based on current screen
-      if (document.body.classList.contains("chat-screen")) {
-        swapLogoWithFade(LOGO_BLACK);   // stay black on chat
-      } else {
-        swapLogoWithFade(LOGO_WHITE);   // white elsewhere
-      }
+      if (document.body.classList.contains("chat-screen")) swapLogoWithFade(LOGO_BLACK);
+      else swapLogoWithFade(LOGO_WHITE);
 
-      // Animate X → hamburger
       menuToggle?.classList.remove("menu-toggle-open");
-
       document.body.classList.remove("menu-open");
 
-      // AFTER links have faded out, slide the panel back up
       setTimeout(() => {
         if (!isMenuOpen && mobileMenu) {
           mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
@@ -2595,7 +2404,6 @@ if (upgradesCarousel && upgradeSlides.length) {
       else openMenu();
     });
 
-    // Clicking links changes screen + closes menu
     menuLinks.forEach((btn) => {
       btn.addEventListener("click", () => {
         const target = btn.getAttribute("data-menu-screen");
@@ -2603,10 +2411,8 @@ if (upgradesCarousel && upgradeSlides.length) {
 
         if (!isUnlocked && target !== "home") {
           const err = document.getElementById("unlock-error");
-          if (err) {
-            err.textContent =
-              "Please unlock your stay first with the last 4 digits of your booking phone number.";
-          }
+          if (err) err.textContent =
+            "Please unlock your stay first with the last 4 digits of your booking phone number.";
           showScreen("home");
         } else {
           showScreen(target);
@@ -2617,7 +2423,6 @@ if (upgradesCarousel && upgradeSlides.length) {
     });
 
     function scrollChatToBottom() {
-      // Only scroll when the chat screen is actually visible
       if (!isChatVisible()) return;
 
       requestAnimationFrame(() => {
@@ -2631,10 +2436,7 @@ if (upgradesCarousel && upgradeSlides.length) {
           body.offsetHeight
         );
 
-        window.scrollTo({
-          top: fullHeight,
-          behavior: "auto",
-        });
+        window.scrollTo({ top: fullHeight, behavior: "auto" });
       });
     }
 
@@ -2646,10 +2448,8 @@ if (upgradesCarousel && upgradeSlides.length) {
 
         if (!isUnlocked && target !== "home") {
           const err = document.getElementById("unlock-error");
-          if (err) {
-            err.textContent =
-              "Please unlock your stay first with the last 4 digits of your booking phone number.";
-          }
+          if (err) err.textContent =
+            "Please unlock your stay first with the last 4 digits of your booking phone number.";
           showScreen("home");
           return;
         }
@@ -2657,6 +2457,7 @@ if (upgradesCarousel && upgradeSlides.length) {
       });
     });
 
+    // Initial render
     updateHomeState();
     showScreen("home");
 
@@ -2668,9 +2469,7 @@ if (upgradesCarousel && upgradeSlides.length) {
     }
     if (langSelect) {
       const saved = window.localStorage.getItem("guest_language");
-      if (saved) {
-        langSelect.value = saved;
-      }
+      if (saved) langSelect.value = saved;
       langSelect.addEventListener("change", () => {
         window.localStorage.setItem("guest_language", langSelect.value);
       });
@@ -2691,9 +2490,7 @@ if (upgradesCarousel && upgradeSlides.length) {
       });
     }
 
-    if (unlockBtn) {
-      unlockBtn.addEventListener("click", attemptUnlock);
-    }
+    if (unlockBtn) unlockBtn.addEventListener("click", attemptUnlock);
 
     async function attemptUnlock() {
       const code = (unlockCodeInput?.value || "").trim();
@@ -2704,7 +2501,7 @@ if (upgradesCarousel && upgradeSlides.length) {
         return;
       }
 
-      if (unlockBtn) unlockBtn.disabled = true;
+      unlockBtn && (unlockBtn.disabled = true);
       unlockSpinner?.classList.remove("hidden");
 
       try {
@@ -2714,6 +2511,7 @@ if (upgradesCarousel && upgradeSlides.length) {
           credentials: "include",
           body: JSON.stringify({ code }),
         });
+
         const data = await res.json();
 
         if (!res.ok || !data.success) {
@@ -2727,6 +2525,7 @@ if (upgradesCarousel && upgradeSlides.length) {
 
         isUnlocked = true;
         lastUnlockCode = code;
+
         if (unlockError) unlockError.textContent = "";
         if (unlockCodeInput) unlockCodeInput.value = "";
 
@@ -2735,17 +2534,31 @@ if (upgradesCarousel && upgradeSlides.length) {
             guestName = data.guest_name;
             updateGuestNameInUI(guestName);
           }
+
           if (data.arrival_date) {
-              arrivalDate = data.arrival_date;
-              const arrEl = document.getElementById("arrival-date-span");
-              if (arrEl) arrEl.textContent = formatDateLong(arrivalDate);
-            }
-            
-            if (data.departure_date) {
-              departureDate = data.departure_date;
-              const depEl = document.getElementById("departure-date-span");
-              if (depEl) depEl.textContent = formatDateLong(departureDate);
-            }
+            arrivalDate = data.arrival_date;
+            const el = document.getElementById("arrival-date-span");
+            if (el) el.textContent = formatDateLong(arrivalDate);
+          }
+
+          if (data.departure_date) {
+            departureDate = data.departure_date;
+            const el = document.getElementById("departure-date-span");
+            if (el) el.textContent = formatDateLong(departureDate);
+          }
+
+          // ✅ NEW: apply times if provided by backend
+          if (data.checkin_time) {
+            checkinTime = data.checkin_time;
+            const el = document.getElementById("checkin-time-span");
+            if (el) el.textContent = checkinTime;
+          }
+
+          if (data.checkout_time) {
+            checkoutTime = data.checkout_time;
+            const el = document.getElementById("checkout-time-span");
+            if (el) el.textContent = checkoutTime;
+          }
         } catch (e) {
           console.warn("Error applying PMS guest info to UI:", e);
         }
@@ -2755,12 +2568,10 @@ if (upgradesCarousel && upgradeSlides.length) {
         showScreen("home");
       } catch (err) {
         console.error(err);
-        if (unlockError) {
-          unlockError.textContent =
-            "Something went wrong while verifying. Please try again.";
-        }
+        if (unlockError) unlockError.textContent =
+          "Something went wrong while verifying. Please try again.";
       } finally {
-        if (unlockBtn) unlockBtn.disabled = false;
+        unlockBtn && (unlockBtn.disabled = false);
         unlockSpinner?.classList.add("hidden");
       }
     }
@@ -2771,107 +2582,88 @@ if (upgradesCarousel && upgradeSlides.length) {
     const checkinModal = document.getElementById("checkin-modal");
     const checkinClose = document.getElementById("checkin-close");
     const checkinCodeEl = document.getElementById("checkin-code");
-        // WiFi modal
+
+    // WiFi modal
     const wifiButton = document.getElementById("wifi-button");
     const wifiModal = document.getElementById("wifi-modal");
     const wifiClose = document.getElementById("wifi-close");
 
-function openWifiModal() {
-  if (!wifiModal) return;
-  if (typeof closeMenu === "function") closeMenu();
+    function openWifiModal() {
+      if (!wifiModal) return;
+      if (typeof closeMenu === "function") closeMenu();
 
-  wifiModal.classList.remove("hidden");
-  wifiModal.classList.add("flex");
+      wifiModal.classList.remove("hidden");
+      wifiModal.classList.add("flex");
 
-  document.body.classList.add("overflow-hidden", "modal-open");
-  document.documentElement.classList.add("overflow-hidden");
-}
+      document.body.classList.add("overflow-hidden", "modal-open");
+      document.documentElement.classList.add("overflow-hidden");
+    }
 
-function closeWifiModal() {
-  if (!wifiModal) return;
+    function closeWifiModal() {
+      if (!wifiModal) return;
 
-  wifiModal.classList.add("hidden");
-  wifiModal.classList.remove("flex");
+      wifiModal.classList.add("hidden");
+      wifiModal.classList.remove("flex");
 
-  document.body.classList.remove("overflow-hidden", "modal-open");
-  document.documentElement.classList.remove("overflow-hidden");
-}
+      document.body.classList.remove("overflow-hidden", "modal-open");
+      document.documentElement.classList.remove("overflow-hidden");
+    }
 
-if (wifiButton) {
-  wifiButton.addEventListener("click", (e) => {
-    e.preventDefault();
-    openWifiModal();
-  });
-}
+    wifiButton?.addEventListener("click", (e) => {
+      e.preventDefault();
+      openWifiModal();
+    });
 
-if (wifiClose) {
-  wifiClose.addEventListener("click", (e) => {
-    e.preventDefault();
-    e.stopPropagation();
-    closeWifiModal();
-  });
-}
+    wifiClose?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeWifiModal();
+    });
 
-if (wifiModal) {
-  wifiModal.addEventListener("click", (e) => {
-    if (e.target === wifiModal) closeWifiModal();
-  });
-}
-
+    wifiModal?.addEventListener("click", (e) => {
+      if (e.target === wifiModal) closeWifiModal();
+    });
 
     function openCheckinModal() {
-  if (!checkinModal) return;
+      if (!checkinModal) return;
+      if (typeof closeMenu === "function") closeMenu();
 
-  // Close menu if it’s open
-  if (typeof closeMenu === "function") closeMenu();
+      const code = lastUnlockCode || "----";
+      if (checkinCodeEl) checkinCodeEl.textContent = code;
 
-  const code = lastUnlockCode || "----";
-  if (checkinCodeEl) checkinCodeEl.textContent = code;
+      checkinModal.classList.remove("hidden");
+      checkinModal.classList.add("flex");
 
-  checkinModal.classList.remove("hidden");
-  checkinModal.classList.add("flex");
-
-  // ✅ hide top chrome + lock scroll
-  document.body.classList.add("overflow-hidden", "modal-open");
+      document.body.classList.add("overflow-hidden", "modal-open");
       document.documentElement.classList.add("overflow-hidden");
-}
-
-function closeCheckinModal() {
-  if (!checkinModal) return;
-
-  checkinModal.classList.add("hidden");
-  checkinModal.classList.remove("flex");
-
-  // ✅ restore
-  document.body.classList.remove("overflow-hidden", "modal-open");
-  document.documentElement.classList.remove("overflow-hidden");
-}
-
-
-    if (checkinButton) {
-      checkinButton.addEventListener("click", openCheckinModal);
-    }
-    if (checkinClose) {
-      checkinClose.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        closeCheckinModal();
-      });
     }
 
-    if (checkinModal) {
-      checkinModal.addEventListener("click", (e) => {
-        if (e.target === checkinModal) closeCheckinModal();
-      });
+    function closeCheckinModal() {
+      if (!checkinModal) return;
+
+      checkinModal.classList.add("hidden");
+      checkinModal.classList.remove("flex");
+
+      document.body.classList.remove("overflow-hidden", "modal-open");
+      document.documentElement.classList.remove("overflow-hidden");
     }
 
-    // Upgrades screen shortcut (legacy button)
-    if (upgradesButton) {
-      upgradesButton.addEventListener("click", () => {
-        if (!isUnlocked) return;
-        showScreen("upgrades");
-      });
-    }
+    checkinButton?.addEventListener("click", openCheckinModal);
+
+    checkinClose?.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      closeCheckinModal();
+    });
+
+    checkinModal?.addEventListener("click", (e) => {
+      if (e.target === checkinModal) closeCheckinModal();
+    });
+
+    upgradesButton?.addEventListener("click", () => {
+      if (!isUnlocked) return;
+      showScreen("upgrades");
+    });
 
     // Chat logic
     const chatBox = document.getElementById("chat-box");
@@ -2879,15 +2671,11 @@ function closeCheckinModal() {
     const chatSend = document.getElementById("chat-send");
     const chatPlus = document.querySelector(".chat-plus");
 
-    // Elements that sit on top of the chat (fixed at bottom)
-    const chatInputBar = document.querySelector(".chat-input-bar");
-    const bottomNav = document.querySelector('nav[role="navigation"]');
-
     if (window.SANDY_LIVE === "false") {
       if (chatBox) {
         renderMessage(
           "Sandy is currently offline for this property 🌙\n\n" +
-          "For urgent questions, please contact your host directly via your booking app or email.",
+            "For urgent questions, please contact your host directly via your booking app or email.",
           "bot"
         );
       }
@@ -2895,8 +2683,8 @@ function closeCheckinModal() {
         chatInput.disabled = true;
         chatInput.placeholder = "Sandy is offline for this property.";
       }
-      if (chatSend) chatSend.disabled = true;
-      if (chatPlus) chatPlus.disabled = true;
+      chatSend && (chatSend.disabled = true);
+      chatPlus && (chatPlus.disabled = true);
     }
 
     function formatTime(date) {
@@ -2909,15 +2697,13 @@ function closeCheckinModal() {
     }
 
     function formatMessage(text) {
-      let escaped = text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
+      let escaped = text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
       escaped = escaped.replace(
         /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
         '<a href="$1" target="_blank" rel="noopener noreferrer" class="gmap-link">📍 View on Google Maps</a>'
       );
+
       escaped = escaped.replace(
         /(https?:\/\/[^\s]+)/g,
         '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
@@ -2935,7 +2721,6 @@ function closeCheckinModal() {
       const row = document.createElement("div");
       row.className = "msg " + (isUser ? "user" : "bot");
 
-      // Avatar (Sandy only)
       let avatar = null;
       if (!isUser) {
         avatar = document.createElement("div");
@@ -2955,18 +2740,13 @@ function closeCheckinModal() {
       column.appendChild(time);
       column.appendChild(bubble);
 
-      if (isUser) {
-        // user: bubble only
-        row.appendChild(column);
-      } else {
-        // bot: avatar + bubble
+      if (isUser) row.appendChild(column);
+      else {
         row.appendChild(avatar);
         row.appendChild(column);
       }
 
       chatBox.appendChild(row);
-
-      // only scroll if the chat screen is actually visible
       scrollChatToBottom();
     }
 
@@ -2999,8 +2779,7 @@ function closeCheckinModal() {
     }
 
     function removeTyping() {
-      const el = document.getElementById("typing-indicator");
-      if (el) el.remove();
+      document.getElementById("typing-indicator")?.remove();
     }
 
     async function sendChat() {
@@ -3041,21 +2820,12 @@ function closeCheckinModal() {
           saveGuestState();
         }
 
-        if (data.error) {
-          renderMessage(data.error, "bot");
-        } else {
-          renderMessage(
-            data.response || "Hmm, I didn’t catch that — could you try again? 🌴",
-            "bot"
-          );
-        }
+        if (data.error) renderMessage(data.error, "bot");
+        else renderMessage(data.response || "Hmm, I didn’t catch that — could you try again? 🌴", "bot");
       } catch (err) {
         console.error(err);
         removeTyping();
-        renderMessage(
-          "Oops! Something went wrong. Please try again in a moment. 🐚",
-          "bot"
-        );
+        renderMessage("Oops! Something went wrong. Please try again in a moment. 🐚", "bot");
       }
     }
 
@@ -3077,61 +2847,46 @@ function closeCheckinModal() {
     const logoutConfirm = document.getElementById("logout-confirm");
 
     function openLogoutModal() {
-      if (logoutModal) {
-        logoutModal.classList.remove("hidden");
-        logoutModal.classList.add("flex");
-      }
+      logoutModal?.classList.remove("hidden");
+      logoutModal?.classList.add("flex");
     }
 
     function closeLogoutModal() {
-      if (logoutModal) {
-        logoutModal.classList.add("hidden");
-        logoutModal.classList.remove("flex");
+      logoutModal?.classList.add("hidden");
+      logoutModal?.classList.remove("flex");
+    }
+
+    logoutButton?.addEventListener("click", (e) => {
+      e.preventDefault();
+      openLogoutModal();
+    });
+
+    logoutClose?.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeLogoutModal();
+    });
+
+    logoutCancel?.addEventListener("click", (e) => {
+      e.preventDefault();
+      closeLogoutModal();
+    });
+
+    logoutConfirm?.addEventListener("click", (e) => {
+      e.preventDefault();
+      try {
+        window.localStorage.removeItem(GUEST_STATE_KEY);
+      } catch (err) {
+        console.warn("Unable to clear guest state:", err);
       }
-    }
+      window.location.href = "/auth/logout";
+    });
 
-    if (logoutButton) {
-      logoutButton.addEventListener("click", (e) => {
-        e.preventDefault();
-        openLogoutModal();
-      });
-    }
-
-    if (logoutClose) {
-      logoutClose.addEventListener("click", (e) => {
-        e.preventDefault();
-        closeLogoutModal();
-      });
-    }
-
-    if (logoutCancel) {
-      logoutCancel.addEventListener("click", (e) => {
-        e.preventDefault();
-        closeLogoutModal();
-      });
-    }
-
-    if (logoutConfirm) {
-      logoutConfirm.addEventListener("click", (e) => {
-        e.preventDefault();
-        try {
-          window.localStorage.removeItem(GUEST_STATE_KEY);
-        } catch (err) {
-          console.warn("Unable to clear guest state:", err);
-        }
-        window.location.href = "/auth/logout";
-      });
-    }
-
-    if (logoutModal) {
-      logoutModal.addEventListener("click", (e) => {
-        if (e.target === logoutModal) {
-          closeLogoutModal();
-        }
-      });
-    }
+    logoutModal?.addEventListener("click", (e) => {
+      if (e.target === logoutModal) closeLogoutModal();
+    });
   });
 </script>
+
 
 
 </body>
