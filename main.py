@@ -737,11 +737,14 @@ def verify_json(
 
     # 9) success
     request.session[f"guest_verified_{property_id}"] = True
+    # after you've loaded cfg (however you do it in your app)
     return {
-        "success": True,
-        "guest_name": guest_name,
-        "arrival_date": arrival_date,
-        "departure_date": departure_date,
+      "success": True,
+      "guest_name": guest_name,
+      "arrival_date": arrival_date,
+      "departure_date": departure_date,
+      "checkin_time": cfg.get("checkin_time"),
+      "checkout_time": cfg.get("checkout_time"),
     }
 
 
