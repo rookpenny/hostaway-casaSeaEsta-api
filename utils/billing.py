@@ -4,7 +4,7 @@ from __future__ import annotations
 import os
 from dataclasses import dataclass
 from datetime import datetime, timezone, date
-from typing import Optional
+from typing import Optional, Tuple
 
 import stripe
 from sqlalchemy.orm import Session
@@ -42,13 +42,15 @@ def month_start_utc(dt: datetime) -> date:
 
 def _already_charged_this_month(db: Session, property_id: int, charge_month: date) -> bool:
     row = db.execute(
-        text("""
+        text(
+            """
             SELECT 1
             FROM property_monthly_charges
             WHERE property_id = :pid
               AND charge_month = :cm
             LIMIT 1
-        """),
+            """
+        ),
         {"pid": int(property_id), "cm": charge_month},
     ).first()
     return bool(row)
@@ -63,7 +65,8 @@ def _record_charge(
     stripe_invoice_item_id: str,
 ) -> None:
     db.execute(
-        text("""
+        text(
+            """
             INSERT INTO property_monthly_charges (
                 property_id,
                 charge_month,
@@ -73,7 +76,8 @@ def _record_charge(
             )
             VALUES (:pid, :cm, :inv, :ii, NOW())
             ON CONFLICT (property_id, charge_month) DO NOTHING
-        """),
+            """
+        ),
         {
             "pid": int(property_id),
             "cm": charge_month,
@@ -82,6 +86,33 @@ def _record_charge(
         },
     )
 
+
+def _invoice_item_args_from_price(price_id: str) -> Tuple[dict, str]:
+    """
+    InvoiceItems cannot accept Prices with type=recurring.
+    - If price is one_time: we can pass {"price": price_id}
+    - If price is recurring: we must pass {"unit_amount": ..., "currency": ...}
+    Returns (invoice_item_kwargs, source_type_label)
+    """
+    price_obj = stripe.Price.retrieve(price_id)
+    price_type = (price_obj.get("type") or "").strip().lower()  # "one_time" or "recurring"
+
+    if price_type == "one_time":
+        return {"price": price_id}, "one_time"
+
+    # recurring => convert to a one-time invoice line using unit_amount + currency
+    unit_amount = price_obj.get("unit_amount")
+    currency = price_obj.get("currency")
+
+    if unit_amount is None or not currency:
+        raise RuntimeError("Stripe Price missing unit_amount/currency; cannot invoice")
+
+    return {"unit_amount": int(unit_amount), "currency": str(currency)}, "recurring_as_onetime"
+
+
+# ----------------------------
+# Subscription quantity helper (safe no-op if unused)
+# ----------------------------
 def sync_subscription_quantity_for_integration(db: Session, pmc: PMC, integration_id: int) -> int:
     """
     If you're using a Stripe subscription-based per-property model:
@@ -90,36 +121,39 @@ def sync_subscription_quantity_for_integration(db: Session, pmc: PMC, integratio
     Uses proration_behavior='none' so changes apply next renewal (no mid-cycle charge/refund).
     Returns enabled_count.
 
-    NOTE:
-    - This only works if pmc.stripe_subscription_id and pmc.stripe_subscription_item_id are set.
-    - If you aren't using subscription quantities anymore (because you're invoicing per-property),
-      you can still keep this function just to satisfy imports, and it will no-op safely.
+    Safe behavior:
+    - If subscription IDs are missing, this is a no-op and simply returns enabled_count.
     """
     enabled_count = db.execute(
-        text("""
+        text(
+            """
             SELECT COUNT(*)
             FROM public.properties
             WHERE integration_id = :iid
               AND sandy_enabled = TRUE
-        """),
+            """
+        ),
         {"iid": int(integration_id)},
     ).scalar_one()
 
     sub_id = (getattr(pmc, "stripe_subscription_id", None) or "").strip()
     item_id = (getattr(pmc, "stripe_subscription_item_id", None) or "").strip()
 
-    # If you don't have a subscription wired up, just return the count (no-op)
     if not sub_id or not item_id:
         return int(enabled_count)
 
     cfg = _stripe_config()
     stripe.api_key = cfg.secret_key
 
-    stripe.Subscription.modify(
-        sub_id,
-        items=[{"id": item_id, "quantity": int(enabled_count)}],
-        proration_behavior="none",
-    )
+    try:
+        stripe.Subscription.modify(
+            sub_id,
+            items=[{"id": item_id, "quantity": int(enabled_count)}],
+            proration_behavior="none",
+        )
+    except Exception as e:
+        # Don't hard-fail app flows on billing sync; return the count and let caller decide.
+        print("[billing] sync_subscription_quantity_for_integration failed:", e)
 
     return int(enabled_count)
 
@@ -159,15 +193,26 @@ def charge_property_for_month_if_needed(db: Session, pmc: PMC, prop: Property) -
     if _already_charged_this_month(db, prop.id, cm):
         return False
 
-    # Create invoice item for this one property for this month
+    # InvoiceItems cannot use recurring Prices => adapt automatically
+    price_kwargs, source_type = _invoice_item_args_from_price(cfg.monthly_price_id)
+
+    # 1) Create invoice item (line item)
     invoice_item = stripe.InvoiceItem.create(
         customer=customer_id,
-        price=cfg.monthly_price_id,
         quantity=1,
         description=f"HostScout monthly — Property {prop.id} — {cm.isoformat()}",
+        metadata={
+            "pmc_id": str(pmc.id),
+            "property_id": str(prop.id),
+            "charge_month": cm.isoformat(),
+            "type": "property_monthly_charge",
+            "source_price_id": cfg.monthly_price_id,
+            "source_price_type": source_type,
+        },
+        **price_kwargs,
     )
 
-    # Create invoice + finalize (attempt charge automatically)
+    # 2) Create invoice + finalize (attempt charge automatically)
     invoice = stripe.Invoice.create(
         customer=customer_id,
         collection_method="charge_automatically",
@@ -182,7 +227,7 @@ def charge_property_for_month_if_needed(db: Session, pmc: PMC, prop: Property) -
 
     invoice = stripe.Invoice.finalize_invoice(invoice.id)
 
-    # Persist ledger (so we never double-charge this month)
+    # 3) Persist ledger (so we never double-charge this month)
     _record_charge(
         db,
         property_id=prop.id,
