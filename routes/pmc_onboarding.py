@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import stripe
-from datetime import datetime, timezone 
+from datetime import datetime, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Request, Depends, Form, HTTPException, Query
@@ -15,7 +15,7 @@ from database import get_db
 from models import PMC, PMCIntegration, PMCUser, Property
 
 from utils.pms_sync import sync_properties
-from utils.billing import charge_property_for_month_if_needed, sync_subscription_quantity_for_integration
+from utils.billing import charge_property_for_month_if_needed
 
 
 router = APIRouter()
@@ -69,7 +69,6 @@ def _require_pmc_for_session(db: Session, request: Request) -> PMC:
     if not email_l:
         raise HTTPException(status_code=403, detail="Not logged in")
 
-    # check for active PMCUser membership
     pmc_user = (
         db.query(PMCUser)
         .filter(
@@ -84,7 +83,6 @@ def _require_pmc_for_session(db: Session, request: Request) -> PMC:
         if pmc:
             return pmc
 
-    # fallback: latest PMC record with matching email
     pmc = (
         db.query(PMC)
         .filter(func.lower(PMC.email) == email_l)
@@ -102,9 +100,6 @@ def _require_pmc_for_session(db: Session, request: Request) -> PMC:
 # ----------------------------
 @router.get("/pmc/onboarding/pms", response_class=HTMLResponse)
 def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
-    """
-    Display PMS connection screen.  In the new flow, we do NOT block unpaid users here.
-    """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/pms")
     if redirect:
         return redirect
@@ -149,7 +144,6 @@ def onboarding_hostaway_import(
     if not account_id_clean or not hostaway_api_key:
         raise HTTPException(status_code=400, detail="Missing Hostaway credentials")
 
-    # 1) Upsert integration row (source of truth)
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.pmc_id == pmc.id, PMCIntegration.provider == provider)
@@ -164,11 +158,9 @@ def onboarding_hostaway_import(
     integ.api_secret = hostaway_api_key
     integ.is_connected = True
     integ.updated_at = datetime.utcnow()
-
     db.commit()
     db.refresh(integ)
 
-    # 2) Run sync (THIS is what was missing)
     try:
         synced = sync_properties(integration_id=integ.id)
     except Exception as e:
@@ -183,7 +175,6 @@ def onboarding_hostaway_import(
             },
         )
 
-    # 3) Refresh ORM view (sync uses its own Session/engine)
     db.expire_all()
 
     imported_count = (
@@ -215,12 +206,11 @@ def onboarding_hostaway_import(
             },
         )
 
-    # 4) Timestamp integration (optional but nice)
     integ.last_synced_at = datetime.utcnow()
     db.commit()
 
-    # 5) Redirect to properties selection and carry integration_id
     return RedirectResponse(f"/pmc/onboarding/properties?integration_id={integ.id}", status_code=303)
+
 
 # ----------------------------
 # GET: Choose properties to enable
@@ -258,11 +248,9 @@ def onboarding_properties_page(
     )
 
 
-
 # ----------------------------
 # POST: Save property choices and go to billing review
 # ----------------------------
-
 @router.post("/pmc/onboarding/properties")
 async def onboarding_properties_submit(
     request: Request,
@@ -277,7 +265,6 @@ async def onboarding_properties_submit(
 
     pmc = _require_pmc_for_session(db, request)
 
-    # Validate integration belongs to this PMC
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
@@ -295,15 +282,14 @@ async def onboarding_properties_submit(
         except (ValueError, TypeError):
             continue
 
-    # Only update properties under this integration
     props = (
         db.query(Property)
         .filter(Property.integration_id == integration_id)
         .all()
     )
 
-    # Track transitions OFF -> ON
-    turned_on = []
+    # Track transitions OFF -> ON so we can charge (only if already active)
+    turned_on: list[Property] = []
     for prop in props:
         old = bool(prop.sandy_enabled)
         new = (prop.id in selected_ids)
@@ -313,23 +299,20 @@ async def onboarding_properties_submit(
 
     db.commit()
 
-    # If already active customer, charge immediately for newly-enabled properties (once/month)
-    # If they haven't paid yet (no stripe_customer_id), this will no-op.
-    if getattr(pmc, "billing_status", None) == "active":
-        for prop in turned_on:
-            charge_property_for_month_if_needed(db, pmc, prop)
-        db.commit()
-
-        # Also set subscription quantity for next renewal (no proration)
-        sync_subscription_quantity_for_integration(db, pmc, integration_id)
-        db.commit()
+    # If already active, charge newly-enabled properties (once/month; ledger prevents doubles)
+    if (getattr(pmc, "billing_status", None) or "").lower() == "active":
+        try:
+            for prop in turned_on:
+                charge_property_for_month_if_needed(db, pmc, prop)
+            db.commit()
+        except Exception:
+            db.rollback()
+            # don’t block onboarding UI hard; they can retry toggling later if needed
 
     return RedirectResponse(
         f"/pmc/onboarding/billing-review?integration_id={integration_id}",
         status_code=303,
     )
-
-
 
 
 # ----------------------------
@@ -341,10 +324,6 @@ def onboarding_billing_review(
     integration_id: int = Query(...),
     db: Session = Depends(get_db),
 ):
-    """
-    Display pricing for the selected PMS integration.
-    Note: Stripe subscription checkout charges setup + first month at checkout.
-    """
     redirect = _require_login_or_redirect(
         request, f"/pmc/onboarding/billing-review?integration_id={integration_id}"
     )
@@ -373,10 +352,11 @@ def onboarding_billing_review(
         .count()
     )
 
+    # UI numbers (informational)
     setup_fee_cents = 49900
     monthly_cents_each = 999
     monthly_total_cents = enabled_count * monthly_cents_each
-    due_today_cents = setup_fee_cents + monthly_total_cents
+    due_today_cents = setup_fee_cents  # ✅ due today is setup only (monthly is charged on enable via invoicing)
 
     return templates.TemplateResponse(
         "pmc_onboarding_billing_review.html",
@@ -394,7 +374,7 @@ def onboarding_billing_review(
 
 
 # ----------------------------
-# POST: Create one Stripe checkout (setup fee + subscription)
+# POST: Create Stripe checkout (SETUP FEE ONLY)
 # ----------------------------
 @router.post("/pmc/onboarding/billing/checkout")
 def onboarding_billing_checkout(
@@ -410,7 +390,6 @@ def onboarding_billing_checkout(
 
     pmc = _require_pmc_for_session(db, request)
 
-    # Verify integration belongs to this PMC
     integ = (
         db.query(PMCIntegration)
         .filter(PMCIntegration.id == integration_id, PMCIntegration.pmc_id == pmc.id)
@@ -419,61 +398,52 @@ def onboarding_billing_checkout(
     if not integ:
         raise HTTPException(status_code=404, detail="Integration not found")
 
-    # Count enabled properties for this integration
     enabled_count = (
         db.query(Property)
-        .filter(
-            Property.integration_id == integration_id,
-            Property.sandy_enabled.is_(True),
-        )
+        .filter(Property.integration_id == integration_id, Property.sandy_enabled.is_(True))
         .count()
     )
     if enabled_count <= 0:
-        return RedirectResponse(
-            f"/pmc/onboarding/properties?integration_id={integration_id}",
-            status_code=303,
-        )
+        return RedirectResponse(f"/pmc/onboarding/properties?integration_id={integration_id}", status_code=303)
 
-    # Env vars
     stripe_secret = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
     app_base = (os.getenv("APP_BASE_URL") or "").rstrip("/")
-    price_setup = (os.getenv("STRIPE_PRICE_SETUP_ONETIME") or "").strip()  # rename env var or change this key
-    price_monthly = (os.getenv("STRIPE_PRICE_PROPERTY_MONTHLY") or "").strip()
+    price_setup = (os.getenv("STRIPE_PRICE_SETUP_ONETIME") or "").strip()
 
     missing = []
-    if not stripe_secret: missing.append("STRIPE_SECRET_KEY")
-    if not app_base: missing.append("APP_BASE_URL")
-    if not price_setup: missing.append("STRIPE_PRICE_SETUP_ONETIME")
-    if not price_monthly: missing.append("STRIPE_PRICE_PROPERTY_MONTHLY")
+    if not stripe_secret:
+        missing.append("STRIPE_SECRET_KEY")
+    if not app_base:
+        missing.append("APP_BASE_URL")
+    if not price_setup:
+        missing.append("STRIPE_PRICE_SETUP_ONETIME")
     if missing:
         raise HTTPException(status_code=500, detail=f"Missing Stripe env vars: {', '.join(missing)}")
 
     stripe.api_key = stripe_secret
 
     email_l = _session_email(request)
-    customer_id = getattr(pmc, "stripe_customer_id", None)
+    customer_id = (getattr(pmc, "stripe_customer_id", None) or "").strip() or None
 
     checkout_kwargs = dict(
-        mode="subscription",
-        line_items=[
-            {"price": price_setup, "quantity": 1},
-            {"price": price_monthly, "quantity": int(enabled_count)},
-        ],
+        mode="payment",
+        line_items=[{"price": price_setup, "quantity": 1}],
         success_url=f"{app_base}/pmc/onboarding/billing/success?session_id={{CHECKOUT_SESSION_ID}}",
         cancel_url=f"{app_base}/pmc/onboarding/billing-review?integration_id={integration_id}",
         metadata={
             "pmc_id": str(pmc.id),
             "integration_id": str(integration_id),
-            "type": "pmc_full_activation",
-            "quantity": str(enabled_count),
+            "type": "pmc_setup_fee",
+            "enabled_count": str(enabled_count),
         },
     )
 
-    # ✅ IMPORTANT: do NOT use customer_creation in subscription mode
     if customer_id:
         checkout_kwargs["customer"] = customer_id
     else:
+        # Payment-mode supports customer_creation
         checkout_kwargs["customer_email"] = email_l or pmc.email
+        checkout_kwargs["customer_creation"] = "always"
 
     try:
         checkout = stripe.checkout.Session.create(**checkout_kwargs)
@@ -484,7 +454,7 @@ def onboarding_billing_checkout(
 
 
 # ----------------------------
-# GET: Checkout success -> store IDs and activate PMC (then show success page)
+# GET: Checkout success -> store customer + activate PMC + charge enabled properties for month
 # ----------------------------
 @router.get("/pmc/onboarding/billing/success", response_class=HTMLResponse)
 def onboarding_billing_success(
@@ -492,13 +462,6 @@ def onboarding_billing_success(
     session_id: str = Query(...),
     db: Session = Depends(get_db),
 ):
-    """
-    After Stripe checkout completes:
-    - verify this session belongs to this PMC
-    - store Stripe customer/subscription IDs
-    - activate the PMC
-    - show a friendly "Payment received" page (pmc_signup_success.html)
-    """
     redirect = _require_login_or_redirect(request, "/pmc/onboarding/billing/success")
     if redirect:
         return redirect
@@ -515,7 +478,6 @@ def onboarding_billing_success(
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Invalid Stripe session_id: {str(e)}")
 
-    # Must be completed/paid
     cs_status = (cs.get("status") or "").strip().lower()
     payment_status = (cs.get("payment_status") or "").strip().lower()
     if cs_status != "complete" or payment_status not in {"paid", "no_payment_required"}:
@@ -525,30 +487,22 @@ def onboarding_billing_success(
     cs_type = (metadata.get("type") or "").strip()
     cs_pmc_id = (metadata.get("pmc_id") or "").strip()
 
-    # Only accept the combined checkout here
-    if cs_type != "pmc_full_activation":
+    if cs_type != "pmc_setup_fee":
         return RedirectResponse("/admin/dashboard#properties", status_code=303)
 
-    # Prevent cross-account poisoning
     if cs_pmc_id and cs_pmc_id != str(pmc.id):
         raise HTTPException(status_code=403, detail="Checkout session does not match your account")
 
     checkout_session_id = cs.get("id")
-
-    # Idempotency: if already processed, just show success page
     last_seen = getattr(pmc, "last_stripe_checkout_session_id", None)
+
     if not last_seen or last_seen != checkout_session_id:
-        customer_id = cs.get("customer")          # cus_...
-        subscription_id = cs.get("subscription")  # sub_...
+        customer_id = cs.get("customer")  # cus_...
 
         if customer_id:
             _set_if_attr(pmc, "stripe_customer_id", customer_id)
-        if subscription_id:
-            _set_if_attr(pmc, "stripe_subscription_id", subscription_id)
 
         _set_if_attr(pmc, "last_stripe_checkout_session_id", checkout_session_id)
-
-        # Activate now (webhook can still backfill; this makes UX immediate)
         _set_if_attr(pmc, "billing_status", "active")
         _set_if_attr(pmc, "active", True)
         _set_if_attr(pmc, "sync_enabled", True)
@@ -556,7 +510,25 @@ def onboarding_billing_success(
 
         db.commit()
 
-    # ✅ Show friendly success screen
+        # After activation, charge any currently-enabled properties for this month (idempotent)
+        try:
+            integration_id = int((metadata.get("integration_id") or "0") or 0)
+        except Exception:
+            integration_id = 0
+
+        if integration_id:
+            enabled_props = (
+                db.query(Property)
+                .filter(Property.integration_id == integration_id, Property.sandy_enabled.is_(True))
+                .all()
+            )
+            try:
+                for prop in enabled_props:
+                    charge_property_for_month_if_needed(db, pmc, prop)
+                db.commit()
+            except Exception:
+                db.rollback()
+
     return templates.TemplateResponse(
         "pmc_signup_success.html",
         {
