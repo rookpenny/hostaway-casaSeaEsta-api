@@ -63,6 +63,9 @@ def get_pms_access_info(db: Session, pmc: PMC, prop: Property) -> AccessTuple:
     phone_last4 = door_code = reservation_id = guest_name = arrival_date = departure_date = None
 
     provider = _provider_for_property(pmc, prop)
+    integration = (getattr(prop, "provider", None) or getattr(pmc, "pms_integration", None) or "").lower()
+
+   
     if not provider:
         print("[PMS] No provider found for PMC/property")
         return phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date
