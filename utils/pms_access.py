@@ -1,5 +1,4 @@
 # utils/pms_access.py
-
 from __future__ import annotations
 
 from datetime import date, datetime
@@ -7,14 +6,52 @@ from typing import Optional, Tuple
 
 from sqlalchemy.orm import Session
 
-from models import PMC, Property, ChatSession
+from models import PMC, PMCIntegration, Property, ChatSession
 from utils.hostaway import get_upcoming_phone_for_listing
 
 
-def get_pms_access_info(
-    pmc: PMC,
-    prop: Property,
-) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str], Optional[str], Optional[str]]:
+AccessTuple = Tuple[
+    Optional[str],  # phone_last4
+    Optional[str],  # door_code
+    Optional[str],  # reservation_id
+    Optional[str],  # guest_name
+    Optional[str],  # arrival_date (YYYY-MM-DD)
+    Optional[str],  # departure_date (YYYY-MM-DD)
+]
+
+
+def _provider_for_property(pmc: PMC, prop: Property) -> str:
+    """
+    New source of truth: Property.provider (preferred), otherwise PMC.pms_integration (legacy fallback).
+    """
+    prop_provider = (getattr(prop, "provider", None) or "").strip().lower()
+    if prop_provider:
+        return prop_provider
+
+    # legacy fallback (try not to rely on this long-term)
+    pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower()
+    return pmc_provider
+
+
+def _integration_for_property(db: Session, prop: Property) -> Optional[PMCIntegration]:
+    """
+    New source of truth: Property.integration_id -> PMCIntegration row.
+    """
+    integration_id = getattr(prop, "integration_id", None)
+    if not integration_id:
+        return None
+
+    return (
+        db.query(PMCIntegration)
+        .filter(
+            PMCIntegration.id == int(integration_id),
+            PMCIntegration.pmc_id == int(prop.pmc_id),
+        )
+        .first()
+    )
+
+
+def get_pms_access_info(db: Session, pmc: PMC, prop: Property) -> AccessTuple:
     """
     Resolve guest phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date
     for a given property.
@@ -23,40 +60,51 @@ def get_pms_access_info(
         (phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date)
         or (None, None, None, None, None, None) if not found / not applicable.
     """
-    phone_last4: Optional[str] = None
-    door_code: Optional[str] = None
-    reservation_id: Optional[str] = None
-    guest_name: Optional[str] = None
-    arrival_date: Optional[str] = None
-    departure_date: Optional[str] = None
+    phone_last4 = door_code = reservation_id = guest_name = arrival_date = departure_date = None
 
-    integration = (prop.pms_integration or pmc.pms_integration or "").lower()
-
-    if not integration:
-        print("[PMS] No PMS integration configured for PMC/property")
+    provider = _provider_for_property(pmc, prop)
+    if not provider:
+        print("[PMS] No provider found for PMC/property")
         return phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date
 
-    if integration == "hostaway":
+    # ✅ Hostaway (integration-based)
+    if provider == "hostaway":
+        if not getattr(prop, "pms_property_id", None):
+            print("[Hostaway] Property missing pms_property_id")
+            return phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date
+
+        integ = _integration_for_property(db, prop)
+        if not integ:
+            print("[Hostaway] Property missing integration or integration not found")
+            return phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date
+
+        account_id = (integ.account_id or "").strip()
+        api_secret = (integ.api_secret or "").strip()
+        if not account_id or not api_secret:
+            print("[Hostaway] Integration missing account_id/api_secret")
+            return phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date
+
         try:
             (
                 phone_last4,
-                full_phone,  # noqa: F841  (kept for compatibility / future use)
+                _full_phone,  # noqa: F841 (kept for compatibility)
                 reservation_id,
                 guest_name,
                 arrival_date,
                 departure_date,
             ) = get_upcoming_phone_for_listing(
-                str(prop.pms_property_id),
-                pmc.pms_api_key,
-                pmc.pms_api_secret,
+                listing_id=str(prop.pms_property_id),
+                client_id=account_id,
+                client_secret=api_secret,
             )
-            # Hostaway does not provide door code; door_code stays None.
+            # Hostaway does not provide a door code here; you use last4 as code in your app logic.
         except Exception as e:
             print(f"[Hostaway] Error resolving PMS access info: {e}")
             return None, None, None, None, None, None
-    else:
-        print(f"[PMS] Integration '{integration}' not yet implemented in get_pms_access_info")
 
+        return phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date
+
+    print(f"[PMS] Provider '{provider}' not yet implemented in get_pms_access_info")
     return phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date
 
 
@@ -70,7 +118,7 @@ def _to_date(value):
         return value.date()
     if isinstance(value, str):
         try:
-            return datetime.fromisoformat(value[:10]).date()  # expects YYYY-MM-DD...
+            return datetime.fromisoformat(value[:10]).date()
         except Exception:
             return None
     return None
@@ -103,36 +151,35 @@ def ensure_pms_data(db: Session, chat_session: ChatSession) -> None:
     BEST-EFFORT ONLY — errors should NOT break chat flow.
     """
 
-    prop = db.query(Property).filter(Property.id == chat_session.property_id).first()
+    prop = db.query(Property).filter(Property.id == int(chat_session.property_id)).first()
     if not prop:
         print(f"[PMS] No property found for chat_session.id={chat_session.id}")
         return
 
     pmc: Optional[PMC] = getattr(prop, "pmc", None)
     if not pmc and prop.pmc_id:
-        pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
+        pmc = db.query(PMC).filter(PMC.id == int(prop.pmc_id)).first()
 
     if not pmc:
         print(f"[PMS] No PMC found for property.id={prop.id}")
         return
 
     # Only call PMS if we don't already have a reservation id on the session
-    if not chat_session.pms_reservation_id:
+    if not getattr(chat_session, "pms_reservation_id", None):
         try:
             (
                 phone_last4,
-                door_code,      # noqa: F841  (Hostaway returns None; kept for future integrations)
+                door_code,  # noqa: F841
                 reservation_id,
                 guest_name,
                 arrival_date,
                 departure_date,
-            ) = get_pms_access_info(pmc, prop)
+            ) = get_pms_access_info(db, pmc, prop)
         except Exception as e:
             print(f"[PMS] Error inside ensure_pms_data: {e}")
             return
 
         if not reservation_id:
-            # No upcoming reservation => treat as pre-booking
             chat_session.reservation_status = "pre_booking"
             db.add(chat_session)
             db.commit()
@@ -148,7 +195,7 @@ def ensure_pms_data(db: Session, chat_session: ChatSession) -> None:
         if departure_date:
             chat_session.departure_date = departure_date
 
-    # Always compute status (handles rollover from pre->active->post without re-hitting PMS)
+    # Always compute status (handles rollover without re-hitting PMS)
     chat_session.reservation_status = compute_reservation_status(
         chat_session.arrival_date,
         chat_session.departure_date,
