@@ -351,11 +351,17 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
         raise HTTPException(status_code=404, detail="PMC not found")
 
     previous = bool(prop.sandy_enabled)
-    prop.sandy_enabled = not previous
-    db.commit()
+    new_value = not previous
 
-    # Turning OFF => no billing action (and no refunds mid-month by your policy)
-    if prop.sandy_enabled is False:
+    # ---- Turning OFF ----
+    if new_value is False:
+        try:
+            prop.sandy_enabled = False
+            db.commit()
+        except Exception as e:
+            db.rollback()
+            raise HTTPException(status_code=500, detail=f"Toggle failed: {str(e)}")
+
         return JSONResponse(
             {
                 "status": "success",
@@ -364,14 +370,26 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
             }
         )
 
-    # Turning ON => charge once for this calendar month if needed
+    # ---- Turning ON (bill-on-enable) ----
     try:
+        # Make the enable + charge atomic
+        prop.sandy_enabled = True
+
         charged = charge_property_for_month_if_needed(db, pmc, prop)
+
         db.commit()
+        db.refresh(prop)
+
     except Exception as e:
-        # revert
-        prop.sandy_enabled = previous
-        db.commit()
+        db.rollback()
+
+        # Ensure property is not left live if billing fails
+        try:
+            prop.sandy_enabled = previous
+            db.commit()
+        except Exception:
+            db.rollback()
+
         raise HTTPException(status_code=500, detail=f"Billing failed, change reverted: {str(e)}")
 
     note = (
@@ -381,7 +399,6 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
     )
 
     return JSONResponse({"status": "success", "new_status": "LIVE", "billing_note": note})
-
 
 @router.post("/sync-property/{property_id}")
 def sync_single_property(property_id: int, request: Request, db: Session = Depends(get_db)):
