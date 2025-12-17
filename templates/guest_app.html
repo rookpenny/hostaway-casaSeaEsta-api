@@ -2273,52 +2273,6 @@
         }
       });
     }
-
-    // Logout modal wiring
-    const logoutButton = document.getElementById("logout-button");
-    const logoutModal = document.getElementById("logout-modal");
-    const logoutClose = document.getElementById("logout-close");
-    const logoutCancel = document.getElementById("logout-cancel");
-    const logoutConfirm = document.getElementById("logout-confirm");
-
-    function openLogoutModal() {
-      logoutModal?.classList.remove("hidden");
-      logoutModal?.classList.add("flex");
-    }
-
-    function closeLogoutModal() {
-      logoutModal?.classList.add("hidden");
-      logoutModal?.classList.remove("flex");
-    }
-
-    logoutButton?.addEventListener("click", (e) => {
-      e.preventDefault();
-      openLogoutModal();
-    });
-
-    logoutClose?.addEventListener("click", (e) => {
-      e.preventDefault();
-      closeLogoutModal();
-    });
-
-    logoutCancel?.addEventListener("click", (e) => {
-      e.preventDefault();
-      closeLogoutModal();
-    });
-
-    logoutConfirm?.addEventListener("click", (e) => {
-      e.preventDefault();
-      try {
-        window.localStorage.removeItem(GUEST_STATE_KEY);
-      } catch (err) {
-        console.warn("Unable to clear guest state:", err);
-      }
-      window.location.href = "/auth/logout";
-    });
-
-    logoutModal?.addEventListener("click", (e) => {
-      if (e.target === logoutModal) closeLogoutModal();
-    });
   });
 </script>
 
