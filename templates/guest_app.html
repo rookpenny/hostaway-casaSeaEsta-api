@@ -633,28 +633,29 @@
       
             <!-- Details + buttons -->
             <div class="mt-8 space-y-8">
-              <!-- Arrival / Departure row (always present so JS can populate it after unlock) -->
-                <div class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm">
-                  <div class="flex-1 pr-2">
-                    <p class="text-[11px] font-semibold text-[#666666] text-right">Arrival</p>
-                    <p id="arrival-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right">
-                      {{ arrival_date or "-" }}
-                    </p>
-                    <p id="checkin-time-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right pt-1">
-                      {{ checkin_time if checkin_time is defined and checkin_time else "-" }}
-                    </p>
-                  </div>
-                
-                  <div class="flex-1 pl-2">
-                    <p class="text-[11px] font-semibold text-[#666666] text-left">Departure</p>
-                    <p id="departure-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left">
-                      {{ departure_date or "-" }}
-                    </p>
-                    <p id="checkout-time-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">
-                      {{ checkout_time if checkout_time is defined and checkout_time else "-" }}
-                    </p>
-                  </div>
+              <!-- Arrival / Departure row (always present) -->
+              <div class="max-w-[360px] mx-auto flex items-start justify-between text-center text-sm">
+                <div class="flex-1 pr-2">
+                  <p class="text-[11px] font-semibold text-[#666666] text-right">Arrival</p>
+                  <p id="arrival-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right">
+                    {{ arrival_date or "-" }}
+                  </p>
+                  <p id="checkin-time-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-right pt-1">
+                    {{ checkin_time or "4:00 PM" }}
+                  </p>
                 </div>
+              
+                <div class="flex-1 pl-2">
+                  <p class="text-[11px] font-semibold text-[#666666] text-left">Departure</p>
+                  <p id="departure-date-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left">
+                    {{ departure_date or "-" }}
+                  </p>
+                  <p id="checkout-time-span" class="mt-1 text-[20px] font-semibold text-[#000000] text-left pt-1">
+                    {{ checkout_time or "10:00 AM" }}
+                  </p>
+                </div>
+              </div>
+
 
       
               <!-- Door / WiFi buttons -->
@@ -1986,34 +1987,35 @@ function closeMenu() {
           }
 
           if (data.arrival_date) {
+            arrivalDate = data.arrival_date;
             const el = document.getElementById("arrival-date-span");
-            if (el) el.textContent = formatDateLong(data.arrival_date);
+            if (el) el.textContent = formatDateLong(arrivalDate);
           }
           
           if (data.departure_date) {
+            departureDate = data.departure_date;
             const el = document.getElementById("departure-date-span");
-            if (el) el.textContent = formatDateLong(data.departure_date);
+            if (el) el.textContent = formatDateLong(departureDate);
           }
           
-          const inEl = document.getElementById("checkin-time-span");
-          if (inEl) inEl.textContent = data.checkin_time || inEl.textContent || "-";
-          
-          const outEl = document.getElementById("checkout-time-span");
-          if (outEl) outEl.textContent = data.checkout_time || outEl.textContent || "-";
-
-
-          // ✅ NEW: apply times if provided by backend
           if (data.checkin_time) {
             checkinTime = data.checkin_time;
             const el = document.getElementById("checkin-time-span");
             if (el) el.textContent = checkinTime;
           }
-
+          
           if (data.checkout_time) {
             checkoutTime = data.checkout_time;
             const el = document.getElementById("checkout-time-span");
             if (el) el.textContent = checkoutTime;
           }
+
+          const inEl = document.getElementById("checkin-time-span");
+          if (inEl) inEl.textContent = data.checkin_time || inEl.textContent || "-";
+          
+          const outEl = document.getElementById("checkout-time-span");
+          if (outEl) outEl.textContent = data.checkout_time || outEl.textContent || "-";
+         
         } catch (e) {
           console.warn("Error applying PMS guest info to UI:", e);
         }
