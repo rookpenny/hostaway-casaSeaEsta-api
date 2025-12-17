@@ -5,7 +5,7 @@ Browser-accessible endpoint to:
 2) Insert/Upsert sample guides for a chosen property_id (idempotent)
 
 Visit:
-    /seed-guides?property_id=2
+    /seed-guides?property_id=1
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -88,11 +88,11 @@ VALUES
 ),
 (
     :property_id,
-    'rainy-day2',
-    'Rainy Day Ideas2',
+    'rainy-day',
+    'Rainy Day Ideas',
     'Things to do',
-    '2Indoor activities nearby.',
-    '2Visit local museum, small cinema, or board-game café.',
+    'Indoor activities nearby.',
+    'Visit local museum, small cinema, or board-game café.',
     'https://placehold.co/600x400',
     TRUE,
     3,
@@ -100,11 +100,13 @@ VALUES
 ),
 (
     :property_id,
-    'rainy-day3',
-    'Rainy Day Ideas3',
-    'Things to do',
-    '3Indoor activities nearby.',
-    '3Visit local museum, small cinema, or board-game café.',
+    'sunset-spots',
+    'Best Sunset Spots',
+    'Outdoors',
+    'Where to catch golden hour near the property.',
+    '1) West Point overlook — best panoramic view
+2) Seaside steps — bring a blanket
+3) Harbor pier — great photos',
     'https://placehold.co/600x400',
     TRUE,
     4,
@@ -112,14 +114,50 @@ VALUES
 ),
 (
     :property_id,
-    'rainy-day4',
-    'Rainy Day Ideas4',
-    '4Things to do',
-    '4Indoor activities nearby.',
-    '4Visit local museum, small cinema, or board-game café.',
+    'easy-hikes',
+    'Easy Hikes for Any Fitness Level',
+    'Outdoors',
+    'Three low-effort trails with big payoff.',
+    'Try the Bay Loop (flat), Lighthouse Trail (views), or Creek Walk (shade).',
     'https://placehold.co/600x400',
     TRUE,
     5,
+    NOW()
+),
+(
+    :property_id,
+    'date-night',
+    'Perfect Date Night',
+    'Food & Drink',
+    'Dinner + a nightcap that feels special.',
+    'Book a table at a cozy bistro, then head to a quiet cocktail bar or wine lounge.',
+    'https://placehold.co/600x400',
+    TRUE,
+    6,
+    NOW()
+),
+(
+    :property_id,
+    'local-markets',
+    'Local Markets & Fresh Finds',
+    'Shopping',
+    'Best spots for produce, snacks, and souvenirs.',
+    'Visit the weekend farmers market, the neighborhood grocer, and the artisan shop street.',
+    'https://placehold.co/600x400',
+    TRUE,
+    7,
+    NOW()
+),
+(
+    :property_id,
+    'emergency-essentials',
+    'Emergency Essentials Nearby',
+    'Helpful Info',
+    'Pharmacy, urgent care, and 24/7 basics.',
+    'Nearest pharmacy and urgent care are a short drive away. For true emergencies, call local emergency services.',
+    'https://placehold.co/600x400',
+    TRUE,
+    8,
     NOW()
 )
 ON CONFLICT (property_id, slug) DO UPDATE SET
@@ -156,13 +194,13 @@ def seed_guides(
         db.execute(text(CREATE_TABLE_SQL))
         db.execute(text(ENSURE_UNIQUE_SQL))
 
-        # Upsert sample rows
+        # Upsert sample rows (now 8 guides)
         db.execute(text(UPSERT_GUIDES_SQL), {"property_id": property_id})
         db.commit()
 
         return {
             "status": "ok",
-            "message": f"Guides table ready and sample guides upserted for property_id={property_id}",
+            "message": f"Guides table ready and 8 sample guides upserted for property_id={property_id}",
         }
 
     except HTTPException:
