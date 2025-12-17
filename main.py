@@ -607,6 +607,7 @@ class VerifyRequest(BaseModel):
     code: str
 
 
+
 @app.post("/guest/{property_id}/verify-json")
 def verify_json(
     property_id: int,
@@ -616,10 +617,15 @@ def verify_json(
 ):
     code = (payload.code or "").strip()
 
+    # 1) format check
     if not code.isdigit() or len(code) != 4:
-        return JSONResponse({"success": False, "error": "Please enter exactly 4 digits."}, status_code=400)
+        return JSONResponse(
+            {"success": False, "error": "Please enter exactly 4 digits."},
+            status_code=400,
+        )
 
-    test_code = os.getenv("TEST_UNLOCK_CODE")
+    # 2) test override
+    test_code = (os.getenv("TEST_UNLOCK_CODE") or "").strip()
     if test_code and code == test_code:
         request.session[f"guest_verified_{property_id}"] = True
         today = datetime.utcnow().date()
@@ -630,27 +636,41 @@ def verify_json(
             "departure_date": (today + timedelta(days=3)).strftime("%Y-%m-%d"),
         }
 
+    # 3) load property + pmc
     prop = db.query(Property).filter(Property.id == int(property_id)).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    if not prop.pmc:
-        return JSONResponse({"success": False, "error": "This property is not linked to a PMC."}, status_code=400)
+    pmc = getattr(prop, "pmc", None)
+    if not pmc:
+        return JSONResponse(
+            {"success": False, "error": "This property is not linked to a PMC."},
+            status_code=400,
+        )
 
-    # ✅ new source of truth
-    integ = get_integration_for_property(db, prop)
-    provider = ((getattr(prop, "provider", None) or integ.provider) or "").strip().lower()
-
+    # 4) integration/provider resolution (safe)
+    integ = None
     try:
-        if provider == "hostaway" and prop.pms_property_id:
-            account_id = (integ.account_id or "").strip()
-            api_secret = (integ.api_secret or "").strip()
+        integ = get_integration_for_property(db, prop)
+    except Exception:
+        integ = None
+
+    prop_provider = (getattr(prop, "provider", None) or "").strip().lower()
+    integ_provider = (getattr(integ, "provider", None) or "").strip().lower()
+    provider = prop_provider or integ_provider
+
+    # 5) fetch last4 + guest info
+    try:
+        if provider == "hostaway" and getattr(prop, "pms_property_id", None):
+            account_id = (getattr(integ, "account_id", None) or "").strip()
+            api_secret = (getattr(integ, "api_secret", None) or "").strip()
+
             if not account_id or not api_secret:
-                raise Exception("Missing Hostaway creds on integration")
+                raise Exception("Missing Hostaway creds on integration (account_id/api_secret)")
 
             (
                 phone_last4,
-                door_code,
+                door_code,        # unused; kept for consistency
                 reservation_id,
                 guest_name,
                 arrival_date,
@@ -661,15 +681,23 @@ def verify_json(
                 client_secret=api_secret,
             )
         else:
-            (phone_last4, door_code, reservation_id, guest_name, arrival_date, departure_date) = get_pms_access_info(
-                prop.pmc, prop
-            )
+            (
+                phone_last4,
+                door_code,        # unused; kept for consistency
+                reservation_id,
+                guest_name,
+                arrival_date,
+                departure_date,
+            ) = get_pms_access_info(pmc, prop)
 
     except Exception as e:
         print("[VERIFY PMS ERROR]", e)
-        return JSONResponse({"success": False, "error": "Could not verify your reservation. Please try again."}, status_code=500)
+        return JSONResponse(
+            {"success": False, "error": "Could not verify your reservation. Please try again."},
+            status_code=500,
+        )
 
-    # 30-day arrival window
+    # 6) 30-day arrival window
     WINDOW_DAYS = 30
 
     def parse_ymd(d: Optional[str]):
@@ -688,14 +716,28 @@ def verify_json(
             status_code=400,
         )
 
+    # 7) require reservation + phone
     if not phone_last4 or not reservation_id:
-        return JSONResponse({"success": False, "error": "No upcoming reservation found for this property."}, status_code=400)
+        return JSONResponse(
+            {"success": False, "error": "No upcoming reservation found for this property."},
+            status_code=400,
+        )
 
+    # 8) compare last4
     if code != phone_last4:
-        return JSONResponse({"success": False, "error": "That code does not match the reservation phone number."}, status_code=403)
+        return JSONResponse(
+            {"success": False, "error": "That code does not match the reservation phone number."},
+            status_code=403,
+        )
 
+    # 9) success
     request.session[f"guest_verified_{property_id}"] = True
-    return {"success": True, "guest_name": guest_name, "arrival_date": arrival_date, "departure_date": departure_date}
+    return {
+        "success": True,
+        "guest_name": guest_name,
+        "arrival_date": arrival_date,
+        "departure_date": departure_date,
+    }
 
 
 
