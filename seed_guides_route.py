@@ -107,19 +107,19 @@ VALUES
     '3Visit local museum, small cinema, or board-game café.',
     'https://placehold.co/600x400',
     TRUE,
-    3,
+    4,
     NOW()
 ),
 (
     :property_id,
-    'rainy-day',
+    'rainy-day4',
     'Rainy Day Ideas4',
     '4Things to do',
     '4Indoor activities nearby.',
     '4Visit local museum, small cinema, or board-game café.',
     'https://placehold.co/600x400',
     TRUE,
-    3,
+    5,
     NOW()
 )
 ON CONFLICT (property_id, slug) DO UPDATE SET
