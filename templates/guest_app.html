@@ -424,11 +424,12 @@
   </style>
 
   <script>
-    window.PROPERTY_ID = {{ property_id | tojson }};
-    window.PROPERTY_NAME = {{ property_name | tojson }};
-    window.SANDY_LIVE = {{ ("true" if is_live else "false") | tojson }};
-    window.INITIAL_VERIFIED = {{ ("true" if is_verified else "false") | tojson }};
-  </script>
+  window.PROPERTY_ID = {{ property_id | tojson }};
+  window.PROPERTY_NAME = {{ property_name | tojson }};
+  window.SANDY_LIVE = {{ is_live | tojson }};
+  window.INITIAL_VERIFIED = {{ is_verified | tojson }};
+</script>
+
 </head>
 
 <body class="min-h-screen bg-[#f5f5f5] text-slate-50 flex flex-col overflow-x-hidden">
@@ -610,7 +611,7 @@
                 Casa {{ property_name or "Your stay" }}
               </p>
               <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
-                <span id="guest-name-span">{{ reservation_name or "Guest" }}</span>, breathe.<br />
+                <span id="guest-name">{{ reservation_name or "Guest" }}</span>, breathe.<br />
                 You’ve made it.
               </h1>
             </div>
@@ -725,7 +726,7 @@
            
           <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
             Your stay just got<br>easier,
-            <span>{{ reservation_name or "Guest" }}</span>.
+            <span class="guest-name">{{ reservation_name or "Guest" }}</span>.
           </h1>
             </div>
           
@@ -779,7 +780,7 @@
           </p>
               <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
             Upgrades you’ll love,<br>
-            <span>{{ reservation_name or "Guest" }}</span>.
+            <span class="guest-name">{{ reservation_name or "Guest" }}</span>.
           </h1>
             </div>
       
@@ -1369,7 +1370,7 @@
     });
 
     // --- Global state ---
-    let isUnlocked = window.INITIAL_VERIFIED === "true";
+    let isUnlocked = !!window.INITIAL_VERIFIED;
     let lastUnlockCode = null;
     let currentSessionId = null;
     let guestName = null;
@@ -1380,9 +1381,11 @@
 
     // Keep guest name in sync across UI
     function updateGuestNameInUI(name) {
-      const nameEls = document.querySelectorAll("#guest-name-span");
-      nameEls.forEach((el) => (el.textContent = name));
+      document.querySelectorAll(".guest-name").forEach(el => {
+        el.textContent = name || "Guest";
+      });
     }
+
 
     const GUEST_STATE_KEY = `guest_state_${window.PROPERTY_ID}`;
 
@@ -2120,7 +2123,7 @@ function closeMenu() {
     const chatSend = document.getElementById("chat-send");
     const chatPlus = document.querySelector(".chat-plus");
 
-    if (window.SANDY_LIVE === "false") {
+    if (!window.SANDY_LIVE) {
       if (chatBox) {
         renderMessage(
           "Sandy is currently offline for this property 🌙\n\n" +
