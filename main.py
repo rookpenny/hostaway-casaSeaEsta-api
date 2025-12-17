@@ -65,6 +65,11 @@ app.include_router(stripe_webhook.router)
 app.include_router(pmc_onboarding.router)
 
 
+# --- Seed upgrade  ---
+from seed_upgrades_route import router as seed_upgrades_router
+app.include_router(seed_upgrades_router)
+
+
 # Middleware
 
 ALLOWED_ORIGINS = [
