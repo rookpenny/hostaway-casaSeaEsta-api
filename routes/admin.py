@@ -324,6 +324,29 @@ def invite_team_member(request: Request, payload: InviteTeamPayload, db: Session
     return {"ok": True}
 
 # ----------------------------
+# Update profile
+# ----------------------------
+
+
+@router.post("/admin/settings/profile")
+def update_profile(request: Request, payload: ProfileUpdatePayload, db: Session = Depends(get_db)):
+    email_l = get_me_email(request)
+
+    u = db.query(PMCUser).filter(func.lower(PMCUser.email) == email_l).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if payload.full_name is not None:
+        u.full_name = (payload.full_name or "").strip() or None
+
+    # timezone is UI-only for now unless you add a column
+    u.updated_at = datetime.utcnow()
+    db.add(u)
+    db.commit()
+    return {"ok": True}
+
+
+# ----------------------------
 # Update a team member
 # ----------------------------
 
