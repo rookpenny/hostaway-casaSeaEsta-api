@@ -285,6 +285,9 @@ class PMCUpdateRequest(BaseModel):
 # Invite a team member (PMC owner/admin only)
 # ----------------------------
 
+
+
+
 @router.post("/admin/settings/team/invite")
 def invite_team_member(request: Request, payload: InviteTeamPayload, db: Session = Depends(get_db)):
     user_role, pmc_obj, _me = require_team_admin(request, db)
@@ -326,16 +329,14 @@ def invite_team_member(request: Request, payload: InviteTeamPayload, db: Session
 
 @router.post("/admin/settings/team/{member_id}")
 def update_team_member(member_id: int, request: Request, payload: UpdateTeamMemberPayload, db: Session = Depends(get_db)):
-    user_role, pmc_obj, _me = require_team_admin(request, db)
+    pmc_obj, _me = require_team_admin(request, db)
 
     member = db.query(PMCUser).filter(PMCUser.id == member_id).first()
     if not member:
         raise HTTPException(status_code=404, detail="User not found")
 
-    # PMC admins can only modify users inside their PMC
-    if user_role == "pmc":
-        if member.pmc_id != pmc_obj.id:
-            raise HTTPException(status_code=403, detail="Forbidden")
+    if member.pmc_id != pmc_obj.id:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     if payload.role is not None:
         role = (payload.role or "").strip().lower()
@@ -364,9 +365,9 @@ def save_notification_prefs(request: Request, payload: NotificationPrefsPayload,
         raise HTTPException(status_code=404, detail="User not found")
 
     prefs = payload.prefs or {}
-    # keep it boolean-only
     cleaned = {str(k): bool(v) for k, v in prefs.items()}
 
+    # requires PMCUser.notification_prefs to exist in your model
     u.notification_prefs = cleaned
     u.updated_at = datetime.utcnow()
     db.add(u)
@@ -1544,17 +1545,12 @@ def get_me_email(request: Request) -> str:
         raise HTTPException(status_code=401, detail="Login required")
     return email.strip().lower()
 
-def get_me_pmc_user(request: Request, db: Session) -> PMCUser:
-    email_l = get_me_email(request)
-    u = db.query(PMCUser).filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active == True).first()
-    if not u:
-        raise HTTPException(status_code=403, detail="Your account isn’t linked to a PMC user")
-    return u
-
 def require_team_admin(request: Request, db: Session):
     user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
+
+    # super can see settings UI, but team operations are PMC-scoped for now
     if user_role == "super":
-        return ("super", None, pmc_user)
+        raise HTTPException(status_code=403, detail="Team management is PMC-scoped")
 
     if not pmc_obj or not pmc_user:
         raise HTTPException(status_code=403, detail="PMC account not linked")
@@ -1562,13 +1558,7 @@ def require_team_admin(request: Request, db: Session):
     if (pmc_user.role or "").lower() not in {"owner", "admin"}:
         raise HTTPException(status_code=403, detail="Only owner/admin can manage team")
 
-    return ("pmc", pmc_obj, pmc_user)
-
-
-
-
-
-
+    return pmc_obj, pmc_user
 
 
 
