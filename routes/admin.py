@@ -1255,6 +1255,27 @@ def upgrades_partial_list(
     
     return templates.TemplateResponse("admin/_upgrades_list.html", {"request": request, "upgrades": rows})
 
+@router.post("/admin/upgrades/ajax/toggle-active")
+def upgrades_ajax_toggle_active(
+    request: Request,
+    db: Session = Depends(get_db),
+    payload: dict = Body(...),
+):
+    upgrade_id = int(payload.get("id") or 0)
+    is_active = bool(payload.get("is_active"))
+
+    u = db.query(Upgrade).filter(Upgrade.id == upgrade_id).first()
+    if not u:
+        return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+
+    require_property_in_scope(request, db, int(u.property_id))
+
+    u.is_active = is_active
+    u.updated_at = datetime.utcnow()
+    db.add(u)
+    db.commit()
+    return {"ok": True, "id": u.id, "is_active": u.is_active}
+
 
 @router.get("/admin/upgrades/partial/form", response_class=HTMLResponse)
 def upgrades_partial_form(
