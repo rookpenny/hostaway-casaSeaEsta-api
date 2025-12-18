@@ -477,7 +477,13 @@
                 <div class="text-sm font-semibold">Guides</div>
                 <div class="mt-1 text-sm text-slate-500">Create and manage guest guides per property.</div>
               </div>
-        
+              <select id="guidesPropertyFilter"
+                class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72">
+                <option value="">All properties</option>
+                {% for p in properties %}
+                  <option value="{{ p.id }}">{{ p.property_name }}</option>
+                {% endfor %}
+              </select>
               <button
                 class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
                 type="button"
@@ -523,7 +529,13 @@
                 <div class="text-sm font-semibold">Upgrades</div>
                 <div class="mt-1 text-sm text-slate-500">Create and manage paid add-ons per property.</div>
               </div>
-        
+              <select id="upgradesPropertyFilter"
+                class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72">
+                <option value="">All properties</option>
+                {% for p in properties %}
+                  <option value="{{ p.id }}">{{ p.property_name }}</option>
+                {% endfor %}
+              </select>
               <button
                 class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
                 type="button"
@@ -1593,7 +1605,14 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
         document.getElementById("guides-editor").classList.add("hidden");
         document.getElementById("guides-editor-body").innerHTML = "";
       },
-    
+
+      refresh: () => {
+        const pid = document.getElementById("guidesPropertyFilter")?.value || "";
+        const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+        return loadHtmlInto(`/admin/guides/partial/list${qs}`, "guides-list");
+      },
+
+      
       submit: async (formEl) => {
         if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
         const r = await fetch("/admin/guides/ajax/save", { method:"POST", credentials:"include", body:new FormData(formEl) });
@@ -1633,6 +1652,13 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
         document.getElementById("upgrades-editor").classList.add("hidden");
         document.getElementById("upgrades-editor-body").innerHTML = "";
       },
+
+      refresh: () => {
+        const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
+        const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+        return loadHtmlInto(`/admin/upgrades/partial/list${qs}`, "upgrades-list");
+      },
+
     
       submit: async (formEl) => {
         if (CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
@@ -1683,6 +1709,9 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
 
     document.getElementById("searchInput")?.addEventListener("input", filterProperties);
     document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
+    document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
+    document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => Upgrades.refresh());
+
   });
 </script>
 </body>
