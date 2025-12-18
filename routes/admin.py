@@ -1,8 +1,11 @@
+from __future__ import annotations
+
 import logging
 import os
 import requests
 import base64
 import re
+import sqlalchemy as sa
 
 from fastapi import APIRouter, Depends, Request, Form, Body, Query, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
@@ -11,9 +14,9 @@ from fastapi.exceptions import RequestValidationError
 
 from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
 from sqlalchemy.orm import Session
-import sqlalchemy as sa
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
+
 from pydantic import BaseModel
 from typing import Optional, Dict
 from datetime import datetime, timedelta, date
@@ -49,6 +52,29 @@ def get_db():
         db.close()
 
 
+
+# ----------------------------
+# Pydantic classes
+# ----------------------------
+
+class ProfileUpdatePayload(BaseModel):
+    full_name: Optional[str] = None
+    timezone: Optional[str] = None  # UI-only unless you add a DB column
+
+
+class InviteTeamPayload(BaseModel):
+    email: str
+    role: str = "staff"
+    full_name: Optional[str] = None
+
+class UpdateTeamMemberPayload(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class NotificationPrefsPayload(BaseModel):
+    prefs: Dict[str, bool]
+
+    
 # ----------------------------
 # Auth / scope helpers
 # ----------------------------
@@ -251,35 +277,7 @@ def admin_sync_properties(pmc_id: int, request: Request, db: Session = Depends(g
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
-# ----------------------------
-# Pydantic classes
-# ----------------------------
 
-
-class InviteTeamPayload(BaseModel):
-    email: str
-    role: str = "staff"
-    full_name: Optional[str] = None
-
-class UpdateTeamMemberPayload(BaseModel):
-    role: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class NotificationPrefsPayload(BaseModel):
-    prefs: Dict[str, bool]
-
-
-class PMCUpdateRequest(BaseModel):
-    id: Optional[int] = None
-    pmc_name: str
-    email: Optional[str] = None
-    main_contact: Optional[str] = None
-    subscription_plan: Optional[str] = None
-    pms_integration: Optional[str] = None
-    pms_api_key: str
-    pms_api_secret: str
-    pms_account_id: Optional[str] = None
-    active: bool
 
 # ----------------------------
 # Invite a team member (PMC owner/admin only)
