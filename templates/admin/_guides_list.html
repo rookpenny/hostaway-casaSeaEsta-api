@@ -1,0 +1,20 @@
+<table class="w-full text-sm">
+  {% for g in guides %}
+  <tr class="border-b border-slate-100">
+    <td class="py-2 font-medium">{{ g.title }}</td>
+    <td class="py-2 text-right">
+      <button class="text-xs font-semibold hover:underline"
+              type="button"
+              onclick="Guides.openEdit({{ g.id }})">
+        Edit
+      </button>
+      <button class="text-xs font-semibold hover:underline text-rose-700 ml-2"
+              type="button"
+              onclick="Guides.remove({{ g.id }})">
+        Delete
+      </button>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
+
