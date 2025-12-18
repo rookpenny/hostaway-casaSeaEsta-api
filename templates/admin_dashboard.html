@@ -950,25 +950,47 @@
       else toast("Failed to save profile.");
     });
 
+    async function refreshTeamList() {
+      const res = await fetch("/admin/settings/team", { credentials: "include" });
+      if (!res.ok) return;
+    
+      const html = await res.text();
+      document.querySelector("#settings-team tbody").innerHTML = html;
+    }
+
+
     // Invite submit
     document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
+    
       const form = e.currentTarget;
       const body = Object.fromEntries(new FormData(form).entries());
-
-      const res = await postJsonBody("/admin/settings/team/invite", body);
-      if (res.status === 401 || res.status === 403) {
-        toast("Invite failed (owner/admin only).");
-        return;
-      }
-      if (res.ok) {
-        toast("Invite saved. They can sign in with Google using that email.");
-        inviteModal?.classList.add("hidden");
-        window.location.reload();
+    
+      const res = await fetch("/admin/settings/team/invite", {
+        method: "POST",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json"
+        },
+        body: JSON.stringify(body)
+      });
+    
+      let data = {};
+      try { data = await res.json(); } catch {}
+    
+      if (res.ok && data.ok) {
+        toast(data.message || "Member added");
+        form.reset();
+        document.getElementById("inviteModal")?.classList.add("hidden");
+    
+        // OPTIONAL: refresh team table only (clean MVP approach)
+        await refreshTeamList();
       } else {
-        toast("Invite failed.");
+        toast(data.detail || data.message || "Invite failed");
       }
     });
+
 
     // Team: role changes
     document.querySelectorAll("[data-member-role]").forEach((sel) => {
