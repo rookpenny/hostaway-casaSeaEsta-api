@@ -564,10 +564,9 @@
             <label class="text-xs font-semibold text-slate-600">Timezone</label>
             <select name="timezone" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
               <option value="">Select…</option>
-              <option value="America/Los_Angeles">America/Los_Angeles</option>
-              <option value="America/Denver">America/Denver</option>
-              <option value="America/Chicago">America/Chicago</option>
-              <option value="America/New_York">America/New_York</option>
+              {% for tz in ["America/Los_Angeles","America/Denver","America/Chicago","America/New_York"] %}
+                <option value="{{ tz }}" {% if user_timezone == tz %}selected{% endif %}>{{ tz }}</option>
+              {% endfor %}
             </select>
             <div class="mt-1 text-xs text-slate-500">We’ll use this for scheduling + notifications.</div>
           </div>
