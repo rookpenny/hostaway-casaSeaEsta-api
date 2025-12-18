@@ -1566,10 +1566,10 @@ def get_me_email(request: Request) -> str:
         raise HTTPException(status_code=401, detail="Login required")
     return email.strip().lower()
 
+
 def require_team_admin(request: Request, db: Session):
     user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
 
-    # super can see settings UI, but team operations are PMC-scoped for now
     if user_role == "super":
         raise HTTPException(status_code=403, detail="Team management is PMC-scoped")
 
@@ -1579,7 +1579,8 @@ def require_team_admin(request: Request, db: Session):
     if (pmc_user.role or "").lower() not in {"owner", "admin"}:
         raise HTTPException(status_code=403, detail="Only owner/admin can manage team")
 
-    return pmc_obj, pmc_user
+    return user_role, pmc_obj, pmc_user
+
 
 
 
