@@ -1041,6 +1041,26 @@
     return true;
   }
 
+   // ---- Upgrades: event delegation (works even after partial reloads) ----
+  document.addEventListener("click", async (e) => {
+    const editBtn = e.target.closest("[data-upgrade-edit]");
+    if (editBtn) {
+      const id = editBtn.dataset.upgradeEdit;
+      await loadUpgradeForm(id);
+      return;
+    }
+  });
+
+   async function loadUpgradeForm(id) {
+      const url = id ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}` : `/admin/upgrades/partial/form`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) return toast("Could not load upgrade form.");
+      const html = await res.text();
+      document.getElementById("upgrades-form-slot").innerHTML = html;
+    }
+
+
+
 
   // ----------------------------
   // Sidebar collapse/expand
