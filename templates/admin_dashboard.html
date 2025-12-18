@@ -474,25 +474,281 @@
         </section>
         {% endif %}
 
-        <section id="view-settings" class="view hidden">
-          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-            <div class="text-sm font-semibold">Settings</div>
-            <div class="mt-2 text-sm text-slate-500">
-              {% if user_role == "super" %}
-                Users, roles, permissions, system config.
-              {% else %}
-                PMC profile, users, notifications (limited).
-              {% endif %}
-            </div>
+        <section id="view-settings" class="view hidden space-y-4">
 
-            <div class="mt-4">
-              <div class="p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
-                Login uses Google OAuth for all users. If you need to re-authenticate, use
-                <a class="underline font-semibold" href="/auth/login/google">Google Sign-In</a>.
-              </div>
+  <!-- Header card -->
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex items-start justify-between gap-4">
+      <div>
+        <div class="text-sm font-semibold">Settings</div>
+        <div class="mt-1 text-sm text-slate-500">
+          {% if user_role == "super" %}
+            Manage your profile, PMCs, roles, and platform notifications.
+          {% else %}
+            Manage your profile, team, and notifications for your PMC.
+          {% endif %}
+        </div>
+      </div>
+
+      <div class="text-xs text-slate-500">
+        Signed in as <span class="font-semibold text-slate-700">{{ user_email }}</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- Settings layout -->
+  <div class="grid grid-cols-12 gap-4">
+
+    <!-- Settings sub-nav -->
+    <aside class="col-span-12 lg:col-span-3">
+      <div class="bg-white border border-slate-200 rounded-2xl p-2 card">
+        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                data-settings="profile" type="button">
+          Profile
+        </button>
+
+        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                data-settings="team" type="button">
+          Team
+        </button>
+
+        {% if user_role == "super" %}
+        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                data-settings="roles" type="button">
+          Roles & Permissions
+        </button>
+
+        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                data-settings="pmcs" type="button">
+          PMCs
+        </button>
+        {% endif %}
+
+        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                data-settings="notifications" type="button">
+          Notifications
+        </button>
+
+        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                data-settings="integrations" type="button">
+          Integrations
+        </button>
+      </div>
+    </aside>
+
+    <!-- Settings panels -->
+    <div class="col-span-12 lg:col-span-9 space-y-4">
+
+      <!-- Profile -->
+      <div id="settings-profile" class="settings-panel bg-white border border-slate-200 rounded-2xl p-4 card">
+        <div class="text-sm font-semibold">Profile</div>
+        <div class="mt-1 text-sm text-slate-500">Update your personal preferences.</div>
+
+        <form id="profileForm" class="mt-4 grid grid-cols-12 gap-3">
+          <div class="col-span-12 md:col-span-6">
+            <label class="text-xs font-semibold text-slate-600">Full name</label>
+            <input name="full_name" value="{{ user_full_name or '' }}"
+                   class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm" />
+          </div>
+
+          <div class="col-span-12 md:col-span-6">
+            <label class="text-xs font-semibold text-slate-600">Email</label>
+            <input value="{{ user_email }}" disabled
+                   class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-500" />
+            <div class="mt-1 text-xs text-slate-500">Managed by Google OAuth.</div>
+          </div>
+
+          <div class="col-span-12 md:col-span-6">
+            <label class="text-xs font-semibold text-slate-600">Timezone</label>
+            <select name="timezone" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
+              <option value="">Select…</option>
+              <option value="America/Los_Angeles">America/Los_Angeles</option>
+              <option value="America/Denver">America/Denver</option>
+              <option value="America/Chicago">America/Chicago</option>
+              <option value="America/New_York">America/New_York</option>
+            </select>
+          </div>
+
+          <div class="col-span-12 md:col-span-6 flex items-end justify-end">
+            <button type="submit"
+              class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+              Save Profile
+            </button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Team -->
+      <div id="settings-team" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+        <div class="flex items-start justify-between gap-3">
+          <div>
+            <div class="text-sm font-semibold">Team</div>
+            <div class="mt-1 text-sm text-slate-500">
+              Invite cleaners, maintenance, and internal staff. Assign roles + access.
             </div>
           </div>
-        </section>
+
+          <button id="openInvite"
+            class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+            Invite Member
+          </button>
+        </div>
+
+        <!-- Team table -->
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-sm">
+            <thead class="text-xs text-slate-500">
+              <tr class="border-b border-slate-200">
+                <th class="text-left py-2">Name</th>
+                <th class="text-left py-2">Email</th>
+                <th class="text-left py-2">Role</th>
+                <th class="text-left py-2">Status</th>
+                <th class="text-right py-2">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for m in team_members %}
+              <tr class="border-b border-slate-100">
+                <td class="py-2 font-medium">{{ m.full_name or "—" }}</td>
+                <td class="py-2 text-slate-600">{{ m.email }}</td>
+                <td class="py-2">
+                  <span class="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold">
+                    {{ m.role }}
+                  </span>
+                </td>
+                <td class="py-2">
+                  {% if m.is_active %}
+                    <span class="text-xs font-semibold text-emerald-700">Active</span>
+                  {% else %}
+                    <span class="text-xs font-semibold text-rose-700">Disabled</span>
+                  {% endif %}
+                </td>
+                <td class="py-2 text-right">
+                  <button class="text-xs font-semibold hover:underline"
+                          onclick="openMember('{{ m.id }}')"
+                          type="button">
+                    Manage
+                  </button>
+                </td>
+              </tr>
+              {% endfor %}
+              {% if not team_members %}
+              <tr><td colspan="5" class="py-6 text-center text-slate-500">No team members yet.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+
+        <!-- Invite modal (simple) -->
+        <div id="inviteModal" class="hidden fixed inset-0 z-[9999] bg-black/30 p-4">
+          <div class="max-w-lg mx-auto mt-24 bg-white rounded-2xl border border-slate-200 p-4 card">
+            <div class="flex items-center justify-between">
+              <div class="text-sm font-semibold">Invite team member</div>
+              <button id="closeInvite" class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50">✕</button>
+            </div>
+
+            <form id="inviteForm" class="mt-4 space-y-3">
+              <div>
+                <label class="text-xs font-semibold text-slate-600">Email</label>
+                <input name="email" type="email" required
+                       class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm" />
+              </div>
+
+              <div>
+                <label class="text-xs font-semibold text-slate-600">Role</label>
+                <select name="role" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
+                  <option value="owner">Owner</option>
+                  <option value="admin">Admin</option>
+                  <option value="ops_manager">Ops Manager</option>
+                  <option value="maintenance">Maintenance</option>
+                  <option value="cleaner">Cleaner</option>
+                  <option value="read_only">Read-only</option>
+                </select>
+              </div>
+
+              <div class="flex justify-end gap-2 pt-2">
+                <button type="button" id="cancelInvite"
+                        class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold">
+                  Cancel
+                </button>
+                <button type="submit"
+                        class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                  Send Invite
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+
+      </div>
+
+      {% if user_role == "super" %}
+      <!-- Roles & Permissions (superusers) -->
+      <div id="settings-roles" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+        <div class="text-sm font-semibold">Roles & Permissions</div>
+        <div class="mt-1 text-sm text-slate-500">
+          Define roles (cleaner, maintenance, staff) and what they can access.
+        </div>
+
+        <div class="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
+          MVP suggestion: start with fixed roles + hardcoded permissions, then move to DB-driven roles.
+        </div>
+      </div>
+
+      <!-- PMCs (superusers) -->
+      <div id="settings-pmcs" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+        <div class="text-sm font-semibold">PMCs</div>
+        <div class="mt-1 text-sm text-slate-500">Activate/deactivate PMCs, billing status, support tools.</div>
+      </div>
+      {% endif %}
+
+      <!-- Notifications -->
+      <div id="settings-notifications" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+        <div class="text-sm font-semibold">Notifications</div>
+        <div class="mt-1 text-sm text-slate-500">
+          Choose what you get notified about. Slack settings will live here later.
+        </div>
+
+        <form id="notifForm" class="mt-4 space-y-3">
+          <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+            <div>
+              <div class="text-sm font-semibold">Guest messages</div>
+              <div class="text-xs text-slate-500">Notify when a new guest message arrives.</div>
+            </div>
+            <input name="guest_messages" type="checkbox" class="h-5 w-5" />
+          </label>
+
+          <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+            <div>
+              <div class="text-sm font-semibold">Maintenance assigned</div>
+              <div class="text-xs text-slate-500">Notify when a maintenance request is assigned.</div>
+            </div>
+            <input name="maintenance_assigned" type="checkbox" class="h-5 w-5" />
+          </label>
+
+          <div class="flex justify-end pt-2">
+            <button type="submit"
+              class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+              Save Notifications
+            </button>
+          </div>
+        </form>
+
+        <div class="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
+          Slack (coming soon): connect workspace, pick channel per event, and map properties → channels.
+        </div>
+      </div>
+
+      <!-- Integrations -->
+      <div id="settings-integrations" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+        <div class="text-sm font-semibold">Integrations</div>
+        <div class="mt-1 text-sm text-slate-500">PMS, Slack, and other connections.</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
 
       </div>
     </main>
@@ -624,6 +880,120 @@
         headers: { "Accept": "application/json" }
       });
     }
+
+
+    // ----- Settings tabs -----
+    function showSettingsPanel(key) {
+      document.querySelectorAll(".settings-panel").forEach(p => p.classList.add("hidden"));
+      document.getElementById(`settings-${key}`)?.classList.remove("hidden");
+    
+      document.querySelectorAll(".settings-tab").forEach(b => b.classList.remove("bg-slate-50"));
+      document.querySelector(`.settings-tab[data-settings="${key}"]`)?.classList.add("bg-slate-50");
+    
+      // keep nested state in hash (optional)
+      const base = (location.hash || "#overview").split("?")[0];
+      if (base === "#settings") {
+        history.replaceState(null, "", `#settings?tab=${key}`);
+      }
+    }
+    
+    function getSettingsTabFromHash() {
+      const h = location.hash || "";
+      if (!h.startsWith("#settings")) return "profile";
+      const q = h.split("?")[1] || "";
+      const params = new URLSearchParams(q);
+      return params.get("tab") || "profile";
+    }
+    
+    // When user opens Settings view, open correct tab
+    const originalShowView = window.showView;
+    window.showView = function(key) {
+      originalShowView(key);
+      if (key === "settings") showSettingsPanel(getSettingsTabFromHash());
+    };
+    
+    // Wire clicks
+    document.querySelectorAll(".settings-tab").forEach(btn => {
+      btn.addEventListener("click", () => showSettingsPanel(btn.dataset.settings));
+    });
+    
+    // Invite modal
+    const inviteModal = document.getElementById("inviteModal");
+    document.getElementById("openInvite")?.addEventListener("click", () => inviteModal?.classList.remove("hidden"));
+    ["closeInvite","cancelInvite"].forEach(id => {
+      document.getElementById(id)?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
+    });
+    
+    // Save profile (example endpoint)
+    document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.currentTarget;
+      const body = Object.fromEntries(new FormData(form).entries());
+    
+      const res = await fetch("/settings/profile", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(body)
+      });
+    
+      if (res.ok) toast("Profile saved.");
+      else toast("Failed to save profile.");
+    });
+    
+    // Invite member (example endpoint)
+    document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.currentTarget;
+      const body = Object.fromEntries(new FormData(form).entries());
+    
+      const res = await fetch("/settings/team/invite", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(body)
+      });
+    
+      if (res.ok) {
+        toast("Invite sent.");
+        inviteModal?.classList.add("hidden");
+        window.location.reload(); // simplest refresh for SSR
+      } else {
+        toast("Invite failed.");
+      }
+    });
+    
+    // Save notifications (example endpoint)
+    document.getElementById("notifForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.currentTarget;
+    
+      // convert checkboxes to booleans
+      const fd = new FormData(form);
+      const body = {};
+      for (const [k] of fd.entries()) body[k] = true; // checked ones appear
+      // include unchecked explicitly if you want:
+      ["guest_messages","maintenance_assigned"].forEach(k => body[k] = !!body[k]);
+    
+      const res = await fetch("/settings/notifications", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(body)
+      });
+    
+      if (res.ok) toast("Notifications saved.");
+      else toast("Failed to save notifications.");
+    });
+
+
+
+
+
+
+
+
+    
 
     // --- Actions (must be global for inline onclick=) ---
     window.syncProperty = async function (id, btn) {
