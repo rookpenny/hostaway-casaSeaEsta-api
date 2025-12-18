@@ -1,0 +1,17 @@
+<table class="w-full text-sm">
+  {% for u in upgrades %}
+  <tr class="border-b border-slate-100">
+    <td class="py-2 font-medium">{{ u.title }}</td>
+    <td class="py-2 text-right">
+      <button type="button" class="text-xs font-semibold hover:underline"
+              onclick="Upgrades.openEdit({{ u.id }})">
+        Edit
+      </button>
+      <button type="button" class="text-xs font-semibold hover:underline text-rose-700 ml-2"
+              onclick="Upgrades.remove({{ u.id }})">
+        Delete
+      </button>
+    </td>
+  </tr>
+  {% endfor %}
+</table>
