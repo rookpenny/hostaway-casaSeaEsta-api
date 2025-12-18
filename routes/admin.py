@@ -1280,7 +1280,7 @@ def upgrades_ajax_save(
     title: str = Form(...),
     short_description: Optional[str] = Form(None),
     long_description: Optional[str] = Form(None),
-    price_cents: int = Form(0),
+    price_dollars: str = Form("0.00"),
     is_active: Optional[str] = Form(None),
 ):
     require_property_in_scope(request, db, int(property_id))
@@ -1311,6 +1311,14 @@ def upgrades_ajax_save(
 
     return {"ok": True, "id": u.id}
 
+def dollars_to_cents(s: str) -> int:
+    try:
+        s = (s or "0").strip().replace("$", "")
+        return int(round(float(s) * 100))
+    except Exception:
+        return 0
+
+u.price_cents = dollars_to_cents(price_dollars)
 
 @router.post("/admin/upgrades/ajax/delete")
 def upgrades_ajax_delete(request: Request, db: Session = Depends(get_db), id: int = Query(...)):
