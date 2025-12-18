@@ -1231,7 +1231,7 @@ def upgrades_partial_list(
 ):
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
 
-    q = db.query(Upgrade).join(Property, Upgrade.property_id == Property.id)
+    q = db.query(Upgrade, Property).join(Property, Upgrade.property_id == Property.id)
     if user_role == "pmc":
         require_pmc_linked(user_role, pmc_obj)
         q = q.filter(Property.pmc_id == pmc_obj.id)
@@ -1240,7 +1240,20 @@ def upgrades_partial_list(
         q = q.filter(Upgrade.property_id == int(property_id))
 
     upgrades = q.order_by(Upgrade.sort_order.asc(), Upgrade.updated_at.desc()).all()
-    return templates.TemplateResponse("admin/_upgrades_list.html", {"request": request, "upgrades": upgrades})
+    rows = []
+    for u, p in upgrades:
+        rows.append({
+            "id": u.id,
+            "title": u.title,
+            "slug": u.slug,
+            "property_id": u.property_id,
+            "property_name": p.property_name,
+            "price_cents": u.price_cents,
+            "is_active": u.is_active,
+            "image_url": getattr(u, "image_url", None),
+        })
+    
+    return templates.TemplateResponse("admin/_upgrades_list.html", {"request": request, "upgrades": rows})
 
 
 @router.get("/admin/upgrades/partial/form", response_class=HTMLResponse)
@@ -1333,6 +1346,25 @@ def dollars_to_cents(s: str) -> int:
         return 0
 
 u.price_cents = dollars_to_cents(price_dollars)
+
+
+@router.post("/admin/upgrades/ajax/toggle-active")
+def upgrades_toggle_active(
+    request: Request,
+    db: Session = Depends(get_db),
+    id: int = Form(...),
+    is_active: str = Form("false"),
+):
+    u = db.query(Upgrade).filter(Upgrade.id == int(id)).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="Not found")
+    require_property_in_scope(request, db, int(u.property_id))
+
+    u.is_active = (is_active.lower() in ("true", "1", "on", "yes"))
+    u.updated_at = datetime.utcnow()
+    db.commit()
+    return {"ok": True, "is_active": u.is_active}
+
 
 @router.post("/admin/upgrades/ajax/delete")
 def upgrades_ajax_delete(request: Request, db: Session = Depends(get_db), id: int = Query(...)):
