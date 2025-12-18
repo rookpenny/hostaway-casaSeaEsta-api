@@ -1165,7 +1165,7 @@
   // --- Settings helpers ---
   function getSettingsTabFromHash() {
     const h = location.hash || "";
-    if (!h.startsWith("#settings")) return "profile";
+    if (!h.startsWith("#settings")) return "team";
     const q = h.split("?")[1] || "";
     const params = new URLSearchParams(q);
     return params.get("tab") || "profile";
@@ -1187,45 +1187,54 @@
     }
   }
 
-  let settingsInitialized = false;
+let settingsInitialized = false;
 
-  function initSettingsUI() {
-    if (settingsInitialized) return;
-    settingsInitialized = true;
+function initSettingsUI() {
+  if (settingsInitialized) return;
+  settingsInitialized = true;
 
-    // default tab for first render (overridden by hash if present)
-    showSettingsPanel(getSettingsTabFromHash() || "profile");
+  // default tab
+  showSettingsPanel(getSettingsTabFromHash() || "profile");
 
-    // tab clicks
-    document.querySelectorAll(".settings-tab").forEach((btn) => {
-      btn.addEventListener("click", () => showSettingsPanel(btn.dataset.settings));
-    });
+  // tab clicks
+  document.querySelectorAll(".settings-tab").forEach((btn) => {
+    btn.addEventListener("click", () => showSettingsPanel(btn.dataset.settings));
+  });
 
-    // Invite modal
-    const inviteModal = document.getElementById("inviteModal");
-    const openInvite = document.getElementById("openInvite");
-    const closeInvite = document.getElementById("closeInvite");
-    const cancelInvite = document.getElementById("cancelInvite");
+  // Profile save
+  document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.currentTarget;
+    const body = Object.fromEntries(new FormData(form).entries());
 
-    openInvite?.addEventListener("click", () => inviteModal?.classList.remove("hidden"));
-    closeInvite?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
-    cancelInvite?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
+    const res = await postJsonBody("/admin/settings/profile", body);
+    if (res.status === 401 || res.status === 403) {
+      toast("Session expired. Please sign in again.");
+      loginRedirect();
+      return;
+    }
+    toast(res.ok ? "Profile saved." : "Failed to save profile.");
+  });
 
-    // Profile save
-    document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const form = e.currentTarget;
-      const body = Object.fromEntries(new FormData(form).entries());
+  // Notifications save
+  document.getElementById("notifForm")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const fd = new FormData(e.currentTarget);
 
-      const res = await postJsonBody("/admin/settings/profile", body);
-      if (res.status === 401 || res.status === 403) {
-        toast("Session expired. Please sign in again.");
-        loginRedirect();
-        return;
-      }
-      if (res.ok) toast("Profile saved.");
-      else toast("Failed to save profile.");
-    });
+    const keys = ["guest_messages", "maintenance_assigned", "turnover_due"];
+    const prefs = {};
+    keys.forEach((k) => (prefs[k] = fd.get(k) !== null));
+
+    const res = await postJsonBody("/admin/settings/notifications", { prefs });
+    if (res.status === 401 || res.status === 403) {
+      toast("Session expired. Please sign in again.");
+      loginRedirect();
+      return;
+    }
+    toast(res.ok ? "Notifications saved." : "Failed to save notifications.");
+  });
+}
+
 
     async function refreshTeamList() {
       const res = await fetch("/admin/settings/team", { credentials: "include" });
