@@ -860,6 +860,239 @@
     window.location.href = `/auth/login/google?next=${next}`;
   }
 
+
+  // ----------------------------
+  // Team Settings JS (no reload)
+  // ----------------------------
+
+  async function apiJson(url, opts = {}) {
+    const res = await fetch(url, {
+      credentials: "include",
+      headers: { "Accept": "application/json", ...(opts.headers || {}) },
+      ...opts,
+    });
+
+    // common auth handling
+    if (res.status === 401 || res.status === 403) {
+      toast("Session expired. Please sign in again.");
+      loginRedirect();
+      throw new Error("auth");
+    }
+
+    let data = {};
+    try { data = await res.json(); } catch {}
+    return { res, data };
+  }
+
+  function updateMemberStatusUI(memberId, isActive) {
+    const row = document.querySelector(`[data-member-row="${memberId}"]`);
+    if (!row) return;
+
+    const statusEl = row.querySelector("[data-member-status]");
+    if (statusEl) {
+      statusEl.textContent = isActive ? "Active" : "Disabled";
+      statusEl.className = isActive
+        ? "text-xs font-semibold text-emerald-700"
+        : "text-xs font-semibold text-rose-700";
+    }
+
+    const toggleBtn = row.querySelector("[data-member-toggle]");
+    if (toggleBtn) {
+      toggleBtn.textContent = isActive ? "Disable" : "Enable";
+      toggleBtn.dataset.nextActive = isActive ? "false" : "true";
+    }
+  }
+
+  function markRoleSaved(memberId, newRole) {
+    const row = document.querySelector(`[data-member-row="${memberId}"]`);
+    if (!row) return;
+
+    const select = row.querySelector(`[data-member-role][data-member-id="${memberId}"]`);
+    const saveBtn = row.querySelector(`[data-member-save-role][data-member-id="${memberId}"]`);
+
+    if (select) select.dataset.originalRole = newRole;
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.classList.add("opacity-50", "cursor-not-allowed");
+    }
+  }
+
+  function setSaveEnabled(memberId, enabled) {
+    const saveBtn = document.querySelector(`[data-member-save-role][data-member-id="${memberId}"]`);
+    if (!saveBtn) return;
+    saveBtn.disabled = !enabled;
+    saveBtn.classList.toggle("opacity-50", !enabled);
+    saveBtn.classList.toggle("cursor-not-allowed", !enabled);
+  }
+
+  function initTeamSettings() {
+    const teamPanel = document.getElementById("settings-team");
+    if (!teamPanel) return;
+
+    // ----- Invite modal open/close -----
+    const inviteModal = document.getElementById("inviteModal");
+    document.getElementById("openInvite")?.addEventListener("click", () => inviteModal?.classList.remove("hidden"));
+    ["closeInvite", "cancelInvite"].forEach(id => {
+      document.getElementById(id)?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
+    });
+
+    // ----- Invite submit (POST /admin/settings/team/invite) -----
+    document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const form = e.currentTarget;
+      const body = Object.fromEntries(new FormData(form).entries());
+
+      try {
+        const { res, data } = await apiJson("/admin/settings/team/invite", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+
+        if (res.ok && data.ok) {
+          toast(data.message || "Invite saved.");
+          form.reset();
+          inviteModal?.classList.add("hidden");
+          // MVP: we don't auto-insert a new row here (server-rendered),
+          // but everything stays on the same page.
+          // If you want auto-insert, say so and I’ll add it.
+        } else {
+          toast(data.detail || data.message || "Invite failed.");
+        }
+      } catch (err) {
+        if (String(err) !== "Error: auth") toast("Invite failed.");
+      }
+    });
+
+    // ----- Delegated events for role/toggle/delete -----
+    teamPanel.addEventListener("change", (e) => {
+      const el = e.target;
+      if (!(el instanceof HTMLElement)) return;
+
+      // Role dropdown changed -> enable Save if changed
+      if (el.matches("[data-member-role]")) {
+        const memberId = el.getAttribute("data-member-id");
+        const original = (el.getAttribute("data-original-role") || "").trim();
+        const current = (el.value || "").trim();
+        if (!memberId) return;
+
+        setSaveEnabled(memberId, current !== original);
+      }
+    });
+
+    teamPanel.addEventListener("click", async (e) => {
+      const btn = e.target instanceof HTMLElement ? e.target.closest("button") : null;
+      if (!btn) return;
+
+      // Save role
+      if (btn.matches("[data-member-save-role]")) {
+        const memberId = btn.getAttribute("data-member-id");
+        if (!memberId) return;
+
+        const select = document.querySelector(`[data-member-role][data-member-id="${memberId}"]`);
+        const role = select?.value;
+
+        btn.disabled = true;
+
+        try {
+          const { res, data } = await apiJson(`/admin/settings/team/${memberId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ role }),
+          });
+
+          if (res.ok && data.ok) {
+            toast("Role saved.");
+            markRoleSaved(memberId, role);
+          } else {
+            toast(data.detail || data.message || "Failed to save role.");
+            // re-enable if failed
+            setSaveEnabled(memberId, true);
+          }
+        } catch (err) {
+          if (String(err) !== "Error: auth") toast("Failed to save role.");
+          setSaveEnabled(memberId, true);
+        }
+      }
+
+      // Enable/Disable
+      if (btn.matches("[data-member-toggle]")) {
+        const memberId = btn.getAttribute("data-member-id");
+        const nextActive = btn.getAttribute("data-next-active"); // "true"/"false"
+        if (!memberId || (nextActive !== "true" && nextActive !== "false")) return;
+
+        btn.disabled = true;
+
+        try {
+          const { res, data } = await apiJson(`/admin/settings/team/${memberId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ is_active: nextActive === "true" }),
+          });
+
+          if (res.ok && data.ok) {
+            const nowActive = nextActive === "true";
+            updateMemberStatusUI(memberId, nowActive);
+            toast(nowActive ? "User enabled." : "User disabled.");
+          } else {
+            toast(data.detail || data.message || "Failed to update status.");
+          }
+        } catch (err) {
+          if (String(err) !== "Error: auth") toast("Failed to update status.");
+        } finally {
+          btn.disabled = false;
+        }
+      }
+
+      // Delete invite / Remove user
+      if (btn.matches("[data-member-delete]")) {
+        const memberId = btn.getAttribute("data-member-id");
+        const label = btn.getAttribute("data-delete-label") || "Remove";
+        if (!memberId) return;
+
+        const ok = confirm(`${label}? This cannot be undone.`);
+        if (!ok) return;
+
+        btn.disabled = true;
+
+        try {
+          const { res, data } = await apiJson(`/admin/settings/team/${memberId}`, {
+            method: "DELETE",
+          });
+
+          if (res.ok && data.ok) {
+            document.querySelector(`[data-member-row="${memberId}"]`)?.remove();
+            toast(label === "Delete invite" ? "Invite deleted." : "User removed.");
+          } else {
+            toast(data.detail || data.message || "Delete failed.");
+          }
+        } catch (err) {
+          if (String(err) !== "Error: auth") toast("Delete failed.");
+        } finally {
+          btn.disabled = false;
+        }
+      }
+    });
+
+    // Disable Save buttons initially
+    document.querySelectorAll("[data-member-save-role]").forEach((b) => {
+      b.disabled = true;
+      b.classList.add("opacity-50", "cursor-not-allowed");
+    });
+  }
+
+  // call once on DOM ready
+  document.addEventListener("DOMContentLoaded", () => {
+    initTeamSettings();
+  });
+
+
+
+
+
+
+   
+
   // --- Sidebar collapse/expand ---
   const sidebar = document.getElementById("sidebar");
   const toggleBtn = document.getElementById("sidebar-toggle");
