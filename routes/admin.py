@@ -23,8 +23,6 @@ from models import PMC, Property, ChatSession, ChatMessage, PMCUser
 from utils.pms_sync import sync_properties, sync_all_integrations
 from openai import OpenAI
 
-
-
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 logging.basicConfig(level=logging.INFO)
@@ -252,6 +250,36 @@ def admin_sync_properties(pmc_id: int, request: Request, db: Session = Depends(g
         print(f"[ERROR] Failed to sync for pmc_id={pmc_id}: {e}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
+
+# ----------------------------
+# Pydantic classes
+# ----------------------------
+
+
+class InviteTeamPayload(BaseModel):
+    email: str
+    role: str = "staff"
+    full_name: Optional[str] = None
+
+class UpdateTeamMemberPayload(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class NotificationPrefsPayload(BaseModel):
+    prefs: Dict[str, bool]
+
+
+class PMCUpdateRequest(BaseModel):
+    id: Optional[int] = None
+    pmc_name: str
+    email: Optional[str] = None
+    main_contact: Optional[str] = None
+    subscription_plan: Optional[str] = None
+    pms_integration: Optional[str] = None
+    pms_api_key: str
+    pms_api_secret: str
+    pms_account_id: Optional[str] = None
+    active: bool
 
 # ----------------------------
 # Invite a team member (PMC owner/admin only)
@@ -1421,31 +1449,6 @@ def update_pmc_status(request: Request, payload: dict = Body(...), db: Session =
         return {"success": True}
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
-
-class InviteTeamPayload(BaseModel):
-    email: str
-    role: str = "staff"
-    full_name: Optional[str] = None
-
-class UpdateTeamMemberPayload(BaseModel):
-    role: Optional[str] = None
-    is_active: Optional[bool] = None
-
-class NotificationPrefsPayload(BaseModel):
-    prefs: Dict[str, bool]
-
-
-class PMCUpdateRequest(BaseModel):
-    id: Optional[int] = None
-    pmc_name: str
-    email: Optional[str] = None
-    main_contact: Optional[str] = None
-    subscription_plan: Optional[str] = None
-    pms_integration: Optional[str] = None
-    pms_api_key: str
-    pms_api_secret: str
-    pms_account_id: Optional[str] = None
-    active: bool
 
 
 @router.post("/admin/update-pmc")
