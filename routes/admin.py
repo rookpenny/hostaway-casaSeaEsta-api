@@ -1268,6 +1268,9 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             # existing
             "pmc": pmc_data,
 
+            # 👇 THIS LINE
+            "user_timezone": (pmc_user.timezone if pmc_user else None),
+
             # NEW: billing + UI gating
             "billing_status": billing_status,
             "is_paid": is_paid,
