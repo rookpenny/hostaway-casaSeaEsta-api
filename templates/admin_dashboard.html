@@ -846,6 +846,9 @@
   // -------- Paywall flag (server-rendered) --------
   const IS_LOCKED = {{ 'true' if (user_role == 'pmc' and needs_payment) else 'false' }};
 
+  // ----------------------------
+  // Small UI helpers
+  // ----------------------------
   function toast(message) {
     const el = document.createElement("div");
     el.className =
@@ -860,19 +863,13 @@
     window.location.href = `/auth/login/google?next=${next}`;
   }
 
-
-  // ----------------------------
-  // Team Settings JS (no reload)
-  // ----------------------------
-
   async function apiJson(url, opts = {}) {
     const res = await fetch(url, {
       credentials: "include",
-      headers: { "Accept": "application/json", ...(opts.headers || {}) },
+      headers: { Accept: "application/json", ...(opts.headers || {}) },
       ...opts,
     });
 
-    // common auth handling
     if (res.status === 401 || res.status === 403) {
       toast("Session expired. Please sign in again.");
       loginRedirect();
@@ -884,6 +881,92 @@
     return { res, data };
   }
 
+  // ----------------------------
+  // Sidebar collapse/expand
+  // ----------------------------
+  function initSidebar() {
+    const sidebar = document.getElementById("sidebar");
+    const toggleBtn = document.getElementById("sidebar-toggle");
+    const labelEls = () => Array.from(document.querySelectorAll(".sidebar-label"));
+
+    if (!sidebar || !toggleBtn) return;
+
+    function setCollapsed(isCollapsed) {
+      sidebar.classList.toggle("w-72", !isCollapsed);
+      sidebar.classList.toggle("w-20", isCollapsed);
+      labelEls().forEach((el) => el.classList.toggle("hidden", isCollapsed));
+
+      const svg = toggleBtn.querySelector("svg");
+      if (svg) {
+        svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
+        svg.style.transition = "transform 200ms ease";
+      }
+      localStorage.setItem("dashboard_sidebar_collapsed", isCollapsed ? "1" : "0");
+    }
+
+    setCollapsed(localStorage.getItem("dashboard_sidebar_collapsed") === "1");
+
+    toggleBtn.addEventListener("click", () => {
+      const isCollapsed = sidebar.classList.contains("w-20");
+      setCollapsed(!isCollapsed);
+    });
+
+    // ⌘K focus
+    document.addEventListener("keydown", (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        document.getElementById("globalSearch")?.focus();
+      }
+    });
+  }
+
+  // ----------------------------
+  // Properties filter
+  // ----------------------------
+  function filterProperties() {
+    const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
+    const status = document.getElementById("statusFilter")?.value || "all";
+    const cards = document.querySelectorAll("[data-property-card]");
+
+    cards.forEach((card) => {
+      const name = (card.dataset.name || "").toLowerCase();
+      const live = card.dataset.live === "true";
+      const matchesSearch = name.includes(search);
+      const matchesStatus =
+        status === "all" ||
+        (status === "live" && live) ||
+        (status === "offline" && !live);
+
+      card.style.display = (matchesSearch && matchesStatus) ? "" : "none";
+    });
+  }
+  window.filterProperties = filterProperties;
+
+  // ----------------------------
+  // Settings tabs
+  // ----------------------------
+  function getSettingsTabFromHash() {
+    const h = location.hash || "";
+    if (!h.startsWith("#settings")) return "profile";
+    const q = h.split("?")[1] || "";
+    const params = new URLSearchParams(q);
+    return params.get("tab") || "profile";
+  }
+
+  function showSettingsPanel(key) {
+    document.querySelectorAll(".settings-panel").forEach((p) => p.classList.add("hidden"));
+    document.getElementById(`settings-${key}`)?.classList.remove("hidden");
+
+    document.querySelectorAll(".settings-tab").forEach((b) => b.classList.remove("bg-slate-50"));
+    document.querySelector(`.settings-tab[data-settings="${key}"]`)?.classList.add("bg-slate-50");
+
+    const base = (location.hash || "#overview").split("?")[0];
+    if (base === "#settings") history.replaceState(null, "", `#settings?tab=${key}`);
+  }
+
+  // ----------------------------
+  // Team settings (invite / role save / enable / delete)
+  // ----------------------------
   function updateMemberStatusUI(memberId, isActive) {
     const row = document.querySelector(`[data-member-row="${memberId}"]`);
     if (!row) return;
@@ -903,40 +986,38 @@
     }
   }
 
-  function markRoleSaved(memberId, newRole) {
-    const row = document.querySelector(`[data-member-row="${memberId}"]`);
-    if (!row) return;
-
-    const select = row.querySelector(`[data-member-role][data-member-id="${memberId}"]`);
-    const saveBtn = row.querySelector(`[data-member-save-role][data-member-id="${memberId}"]`);
-
-    if (select) select.dataset.originalRole = newRole;
-    if (saveBtn) {
-      saveBtn.disabled = true;
-      saveBtn.classList.add("opacity-50", "cursor-not-allowed");
-    }
+  function setSaveEnabled(memberId, enabled) {
+    const btn = document.querySelector(`[data-member-save-role][data-member-id="${memberId}"]`);
+    if (!btn) return;
+    btn.disabled = !enabled;
+    btn.classList.toggle("opacity-50", !enabled);
+    btn.classList.toggle("cursor-not-allowed", !enabled);
   }
 
-  function setSaveEnabled(memberId, enabled) {
-    const saveBtn = document.querySelector(`[data-member-save-role][data-member-id="${memberId}"]`);
-    if (!saveBtn) return;
-    saveBtn.disabled = !enabled;
-    saveBtn.classList.toggle("opacity-50", !enabled);
-    saveBtn.classList.toggle("cursor-not-allowed", !enabled);
+  function markRoleSaved(memberId, newRole) {
+    const select = document.querySelector(`[data-member-role][data-member-id="${memberId}"]`);
+    if (select) select.dataset.originalRole = newRole;
+    setSaveEnabled(memberId, false);
   }
 
   function initTeamSettings() {
     const teamPanel = document.getElementById("settings-team");
     if (!teamPanel) return;
 
-    // ----- Invite modal open/close -----
+    // Disable Save buttons initially
+    document.querySelectorAll("[data-member-save-role]").forEach((b) => {
+      b.disabled = true;
+      b.classList.add("opacity-50", "cursor-not-allowed");
+    });
+
+    // Modal open/close
     const inviteModal = document.getElementById("inviteModal");
     document.getElementById("openInvite")?.addEventListener("click", () => inviteModal?.classList.remove("hidden"));
     ["closeInvite", "cancelInvite"].forEach(id => {
       document.getElementById(id)?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
     });
 
-    // ----- Invite submit (POST /admin/settings/team/invite) -----
+    // Invite submit
     document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const form = e.currentTarget;
@@ -953,9 +1034,7 @@
           toast(data.message || "Invite saved.");
           form.reset();
           inviteModal?.classList.add("hidden");
-          // MVP: we don't auto-insert a new row here (server-rendered),
-          // but everything stays on the same page.
-          // If you want auto-insert, say so and I’ll add it.
+          // stays on page; table is SSR so you can refresh later if you want
         } else {
           toast(data.detail || data.message || "Invite failed.");
         }
@@ -964,36 +1043,34 @@
       }
     });
 
-    // ----- Delegated events for role/toggle/delete -----
+    // Change role dropdown -> enable Save if changed
     teamPanel.addEventListener("change", (e) => {
       const el = e.target;
-      if (!(el instanceof HTMLElement)) return;
+      if (!(el instanceof HTMLSelectElement)) return;
+      if (!el.matches("[data-member-role]")) return;
 
-      // Role dropdown changed -> enable Save if changed
-      if (el.matches("[data-member-role]")) {
-        const memberId = el.getAttribute("data-member-id");
-        const original = (el.getAttribute("data-original-role") || "").trim();
-        const current = (el.value || "").trim();
-        if (!memberId) return;
+      const memberId = el.dataset.memberId;
+      const original = (el.dataset.originalRole || "").trim();
+      const current = (el.value || "").trim();
+      if (!memberId) return;
 
-        setSaveEnabled(memberId, current !== original);
-      }
+      setSaveEnabled(memberId, current !== original);
     });
 
+    // Delegated clicks (save role / toggle / delete)
     teamPanel.addEventListener("click", async (e) => {
       const btn = e.target instanceof HTMLElement ? e.target.closest("button") : null;
       if (!btn) return;
 
       // Save role
       if (btn.matches("[data-member-save-role]")) {
-        const memberId = btn.getAttribute("data-member-id");
-        if (!memberId) return;
-
+        const memberId = btn.dataset.memberId;
         const select = document.querySelector(`[data-member-role][data-member-id="${memberId}"]`);
         const role = select?.value;
 
-        btn.disabled = true;
+        if (!memberId || !role) return;
 
+        btn.disabled = true;
         try {
           const { res, data } = await apiJson(`/admin/settings/team/${memberId}`, {
             method: "POST",
@@ -1006,23 +1083,22 @@
             markRoleSaved(memberId, role);
           } else {
             toast(data.detail || data.message || "Failed to save role.");
-            // re-enable if failed
             setSaveEnabled(memberId, true);
           }
         } catch (err) {
           if (String(err) !== "Error: auth") toast("Failed to save role.");
           setSaveEnabled(memberId, true);
         }
+        return;
       }
 
-      // Enable/Disable
+      // Enable / Disable
       if (btn.matches("[data-member-toggle]")) {
-        const memberId = btn.getAttribute("data-member-id");
-        const nextActive = btn.getAttribute("data-next-active"); // "true"/"false"
+        const memberId = btn.dataset.memberId;
+        const nextActive = btn.dataset.nextActive; // "true"/"false"
         if (!memberId || (nextActive !== "true" && nextActive !== "false")) return;
 
         btn.disabled = true;
-
         try {
           const { res, data } = await apiJson(`/admin/settings/team/${memberId}`, {
             method: "POST",
@@ -1042,23 +1118,20 @@
         } finally {
           btn.disabled = false;
         }
+        return;
       }
 
-      // Delete invite / Remove user
+      // Delete invite / Remove
       if (btn.matches("[data-member-delete]")) {
-        const memberId = btn.getAttribute("data-member-id");
-        const label = btn.getAttribute("data-delete-label") || "Remove";
+        const memberId = btn.dataset.memberId;
+        const label = btn.dataset.deleteLabel || "Remove";
         if (!memberId) return;
 
-        const ok = confirm(`${label}? This cannot be undone.`);
-        if (!ok) return;
+        if (!confirm(`${label}? This cannot be undone.`)) return;
 
         btn.disabled = true;
-
         try {
-          const { res, data } = await apiJson(`/admin/settings/team/${memberId}`, {
-            method: "DELETE",
-          });
+          const { res, data } = await apiJson(`/admin/settings/team/${memberId}`, { method: "DELETE" });
 
           if (res.ok && data.ok) {
             document.querySelector(`[data-member-row="${memberId}"]`)?.remove();
@@ -1073,243 +1146,42 @@
         }
       }
     });
+  }
 
-    // Disable Save buttons initially
-    document.querySelectorAll("[data-member-save-role]").forEach((b) => {
-      b.disabled = true;
-      b.classList.add("opacity-50", "cursor-not-allowed");
+  // ----------------------------
+  // Settings init (only once)
+  // ----------------------------
+  let settingsInitialized = false;
+
+  function initSettingsUI() {
+    if (settingsInitialized) return;
+    settingsInitialized = true;
+
+    // Tabs
+    document.querySelectorAll(".settings-tab").forEach((btn) => {
+      btn.addEventListener("click", () => showSettingsPanel(btn.dataset.settings));
     });
-  }
 
-  // call once on DOM ready
-  document.addEventListener("DOMContentLoaded", () => {
-    initTeamSettings();
-  });
-
-
-
-
-
-
-   
-
-  // --- Sidebar collapse/expand ---
-  const sidebar = document.getElementById("sidebar");
-  const toggleBtn = document.getElementById("sidebar-toggle");
-  const labelEls = () => Array.from(document.querySelectorAll(".sidebar-label"));
-
-  function setCollapsed(isCollapsed) {
-    sidebar.classList.toggle("w-72", !isCollapsed);
-    sidebar.classList.toggle("w-20", isCollapsed);
-    labelEls().forEach((el) => el.classList.toggle("hidden", isCollapsed));
-
-    const svg = toggleBtn.querySelector("svg");
-    svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
-    svg.style.transition = "transform 200ms ease";
-    localStorage.setItem("dashboard_sidebar_collapsed", isCollapsed ? "1" : "0");
-  }
-
-  setCollapsed(localStorage.getItem("dashboard_sidebar_collapsed") === "1");
-
-  toggleBtn.addEventListener("click", () => {
-    const isCollapsed = sidebar.classList.contains("w-20");
-    setCollapsed(!isCollapsed);
-  });
-
-  // ⌘K focus
-  document.addEventListener("keydown", (e) => {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+    // Profile save
+    document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      document.getElementById("globalSearch")?.focus();
-    }
-  });
-
-  // --- Property filtering (defined early so showView can call it) ---
-  function filterProperties() {
-    const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
-    const status = document.getElementById("statusFilter")?.value || "all";
-    const cards = document.querySelectorAll("[data-property-card]");
-
-    cards.forEach((card) => {
-      const name = (card.dataset.name || "").toLowerCase();
-      const live = card.dataset.live === "true";
-      const matchesSearch = name.includes(search);
-      const matchesStatus =
-        status === "all" ||
-        (status === "live" && live) ||
-        (status === "offline" && !live);
-
-      card.style.display = matchesSearch && matchesStatus ? "" : "none";
-    });
-  }
-  window.filterProperties = filterProperties;
-
-  // --- API helpers ---
-  async function postJson(url) {
-    return fetch(url, {
-      method: "POST",
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-  }
-
-  async function postJsonBody(url, body) {
-    return fetch(url, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", Accept: "application/json" },
-      body: JSON.stringify(body || {}),
-    });
-  }
-
-  // --- Settings helpers ---
-  function getSettingsTabFromHash() {
-    const h = location.hash || "";
-    if (!h.startsWith("#settings")) return "team";
-    const q = h.split("?")[1] || "";
-    const params = new URLSearchParams(q);
-    return params.get("tab") || "profile";
-  }
-
-  function showSettingsPanel(key) {
-    document.querySelectorAll(".settings-panel").forEach((p) => p.classList.add("hidden"));
-    document.getElementById(`settings-${key}`)?.classList.remove("hidden");
-
-    document.querySelectorAll(".settings-tab").forEach((b) => b.classList.remove("bg-slate-50"));
-    document
-      .querySelector(`.settings-tab[data-settings="${key}"]`)
-      ?.classList.add("bg-slate-50");
-
-    // keep nested state in hash
-    const base = (location.hash || "#overview").split("?")[0];
-    if (base === "#settings") {
-      history.replaceState(null, "", `#settings?tab=${key}`);
-    }
-  }
-
-let settingsInitialized = false;
-
-function initSettingsUI() {
-  if (settingsInitialized) return;
-  settingsInitialized = true;
-
-  // default tab
-  showSettingsPanel(getSettingsTabFromHash() || "profile");
-
-  // tab clicks
-  document.querySelectorAll(".settings-tab").forEach((btn) => {
-    btn.addEventListener("click", () => showSettingsPanel(btn.dataset.settings));
-  });
-
-  // Profile save
-  document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const form = e.currentTarget;
-    const body = Object.fromEntries(new FormData(form).entries());
-
-    const res = await postJsonBody("/admin/settings/profile", body);
-    if (res.status === 401 || res.status === 403) {
-      toast("Session expired. Please sign in again.");
-      loginRedirect();
-      return;
-    }
-    toast(res.ok ? "Profile saved." : "Failed to save profile.");
-  });
-
-  // Notifications save
-  document.getElementById("notifForm")?.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const fd = new FormData(e.currentTarget);
-
-    const keys = ["guest_messages", "maintenance_assigned", "turnover_due"];
-    const prefs = {};
-    keys.forEach((k) => (prefs[k] = fd.get(k) !== null));
-
-    const res = await postJsonBody("/admin/settings/notifications", { prefs });
-    if (res.status === 401 || res.status === 403) {
-      toast("Session expired. Please sign in again.");
-      loginRedirect();
-      return;
-    }
-    toast(res.ok ? "Notifications saved." : "Failed to save notifications.");
-  });
-}
-
-
-    async function refreshTeamList() {
-      const res = await fetch("/admin/settings/team", { credentials: "include" });
-      if (!res.ok) return;
-    
-      const html = await res.text();
-      document.querySelector("#settings-team tbody").innerHTML = html;
-    }
-
-
-    // Invite submit
-    document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-    
       const form = e.currentTarget;
       const body = Object.fromEntries(new FormData(form).entries());
-      const data = await res.json().catch(() => ({}));
-    
-      const res = await fetch("/admin/settings/team/invite", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json"
-        },
-        body: JSON.stringify(body)
-      });
 
-      const data = await res.json().catch(() => ({}));
-    
-      let data = {};
-      try { data = await res.json(); } catch {}
-    
-      if (res.ok && data.ok) {
-        toast(data.message || "Member added");
-        form.reset();
-        document.getElementById("inviteModal")?.classList.add("hidden");
-    
-        // OPTIONAL: refresh team table only (clean MVP approach)
-        await refreshTeamList();
-      } else {
-        toast(data.detail || data.message || "Invite failed");
+      try {
+        const { res, data } = await apiJson("/admin/settings/profile", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        if (res.ok && (data.ok ?? true)) toast("Profile saved.");
+        else toast(data.detail || data.message || "Failed to save profile.");
+      } catch (err) {
+        if (String(err) !== "Error: auth") toast("Failed to save profile.");
       }
     });
 
-
-    // Team: role changes
-    document.querySelectorAll("[data-member-role]").forEach((sel) => {
-      sel.addEventListener("change", async () => {
-        const memberId = sel.dataset.memberId;
-        const role = sel.value;
-
-        const res = await postJsonBody(`/admin/settings/team/${memberId}`, { role });
-        if (res.ok) toast("Role updated.");
-        else toast("Role update failed (owner/admin only).");
-      });
-    });
-
-    // Team: enable/disable
-    document.querySelectorAll("[data-member-toggle]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        const memberId = btn.dataset.memberId;
-        const isActive = btn.dataset.nextActive === "true";
-
-        const res = await postJsonBody(`/admin/settings/team/${memberId}`, { is_active: isActive });
-        if (res.ok) {
-          toast(isActive ? "User enabled." : "User disabled.");
-          window.location.reload();
-        } else {
-          toast("Update failed (owner/admin only).");
-        }
-      });
-    });
-
-    // Notifications save (expects backend payload: { prefs: {k: boolean} })
+    // Notifications save
     document.getElementById("notifForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.currentTarget);
@@ -1318,80 +1190,97 @@ function initSettingsUI() {
       const prefs = {};
       keys.forEach((k) => (prefs[k] = fd.get(k) !== null));
 
-      const res = await postJsonBody("/admin/settings/notifications", { prefs });
-      if (res.status === 401 || res.status === 403) {
-        toast("Session expired. Please sign in again.");
-        loginRedirect();
-        return;
+      try {
+        const { res, data } = await apiJson("/admin/settings/notifications", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prefs }),
+        });
+        if (res.ok && (data.ok ?? true)) toast("Notifications saved.");
+        else toast(data.detail || data.message || "Failed to save notifications.");
+      } catch (err) {
+        if (String(err) !== "Error: auth") toast("Failed to save notifications.");
       }
-      if (res.ok) toast("Notifications saved.");
-      else toast("Failed to save notifications.");
+    });
+
+    // Team UI
+    initTeamSettings();
+
+    // Show correct initial tab
+    showSettingsPanel(getSettingsTabFromHash());
+  }
+
+  // ----------------------------
+  // Main view routing (left nav)
+  // ----------------------------
+  function initRouting() {
+    const pageTitle = document.getElementById("page-title");
+    const pageSubtitle = document.getElementById("page-subtitle");
+    const navItems = Array.from(document.querySelectorAll(".nav-item"));
+    const views = Array.from(document.querySelectorAll(".view"));
+
+    const subtitles = {
+      overview: "{{ 'System health & activity' if user_role == 'super' else 'Your portfolio at a glance' }}",
+      properties: "Search and manage your portfolio",
+      chats: "Lifecycle, priority, escalations",
+      pmcs: "Partners, integrations, access",
+      files: "Configs & manuals",
+      analytics: "Trends & performance",
+      settings: "Account and system settings",
+    };
+
+    function showView(key) {
+      const target = document.getElementById(`view-${key}`);
+      if (!target) key = "overview";
+
+      views.forEach((v) => v.classList.add("hidden"));
+      document.getElementById(`view-${key}`)?.classList.remove("hidden");
+
+      navItems.forEach((btn) => btn.setAttribute("aria-current", "false"));
+      const activeBtn = navItems.find((b) => b.dataset.view === key);
+      if (activeBtn) activeBtn.setAttribute("aria-current", "page");
+
+      const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
+      if (pageTitle) pageTitle.textContent = label;
+      if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
+
+      history.replaceState(null, "", `#${key}`);
+
+      if (key === "properties") {
+        const global = document.getElementById("globalSearch");
+        const local = document.getElementById("searchInput");
+        if (global && local && global.value && !local.value) local.value = global.value;
+        filterProperties();
+      }
+
+      if (key === "settings") {
+        initSettingsUI();
+        showSettingsPanel(getSettingsTabFromHash());
+      }
+    }
+
+    // expose if you need it elsewhere
+    window.showView = showView;
+
+    navItems.forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
+
+    const initial = (location.hash || "#overview").replace("#", "").split("?")[0];
+    showView(initial);
+  }
+
+  // ----------------------------
+  // Property actions
+  // ----------------------------
+  async function postJson(url) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
     });
   }
 
-  // --- View routing ---
-  const pageTitle = document.getElementById("page-title");
-  const pageSubtitle = document.getElementById("page-subtitle");
-  const navItems = Array.from(document.querySelectorAll(".nav-item"));
-  const views = Array.from(document.querySelectorAll(".view"));
-
-  const subtitles = {
-    overview: "{{ 'System health & activity' if user_role == 'super' else 'Your portfolio at a glance' }}",
-    properties: "Search and manage your portfolio",
-    chats: "Lifecycle, priority, escalations",
-    pmcs: "Partners, integrations, access",
-    files: "Configs & manuals",
-    analytics: "Trends & performance",
-    settings: "Account and system settings",
-  };
-
-  function showView(key) {
-    const target = document.getElementById(`view-${key}`);
-    if (!target) key = "overview";
-
-    views.forEach((v) => v.classList.add("hidden"));
-    document.getElementById(`view-${key}`)?.classList.remove("hidden");
-
-    navItems.forEach((btn) => btn.setAttribute("aria-current", "false"));
-    const activeBtn = navItems.find((b) => b.dataset.view === key);
-    if (activeBtn) activeBtn.setAttribute("aria-current", "page");
-
-    const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
-    pageTitle.textContent = label;
-    if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
-
-    history.replaceState(null, "", `#${key}`);
-
-    if (key === "properties") {
-      const global = document.getElementById("globalSearch");
-      const local = document.getElementById("searchInput");
-      if (global && local && global.value && !local.value) {
-        local.value = global.value;
-      }
-      filterProperties();
-    }
-
-    if (key === "settings") {
-      initSettingsUI();
-      showSettingsPanel(getSettingsTabFromHash());
-    }
-  }
-
-  // expose for other code
-  window.showView = showView;
-
-  navItems.forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
-
-  // Initial view
-  const initial = (location.hash || "#overview").replace("#", "").split("?")[0];
-  showView(initial);
-
-  // --- Actions (must be global for inline onclick=) ---
   window.syncProperty = async function (id, btn) {
-    if (IS_LOCKED) {
-      toast("Complete payment to unlock property syncing.");
-      return;
-    }
+    if (IS_LOCKED) return toast("Complete payment to unlock property syncing.");
 
     btn.disabled = true;
     const original = btn.innerHTML;
@@ -1400,27 +1289,12 @@ function initSettingsUI() {
     try {
       const res = await postJson(`/auth/sync-property/${id}`);
 
-      if (res.status === 401 || res.status === 403) {
-        toast("Session expired. Please sign in again.");
-        loginRedirect();
-        return;
-      }
-      if (res.status === 402) {
-        toast("Payment required to sync properties.");
-        window.location.href = "/pmc/signup";
-        return;
-      }
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+      if (res.status === 402) return (window.location.href = "/pmc/signup");
 
       let data = {};
-      try {
-        data = await res.json();
-      } catch (_) {}
-
-      if (res.ok && data.status === "success") {
-        btn.innerHTML = "Synced ✓";
-      } else {
-        btn.innerHTML = data.message || data.detail || "Failed";
-      }
+      try { data = await res.json(); } catch (_) {}
+      btn.innerHTML = (res.ok && data.status === "success") ? "Synced ✓" : (data.message || data.detail || "Failed");
     } catch (err) {
       console.error("Sync error:", err);
       btn.innerHTML = "Error";
@@ -1433,10 +1307,7 @@ function initSettingsUI() {
   };
 
   window.toggleProperty = async function (id, btn) {
-    if (IS_LOCKED) {
-      toast("Complete payment to unlock Sandy activation.");
-      return;
-    }
+    if (IS_LOCKED) return toast("Complete payment to unlock Sandy activation.");
 
     btn.disabled = true;
     const original = btn.innerHTML;
@@ -1444,19 +1315,10 @@ function initSettingsUI() {
 
     try {
       const res = await postJson(`/auth/toggle-property/${id}`);
-
-      if (res.status === 401 || res.status === 403) {
-        toast("Session expired. Please sign in again.");
-        loginRedirect();
-        return;
-      }
+      if (res.status === 401 || res.status === 403) return loginRedirect();
 
       let data = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
+      try { data = await res.json(); } catch { data = null; }
 
       if (data && data.status === "needs_billing" && data.checkout_url) {
         window.location.href = data.checkout_url;
@@ -1464,8 +1326,7 @@ function initSettingsUI() {
       }
 
       if (!res.ok) {
-        const msg = (data && (data.detail || data.message)) || "Request failed";
-        toast(msg);
+        toast((data && (data.detail || data.message)) || "Request failed");
         btn.innerHTML = original;
         return;
       }
@@ -1477,23 +1338,19 @@ function initSettingsUI() {
         const card = btn.closest("[data-property-card]");
         if (card) {
           card.dataset.live = isLive ? "true" : "false";
-
           const pill = card.querySelector("span.rounded-full");
           if (pill) {
             if (isLive) {
               pill.textContent = "LIVE";
-              pill.className =
-                "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
+              pill.className = "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
             } else {
               pill.textContent = "OFFLINE";
-              pill.className =
-                "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
+              pill.className = "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
             }
           }
         }
 
         filterProperties();
-        if (data.billing_note) toast(data.billing_note);
       } else {
         btn.innerHTML = original;
         toast("Toggle failed.");
@@ -1507,21 +1364,21 @@ function initSettingsUI() {
     }
   };
 
-  // --- DOM ready setup ---
+  // ----------------------------
+  // DOM ready
+  // ----------------------------
   document.addEventListener("DOMContentLoaded", () => {
+    initSidebar();
+    initRouting();
+
     // Chart
     const ctx = document.getElementById("statusChart");
-    if (ctx) {
+    if (ctx && window.Chart) {
       new Chart(ctx, {
         type: "bar",
         data: {
           labels: ["LIVE", "OFFLINE"],
-          datasets: [
-            {
-              label: "Properties",
-              data: [{{ live_props }}, {{ offline_props }}],
-            },
-          ],
+          datasets: [{ label: "Properties", data: [{{ live_props }}, {{ offline_props }}] }],
         },
         options: {
           responsive: true,
@@ -1531,11 +1388,9 @@ function initSettingsUI() {
       });
     }
 
-    // Filters
     document.getElementById("searchInput")?.addEventListener("input", filterProperties);
     document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
   });
 </script>
-
 </body>
 </html>
