@@ -965,6 +965,7 @@
     
       const form = e.currentTarget;
       const body = Object.fromEntries(new FormData(form).entries());
+      const data = await res.json().catch(() => ({}));
     
       const res = await fetch("/admin/settings/team/invite", {
         method: "POST",
@@ -975,6 +976,8 @@
         },
         body: JSON.stringify(body)
       });
+
+      const data = await res.json().catch(() => ({}));
     
       let data = {};
       try { data = await res.json(); } catch {}
