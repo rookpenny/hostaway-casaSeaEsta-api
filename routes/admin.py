@@ -189,8 +189,6 @@ def get_user_role_and_scope(request: Request, db: Session):
     return "pmc", pmc, pmc_user, billing_status, needs_payment
 
 
-
-
 @router.get("/admin/settings/team/table", response_class=HTMLResponse)
 def team_table_rows(request: Request, db: Session = Depends(get_db)):
     user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
@@ -213,6 +211,7 @@ def team_table_rows(request: Request, db: Session = Depends(get_db)):
             "user_email": me_email,
         },
     )
+
 
 
 
