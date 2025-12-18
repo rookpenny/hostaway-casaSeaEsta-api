@@ -2,50 +2,73 @@
   <thead class="text-xs text-slate-500">
     <tr class="border-b border-slate-200">
       <th class="text-left py-2">Title</th>
-      <th class="text-left py-2">Slug</th>
       <th class="text-left py-2">Property</th>
       <th class="text-left py-2">Price</th>
-      <th class="text-left py-2">Active</th>
+      <th class="text-left py-2">Status</th>
       <th class="text-right py-2">Actions</th>
     </tr>
   </thead>
+
   <tbody>
     {% for u in upgrades %}
     <tr class="border-b border-slate-100" data-upgrade-row="{{ u.id }}">
       <td class="py-2 font-medium">{{ u.title }}</td>
-      <td class="py-2 text-slate-600">{{ u.slug }}</td>
 
-      <!-- ✅ Property column -->
       <td class="py-2 text-slate-600">
         {{ u.property.property_name if u.property else "—" }}
       </td>
 
-      <!-- Price shown as dollars -->
       <td class="py-2 text-slate-600">
         ${{ '%.2f'|format((u.price_cents or 0) / 100) }}
       </td>
 
-      <!-- ✅ Active checkbox -->
+      <!-- Status -->
       <td class="py-2">
-        <input
-          type="checkbox"
-          {% if u.is_active %}checked{% endif %}
-          data-upgrade-active
-          data-upgrade-id="{{ u.id }}"
-          class="h-5 w-5"
-        />
+        <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
+            class="h-4 w-4"
+            data-upgrade-active
+            data-upgrade-id="{{ u.id }}"
+            {% if u.is_active %}checked{% endif %}
+            {% if is_locked %}disabled{% endif %}
+          />
+
+          <span
+            class="text-xs font-semibold
+              {% if u.is_active %}
+                text-emerald-700
+              {% else %}
+                text-slate-400
+              {% endif %}
+            "
+            data-upgrade-status-label
+          >
+            {% if u.is_active %}Active{% else %}Inactive{% endif %}
+          </span>
+        </label>
       </td>
 
       <td class="py-2 text-right">
         <button
           type="button"
-          class="text-xs font-semibold hover:underline"
-          data-upgrade-edit="{{ u.id }}">
+          class="text-xs font-semibold hover:underline
+                 {% if is_locked %}opacity-50 cursor-not-allowed{% endif %}"
+          data-upgrade-edit="{{ u.id }}"
+          {% if is_locked %}disabled{% endif %}
+        >
           Edit
         </button>
       </td>
-
     </tr>
     {% endfor %}
+
+    {% if not upgrades %}
+    <tr>
+      <td colspan="5" class="py-6 text-center text-slate-500">
+        No upgrades yet.
+      </td>
+    </tr>
+    {% endif %}
   </tbody>
 </table>
