@@ -1313,7 +1313,24 @@ def upgrades_ajax_save(
     else:
         u = Upgrade(property_id=int(property_id))
 
-    u.slug = slug.strip()
+    # Normalize slug
+    slug_clean = (slug or "").strip().lower()
+    u.slug = slug_clean
+
+    # ✅ Server-side uniqueness check (per property), ignore self on edit
+    dup_q = db.query(Upgrade).filter(
+        Upgrade.property_id == int(property_id),
+        sa.func.lower(Upgrade.slug) == slug_clean,
+    )
+    if id:
+        dup_q = dup_q.filter(Upgrade.id != int(id))
+    
+    if db.query(dup_q.exists()).scalar():
+        return JSONResponse(
+            {"ok": False, "error": "Slug must be unique per property"},
+            status_code=400,
+        )
+    
     u.title = title.strip()
     u.short_description = (short_description or "").strip() or None
     u.long_description = (long_description or "").strip() or None
