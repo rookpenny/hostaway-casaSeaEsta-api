@@ -17,3 +17,4 @@ psycopg2-binary
 asyncpg
 sqlalchemy>=1.4
 stripe==7.10.0
+resend==2.4.0
