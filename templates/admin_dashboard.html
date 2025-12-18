@@ -1698,29 +1698,60 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
 
 
    document.addEventListener("change", async (e) => {
-    const el = e.target;
-    if (!(el instanceof HTMLInputElement)) return;
-    if (!el.matches("[data-upgrade-active]")) return;
-  
-    const id = el.dataset.upgradeId;
-    const checked = el.checked;
-  
-    try {
-      const { res, data } = await apiJson("/admin/upgrades/ajax/toggle-active", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, is_active: checked }),
-      });
-  
-      if (!res.ok || !data.ok) {
-        toast(data.error || "Failed to update.");
-        el.checked = !checked; // revert
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement)) return;
+  if (!el.matches("[data-upgrade-active]")) return;
+
+  const id = el.dataset.upgradeId;
+  const checked = el.checked;
+
+  // Find the row + status label (from _upgrades_list.html)
+  const row = el.closest("[data-upgrade-row]");
+  const label = row?.querySelector("[data-upgrade-status-label]");
+
+  // optimistic UI update
+  if (label) {
+    label.textContent = checked ? "Active" : "Inactive";
+    label.className =
+      "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
+  }
+
+  try {
+    const { res, data } = await apiJson("/admin/upgrades/ajax/toggle-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, is_active: checked }),
+    });
+
+    if (!res.ok || !data.ok) {
+      toast(data.error || "Failed to update.");
+
+      // revert checkbox + label if server failed
+      el.checked = !checked;
+      const reverted = el.checked;
+
+      if (label) {
+        label.textContent = reverted ? "Active" : "Inactive";
+        label.className =
+          "text-xs font-semibold " +
+          (reverted ? "text-emerald-700" : "text-slate-400");
       }
-    } catch (err) {
-      toast("Failed to update.");
-      el.checked = !checked; // revert
     }
-  });
+  } catch (err) {
+    toast("Failed to update.");
+
+    // revert checkbox + label if network failed
+    el.checked = !checked;
+    const reverted = el.checked;
+
+    if (label) {
+      label.textContent = reverted ? "Active" : "Inactive";
+      label.className =
+        "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
+    }
+  }
+});
+
 
    
 
