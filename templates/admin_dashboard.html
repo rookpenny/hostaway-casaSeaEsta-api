@@ -990,57 +990,8 @@
     setTimeout(() => el.remove(), 2400);
   }
 
-   Upgrades.submit = async function (form) {
-  if (!form) return;
-
-  const flash = document.getElementById("upgrades-flash");
-
-  function showFlash(msg, ok = true) {
-    if (!flash) return toast(msg);
-    flash.innerHTML = `
-      <div class="rounded-xl border ${ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-rose-200 bg-rose-50 text-rose-900"}
-           p-3 text-sm">
-        ${msg}
-      </div>
-    `;
-  }
-
-  const fd = new FormData(form);
-
-  // IMPORTANT: checkbox behavior
-  // If unchecked, browser sends nothing — server sees is_active=None => bool(None)=False ✅
-  // So we do NOT need to force "false".
-  // But we DO want the value when checked:
-  // Your form already uses value="true", so that's fine.
-
-  try {
-    const res = await fetch("/admin/upgrades/ajax/save", {
-      method: "POST",
-      credentials: "include",
-      body: fd,
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok || !data.ok) {
-      showFlash(data.error || data.detail || data.message || "Save failed.", false);
-      return;
-    }
-
-    showFlash("Saved ✓", true);
-
-    // refresh the list (keeps current filter)
-    await Upgrades.loadList();
-
-    // optionally close the editor after save:
-    // Upgrades.closeEditor();
-
-  } catch (err) {
-    console.error(err);
-    showFlash("Network error saving upgrade.", false);
-  }
-};
-
+   window.Upgrades = window.Upgrades || {};
+    window.Guides = window.Guides || {};
 
   function loginRedirect() {
     const next = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
@@ -1092,7 +1043,7 @@
   
     return true;
   }
-
+/*
    // ---- Upgrades: event delegation (works even after partial reloads) ----
   document.addEventListener("click", async (e) => {
     const editBtn = e.target.closest("[data-upgrade-edit]");
@@ -1101,19 +1052,9 @@
       await loadUpgradeForm(id);
       return;
     }
-  });
+  });*/
 
-   async function loadUpgradeForm(id) {
-      const url = id ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}` : `/admin/upgrades/partial/form`;
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) return toast("Could not load upgrade form.");
-      const html = await res.text();
-      document.getElementById("upgrades-form-slot").innerHTML = html;
-    }
-
-
-
-
+   
   // ----------------------------
   // Sidebar collapse/expand
   // ----------------------------
@@ -1228,15 +1169,15 @@
   }
 
    // ---------- Upgrades module ----------
-    window.Upgrades = window.Upgrades || {};
-    
+   
+    /*
     Upgrades.state = {
       propertyId: "", // current filter
     };
     
     Upgrades.openNew = async function () {
       await Upgrades.openEditor(null);
-    };
+    };*/
     
     Upgrades.openEditor = async function (id) {
       const editorWrap = document.getElementById("upgrades-editor");
@@ -1261,7 +1202,7 @@
       document.getElementById("upgrades-editor")?.classList.add("hidden");
       document.getElementById("upgrades-editor-body").innerHTML = "";
     };
-    
+    /*
     // Load list partial into #upgrades-list
     Upgrades.loadList = async function () {
       const listEl = document.getElementById("upgrades-list");
@@ -1275,7 +1216,7 @@
       if (!res.ok) return (listEl.innerHTML = "Could not load upgrades.");
     
       listEl.innerHTML = await res.text();
-    };
+    };*/
     
     // ---------- IMPORTANT: delegated click for Edit buttons ----------
    document.addEventListener("click", (e) => {
@@ -1538,6 +1479,57 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
     // Show correct initial tab
     showSettingsPanel(getSettingsTabFromHash());
   }
+
+   Upgrades.submit = async function (form) {
+  if (!form) return;
+
+  const flash = document.getElementById("upgrades-flash");
+
+  function showFlash(msg, ok = true) {
+    if (!flash) return toast(msg);
+    flash.innerHTML = `
+      <div class="rounded-xl border ${ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-rose-200 bg-rose-50 text-rose-900"}
+           p-3 text-sm">
+        ${msg}
+      </div>
+    `;
+  }
+
+  const fd = new FormData(form);
+
+  // IMPORTANT: checkbox behavior
+  // If unchecked, browser sends nothing — server sees is_active=None => bool(None)=False ✅
+  // So we do NOT need to force "false".
+  // But we DO want the value when checked:
+  // Your form already uses value="true", so that's fine.
+
+  try {
+    const res = await fetch("/admin/upgrades/ajax/save", {
+      method: "POST",
+      credentials: "include",
+      body: fd,
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.ok) {
+      showFlash(data.error || data.detail || data.message || "Save failed.", false);
+      return;
+    }
+
+    showFlash("Saved ✓", true);
+
+    // refresh the list (keeps current filter)
+    await Upgrades.loadList();
+
+    // optionally close the editor after save:
+    // Upgrades.closeEditor();
+
+  } catch (err) {
+    console.error(err);
+    showFlash("Network error saving upgrade.", false);
+  }
+};
 
   // ----------------------------
   // Main view routing (left nav)
@@ -1850,13 +1842,12 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
     initRouting();
 
     // Upgrades initial load + property filter
-    Upgrades.loadList();
-    
-    document.getElementById("upgradesPropertyFilter")?.addEventListener("change", (e) => {
-      Upgrades.state.propertyId = e.target.value || "";
-      Upgrades.loadList();
-      Upgrades.closeEditor(); // optional: close editor when switching filter
-    });
+    Upgrades.refresh();
+      document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
+        Upgrades.closeEditor();
+        Upgrades.refresh();
+      });
+
 
 
     // Chart
