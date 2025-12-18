@@ -134,6 +134,10 @@ def get_user_role_and_scope(request: Request, db: Session):
         .filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active == True)
         .first()
     )
+    
+    # ✅ NEW: DB-driven superuser override
+    if pmc_user and bool(getattr(pmc_user, "is_superuser", False)):
+        return "super", None, pmc_user, None, False
 
     pmc = None
     if pmc_user:
