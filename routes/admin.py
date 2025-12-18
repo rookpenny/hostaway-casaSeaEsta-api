@@ -190,30 +190,30 @@ def get_user_role_and_scope(request: Request, db: Session):
 
 
 
-    @router.get("/admin/settings/team/table", response_class=HTMLResponse)
-    def team_table_rows(request: Request, db: Session = Depends(get_db)):
-        # Must be logged in + in PMC scope
-        user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
-        require_pmc_linked(user_role, pmc_obj)
-    
-        # Who am I (for disabling self actions in template)
-        me_email = (get_current_admin_identity(request) or "").strip().lower()
-    
-        team_members = (
-            db.query(PMCUser)
-            .filter(PMCUser.pmc_id == pmc_obj.id)
-            .order_by(func.lower(PMCUser.email).asc())
-            .all()
-        )
-    
-        return templates.TemplateResponse(
-            "partials/team_rows.html",
-            {
-                "request": request,
-                "team_members": team_members,
-                "user_email": me_email,
-            },
-        )
+
+@router.get("/admin/settings/team/table", response_class=HTMLResponse)
+def team_table_rows(request: Request, db: Session = Depends(get_db)):
+    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
+    me_email = (get_current_admin_identity(request) or "").strip().lower()
+
+    team_members = (
+        db.query(PMCUser)
+        .filter(PMCUser.pmc_id == pmc_obj.id)
+        .order_by(func.lower(PMCUser.email).asc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        "admin/_team_table_rows.html",
+        {
+            "request": request,
+            "team_members": team_members,
+            "user_email": me_email,
+        },
+    )
+
 
 
 def require_super(request: Request, db: Session):
