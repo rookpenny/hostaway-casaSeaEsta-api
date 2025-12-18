@@ -14,8 +14,27 @@ Welcome to the **Hostaway CasaSeaEsta API**. This API powers the *Sandy* virtual
 | **APScheduler** | A background job runs regularly to sync PMC data and reservations. |
 | **Templates & static files** | Jinja2 templates render guest and admin UIs, while static files (CSS/JS/images) are served from the static directory. |
 
-## Project structure
 
+Models define structure. Routes define behavior.
+
+**models.py**
+- Columns
+- Relationships
+- Defaults
+- Constraints
+- Types (JSONB, Boolean, etc.)
+
+**admin.py / routes**
+- Read/write values
+- Validation
+- Permissions
+- Business logic
+
+Never put column definitions in routes
+❌ Never put DB structure in routers
+✅ Always put DB structure in models.py
+
+## Project structure
 .  
 ├── main.py                 \# Application entrypoint; sets up routers, middleware, and FastAPI app  
 ├── models.py               \# SQLAlchemy model definitions  
