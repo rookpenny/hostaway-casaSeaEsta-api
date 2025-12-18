@@ -1573,6 +1573,34 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
     }
   };
 
+
+   document.addEventListener("change", async (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement)) return;
+    if (!el.matches("[data-upgrade-active]")) return;
+  
+    const id = el.dataset.upgradeId;
+    const checked = el.checked;
+  
+    try {
+      const { res, data } = await apiJson("/admin/upgrades/ajax/toggle-active", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_active: checked }),
+      });
+  
+      if (!res.ok || !data.ok) {
+        toast(data.error || "Failed to update.");
+        el.checked = !checked; // revert
+      }
+    } catch (err) {
+      toast("Failed to update.");
+      el.checked = !checked; // revert
+    }
+  });
+
+   
+
    const CONTENT_LOCKED = IS_LOCKED; // reuse your flag
 
     function flashIn(elId, msg, ok=true) {
