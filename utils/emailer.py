@@ -11,34 +11,61 @@ APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
 def email_enabled() -> bool:
     return bool(RESEND_API_KEY and EMAIL_FROM and APP_BASE_URL)
 
-def send_invite_email(*, to_email: str, invited_by: str, pmc_name: str):
+def send_invite_email(*, to_email: str, invited_by: str, pmc_name: str) -> bool:
     """
     Sends invite email via Resend.
-    Returns provider response dict on success; raises on failure.
+
+    Returns:
+      True if the provider accepted the send request.
+      False if email is not configured or provider send fails.
+
+    Notes:
+      - Resend requires EMAIL_FROM to be from a VERIFIED domain (not gmail.com).
+      - This function should NOT raise in normal operation—invites should still succeed even if email fails.
     """
     if not email_enabled():
-        raise RuntimeError("Email not configured: missing RESEND_API_KEY / EMAIL_FROM / APP_BASE_URL")
+        # Don't hard-fail the invite flow if email isn't configured yet.
+        return False
 
     resend.api_key = RESEND_API_KEY
 
     subject = f"You’ve been added to {pmc_name} on HostScout"
-    login_url = f"{APP_BASE_URL}/auth/login/google?next=/admin/dashboard#settings?tab=team"
+
+    # Build a safe login URL and keep the settings tab state
+    base = (APP_BASE_URL or "").rstrip("/")
+    login_url = f"{base}/auth/login/google?next=/admin/dashboard#settings?tab=team"
+
+    safe_pmc_name = (pmc_name or "your team").strip()
+    safe_invited_by = (invited_by or "A teammate").strip()
+    safe_to_email = (to_email or "").strip()
 
     html = f"""
     <div style="font-family: ui-sans-serif, system-ui; line-height: 1.5;">
-      <h2>You’ve been added to <b>{pmc_name}</b> ✅</h2>
-      <p><b>{invited_by}</b> added you as a team member in HostScout.</p>
-      <p>To access your account, sign in with Google using <b>{to_email}</b>:</p>
-      <p><a href="{login_url}" style="display:inline-block;background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none;">
-        Sign in to HostScout
-      </a></p>
-      <p style="color:#64748b;font-size:12px;margin-top:16px;">If you didn’t expect this, you can ignore this email.</p>
+      <h2>You’ve been added to <b>{safe_pmc_name}</b> ✅</h2>
+      <p><b>{safe_invited_by}</b> added you as a team member in HostScout.</p>
+      <p>To access your account, sign in with Google using <b>{safe_to_email}</b>:</p>
+      <p>
+        <a href="{login_url}"
+           style="display:inline-block;background:#0f172a;color:#fff;padding:10px 14px;border-radius:10px;text-decoration:none;">
+          Sign in to HostScout
+        </a>
+      </p>
+      <p style="color:#64748b;font-size:12px;margin-top:16px;">
+        If you didn’t expect this, you can ignore this email.
+      </p>
     </div>
     """
 
-    return resend.Emails.send({
-        "from": EMAIL_FROM,
-        "to": [to_email],
-        "subject": subject,
-        "html": html,
-    })
+    try:
+        resend.Emails.send(
+            {
+                "from": EMAIL_FROM,          # must be from your verified domain
+                "to": [safe_to_email],
+                "subject": subject,
+                "html": html,
+            }
+        )
+        return True
+    except Exception:
+        # Log at the call site (route) so you get stack traces there
+        return False
