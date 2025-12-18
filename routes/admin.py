@@ -28,6 +28,8 @@ from models import PMC, Property, ChatSession, ChatMessage, PMCUser
 from utils.pms_sync import sync_properties, sync_all_integrations
 from utils.emailer import send_invite_email, email_enabled
 
+from zoneinfo import ZoneInfo  # Python 3.9+
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -445,31 +447,39 @@ def update_profile(
     payload: ProfileUpdatePayload,
     db: Session = Depends(get_db),
 ):
-    # get email from session / OAuth
     email = get_current_admin_identity(request)
     if not email:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    email_l = email.lower().strip()
+    email_l = email.strip().lower()
 
-    # Only PMC users have editable profiles here
     u = (
         db.query(PMCUser)
         .filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active == True)
         .first()
     )
     if not u:
-        raise HTTPException(
-            status_code=404,
-            detail="Profile not found (PMC users only)",
-        )
+        raise HTTPException(status_code=404, detail="Profile not found (PMC users only)")
 
+    # Full name
     if payload.full_name is not None:
-        u.full_name = payload.full_name.strip() or None
+        full = (payload.full_name or "").strip()
+        u.full_name = full or None
 
-    # timezone intentionally ignored unless you add a column
+    # Timezone (requires PMCUser.timezone column + DB column)
+    if payload.timezone is not None:
+        tz = (payload.timezone or "").strip()
+        if tz == "":
+            u.timezone = None
+        else:
+            # validate timezone string
+            try:
+                ZoneInfo(tz)
+            except Exception:
+                raise HTTPException(status_code=400, detail="Invalid timezone")
+            u.timezone = tz
+
     u.updated_at = datetime.utcnow()
-
     db.add(u)
     db.commit()
 
