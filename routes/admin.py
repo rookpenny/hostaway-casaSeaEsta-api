@@ -264,6 +264,34 @@ def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
 
 
 # ----------------------------
+# Return team table rows (HTML partial)
+# ----------------------------
+@router.get("/admin/settings/team")
+def get_team_table(request: Request, db: Session = Depends(get_db)):
+    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
+
+    if user_role != "pmc" or not pmc_obj:
+        raise HTTPException(status_code=403)
+
+    team_members = (
+        db.query(PMCUser)
+        .filter(PMCUser.pmc_id == pmc_obj.id)
+        .order_by(PMCUser.created_at.desc())
+        .all()
+    )
+
+    return templates.TemplateResponse(
+        "admin/_team_table_rows.html",
+        {
+            "request": request,
+            "team_members": team_members,
+            "user_email": pmc_user.email,
+        },
+    )
+
+
+
+# ----------------------------
 # SYNC Properties
 # ----------------------------
 @router.post("/admin/pmcs/{pmc_id}/sync-properties")
