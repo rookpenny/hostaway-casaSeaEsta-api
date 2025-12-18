@@ -1047,61 +1047,56 @@
     });
 
     // Invite submit (stay on page + refresh team rows)
+async function refreshTeamRows() {
+  const res = await fetch("/admin/settings/team/table", { credentials: "include" });
+
+  if (res.status === 401 || res.status === 403) {
+    toast("Session expired. Please sign in again.");
+    loginRedirect();
+    return false;
+  }
+
+  if (!res.ok) {
+    toast("Could not refresh team list.");
+    return false;
+  }
+
+  const html = await res.text();
+  const tbody = document.querySelector("#settings-team tbody");
+  if (tbody) tbody.innerHTML = html;
+  return true;
+}
+
 document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
   e.preventDefault();
 
   const form = e.currentTarget;
-  const submitBtn = form.querySelector('button[type="submit"]');
   const body = Object.fromEntries(new FormData(form).entries());
 
-  // basic front-end validation
-  const email = String(body.email || "").trim();
-  if (!email) {
-    toast("Email is required.");
-    return;
-  }
-
-  const originalBtnText = submitBtn?.textContent || "Send Invite";
-  if (submitBtn) {
-    submitBtn.disabled = true;
-    submitBtn.textContent = "Sending…";
-    submitBtn.classList.add("opacity-60", "cursor-not-allowed");
-  }
-
   try {
-    const { res, data } = await apiJson("/admin/settings/team/invite", {
+    const res = await fetch("/admin/settings/team/invite", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      headers: { "Content-Type": "application/json", "Accept": "application/json" },
       body: JSON.stringify(body),
     });
 
-    if (!res.ok || !data?.ok) {
-      toast(data?.detail || data?.message || "Invite failed.");
-      return;
-    }
+    const data = await res.json().catch(() => ({}));
 
-    toast(data?.message || "Invite saved.");
-    form.reset();
-    inviteModal?.classList.add("hidden");
-
-    // ✅ Refresh team table rows without full page reload
-    // You need an endpoint that returns only the <tr> rows (no full HTML page)
-    const { res: tRes } = await apiJson("/admin/settings/team/table", { method: "GET" });
-    if (tRes.ok) {
-      const rowsHtml = await tRes.text();
-      const tbody = document.querySelector("#settings-team tbody");
-      if (tbody) tbody.innerHTML = rowsHtml;
+    if (res.ok && data.ok) {
+      toast(data.message || "Invite saved.");
+      form.reset();
+      document.getElementById("inviteModal")?.classList.add("hidden");
+      await refreshTeamRows(); // ✅ new member appears without hard refresh
+    } else {
+      toast(data.detail || data.message || "Invite failed.");
     }
   } catch (err) {
-    if (String(err) !== "Error: auth") toast("Invite failed.");
-  } finally {
-    if (submitBtn) {
-      submitBtn.disabled = false;
-      submitBtn.textContent = originalBtnText;
-      submitBtn.classList.remove("opacity-60", "cursor-not-allowed");
-    }
+    console.error(err);
+    toast("Invite failed.");
   }
 });
+
 
 
     // Change role dropdown -> enable Save if changed
