@@ -19,12 +19,15 @@ from sqlalchemy import func
 
 from pydantic import BaseModel
 from typing import Optional, Dict
+from openai import OpenAI
 from datetime import datetime, timedelta, date
 
 from database import SessionLocal
 from models import PMC, Property, ChatSession, ChatMessage, PMCUser
+
 from utils.pms_sync import sync_properties, sync_all_integrations
-from openai import OpenAI
+from utils.emailer import send_invite_email, email_enabled
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
