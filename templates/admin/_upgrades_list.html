@@ -1,17 +1,51 @@
 <table class="w-full text-sm">
-  {% for u in upgrades %}
-  <tr class="border-b border-slate-100">
-    <td class="py-2 font-medium">{{ u.title }}</td>
-    <td class="py-2 text-right">
-      <button type="button" class="text-xs font-semibold hover:underline"
-              onclick="Upgrades.openEdit({{ u.id }})">
-        Edit
-      </button>
-      <button type="button" class="text-xs font-semibold hover:underline text-rose-700 ml-2"
-              onclick="Upgrades.remove({{ u.id }})">
-        Delete
-      </button>
-    </td>
-  </tr>
-  {% endfor %}
+  <thead class="text-xs text-slate-500">
+    <tr class="border-b border-slate-200">
+      <th class="text-left py-2">Title</th>
+      <th class="text-left py-2">Slug</th>
+      <th class="text-left py-2">Property</th>
+      <th class="text-left py-2">Price</th>
+      <th class="text-left py-2">Active</th>
+      <th class="text-right py-2">Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for u in upgrades %}
+    <tr class="border-b border-slate-100" data-upgrade-row="{{ u.id }}">
+      <td class="py-2 font-medium">{{ u.title }}</td>
+      <td class="py-2 text-slate-600">{{ u.slug }}</td>
+
+      <!-- ✅ Property column -->
+      <td class="py-2 text-slate-600">
+        {{ u.property.property_name if u.property else "—" }}
+      </td>
+
+      <!-- Price shown as dollars -->
+      <td class="py-2 text-slate-600">
+        ${{ '%.2f'|format((u.price_cents or 0) / 100) }}
+      </td>
+
+      <!-- ✅ Active checkbox -->
+      <td class="py-2">
+        <input
+          type="checkbox"
+          {% if u.is_active %}checked{% endif %}
+          data-upgrade-active
+          data-upgrade-id="{{ u.id }}"
+          class="h-5 w-5"
+        />
+      </td>
+
+      <td class="py-2 text-right">
+        <button
+          type="button"
+          class="text-xs font-semibold hover:underline"
+          onclick="openUpgradeForm({{ u.id }})"
+        >
+          Edit
+        </button>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
 </table>
