@@ -160,6 +160,7 @@ class Guide(Base):
     property_id = Column(Integer, ForeignKey("properties.id", ondelete="CASCADE"), nullable=False, index=True)
 
     title = Column(String, nullable=False)
+    image_url = Column(String, nullable=True)
     short_description = Column(String, nullable=True)
     long_description = Column(Text, nullable=True)
     body_html = Column(Text, nullable=True)
