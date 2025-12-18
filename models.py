@@ -13,6 +13,9 @@ from sqlalchemy import (
 from sqlalchemy.orm import relationship
 import json
 from database import Base  # ✅ Use the shared Base from database.py
+import sqlalchemy as sa
+from sqlalchemy.dialects.postgresql import JSONB
+
 
 
 # -------------------------------------------------------------------
@@ -95,13 +98,17 @@ class PMCUser(Base):
     email = Column(String, nullable=False, index=True)
     full_name = Column(String, nullable=True)
 
-    # owner | admin | staff | cleaner | maintenance | ops_manager | read_only
     role = Column(String, nullable=False, default="staff")
 
     is_active = Column(Boolean, default=True)
-
-    # ✅ add this
     is_superuser = Column(Boolean, nullable=False, default=False)
+
+    # ✅ ADD THIS HERE
+    notification_prefs = Column(
+        JSONB,
+        nullable=False,
+        server_default=sa.text("'{}'::jsonb")
+    )
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
