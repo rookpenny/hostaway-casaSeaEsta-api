@@ -280,6 +280,45 @@ def admin_sync_properties(pmc_id: int, request: Request, db: Session = Depends(g
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
+# ----------------------------
+# Delete a team member (owner/admin only)
+# ----------------------------
+@router.delete("/admin/settings/team/{member_id}")
+def delete_team_member(member_id: int, request: Request, db: Session = Depends(get_db)):
+    _, pmc_obj, me = require_team_admin(request, db)
+
+    member = (
+        db.query(PMCUser)
+        .filter(PMCUser.id == member_id, PMCUser.pmc_id == pmc_obj.id)
+        .first()
+    )
+    if not member:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    me_role = (me.role or "").lower()
+    member_role = (member.role or "").lower()
+
+    # Never allow deleting yourself
+    if member.id == me.id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account")
+
+    # Only owners can delete owners
+    if member_role == "owner" and me_role != "owner":
+        raise HTTPException(status_code=403, detail="Only an owner can delete an owner")
+
+    # Optional: prevent deleting the last owner
+    if member_role == "owner":
+        owner_count = (
+            db.query(PMCUser)
+            .filter(PMCUser.pmc_id == pmc_obj.id, PMCUser.role == "owner", PMCUser.is_active == True)
+            .count()
+        )
+        if owner_count <= 1:
+            raise HTTPException(status_code=400, detail="Cannot delete the last owner")
+
+    db.delete(member)
+    db.commit()
+    return {"ok": True}
 
 
 # ----------------------------
