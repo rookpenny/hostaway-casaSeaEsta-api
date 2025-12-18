@@ -881,6 +881,35 @@
     return { res, data };
   }
 
+
+   async function refreshTeamRows() {
+    const res = await fetch("/admin/settings/team/table", { credentials: "include" });
+  
+    if (res.status === 401 || res.status === 403) {
+      toast("Session expired. Please sign in again.");
+      loginRedirect();
+      return false;
+    }
+  
+    if (!res.ok) {
+      toast("Could not refresh team list.");
+      return false;
+    }
+  
+    const html = await res.text();
+    const tbody = document.querySelector("#settings-team tbody");
+    if (tbody) tbody.innerHTML = html;
+  
+    // re-disable Save buttons by default
+    document.querySelectorAll("[data-member-save-role]").forEach((b) => {
+      b.disabled = true;
+      b.classList.add("opacity-50", "cursor-not-allowed");
+    });
+  
+    return true;
+  }
+
+
   // ----------------------------
   // Sidebar collapse/expand
   // ----------------------------
@@ -1111,12 +1140,14 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
           });
 
           if (res.ok && data.ok) {
-            toast("Role saved.");
-            markRoleSaved(memberId, role);
+            toast(data.message || "Invite saved.");
+            form.reset();
+            inviteModal?.classList.add("hidden");
+            await refreshTeamRows(); // ✅ new member appears immediately
           } else {
-            toast(data.detail || data.message || "Failed to save role.");
-            setSaveEnabled(memberId, true);
+            toast(data.detail || data.message || "Invite failed.");
           }
+
         } catch (err) {
           if (String(err) !== "Error: auth") toast("Failed to save role.");
           setSaveEnabled(memberId, true);
