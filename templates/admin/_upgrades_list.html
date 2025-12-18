@@ -37,11 +37,9 @@
       </td>
 
       <td class="py-2 text-right">
-        <button
-          type="button"
+        <button type="button"
           class="text-xs font-semibold hover:underline"
-          onclick="openUpgradeForm({{ u.id }})"
-        >
+          data-upgrade-edit="{{ u.id }}">
           Edit
         </button>
       </td>
