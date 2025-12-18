@@ -92,14 +92,16 @@ class PMCUser(Base):
     id = Column(Integer, primary_key=True, index=True)
     pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    # store normalized lowercase
     email = Column(String, nullable=False, index=True)
     full_name = Column(String, nullable=True)
 
-    # owner | admin | staff
+    # owner | admin | staff | cleaner | maintenance | ops_manager | read_only
     role = Column(String, nullable=False, default="staff")
 
     is_active = Column(Boolean, default=True)
+
+    # ✅ add this
+    is_superuser = Column(Boolean, nullable=False, default=False)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
@@ -110,6 +112,7 @@ class PMCUser(Base):
     __table_args__ = (
         UniqueConstraint("pmc_id", "email", name="uq_pmc_users_pmc_email"),
     )
+
 
 
 # -------------------------------------------------------------------
