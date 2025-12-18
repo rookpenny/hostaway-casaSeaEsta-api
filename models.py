@@ -115,6 +115,7 @@ class PMCUser(Base):
     last_login_at = Column(DateTime, nullable=True)
 
     pmc = relationship("PMC", back_populates="users")
+    timezone = Column(String, nullable=True)  # e.g. "America/Los_Angeles"
 
     __table_args__ = (
         UniqueConstraint("pmc_id", "email", name="uq_pmc_users_pmc_email"),
