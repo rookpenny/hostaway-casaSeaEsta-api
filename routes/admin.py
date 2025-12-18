@@ -12,6 +12,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
 from sqlalchemy.orm import Session
 import sqlalchemy as sa
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func
 from pydantic import BaseModel
 from typing import Optional, Dict
@@ -250,6 +251,100 @@ def admin_sync_properties(pmc_id: int, request: Request, db: Session = Depends(g
     except Exception as e:
         print(f"[ERROR] Failed to sync for pmc_id={pmc_id}: {e}")
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
+
+
+# ----------------------------
+# Invite a team member (PMC owner/admin only)
+# ----------------------------
+
+@router.post("/admin/settings/team/invite")
+def invite_team_member(request: Request, payload: InviteTeamPayload, db: Session = Depends(get_db)):
+    user_role, pmc_obj, _me = require_team_admin(request, db)
+    if user_role != "pmc" or not pmc_obj:
+        raise HTTPException(status_code=403, detail="Invites are PMC-scoped (not available for super here yet)")
+
+    email = (payload.email or "").strip().lower()
+    if not email:
+        raise HTTPException(status_code=400, detail="Email required")
+
+    role = (payload.role or "staff").strip().lower()
+    if role not in TEAM_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role: {role}")
+
+    u = PMCUser(
+        pmc_id=pmc_obj.id,
+        email=email,
+        full_name=(payload.full_name or None),
+        role=role,
+        is_active=True,
+        is_superuser=False,
+        created_at=datetime.utcnow(),
+        updated_at=datetime.utcnow(),
+    )
+
+    try:
+        db.add(u)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        # user already exists in this PMC
+        return JSONResponse({"ok": True, "message": "User already exists"}, status_code=200)
+
+    return {"ok": True}
+
+# ----------------------------
+# Update a team member
+# ----------------------------
+
+@router.post("/admin/settings/team/{member_id}")
+def update_team_member(member_id: int, request: Request, payload: UpdateTeamMemberPayload, db: Session = Depends(get_db)):
+    user_role, pmc_obj, _me = require_team_admin(request, db)
+
+    member = db.query(PMCUser).filter(PMCUser.id == member_id).first()
+    if not member:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    # PMC admins can only modify users inside their PMC
+    if user_role == "pmc":
+        if member.pmc_id != pmc_obj.id:
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+    if payload.role is not None:
+        role = (payload.role or "").strip().lower()
+        if role not in TEAM_ROLES:
+            raise HTTPException(status_code=400, detail=f"Invalid role: {role}")
+        member.role = role
+
+    if payload.is_active is not None:
+        member.is_active = bool(payload.is_active)
+
+    member.updated_at = datetime.utcnow()
+    db.add(member)
+    db.commit()
+    return {"ok": True}
+
+# ----------------------------
+# Invite a team member (PMC owner/admin only)
+# ----------------------------
+
+@router.post("/admin/settings/notifications")
+def save_notification_prefs(request: Request, payload: NotificationPrefsPayload, db: Session = Depends(get_db)):
+    email_l = get_me_email(request)
+
+    u = db.query(PMCUser).filter(func.lower(PMCUser.email) == email_l).first()
+    if not u:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    prefs = payload.prefs or {}
+    # keep it boolean-only
+    cleaned = {str(k): bool(v) for k, v in prefs.items()}
+
+    u.notification_prefs = cleaned
+    u.updated_at = datetime.utcnow()
+    db.add(u)
+    db.commit()
+    return {"ok": True}
+
 
 # ----------------------------
 # Heat / escalation helpers
@@ -902,6 +997,28 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
         pmc_data = [serialize_pmc(p) for p in pmc_list]
 
     # ----------------------------
+    # Pass team + prefs into the dashboard template
+    # ----------------------------
+    
+    me_email = get_current_admin_identity(request)
+    me_user = None
+    team_members = []
+    notif_prefs = {}
+    
+    if me_email:
+        me_user = db.query(PMCUser).filter(func.lower(PMCUser.email) == me_email.lower()).first()
+        if me_user and getattr(me_user, "notification_prefs", None):
+            notif_prefs = me_user.notification_prefs or {}
+    
+    if user_role == "pmc" and pmc_obj:
+        team_members = (
+            db.query(PMCUser)
+            .filter(PMCUser.pmc_id == pmc_obj.id)
+            .order_by(PMCUser.created_at.desc())
+            .all()
+        )
+    
+    # ----------------------------
     # Render
     # ----------------------------
     return templates.TemplateResponse(
@@ -925,6 +1042,12 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
 
             # handy: for showing "you are admin/staff" in UI if desired
             "pmc_user_role": (pmc_user.role if pmc_user else None),
+
+            "user_email": me_email,
+            "user_full_name": (me_user.full_name if me_user else None),
+            "team_members": team_members,
+            "notif_prefs": notif_prefs,
+
         }
     )
 
@@ -1299,6 +1422,18 @@ def update_pmc_status(request: Request, payload: dict = Body(...), db: Session =
     except Exception as e:
         return JSONResponse(status_code=500, content={"error": str(e)})
 
+class InviteTeamPayload(BaseModel):
+    email: str
+    role: str = "staff"
+    full_name: Optional[str] = None
+
+class UpdateTeamMemberPayload(BaseModel):
+    role: Optional[str] = None
+    is_active: Optional[bool] = None
+
+class NotificationPrefsPayload(BaseModel):
+    prefs: Dict[str, bool]
+
 
 class PMCUpdateRequest(BaseModel):
     id: Optional[int] = None
@@ -1391,10 +1526,47 @@ def update_properties(request: Request, payload: list[dict] = Body(...), db: Ses
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
 '''
+
 def require_login(request: Request):
     if not request.session.get("user"):
         request.session["post_login_redirect"] = str(request.url.path)
         raise HTTPException(status_code=401, detail="Login required")
+
+
+TEAM_ROLES = {"owner", "admin", "staff", "ops_manager", "maintenance", "cleaner", "read_only"}
+
+def get_me_email(request: Request) -> str:
+    email = get_current_admin_identity(request)
+    if not email:
+        raise HTTPException(status_code=401, detail="Login required")
+    return email.strip().lower()
+
+def get_me_pmc_user(request: Request, db: Session) -> PMCUser:
+    email_l = get_me_email(request)
+    u = db.query(PMCUser).filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active == True).first()
+    if not u:
+        raise HTTPException(status_code=403, detail="Your account isn’t linked to a PMC user")
+    return u
+
+def require_team_admin(request: Request, db: Session):
+    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
+    if user_role == "super":
+        return ("super", None, pmc_user)
+
+    if not pmc_obj or not pmc_user:
+        raise HTTPException(status_code=403, detail="PMC account not linked")
+
+    if (pmc_user.role or "").lower() not in {"owner", "admin"}:
+        raise HTTPException(status_code=403, detail="Only owner/admin can manage team")
+
+    return ("pmc", pmc_obj, pmc_user)
+
+
+
+
+
+
+
 
 
 
