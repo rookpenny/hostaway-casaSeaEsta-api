@@ -558,6 +558,8 @@
             <div class="mt-1 text-xs text-slate-500">Managed by Google OAuth.</div>
           </div>
 
+          <!-- NOTE: This is safe to keep even if you haven't added a DB column yet;
+               your backend can ignore it until you're ready. -->
           <div class="col-span-12 md:col-span-6">
             <label class="text-xs font-semibold text-slate-600">Timezone</label>
             <select name="timezone" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
@@ -567,6 +569,7 @@
               <option value="America/Chicago">America/Chicago</option>
               <option value="America/New_York">America/New_York</option>
             </select>
+            <div class="mt-1 text-xs text-slate-500">We’ll use this for scheduling + notifications.</div>
           </div>
 
           <div class="col-span-12 md:col-span-6 flex items-end justify-end">
@@ -584,7 +587,7 @@
           <div>
             <div class="text-sm font-semibold">Team</div>
             <div class="mt-1 text-sm text-slate-500">
-              Invite cleaners, maintenance, and internal staff. Assign roles + access.
+              Invite cleaners, maintenance, and internal staff. Owners/Admins can edit roles and enable/disable users.
             </div>
           </div>
 
@@ -594,7 +597,6 @@
           </button>
         </div>
 
-        <!-- Team table -->
         <div class="mt-4 overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="text-xs text-slate-500">
@@ -611,11 +613,21 @@
               <tr class="border-b border-slate-100">
                 <td class="py-2 font-medium">{{ m.full_name or "—" }}</td>
                 <td class="py-2 text-slate-600">{{ m.email }}</td>
+
+                <!-- Editable role (posts to /admin/settings/team/{id}) -->
                 <td class="py-2">
-                  <span class="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-xs font-semibold">
-                    {{ m.role }}
-                  </span>
+                  <select
+                    class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm"
+                    data-member-role
+                    data-member-id="{{ m.id }}"
+                    {% if m.email == user_email %}title="You can change your own role only if you are owner/admin (backend enforced)"{% endif %}
+                  >
+                    {% for r in ["owner","admin","staff","ops_manager","maintenance","cleaner","read_only"] %}
+                      <option value="{{ r }}" {% if (m.role or '') == r %}selected{% endif %}>{{ r }}</option>
+                    {% endfor %}
+                  </select>
                 </td>
+
                 <td class="py-2">
                   {% if m.is_active %}
                     <span class="text-xs font-semibold text-emerald-700">Active</span>
@@ -623,15 +635,25 @@
                     <span class="text-xs font-semibold text-rose-700">Disabled</span>
                   {% endif %}
                 </td>
+
                 <td class="py-2 text-right">
-                  <button class="text-xs font-semibold hover:underline"
-                          onclick="openMember('{{ m.id }}')"
-                          type="button">
-                    Manage
-                  </button>
+                  {% if m.email != user_email %}
+                    <button
+                      class="text-xs font-semibold hover:underline"
+                      data-member-toggle
+                      data-member-id="{{ m.id }}"
+                      data-next-active="{{ 'false' if m.is_active else 'true' }}"
+                      type="button"
+                    >
+                      {% if m.is_active %}Disable{% else %}Enable{% endif %}
+                    </button>
+                  {% else %}
+                    <span class="text-xs text-slate-400">—</span>
+                  {% endif %}
                 </td>
               </tr>
               {% endfor %}
+
               {% if not team_members %}
               <tr><td colspan="5" class="py-6 text-center text-slate-500">No team members yet.</td></tr>
               {% endif %}
@@ -639,12 +661,16 @@
           </table>
         </div>
 
-        <!-- Invite modal (simple) -->
+        <!-- Invite modal -->
         <div id="inviteModal" class="hidden fixed inset-0 z-[9999] bg-black/30 p-4">
           <div class="max-w-lg mx-auto mt-24 bg-white rounded-2xl border border-slate-200 p-4 card">
             <div class="flex items-center justify-between">
               <div class="text-sm font-semibold">Invite team member</div>
               <button id="closeInvite" class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50">✕</button>
+            </div>
+
+            <div class="mt-2 text-xs text-slate-500">
+              We use Google OAuth. Invited users will be able to sign in with this email.
             </div>
 
             <form id="inviteForm" class="mt-4 space-y-3">
@@ -657,12 +683,13 @@
               <div>
                 <label class="text-xs font-semibold text-slate-600">Role</label>
                 <select name="role" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
-                  <option value="owner">Owner</option>
-                  <option value="admin">Admin</option>
+                  <option value="staff">Staff</option>
                   <option value="ops_manager">Ops Manager</option>
                   <option value="maintenance">Maintenance</option>
                   <option value="cleaner">Cleaner</option>
                   <option value="read_only">Read-only</option>
+                  <option value="admin">Admin</option>
+                  <option value="owner">Owner</option>
                 </select>
               </div>
 
@@ -709,13 +736,17 @@
           Choose what you get notified about. Slack settings will live here later.
         </div>
 
+        {% set prefs = notif_prefs or {} %}
+
         <form id="notifForm" class="mt-4 space-y-3">
+
           <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
             <div>
               <div class="text-sm font-semibold">Guest messages</div>
               <div class="text-xs text-slate-500">Notify when a new guest message arrives.</div>
             </div>
-            <input name="guest_messages" type="checkbox" class="h-5 w-5" />
+            <input name="guest_messages" type="checkbox" class="h-5 w-5"
+                   {% if prefs.get("guest_messages") %}checked{% endif %} />
           </label>
 
           <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
@@ -723,7 +754,17 @@
               <div class="text-sm font-semibold">Maintenance assigned</div>
               <div class="text-xs text-slate-500">Notify when a maintenance request is assigned.</div>
             </div>
-            <input name="maintenance_assigned" type="checkbox" class="h-5 w-5" />
+            <input name="maintenance_assigned" type="checkbox" class="h-5 w-5"
+                   {% if prefs.get("maintenance_assigned") %}checked{% endif %} />
+          </label>
+
+          <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+            <div>
+              <div class="text-sm font-semibold">Turnover due soon</div>
+              <div class="text-xs text-slate-500">Notify when a cleaner task is due soon.</div>
+            </div>
+            <input name="turnover_due" type="checkbox" class="h-5 w-5"
+                   {% if prefs.get("turnover_due") %}checked{% endif %} />
           </label>
 
           <div class="flex justify-end pt-2">
@@ -750,393 +791,440 @@
 </section>
 
 
+
       </div>
     </main>
   </div>
 
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <script>
-    // -------- Paywall flag (server-rendered) --------
-    const IS_LOCKED = {{ 'true' if (user_role == 'pmc' and needs_payment) else 'false' }};
+ <script>
+  // -------- Paywall flag (server-rendered) --------
+  const IS_LOCKED = {{ 'true' if (user_role == 'pmc' and needs_payment) else 'false' }};
 
-    function toast(message) {
-      const el = document.createElement("div");
-      el.className = "fixed bottom-5 right-5 z-[9999] bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg";
-      el.textContent = message;
-      document.body.appendChild(el);
-      setTimeout(() => el.remove(), 2400);
+  function toast(message) {
+    const el = document.createElement("div");
+    el.className =
+      "fixed bottom-5 right-5 z-[9999] bg-slate-900 text-white text-sm px-4 py-3 rounded-xl shadow-lg";
+    el.textContent = message;
+    document.body.appendChild(el);
+    setTimeout(() => el.remove(), 2400);
+  }
+
+  function loginRedirect() {
+    const next = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+    window.location.href = `/auth/login/google?next=${next}`;
+  }
+
+  // --- Sidebar collapse/expand ---
+  const sidebar = document.getElementById("sidebar");
+  const toggleBtn = document.getElementById("sidebar-toggle");
+  const labelEls = () => Array.from(document.querySelectorAll(".sidebar-label"));
+
+  function setCollapsed(isCollapsed) {
+    sidebar.classList.toggle("w-72", !isCollapsed);
+    sidebar.classList.toggle("w-20", isCollapsed);
+    labelEls().forEach((el) => el.classList.toggle("hidden", isCollapsed));
+
+    const svg = toggleBtn.querySelector("svg");
+    svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
+    svg.style.transition = "transform 200ms ease";
+    localStorage.setItem("dashboard_sidebar_collapsed", isCollapsed ? "1" : "0");
+  }
+
+  setCollapsed(localStorage.getItem("dashboard_sidebar_collapsed") === "1");
+
+  toggleBtn.addEventListener("click", () => {
+    const isCollapsed = sidebar.classList.contains("w-20");
+    setCollapsed(!isCollapsed);
+  });
+
+  // ⌘K focus
+  document.addEventListener("keydown", (e) => {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+      e.preventDefault();
+      document.getElementById("globalSearch")?.focus();
     }
+  });
 
-    function loginRedirect() {
-      // preserve current path so you come back after login
-      const next = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
-      window.location.href = `/auth/login/google?next=${next}`;
-    }
+  // --- Property filtering (defined early so showView can call it) ---
+  function filterProperties() {
+    const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
+    const status = document.getElementById("statusFilter")?.value || "all";
+    const cards = document.querySelectorAll("[data-property-card]");
 
-    // --- Sidebar collapse/expand ---
-    const sidebar = document.getElementById("sidebar");
-    const toggleBtn = document.getElementById("sidebar-toggle");
-    const labelEls = () => Array.from(document.querySelectorAll(".sidebar-label"));
+    cards.forEach((card) => {
+      const name = (card.dataset.name || "").toLowerCase();
+      const live = card.dataset.live === "true";
+      const matchesSearch = name.includes(search);
+      const matchesStatus =
+        status === "all" ||
+        (status === "live" && live) ||
+        (status === "offline" && !live);
 
-    function setCollapsed(isCollapsed) {
-      sidebar.classList.toggle("w-72", !isCollapsed);
-      sidebar.classList.toggle("w-20", isCollapsed);
-      labelEls().forEach(el => el.classList.toggle("hidden", isCollapsed));
-
-      const svg = toggleBtn.querySelector("svg");
-      svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
-      svg.style.transition = "transform 200ms ease";
-      localStorage.setItem("dashboard_sidebar_collapsed", isCollapsed ? "1" : "0");
-    }
-
-    setCollapsed(localStorage.getItem("dashboard_sidebar_collapsed") === "1");
-
-    toggleBtn.addEventListener("click", () => {
-      const isCollapsed = sidebar.classList.contains("w-20");
-      setCollapsed(!isCollapsed);
+      card.style.display = matchesSearch && matchesStatus ? "" : "none";
     });
+  }
+  window.filterProperties = filterProperties;
 
-    // ⌘K focus
-    document.addEventListener("keydown", (e) => {
-      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
-        e.preventDefault();
-        document.getElementById("globalSearch")?.focus();
-      }
+  // --- API helpers ---
+  async function postJson(url) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
     });
+  }
 
-    // --- Property filtering (defined early so showView can call it) ---
-    function filterProperties() {
-      const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
-      const status = document.getElementById("statusFilter")?.value || "all";
-      const cards = document.querySelectorAll("[data-property-card]");
+  async function postJsonBody(url, body) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json", Accept: "application/json" },
+      body: JSON.stringify(body || {}),
+    });
+  }
 
-      cards.forEach((card) => {
-        const name = (card.dataset.name || "").toLowerCase();
-        const live = card.dataset.live === "true";
-        const matchesSearch = name.includes(search);
-        const matchesStatus =
-          status === "all" ||
-          (status === "live" && live) ||
-          (status === "offline" && !live);
+  // --- Settings helpers ---
+  function getSettingsTabFromHash() {
+    const h = location.hash || "";
+    if (!h.startsWith("#settings")) return "profile";
+    const q = h.split("?")[1] || "";
+    const params = new URLSearchParams(q);
+    return params.get("tab") || "profile";
+  }
 
-        card.style.display = (matchesSearch && matchesStatus) ? "" : "none";
-      });
+  function showSettingsPanel(key) {
+    document.querySelectorAll(".settings-panel").forEach((p) => p.classList.add("hidden"));
+    document.getElementById(`settings-${key}`)?.classList.remove("hidden");
+
+    document.querySelectorAll(".settings-tab").forEach((b) => b.classList.remove("bg-slate-50"));
+    document
+      .querySelector(`.settings-tab[data-settings="${key}"]`)
+      ?.classList.add("bg-slate-50");
+
+    // keep nested state in hash
+    const base = (location.hash || "#overview").split("?")[0];
+    if (base === "#settings") {
+      history.replaceState(null, "", `#settings?tab=${key}`);
     }
-    window.filterProperties = filterProperties;
+  }
 
-    // --- View routing ---
-    const pageTitle = document.getElementById("page-title");
-    const pageSubtitle = document.getElementById("page-subtitle");
-    const navItems = Array.from(document.querySelectorAll(".nav-item"));
-    const views = Array.from(document.querySelectorAll(".view"));
+  let settingsInitialized = false;
 
-    const subtitles = {
-      overview: "{{ 'System health & activity' if user_role == 'super' else 'Your portfolio at a glance' }}",
-      properties: "Search and manage your portfolio",
-      chats: "Lifecycle, priority, escalations",
-      pmcs: "Partners, integrations, access",
-      files: "Configs & manuals",
-      analytics: "Trends & performance",
-      settings: "Account and system settings"
-    };
+  function initSettingsUI() {
+    if (settingsInitialized) return;
+    settingsInitialized = true;
 
-    function showView(key) {
-      const target = document.getElementById(`view-${key}`);
-      if (!target) key = "overview";
+    // default tab for first render (overridden by hash if present)
+    showSettingsPanel(getSettingsTabFromHash() || "profile");
 
-      views.forEach(v => v.classList.add("hidden"));
-      document.getElementById(`view-${key}`)?.classList.remove("hidden");
-
-      navItems.forEach(btn => btn.setAttribute("aria-current", "false"));
-      const activeBtn = navItems.find(b => b.dataset.view === key);
-      if (activeBtn) activeBtn.setAttribute("aria-current", "page");
-
-      const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
-      pageTitle.textContent = label;
-      if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
-
-      history.replaceState(null, "", `#${key}`);
-
-      if (key === "properties") {
-        const global = document.getElementById("globalSearch");
-        const local = document.getElementById("searchInput");
-        if (global && local && global.value && !local.value) {
-          local.value = global.value;
-        }
-        filterProperties();
-      }
-    }
-
-    navItems.forEach(btn => btn.addEventListener("click", () => showView(btn.dataset.view)));
-    const initial = (location.hash || "#overview").replace("#", "");
-    showView(initial);
-
-    // --- API helpers ---
-    async function postJson(url) {
-      return fetch(url, {
-        method: "POST",
-        credentials: "include", // ✅ ensures session cookie is sent (fixes common 403s)
-        headers: { "Accept": "application/json" }
-      });
-    }
-
-
-    // ----- Settings tabs -----
-    function showSettingsPanel(key) {
-      document.querySelectorAll(".settings-panel").forEach(p => p.classList.add("hidden"));
-      document.getElementById(`settings-${key}`)?.classList.remove("hidden");
-    
-      document.querySelectorAll(".settings-tab").forEach(b => b.classList.remove("bg-slate-50"));
-      document.querySelector(`.settings-tab[data-settings="${key}"]`)?.classList.add("bg-slate-50");
-    
-      // keep nested state in hash (optional)
-      const base = (location.hash || "#overview").split("?")[0];
-      if (base === "#settings") {
-        history.replaceState(null, "", `#settings?tab=${key}`);
-      }
-    }
-    
-    function getSettingsTabFromHash() {
-      const h = location.hash || "";
-      if (!h.startsWith("#settings")) return "profile";
-      const q = h.split("?")[1] || "";
-      const params = new URLSearchParams(q);
-      return params.get("tab") || "profile";
-    }
-    
-    // When user opens Settings view, open correct tab
-    const originalShowView = window.showView;
-    window.showView = function(key) {
-      originalShowView(key);
-      if (key === "settings") showSettingsPanel(getSettingsTabFromHash());
-    };
-    
-    // Wire clicks
-    document.querySelectorAll(".settings-tab").forEach(btn => {
+    // tab clicks
+    document.querySelectorAll(".settings-tab").forEach((btn) => {
       btn.addEventListener("click", () => showSettingsPanel(btn.dataset.settings));
     });
-    
+
     // Invite modal
     const inviteModal = document.getElementById("inviteModal");
-    document.getElementById("openInvite")?.addEventListener("click", () => inviteModal?.classList.remove("hidden"));
-    ["closeInvite","cancelInvite"].forEach(id => {
-      document.getElementById(id)?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
-    });
-    
-    // Save profile (example endpoint)
+    const openInvite = document.getElementById("openInvite");
+    const closeInvite = document.getElementById("closeInvite");
+    const cancelInvite = document.getElementById("cancelInvite");
+
+    openInvite?.addEventListener("click", () => inviteModal?.classList.remove("hidden"));
+    closeInvite?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
+    cancelInvite?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
+
+    // Profile save
     document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const form = e.currentTarget;
       const body = Object.fromEntries(new FormData(form).entries());
-    
-      const res = await fetch("/settings/profile", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(body)
-      });
-    
+
+      const res = await postJsonBody("/admin/settings/profile", body);
+      if (res.status === 401 || res.status === 403) {
+        toast("Session expired. Please sign in again.");
+        loginRedirect();
+        return;
+      }
       if (res.ok) toast("Profile saved.");
       else toast("Failed to save profile.");
     });
-    
-    // Invite member (example endpoint)
+
+    // Invite submit
     document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const form = e.currentTarget;
       const body = Object.fromEntries(new FormData(form).entries());
-    
-      const res = await fetch("/settings/team/invite", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(body)
-      });
-    
+
+      const res = await postJsonBody("/admin/settings/team/invite", body);
+      if (res.status === 401 || res.status === 403) {
+        toast("Invite failed (owner/admin only).");
+        return;
+      }
       if (res.ok) {
-        toast("Invite sent.");
+        toast("Invite saved. They can sign in with Google using that email.");
         inviteModal?.classList.add("hidden");
-        window.location.reload(); // simplest refresh for SSR
+        window.location.reload();
       } else {
         toast("Invite failed.");
       }
     });
-    
-    // Save notifications (example endpoint)
+
+    // Team: role changes
+    document.querySelectorAll("[data-member-role]").forEach((sel) => {
+      sel.addEventListener("change", async () => {
+        const memberId = sel.dataset.memberId;
+        const role = sel.value;
+
+        const res = await postJsonBody(`/admin/settings/team/${memberId}`, { role });
+        if (res.ok) toast("Role updated.");
+        else toast("Role update failed (owner/admin only).");
+      });
+    });
+
+    // Team: enable/disable
+    document.querySelectorAll("[data-member-toggle]").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const memberId = btn.dataset.memberId;
+        const isActive = btn.dataset.nextActive === "true";
+
+        const res = await postJsonBody(`/admin/settings/team/${memberId}`, { is_active: isActive });
+        if (res.ok) {
+          toast(isActive ? "User enabled." : "User disabled.");
+          window.location.reload();
+        } else {
+          toast("Update failed (owner/admin only).");
+        }
+      });
+    });
+
+    // Notifications save (expects backend payload: { prefs: {k: boolean} })
     document.getElementById("notifForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
-      const form = e.currentTarget;
-    
-      // convert checkboxes to booleans
-      const fd = new FormData(form);
-      const body = {};
-      for (const [k] of fd.entries()) body[k] = true; // checked ones appear
-      // include unchecked explicitly if you want:
-      ["guest_messages","maintenance_assigned"].forEach(k => body[k] = !!body[k]);
-    
-      const res = await fetch("/settings/notifications", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(body)
-      });
-    
+      const fd = new FormData(e.currentTarget);
+
+      const keys = ["guest_messages", "maintenance_assigned", "turnover_due"];
+      const prefs = {};
+      keys.forEach((k) => (prefs[k] = fd.get(k) !== null));
+
+      const res = await postJsonBody("/admin/settings/notifications", { prefs });
+      if (res.status === 401 || res.status === 403) {
+        toast("Session expired. Please sign in again.");
+        loginRedirect();
+        return;
+      }
       if (res.ok) toast("Notifications saved.");
       else toast("Failed to save notifications.");
     });
+  }
 
+  // --- View routing ---
+  const pageTitle = document.getElementById("page-title");
+  const pageSubtitle = document.getElementById("page-subtitle");
+  const navItems = Array.from(document.querySelectorAll(".nav-item"));
+  const views = Array.from(document.querySelectorAll(".view"));
 
+  const subtitles = {
+    overview: "{{ 'System health & activity' if user_role == 'super' else 'Your portfolio at a glance' }}",
+    properties: "Search and manage your portfolio",
+    chats: "Lifecycle, priority, escalations",
+    pmcs: "Partners, integrations, access",
+    files: "Configs & manuals",
+    analytics: "Trends & performance",
+    settings: "Account and system settings",
+  };
 
+  function showView(key) {
+    const target = document.getElementById(`view-${key}`);
+    if (!target) key = "overview";
 
+    views.forEach((v) => v.classList.add("hidden"));
+    document.getElementById(`view-${key}`)?.classList.remove("hidden");
 
+    navItems.forEach((btn) => btn.setAttribute("aria-current", "false"));
+    const activeBtn = navItems.find((b) => b.dataset.view === key);
+    if (activeBtn) activeBtn.setAttribute("aria-current", "page");
 
+    const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
+    pageTitle.textContent = label;
+    if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
 
+    history.replaceState(null, "", `#${key}`);
 
-    
+    if (key === "properties") {
+      const global = document.getElementById("globalSearch");
+      const local = document.getElementById("searchInput");
+      if (global && local && global.value && !local.value) {
+        local.value = global.value;
+      }
+      filterProperties();
+    }
 
-    // --- Actions (must be global for inline onclick=) ---
-    window.syncProperty = async function (id, btn) {
-      if (IS_LOCKED) {
-        toast("Complete payment to unlock property syncing.");
+    if (key === "settings") {
+      initSettingsUI();
+      showSettingsPanel(getSettingsTabFromHash());
+    }
+  }
+
+  // expose for other code
+  window.showView = showView;
+
+  navItems.forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
+
+  // Initial view
+  const initial = (location.hash || "#overview").replace("#", "").split("?")[0];
+  showView(initial);
+
+  // --- Actions (must be global for inline onclick=) ---
+  window.syncProperty = async function (id, btn) {
+    if (IS_LOCKED) {
+      toast("Complete payment to unlock property syncing.");
+      return;
+    }
+
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = "Syncing…";
+
+    try {
+      const res = await postJson(`/auth/sync-property/${id}`);
+
+      if (res.status === 401 || res.status === 403) {
+        toast("Session expired. Please sign in again.");
+        loginRedirect();
+        return;
+      }
+      if (res.status === 402) {
+        toast("Payment required to sync properties.");
+        window.location.href = "/pmc/signup";
         return;
       }
 
-      btn.disabled = true;
-      const original = btn.innerHTML;
-      btn.innerHTML = "Syncing…";
-
+      let data = {};
       try {
-        const res = await postJson(`/auth/sync-property/${id}`);
+        data = await res.json();
+      } catch (_) {}
 
-        if (res.status === 401 || res.status === 403) {
-          toast("Session expired. Please sign in again.");
-          loginRedirect();
-          return;
-        }
-        if (res.status === 402) {
-          toast("Payment required to sync properties.");
-          window.location.href = "/pmc/signup";
-          return;
-        }
-
-        let data = {};
-        try { data = await res.json(); } catch (_) {}
-
-        if (res.ok && data.status === "success") {
-          btn.innerHTML = "Synced ✓";
-        } else {
-          btn.innerHTML = data.message || data.detail || "Failed";
-        }
-      } catch (err) {
-        console.error("Sync error:", err);
-        btn.innerHTML = "Error";
-      } finally {
-        setTimeout(() => {
-          btn.innerHTML = original;
-          btn.disabled = false;
-        }, 1200);
+      if (res.ok && data.status === "success") {
+        btn.innerHTML = "Synced ✓";
+      } else {
+        btn.innerHTML = data.message || data.detail || "Failed";
       }
-    };
+    } catch (err) {
+      console.error("Sync error:", err);
+      btn.innerHTML = "Error";
+    } finally {
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.disabled = false;
+      }, 1200);
+    }
+  };
 
-    window.toggleProperty = async function (id, btn) {
-      if (IS_LOCKED) {
-        toast("Complete payment to unlock Sandy activation.");
+  window.toggleProperty = async function (id, btn) {
+    if (IS_LOCKED) {
+      toast("Complete payment to unlock Sandy activation.");
+      return;
+    }
+
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = "Toggling…";
+
+    try {
+      const res = await postJson(`/auth/toggle-property/${id}`);
+
+      if (res.status === 401 || res.status === 403) {
+        toast("Session expired. Please sign in again.");
+        loginRedirect();
         return;
       }
 
-      btn.disabled = true;
-      const original = btn.innerHTML;
-      btn.innerHTML = "Toggling…";
-
+      let data = null;
       try {
-        const res = await postJson(`/auth/toggle-property/${id}`);
+        data = await res.json();
+      } catch {
+        data = null;
+      }
 
-        if (res.status === 401 || res.status === 403) {
-          toast("Session expired. Please sign in again.");
-          loginRedirect();
-          return;
-        }
+      if (data && data.status === "needs_billing" && data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
 
-        let data = null;
-        try { data = await res.json(); } catch { data = null; }
+      if (!res.ok) {
+        const msg = (data && (data.detail || data.message)) || "Request failed";
+        toast(msg);
+        btn.innerHTML = original;
+        return;
+      }
 
-        if (data && data.status === "needs_billing" && data.checkout_url) {
-          window.location.href = data.checkout_url;
-          return;
-        }
+      if (data && data.status === "success") {
+        const isLive = data.new_status === "LIVE";
+        btn.innerHTML = isLive ? "Take Offline" : "Go Live";
 
-        if (!res.ok) {
-          const msg = (data && (data.detail || data.message)) || "Request failed";
-          toast(msg);
-          btn.innerHTML = original;
-          return;
-        }
+        const card = btn.closest("[data-property-card]");
+        if (card) {
+          card.dataset.live = isLive ? "true" : "false";
 
-        if (data && data.status === "success") {
-          const isLive = data.new_status === "LIVE";
-          btn.innerHTML = isLive ? "Take Offline" : "Go Live";
-
-          const card = btn.closest("[data-property-card]");
-          if (card) {
-            card.dataset.live = isLive ? "true" : "false";
-
-            // Update the first status pill in card header (LIVE/OFFLINE/LOCKED)
-            const pill = card.querySelector("span.rounded-full");
-            if (pill) {
-              if (isLive) {
-                pill.textContent = "LIVE";
-                pill.className =
-                  "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
-              } else {
-                pill.textContent = "OFFLINE";
-                pill.className =
-                  "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
-              }
+          const pill = card.querySelector("span.rounded-full");
+          if (pill) {
+            if (isLive) {
+              pill.textContent = "LIVE";
+              pill.className =
+                "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
+            } else {
+              pill.textContent = "OFFLINE";
+              pill.className =
+                "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
             }
           }
-
-          filterProperties();
-          if (data.billing_note) toast(data.billing_note);
-        } else {
-          btn.innerHTML = original;
-          toast("Toggle failed.");
         }
-      } catch (err) {
-        console.error("Toggle error:", err);
+
+        filterProperties();
+        if (data.billing_note) toast(data.billing_note);
+      } else {
         btn.innerHTML = original;
-        toast("Network error. Please try again.");
-      } finally {
-        btn.disabled = false;
+        toast("Toggle failed.");
       }
-    };
+    } catch (err) {
+      console.error("Toggle error:", err);
+      btn.innerHTML = original;
+      toast("Network error. Please try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  };
 
-    // --- DOM ready setup ---
-    document.addEventListener("DOMContentLoaded", () => {
-      // Chart
-      const ctx = document.getElementById("statusChart");
-      if (ctx) {
-        new Chart(ctx, {
-          type: "bar",
-          data: {
-            labels: ["LIVE", "OFFLINE"],
-            datasets: [{
+  // --- DOM ready setup ---
+  document.addEventListener("DOMContentLoaded", () => {
+    // Chart
+    const ctx = document.getElementById("statusChart");
+    if (ctx) {
+      new Chart(ctx, {
+        type: "bar",
+        data: {
+          labels: ["LIVE", "OFFLINE"],
+          datasets: [
+            {
               label: "Properties",
-              data: [{{ live_props }}, {{ offline_props }}]
-            }]
-          },
-          options: {
-            responsive: true,
-            plugins: { legend: { display: false } },
-            scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } }
-          }
-        });
-      }
+              data: [{{ live_props }}, {{ offline_props }}],
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+        },
+      });
+    }
 
-      // Filters
-      document.getElementById("searchInput")?.addEventListener("input", filterProperties);
-      document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
-    });
-  </script>
+    // Filters
+    document.getElementById("searchInput")?.addEventListener("input", filterProperties);
+    document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
+  });
+</script>
+
 </body>
 </html>
