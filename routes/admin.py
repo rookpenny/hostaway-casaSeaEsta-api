@@ -377,11 +377,12 @@ def delete_team_member(member_id: int, request: Request, db: Session = Depends(g
 # ----------------------------
 # Invite a team member (PMC owner/admin only)
 # ----------------------------
-log = logging.getLogger(__name__)
+
+logger = logging.getLogger(__name__)
 
 @router.post("/admin/settings/team/invite")
 def invite_team_member(request: Request, payload: InviteTeamPayload, db: Session = Depends(get_db)):
-    _, pmc_obj, me = require_team_admin(request, db)
+    user_role, pmc_obj, me = require_team_admin(request, db)
 
     email = (payload.email or "").strip().lower()
     if not email:
@@ -397,7 +398,6 @@ def invite_team_member(request: Request, payload: InviteTeamPayload, db: Session
         full_name=(payload.full_name or None),
         role=role,
         is_active=True,
-        is_superuser=False,
         created_at=datetime.utcnow(),
         updated_at=datetime.utcnow(),
     )
@@ -410,46 +410,29 @@ def invite_team_member(request: Request, payload: InviteTeamPayload, db: Session
     except IntegrityError:
         db.rollback()
         # already exists
-        created = False
+        u = db.query(PMCUser).filter(PMCUser.pmc_id == pmc_obj.id, func.lower(PMCUser.email) == email).first()
 
-    # Send email (don’t fail the invite if email fails)
-    email_status = "skipped"
+    # send email (do not crash the request)
+    email_sent = False
     email_error = None
+    try:
+        invited_by = (me.full_name or me.email) if me else "Your team"
+        send_invite_email(to_email=email, invited_by=invited_by, pmc_name=(pmc_obj.pmc_name or "your team"))
+        email_sent = True
+    except Exception as e:
+        email_error = str(e)
+        logger.exception("Invite email failed")
 
-    if email_enabled():
-        try:
-            invited_by = (me.full_name or me.email or "A teammate")
-            send_invite_email(
-                to_email=email,
-                invited_by=invited_by,
-                pmc_name=pmc_obj.pmc_name or "your team",
-            )
-            email_status = "sent"
-        except Exception as e:
-            log.exception("Invite email failed")
-            email_status = "failed"
-            email_error = str(e)
-    else:
-        # helpful log so you immediately see why emails aren't sending
-        log.warning("Email not configured; skipping invite email (missing env vars).")
-
-    # Respond with a useful message for UI
-    if created:
-        msg = "Member added."
-    else:
-        msg = "User already exists."
-
-    if email_status == "sent":
-        msg += " Invite email sent."
-    elif email_status == "failed":
-        msg += " Invite saved, but email failed to send."
+    msg_bits = []
+    msg_bits.append("Member added." if created else "Member already existed.")
+    msg_bits.append("Invite email sent." if email_sent else "Email NOT sent (check Resend domain / EMAIL_FROM).")
 
     return {
         "ok": True,
-        "created": created,
-        "email_status": email_status,
-        "email_error": email_error,  # you can hide this in UI if you want
-        "message": msg,
+        "member_id": u.id if u else None,
+        "email_sent": email_sent,
+        "message": " ".join(msg_bits),
+        "email_error": email_error,   # optional: helpful while debugging
     }
 
 
