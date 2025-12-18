@@ -13,20 +13,38 @@
     </div>
   </td>
 
+  <!-- Role -->
   <td class="py-2">
-    <select
-      class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm"
-      data-member-role
-      data-member-id="{{ m.id }}"
-      data-original-role="{{ m.role }}"
-      {% if m.email == user_email %}disabled{% endif %}
-    >
-      {% for r in ["owner","admin","staff","ops_manager","maintenance","cleaner","read_only"] %}
-        <option value="{{ r }}" {% if m.role == r %}selected{% endif %}>{{ r }}</option>
-      {% endfor %}
-    </select>
+    <div class="flex items-center gap-2">
+      <select
+        class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm"
+        data-member-role
+        data-member-id="{{ m.id }}"
+        data-original-role="{{ (m.role or 'staff') }}"
+        {% if m.email == user_email %}disabled title="You can't change your own role here."{% endif %}
+      >
+        {% for r in ["owner","admin","staff","ops_manager","maintenance","cleaner","read_only"] %}
+          <option value="{{ r }}" {% if (m.role or 'staff') == r %}selected{% endif %}>{{ r }}</option>
+        {% endfor %}
+      </select>
+
+      {% if m.email != user_email %}
+      <button
+        class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold"
+        data-member-save-role
+        data-member-id="{{ m.id }}"
+        type="button"
+        title="Save role change"
+      >
+        Save
+      </button>
+      {% else %}
+        <span class="text-xs text-slate-400">—</span>
+      {% endif %}
+    </div>
   </td>
 
+  <!-- Status -->
   <td class="py-2">
     {% if m.is_active %}
       <span class="text-xs font-semibold text-emerald-700" data-member-status>Active</span>
@@ -35,16 +53,30 @@
     {% endif %}
   </td>
 
+  <!-- Actions -->
   <td class="py-2 text-right">
     {% if m.email != user_email %}
-      <button
-        class="text-xs font-semibold hover:underline"
-        data-member-toggle
-        data-member-id="{{ m.id }}"
-        data-next-active="{{ 'false' if m.is_active else 'true' }}"
-      >
-        {% if m.is_active %}Disable{% else %}Enable{% endif %}
-      </button>
+      <div class="flex items-center justify-end gap-3">
+        <button
+          class="text-xs font-semibold hover:underline"
+          data-member-toggle
+          data-member-id="{{ m.id }}"
+          data-next-active="{{ 'false' if m.is_active else 'true' }}"
+          type="button"
+        >
+          {% if m.is_active %}Disable{% else %}Enable{% endif %}
+        </button>
+
+        <button
+          class="text-xs font-semibold hover:underline text-rose-700"
+          data-member-delete
+          data-member-id="{{ m.id }}"
+          data-delete-label="{% if not m.last_login_at %}Delete invite{% else %}Remove{% endif %}"
+          type="button"
+        >
+          {% if not m.last_login_at %}Delete invite{% else %}Remove{% endif %}
+        </button>
+      </div>
     {% else %}
       <span class="text-xs text-slate-400">—</span>
     {% endif %}
