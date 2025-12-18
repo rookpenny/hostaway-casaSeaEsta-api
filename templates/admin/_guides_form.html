@@ -1,0 +1,62 @@
+<form onsubmit="event.preventDefault(); Guides.submit(this);"
+      class="space-y-3">
+
+  <input type="hidden" name="id" value="{{ guide.id if guide else '' }}">
+
+  <div>
+    <label class="text-xs font-semibold text-slate-600">Property</label>
+    <select name="property_id"
+            required
+            class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
+      {% for p in properties %}
+        <option value="{{ p.id }}"
+          {% if guide and guide.property_id == p.id %}selected{% endif %}>
+          {{ p.property_name }}
+        </option>
+      {% endfor %}
+    </select>
+  </div>
+
+  <div>
+    <label class="text-xs font-semibold text-slate-600">Title</label>
+    <input name="title"
+           required
+           value="{{ guide.title if guide else '' }}"
+           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
+  </div>
+
+  <div>
+    <label class="text-xs font-semibold text-slate-600">Category</label>
+    <input name="category"
+           value="{{ guide.category if guide else '' }}"
+           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
+  </div>
+
+  <div>
+    <label class="text-xs font-semibold text-slate-600">Body (HTML)</label>
+    <textarea name="body_html"
+              rows="6"
+              class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm">{{ guide.body_html if guide else '' }}</textarea>
+  </div>
+
+  <div class="flex items-center gap-2">
+    <input type="checkbox"
+           name="is_active"
+           value="true"
+           {% if guide and guide.is_active %}checked{% endif %}>
+    <span class="text-sm">Active</span>
+  </div>
+
+  <div class="flex justify-end gap-2 pt-2">
+    <button type="button"
+            onclick="Guides.closeEditor()"
+            class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+      Cancel
+    </button>
+
+    <button type="submit"
+            class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+      Save Guide
+    </button>
+  </div>
+</form>
