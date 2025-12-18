@@ -1175,6 +1175,66 @@
     btn.classList.toggle("cursor-not-allowed", !enabled);
   }
 
+   // ---------- Upgrades module ----------
+    window.Upgrades = window.Upgrades || {};
+    
+    Upgrades.state = {
+      propertyId: "", // current filter
+    };
+    
+    Upgrades.openNew = async function () {
+      await Upgrades.openEditor(null);
+    };
+    
+    Upgrades.openEditor = async function (id) {
+      const editorWrap = document.getElementById("upgrades-editor");
+      const editorBody = document.getElementById("upgrades-editor-body");
+      const editorTitle = document.getElementById("upgrades-editor-title");
+      if (!editorWrap || !editorBody) return;
+    
+      const url = id
+        ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`
+        : `/admin/upgrades/partial/form`;
+    
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) return toast("Could not load upgrade editor.");
+    
+      const html = await res.text();
+      editorBody.innerHTML = html;
+      editorTitle.textContent = id ? "Edit Upgrade" : "New Upgrade";
+      editorWrap.classList.remove("hidden");
+    };
+    
+    Upgrades.closeEditor = function () {
+      document.getElementById("upgrades-editor")?.classList.add("hidden");
+      document.getElementById("upgrades-editor-body").innerHTML = "";
+    };
+    
+    // Load list partial into #upgrades-list
+    Upgrades.loadList = async function () {
+      const listEl = document.getElementById("upgrades-list");
+      if (!listEl) return;
+    
+      const qs = new URLSearchParams();
+      if (Upgrades.state.propertyId) qs.set("property_id", Upgrades.state.propertyId);
+    
+      const url = `/admin/upgrades/partial/list${qs.toString() ? `?${qs}` : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) return (listEl.innerHTML = "Could not load upgrades.");
+    
+      listEl.innerHTML = await res.text();
+    };
+    
+    // ---------- IMPORTANT: delegated click for Edit buttons ----------
+    document.addEventListener("click", (e) => {
+      const btn = e.target.closest("[data-upgrade-edit]");
+      if (!btn) return;
+    
+      const id = btn.getAttribute("data-upgrade-edit");
+      Upgrades.openEditor(id);
+    });
+
+
   function markRoleSaved(memberId, newRole) {
     const select = document.querySelector(`[data-member-role][data-member-id="${memberId}"]`);
     if (select) select.dataset.originalRole = newRole;
@@ -1737,6 +1797,16 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
   document.addEventListener("DOMContentLoaded", () => {
     initSidebar();
     initRouting();
+
+    // Upgrades initial load + property filter
+    Upgrades.loadList();
+    
+    document.getElementById("upgradesPropertyFilter")?.addEventListener("change", (e) => {
+      Upgrades.state.propertyId = e.target.value || "";
+      Upgrades.loadList();
+      Upgrades.closeEditor(); // optional: close editor when switching filter
+    });
+
 
     // Chart
     const ctx = document.getElementById("statusChart");
