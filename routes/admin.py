@@ -23,7 +23,7 @@ from openai import OpenAI
 from datetime import datetime, timedelta, date
 
 from database import SessionLocal
-from models import PMC, Property, ChatSession, ChatMessage, PMCUser
+from models import PMC, Property, ChatSession, ChatMessage, PMCUser, Guide, Upgrade
 
 from utils.pms_sync import sync_properties, sync_all_integrations
 from utils.emailer import send_invite_email, email_enabled
@@ -1130,6 +1130,262 @@ def chats_analytics(request: Request, db: Session = Depends(get_db)):
         },
     }
 
+
+@router.get("/admin/guides/partial/list", response_class=HTMLResponse)
+def guides_partial_list(
+    request: Request,
+    db: Session = Depends(get_db),
+    property_id: Optional[int] = Query(None),
+):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
+    q = db.query(Guide).join(Property, Guide.property_id == Property.id)
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+
+    if property_id:
+        q = q.filter(Guide.property_id == int(property_id))
+
+    guides = q.order_by(Guide.sort_order.asc(), Guide.updated_at.desc()).all()
+    return templates.TemplateResponse("admin/_guides_list.html", {"request": request, "guides": guides})
+
+
+@router.get("/admin/guides/partial/form", response_class=HTMLResponse)
+def guides_partial_form(
+    request: Request,
+    db: Session = Depends(get_db),
+    id: Optional[int] = Query(None),
+):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
+    # property dropdown options (scope-aware)
+    props_q = db.query(Property)
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        props_q = props_q.filter(Property.pmc_id == pmc_obj.id)
+    properties = props_q.order_by(Property.property_name.asc()).all()
+
+    guide = None
+    if id:
+        guide = db.query(Guide).filter(Guide.id == int(id)).first()
+        if not guide:
+            raise HTTPException(status_code=404, detail="Not found")
+        # scope check
+        require_property_in_scope(request, db, int(guide.property_id))
+
+    return templates.TemplateResponse(
+        "admin/_guides_form.html",
+        {"request": request, "guide": guide, "properties": properties},
+    )
+
+
+@router.post("/admin/guides/ajax/save")
+def guides_ajax_save(
+    request: Request,
+    db: Session = Depends(get_db),
+    id: Optional[int] = Form(None),
+    property_id: int = Form(...),
+    title: str = Form(...),
+    category: Optional[str] = Form(None),
+    body_html: Optional[str] = Form(None),
+    is_active: Optional[str] = Form(None),
+):
+    require_property_in_scope(request, db, int(property_id))
+
+    if id:
+        g = db.query(Guide).filter(Guide.id == int(id)).first()
+        if not g:
+            return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+        require_property_in_scope(request, db, int(g.property_id))
+    else:
+        g = Guide(property_id=int(property_id))
+
+    g.property_id = int(property_id)
+    g.title = title.strip()
+    g.category = (category or "").strip() or None
+    g.body_html = body_html or None
+    g.is_active = bool(is_active)  # checkbox => "true" present or None
+    g.updated_at = datetime.utcnow()
+
+    db.add(g)
+    db.commit()
+    return {"ok": True, "id": g.id}
+
+
+@router.post("/admin/guides/ajax/delete")
+def guides_ajax_delete(request: Request, db: Session = Depends(get_db), id: int = Query(...)):
+    g = db.query(Guide).filter(Guide.id == int(id)).first()
+    if not g:
+        return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+    require_property_in_scope(request, db, int(g.property_id))
+    db.delete(g)
+    db.commit()
+    return {"ok": True}
+
+@router.get("/admin/upgrades/partial/list", response_class=HTMLResponse)
+def upgrades_partial_list(
+    request: Request,
+    db: Session = Depends(get_db),
+    property_id: Optional[int] = Query(None),
+):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
+    q = db.query(Upgrade).join(Property, Upgrade.property_id == Property.id)
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+
+    if property_id:
+        q = q.filter(Upgrade.property_id == int(property_id))
+
+    upgrades = q.order_by(Upgrade.sort_order.asc(), Upgrade.updated_at.desc()).all()
+    return templates.TemplateResponse("admin/_upgrades_list.html", {"request": request, "upgrades": upgrades})
+
+
+@router.get("/admin/upgrades/partial/form", response_class=HTMLResponse)
+def upgrades_partial_form(
+    request: Request,
+    db: Session = Depends(get_db),
+    id: Optional[int] = Query(None),
+):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
+    props_q = db.query(Property)
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        props_q = props_q.filter(Property.pmc_id == pmc_obj.id)
+    properties = props_q.order_by(Property.property_name.asc()).all()
+
+    upgrade = None
+    if id:
+        upgrade = db.query(Upgrade).filter(Upgrade.id == int(id)).first()
+        if not upgrade:
+            raise HTTPException(status_code=404, detail="Not found")
+        require_property_in_scope(request, db, int(upgrade.property_id))
+
+    return templates.TemplateResponse(
+        "admin/_upgrades_form.html",
+        {"request": request, "upgrade": upgrade, "properties": properties},
+    )
+
+
+@router.post("/admin/upgrades/ajax/save")
+def upgrades_ajax_save(
+    request: Request,
+    db: Session = Depends(get_db),
+    id: Optional[int] = Form(None),
+    property_id: int = Form(...),
+    slug: str = Form(...),
+    title: str = Form(...),
+    short_description: Optional[str] = Form(None),
+    long_description: Optional[str] = Form(None),
+    price_cents: int = Form(0),
+    is_active: Optional[str] = Form(None),
+):
+    require_property_in_scope(request, db, int(property_id))
+
+    if id:
+        u = db.query(Upgrade).filter(Upgrade.id == int(id)).first()
+        if not u:
+            return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+        require_property_in_scope(request, db, int(u.property_id))
+    else:
+        u = Upgrade(property_id=int(property_id))
+
+    u.property_id = int(property_id)
+    u.slug = slug.strip()
+    u.title = title.strip()
+    u.short_description = (short_description or "").strip() or None
+    u.long_description = (long_description or "").strip() or None
+    u.price_cents = int(price_cents or 0)
+    u.is_active = bool(is_active)
+    u.updated_at = datetime.utcnow()
+
+    db.add(u)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return JSONResponse({"ok": False, "error": "Slug must be unique per property"}, status_code=400)
+
+    return {"ok": True, "id": u.id}
+
+
+@router.post("/admin/upgrades/ajax/delete")
+def upgrades_ajax_delete(request: Request, db: Session = Depends(get_db), id: int = Query(...)):
+    u = db.query(Upgrade).filter(Upgrade.id == int(id)).first()
+    if not u:
+        return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+    require_property_in_scope(request, db, int(u.property_id))
+    db.delete(u)
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/admin/upgrades/ajax/reorder")
+def upgrades_ajax_reorder(request: Request, db: Session = Depends(get_db), payload: dict = Body(...)):
+    ids = payload.get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return JSONResponse({"ok": False, "error": "Invalid ids"}, status_code=400)
+
+    first = db.query(Upgrade).filter(Upgrade.id == int(ids[0])).first()
+    if not first:
+        return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+
+    require_property_in_scope(request, db, int(first.property_id))
+    prop_id = int(first.property_id)
+
+    for uid in ids:
+        u = db.query(Upgrade).filter(Upgrade.id == int(uid)).first()
+        if not u or int(u.property_id) != prop_id:
+            return JSONResponse({"ok": False, "error": "All items must be from the same property"}, status_code=400)
+
+    for idx, uid in enumerate(ids):
+        db.query(Upgrade).filter(Upgrade.id == int(uid)).update({"sort_order": idx, "updated_at": datetime.utcnow()})
+
+    db.commit()
+    return {"ok": True}
+
+
+@router.post("/admin/guides/ajax/reorder")
+def guides_ajax_reorder(request: Request, db: Session = Depends(get_db), payload: dict = Body(...)):
+    ids = payload.get("ids") or []
+    if not isinstance(ids, list) or not ids:
+        return JSONResponse({"ok": False, "error": "Invalid ids"}, status_code=400)
+
+    first = db.query(Guide).filter(Guide.id == int(ids[0])).first()
+    if not first:
+        return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+
+    require_property_in_scope(request, db, int(first.property_id))
+    prop_id = int(first.property_id)
+
+    # enforce same property
+    for gid in ids:
+        g = db.query(Guide).filter(Guide.id == int(gid)).first()
+        if not g or int(g.property_id) != prop_id:
+            return JSONResponse({"ok": False, "error": "All items must be from the same property"}, status_code=400)
+
+    for idx, gid in enumerate(ids):
+        db.query(Guide).filter(Guide.id == int(gid)).update({"sort_order": idx, "updated_at": datetime.utcnow()})
+
+    db.commit()
+    return {"ok": True}
+
+def require_property_in_scope(request: Request, db: Session, property_id: int) -> Property:
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
+    prop = db.query(Property).filter(Property.id == int(property_id)).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        if prop.pmc_id != pmc_obj.id:
+            raise HTTPException(status_code=403, detail="Forbidden property")
+
+    return prop
 
 @router.get("/admin/chats/{session_id}", response_class=HTMLResponse)
 def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(get_db)):
