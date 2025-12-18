@@ -1017,31 +1017,63 @@
       document.getElementById(id)?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
     });
 
-    // Invite submit
-    document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
-      e.preventDefault();
-      const form = e.currentTarget;
-      const body = Object.fromEntries(new FormData(form).entries());
+    // Invite submit (stay on page + refresh team rows)
+document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
+  e.preventDefault();
 
-      try {
-        const { res, data } = await apiJson("/admin/settings/team/invite", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        });
+  const form = e.currentTarget;
+  const submitBtn = form.querySelector('button[type="submit"]');
+  const body = Object.fromEntries(new FormData(form).entries());
 
-        if (res.ok && data.ok) {
-          toast(data.message || "Invite saved.");
-          form.reset();
-          inviteModal?.classList.add("hidden");
-          // stays on page; table is SSR so you can refresh later if you want
-        } else {
-          toast(data.detail || data.message || "Invite failed.");
-        }
-      } catch (err) {
-        if (String(err) !== "Error: auth") toast("Invite failed.");
-      }
+  // basic front-end validation
+  const email = String(body.email || "").trim();
+  if (!email) {
+    toast("Email is required.");
+    return;
+  }
+
+  const originalBtnText = submitBtn?.textContent || "Send Invite";
+  if (submitBtn) {
+    submitBtn.disabled = true;
+    submitBtn.textContent = "Sending…";
+    submitBtn.classList.add("opacity-60", "cursor-not-allowed");
+  }
+
+  try {
+    const { res, data } = await apiJson("/admin/settings/team/invite", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
     });
+
+    if (!res.ok || !data?.ok) {
+      toast(data?.detail || data?.message || "Invite failed.");
+      return;
+    }
+
+    toast(data?.message || "Invite saved.");
+    form.reset();
+    inviteModal?.classList.add("hidden");
+
+    // ✅ Refresh team table rows without full page reload
+    // You need an endpoint that returns only the <tr> rows (no full HTML page)
+    const { res: tRes } = await apiJson("/admin/settings/team/table", { method: "GET" });
+    if (tRes.ok) {
+      const rowsHtml = await tRes.text();
+      const tbody = document.querySelector("#settings-team tbody");
+      if (tbody) tbody.innerHTML = rowsHtml;
+    }
+  } catch (err) {
+    if (String(err) !== "Error: auth") toast("Invite failed.");
+  } finally {
+    if (submitBtn) {
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalBtnText;
+      submitBtn.classList.remove("opacity-60", "cursor-not-allowed");
+    }
+  }
+});
+
 
     // Change role dropdown -> enable Save if changed
     teamPanel.addEventListener("change", (e) => {
@@ -1119,6 +1151,14 @@
           btn.disabled = false;
         }
         return;
+      }
+
+      async function refreshTeamTable() {
+        const res = await fetch("/admin/settings/team", { credentials: "include" });
+        if (!res.ok) return;
+      
+        const html = await res.text();
+        document.querySelector("#settings-team tbody").innerHTML = html;
       }
 
       // Delete invite / Remove
