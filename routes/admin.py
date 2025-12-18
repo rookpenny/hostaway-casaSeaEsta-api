@@ -270,9 +270,6 @@ def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
 def get_team_table(request: Request, db: Session = Depends(get_db)):
     user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
 
-    if user_role != "pmc" or not pmc_obj:
-        raise HTTPException(status_code=403)
-
     team_members = (
         db.query(PMCUser)
         .filter(PMCUser.pmc_id == pmc_obj.id)
@@ -281,13 +278,15 @@ def get_team_table(request: Request, db: Session = Depends(get_db)):
     )
 
     return templates.TemplateResponse(
-        "admin/_team_table_rows.html",
+        "admin_dashboard.html",
         {
             "request": request,
             "team_members": team_members,
             "user_email": pmc_user.email,
+            "render_team_only": True,  # 👈 flag
         },
     )
+
 
 
 
