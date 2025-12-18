@@ -1280,7 +1280,13 @@ def upgrades_ajax_save(
     title: str = Form(...),
     short_description: Optional[str] = Form(None),
     long_description: Optional[str] = Form(None),
+    # ✅ NEW: price in dollars (from the form)
     price_dollars: str = Form("0.00"),
+
+    # ✅ NEW: image
+    image_url: Optional[str] = Form(None),
+
+    # active toggle
     is_active: Optional[str] = Form(None),
 ):
     require_property_in_scope(request, db, int(property_id))
@@ -1298,8 +1304,16 @@ def upgrades_ajax_save(
     u.title = title.strip()
     u.short_description = (short_description or "").strip() or None
     u.long_description = (long_description or "").strip() or None
-    u.price_cents = int(price_cents or 0)
+    
+    # ✅ dollars → cents conversion
+    u.price_cents = dollars_to_cents(price_dollars)
+
+    # ✅ image url
+    u.image_url = (image_url or "").strip() or None
+
+    # checkbox: present = true, missing = false
     u.is_active = bool(is_active)
+    
     u.updated_at = datetime.utcnow()
 
     db.add(u)
