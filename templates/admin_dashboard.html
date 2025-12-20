@@ -1361,14 +1361,19 @@ window.Upgrades = {
       return;
     }
 
-    // Inject partial HTML
-    listEl.innerHTML = html;
+    // 🔴 THIS IS REQUIRED
+    listEl.innerHTML = await res.text();
 
+    // 🔴 THIS IS REQUIRED
+    initAllReorderTables();
+/*
     // ✅ Re-init Sortable AFTER partial is injected
     const table = listEl.querySelector('table[data-list-kind="upgrades"]');
     if (table && typeof initReorderForTable === "function") {
       initReorderForTable(table);
     }
+*/
+   
   } catch (err) {
     console.error("Upgrades.refresh error:", err);
     listEl.innerHTML = "Could not load upgrades.";
