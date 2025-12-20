@@ -243,6 +243,24 @@ def get_user_role_and_scope(request: Request, db: Session):
 
     return "pmc", pmc, pmc_user, billing_status, needs_payment
 
+def delete_temp_upgrade_image(tmp_key: str) -> None:
+    """
+    Deletes a temp upgrade image safely.
+    tmp_key should be a filename only (no paths).
+    """
+    if not tmp_key:
+        return
+
+    # Prevent path traversal
+    safe_key = Path(tmp_key).name
+    path = TMP_DIR / safe_key
+
+    try:
+        if path.exists() and path.is_file():
+            path.unlink()
+    except Exception as e:
+        print("[delete_temp_upgrade_image] failed:", e)
+
 
 @router.get("/admin/settings/team/table", response_class=HTMLResponse)
 def team_table_rows(request: Request, db: Session = Depends(get_db)):
