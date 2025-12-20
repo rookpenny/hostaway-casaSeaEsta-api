@@ -38,7 +38,6 @@ from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo  # Python 3.9+
 
-
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 logging.basicConfig(level=logging.INFO)
@@ -53,23 +52,17 @@ ESCALATE_LOW_HEAT = int(os.getenv("ESCALATE_LOW_HEAT", "35"))
 ESCALATE_MEDIUM_HEAT = int(os.getenv("ESCALATE_MEDIUM_HEAT", "60"))
 ESCALATE_HIGH_HEAT = int(os.getenv("ESCALATE_HIGH_HEAT", "85"))
 
-
-UPLOAD_DIR = Path("static/uploads/upgrades")           # permanent
-TMP_DIR = Path("static/uploads/upgrades/tmp")          # temp
-
+UPLOAD_DIR = Path("static/uploads/upgrades")       # permanent
+TMP_DIR = Path("static/uploads/upgrades/tmp")      # temp
 TMP_URL_PREFIX = "/static/uploads/upgrades/tmp"
+FINAL_URL_PREFIX = "/static/uploads/upgrades"
 
-ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp", ".gif"}
 ALLOWED_MIME_PREFIX = "image/"
 MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8MB
 
-UPGRADES_UPLOAD_PREFIX = "/static/uploads/upgrades/"
-
-STATIC_DIR = Path("static")
-FINAL_DIR = STATIC_DIR / "uploads" / "upgrades"
-
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TMP_DIR.mkdir(parents=True, exist_ok=True)
-FINAL_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ----------------------------
@@ -109,23 +102,19 @@ class NotificationPrefsPayload(BaseModel):
 
 def delete_local_upgrade_image(image_url: str) -> None:
     """
-    image_url expected like: /static/uploads/upgrades/<filename>
-    ignores external urls.
+    Delete /static/uploads/upgrades/<filename> only (ignore external URLs).
     """
     if not image_url:
         return
-    if image_url.startswith("http://") or image_url.startswith("https://"):
+    if image_url.startswith(("http://", "https://")):
         return
     if not image_url.startswith("/static/uploads/upgrades/"):
         return
 
-    rel = image_url.lstrip("/")  # "static/uploads/..."
+    rel = image_url.lstrip("/")  # static/uploads/...
     p = Path(rel)
-    try:
-        if p.exists() and p.is_file():
-            p.unlink()
-    except Exception:
-        pass
+    _safe_unlink(p)
+
 
 
 # ----------------------------
@@ -184,24 +173,22 @@ def is_super_admin(email: Optional[str]) -> bool:
     # fallback (set ADMIN_EMAILS in env and remove this once stable)
     return email.lower() in {"corbett.jarrod@gmail.com"}
 
-def delete_temp_upgrade_image(tmp_key: str) -> bool:
-    # safety: only allow filenames (no slashes)
-    if "/" in tmp_key or "\\" in tmp_key or ".." in tmp_key:
-        return False
-    p = TMP_DIR / tmp_key
-    if p.exists() and p.is_file():
-        p.unlink()
-        return True
-    return False
+def (tmp_key: str) -> None:
+    """
+    Delete a tmp image by key (filename only).
+    """
+    tmp_key = (tmp_key or "").strip()
+    if not tmp_key:
+        return
+    # filename-only safety
+    tmp_key = Path(tmp_key).name
+    _safe_unlink(TMP_DIR / tmp_key)
 
 @router.post("/admin/upgrades/ajax/delete-temp-image")
-async def delete_temp_image(payload: dict):
+async def upgrades_delete_temp_image(payload: dict):
     tmp_key = (payload.get("tmp_key") or "").strip()
-    if not tmp_key:
-        return {"ok": True}
     delete_temp_upgrade_image(tmp_key)
     return {"ok": True}
-
 
 def get_user_role_and_scope(request: Request, db: Session):
     """
@@ -1291,24 +1278,21 @@ def guides_ajax_delete(request: Request, db: Session = Depends(get_db), id: int 
 
 
 
-def safe_unlink(path: Path) -> None:
+def _is_image(file: UploadFile) -> bool:
+    return (file.content_type or "").lower().startswith(ALLOWED_MIME_PREFIX)
+
+
+def _safe_unlink(path: Path) -> None:
     try:
         if path.exists() and path.is_file():
             path.unlink()
-    except Exception as e:
-        print("[UPLOAD IMAGE] could not delete:", path, e)
-
-
-def _is_image(file: UploadFile) -> bool:
-    ctype = (file.content_type or "").lower()
-    return ctype.startswith(ALLOWED_MIME_PREFIX)
-    
+    except Exception:
+        pass
 
 @router.post("/admin/upgrades/ajax/upload-image")
 async def upload_upgrade_image(
     file: UploadFile = File(...),
-    upgrade_id: str = Form(default=""),      # optional; kept for context
-    prev_tmp_key: str = Form(default=""),    # ✅ delete previous temp (prevents orphan temps)
+    prev_tmp_key: str = Form(default=""),
 ):
     if not file:
         return JSONResponse({"ok": False, "error": "No file provided."}, status_code=400)
@@ -1320,31 +1304,24 @@ async def upload_upgrade_image(
     if ext not in ALLOWED_EXTS:
         return JSONResponse({"ok": False, "error": "Unsupported image type."}, status_code=400)
 
-    # Ensure temp directory exists
-    TMP_DIR.mkdir(parents=True, exist_ok=True)
-
-    # ✅ delete previous temp file if provided (only within TMP_DIR)
-    prev_tmp_key = (prev_tmp_key or "").strip()
+    # delete previous temp if provided
     if prev_tmp_key:
-        prev_path = TMP_DIR / Path(prev_tmp_key).name  # Path(...).name prevents "../" tricks
-        safe_unlink(prev_path)
+        delete_temp_upgrade_image(prev_tmp_key)
 
-    # Write new temp file
     tmp_key = f"{uuid.uuid4().hex}{ext}"
     tmp_path = TMP_DIR / tmp_key
 
-    # Optional (but nice): enforce max upload size while streaming
     size = 0
     try:
         with tmp_path.open("wb") as out:
             while True:
-                chunk = await file.read(1024 * 1024)  # 1MB chunks
+                chunk = await file.read(1024 * 1024)  # 1MB
                 if not chunk:
                     break
                 size += len(chunk)
                 if size > MAX_UPLOAD_BYTES:
                     out.close()
-                    safe_unlink(tmp_path)
+                    _safe_unlink(tmp_path)
                     return JSONResponse({"ok": False, "error": "File too large (max 8MB)."}, status_code=400)
                 out.write(chunk)
     finally:
@@ -1353,8 +1330,12 @@ async def upload_upgrade_image(
         except Exception:
             pass
 
-    preview_url = f"{TMP_URL_PREFIX}/{tmp_key}"
-    return {"ok": True, "tmp_key": tmp_key, "preview_url": preview_url}
+    return {
+        "ok": True,
+        "tmp_key": tmp_key,
+        "preview_url": f"{TMP_URL_PREFIX}/{tmp_key}",
+    }
+
 
 @router.get("/admin/upgrades/partial/list", response_class=HTMLResponse)
 def upgrades_partial_list(
@@ -1459,15 +1440,13 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
     property_id_raw = (form.get("property_id") or "").strip()
     long_description = (form.get("long_description") or "").strip() or None
 
-    # checkbox: present => True, missing => False
     is_active = form.get("is_active") is not None
 
-    # dollars -> cents
-    price_raw = (form.get("price_dollars") or "0").strip()
+    # price dollars -> cents
+    price_raw = (form.get("price_dollars") or "0").strip().replace("$", "")
     try:
         price_cents = int(round(float(price_raw) * 100))
-        if price_cents < 0:
-            price_cents = 0
+        price_cents = max(0, price_cents)
     except Exception:
         return JSONResponse({"ok": False, "error": "Invalid price."}, status_code=400)
 
@@ -1479,30 +1458,30 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
 
     property_id = int(property_id_raw)
 
-    # image handling
+    # image values
     current_image_url = (form.get("image_url") or "").strip() or None
     tmp_key = (form.get("image_tmp_key") or "").strip() or None
 
     new_image_url = current_image_url
-
-    # move tmp -> permanent if tmp_key is present
     if tmp_key:
+        tmp_key = Path(tmp_key).name  # safety
         tmp_path = TMP_DIR / tmp_key
-        if tmp_path.exists() and tmp_path.is_file():
-            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
-            dest_path = UPLOAD_DIR / tmp_key
-            shutil.move(str(tmp_path), str(dest_path))
-            new_image_url = f"/static/uploads/upgrades/{tmp_key}"
-        else:
+        if not (tmp_path.exists() and tmp_path.is_file()):
             return JSONResponse({"ok": False, "error": "Uploaded image not found. Please upload again."}, status_code=400)
 
+        dest_path = UPLOAD_DIR / tmp_key
+        shutil.move(str(tmp_path), str(dest_path))
+        new_image_url = f"{FINAL_URL_PREFIX}/{tmp_key}"
+
+    # fetch/create
     old_image_url = None
 
-    # fetch / create
     if upgrade_id:
         upgrade = db.query(Upgrade).filter(Upgrade.id == upgrade_id).first()
         if not upgrade:
             return JSONResponse({"ok": False, "error": "Upgrade not found."}, status_code=404)
+
+        require_property_in_scope(request, db, int(upgrade.property_id))
 
         old_image_url = (getattr(upgrade, "image_url", None) or "").strip() or None
 
@@ -1513,8 +1492,13 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
         upgrade.price_cents = price_cents
         upgrade.is_active = is_active
         upgrade.image_url = new_image_url
+        if hasattr(upgrade, "updated_at"):
+            upgrade.updated_at = datetime.utcnow()
 
     else:
+        # scope check for create
+        require_property_in_scope(request, db, property_id)
+
         upgrade = Upgrade(
             title=title,
             slug=slug,
@@ -1524,6 +1508,8 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
             is_active=is_active,
             image_url=new_image_url,
         )
+        if hasattr(upgrade, "updated_at"):
+            upgrade.updated_at = datetime.utcnow()
         db.add(upgrade)
 
     try:
@@ -1532,12 +1518,11 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
         db.rollback()
         return JSONResponse({"ok": False, "error": "Save failed."}, status_code=500)
 
-    # delete orphan old image AFTER successful commit (only if replaced or cleared)
+    # delete old file only after commit
     if old_image_url and old_image_url != new_image_url:
         delete_local_upgrade_image(old_image_url)
 
-    return {"ok": True}
-
+    return {"ok": True, "id": upgrade.id}
 
 @router.post("/admin/upgrades/ajax/toggle-active")
 def upgrades_toggle_active(
