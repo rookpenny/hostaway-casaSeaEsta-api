@@ -2214,7 +2214,7 @@ document.addEventListener("change", async (e) => {
     showSettingsPanel(getSettingsTabFromHash());
   }
 
-   function initReorderForTable(rootEl) {
+ function initReorderForTable(rootEl) {
   if (!rootEl || !window.Sortable) return;
 
   const tbody = rootEl.querySelector("[data-reorder-body]");
@@ -2223,8 +2223,25 @@ document.addEventListener("change", async (e) => {
   // Prevent double init on the same tbody
   if (tbody._sortable) return;
 
-  const kind = (rootEl.getAttribute("data-list-kind") || "").trim(); // "guides" or "upgrades"
-  if (!kind) return;
+  const kindRaw = (rootEl.getAttribute("data-list-kind") || "").trim().toLowerCase();
+  if (!kindRaw) return;
+
+  // ✅ Normalize kind and map to the *actual* row attributes used in your HTML
+  // Your rows use singular: data-guide-row / data-upgrade-row
+  const kind =
+    kindRaw === "guide" || kindRaw === "guides" ? "guides" :
+    kindRaw === "upgrade" || kindRaw === "upgrades" ? "upgrades" :
+    kindRaw;
+
+  const rowAttr =
+    kind === "guides" ? "data-guide-row" :
+    kind === "upgrades" ? "data-upgrade-row" :
+    `data-${kind}-row`; // fallback
+
+  const url =
+    kind === "guides"
+      ? "/admin/guides/ajax/reorder"
+      : "/admin/upgrades/ajax/reorder";
 
   tbody._sortable = new Sortable(tbody, {
     animation: 150,
@@ -2232,17 +2249,17 @@ document.addEventListener("change", async (e) => {
     draggable: "tr",
 
     onEnd: async () => {
-      const rowAttr = `data-${kind}-row`;
-
+      // Collect IDs in their new order
       const ids = Array.from(tbody.querySelectorAll(`tr[${rowAttr}]`))
         .map((tr) => (tr.getAttribute(rowAttr) || "").trim())
         .filter(Boolean);
 
       const order = ids
         .map((x) => Number(x))
-        .filter((n) => Number.isFinite(n));
+        .filter((n) => Number.isFinite(n) && n > 0);
 
       if (!order.length) {
+        console.warn("Reorder: could not read ids", { kind, rowAttr, ids });
         toast("Could not determine new order.");
         return;
       }
@@ -2252,14 +2269,11 @@ document.addEventListener("change", async (e) => {
           ? document.getElementById("guidesPropertyFilter")?.value
           : document.getElementById("upgradesPropertyFilter")?.value) || "";
 
-      // Build payload safely (DON'T send null/"" to FastAPI int parser)
       const payload = { order };
-      if (propertyIdRaw) payload.property_id = Number(propertyIdRaw);
-
-      const url =
-        kind === "guides"
-          ? "/admin/guides/ajax/reorder"
-          : "/admin/upgrades/ajax/reorder";
+      if (propertyIdRaw) {
+        const pid = Number(propertyIdRaw);
+        if (Number.isFinite(pid) && pid > 0) payload.property_id = pid;
+      }
 
       try {
         const { res, data } = await apiJson(url, {
@@ -2268,7 +2282,10 @@ document.addEventListener("change", async (e) => {
           body: JSON.stringify(payload),
         });
 
-        if (!res.ok || !data.ok) toast(data?.error || "Failed to save order.");
+        if (!res.ok || !data.ok) {
+          console.error("Reorder failed:", { status: res.status, data, payload });
+          toast(data?.error || "Failed to save order.");
+        }
       } catch (e) {
         console.error("reorder error:", e);
         toast("Failed to save order.");
@@ -2276,6 +2293,7 @@ document.addEventListener("change", async (e) => {
     },
   });
 }
+
 
 function initAllReorderTables() {
   document.querySelectorAll("table[data-list-kind]").forEach(initReorderForTable);
