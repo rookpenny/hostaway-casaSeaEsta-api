@@ -1324,9 +1324,6 @@
 // ----------------------------
 // Upgrades (single definition + resilient AJAX handling)
 // ----------------------------
-// ----------------------------
-// Upgrades (single definition + resilient AJAX handling)
-// ----------------------------
 window.Upgrades = {
   loaded: false,
 
@@ -1364,10 +1361,12 @@ window.Upgrades = {
         return loginRedirect();
       }
 
+      // ✅ Inject HTML
       listEl.innerHTML = html;
 
-      // re-init sortable ONLY inside this refreshed content
+      // ✅ Init sortable inside the refreshed content
       listEl.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
+
     } catch (err) {
       console.error("Upgrades.refresh error:", err);
       listEl.innerHTML = "Could not load upgrades.";
@@ -1441,10 +1440,7 @@ window.Upgrades = {
         body: new FormData(form),
       });
 
-      if (res.status === 401 || res.status === 403) {
-        loginRedirect();
-        return;
-      }
+      if (res.status === 401 || res.status === 403) return loginRedirect();
 
       const contentType = (res.headers.get("content-type") || "").toLowerCase();
       if (!contentType.includes("application/json")) {
@@ -2223,25 +2219,20 @@ document.addEventListener("change", async (e) => {
   // Prevent double init on the same tbody
   if (tbody._sortable) return;
 
-  const kindRaw = (rootEl.getAttribute("data-list-kind") || "").trim().toLowerCase();
-  if (!kindRaw) return;
+  // Expect: table[data-list-kind="guides"] or table[data-list-kind="upgrades"]
+  const kind = (rootEl.getAttribute("data-list-kind") || "").trim(); // "guides" | "upgrades"
+  if (!kind) return;
 
-  // ✅ Normalize kind and map to the *actual* row attributes used in your HTML
-  // Your rows use singular: data-guide-row / data-upgrade-row
-  const kind =
-    kindRaw === "guide" || kindRaw === "guides" ? "guides" :
-    kindRaw === "upgrade" || kindRaw === "upgrades" ? "upgrades" :
-    kindRaw;
+  // ✅ IMPORTANT: your rows are almost certainly singular:
+  //   guides rows:   <tr data-guide-row="123">
+  //   upgrades rows: <tr data-upgrade-row="456">
+  const rowAttrByKind = {
+    guides: "data-guide-row",
+    upgrades: "data-upgrade-row",
+  };
 
-  const rowAttr =
-    kind === "guides" ? "data-guide-row" :
-    kind === "upgrades" ? "data-upgrade-row" :
-    `data-${kind}-row`; // fallback
-
-  const url =
-    kind === "guides"
-      ? "/admin/guides/ajax/reorder"
-      : "/admin/upgrades/ajax/reorder";
+  const rowAttr = rowAttrByKind[kind];
+  if (!rowAttr) return;
 
   tbody._sortable = new Sortable(tbody, {
     animation: 150,
@@ -2249,17 +2240,16 @@ document.addEventListener("change", async (e) => {
     draggable: "tr",
 
     onEnd: async () => {
-      // Collect IDs in their new order
       const ids = Array.from(tbody.querySelectorAll(`tr[${rowAttr}]`))
         .map((tr) => (tr.getAttribute(rowAttr) || "").trim())
         .filter(Boolean);
 
       const order = ids
         .map((x) => Number(x))
-        .filter((n) => Number.isFinite(n) && n > 0);
+        .filter((n) => Number.isFinite(n));
 
       if (!order.length) {
-        console.warn("Reorder: could not read ids", { kind, rowAttr, ids });
+        console.error("Reorder: no valid numeric ids found", { kind, ids });
         toast("Could not determine new order.");
         return;
       }
@@ -2270,10 +2260,12 @@ document.addEventListener("change", async (e) => {
           : document.getElementById("upgradesPropertyFilter")?.value) || "";
 
       const payload = { order };
-      if (propertyIdRaw) {
-        const pid = Number(propertyIdRaw);
-        if (Number.isFinite(pid) && pid > 0) payload.property_id = pid;
-      }
+      if (propertyIdRaw) payload.property_id = Number(propertyIdRaw);
+
+      const url =
+        kind === "guides"
+          ? "/admin/guides/ajax/reorder"
+          : "/admin/upgrades/ajax/reorder";
 
       try {
         const { res, data } = await apiJson(url, {
@@ -2284,7 +2276,7 @@ document.addEventListener("change", async (e) => {
 
         if (!res.ok || !data.ok) {
           console.error("Reorder failed:", { status: res.status, data, payload });
-          toast(data?.error || "Failed to save order.");
+          toast(data?.error || data?.detail || "Failed to save order.");
         }
       } catch (e) {
         console.error("reorder error:", e);
@@ -2293,6 +2285,7 @@ document.addEventListener("change", async (e) => {
     },
   });
 }
+
 
 
 function initAllReorderTables() {
