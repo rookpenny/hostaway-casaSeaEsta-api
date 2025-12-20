@@ -1334,11 +1334,8 @@ window.Upgrades = {
       headers: { "X-Requested-With": "fetch" },
     });
 
-    // Auth / billing handling
     if (res.status === 401 || res.status === 403) {
-      if (typeof loginRedirect === "function") return loginRedirect();
-      listEl.innerHTML = "Session expired. Please log in again.";
-      return;
+      return loginRedirect();
     }
 
     if (res.status === 402) {
@@ -1353,32 +1350,24 @@ window.Upgrades = {
 
     const html = await res.text();
 
-    // Guard: backend returned a full HTML login page (often happens with 200 OK)
+    // If backend accidentally returned a full page, bail
     const lower = html.toLowerCase();
     if (html.includes("<html") && (lower.includes("login") || lower.includes("sign in"))) {
-      if (typeof loginRedirect === "function") return loginRedirect();
-      listEl.innerHTML = "Please log in again.";
-      return;
+      return loginRedirect();
     }
 
-    // 🔴 THIS IS REQUIRED
-    listEl.innerHTML = await res.text();
+    // ✅ Inject the HTML exactly once
+    listEl.innerHTML = html;
 
-    // 🔴 THIS IS REQUIRED
-    initAllReorderTables();
-/*
-    // ✅ Re-init Sortable AFTER partial is injected
-    const table = listEl.querySelector('table[data-list-kind="upgrades"]');
-    if (table && typeof initReorderForTable === "function") {
-      initReorderForTable(table);
-    }
-*/
-   
+    // ✅ Re-init sortable ONLY inside this refreshed content
+    listEl.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
+
   } catch (err) {
     console.error("Upgrades.refresh error:", err);
     listEl.innerHTML = "Could not load upgrades.";
   }
-},
+}
+
 
 
 
@@ -1863,16 +1852,23 @@ document.addEventListener("change", async (e) => {
   }
 
   async function loadHtmlInto(url, targetId) {
-    const r = await fetch(url, {
-      credentials: "include",
-      headers: { "X-Requested-With": "fetch" },
-    });
-    if (r.status === 401 || r.status === 403) return loginRedirect();
-    const target = document.getElementById(targetId);
-    if (target) target.innerHTML = await r.text();
+  const r = await fetch(url, {
+    credentials: "include",
+    headers: { "X-Requested-With": "fetch" },
+  });
 
-     initAllReorderTables();
-  }
+  if (r.status === 401 || r.status === 403) return loginRedirect();
+
+  const target = document.getElementById(targetId);
+  if (!target) return;
+
+  const html = await r.text();
+  target.innerHTML = html;
+
+  // ✅ only init reorder inside the new content
+  target.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
+}
+
 
   window.Guides = {
     loaded: false,
