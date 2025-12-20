@@ -1,108 +1,54 @@
-<!-- templates/admin/_upgrades_form.html -->
-<form onsubmit="event.preventDefault(); Upgrades.submit(this);"
-      class="space-y-3">
-
+<form onsubmit="event.preventDefault(); Upgrades.submit(this);" class="space-y-3">
   <input type="hidden" name="id" value="{{ upgrade.id if upgrade else '' }}">
 
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Property</label>
-    <select name="property_id"
-            required
-            class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
-      {% for p in properties %}
-        <option value="{{ p.id }}"
-          {% if upgrade and upgrade.property_id == p.id %}selected{% endif %}>
-          {{ p.property_name }}
-        </option>
-      {% endfor %}
-    </select>
-  </div>
+  <!-- holds the final URL that will be saved -->
+  <input type="hidden" name="image_url" value="{{ upgrade.image_url if upgrade else '' }}">
 
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Slug</label>
-    <input name="slug"
-           required
-           value="{{ upgrade.slug if upgrade else '' }}"
-           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
-    <div class="text-xs text-slate-500 mt-1">
-      URL-safe (e.g. <code>early-check-in</code>)
-    </div>
-  </div>
+  <!-- holds the temp upload key returned by upload endpoint -->
+  <input type="hidden" name="image_tmp_key" value="">
 
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Title</label>
-    <input name="title"
-           required
-           value="{{ upgrade.title if upgrade else '' }}"
-           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
-  </div>
+  <!-- ...property / slug / title... -->
 
-  <!-- Image upload (replaces Image URL input) -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Image</label>
 
-    <div class="mt-2 flex items-center gap-3">
-      <label class="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold grid place-items-center cursor-pointer">
-        Upload image
-        <input
-          type="file"
-          accept="image/*"
-          class="hidden"
-          data-upgrade-image-file
-        />
-      </label>
+    <div class="mt-1 flex items-center gap-2">
+      <input
+        type="file"
+        accept="image/*"
+        data-upgrade-image-file
+        class="block w-full text-sm"
+      />
 
-      <div class="text-xs text-slate-500">PNG/JPG/WebP recommended.</div>
+      <button
+        type="button"
+        class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50"
+        data-upgrade-image-upload
+      >
+        Upload
+      </button>
+
+      <button
+        type="button"
+        class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50"
+        data-upgrade-image-clear
+      >
+        Remove
+      </button>
     </div>
 
-    <!-- Keep image_url for your existing save endpoint -->
-    <input
-      type="hidden"
-      name="image_url"
-      value="{{ upgrade.image_url if upgrade else '' }}"
-      data-upgrade-image-url
-    />
-
-    <!-- Preview -->
-    <img
-      data-upgrade-image-preview
-      src="{{ upgrade.image_url if (upgrade and upgrade.image_url) else '' }}"
-      alt="Upgrade image"
-      class="mt-2 w-full rounded-xl border border-slate-200 object-cover {% if not (upgrade and upgrade.image_url) %}hidden{% endif %}"
-      style="max-height:180px;"
-    />
+    <div class="mt-2">
+      <img
+        data-upgrade-image-preview
+        src="{{ upgrade.image_url if upgrade and upgrade.image_url else '' }}"
+        alt="Upgrade image"
+        class="w-full rounded-xl border border-slate-200 object-cover {% if not (upgrade and upgrade.image_url) %}hidden{% endif %}"
+        style="max-height:180px;"
+      />
+    </div>
 
     <div class="mt-1 text-xs text-slate-500">Used in guest UI / upsell cards.</div>
   </div>
 
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Price (USD)</label>
-    <input name="price_dollars"
-           type="number"
-           min="0"
-           step="0.01"
-           value="{{ '%.2f'|format((upgrade.price_cents or 0) / 100) if upgrade else '0.00' }}"
-           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
-  </div>
-
-  <div class="flex items-center gap-2">
-    <input type="checkbox"
-           name="is_active"
-           value="true"
-           {% if upgrade and upgrade.is_active %}checked{% endif %}>
-    <span class="text-sm">Active</span>
-  </div>
-
-  <div class="flex justify-end gap-2 pt-2">
-    <button type="button"
-            onclick="Upgrades.closeEditor()"
-            class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm">
-      Cancel
-    </button>
-
-    <button type="submit"
-            class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
-      Save Upgrade
-    </button>
-  </div>
+  <!-- ...price / active / buttons... -->
 </form>
