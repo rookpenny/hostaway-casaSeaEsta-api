@@ -9,6 +9,7 @@ import sqlalchemy as sa
 import secrets
 import shutil, uuid
 
+
 from pathlib import Path
 
 from database import get_db  # <- update import path
@@ -55,10 +56,16 @@ ESCALATE_HIGH_HEAT = int(os.getenv("ESCALATE_HIGH_HEAT", "85"))
 UPLOAD_DIR = Path("static/uploads/upgrades")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
+TMP_DIR = Path("static/uploads/upgrades/tmp")
+TMP_URL_PREFIX = "/static/uploads/upgrades/tmp"
+
+ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
+ALLOWED_MIME_PREFIX = "image/"
+MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8MB
+
 UPGRADES_UPLOAD_PREFIX = "/static/uploads/upgrades/"
 
 STATIC_DIR = Path("static")
-TMP_DIR = STATIC_DIR / "uploads" / "upgrades" / "tmp"
 FINAL_DIR = STATIC_DIR / "uploads" / "upgrades"
 
 TMP_DIR.mkdir(parents=True, exist_ok=True)
@@ -1304,33 +1311,70 @@ def guides_ajax_delete(request: Request, db: Session = Depends(get_db), id: int 
 
 
 
-def _is_image(upload: UploadFile) -> bool:
-    ct = (upload.content_type or "").lower()
-    return ct.startswith("image/")
+def safe_unlink(path: Path) -> None:
+    try:
+        if path.exists() and path.is_file():
+            path.unlink()
+    except Exception as e:
+        print("[UPLOAD IMAGE] could not delete:", path, e)
+
+
+def _is_image(file: UploadFile) -> bool:
+    ctype = (file.content_type or "").lower()
+    return ctype.startswith(ALLOWED_MIME_PREFIX)
+    
 
 @router.post("/admin/upgrades/ajax/upload-image")
-async def upload_upgrade_image(file: UploadFile = File(...), upgrade_id: str = Form(default="")):
+async def upload_upgrade_image(
+    file: UploadFile = File(...),
+    upgrade_id: str = Form(default=""),      # optional; kept for context
+    prev_tmp_key: str = Form(default=""),    # ✅ delete previous temp (prevents orphan temps)
+):
+    if not file:
+        return JSONResponse({"ok": False, "error": "No file provided."}, status_code=400)
+
     if not _is_image(file):
         return JSONResponse({"ok": False, "error": "Please upload an image file."}, status_code=400)
 
     ext = Path(file.filename or "").suffix.lower()
-    if ext not in [".png", ".jpg", ".jpeg", ".webp", ".gif"]:
+    if ext not in ALLOWED_EXTS:
         return JSONResponse({"ok": False, "error": "Unsupported image type."}, status_code=400)
 
-    # temp key
+    # Ensure temp directory exists
+    TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+    # ✅ delete previous temp file if provided (only within TMP_DIR)
+    prev_tmp_key = (prev_tmp_key or "").strip()
+    if prev_tmp_key:
+        prev_path = TMP_DIR / Path(prev_tmp_key).name  # Path(...).name prevents "../" tricks
+        safe_unlink(prev_path)
+
+    # Write new temp file
     tmp_key = f"{uuid.uuid4().hex}{ext}"
     tmp_path = TMP_DIR / tmp_key
 
-    with tmp_path.open("wb") as out:
-        shutil.copyfileobj(file.file, out)
+    # Optional (but nice): enforce max upload size while streaming
+    size = 0
+    try:
+        with tmp_path.open("wb") as out:
+            while True:
+                chunk = await file.read(1024 * 1024)  # 1MB chunks
+                if not chunk:
+                    break
+                size += len(chunk)
+                if size > MAX_UPLOAD_BYTES:
+                    out.close()
+                    safe_unlink(tmp_path)
+                    return JSONResponse({"ok": False, "error": "File too large (max 8MB)."}, status_code=400)
+                out.write(chunk)
+    finally:
+        try:
+            await file.close()
+        except Exception:
+            pass
 
-    # Optional: if editing, you can delete any previous temp for this upgrade_id
-    # (only if you track it somewhere — simplest is “delete-temp-image” on remove,
-    # plus periodic cleanup below)
-
-    preview_url = f"/static/uploads/upgrades/tmp/{tmp_key}"
+    preview_url = f"{TMP_URL_PREFIX}/{tmp_key}"
     return {"ok": True, "tmp_key": tmp_key, "preview_url": preview_url}
-
 
 @router.get("/admin/upgrades/partial/list", response_class=HTMLResponse)
 def upgrades_partial_list(
