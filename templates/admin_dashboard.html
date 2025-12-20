@@ -1316,60 +1316,53 @@
   // ----------------------------
 // Upgrades (single definition + resilient AJAX handling)
 // ----------------------------
+// ----------------------------
+// Upgrades (single definition + resilient AJAX handling)
+// ----------------------------
 window.Upgrades = {
   loaded: false,
 
   async refresh() {
-  const listEl = document.getElementById("upgrades-list");
-  if (!listEl) return;
+    const listEl = document.getElementById("upgrades-list");
+    if (!listEl) return;
 
-  const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
-  const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+    const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
+    const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
 
-  listEl.innerHTML = "Loading…";
+    listEl.innerHTML = "Loading…";
 
-  try {
-    const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
-      credentials: "include",
-      headers: { "X-Requested-With": "fetch" },
-    });
+    try {
+      const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
+        credentials: "include",
+        headers: { "X-Requested-With": "fetch" },
+      });
 
-    if (res.status === 401 || res.status === 403) {
-      return loginRedirect();
-    }
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+      if (res.status === 402) return (window.location.href = "/pmc/signup");
 
-    if (res.status === 402) {
-      window.location.href = "/pmc/signup";
-      return;
-    }
+      if (!res.ok) {
+        listEl.innerHTML = "Could not load upgrades.";
+        return;
+      }
 
-    if (!res.ok) {
+      const html = await res.text();
+
+      // Guard against accidentally receiving a full page
+      const lower = html.toLowerCase();
+      if (html.includes("<html") && (lower.includes("login") || lower.includes("sign in"))) {
+        return loginRedirect();
+      }
+
+      // ✅ Inject once
+      listEl.innerHTML = html;
+
+      // ✅ Re-init reorder ONLY inside this refreshed content
+      listEl.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
+    } catch (err) {
+      console.error("Upgrades.refresh error:", err);
       listEl.innerHTML = "Could not load upgrades.";
-      return;
     }
-
-    const html = await res.text();
-
-    // If backend accidentally returned a full page, bail
-    const lower = html.toLowerCase();
-    if (html.includes("<html") && (lower.includes("login") || lower.includes("sign in"))) {
-      return loginRedirect();
-    }
-
-    // ✅ Inject the HTML exactly once
-    listEl.innerHTML = html;
-
-    // ✅ Re-init sortable ONLY inside this refreshed content
-    listEl.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
-
-  } catch (err) {
-    console.error("Upgrades.refresh error:", err);
-    listEl.innerHTML = "Could not load upgrades.";
-  }
-}
-
-
-
+  },
 
   openNew() {
     return window.Upgrades.openEditor(null);
@@ -1390,11 +1383,7 @@ window.Upgrades = {
     try {
       const res = await fetch(url, { credentials: "include" });
 
-      if (res.status === 401 || res.status === 403) {
-        if (typeof loginRedirect === "function") return loginRedirect();
-        return toast("Please log in again.");
-      }
-
+      if (res.status === 401 || res.status === 403) return loginRedirect();
       if (!res.ok) return toast("Could not load upgrade editor.");
 
       editorBody.innerHTML = await res.text();
@@ -1431,7 +1420,7 @@ window.Upgrades = {
         </div>`;
 
       setTimeout(() => {
-        if (flash) flash.innerHTML = "";
+        flash.innerHTML = "";
       }, 2400);
     };
 
@@ -1442,14 +1431,8 @@ window.Upgrades = {
         body: new FormData(form),
       });
 
-      // 🔐 Handle auth like your upload-image handler
-      if (res.status === 401 || res.status === 403) {
-        if (typeof loginRedirect === "function") return loginRedirect();
-        showFlash("Session expired. Please log in again.", false);
-        return;
-      }
+      if (res.status === 401 || res.status === 403) return loginRedirect();
 
-      // ✅ Robustly handle non-JSON responses (e.g., HTML login page with 200 OK)
       const contentType = (res.headers.get("content-type") || "").toLowerCase();
       if (!contentType.includes("application/json")) {
         const text = await res.text().catch(() => "");
@@ -1463,7 +1446,6 @@ window.Upgrades = {
       }
 
       const data = await res.json().catch(() => ({}));
-
       if (!res.ok || !data.ok) {
         showFlash(data.error || data.detail || data.message || "Save failed.", false);
         return;
@@ -1478,6 +1460,7 @@ window.Upgrades = {
     }
   },
 };
+
 
 
    document.addEventListener("input", (e) => {
