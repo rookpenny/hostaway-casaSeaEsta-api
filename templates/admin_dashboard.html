@@ -2198,35 +2198,48 @@ document.addEventListener("change", async (e) => {
     draggable: "tr",
 
     onEnd: async () => {
-      const ids = Array.from(tbody.querySelectorAll("tr[data-id]"))
-        .map((tr) => tr.getAttribute("data-id"))
+      // rows are like: data-guides-row="ID" or data-upgrades-row="ID"
+      const rowAttr = `data-${kind}-row`;
+    
+      const ids = Array.from(tbody.querySelectorAll(`tr[${rowAttr}]`))
+        .map((tr) => tr.getAttribute(rowAttr))
         .filter(Boolean);
-
-      // If your ordering is per-property, include currently selected property filter:
-      const propertyId =
+    
+      // selected property filter
+      const propertyIdRaw =
         (kind === "guides"
           ? document.getElementById("guidesPropertyFilter")?.value
           : document.getElementById("upgradesPropertyFilter")?.value) || "";
-
+    
+      // IMPORTANT: avoid sending "" (empty string) to FastAPI int parser
+      const propertyId = propertyIdRaw ? Number(propertyIdRaw) : null;
+    
+      // IMPORTANT: send numeric IDs if your backend expects ints
+      const order = ids.map((x) => Number(x)).filter((n) => Number.isFinite(n));
+    
+      if (!order.length) {
+        toast("Could not determine new order.");
+        return;
+      }
+    
       try {
         const url =
           kind === "guides"
             ? "/admin/guides/ajax/reorder"
             : "/admin/upgrades/ajax/reorder";
-
+    
         const { res, data } = await apiJson(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ property_id: propertyId, order: ids }),
+          body: JSON.stringify({ property_id: propertyId, order }),
         });
-
-        if (!res.ok || !data.ok) {
-          toast(data.error || "Failed to save order.");
-        }
+    
+        if (!res.ok || !data.ok) toast(data.error || "Failed to save order.");
       } catch (e) {
         toast("Failed to save order.");
       }
     },
+
   });
 }
 
