@@ -1232,19 +1232,19 @@
   };
 
   // ----------------------------
-  // Upgrades (single definition + single event wiring)
-  // ----------------------------
-  window.Upgrades = {
-    loaded: false,
+// Upgrades (single definition + resilient AJAX handling)
+// ----------------------------
+window.Upgrades = {
+  loaded: false,
 
-    async refresh() {
-      const listEl = document.getElementById("upgrades-list");
-      if (!listEl) return;
+  async refresh() {
+    const listEl = document.getElementById("upgrades-list");
+    if (!listEl) return;
 
-      const pid =
-        document.getElementById("upgradesPropertyFilter")?.value || "";
-      const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+    const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
+    const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
 
+    try {
       const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
         credentials: "include",
       });
@@ -1253,81 +1253,122 @@
         listEl.innerHTML = "Could not load upgrades.";
         return;
       }
+
       listEl.innerHTML = await res.text();
-    },
+    } catch (err) {
+      console.error(err);
+      listEl.innerHTML = "Could not load upgrades.";
+    }
+  },
 
-    openNew() {
-      return Upgrades.openEditor(null);
-    },
+  openNew() {
+    return window.Upgrades.openEditor(null);
+  },
 
-    async openEditor(id) {
-      if (CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
+  async openEditor(id) {
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
 
-      const editorWrap = document.getElementById("upgrades-editor");
-      const editorBody = document.getElementById("upgrades-editor-body");
-      const editorTitle = document.getElementById("upgrades-editor-title");
-      if (!editorWrap || !editorBody) return;
+    const editorWrap = document.getElementById("upgrades-editor");
+    const editorBody = document.getElementById("upgrades-editor-body");
+    const editorTitle = document.getElementById("upgrades-editor-title");
+    if (!editorWrap || !editorBody) return;
 
-      const url = id
-        ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`
-        : `/admin/upgrades/partial/form`;
+    const url = id
+      ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`
+      : `/admin/upgrades/partial/form`;
 
+    try {
       const res = await fetch(url, { credentials: "include" });
+
+      if (res.status === 401 || res.status === 403) {
+        if (typeof loginRedirect === "function") return loginRedirect();
+        return toast("Please log in again.");
+      }
+
       if (!res.ok) return toast("Could not load upgrade editor.");
 
       editorBody.innerHTML = await res.text();
       if (editorTitle) editorTitle.textContent = id ? "Edit Upgrade" : "New Upgrade";
       editorWrap.classList.remove("hidden");
-    },
+    } catch (err) {
+      console.error(err);
+      toast("Network error loading editor.");
+    }
+  },
 
-    closeEditor() {
-      document.getElementById("upgrades-editor")?.classList.add("hidden");
-      const body = document.getElementById("upgrades-editor-body");
-      if (body) body.innerHTML = "";
-    },
+  closeEditor() {
+    document.getElementById("upgrades-editor")?.classList.add("hidden");
+    const body = document.getElementById("upgrades-editor-body");
+    if (body) body.innerHTML = "";
+  },
 
-    async submit(form) {
-      if (CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
-      if (!form) return;
+  async submit(form) {
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
+    if (!form) return;
 
-      const flash = document.getElementById("upgrades-flash");
-      const showFlash = (msg, ok = true) => {
-        if (!flash) return toast(msg);
-        flash.innerHTML = `
-          <div class="rounded-xl border ${
-            ok
-              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-              : "border-rose-200 bg-rose-50 text-rose-900"
-          } p-3 text-sm">
-            ${msg}
-          </div>`;
-        setTimeout(() => {
-          if (flash) flash.innerHTML = "";
-        }, 2400);
-      };
+    const flash = document.getElementById("upgrades-flash");
 
-      try {
-        const res = await fetch("/admin/upgrades/ajax/save", {
-          method: "POST",
-          credentials: "include",
-          body: new FormData(form),
-        });
+    const showFlash = (msg, ok = true) => {
+      if (!flash) return toast(msg);
 
-        const data = await res.json().catch(() => ({}));
-        if (!res.ok || !data.ok) {
-          showFlash(data.error || data.detail || data.message || "Save failed.", false);
-          return;
-        }
+      flash.innerHTML = `
+        <div class="rounded-xl border ${
+          ok
+            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+            : "border-rose-200 bg-rose-50 text-rose-900"
+        } p-3 text-sm">
+          ${msg}
+        </div>`;
 
-        showFlash("Saved ✓", true);
-        await Upgrades.refresh();
-        Upgrades.closeEditor();
-      } catch (err) {
-        console.error(err);
-        showFlash("Network error saving upgrade.", false);
+      setTimeout(() => {
+        if (flash) flash.innerHTML = "";
+      }, 2400);
+    };
+
+    try {
+      const res = await fetch("/admin/upgrades/ajax/save", {
+        method: "POST",
+        credentials: "include",
+        body: new FormData(form),
+      });
+
+      // 🔐 Handle auth like your upload-image handler
+      if (res.status === 401 || res.status === 403) {
+        if (typeof loginRedirect === "function") return loginRedirect();
+        showFlash("Session expired. Please log in again.", false);
+        return;
       }
-    },
-  };
+
+      // ✅ Robustly handle non-JSON responses (e.g., HTML login page with 200 OK)
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      if (!contentType.includes("application/json")) {
+        const text = await res.text().catch(() => "");
+        console.error("Save returned non-JSON:", {
+          status: res.status,
+          contentType,
+          preview: text.slice(0, 500),
+        });
+        showFlash("Save failed (server returned non-JSON).", false);
+        return;
+      }
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok || !data.ok) {
+        showFlash(data.error || data.detail || data.message || "Save failed.", false);
+        return;
+      }
+
+      showFlash("Saved ✓", true);
+      await window.Upgrades.refresh();
+      window.Upgrades.closeEditor();
+    } catch (err) {
+      console.error(err);
+      showFlash("Network error saving upgrade.", false);
+    }
+  },
+};
+
 
    // Upgrade image upload (delegated — works for AJAX-loaded form)
 document.addEventListener("change", async (e) => {
