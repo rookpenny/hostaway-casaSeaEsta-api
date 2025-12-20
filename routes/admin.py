@@ -6,8 +6,11 @@ import requests
 import base64
 import re
 import sqlalchemy as sa
+import secrets
 
-from fastapi import APIRouter, Depends, Request, Form, Body, Query, HTTPException
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, Request, Form, Body, Query, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
@@ -44,6 +47,12 @@ ADMIN_IDENTITY_SESSION_KEY = os.getenv("ADMIN_IDENTITY_SESSION_KEY", "admin_emai
 ESCALATE_LOW_HEAT = int(os.getenv("ESCALATE_LOW_HEAT", "35"))
 ESCALATE_MEDIUM_HEAT = int(os.getenv("ESCALATE_MEDIUM_HEAT", "60"))
 ESCALATE_HIGH_HEAT = int(os.getenv("ESCALATE_HIGH_HEAT", "85"))
+
+UPLOAD_DIR = Path("static/uploads/upgrades")
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
+MAX_BYTES = 6 * 1024 * 1024  # 6MB
 
 
 # ----------------------------
@@ -1222,6 +1231,38 @@ def guides_ajax_delete(request: Request, db: Session = Depends(get_db), id: int 
     db.delete(g)
     db.commit()
     return {"ok": True}
+
+
+@router.post("/admin/upgrades/ajax/upload-image")
+async def upload_upgrade_image(
+    file: UploadFile = File(...),
+    upgrade_id: str = Form(default=""),  # optional
+):
+    if not file.filename:
+        return JSONResponse({"ok": False, "error": "No file provided."}, status_code=400)
+
+    ext = Path(file.filename).suffix.lower()
+    if ext not in ALLOWED_EXTS:
+        return JSONResponse(
+            {"ok": False, "error": "Unsupported file type. Use JPG/PNG/WebP."},
+            status_code=400,
+        )
+
+    contents = await file.read()
+    if len(contents) > MAX_BYTES:
+        return JSONResponse(
+            {"ok": False, "error": "File too large (max 6MB)."},
+            status_code=400,
+        )
+
+    filename = f"{secrets.token_hex(16)}{ext}"
+    path = UPLOAD_DIR / filename
+    path.write_bytes(contents)
+
+    return {
+        "ok": True,
+        "url": f"/static/uploads/upgrades/{filename}",
+    }
 
 @router.get("/admin/upgrades/partial/list", response_class=HTMLResponse)
 def upgrades_partial_list(
