@@ -1410,6 +1410,7 @@ def upgrades_partial_list(
     )
 
 
+
 @router.post("/admin/guides/ajax/toggle-active")
 def guides_ajax_toggle_active(
     request: Request,
