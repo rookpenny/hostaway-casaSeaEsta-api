@@ -95,7 +95,7 @@ app.add_middleware(
 
 # Static + Templates
 templates = Jinja2Templates(directory="templates")
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 
 
@@ -456,7 +456,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
     checkin_time_display = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
-    checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkOutTime"))
+    #checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkOutTime"))
+    checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd"))
+
 
 
     # ---- Render template ----
