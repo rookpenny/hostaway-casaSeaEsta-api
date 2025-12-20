@@ -8,7 +8,8 @@ import uvicorn
 import re
 import stripe
 
-
+import asyncio
+from pathlib import Path
 
 from typing import Optional
 from datetime import datetime, timedelta
@@ -94,6 +95,28 @@ app.add_middleware(
 # Static + Templates
 templates = Jinja2Templates(directory="templates")
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+
+
+TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
+
+async def cleanup_tmp_upgrades_forever():
+    while True:
+        now = time.time()
+        for p in TMP_DIR.glob("*"):
+            try:
+                if p.is_file():
+                    age = now - p.stat().st_mtime
+                    if age > TMP_MAX_AGE_SECONDS:
+                        p.unlink()
+            except Exception:
+                pass
+        await asyncio.sleep(60 * 30)  # every 30 minutes
+
+@app.on_event("startup")
+async def _start_cleanup_task():
+    asyncio.create_task(cleanup_tmp_upgrades_forever())
 
 
 def hour_to_ampm(hour):
