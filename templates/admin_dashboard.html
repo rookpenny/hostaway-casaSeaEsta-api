@@ -1321,8 +1321,7 @@
   }
 });
 
-
-  // ----------------------------
+// ----------------------------
 // Upgrades (single definition + resilient AJAX handling)
 // ----------------------------
 // ----------------------------
@@ -1347,7 +1346,10 @@ window.Upgrades = {
       });
 
       if (res.status === 401 || res.status === 403) return loginRedirect();
-      if (res.status === 402) return (window.location.href = "/pmc/signup");
+      if (res.status === 402) {
+        window.location.href = "/pmc/signup";
+        return;
+      }
 
       if (!res.ok) {
         listEl.innerHTML = "Could not load upgrades.";
@@ -1356,16 +1358,15 @@ window.Upgrades = {
 
       const html = await res.text();
 
-      // Guard against accidentally receiving a full page
+      // If backend accidentally returned a full page, bail
       const lower = html.toLowerCase();
       if (html.includes("<html") && (lower.includes("login") || lower.includes("sign in"))) {
         return loginRedirect();
       }
 
-      // ✅ Inject once
       listEl.innerHTML = html;
 
-      // ✅ Re-init reorder ONLY inside this refreshed content
+      // re-init sortable ONLY inside this refreshed content
       listEl.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
     } catch (err) {
       console.error("Upgrades.refresh error:", err);
@@ -1429,7 +1430,7 @@ window.Upgrades = {
         </div>`;
 
       setTimeout(() => {
-        flash.innerHTML = "";
+        if (flash) flash.innerHTML = "";
       }, 2400);
     };
 
@@ -1440,7 +1441,10 @@ window.Upgrades = {
         body: new FormData(form),
       });
 
-      if (res.status === 401 || res.status === 403) return loginRedirect();
+      if (res.status === 401 || res.status === 403) {
+        loginRedirect();
+        return;
+      }
 
       const contentType = (res.headers.get("content-type") || "").toLowerCase();
       if (!contentType.includes("application/json")) {
@@ -1455,6 +1459,7 @@ window.Upgrades = {
       }
 
       const data = await res.json().catch(() => ({}));
+
       if (!res.ok || !data.ok) {
         showFlash(data.error || data.detail || data.message || "Save failed.", false);
         return;
@@ -1469,6 +1474,7 @@ window.Upgrades = {
     }
   },
 };
+
 
 
 
