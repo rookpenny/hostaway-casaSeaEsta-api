@@ -290,6 +290,9 @@ class Upgrade(Base):
     price_cents = Column(Integer, nullable=False, default=0)
     currency = Column(String, nullable=False, default="usd")
 
+    image_url = Column(String, nullable=True)  # ✅ add this
+    long_description = Column(Text, nullable=True)  # ✅ since you asked
+
     stripe_price_id = Column(String, nullable=True)
 
     is_active = Column(Boolean, default=True)
