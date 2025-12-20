@@ -1425,13 +1425,15 @@ def dollars_to_cents(s: str) -> int:
         return 0
 
 
-# routes/admin.py
 
 
 @router.post("/admin/upgrades/ajax/save")
 async def save_upgrade(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
 
+    # ----------------------------
+    # Parse fields
+    # ----------------------------
     upgrade_id_raw = (form.get("id") or "").strip()
     upgrade_id = int(upgrade_id_raw) if upgrade_id_raw.isdigit() else None
 
@@ -1440,6 +1442,7 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
     property_id_raw = (form.get("property_id") or "").strip()
     long_description = (form.get("long_description") or "").strip() or None
 
+    # checkbox: present => True
     is_active = form.get("is_active") is not None
 
     # price dollars -> cents
@@ -1458,22 +1461,40 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
 
     property_id = int(property_id_raw)
 
-    # image values
+    # ----------------------------
+    # Image handling
+    # ----------------------------
+    # Persisted image_url hidden field (blank means "remove")
     current_image_url = (form.get("image_url") or "").strip() or None
+
+    # Temp key returned by upload endpoint (means "new image pending")
     tmp_key = (form.get("image_tmp_key") or "").strip() or None
 
+    # Default to whatever the form currently says (including None for remove)
     new_image_url = current_image_url
+
+    # If a tmp_key is provided, promote tmp -> permanent and override image_url
     if tmp_key:
-        tmp_key = Path(tmp_key).name  # safety
-        tmp_path = TMP_DIR / tmp_key
+        safe_tmp_key = Path(tmp_key).name  # prevents "../"
+        tmp_path = TMP_DIR / safe_tmp_key
+
         if not (tmp_path.exists() and tmp_path.is_file()):
-            return JSONResponse({"ok": False, "error": "Uploaded image not found. Please upload again."}, status_code=400)
+            return JSONResponse(
+                {"ok": False, "error": "Uploaded image not found. Please upload again."},
+                status_code=400,
+            )
 
-        dest_path = UPLOAD_DIR / tmp_key
+        UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+        dest_path = UPLOAD_DIR / safe_tmp_key
+
+        # shutil.move handles rename/cross-device cases
         shutil.move(str(tmp_path), str(dest_path))
-        new_image_url = f"{FINAL_URL_PREFIX}/{tmp_key}"
 
-    # fetch/create
+        new_image_url = f"{FINAL_URL_PREFIX}/{safe_tmp_key}"
+
+    # ----------------------------
+    # Fetch/create + scope checks
+    # ----------------------------
     old_image_url = None
 
     if upgrade_id:
@@ -1481,7 +1502,11 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
         if not upgrade:
             return JSONResponse({"ok": False, "error": "Upgrade not found."}, status_code=404)
 
+        # Must be allowed to edit the existing record
         require_property_in_scope(request, db, int(upgrade.property_id))
+
+        # Also must be allowed to move it to a different property (if changed in UI)
+        require_property_in_scope(request, db, int(property_id))
 
         old_image_url = (getattr(upgrade, "image_url", None) or "").strip() or None
 
@@ -1492,12 +1517,13 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
         upgrade.price_cents = price_cents
         upgrade.is_active = is_active
         upgrade.image_url = new_image_url
+
         if hasattr(upgrade, "updated_at"):
             upgrade.updated_at = datetime.utcnow()
 
     else:
-        # scope check for create
-        require_property_in_scope(request, db, property_id)
+        # Creating: must be allowed in target property scope
+        require_property_in_scope(request, db, int(property_id))
 
         upgrade = Upgrade(
             title=title,
@@ -1510,19 +1536,27 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
         )
         if hasattr(upgrade, "updated_at"):
             upgrade.updated_at = datetime.utcnow()
+
         db.add(upgrade)
 
+    # ----------------------------
+    # Commit
+    # ----------------------------
     try:
         db.commit()
+        db.refresh(upgrade)
     except Exception:
         db.rollback()
         return JSONResponse({"ok": False, "error": "Save failed."}, status_code=500)
 
-    # delete old file only after commit
+    # ----------------------------
+    # Cleanup old image after commit
+    # ----------------------------
     if old_image_url and old_image_url != new_image_url:
         delete_local_upgrade_image(old_image_url)
 
-    return {"ok": True, "id": upgrade.id}
+    return {"ok": True, "id": int(upgrade.id)}
+
 
 @router.post("/admin/upgrades/ajax/toggle-active")
 def upgrades_toggle_active(
