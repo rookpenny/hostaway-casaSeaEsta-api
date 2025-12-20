@@ -1397,8 +1397,8 @@ document.addEventListener("click", async (e) => {
 
   const fileInput = form.querySelector("[data-upgrade-image-file]");
   const preview = form.querySelector("[data-upgrade-image-preview]");
-  const imageUrlInput = form.querySelector('input[name="image_url"]');
   const tmpKeyInput = form.querySelector('input[name="image_tmp_key"]');
+  const imageUrlInput = form.querySelector('input[name="image_url"]'); // keep existing DB value!
 
   const file = fileInput?.files?.[0];
   if (!file) return toast("Choose an image first.");
@@ -1406,9 +1406,13 @@ document.addEventListener("click", async (e) => {
   const fd = new FormData();
   fd.append("file", file);
 
-  // pass upgrade id if editing (optional but useful for replacing temp)
+  // If editing, pass upgrade id (optional, but useful on backend)
   const upgradeId = (form.querySelector('input[name="id"]')?.value || "").trim();
   if (upgradeId) fd.append("upgrade_id", upgradeId);
+
+  // IMPORTANT: pass previous tmp key so backend can delete/replace it
+  const prevTmpKey = (tmpKeyInput?.value || "").trim();
+  if (prevTmpKey) fd.append("prev_tmp_key", prevTmpKey);
 
   uploadBtn.disabled = true;
   const original = uploadBtn.textContent;
@@ -1429,17 +1433,29 @@ document.addEventListener("click", async (e) => {
       return;
     }
 
-    // set hidden fields
+    // Set ONLY the temp key (for finalize on Save)
     if (tmpKeyInput) tmpKeyInput.value = data.tmp_key || "";
-    if (imageUrlInput) imageUrlInput.value = data.preview_url || "";
 
-    // preview
+    // DO NOT overwrite the saved image_url here if using tmp-key finalize workflow.
+    // Keep existing DB image_url until Save runs.
+    // imageUrlInput.value should only be changed in /admin/upgrades/ajax/save after finalize.
+    // (But we can still show preview below.)
+
+    // Preview from returned preview_url (could be temp-served or final)
+    const previewUrl = data.preview_url || "";
     if (preview) {
-      preview.src = data.preview_url || "";
-      preview.classList.toggle("hidden", !data.preview_url);
+      preview.src = previewUrl;
+      preview.classList.toggle("hidden", !previewUrl);
     }
 
-    toast("Image uploaded.");
+    // Optional: visually indicate pending unsaved change
+    // e.g., store a data flag for later if you want
+    if (imageUrlInput) imageUrlInput.dataset.pendingUpload = "1";
+
+    // Clear file input so user can reselect same file again if needed
+    if (fileInput) fileInput.value = "";
+
+    toast("Image uploaded. Click Save Upgrade to apply.");
   } catch (err) {
     console.error(err);
     toast("Upload failed.");
@@ -1448,6 +1464,7 @@ document.addEventListener("click", async (e) => {
     uploadBtn.textContent = original;
   }
 });
+
 
 // Remove image (delegated)
 document.addEventListener("click", async (e) => {
