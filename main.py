@@ -104,7 +104,7 @@ TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
 
 async def cleanup_tmp_upgrades_forever():
     while True:
-        now = time.time()
+        now = pytime.time()
         for p in TMP_DIR.glob("*"):
             try:
                 if p.is_file():
