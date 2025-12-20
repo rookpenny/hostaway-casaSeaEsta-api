@@ -12,7 +12,8 @@ import asyncio
 from pathlib import Path
 
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, time, timedelta
+
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -658,6 +659,63 @@ class VerifyRequest(BaseModel):
 
 
 
+from datetime import datetime, timedelta, time
+from typing import Optional, Any
+from fastapi import Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
+import os
+
+
+def _parse_ymd(d: Optional[str]) -> Optional[datetime.date]:
+    if not d:
+        return None
+    s = str(d).strip()
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+def _format_time_display(value: Any, default: str = "") -> str:
+    """
+    Accepts:
+      - datetime
+      - time
+      - strings: "16:00", "4:00 PM", etc.
+    Returns a friendly time like "4:00 PM" or default.
+    """
+    if value is None:
+        return default
+
+    if isinstance(value, datetime):
+        return value.strftime("%-I:%M %p")
+    if isinstance(value, time):
+        return value.strftime("%-I:%M %p")
+
+    s = str(value).strip()
+    if not s:
+        return default
+
+    # "HH:MM"
+    try:
+        dt = datetime.strptime(s, "%H:%M")
+        return dt.strftime("%-I:%M %p")
+    except Exception:
+        pass
+
+    # "H:MM AM/PM"
+    try:
+        dt = datetime.strptime(s.upper(), "%I:%M %p")
+        return dt.strftime("%-I:%M %p")
+    except Exception:
+        pass
+
+    return s  # fallback
+
+
 @app.post("/guest/{property_id}/verify-json")
 def verify_json(
     property_id: int,
@@ -686,7 +744,6 @@ def verify_json(
             "departure_date": (today + timedelta(days=3)).strftime("%Y-%m-%d"),
             "checkin_time": "4:00 PM",
             "checkout_time": "10:00 AM",
-
         }
 
     # 3) load property + pmc
@@ -723,7 +780,7 @@ def verify_json(
 
             (
                 phone_last4,
-                door_code,        # unused; kept for consistency
+                _door_code,       # unused; kept for consistency
                 reservation_id,
                 guest_name,
                 arrival_date,
@@ -736,7 +793,7 @@ def verify_json(
         else:
             (
                 phone_last4,
-                door_code,        # unused; kept for consistency
+                _door_code,       # unused; kept for consistency
                 reservation_id,
                 guest_name,
                 arrival_date,
@@ -744,7 +801,7 @@ def verify_json(
             ) = get_pms_access_info(pmc, prop)
 
     except Exception as e:
-        print("[VERIFY PMS ERROR]", e)
+        print("[VERIFY PMS ERROR]", repr(e))
         return JSONResponse(
             {"success": False, "error": "Could not verify your reservation. Please try again."},
             status_code=500,
@@ -752,17 +809,9 @@ def verify_json(
 
     # 6) 30-day arrival window
     WINDOW_DAYS = 30
-
-    def parse_ymd(d: Optional[str]):
-        if not d:
-            return None
-        try:
-            return datetime.strptime(d, "%Y-%m-%d").date()
-        except Exception:
-            return None
-
     today = datetime.utcnow().date()
-    arrival_obj = parse_ymd(arrival_date)
+    arrival_obj = _parse_ymd(arrival_date)
+
     if arrival_obj and arrival_obj > today + timedelta(days=WINDOW_DAYS):
         return JSONResponse(
             {"success": False, "error": f"You can only unlock this stay within {WINDOW_DAYS} days of arrival."},
@@ -776,25 +825,30 @@ def verify_json(
             status_code=400,
         )
 
-    # 8) compare last4
+    # Normalize just in case Hostaway returns " 5366"
+    phone_last4 = str(phone_last4).strip()
     if code != phone_last4:
         return JSONResponse(
             {"success": False, "error": "That code does not match the reservation phone number."},
             status_code=403,
         )
 
+    # 8) compute display times safely (avoid NameError)
+    # If you have config-driven times, replace these defaults with your cfg values.
+    checkin_time_display = _format_time_display(getattr(prop, "checkin_time", None), default="4:00 PM")
+    checkout_time_display = _format_time_display(getattr(prop, "checkout_time", None), default="10:00 AM")
+
     # 9) success
     request.session[f"guest_verified_{property_id}"] = True
-    # after you've loaded cfg (however you do it in your app)
     return {
-      "success": True,
-      "guest_name": guest_name,
-      "arrival_date": arrival_date,
-      "departure_date": departure_date,
-      "checkin_time": checkin_time_display,
+        "success": True,
+        "guest_name": guest_name or "Guest",
+        "arrival_date": arrival_date,
+        "departure_date": departure_date,
+        "checkin_time": checkin_time_display,
         "checkout_time": checkout_time_display,
+        "reservation_id": reservation_id,  # optional but often useful
     }
-
 
 
 
