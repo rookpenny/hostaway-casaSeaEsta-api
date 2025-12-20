@@ -191,6 +191,24 @@ def is_super_admin(email: Optional[str]) -> bool:
     # fallback (set ADMIN_EMAILS in env and remove this once stable)
     return email.lower() in {"corbett.jarrod@gmail.com"}
 
+def delete_temp_upgrade_image(tmp_key: str) -> bool:
+    # safety: only allow filenames (no slashes)
+    if "/" in tmp_key or "\\" in tmp_key or ".." in tmp_key:
+        return False
+    p = TMP_DIR / tmp_key
+    if p.exists() and p.is_file():
+        p.unlink()
+        return True
+    return False
+
+@router.post("/admin/upgrades/ajax/delete-temp-image")
+async def delete_temp_image(payload: dict):
+    tmp_key = (payload.get("tmp_key") or "").strip()
+    if not tmp_key:
+        return {"ok": True}
+    delete_temp_upgrade_image(tmp_key)
+    return {"ok": True}
+
 
 def get_user_role_and_scope(request: Request, db: Session):
     """
