@@ -7,13 +7,13 @@ import requests
 import uvicorn
 import re
 import stripe
-
 import asyncio
+import time as pytime
+
 from pathlib import Path
 
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime, timedelta, date, time as dt_time
-import time as pytime
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
@@ -97,11 +97,9 @@ app.add_middleware(
 # Static + Templates
 templates = Jinja2Templates(directory="templates")
 
-
-
-
-
 TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
+TMP_DIR = Path("static/uploads/upgrades/tmp")
+TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 async def cleanup_tmp_upgrades_forever():
     while True:
@@ -661,15 +659,6 @@ class VerifyRequest(BaseModel):
     code: str
 
 
-
-from datetime import datetime, timedelta, time
-from typing import Optional, Any
-from fastapi import Depends, HTTPException, Request
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-import os
-
-
 def _parse_ymd(d: Optional[str]) -> Optional[datetime.date]:
     if not d:
         return None
@@ -683,40 +672,32 @@ def _parse_ymd(d: Optional[str]) -> Optional[datetime.date]:
 
 
 def _format_time_display(value: Any, default: str = "") -> str:
-    """
-    Accepts:
-      - datetime
-      - time
-      - strings: "16:00", "4:00 PM", etc.
-    Returns a friendly time like "4:00 PM" or default.
-    """
     if value is None:
         return default
 
     if isinstance(value, datetime):
         return value.strftime("%-I:%M %p")
-    if isinstance(value, time):
+    if isinstance(value, dt_time):
         return value.strftime("%-I:%M %p")
 
     s = str(value).strip()
     if not s:
         return default
 
-    # "HH:MM"
     try:
         dt = datetime.strptime(s, "%H:%M")
         return dt.strftime("%-I:%M %p")
     except Exception:
         pass
 
-    # "H:MM AM/PM"
     try:
         dt = datetime.strptime(s.upper(), "%I:%M %p")
         return dt.strftime("%-I:%M %p")
     except Exception:
         pass
 
-    return s  # fallback
+    return s
+
 
 
 @app.post("/guest/{property_id}/verify-json")
