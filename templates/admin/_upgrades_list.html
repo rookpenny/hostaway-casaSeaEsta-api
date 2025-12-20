@@ -15,7 +15,7 @@
       <td class="py-2 font-medium">{{ u.title }}</td>
 
       <td class="py-3 text-slate-600">
-        {{ property_names.get(u.property_id, "—") }}
+        {{ u.property_name or "—" }}
       </td>
 
       <td class="py-2 text-slate-600">
