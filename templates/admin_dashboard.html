@@ -1129,6 +1129,14 @@
   }
   window.filterProperties = filterProperties;
 
+    @router.post("/admin/upgrades/ajax/toggle-active")
+def upgrades_ajax_toggle_active(
+    request: Request,
+    db: Session = Depends(get_db),
+    payload: dict = Body(...),
+):
+
+
   // ----------------------------
   // Property actions
   // ----------------------------
@@ -1248,13 +1256,7 @@
   }
 });
 
-   @router.post("/admin/upgrades/ajax/toggle-active")
-def upgrades_ajax_toggle_active(
-    request: Request,
-    db: Session = Depends(get_db),
-    payload: dict = Body(...),
-):
-
+  
 
    document.addEventListener("change", async (e) => {
   const el = e.target;
