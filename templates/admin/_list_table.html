@@ -1,0 +1,86 @@
+{% macro render_list_table(items, kind, show_price=false, show_delete=false) %}
+<table class="w-full text-sm" data-list-kind="{{ kind }}">
+  <thead class="text-xs text-slate-500">
+    <tr class="border-b border-slate-200">
+      <th class="text-left py-2 w-8"></th>
+      <th class="text-left py-2">Title</th>
+      <th class="text-left py-2">Property</th>
+      {% if show_price %}
+        <th class="text-left py-2">Price</th>
+      {% endif %}
+      <th class="text-left py-2">Status</th>
+      <th class="text-right py-2">Actions</th>
+    </tr>
+  </thead>
+
+  <tbody data-reorder-body>
+    {% for item in items %}
+    <tr class="border-b border-slate-100"
+        data-{{ kind }}-row="{{ item.id }}">
+
+      <!-- Drag handle -->
+      <td class="py-2 pr-2">
+        <span
+          class="inline-flex items-center justify-center w-6 h-6 text-slate-400 cursor-grab select-none"
+          title="Drag to reorder"
+          draggable="true"
+          data-reorder-handle
+          data-kind="{{ kind }}"
+        >⋮⋮</span>
+      </td>
+
+      <td class="py-2 font-medium">{{ item.title }}</td>
+
+      <td class="py-3 text-slate-600">
+        {{ item.property_name or "—" }}
+      </td>
+
+      {% if show_price %}
+      <td class="py-2 text-slate-600">
+        ${{ '%.2f'|format((item.price_cents or 0) / 100) }}
+      </td>
+      {% endif %}
+
+      <td class="py-2">
+        <label class="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            class="h-5 w-5"
+            {% if item.is_active %}checked{% endif %}
+            data-{{ kind }}-active
+            data-{{ kind }}-id="{{ item.id }}"
+          />
+          <span class="text-sm font-medium text-slate-700">Active</span>
+        </label>
+      </td>
+
+      <td class="py-2 text-right">
+        <button
+          type="button"
+          class="text-xs font-semibold hover:underline"
+          data-{{ kind }}-edit="{{ item.id }}">
+          Edit
+        </button>
+
+        {% if show_delete %}
+        <button
+          type="button"
+          class="ml-3 text-xs font-semibold text-rose-600 hover:underline"
+          data-{{ kind }}-delete="{{ item.id }}">
+          Delete
+        </button>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+
+    {% if not items %}
+    <tr>
+      <td colspan="{{ 6 if show_price else 5 }}" class="py-6 text-center text-slate-500">
+        No {{ kind }}s yet.
+      </td>
+    </tr>
+    {% endif %}
+  </tbody>
+</table>
+{% endmacro %}
