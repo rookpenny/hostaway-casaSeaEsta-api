@@ -1409,6 +1409,29 @@ def upgrades_partial_list(
         {"request": request, "upgrades": rows},
     )
 
+
+@router.post("/admin/guides/ajax/toggle-active")
+def guides_ajax_toggle_active(
+    request: Request,
+    db: Session = Depends(get_db),
+    payload: dict = Body(...),
+):
+    guide_id = int(payload.get("id") or 0)
+    is_active = bool(payload.get("is_active"))
+
+    g = db.query(Guide).filter(Guide.id == guide_id).first()
+    if not g:
+        return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+
+    require_property_in_scope(request, db, int(g.property_id))
+
+    g.is_active = is_active
+    g.updated_at = datetime.utcnow()
+    db.add(g)
+    db.commit()
+    return {"ok": True, "id": g.id, "is_active": g.is_active}
+
+
 @router.post("/admin/upgrades/ajax/toggle-active")
 def upgrades_ajax_toggle_active(
     request: Request,
