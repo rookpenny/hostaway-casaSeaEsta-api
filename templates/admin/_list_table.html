@@ -15,18 +15,20 @@
 
   <tbody data-reorder-body>
     {% for item in items %}
+
     <tr class="border-b border-slate-100"
+        data-id="{{ item.id }}"
+        data-kind="{{ kind }}"
         data-{{ kind }}-row="{{ item.id }}">
+
 
       <!-- Drag handle -->
       <td class="py-2 pr-2">
         <span
-          class="inline-flex items-center justify-center w-6 h-6 text-slate-400 cursor-grab select-none"
-          title="Drag to reorder"
-          draggable="true"
-          data-reorder-handle
-          data-kind="{{ kind }}"
-        >⋮⋮</span>
+            class="inline-flex items-center justify-center w-6 h-6 text-slate-400 cursor-grab select-none"
+            title="Drag to reorder"
+            data-reorder-handle
+          >⋮⋮</span>
       </td>
 
       <td class="py-2 font-medium">{{ item.title }}</td>
