@@ -10,7 +10,7 @@ import stripe
 import asyncio
 import time as pytime
 
-from pathlib import Path
+from pathlib import Path as FSPath
 
 from typing import Optional, Any
 from datetime import datetime, timedelta, date, time as dt_time
@@ -20,9 +20,11 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from fastapi import (
-    FastAPI, Request, Query, Path, HTTPException, Header, Form,
-    APIRouter, Depends, status   # 👈 added status
+    FastAPI, Request, Query, HTTPException, Header, Form,
+    APIRouter, Depends, status
 )
+from fastapi import Path as FPath
+
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
@@ -98,8 +100,9 @@ app.add_middleware(
 templates = Jinja2Templates(directory="templates")
 
 TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
-TMP_DIR = Path("static/uploads/upgrades/tmp")
+TMP_DIR = FSPath("static/uploads/upgrades/tmp")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
+
 
 async def cleanup_tmp_upgrades_forever():
     while True:
@@ -153,6 +156,17 @@ def start_scheduler():
     scheduler.add_job(sync_all_integrations, "interval", hours=24)
     scheduler.start()
 
+_scheduler_started = False
+
+@app.on_event("startup")
+def _start_scheduler_once():
+    global _scheduler_started
+    if _scheduler_started:
+        return
+    start_scheduler()
+    _scheduler_started = True
+
+
 # --- DB Connection Test ---
 try:
     with engine.connect() as conn:
@@ -162,7 +176,6 @@ except SQLAlchemyError as e:
     print(f"❌ Database connection failed: {e}")
 
 
-start_scheduler()
 
 # --- Sync Trigger ---
 @app.post("/admin/sync-properties")
