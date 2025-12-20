@@ -11,6 +11,9 @@ import shutil, uuid
 
 from pathlib import Path
 
+from database import get_db  # <- update import path
+from models import Upgrade  # <- update import path
+
 from fastapi import APIRouter, Depends, Request, Form, Body, Query, HTTPException, UploadFile, File
 from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
@@ -65,6 +68,9 @@ FINAL_DIR.mkdir(parents=True, exist_ok=True)
 ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_BYTES = 6 * 1024 * 1024  # 6MB
 
+
+
+router = APIRouter()
 
 # ----------------------------
 # DB dependency
@@ -1414,88 +1420,97 @@ def dollars_to_cents(s: str) -> int:
         return 0
 
 
+# routes/admin.py
+
+
+
+# You must already have these helpers somewhere (or add them):
+# - finalize_tmp_upgrade_image(tmp_key) -> returns final_url (string)
+# - delete_local_upgrade_image(image_url) -> deletes file if local
+# - is_local_upgrade_image(image_url) -> bool (optional safety)
+
 @router.post("/admin/upgrades/ajax/save")
-async def save_upgrade(request: Request):
+async def save_upgrade(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
 
-    upgrade_id = (form.get("id") or "").strip() or None
+    upgrade_id_raw = (form.get("id") or "").strip()
+    upgrade_id = int(upgrade_id_raw) if upgrade_id_raw.isdigit() else None
 
-    # If user uploaded a new image, this will be set
-    tmp_key = (form.get("image_tmp_key") or "").strip() or None
-
-    # If user cleared image, image_url will be ""
+    # Existing saved image_url (if any). We'll update this after finalize.
     incoming_image_url = (form.get("image_url") or "").strip() or None
 
-    # checkbox handling (IMPORTANT)
+    # If you use tmp-key uploads, this is what the upload endpoint returns
+    tmp_key = (form.get("image_tmp_key") or "").strip() or None
+
+    title = (form.get("title") or "").strip()
+    slug = (form.get("slug") or "").strip()
+    property_id = int(form.get("property_id"))
+    long_description = (form.get("long_description") or "").strip() or None
+
+    # checkbox: present => "true", absent => None
     is_active = form.get("is_active") is not None
 
-    old_image_url = None
-    upgrade = None
+    # price dollars -> cents
+    price_dollars_raw = (form.get("price_dollars") or "0").strip()
+    try:
+        price_cents = int(round(float(price_dollars_raw) * 100))
+        if price_cents < 0:
+            price_cents = 0
+    except Exception:
+        return JSONResponse({"ok": False, "error": "Invalid price."}, status_code=400)
 
-    # decide final new_image_url
+    upgrade = None
+    old_image_url = None
+
+    if upgrade_id:
+        upgrade = db.query(Upgrade).filter(Upgrade.id == upgrade_id).first()
+        if not upgrade:
+            return JSONResponse({"ok": False, "error": "Upgrade not found."}, status_code=404)
+        old_image_url = (upgrade.image_url or "").strip() or None
+    else:
+        upgrade = Upgrade()
+        db.add(upgrade)
+
+    # ---- FINALIZE IMAGE (if tmp_key provided) ----
+    # If user uploaded a new image, finalize it and use that as new image_url.
+    # Otherwise keep whatever is currently stored / posted.
     new_image_url = incoming_image_url
 
-    # If a temp upload exists, finalize it (move into permanent)
     if tmp_key:
-        # safety
-        if "/" in tmp_key or "\\" in tmp_key or ".." in tmp_key:
-            return {"ok": False, "error": "Invalid upload key."}
+        try:
+            # This should move temp file to permanent location and return the final URL/path
+            new_image_url = finalize_tmp_upgrade_image(tmp_key)
+        except Exception as e:
+            print("[UPGRADE IMAGE FINALIZE ERROR]", e)
+            return JSONResponse({"ok": False, "error": "Image upload finalize failed."}, status_code=500)
 
-        tmp_path = TMP_DIR / tmp_key
-        if not tmp_path.exists():
-            return {"ok": False, "error": "Uploaded image not found (expired)."}  # temp cleaned or missing
-
-        final_name = f"{uuid.uuid4().hex}{tmp_path.suffix.lower()}"
-        final_path = FINAL_DIR / final_name
-
-        shutil.move(str(tmp_path), str(final_path))
-        new_image_url = f"/static/uploads/upgrades/{final_name}"
-
-    # --- fetch / create ---
-    if upgrade_id:
-        upgrade = db.query(Upgrade).filter(Upgrade.id == int(upgrade_id)).first()
-        if not upgrade:
-            # if we already moved temp -> final, clean it to avoid orphan
-            if tmp_key and new_image_url and new_image_url.startswith("/static/uploads/upgrades/"):
-                delete_local_upgrade_image(new_image_url)
-            return {"ok": False, "error": "Upgrade not found."}
-
-        old_image_url = upgrade.image_url
-
-        upgrade.title = form.get("title")
-        upgrade.slug = form.get("slug")
-        upgrade.property_id = int(form.get("property_id"))
-        upgrade.image_url = new_image_url
-        upgrade.is_active = is_active
-        # ...price conversion...
-
-    else:
-        upgrade = Upgrade(
-            title=form.get("title"),
-            slug=form.get("slug"),
-            property_id=int(form.get("property_id")),
-            image_url=new_image_url,
-            is_active=is_active,
-            # ...price...
-        )
-        db.add(upgrade)
+    # ---- UPDATE FIELDS ----
+    upgrade.title = title
+    upgrade.slug = slug
+    upgrade.property_id = property_id
+    upgrade.price_cents = price_cents
+    upgrade.is_active = is_active
+    upgrade.long_description = long_description
+    upgrade.image_url = new_image_url
 
     try:
         db.commit()
-    except Exception:
+    except Exception as e:
         db.rollback()
+        print("[UPGRADE SAVE ERROR]", e)
+        return JSONResponse({"ok": False, "error": "Save failed."}, status_code=500)
 
-        # if we moved temp -> final but failed commit, delete it (prevents orphan)
-        if tmp_key and new_image_url and new_image_url.startswith("/static/uploads/upgrades/"):
-            delete_local_upgrade_image(new_image_url)
-
-        return {"ok": False, "error": "Save failed."}
-
-    # ✅ delete old image only after successful commit, and only if replaced/cleared
-    if old_image_url and old_image_url != new_image_url:
-        delete_local_upgrade_image(old_image_url)
+    # ---- DELETE OLD IMAGE (only after commit) ----
+    # Delete if: (1) old exists, (2) it changed, (3) old is local (safety)
+    try:
+        if old_image_url and old_image_url != new_image_url:
+            delete_local_upgrade_image(old_image_url)
+    except Exception as e:
+        # Don't fail the request if cleanup fails
+        print("[UPGRADE OLD IMAGE DELETE WARN]", e)
 
     return {"ok": True}
+
 
 
 
