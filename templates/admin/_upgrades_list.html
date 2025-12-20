@@ -14,8 +14,8 @@
     <tr class="border-b border-slate-100" data-upgrade-row="{{ u.id }}">
       <td class="py-2 font-medium">{{ u.title }}</td>
 
-      <td class="py-2 text-slate-600">
-        {{ u.property.property_name if u.property else "—" }}
+      <td class="py-3 text-slate-600">
+        {{ property_names.get(u.property_id, "—") }}
       </td>
 
       <td class="py-2 text-slate-600">
