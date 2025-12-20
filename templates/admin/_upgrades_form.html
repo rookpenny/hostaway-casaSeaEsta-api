@@ -1,3 +1,4 @@
+<!-- templates/admin/_upgrades_form.html -->
 <form onsubmit="event.preventDefault(); Upgrades.submit(this);"
       class="space-y-3">
 
@@ -36,33 +37,53 @@
            class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
   </div>
 
-      <div>
-        <label class="text-xs font-semibold text-slate-600">Image URL</label>
-        <input name="image_url"
-               type="url"
-               placeholder="https://…"
-               value="{{ upgrade.image_url if upgrade else '' }}"
-               class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
-        <div class="mt-1 text-xs text-slate-500">Used in guest UI / upsell cards.</div>
-      </div>
-      
-      {% if upgrade and upgrade.image_url %}
-        <img src="{{ upgrade.image_url }}" alt="Upgrade image"
-             class="mt-2 w-full rounded-xl border border-slate-200 object-cover"
-             style="max-height:180px;">
-      {% endif %}
+  <!-- Image upload (replaces Image URL input) -->
+  <div>
+    <label class="text-xs font-semibold text-slate-600">Image</label>
 
+    <div class="mt-2 flex items-center gap-3">
+      <label class="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold grid place-items-center cursor-pointer">
+        Upload image
+        <input
+          type="file"
+          accept="image/*"
+          class="hidden"
+          data-upgrade-image-file
+        />
+      </label>
+
+      <div class="text-xs text-slate-500">PNG/JPG/WebP recommended.</div>
+    </div>
+
+    <!-- Keep image_url for your existing save endpoint -->
+    <input
+      type="hidden"
+      name="image_url"
+      value="{{ upgrade.image_url if upgrade else '' }}"
+      data-upgrade-image-url
+    />
+
+    <!-- Preview -->
+    <img
+      data-upgrade-image-preview
+      src="{{ upgrade.image_url if (upgrade and upgrade.image_url) else '' }}"
+      alt="Upgrade image"
+      class="mt-2 w-full rounded-xl border border-slate-200 object-cover {% if not (upgrade and upgrade.image_url) %}hidden{% endif %}"
+      style="max-height:180px;"
+    />
+
+    <div class="mt-1 text-xs text-slate-500">Used in guest UI / upsell cards.</div>
+  </div>
 
   <div>
-        <label class="text-xs font-semibold text-slate-600">Price (USD)</label>
-        <input name="price_dollars"
-               type="number"
-               min="0"
-               step="0.01"
-               value="{{ '%.2f'|format((upgrade.price_cents or 0) / 100) if upgrade else '0.00' }}"
-               class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
-</div>
-
+    <label class="text-xs font-semibold text-slate-600">Price (USD)</label>
+    <input name="price_dollars"
+           type="number"
+           min="0"
+           step="0.01"
+           value="{{ '%.2f'|format((upgrade.price_cents or 0) / 100) if upgrade else '0.00' }}"
+           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
+  </div>
 
   <div class="flex items-center gap-2">
     <input type="checkbox"
@@ -85,4 +106,3 @@
     </button>
   </div>
 </form>
-
