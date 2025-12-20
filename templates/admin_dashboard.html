@@ -1466,7 +1466,6 @@ document.addEventListener("click", async (e) => {
 });
 
 
-// Remove image (delegated)
 document.addEventListener("click", async (e) => {
   const clearBtn = e.target.closest("[data-upgrade-image-clear]");
   if (!clearBtn) return;
@@ -1478,30 +1477,34 @@ document.addEventListener("click", async (e) => {
   const imageUrlInput = form.querySelector('input[name="image_url"]');
   const tmpKeyInput = form.querySelector('input[name="image_tmp_key"]');
 
-  // If they uploaded a temp image and then remove it before save,
-  // we should delete that temp image immediately.
   const tmpKey = (tmpKeyInput?.value || "").trim();
+
+  // Clear UI immediately
+  if (preview) {
+    preview.src = "";
+    preview.classList.add("hidden");
+  }
+  if (imageUrlInput) imageUrlInput.value = "";   // clear persisted url
+  if (tmpKeyInput) tmpKeyInput.value = "";       // clear temp key
+
+  // If there was a temp upload, delete it server-side
   if (tmpKey) {
     try {
-      await fetch("/admin/upgrades/ajax/delete-temp-image", {
+      const res = await fetch("/admin/upgrades/ajax/delete-temp-image", {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ tmp_key: tmpKey }),
       });
-    } catch {}
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+    } catch (err) {
+      console.error(err);
+    }
   }
 
-  if (tmpKeyInput) tmpKeyInput.value = "";
-  if (imageUrlInput) imageUrlInput.value = ""; // signals “clear image on save”
-
-  if (preview) {
-    preview.src = "";
-    preview.classList.add("hidden");
-  }
-
-  toast("Image removed (save to apply).");
+  toast("Image removed.");
 });
+
 
   // Upgrades: delegated events (ONLY ONCE)
   document.addEventListener("click", (e) => {
