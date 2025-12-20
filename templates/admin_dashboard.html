@@ -289,19 +289,19 @@
           <div class="grid grid-cols-12 gap-4">
             <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-xs text-slate-500">Properties</div>
-              <div class="mt-2 text-3xl font-semibold">{{ total_props }}</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-total">{{ total_props }}</div>
               <div class="mt-2 text-xs text-slate-500">Portfolio size</div>
             </div>
 
             <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-xs text-slate-500">Live</div>
-              <div class="mt-2 text-3xl font-semibold">{{ live_props }}</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-live">{{ live_props }}</div>
               <div class="mt-2 text-xs text-emerald-600">Sandy enabled</div>
             </div>
 
             <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
               <div class="text-xs text-slate-500">Offline</div>
-              <div class="mt-2 text-3xl font-semibold">{{ offline_props }}</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-offline">{{ offline_props }}</div>
               <div class="mt-2 text-xs text-rose-600">Needs attention</div>
             </div>
 
@@ -977,7 +977,8 @@
  <script>
   // -------- Paywall flag (server-rendered) --------
   const IS_LOCKED = {{ 'true' if (user_role == 'pmc' and needs_payment) else 'false' }};
-   
+  const CONTENT_LOCKED = IS_LOCKED;
+
   // ----------------------------
   // Small UI helpers
   // ----------------------------
@@ -990,11 +991,10 @@
     setTimeout(() => el.remove(), 2400);
   }
 
-   window.Upgrades = window.Upgrades || {};
-    window.Guides = window.Guides || {};
-
   function loginRedirect() {
-    const next = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash);
+    const next = encodeURIComponent(
+      window.location.pathname + window.location.search + window.location.hash
+    );
     window.location.href = `/auth/login/google?next=${next}`;
   }
 
@@ -1012,56 +1012,64 @@
     }
 
     let data = {};
-    try { data = await res.json(); } catch {}
+    try {
+      data = await res.json();
+    } catch {}
     return { res, data };
   }
 
-
-   async function refreshTeamRows() {
-    const res = await fetch("/admin/settings/team/table", { credentials: "include" });
-  
-    if (res.status === 401 || res.status === 403) {
-      toast("Session expired. Please sign in again.");
-      loginRedirect();
-      return false;
-    }
-  
-    if (!res.ok) {
-      toast("Could not refresh team list.");
-      return false;
-    }
-  
-    const html = await res.text();
-    const tbody = document.querySelector("#settings-team tbody");
-    if (tbody) tbody.innerHTML = html;
-  
-    // re-disable Save buttons by default
-    document.querySelectorAll("[data-member-save-role]").forEach((b) => {
-      b.disabled = true;
-      b.classList.add("opacity-50", "cursor-not-allowed");
+  async function postJson(url) {
+    return fetch(url, {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
     });
-  
-    return true;
   }
-/*
-   // ---- Upgrades: event delegation (works even after partial reloads) ----
-  document.addEventListener("click", async (e) => {
-    const editBtn = e.target.closest("[data-upgrade-edit]");
-    if (editBtn) {
-      const id = editBtn.dataset.upgradeEdit;
-      await loadUpgradeForm(id);
-      return;
-    }
-  });*/
 
-   
+  // ----------------------------
+  // Overview counters + chart refresh (no hard refresh)
+  // NOTE: make sure your HTML has:
+  //   <div id="stat-total">...</div>
+  //   <div id="stat-live">...</div>
+  //   <div id="stat-offline">...</div>
+  // ----------------------------
+  let statusChartInstance = null;
+
+  function recomputeLiveOffline() {
+    const cards = document.querySelectorAll("[data-property-card]");
+    const total = cards.length;
+    let live = 0;
+    cards.forEach((c) => {
+      if (c.dataset.live === "true") live += 1;
+    });
+    return { total, live, offline: total - live };
+  }
+
+  function updateOverviewUI() {
+    const { total, live, offline } = recomputeLiveOffline();
+
+    const totalEl = document.getElementById("stat-total");
+    const liveEl = document.getElementById("stat-live");
+    const offEl = document.getElementById("stat-offline");
+
+    if (totalEl) totalEl.textContent = String(total);
+    if (liveEl) liveEl.textContent = String(live);
+    if (offEl) offEl.textContent = String(offline);
+
+    if (statusChartInstance) {
+      statusChartInstance.data.datasets[0].data = [live, offline];
+      statusChartInstance.update();
+    }
+  }
+
   // ----------------------------
   // Sidebar collapse/expand
   // ----------------------------
   function initSidebar() {
     const sidebar = document.getElementById("sidebar");
     const toggleBtn = document.getElementById("sidebar-toggle");
-    const labelEls = () => Array.from(document.querySelectorAll(".sidebar-label"));
+    const labelEls = () =>
+      Array.from(document.querySelectorAll(".sidebar-label"));
 
     if (!sidebar || !toggleBtn) return;
 
@@ -1075,7 +1083,10 @@
         svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
         svg.style.transition = "transform 200ms ease";
       }
-      localStorage.setItem("dashboard_sidebar_collapsed", isCollapsed ? "1" : "0");
+      localStorage.setItem(
+        "dashboard_sidebar_collapsed",
+        isCollapsed ? "1" : "0"
+      );
     }
 
     setCollapsed(localStorage.getItem("dashboard_sidebar_collapsed") === "1");
@@ -1098,7 +1109,9 @@
   // Properties filter
   // ----------------------------
   function filterProperties() {
-    const search = (document.getElementById("searchInput")?.value || "").toLowerCase();
+    const search = (
+      document.getElementById("searchInput")?.value || ""
+    ).toLowerCase();
     const status = document.getElementById("statusFilter")?.value || "all";
     const cards = document.querySelectorAll("[data-property-card]");
 
@@ -1111,13 +1124,359 @@
         (status === "live" && live) ||
         (status === "offline" && !live);
 
-      card.style.display = (matchesSearch && matchesStatus) ? "" : "none";
+      card.style.display = matchesSearch && matchesStatus ? "" : "none";
     });
   }
   window.filterProperties = filterProperties;
 
   // ----------------------------
-  // Settings tabs
+  // Property actions
+  // ----------------------------
+  window.syncProperty = async function (id, btn) {
+    if (IS_LOCKED) return toast("Complete payment to unlock property syncing.");
+
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = "Syncing…";
+
+    try {
+      const res = await postJson(`/auth/sync-property/${id}`);
+
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+      if (res.status === 402) return (window.location.href = "/pmc/signup");
+
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {}
+      btn.innerHTML =
+        res.ok && data.status === "success"
+          ? "Synced ✓"
+          : data.message || data.detail || "Failed";
+    } catch (err) {
+      console.error("Sync error:", err);
+      btn.innerHTML = "Error";
+    } finally {
+      setTimeout(() => {
+        btn.innerHTML = original;
+        btn.disabled = false;
+      }, 1200);
+    }
+  };
+
+  window.toggleProperty = async function (id, btn) {
+    if (IS_LOCKED) return toast("Complete payment to unlock Sandy activation.");
+
+    btn.disabled = true;
+    const original = btn.innerHTML;
+    btn.innerHTML = "Toggling…";
+
+    try {
+      const res = await postJson(`/auth/toggle-property/${id}`);
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        data = null;
+      }
+
+      if (data && data.status === "needs_billing" && data.checkout_url) {
+        window.location.href = data.checkout_url;
+        return;
+      }
+
+      if (!res.ok) {
+        toast((data && (data.detail || data.message)) || "Request failed");
+        btn.innerHTML = original;
+        return;
+      }
+
+      if (data && data.status === "success") {
+        const isLive = data.new_status === "LIVE";
+        btn.innerHTML = isLive ? "Take Offline" : "Go Live";
+
+        const card = btn.closest("[data-property-card]");
+        if (card) {
+          card.dataset.live = isLive ? "true" : "false";
+
+          const pill = card.querySelector("span.rounded-full");
+          if (pill) {
+            if (isLive) {
+              pill.textContent = "LIVE";
+              pill.className =
+                "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
+            } else {
+              pill.textContent = "OFFLINE";
+              pill.className =
+                "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
+            }
+          }
+        }
+
+        filterProperties();
+        updateOverviewUI(); // ✅ update overview immediately
+        return;
+      }
+
+      btn.innerHTML = original;
+      toast("Toggle failed.");
+    } catch (err) {
+      console.error("Toggle error:", err);
+      btn.innerHTML = original;
+      toast("Network error. Please try again.");
+    } finally {
+      btn.disabled = false;
+    }
+  };
+
+  // ----------------------------
+  // Upgrades (single definition + single event wiring)
+  // ----------------------------
+  window.Upgrades = {
+    loaded: false,
+
+    async refresh() {
+      const listEl = document.getElementById("upgrades-list");
+      if (!listEl) return;
+
+      const pid =
+        document.getElementById("upgradesPropertyFilter")?.value || "";
+      const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+
+      const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        listEl.innerHTML = "Could not load upgrades.";
+        return;
+      }
+      listEl.innerHTML = await res.text();
+    },
+
+    openNew() {
+      return Upgrades.openEditor(null);
+    },
+
+    async openEditor(id) {
+      if (CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
+
+      const editorWrap = document.getElementById("upgrades-editor");
+      const editorBody = document.getElementById("upgrades-editor-body");
+      const editorTitle = document.getElementById("upgrades-editor-title");
+      if (!editorWrap || !editorBody) return;
+
+      const url = id
+        ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`
+        : `/admin/upgrades/partial/form`;
+
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) return toast("Could not load upgrade editor.");
+
+      editorBody.innerHTML = await res.text();
+      if (editorTitle) editorTitle.textContent = id ? "Edit Upgrade" : "New Upgrade";
+      editorWrap.classList.remove("hidden");
+    },
+
+    closeEditor() {
+      document.getElementById("upgrades-editor")?.classList.add("hidden");
+      const body = document.getElementById("upgrades-editor-body");
+      if (body) body.innerHTML = "";
+    },
+
+    async submit(form) {
+      if (CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
+      if (!form) return;
+
+      const flash = document.getElementById("upgrades-flash");
+      const showFlash = (msg, ok = true) => {
+        if (!flash) return toast(msg);
+        flash.innerHTML = `
+          <div class="rounded-xl border ${
+            ok
+              ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+              : "border-rose-200 bg-rose-50 text-rose-900"
+          } p-3 text-sm">
+            ${msg}
+          </div>`;
+        setTimeout(() => {
+          if (flash) flash.innerHTML = "";
+        }, 2400);
+      };
+
+      try {
+        const res = await fetch("/admin/upgrades/ajax/save", {
+          method: "POST",
+          credentials: "include",
+          body: new FormData(form),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.ok) {
+          showFlash(data.error || data.detail || data.message || "Save failed.", false);
+          return;
+        }
+
+        showFlash("Saved ✓", true);
+        await Upgrades.refresh();
+        Upgrades.closeEditor();
+      } catch (err) {
+        console.error(err);
+        showFlash("Network error saving upgrade.", false);
+      }
+    },
+  };
+
+  // Upgrades: delegated events (ONLY ONCE)
+  document.addEventListener("click", (e) => {
+    const editBtn = e.target.closest("[data-upgrade-edit]");
+    if (editBtn) {
+      Upgrades.openEditor(editBtn.getAttribute("data-upgrade-edit"));
+      return;
+    }
+  });
+
+  document.addEventListener("change", async (e) => {
+    const el = e.target;
+    if (!(el instanceof HTMLInputElement)) return;
+    if (!el.matches("[data-upgrade-active]")) return;
+
+    const id = el.dataset.upgradeId;
+    const checked = el.checked;
+
+    // Optional: label support if you add it in the table partial
+    const row = el.closest("[data-upgrade-row]");
+    const label = row?.querySelector("[data-upgrade-status-label]");
+    if (label) {
+      label.textContent = checked ? "Active" : "Inactive";
+      label.className =
+        "text-xs font-semibold " +
+        (checked ? "text-emerald-700" : "text-slate-400");
+    }
+
+    try {
+      const { res, data } = await apiJson("/admin/upgrades/ajax/toggle-active", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, is_active: checked }),
+      });
+
+      if (!res.ok || !data.ok) {
+        toast(data.error || "Failed to update.");
+        el.checked = !checked;
+
+        if (label) {
+          const reverted = el.checked;
+          label.textContent = reverted ? "Active" : "Inactive";
+          label.className =
+            "text-xs font-semibold " +
+            (reverted ? "text-emerald-700" : "text-slate-400");
+        }
+      }
+    } catch (err) {
+      toast("Failed to update.");
+      el.checked = !checked;
+
+      if (label) {
+        const reverted = el.checked;
+        label.textContent = reverted ? "Active" : "Inactive";
+        label.className =
+          "text-xs font-semibold " +
+          (reverted ? "text-emerald-700" : "text-slate-400");
+      }
+    }
+  });
+
+  // ----------------------------
+  // Guides (single definition)
+  // ----------------------------
+  function flashIn(elId, msg, ok = true) {
+    const el = document.getElementById(elId);
+    if (!el) return;
+    el.innerHTML = `<div class="text-sm rounded-xl px-3 py-2 ${
+      ok
+        ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
+        : "bg-rose-50 border border-rose-200 text-rose-800"
+    }">${msg}</div>`;
+    setTimeout(() => (el.innerHTML = ""), 2400);
+  }
+
+  async function loadHtmlInto(url, targetId) {
+    const r = await fetch(url, {
+      credentials: "include",
+      headers: { "X-Requested-With": "fetch" },
+    });
+    if (r.status === 401 || r.status === 403) return loginRedirect();
+    const target = document.getElementById(targetId);
+    if (target) target.innerHTML = await r.text();
+  }
+
+  window.Guides = {
+    loaded: false,
+
+    refresh() {
+      const pid = document.getElementById("guidesPropertyFilter")?.value || "";
+      const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+      return loadHtmlInto(`/admin/guides/partial/list${qs}`, "guides-list");
+    },
+
+    openNew() {
+      return Guides.openForm("/admin/guides/partial/form", "New Guide");
+    },
+
+    openEdit(id) {
+      return Guides.openForm(
+        `/admin/guides/partial/form?id=${encodeURIComponent(id)}`,
+        "Edit Guide"
+      );
+    },
+
+    async openForm(url, title) {
+      if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+      document.getElementById("guides-editor-title").textContent = title || "Editor";
+      await loadHtmlInto(url, "guides-editor-body");
+      document.getElementById("guides-editor")?.classList.remove("hidden");
+    },
+
+    closeEditor() {
+      document.getElementById("guides-editor")?.classList.add("hidden");
+      const body = document.getElementById("guides-editor-body");
+      if (body) body.innerHTML = "";
+    },
+
+    async submit(formEl) {
+      if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+      const r = await fetch("/admin/guides/ajax/save", {
+        method: "POST",
+        credentials: "include",
+        body: new FormData(formEl),
+      });
+      if (r.status === 401 || r.status === 403) return loginRedirect();
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) return flashIn("guides-flash", j.error || "Save failed", false);
+      flashIn("guides-flash", "Guide saved");
+      Guides.closeEditor();
+      Guides.refresh();
+    },
+
+    async remove(id) {
+      if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+      if (!confirm("Delete this guide?")) return;
+      const r = await fetch(`/admin/guides/ajax/delete?id=${encodeURIComponent(id)}`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const j = await r.json().catch(() => ({}));
+      if (!j.ok) return flashIn("guides-flash", j.error || "Delete failed", false);
+      flashIn("guides-flash", "Guide deleted");
+      Guides.refresh();
+    },
+  };
+
+  // ----------------------------
+  // Settings tabs + Team settings
   // ----------------------------
   function getSettingsTabFromHash() {
     const h = location.hash || "";
@@ -1132,15 +1491,14 @@
     document.getElementById(`settings-${key}`)?.classList.remove("hidden");
 
     document.querySelectorAll(".settings-tab").forEach((b) => b.classList.remove("bg-slate-50"));
-    document.querySelector(`.settings-tab[data-settings="${key}"]`)?.classList.add("bg-slate-50");
+    document
+      .querySelector(`.settings-tab[data-settings="${key}"]`)
+      ?.classList.add("bg-slate-50");
 
     const base = (location.hash || "#overview").split("?")[0];
     if (base === "#settings") history.replaceState(null, "", `#settings?tab=${key}`);
   }
 
-  // ----------------------------
-  // Team settings (invite / role save / enable / delete)
-  // ----------------------------
   function updateMemberStatusUI(memberId, isActive) {
     const row = document.querySelector(`[data-member-row="${memberId}"]`);
     if (!row) return;
@@ -1168,69 +1526,30 @@
     btn.classList.toggle("cursor-not-allowed", !enabled);
   }
 
-   // ---------- Upgrades module ----------
-   
-    /*
-    Upgrades.state = {
-      propertyId: "", // current filter
-    };
-    
-    Upgrades.openNew = async function () {
-      await Upgrades.openEditor(null);
-    };*/
-    
-    Upgrades.openEditor = async function (id) {
-      const editorWrap = document.getElementById("upgrades-editor");
-      const editorBody = document.getElementById("upgrades-editor-body");
-      const editorTitle = document.getElementById("upgrades-editor-title");
-      if (!editorWrap || !editorBody) return;
-    
-      const url = id
-        ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`
-        : `/admin/upgrades/partial/form`;
-    
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) return toast("Could not load upgrade editor.");
-    
-      const html = await res.text();
-      editorBody.innerHTML = html;
-      editorTitle.textContent = id ? "Edit Upgrade" : "New Upgrade";
-      editorWrap.classList.remove("hidden");
-    };
-    
-    Upgrades.closeEditor = function () {
-      document.getElementById("upgrades-editor")?.classList.add("hidden");
-      document.getElementById("upgrades-editor-body").innerHTML = "";
-    };
-    /*
-    // Load list partial into #upgrades-list
-    Upgrades.loadList = async function () {
-      const listEl = document.getElementById("upgrades-list");
-      if (!listEl) return;
-    
-      const qs = new URLSearchParams();
-      if (Upgrades.state.propertyId) qs.set("property_id", Upgrades.state.propertyId);
-    
-      const url = `/admin/upgrades/partial/list${qs.toString() ? `?${qs}` : ""}`;
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) return (listEl.innerHTML = "Could not load upgrades.");
-    
-      listEl.innerHTML = await res.text();
-    };*/
-    
-    // ---------- IMPORTANT: delegated click for Edit buttons ----------
-   document.addEventListener("click", (e) => {
-      const btn = e.target.closest("[data-upgrade-edit]");
-      if (!btn) return;
-      Upgrades.openEditor(btn.getAttribute("data-upgrade-edit"));
+  async function refreshTeamRows() {
+    const res = await fetch("/admin/settings/team/table", { credentials: "include" });
+
+    if (res.status === 401 || res.status === 403) {
+      toast("Session expired. Please sign in again.");
+      loginRedirect();
+      return false;
+    }
+    if (!res.ok) {
+      toast("Could not refresh team list.");
+      return false;
+    }
+
+    const html = await res.text();
+    const tbody = document.querySelector("#settings-team tbody");
+    if (tbody) tbody.innerHTML = html;
+
+    // re-disable Save buttons by default
+    document.querySelectorAll("[data-member-save-role]").forEach((b) => {
+      b.disabled = true;
+      b.classList.add("opacity-50", "cursor-not-allowed");
     });
 
-
-
-  function markRoleSaved(memberId, newRole) {
-    const select = document.querySelector(`[data-member-role][data-member-id="${memberId}"]`);
-    if (select) select.dataset.originalRole = newRole;
-    setSaveEnabled(memberId, false);
+    return true;
   }
 
   function initTeamSettings() {
@@ -1246,64 +1565,42 @@
     // Modal open/close
     const inviteModal = document.getElementById("inviteModal");
     document.getElementById("openInvite")?.addEventListener("click", () => inviteModal?.classList.remove("hidden"));
-    ["closeInvite", "cancelInvite"].forEach(id => {
+    ["closeInvite", "cancelInvite"].forEach((id) => {
       document.getElementById(id)?.addEventListener("click", () => inviteModal?.classList.add("hidden"));
     });
 
-    // Invite submit (stay on page + refresh team rows)
-async function refreshTeamRows() {
-  const res = await fetch("/admin/settings/team/table", { credentials: "include" });
+    // Invite submit
+    document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
+      e.preventDefault();
 
-  if (res.status === 401 || res.status === 403) {
-    toast("Session expired. Please sign in again.");
-    loginRedirect();
-    return false;
-  }
+      const formEl = e.currentTarget;
+      const body = Object.fromEntries(new FormData(formEl).entries());
 
-  if (!res.ok) {
-    toast("Could not refresh team list.");
-    return false;
-  }
+      try {
+        const res = await fetch("/admin/settings/team/invite", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify(body),
+        });
 
-  const html = await res.text();
-  const tbody = document.querySelector("#settings-team tbody");
-  if (tbody) tbody.innerHTML = html;
-  return true;
-}
+        const data = await res.json().catch(() => ({}));
 
-document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
-  e.preventDefault();
-
-  const form = e.currentTarget;
-  const body = Object.fromEntries(new FormData(form).entries());
-
-  try {
-    const res = await fetch("/admin/settings/team/invite", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify(body),
+        if (res.ok && data.ok) {
+          toast(data.message || "Invite saved.");
+          formEl.reset();
+          inviteModal?.classList.add("hidden");
+          await refreshTeamRows();
+        } else {
+          toast(data.detail || data.message || "Invite failed.");
+        }
+      } catch (err) {
+        console.error(err);
+        toast("Invite failed.");
+      }
     });
 
-    const data = await res.json().catch(() => ({}));
-
-    if (res.ok && data.ok) {
-      toast(data.message || "Invite saved.");
-      form.reset();
-      document.getElementById("inviteModal")?.classList.add("hidden");
-      await refreshTeamRows(); // ✅ new member appears without hard refresh
-    } else {
-      toast(data.detail || data.message || "Invite failed.");
-    }
-  } catch (err) {
-    console.error(err);
-    toast("Invite failed.");
-  }
-});
-
-
-
-    // Change role dropdown -> enable Save if changed
+    // Role dropdown -> enable Save if changed
     teamPanel.addEventListener("change", (e) => {
       const el = e.target;
       if (!(el instanceof HTMLSelectElement)) return;
@@ -1317,7 +1614,7 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       setSaveEnabled(memberId, current !== original);
     });
 
-    // Delegated clicks (save role / toggle / delete)
+    // Delegated team actions
     teamPanel.addEventListener("click", async (e) => {
       const btn = e.target instanceof HTMLElement ? e.target.closest("button") : null;
       if (!btn) return;
@@ -1327,7 +1624,6 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
         const memberId = btn.dataset.memberId;
         const select = document.querySelector(`[data-member-role][data-member-id="${memberId}"]`);
         const role = select?.value;
-
         if (!memberId || !role) return;
 
         btn.disabled = true;
@@ -1339,17 +1635,15 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
           });
 
           if (res.ok && data.ok) {
-            toast(data.message || "Invite saved.");
-            form.reset();
-            inviteModal?.classList.add("hidden");
-            await refreshTeamRows(); // ✅ new member appears immediately
+            toast(data.message || "Role saved.");
+            await refreshTeamRows();
           } else {
-            toast(data.detail || data.message || "Invite failed.");
+            toast(data.detail || data.message || "Failed to save role.");
+            btn.disabled = false;
           }
-
         } catch (err) {
           if (String(err) !== "Error: auth") toast("Failed to save role.");
-          setSaveEnabled(memberId, true);
+          btn.disabled = false;
         }
         return;
       }
@@ -1357,7 +1651,7 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       // Enable / Disable
       if (btn.matches("[data-member-toggle]")) {
         const memberId = btn.dataset.memberId;
-        const nextActive = btn.dataset.nextActive; // "true"/"false"
+        const nextActive = btn.dataset.nextActive;
         if (!memberId || (nextActive !== "true" && nextActive !== "false")) return;
 
         btn.disabled = true;
@@ -1383,14 +1677,6 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
         return;
       }
 
-      async function refreshTeamTable() {
-        const res = await fetch("/admin/settings/team", { credentials: "include" });
-        if (!res.ok) return;
-      
-        const html = await res.text();
-        document.querySelector("#settings-team tbody").innerHTML = html;
-      }
-
       // Delete invite / Remove
       if (btn.matches("[data-member-delete]")) {
         const memberId = btn.dataset.memberId;
@@ -1402,7 +1688,6 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
         btn.disabled = true;
         try {
           const { res, data } = await apiJson(`/admin/settings/team/${memberId}`, { method: "DELETE" });
-
           if (res.ok && data.ok) {
             document.querySelector(`[data-member-row="${memberId}"]`)?.remove();
             toast(label === "Delete invite" ? "Invite deleted." : "User removed.");
@@ -1427,12 +1712,10 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
     if (settingsInitialized) return;
     settingsInitialized = true;
 
-    // Tabs
     document.querySelectorAll(".settings-tab").forEach((btn) => {
       btn.addEventListener("click", () => showSettingsPanel(btn.dataset.settings));
     });
 
-    // Profile save
     document.getElementById("profileForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const form = e.currentTarget;
@@ -1451,7 +1734,6 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       }
     });
 
-    // Notifications save
     document.getElementById("notifForm")?.addEventListener("submit", async (e) => {
       e.preventDefault();
       const fd = new FormData(e.currentTarget);
@@ -1473,63 +1755,9 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       }
     });
 
-    // Team UI
     initTeamSettings();
-
-    // Show correct initial tab
     showSettingsPanel(getSettingsTabFromHash());
   }
-
-   Upgrades.submit = async function (form) {
-  if (!form) return;
-
-  const flash = document.getElementById("upgrades-flash");
-
-  function showFlash(msg, ok = true) {
-    if (!flash) return toast(msg);
-    flash.innerHTML = `
-      <div class="rounded-xl border ${ok ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-rose-200 bg-rose-50 text-rose-900"}
-           p-3 text-sm">
-        ${msg}
-      </div>
-    `;
-  }
-
-  const fd = new FormData(form);
-
-  // IMPORTANT: checkbox behavior
-  // If unchecked, browser sends nothing — server sees is_active=None => bool(None)=False ✅
-  // So we do NOT need to force "false".
-  // But we DO want the value when checked:
-  // Your form already uses value="true", so that's fine.
-
-  try {
-    const res = await fetch("/admin/upgrades/ajax/save", {
-      method: "POST",
-      credentials: "include",
-      body: fd,
-    });
-
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok || !data.ok) {
-      showFlash(data.error || data.detail || data.message || "Save failed.", false);
-      return;
-    }
-
-    showFlash("Saved ✓", true);
-
-    // refresh the list (keeps current filter)
-    await Upgrades.loadList();
-
-    // optionally close the editor after save:
-    // Upgrades.closeEditor();
-
-  } catch (err) {
-    console.error(err);
-    showFlash("Network error saving upgrade.", false);
-  }
-};
 
   // ----------------------------
   // Main view routing (left nav)
@@ -1563,7 +1791,8 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       const activeBtn = navItems.find((b) => b.dataset.view === key);
       if (activeBtn) activeBtn.setAttribute("aria-current", "page");
 
-      const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
+      const label =
+        activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
       if (pageTitle) pageTitle.textContent = label;
       if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
 
@@ -1580,290 +1809,24 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
         initSettingsUI();
         showSettingsPanel(getSettingsTabFromHash());
       }
-      if (key === "guides" && !Guides.loaded) {
-          Guides.loaded = true;
-          Guides.refresh();
-        }
-        if (key === "upgrades" && !Upgrades.loaded) {
-          Upgrades.loaded = true;
-          Upgrades.refresh();
-        }
 
+      if (key === "guides" && !Guides.loaded) {
+        Guides.loaded = true;
+        Guides.refresh();
+      }
+
+      if (key === "upgrades" && !Upgrades.loaded) {
+        Upgrades.loaded = true;
+        Upgrades.refresh();
+      }
     }
 
-    // expose if you need it elsewhere
     window.showView = showView;
-
     navItems.forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
 
     const initial = (location.hash || "#overview").replace("#", "").split("?")[0];
     showView(initial);
   }
-
-  // ----------------------------
-  // Property actions
-  // ----------------------------
-  async function postJson(url) {
-    return fetch(url, {
-      method: "POST",
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-  }
-
-  window.syncProperty = async function (id, btn) {
-    if (IS_LOCKED) return toast("Complete payment to unlock property syncing.");
-
-    btn.disabled = true;
-    const original = btn.innerHTML;
-    btn.innerHTML = "Syncing…";
-
-    try {
-      const res = await postJson(`/auth/sync-property/${id}`);
-
-      if (res.status === 401 || res.status === 403) return loginRedirect();
-      if (res.status === 402) return (window.location.href = "/pmc/signup");
-
-      let data = {};
-      try { data = await res.json(); } catch (_) {}
-      btn.innerHTML = (res.ok && data.status === "success") ? "Synced ✓" : (data.message || data.detail || "Failed");
-    } catch (err) {
-      console.error("Sync error:", err);
-      btn.innerHTML = "Error";
-    } finally {
-      setTimeout(() => {
-        btn.innerHTML = original;
-        btn.disabled = false;
-      }, 1200);
-    }
-  };
-
-  window.toggleProperty = async function (id, btn) {
-    if (IS_LOCKED) return toast("Complete payment to unlock Sandy activation.");
-
-    btn.disabled = true;
-    const original = btn.innerHTML;
-    btn.innerHTML = "Toggling…";
-
-    try {
-      const res = await postJson(`/auth/toggle-property/${id}`);
-      if (res.status === 401 || res.status === 403) return loginRedirect();
-
-      let data = null;
-      try { data = await res.json(); } catch { data = null; }
-
-      if (data && data.status === "needs_billing" && data.checkout_url) {
-        window.location.href = data.checkout_url;
-        return;
-      }
-
-      if (!res.ok) {
-        toast((data && (data.detail || data.message)) || "Request failed");
-        btn.innerHTML = original;
-        return;
-      }
-
-      if (data && data.status === "success") {
-        const isLive = data.new_status === "LIVE";
-        btn.innerHTML = isLive ? "Take Offline" : "Go Live";
-
-        const card = btn.closest("[data-property-card]");
-        if (card) {
-          card.dataset.live = isLive ? "true" : "false";
-          const pill = card.querySelector("span.rounded-full");
-          if (pill) {
-            if (isLive) {
-              pill.textContent = "LIVE";
-              pill.className = "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
-            } else {
-              pill.textContent = "OFFLINE";
-              pill.className = "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
-            }
-          }
-        }
-
-        filterProperties();
-      } else {
-        btn.innerHTML = original;
-        toast("Toggle failed.");
-      }
-    } catch (err) {
-      console.error("Toggle error:", err);
-      btn.innerHTML = original;
-      toast("Network error. Please try again.");
-    } finally {
-      btn.disabled = false;
-    }
-  };
-
-
-   document.addEventListener("change", async (e) => {
-  const el = e.target;
-  if (!(el instanceof HTMLInputElement)) return;
-  if (!el.matches("[data-upgrade-active]")) return;
-
-  const id = el.dataset.upgradeId;
-  const checked = el.checked;
-
-  // Find the row + status label (from _upgrades_list.html)
-  const row = el.closest("[data-upgrade-row]");
-  const label = row?.querySelector("[data-upgrade-status-label]");
-
-  // optimistic UI update
-  if (label) {
-    label.textContent = checked ? "Active" : "Inactive";
-    label.className =
-      "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
-  }
-
-  try {
-    const { res, data } = await apiJson("/admin/upgrades/ajax/toggle-active", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, is_active: checked }),
-    });
-
-    if (!res.ok || !data.ok) {
-      toast(data.error || "Failed to update.");
-
-      // revert checkbox + label if server failed
-      el.checked = !checked;
-      const reverted = el.checked;
-
-      if (label) {
-        label.textContent = reverted ? "Active" : "Inactive";
-        label.className =
-          "text-xs font-semibold " +
-          (reverted ? "text-emerald-700" : "text-slate-400");
-      }
-    }
-  } catch (err) {
-    toast("Failed to update.");
-
-    // revert checkbox + label if network failed
-    el.checked = !checked;
-    const reverted = el.checked;
-
-    if (label) {
-      label.textContent = reverted ? "Active" : "Inactive";
-      label.className =
-        "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
-    }
-  }
-});
-
-
-   
-
-   const CONTENT_LOCKED = IS_LOCKED; // reuse your flag
-
-    function flashIn(elId, msg, ok=true) {
-      const el = document.getElementById(elId);
-      if (!el) return;
-      el.innerHTML = `<div class="text-sm rounded-xl px-3 py-2 ${ok?'bg-emerald-50 border border-emerald-200 text-emerald-800':'bg-rose-50 border border-rose-200 text-rose-800'}">${msg}</div>`;
-      setTimeout(()=> el.innerHTML="", 2400);
-    }
-    
-    async function loadHtmlInto(url, targetId) {
-      const r = await fetch(url, { credentials:"include", headers: {"X-Requested-With":"fetch"} });
-      if (r.status === 401 || r.status === 403) return loginRedirect();
-      document.getElementById(targetId).innerHTML = await r.text();
-    }
-    
-    window.Guides = {
-      loaded: false,
-      refresh: () => loadHtmlInto("/admin/guides/partial/list", "guides-list"),
-      openNew: () => Guides.openForm("/admin/guides/partial/form", "New Guide"),
-      openEdit: (id) => Guides.openForm(`/admin/guides/partial/form?id=${id}`, "Edit Guide"),
-    
-      openForm: async (url, title) => {
-        if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
-        document.getElementById("guides-editor-title").textContent = title || "Editor";
-        await loadHtmlInto(url, "guides-editor-body");
-        document.getElementById("guides-editor").classList.remove("hidden");
-      },
-    
-      closeEditor: () => {
-        document.getElementById("guides-editor").classList.add("hidden");
-        document.getElementById("guides-editor-body").innerHTML = "";
-      },
-
-      refresh: () => {
-        const pid = document.getElementById("guidesPropertyFilter")?.value || "";
-        const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
-        return loadHtmlInto(`/admin/guides/partial/list${qs}`, "guides-list");
-      },
-
-      
-      submit: async (formEl) => {
-        if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
-        const r = await fetch("/admin/guides/ajax/save", { method:"POST", credentials:"include", body:new FormData(formEl) });
-        if (r.status === 401 || r.status === 403) return loginRedirect();
-        const j = await r.json().catch(()=>({}));
-        if (!j.ok) return flashIn("guides-flash", j.error || "Save failed", false);
-        flashIn("guides-flash", "Guide saved");
-        Guides.closeEditor();
-        Guides.refresh();
-      },
-    
-      remove: async (id) => {
-        if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
-        if (!confirm("Delete this guide?")) return;
-        const r = await fetch(`/admin/guides/ajax/delete?id=${id}`, { method:"POST", credentials:"include" });
-        const j = await r.json().catch(()=>({}));
-        if (!j.ok) return flashIn("guides-flash", j.error || "Delete failed", false);
-        flashIn("guides-flash", "Guide deleted");
-        Guides.refresh();
-      }
-    };
-    
-    window.Upgrades = {
-      loaded: false,
-      refresh: () => loadHtmlInto("/admin/upgrades/partial/list", "upgrades-list"),
-      openNew: () => Upgrades.openForm("/admin/upgrades/partial/form", "New Upgrade"),
-      openEdit: (id) => Upgrades.openForm(`/admin/upgrades/partial/form?id=${id}`, "Edit Upgrade"),
-    
-      openForm: async (url, title) => {
-        if (CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
-        document.getElementById("upgrades-editor-title").textContent = title || "Editor";
-        await loadHtmlInto(url, "upgrades-editor-body");
-        document.getElementById("upgrades-editor").classList.remove("hidden");
-      },
-    
-      closeEditor: () => {
-        document.getElementById("upgrades-editor").classList.add("hidden");
-        document.getElementById("upgrades-editor-body").innerHTML = "";
-      },
-
-      refresh: () => {
-        const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
-        const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
-        return loadHtmlInto(`/admin/upgrades/partial/list${qs}`, "upgrades-list");
-      },
-
-    
-      submit: async (formEl) => {
-        if (CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
-        const r = await fetch("/admin/upgrades/ajax/save", { method:"POST", credentials:"include", body:new FormData(formEl) });
-        if (r.status === 401 || r.status === 403) return loginRedirect();
-        const j = await r.json().catch(()=>({}));
-        if (!j.ok) return flashIn("upgrades-flash", j.error || "Save failed", false);
-        flashIn("upgrades-flash", "Upgrade saved");
-        Upgrades.closeEditor();
-        Upgrades.refresh();
-      },
-    
-      remove: async (id) => {
-        if (CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
-        if (!confirm("Delete this upgrade?")) return;
-        const r = await fetch(`/admin/upgrades/ajax/delete?id=${id}`, { method:"POST", credentials:"include" });
-        const j = await r.json().catch(()=>({}));
-        if (!j.ok) return flashIn("upgrades-flash", j.error || "Delete failed", false);
-        flashIn("upgrades-flash", "Upgrade deleted");
-        Upgrades.refresh();
-      }
-    };
-
 
   // ----------------------------
   // DOM ready
@@ -1872,23 +1835,16 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
     initSidebar();
     initRouting();
 
-    // Upgrades initial load + property filter
-    Upgrades.refresh();
-      document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
-        Upgrades.closeEditor();
-        Upgrades.refresh();
-      });
-
-
-
-    // Chart
+    // Chart init
     const ctx = document.getElementById("statusChart");
     if (ctx && window.Chart) {
-      new Chart(ctx, {
+      statusChartInstance = new Chart(ctx, {
         type: "bar",
         data: {
           labels: ["LIVE", "OFFLINE"],
-          datasets: [{ label: "Properties", data: [{{ live_props }}, {{ offline_props }}] }],
+          datasets: [
+            { label: "Properties", data: [{{ live_props }}, {{ offline_props }}] },
+          ],
         },
         options: {
           responsive: true,
@@ -1898,12 +1854,21 @@ document.getElementById("inviteForm")?.addEventListener("submit", async (e) => {
       });
     }
 
+    // Hook filters
     document.getElementById("searchInput")?.addEventListener("input", filterProperties);
     document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
-    document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
-    document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => Upgrades.refresh());
 
+    // Property filters for guides/upgrades
+    document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
+    document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
+      Upgrades.closeEditor();
+      Upgrades.refresh();
+    });
+
+    // Optional: keep overview counters consistent if you render stat ids
+    updateOverviewUI();
   });
 </script>
+
 </body>
 </html>
