@@ -1,20 +1,72 @@
-<table class="w-full text-sm">
-  {% for g in guides %}
-  <tr class="border-b border-slate-100">
-    <td class="py-2 font-medium">{{ g.title }}</td>
-    <td class="py-2 text-right">
-      <button class="text-xs font-semibold hover:underline"
-              type="button"
-              onclick="Guides.openEdit({{ g.id }})">
-        Edit
-      </button>
-      <button class="text-xs font-semibold hover:underline text-rose-700 ml-2"
-              type="button"
-              onclick="Guides.remove({{ g.id }})">
-        Delete
-      </button>
-    </td>
-  </tr>
-  {% endfor %}
-</table>
+<div class="overflow-x-auto">
+  <table class="w-full text-sm">
+    <thead class="text-xs text-slate-500">
+      <tr class="border-b border-slate-200">
+        <th class="text-left py-2">Title</th>
+        <th class="text-left py-2">Property</th>
+        <th class="text-left py-2">Status</th>
+        <th class="text-right py-2">Actions</th>
+      </tr>
+    </thead>
 
+    <tbody>
+      {% for g in guides %}
+      <tr class="border-b border-slate-100" data-guide-row>
+        <td class="py-3 font-medium text-slate-800">
+          {{ g.title }}
+        </td>
+
+        <td class="py-3 text-slate-600">
+          {{ g.property_name }}
+        </td>
+
+        <td class="py-3">
+          <div class="flex items-center gap-2">
+            <input
+              type="checkbox"
+              class="h-5 w-5"
+              data-guide-active
+              data-guide-id="{{ g.id }}"
+              {% if g.is_active %}checked{% endif %}
+            />
+            <span
+              class="text-xs font-semibold {% if g.is_active %}text-emerald-700{% else %}text-slate-400{% endif %}"
+              data-guide-status-label
+            >
+              {% if g.is_active %}Active{% else %}Inactive{% endif %}
+            </span>
+          </div>
+        </td>
+
+        <td class="py-3 text-right">
+          <div class="flex items-center justify-end gap-4">
+            <button
+              type="button"
+              class="text-sm font-semibold text-slate-700 hover:underline"
+              data-guide-edit="{{ g.id }}"
+            >
+              Edit
+            </button>
+
+            <button
+              type="button"
+              class="text-sm font-semibold text-rose-700 hover:underline"
+              data-guide-delete="{{ g.id }}"
+            >
+              Delete
+            </button>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+
+      {% if not guides %}
+      <tr>
+        <td colspan="4" class="py-6 text-center text-slate-500">
+          No guides yet.
+        </td>
+      </tr>
+      {% endif %}
+    </tbody>
+  </table>
+</div>
