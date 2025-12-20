@@ -30,7 +30,7 @@ from models import PMC, Property, ChatSession, ChatMessage, PMCUser, Guide, Upgr
 
 from utils.pms_sync import sync_properties, sync_all_integrations
 from utils.emailer import send_invite_email, email_enabled
-
+from urllib.parse import urlparse
 from zoneinfo import ZoneInfo  # Python 3.9+
 
 
@@ -50,6 +50,10 @@ ESCALATE_HIGH_HEAT = int(os.getenv("ESCALATE_HIGH_HEAT", "85"))
 
 UPLOAD_DIR = Path("static/uploads/upgrades")
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+STATIC_DIR = Path("static")
+UPGRADES_UPLOAD_PREFIX = "/static/uploads/upgrades/"
+
 
 ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
 MAX_BYTES = 6 * 1024 * 1024  # 6MB
@@ -88,7 +92,42 @@ class UpdateTeamMemberPayload(BaseModel):
 class NotificationPrefsPayload(BaseModel):
     prefs: Dict[str, bool]
 
-    
+
+
+def delete_local_upgrade_image(image_url: str | None) -> None:
+    """
+    Deletes a previously uploaded upgrade image *only* if it's a local file
+    under /static/uploads/upgrades/.
+    Never touches external URLs.
+    """
+    if not image_url:
+        return
+
+    # only delete our own uploads
+    if not image_url.startswith(UPGRADES_UPLOAD_PREFIX):
+        return
+
+    # Map URL path -> filesystem path
+    # "/static/uploads/upgrades/abc.png" -> "static/uploads/upgrades/abc.png"
+    rel_path = image_url.lstrip("/")  # "static/uploads/upgrades/abc.png"
+    file_path = Path(rel_path)
+
+    # extra safety: ensure it stays inside static/uploads/upgrades
+    try:
+        resolved = file_path.resolve()
+        allowed_dir = (STATIC_DIR / "uploads" / "upgrades").resolve()
+        if allowed_dir not in resolved.parents:
+            return
+    except Exception:
+        return
+
+    if file_path.exists() and file_path.is_file():
+        try:
+            file_path.unlink()
+        except Exception:
+            # don't crash the request on delete failure
+            pass
+            
 # ----------------------------
 # Auth / scope helpers
 # ----------------------------
@@ -1353,61 +1392,87 @@ def dollars_to_cents(s: str) -> int:
 
 
 @router.post("/admin/upgrades/ajax/save")
-def upgrades_ajax_save(
-    request: Request,
-    db: Session = Depends(get_db),
-    id: Optional[int] = Form(None),
-    property_id: int = Form(...),
-    slug: str = Form(...),
-    title: str = Form(...),
-    short_description: Optional[str] = Form(None),
-    long_description: Optional[str] = Form(None),
-    price_dollars: str = Form("0.00"),
-    image_url: Optional[str] = Form(None),
-    is_active: Optional[str] = Form(None),
-):
-    require_property_in_scope(request, db, int(property_id))
+async def save_upgrade(request: Request):
+    form = await request.form()
 
-    if id:
-        u = db.query(Upgrade).filter(Upgrade.id == int(id)).first()
-        if not u:
-            return JSONResponse({"ok": False, "error": "Not found"}, status_code=404)
+    upgrade_id = (form.get("id") or "").strip() or None
+
+    # If user uploaded a new image, this will be set
+    tmp_key = (form.get("image_tmp_key") or "").strip() or None
+
+    # If user cleared image, image_url will be ""
+    incoming_image_url = (form.get("image_url") or "").strip() or None
+
+    # checkbox handling (IMPORTANT)
+    is_active = form.get("is_active") is not None
+
+    old_image_url = None
+    upgrade = None
+
+    # decide final new_image_url
+    new_image_url = incoming_image_url
+
+    # If a temp upload exists, finalize it (move into permanent)
+    if tmp_key:
+        # safety
+        if "/" in tmp_key or "\\" in tmp_key or ".." in tmp_key:
+            return {"ok": False, "error": "Invalid upload key."}
+
+        tmp_path = TMP_DIR / tmp_key
+        if not tmp_path.exists():
+            return {"ok": False, "error": "Uploaded image not found (expired)."}  # temp cleaned or missing
+
+        final_name = f"{uuid.uuid4().hex}{tmp_path.suffix.lower()}"
+        final_path = FINAL_DIR / final_name
+
+        shutil.move(str(tmp_path), str(final_path))
+        new_image_url = f"/static/uploads/upgrades/{final_name}"
+
+    # --- fetch / create ---
+    if upgrade_id:
+        upgrade = db.query(Upgrade).filter(Upgrade.id == int(upgrade_id)).first()
+        if not upgrade:
+            # if we already moved temp -> final, clean it to avoid orphan
+            if tmp_key and new_image_url and new_image_url.startswith("/static/uploads/upgrades/"):
+                delete_local_upgrade_image(new_image_url)
+            return {"ok": False, "error": "Upgrade not found."}
+
+        old_image_url = upgrade.image_url
+
+        upgrade.title = form.get("title")
+        upgrade.slug = form.get("slug")
+        upgrade.property_id = int(form.get("property_id"))
+        upgrade.image_url = new_image_url
+        upgrade.is_active = is_active
+        # ...price conversion...
+
     else:
-        u = Upgrade(property_id=int(property_id))
-
-    # Normalize slug
-    slug_clean = (slug or "").strip().lower()
-    u.slug = slug_clean
-
-    # ✅ Server-side uniqueness check (per property), ignore self on edit
-    dup_q = db.query(Upgrade).filter(
-        Upgrade.property_id == int(property_id),
-        sa.func.lower(Upgrade.slug) == slug_clean,
-    )
-    if id:
-        dup_q = dup_q.filter(Upgrade.id != int(id))
-    
-    if db.query(dup_q.exists()).scalar():
-        return JSONResponse(
-            {"ok": False, "error": "Slug must be unique per property"},
-            status_code=400,
+        upgrade = Upgrade(
+            title=form.get("title"),
+            slug=form.get("slug"),
+            property_id=int(form.get("property_id")),
+            image_url=new_image_url,
+            is_active=is_active,
+            # ...price...
         )
-    
-    u.title = title.strip()
-    u.short_description = (short_description or "").strip() or None
-    u.long_description = (long_description or "").strip() or None
+        db.add(upgrade)
 
-    # ✅ ONLY HERE
-    u.price_cents = dollars_to_cents(price_dollars)
-    u.image_url = (image_url or "").strip() or None
-    u.is_active = bool(is_active)
-    u.updated_at = datetime.utcnow()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
 
-    db.add(u)
-    db.commit()
+        # if we moved temp -> final but failed commit, delete it (prevents orphan)
+        if tmp_key and new_image_url and new_image_url.startswith("/static/uploads/upgrades/"):
+            delete_local_upgrade_image(new_image_url)
 
-    return {"ok": True, "id": u.id}
+        return {"ok": False, "error": "Save failed."}
 
+    # ✅ delete old image only after successful commit, and only if replaced/cleared
+    if old_image_url and old_image_url != new_image_url:
+        delete_local_upgrade_image(old_image_url)
+
+    return {"ok": True}
 
 
 
