@@ -53,10 +53,10 @@ ESCALATE_LOW_HEAT = int(os.getenv("ESCALATE_LOW_HEAT", "35"))
 ESCALATE_MEDIUM_HEAT = int(os.getenv("ESCALATE_MEDIUM_HEAT", "60"))
 ESCALATE_HIGH_HEAT = int(os.getenv("ESCALATE_HIGH_HEAT", "85"))
 
-UPLOAD_DIR = Path("static/uploads/upgrades")
-UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
-TMP_DIR = Path("static/uploads/upgrades/tmp")
+UPLOAD_DIR = Path("static/uploads/upgrades")           # permanent
+TMP_DIR = Path("static/uploads/upgrades/tmp")          # temp
+
 TMP_URL_PREFIX = "/static/uploads/upgrades/tmp"
 
 ALLOWED_EXTS = {".png", ".jpg", ".jpeg", ".webp", ".gif"}
@@ -114,40 +114,27 @@ class NotificationPrefsPayload(BaseModel):
 
 
 
-def delete_local_upgrade_image(image_url: str | None) -> None:
+def delete_local_upgrade_image(image_url: str) -> None:
     """
-    Deletes a previously uploaded upgrade image *only* if it's a local file
-    under /static/uploads/upgrades/.
-    Never touches external URLs.
+    image_url expected like: /static/uploads/upgrades/<filename>
+    ignores external urls.
     """
     if not image_url:
         return
-
-    # only delete our own uploads
-    if not image_url.startswith(UPGRADES_UPLOAD_PREFIX):
+    if image_url.startswith("http://") or image_url.startswith("https://"):
+        return
+    if not image_url.startswith("/static/uploads/upgrades/"):
         return
 
-    # Map URL path -> filesystem path
-    # "/static/uploads/upgrades/abc.png" -> "static/uploads/upgrades/abc.png"
-    rel_path = image_url.lstrip("/")  # "static/uploads/upgrades/abc.png"
-    file_path = Path(rel_path)
-
-    # extra safety: ensure it stays inside static/uploads/upgrades
+    rel = image_url.lstrip("/")  # "static/uploads/..."
+    p = Path(rel)
     try:
-        resolved = file_path.resolve()
-        allowed_dir = (STATIC_DIR / "uploads" / "upgrades").resolve()
-        if allowed_dir not in resolved.parents:
-            return
+        if p.exists() and p.is_file():
+            p.unlink()
     except Exception:
-        return
+        pass
 
-    if file_path.exists() and file_path.is_file():
-        try:
-            file_path.unlink()
-        except Exception:
-            # don't crash the request on delete failure
-            pass
-            
+
 # ----------------------------
 # Auth / scope helpers
 # ----------------------------
@@ -1467,12 +1454,6 @@ def dollars_to_cents(s: str) -> int:
 # routes/admin.py
 
 
-
-# You must already have these helpers somewhere (or add them):
-# - finalize_tmp_upgrade_image(tmp_key) -> returns final_url (string)
-# - delete_local_upgrade_image(image_url) -> deletes file if local
-# - is_local_upgrade_image(image_url) -> bool (optional safety)
-
 @router.post("/admin/upgrades/ajax/save")
 async def save_upgrade(request: Request, db: Session = Depends(get_db)):
     form = await request.form()
@@ -1480,82 +1461,89 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
     upgrade_id_raw = (form.get("id") or "").strip()
     upgrade_id = int(upgrade_id_raw) if upgrade_id_raw.isdigit() else None
 
-    # Existing saved image_url (if any). We'll update this after finalize.
-    incoming_image_url = (form.get("image_url") or "").strip() or None
-
-    # If you use tmp-key uploads, this is what the upload endpoint returns
-    tmp_key = (form.get("image_tmp_key") or "").strip() or None
-
     title = (form.get("title") or "").strip()
     slug = (form.get("slug") or "").strip()
-    property_id = int(form.get("property_id"))
+    property_id_raw = (form.get("property_id") or "").strip()
     long_description = (form.get("long_description") or "").strip() or None
 
-    # checkbox: present => "true", absent => None
+    # checkbox: present => True, missing => False
     is_active = form.get("is_active") is not None
 
-    # price dollars -> cents
-    price_dollars_raw = (form.get("price_dollars") or "0").strip()
+    # dollars -> cents
+    price_raw = (form.get("price_dollars") or "0").strip()
     try:
-        price_cents = int(round(float(price_dollars_raw) * 100))
+        price_cents = int(round(float(price_raw) * 100))
         if price_cents < 0:
             price_cents = 0
     except Exception:
         return JSONResponse({"ok": False, "error": "Invalid price."}, status_code=400)
 
-    upgrade = None
+    if not title or not slug:
+        return JSONResponse({"ok": False, "error": "Title and slug are required."}, status_code=400)
+
+    if not property_id_raw.isdigit():
+        return JSONResponse({"ok": False, "error": "Property is required."}, status_code=400)
+
+    property_id = int(property_id_raw)
+
+    # image handling
+    current_image_url = (form.get("image_url") or "").strip() or None
+    tmp_key = (form.get("image_tmp_key") or "").strip() or None
+
+    new_image_url = current_image_url
+
+    # move tmp -> permanent if tmp_key is present
+    if tmp_key:
+        tmp_path = TMP_DIR / tmp_key
+        if tmp_path.exists() and tmp_path.is_file():
+            UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+            dest_path = UPLOAD_DIR / tmp_key
+            shutil.move(str(tmp_path), str(dest_path))
+            new_image_url = f"/static/uploads/upgrades/{tmp_key}"
+        else:
+            return JSONResponse({"ok": False, "error": "Uploaded image not found. Please upload again."}, status_code=400)
+
     old_image_url = None
 
+    # fetch / create
     if upgrade_id:
         upgrade = db.query(Upgrade).filter(Upgrade.id == upgrade_id).first()
         if not upgrade:
             return JSONResponse({"ok": False, "error": "Upgrade not found."}, status_code=404)
-        old_image_url = (upgrade.image_url or "").strip() or None
+
+        old_image_url = (getattr(upgrade, "image_url", None) or "").strip() or None
+
+        upgrade.title = title
+        upgrade.slug = slug
+        upgrade.property_id = property_id
+        upgrade.long_description = long_description
+        upgrade.price_cents = price_cents
+        upgrade.is_active = is_active
+        upgrade.image_url = new_image_url
+
     else:
-        upgrade = Upgrade()
+        upgrade = Upgrade(
+            title=title,
+            slug=slug,
+            property_id=property_id,
+            long_description=long_description,
+            price_cents=price_cents,
+            is_active=is_active,
+            image_url=new_image_url,
+        )
         db.add(upgrade)
-
-    # ---- FINALIZE IMAGE (if tmp_key provided) ----
-    # If user uploaded a new image, finalize it and use that as new image_url.
-    # Otherwise keep whatever is currently stored / posted.
-    new_image_url = incoming_image_url
-
-    if tmp_key:
-        try:
-            # This should move temp file to permanent location and return the final URL/path
-            new_image_url = finalize_tmp_upgrade_image(tmp_key)
-        except Exception as e:
-            print("[UPGRADE IMAGE FINALIZE ERROR]", e)
-            return JSONResponse({"ok": False, "error": "Image upload finalize failed."}, status_code=500)
-
-    # ---- UPDATE FIELDS ----
-    upgrade.title = title
-    upgrade.slug = slug
-    upgrade.property_id = property_id
-    upgrade.price_cents = price_cents
-    upgrade.is_active = is_active
-    upgrade.long_description = long_description
-    upgrade.image_url = new_image_url
 
     try:
         db.commit()
-    except Exception as e:
+    except Exception:
         db.rollback()
-        print("[UPGRADE SAVE ERROR]", e)
         return JSONResponse({"ok": False, "error": "Save failed."}, status_code=500)
 
-    # ---- DELETE OLD IMAGE (only after commit) ----
-    # Delete if: (1) old exists, (2) it changed, (3) old is local (safety)
-    try:
-        if old_image_url and old_image_url != new_image_url:
-            delete_local_upgrade_image(old_image_url)
-    except Exception as e:
-        # Don't fail the request if cleanup fails
-        print("[UPGRADE OLD IMAGE DELETE WARN]", e)
+    # delete orphan old image AFTER successful commit (only if replaced or cleared)
+    if old_image_url and old_image_url != new_image_url:
+        delete_local_upgrade_image(old_image_url)
 
     return {"ok": True}
-
-
 
 
 @router.post("/admin/upgrades/ajax/toggle-active")
