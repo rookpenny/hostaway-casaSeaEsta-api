@@ -1371,7 +1371,7 @@ window.Upgrades = {
 
 
    // Upgrade image upload (delegated — works for AJAX-loaded form)
-document.addEventListener("change", async (e) => {
+/*document.addEventListener("change", async (e) => {
   const input = e.target;
   if (!(input instanceof HTMLInputElement)) return;
   if (!input.matches("[data-upgrade-image-file]")) return;
@@ -1426,7 +1426,7 @@ document.addEventListener("change", async (e) => {
     // allow re-uploading same file
     input.value = "";
   }
-});
+});*/
 
 // Upload image (delegated) — works after partial loads
 document.addEventListener("click", async (e) => {
@@ -1549,13 +1549,16 @@ document.addEventListener("click", async (e) => {
 
   // Upgrades: delegated events (ONLY ONCE)
   document.addEventListener("click", (e) => {
-    const editBtn = e.target.closest("[data-upgrade-edit]");
-    if (editBtn) {
-      Upgrades.openEditor(editBtn.getAttribute("data-upgrade-edit"));
-      return;
-    }
-  });
+  const editBtn = e.target.closest("[data-upgrade-edit]");
+  if (!editBtn) return;
 
+  const id = (editBtn.getAttribute("data-upgrade-edit") || "").trim();
+  if (!id || id === "None" || id === "null" || id === "undefined") return;
+
+  Upgrades.openEditor(id);
+});
+
+/*
    // Upgrade image upload (delegated)
 document.addEventListener("change", async (e) => {
   const input = e.target;
@@ -1610,7 +1613,7 @@ document.addEventListener("change", async (e) => {
     input.value = "";
   }
 });
-
+*/
 
   document.addEventListener("change", async (e) => {
     const el = e.target;
