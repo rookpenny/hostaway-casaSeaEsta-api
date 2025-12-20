@@ -1652,16 +1652,50 @@ document.addEventListener("click", async (e) => {
 });
 
 
-  // Upgrades: delegated events (ONLY ONCE)
-  document.addEventListener("click", (e) => {
+// Upgrades: delegated events (ONLY ONCE)
+document.addEventListener("click", async (e) => {
+  // Edit
   const editBtn = e.target.closest("[data-upgrade-edit]");
-  if (!editBtn) return;
+  if (editBtn) {
+    const id = (editBtn.getAttribute("data-upgrade-edit") || "").trim();
+    if (!id || id === "None" || id === "null" || id === "undefined") return;
+    Upgrades.openEditor(id);
+    return;
+  }
 
-  const id = (editBtn.getAttribute("data-upgrade-edit") || "").trim();
+  // Delete
+  const delBtn = e.target.closest("[data-upgrade-delete]");
+  if (!delBtn) return;
+
+  if (window.CONTENT_LOCKED) {
+    toast("Complete payment to unlock Upgrades.");
+    return;
+  }
+
+  const id = (delBtn.getAttribute("data-upgrade-delete") || "").trim();
   if (!id || id === "None" || id === "null" || id === "undefined") return;
 
-  Upgrades.openEditor(id);
+  if (!confirm("Delete this upgrade?")) return;
+
+  try {
+    const { res, data } = await apiJson(`/admin/upgrades/ajax/delete?id=${encodeURIComponent(id)}`, {
+      method: "POST",
+    });
+
+    if (!res.ok || !data.ok) {
+      toast(data.error || data.detail || "Delete failed.");
+      return;
+    }
+
+    toast("Upgrade deleted");
+    await Upgrades.refresh();
+    Upgrades.closeEditor();
+  } catch (err) {
+    console.error(err);
+    toast("Delete failed.");
+  }
 });
+
 
 /*
    // Upgrade image upload (delegated)
