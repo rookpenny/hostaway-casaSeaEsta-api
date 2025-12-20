@@ -1231,6 +1231,78 @@
     }
   };
 
+
+   document.addEventListener("click", (e) => {
+  const editBtn = e.target.closest("[data-guide-edit]");
+  if (editBtn) {
+    const id = (editBtn.getAttribute("data-guide-edit") || "").trim();
+    if (id) Guides.openEdit(id);
+    return;
+  }
+
+  const delBtn = e.target.closest("[data-guide-delete]");
+  if (delBtn) {
+    const id = (delBtn.getAttribute("data-guide-delete") || "").trim();
+    if (id) Guides.remove(id);
+    return;
+  }
+});
+
+   document.addEventListener("change", async (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement)) return;
+  if (!el.matches("[data-guide-active]")) return;
+
+  if (window.CONTENT_LOCKED) {
+    toast("Complete payment to unlock Guides.");
+    el.checked = !el.checked;
+    return;
+  }
+
+  const id = el.dataset.guideId;
+  const checked = el.checked;
+
+  const row = el.closest("[data-guide-row]");
+  const label = row?.querySelector("[data-guide-status-label]");
+
+  if (label) {
+    label.textContent = checked ? "Active" : "Inactive";
+    label.className =
+      "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
+  }
+
+  try {
+    const { res, data } = await apiJson("/admin/guides/ajax/toggle-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, is_active: checked }),
+    });
+
+    if (!res.ok || !data.ok) {
+      toast(data.error || "Failed to update.");
+      el.checked = !checked;
+
+      if (label) {
+        const reverted = el.checked;
+        label.textContent = reverted ? "Active" : "Inactive";
+        label.className =
+          "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
+      }
+    }
+  } catch (err) {
+    toast("Failed to update.");
+    el.checked = !checked;
+
+    if (label) {
+      const reverted = el.checked;
+      label.textContent = reverted ? "Active" : "Inactive";
+      label.className =
+        "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
+    }
+  }
+});
+
+
   // ----------------------------
 // Upgrades (single definition + resilient AJAX handling)
 // ----------------------------
