@@ -1797,6 +1797,8 @@ document.addEventListener("change", async (e) => {
     if (r.status === 401 || r.status === 403) return loginRedirect();
     const target = document.getElementById(targetId);
     if (target) target.innerHTML = await r.text();
+
+     initAllReorderTables();
   }
 
   window.Guides = {
@@ -2144,6 +2146,60 @@ document.addEventListener("change", async (e) => {
     initTeamSettings();
     showSettingsPanel(getSettingsTabFromHash());
   }
+
+   function initReorderForTable(rootEl) {
+  if (!rootEl || !window.Sortable) return;
+
+  const tbody = rootEl.querySelector("[data-reorder-body]");
+  if (!tbody) return;
+
+  // Prevent double init on the same tbody
+  if (tbody._sortable) return;
+
+  const kind = rootEl.getAttribute("data-list-kind") || "";
+
+  tbody._sortable = new Sortable(tbody, {
+    animation: 150,
+    handle: "[data-reorder-handle]",
+    draggable: "tr",
+
+    onEnd: async () => {
+      const ids = Array.from(tbody.querySelectorAll("tr[data-id]"))
+        .map((tr) => tr.getAttribute("data-id"))
+        .filter(Boolean);
+
+      // If your ordering is per-property, include currently selected property filter:
+      const propertyId =
+        (kind === "guides"
+          ? document.getElementById("guidesPropertyFilter")?.value
+          : document.getElementById("upgradesPropertyFilter")?.value) || "";
+
+      try {
+        const url =
+          kind === "guides"
+            ? "/admin/guides/ajax/reorder"
+            : "/admin/upgrades/ajax/reorder";
+
+        const { res, data } = await apiJson(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ property_id: propertyId, order: ids }),
+        });
+
+        if (!res.ok || !data.ok) {
+          toast(data.error || "Failed to save order.");
+        }
+      } catch (e) {
+        toast("Failed to save order.");
+      }
+    },
+  });
+}
+
+function initAllReorderTables() {
+  document.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
+}
+
 
   // ----------------------------
   // Main view routing (left nav)
