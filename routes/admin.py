@@ -173,16 +173,24 @@ def is_super_admin(email: Optional[str]) -> bool:
     # fallback (set ADMIN_EMAILS in env and remove this once stable)
     return email.lower() in {"corbett.jarrod@gmail.com"}
 
-def (tmp_key: str) -> None:
+def delete_temp_upgrade_image(tmp_key: str) -> None:
     """
-    Delete a tmp image by key (filename only).
+    Deletes a temp upgrade image safely.
+    tmp_key should be a filename only (no paths).
     """
-    tmp_key = (tmp_key or "").strip()
     if not tmp_key:
         return
-    # filename-only safety
-    tmp_key = Path(tmp_key).name
-    _safe_unlink(TMP_DIR / tmp_key)
+
+    # Prevent path traversal
+    safe_key = Path(tmp_key).name
+    path = TMP_DIR / safe_key
+
+    try:
+        if path.exists() and path.is_file():
+            path.unlink()
+    except Exception as e:
+        print("[delete_temp_upgrade_image] failed:", e)
+
 
 @router.post("/admin/upgrades/ajax/delete-temp-image")
 async def upgrades_delete_temp_image(payload: dict):
@@ -243,23 +251,6 @@ def get_user_role_and_scope(request: Request, db: Session):
 
     return "pmc", pmc, pmc_user, billing_status, needs_payment
 
-def delete_temp_upgrade_image(tmp_key: str) -> None:
-    """
-    Deletes a temp upgrade image safely.
-    tmp_key should be a filename only (no paths).
-    """
-    if not tmp_key:
-        return
-
-    # Prevent path traversal
-    safe_key = Path(tmp_key).name
-    path = TMP_DIR / safe_key
-
-    try:
-        if path.exists() and path.is_file():
-            path.unlink()
-    except Exception as e:
-        print("[delete_temp_upgrade_image] failed:", e)
 
 
 @router.get("/admin/settings/team/table", response_class=HTMLResponse)
