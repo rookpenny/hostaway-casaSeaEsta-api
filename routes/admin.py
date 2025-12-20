@@ -1201,16 +1201,36 @@ def guides_partial_list(
 ):
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
 
-    q = db.query(Guide).join(Property, Guide.property_id == Property.id)
+    q = (
+        db.query(Guide, Property)
+        .join(Property, Guide.property_id == Property.id)
+    )
+
     if user_role == "pmc":
         require_pmc_linked(user_role, pmc_obj)
         q = q.filter(Property.pmc_id == pmc_obj.id)
 
-    if property_id:
+    if property_id is not None:
         q = q.filter(Guide.property_id == int(property_id))
 
     guides = q.order_by(Guide.sort_order.asc(), Guide.updated_at.desc()).all()
-    return templates.TemplateResponse("admin/_guides_list.html", {"request": request, "guides": guides})
+
+    rows = [
+        {
+            "id": g.id,
+            "title": g.title,
+            "property_id": g.property_id,
+            "property_name": p.property_name,
+            "is_active": g.is_active,
+            "updated_at": g.updated_at,
+        }
+        for (g, p) in guides
+    ]
+
+    return templates.TemplateResponse(
+        "admin/_guides_list.html",
+        {"request": request, "guides": rows},
+    )
 
 
 @router.get("/admin/guides/partial/form", response_class=HTMLResponse)
