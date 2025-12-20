@@ -1397,6 +1397,62 @@ document.addEventListener("change", async (e) => {
     }
   });
 
+   // Upgrade image upload (delegated)
+document.addEventListener("change", async (e) => {
+  const input = e.target;
+  if (!(input instanceof HTMLInputElement)) return;
+  if (!input.matches("[data-upgrade-image-file]")) return;
+
+  if (IS_LOCKED) {
+    toast("Complete payment to unlock Upgrades.");
+    input.value = "";
+    return;
+  }
+
+  const file = input.files?.[0];
+  if (!file) return;
+
+  const editor = input.closest("#upgrades-editor-body") || document;
+  const hiddenUrl = editor.querySelector("[data-upgrade-image-url]");
+  const preview = editor.querySelector("[data-upgrade-image-preview]");
+  const upgradeId = editor.querySelector('input[name="id"]')?.value || "";
+
+  try {
+    toast("Uploading image…");
+
+    const fd = new FormData();
+    fd.append("file", file);
+    if (upgradeId) fd.append("upgrade_id", upgradeId);
+
+    const res = await fetch("/admin/upgrades/ajax/upload-image", {
+      method: "POST",
+      credentials: "include",
+      body: fd,
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok || !data.url) {
+      toast(data.error || "Upload failed.");
+      return;
+    }
+
+    if (hiddenUrl) hiddenUrl.value = data.url;
+
+    if (preview) {
+      preview.src = data.url;
+      preview.classList.remove("hidden");
+    }
+
+    toast("Image uploaded ✓");
+  } catch (err) {
+    console.error(err);
+    toast("Upload failed.");
+  } finally {
+    input.value = "";
+  }
+});
+
+
   document.addEventListener("change", async (e) => {
     const el = e.target;
     if (!(el instanceof HTMLInputElement)) return;
