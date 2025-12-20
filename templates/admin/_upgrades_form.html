@@ -2,7 +2,7 @@
 <form onsubmit="event.preventDefault(); Upgrades.submit(this);" class="space-y-3">
   <input type="hidden" name="id" value="{{ upgrade.id if upgrade else '' }}">
 
-  <!-- Existing DB field: what ultimately gets saved -->
+  <!-- Persisted DB field -->
   <input
     type="hidden"
     name="image_url"
@@ -10,15 +10,9 @@
     data-upgrade-image-url
   />
 
-  <!-- Temp upload key (server returns this from /admin/upgrades/ajax/upload-image) -->
-  <input
-    type="hidden"
-    name="image_tmp_key"
-    value=""
-    data-upgrade-image-tmp-key
-  />
+  <!-- Temp upload key (returned by /admin/upgrades/ajax/upload-image) -->
+  <input type="hidden" name="image_tmp_key" value="" data-upgrade-image-tmp-key />
 
-  <!-- Property -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Property</label>
     <select
@@ -34,7 +28,6 @@
     </select>
   </div>
 
-  <!-- Slug -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Slug</label>
     <input
@@ -48,7 +41,6 @@
     </div>
   </div>
 
-  <!-- Title -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Title</label>
     <input
@@ -59,16 +51,15 @@
     />
   </div>
 
-  <!-- Long description -->
+  <!-- ✅ Long description -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Long description</label>
     <textarea
       name="long_description"
       rows="5"
-      placeholder="Describe what the guest gets, any rules, timing, how to request it, etc."
-      class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white resize-y"
-    >{{ upgrade.long_description if (upgrade and upgrade.long_description) else '' }}</textarea>
-    <div class="mt-1 text-xs text-slate-500">Shown in the guest UI / upsell details.</div>
+      class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"
+      placeholder="Shown in the upgrade details / guest UI..."
+    >{{ upgrade.long_description if upgrade and upgrade.long_description else '' }}</textarea>
   </div>
 
   <!-- Image upload -->
@@ -76,9 +67,7 @@
     <label class="text-xs font-semibold text-slate-600">Image</label>
 
     <div class="mt-2 flex items-center gap-2 flex-wrap">
-      <label
-        class="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold grid place-items-center cursor-pointer"
-      >
+      <label class="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold grid place-items-center cursor-pointer">
         Choose image
         <input type="file" accept="image/*" class="hidden" data-upgrade-image-file />
       </label>
@@ -102,7 +91,6 @@
       <div class="text-xs text-slate-500">PNG/JPG/WebP recommended.</div>
     </div>
 
-    <!-- Preview -->
     <img
       data-upgrade-image-preview
       src="{{ upgrade.image_url if (upgrade and upgrade.image_url) else '' }}"
@@ -114,7 +102,6 @@
     <div class="mt-1 text-xs text-slate-500">Used in guest UI / upsell cards.</div>
   </div>
 
-  <!-- Price -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Price (USD)</label>
     <input
@@ -127,32 +114,17 @@
     />
   </div>
 
-  <!-- Active -->
   <div class="flex items-center gap-2">
-    <input
-      type="checkbox"
-      name="is_active"
-      value="true"
-      class="h-4 w-4"
-      {% if upgrade and upgrade.is_active %}checked{% endif %}
-    />
+    <input type="checkbox" name="is_active" value="true" {% if upgrade and upgrade.is_active %}checked{% endif %} />
     <span class="text-sm">Active</span>
   </div>
 
-  <!-- Actions -->
   <div class="flex justify-end gap-2 pt-2">
-    <button
-      type="button"
-      onclick="Upgrades.closeEditor()"
-      class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm"
-    >
+    <button type="button" onclick="Upgrades.closeEditor()" class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm">
       Cancel
     </button>
 
-    <button
-      type="submit"
-      class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
-    >
+    <button type="submit" class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
       Save Upgrade
     </button>
   </div>
