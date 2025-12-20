@@ -1387,6 +1387,104 @@ document.addEventListener("change", async (e) => {
   }
 });
 
+// Upload image (delegated) — works after partial loads
+document.addEventListener("click", async (e) => {
+  const uploadBtn = e.target.closest("[data-upgrade-image-upload]");
+  if (!uploadBtn) return;
+
+  const form = uploadBtn.closest("form");
+  if (!form) return;
+
+  const fileInput = form.querySelector("[data-upgrade-image-file]");
+  const preview = form.querySelector("[data-upgrade-image-preview]");
+  const imageUrlInput = form.querySelector('input[name="image_url"]');
+  const tmpKeyInput = form.querySelector('input[name="image_tmp_key"]');
+
+  const file = fileInput?.files?.[0];
+  if (!file) return toast("Choose an image first.");
+
+  const fd = new FormData();
+  fd.append("file", file);
+
+  // pass upgrade id if editing (optional but useful for replacing temp)
+  const upgradeId = (form.querySelector('input[name="id"]')?.value || "").trim();
+  if (upgradeId) fd.append("upgrade_id", upgradeId);
+
+  uploadBtn.disabled = true;
+  const original = uploadBtn.textContent;
+  uploadBtn.textContent = "Uploading…";
+
+  try {
+    const res = await fetch("/admin/upgrades/ajax/upload-image", {
+      method: "POST",
+      credentials: "include",
+      body: fd,
+    });
+
+    if (res.status === 401 || res.status === 403) return loginRedirect();
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) {
+      toast(data.error || "Upload failed.");
+      return;
+    }
+
+    // set hidden fields
+    if (tmpKeyInput) tmpKeyInput.value = data.tmp_key || "";
+    if (imageUrlInput) imageUrlInput.value = data.preview_url || "";
+
+    // preview
+    if (preview) {
+      preview.src = data.preview_url || "";
+      preview.classList.toggle("hidden", !data.preview_url);
+    }
+
+    toast("Image uploaded.");
+  } catch (err) {
+    console.error(err);
+    toast("Upload failed.");
+  } finally {
+    uploadBtn.disabled = false;
+    uploadBtn.textContent = original;
+  }
+});
+
+// Remove image (delegated)
+document.addEventListener("click", async (e) => {
+  const clearBtn = e.target.closest("[data-upgrade-image-clear]");
+  if (!clearBtn) return;
+
+  const form = clearBtn.closest("form");
+  if (!form) return;
+
+  const preview = form.querySelector("[data-upgrade-image-preview]");
+  const imageUrlInput = form.querySelector('input[name="image_url"]');
+  const tmpKeyInput = form.querySelector('input[name="image_tmp_key"]');
+
+  // If they uploaded a temp image and then remove it before save,
+  // we should delete that temp image immediately.
+  const tmpKey = (tmpKeyInput?.value || "").trim();
+  if (tmpKey) {
+    try {
+      await fetch("/admin/upgrades/ajax/delete-temp-image", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tmp_key: tmpKey }),
+      });
+    } catch {}
+  }
+
+  if (tmpKeyInput) tmpKeyInput.value = "";
+  if (imageUrlInput) imageUrlInput.value = ""; // signals “clear image on save”
+
+  if (preview) {
+    preview.src = "";
+    preview.classList.add("hidden");
+  }
+
+  toast("Image removed (save to apply).");
+});
 
   // Upgrades: delegated events (ONLY ONCE)
   document.addEventListener("click", (e) => {
