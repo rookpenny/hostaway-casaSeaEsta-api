@@ -1345,7 +1345,6 @@ async def upload_upgrade_image(
         "preview_url": f"{TMP_URL_PREFIX}/{tmp_key}",
     }
 
-
 @router.get("/admin/upgrades/partial/list", response_class=HTMLResponse)
 def upgrades_partial_list(
     request: Request,
@@ -1354,29 +1353,41 @@ def upgrades_partial_list(
 ):
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
 
-    q = db.query(Upgrade, Property).join(Property, Upgrade.property_id == Property.id)
+    q = (
+        db.query(Upgrade, Property)
+        .join(Property, Upgrade.property_id == Property.id)
+    )
+
     if user_role == "pmc":
         require_pmc_linked(user_role, pmc_obj)
         q = q.filter(Property.pmc_id == pmc_obj.id)
 
-    if property_id:
+    if property_id is not None:
         q = q.filter(Upgrade.property_id == int(property_id))
 
-    upgrades = q.order_by(Upgrade.sort_order.asc(), Upgrade.updated_at.desc()).all()
-    rows = []
-    for u, p in upgrades:
-        rows.append({
+    upgrades = (
+        q.order_by(Upgrade.sort_order.asc(), Upgrade.updated_at.desc())
+        .all()
+    )
+
+    rows = [
+        {
             "id": u.id,
             "title": u.title,
             "slug": u.slug,
             "property_id": u.property_id,
-            "property_name": p.property_name,
+            "property_name": p.property_name,  # ✅ this is what your table should display
             "price_cents": u.price_cents,
             "is_active": u.is_active,
             "image_url": getattr(u, "image_url", None),
-        })
-    
-    return templates.TemplateResponse("admin/_upgrades_list.html", {"request": request, "upgrades": rows})
+        }
+        for (u, p) in upgrades
+    ]
+
+    return templates.TemplateResponse(
+        "admin/_upgrades_list.html",
+        {"request": request, "upgrades": rows},
+    )
 
 @router.post("/admin/upgrades/ajax/toggle-active")
 def upgrades_ajax_toggle_active(
