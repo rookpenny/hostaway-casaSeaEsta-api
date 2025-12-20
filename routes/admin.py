@@ -72,22 +72,15 @@ TMP_DIR.mkdir(parents=True, exist_ok=True)
 FINAL_DIR.mkdir(parents=True, exist_ok=True)
 
 
-ALLOWED_EXTS = {".jpg", ".jpeg", ".png", ".webp"}
-MAX_BYTES = 6 * 1024 * 1024  # 6MB
-
-
-
-router = APIRouter()
-
 # ----------------------------
 # DB dependency
 # ----------------------------
-def get_db():
-    db = SessionLocal()
-    try:
-        yield db
-    finally:
-        db.close()
+#def get_db():
+#    db = SessionLocal()
+#    try:
+#        yield db
+#    finally:
+#        db.close()
 
 
 
