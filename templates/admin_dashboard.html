@@ -1370,6 +1370,29 @@ window.Upgrades = {
 };
 
 
+   document.addEventListener("input", (e) => {
+  const titleInput = e.target;
+  if (!(titleInput instanceof HTMLInputElement)) return;
+  if (!titleInput.matches('input[name="title"]')) return;
+
+  const form = titleInput.closest("form");
+  if (!form) return;
+
+  const slugInput = form.querySelector('[data-upgrade-slug]');
+  if (!slugInput) return;
+
+  // Only auto-generate if slug is empty (don’t overwrite existing edits)
+  if (slugInput.value) return;
+
+  slugInput.value = titleInput.value
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9\s-]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/-+/g, "-");
+});
+
+
    // Upgrade image upload (delegated — works for AJAX-loaded form)
 /*document.addEventListener("change", async (e) => {
   const input = e.target;
