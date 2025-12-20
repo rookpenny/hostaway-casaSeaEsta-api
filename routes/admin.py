@@ -1620,7 +1620,7 @@ async def save_upgrade(request: Request, db: Session = Depends(get_db)):
 
     return {"ok": True, "id": int(upgrade.id)}
 
-
+'''
 @router.post("/admin/upgrades/ajax/toggle-active")
 def upgrades_toggle_active(
     request: Request,
@@ -1638,7 +1638,7 @@ def upgrades_toggle_active(
     db.commit()
     return {"ok": True, "is_active": u.is_active}
 
-
+'''
 @router.post("/admin/upgrades/ajax/delete")
 def upgrades_ajax_delete(request: Request, db: Session = Depends(get_db), id: int = Query(...)):
     u = db.query(Upgrade).filter(Upgrade.id == int(id)).first()
