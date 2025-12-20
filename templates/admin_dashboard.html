@@ -2224,7 +2224,8 @@ document.addEventListener("change", async (e) => {
   // Prevent double init on the same tbody
   if (tbody._sortable) return;
 
-  const kind = rootEl.getAttribute("data-list-kind") || "";
+  const kind = (rootEl.getAttribute("data-list-kind") || "").trim(); // "guides" or "upgrades"
+  if (!kind) return;
 
   tbody._sortable = new Sortable(tbody, {
     animation: 150,
@@ -2232,54 +2233,55 @@ document.addEventListener("change", async (e) => {
     draggable: "tr",
 
     onEnd: async () => {
-      // rows are like: data-guides-row="ID" or data-upgrades-row="ID"
       const rowAttr = `data-${kind}-row`;
-    
+
       const ids = Array.from(tbody.querySelectorAll(`tr[${rowAttr}]`))
-        .map((tr) => tr.getAttribute(rowAttr))
+        .map((tr) => (tr.getAttribute(rowAttr) || "").trim())
         .filter(Boolean);
-    
-      // selected property filter
-      const propertyIdRaw =
-        (kind === "guides"
-          ? document.getElementById("guidesPropertyFilter")?.value
-          : document.getElementById("upgradesPropertyFilter")?.value) || "";
-    
-      // IMPORTANT: avoid sending "" (empty string) to FastAPI int parser
-      const propertyId = propertyIdRaw ? Number(propertyIdRaw) : null;
-    
-      // IMPORTANT: send numeric IDs if your backend expects ints
-      const order = ids.map((x) => Number(x)).filter((n) => Number.isFinite(n));
-    
+
+      const order = ids
+        .map((x) => Number(x))
+        .filter((n) => Number.isFinite(n));
+
       if (!order.length) {
         toast("Could not determine new order.");
         return;
       }
-    
+
+      const propertyIdRaw =
+        (kind === "guides"
+          ? document.getElementById("guidesPropertyFilter")?.value
+          : document.getElementById("upgradesPropertyFilter")?.value) || "";
+
+      // Build payload safely (DON'T send null/"" to FastAPI int parser)
+      const payload = { order };
+      if (propertyIdRaw) payload.property_id = Number(propertyIdRaw);
+
+      const url =
+        kind === "guides"
+          ? "/admin/guides/ajax/reorder"
+          : "/admin/upgrades/ajax/reorder";
+
       try {
-        const url =
-          kind === "guides"
-            ? "/admin/guides/ajax/reorder"
-            : "/admin/upgrades/ajax/reorder";
-    
         const { res, data } = await apiJson(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ property_id: propertyId, order }),
+          body: JSON.stringify(payload),
         });
-    
-        if (!res.ok || !data.ok) toast(data.error || "Failed to save order.");
+
+        if (!res.ok || !data.ok) toast(data?.error || "Failed to save order.");
       } catch (e) {
+        console.error("reorder error:", e);
         toast("Failed to save order.");
       }
     },
-
   });
 }
 
 function initAllReorderTables() {
-  document.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
+  document.querySelectorAll("table[data-list-kind]").forEach(initReorderForTable);
 }
+
 
 
   // ----------------------------
