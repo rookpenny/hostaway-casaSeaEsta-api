@@ -2,7 +2,7 @@
 <form onsubmit="event.preventDefault(); Upgrades.submit(this);" class="space-y-3">
   <input type="hidden" name="id" value="{{ upgrade.id if upgrade else '' }}">
 
-  <!-- Existing DB field: what gets saved -->
+  <!-- Existing DB field: what ultimately gets saved -->
   <input
     type="hidden"
     name="image_url"
@@ -18,6 +18,7 @@
     data-upgrade-image-tmp-key
   />
 
+  <!-- Property -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Property</label>
     <select
@@ -33,6 +34,7 @@
     </select>
   </div>
 
+  <!-- Slug -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Slug</label>
     <input
@@ -46,6 +48,7 @@
     </div>
   </div>
 
+  <!-- Title -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Title</label>
     <input
@@ -54,6 +57,18 @@
       value="{{ upgrade.title if upgrade else '' }}"
       class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm"
     />
+  </div>
+
+  <!-- Long description -->
+  <div>
+    <label class="text-xs font-semibold text-slate-600">Long description</label>
+    <textarea
+      name="long_description"
+      rows="5"
+      placeholder="Describe what the guest gets, any rules, timing, how to request it, etc."
+      class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm bg-white resize-y"
+    >{{ upgrade.long_description if (upgrade and upgrade.long_description) else '' }}</textarea>
+    <div class="mt-1 text-xs text-slate-500">Shown in the guest UI / upsell details.</div>
   </div>
 
   <!-- Image upload -->
@@ -99,6 +114,7 @@
     <div class="mt-1 text-xs text-slate-500">Used in guest UI / upsell cards.</div>
   </div>
 
+  <!-- Price -->
   <div>
     <label class="text-xs font-semibold text-slate-600">Price (USD)</label>
     <input
@@ -111,16 +127,19 @@
     />
   </div>
 
+  <!-- Active -->
   <div class="flex items-center gap-2">
     <input
       type="checkbox"
       name="is_active"
       value="true"
+      class="h-4 w-4"
       {% if upgrade and upgrade.is_active %}checked{% endif %}
     />
     <span class="text-sm">Active</span>
   </div>
 
+  <!-- Actions -->
   <div class="flex justify-end gap-2 pt-2">
     <button
       type="button"
