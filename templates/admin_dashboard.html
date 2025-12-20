@@ -987,6 +987,15 @@
   const IS_LOCKED = {{ 'true' if (user_role == 'pmc' and needs_payment) else 'false' }};
   const CONTENT_LOCKED = IS_LOCKED;
 
+   // --- Debug spotlight: surface errors that stop menu/charts ---
+    window.addEventListener("error", (e) => {
+      console.error("GLOBAL JS ERROR:", e.error || e.message, e.filename, e.lineno);
+    });
+    window.addEventListener("unhandledrejection", (e) => {
+      console.error("UNHANDLED PROMISE:", e.reason);
+    });
+
+
   // ----------------------------
   // Small UI helpers
   // ----------------------------
