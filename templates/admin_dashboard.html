@@ -1320,28 +1320,62 @@ window.Upgrades = {
   loaded: false,
 
   async refresh() {
-    const listEl = document.getElementById("upgrades-list");
-    if (!listEl) return;
+  const listEl = document.getElementById("upgrades-list");
+  if (!listEl) return;
 
-    const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
-    const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+  const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
+  const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
 
-    try {
-      const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
-        credentials: "include",
-      });
+  listEl.innerHTML = "Loading…";
 
-      if (!res.ok) {
-        listEl.innerHTML = "Could not load upgrades.";
-        return;
-      }
+  try {
+    const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
+      credentials: "include",
+      headers: { "X-Requested-With": "fetch" },
+    });
 
-      listEl.innerHTML = await res.text();
-    } catch (err) {
-      console.error(err);
-      listEl.innerHTML = "Could not load upgrades.";
+    // Auth / billing handling
+    if (res.status === 401 || res.status === 403) {
+      if (typeof loginRedirect === "function") return loginRedirect();
+      listEl.innerHTML = "Session expired. Please log in again.";
+      return;
     }
-  },
+
+    if (res.status === 402) {
+      window.location.href = "/pmc/signup";
+      return;
+    }
+
+    if (!res.ok) {
+      listEl.innerHTML = "Could not load upgrades.";
+      return;
+    }
+
+    const html = await res.text();
+
+    // Guard: backend returned a full HTML login page (often happens with 200 OK)
+    const lower = html.toLowerCase();
+    if (html.includes("<html") && (lower.includes("login") || lower.includes("sign in"))) {
+      if (typeof loginRedirect === "function") return loginRedirect();
+      listEl.innerHTML = "Please log in again.";
+      return;
+    }
+
+    // Inject partial HTML
+    listEl.innerHTML = html;
+
+    // ✅ Re-init Sortable AFTER partial is injected
+    const table = listEl.querySelector('table[data-list-kind="upgrades"]');
+    if (table && typeof initReorderForTable === "function") {
+      initReorderForTable(table);
+    }
+  } catch (err) {
+    console.error("Upgrades.refresh error:", err);
+    listEl.innerHTML = "Could not load upgrades.";
+  }
+},
+
+
 
   openNew() {
     return window.Upgrades.openEditor(null);
