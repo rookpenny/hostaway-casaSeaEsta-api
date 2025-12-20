@@ -485,13 +485,14 @@
                 {% endfor %}
               </select>
               <button
-                class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
                 type="button"
                 onclick="Guides.openNew()"
-                {% if is_locked %}disabled class="opacity-50 cursor-not-allowed"{% endif %}
+                class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold {% if is_locked %}opacity-50 cursor-not-allowed{% endif %}"
+                {% if is_locked %}disabled{% endif %}
               >
                 New Guide
               </button>
+
             </div>
         
             {% if is_locked %}
@@ -537,13 +538,19 @@
                 {% endfor %}
               </select>
               <button
-                class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
-                type="button"
-                onclick="Upgrades.openNew()"
-                {% if is_locked %}disabled class="opacity-50 cursor-not-allowed"{% endif %}
-              >
-                New Upgrade
-              </button>
+              type="button"
+              onclick="Upgrades.openNew()"
+              class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold
+                     {% if is_locked %}
+                       opacity-50 cursor-not-allowed
+                     {% else %}
+                       hover:bg-slate-800
+                     {% endif %}"
+              {% if is_locked %}disabled{% endif %}
+            >
+              New Upgrade
+            </button>
+              
             </div>
         
             {% if is_locked %}
