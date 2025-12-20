@@ -63,7 +63,7 @@ app.include_router(seed_guides_router)
 app.include_router(pmc_signup.router)
 app.include_router(stripe_webhook.router)
 app.include_router(pmc_onboarding.router)
-
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Seed upgrade  ---
 from seed_upgrades_route import router as seed_upgrades_router
