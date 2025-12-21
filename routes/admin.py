@@ -1808,7 +1808,19 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
 
 
 @router.get("/admin/dashboard", response_class=HTMLResponse)
-def admin_dashboard(request: Request, db: Session = Depends(get_db)):
+def admin_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    view: str | None = Query(default=None),
+    session_id: int | None = Query(default=None),
+    pmc_id: int | None = Query(default=None),
+    property_id: int | None = Query(default=None),
+    status: str | None = Query(default=None),
+    priority: str | None = Query(default=None),
+    mine: int | None = Query(default=None),
+    assigned_to: str | None = Query(default=None),
+    q: str | None = Query(default=None),
+):
     # ✅ If not logged in, show a login page at THIS SAME URL
     user = request.session.get("user")
     if not user:
@@ -1835,12 +1847,12 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
     is_paid = True
     billing_banner_title = None
     billing_banner_body = None
-    
+
     if user_role == "pmc" and pmc_obj:
         billing_status = (billing_status or "pending").lower()
         is_paid = (billing_status == "active") and bool(getattr(pmc_obj, "active", False))
         needs_payment = not is_paid
-    
+
         if needs_payment:
             billing_banner_title = "Complete payment to activate your account"
             billing_banner_body = (
@@ -1848,59 +1860,41 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
                 "connect your PMS, sync properties, and enable Sandy per property."
             )
 
-
     # ----------------------------
     # Properties list (respect scope)
     # ----------------------------
     if user_role == "super":
         properties = db.query(Property).order_by(Property.property_name.asc()).all()
+        allowed_property_ids = None
     else:
         properties = (
             db.query(Property)
-              .filter(Property.pmc_id == pmc_obj.id)
-              .order_by(Property.property_name.asc())
-              .all()
+            .filter(Property.pmc_id == pmc_obj.id)
+            .order_by(Property.property_name.asc())
+            .all()
         )
+        allowed_property_ids = [p.id for p in properties]
 
     # ----------------------------
-    # Superuser-only PMC list
+    # Superuser-only PMC list (used by chats filter dropdown)
     # ----------------------------
-    pmc_data = []
+    pmc_list = []
     if user_role == "super":
-        def serialize_pmc(pmc: PMC):
-            return {
-                "id": pmc.id,
-                "pmc_name": pmc.pmc_name,
-                "email": pmc.email,
-                "main_contact": pmc.main_contact,
-                "subscription_plan": pmc.subscription_plan,
-                "pms_integration": pmc.pms_integration,
-                "pms_api_key": pmc.pms_api_key,
-                "pms_api_secret": pmc.pms_api_secret,
-                "pms_account_id": pmc.pms_account_id,
-                "active": pmc.active,
-                "sync_enabled": pmc.sync_enabled,
-                "billing_status": getattr(pmc, "billing_status", None),
-                "last_synced_at": pmc.last_synced_at.isoformat() if pmc.last_synced_at else None,
-            }
-
         pmc_list = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
-        pmc_data = [serialize_pmc(p) for p in pmc_list]
 
     # ----------------------------
-    # Pass team + prefs into the dashboard template
+    # Team + prefs
     # ----------------------------
-    
     me_email = get_current_admin_identity(request)
     me_user = None
     team_members = []
     notif_prefs = {}
-    
+
     if me_email:
         me_user = db.query(PMCUser).filter(func.lower(PMCUser.email) == me_email.lower()).first()
         if me_user and getattr(me_user, "notification_prefs", None):
             notif_prefs = me_user.notification_prefs or {}
-    
+
     if user_role == "pmc" and pmc_obj:
         team_members = (
             db.query(PMCUser)
@@ -1908,10 +1902,128 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             .order_by(PMCUser.created_at.desc())
             .all()
         )
-    
+
     # ----------------------------
-    # Render
+    # Chats: build base query with role scoping
     # ----------------------------
+    filters = {
+        "pmc_id": pmc_id,
+        "property_id": property_id,
+        "status": status,
+        "priority": priority,
+        "mine": bool(mine),
+        "assigned_to": assigned_to,
+        "q": q,
+    }
+
+    sessions = []
+    analytics = {
+        "pre_booking": 0,
+        "active": 0,
+        "post_stay": 0,
+        "urgent_sessions": 0,
+        "unhappy_sessions": 0,
+    }
+
+    selected_session = None
+    selected_property = None
+    selected_messages = []
+
+    # Only compute chats if user navigates there OR if session_id is provided (direct link)
+    should_load_chats = (view == "chats") or (session_id is not None)
+
+    if should_load_chats:
+        # IMPORTANT: Replace ChatSession/ChatMessage with your real models
+        base_q = db.query(ChatSession)
+
+        # Scope to allowed properties for PMCs
+        if allowed_property_ids is not None:
+            base_q = base_q.filter(ChatSession.property_id.in_(allowed_property_ids))
+
+        # If superuser used pmc_id filter, restrict to that PMC's properties
+        if user_role == "super" and pmc_id:
+            pmc_prop_ids = [
+                pid for (pid,) in db.query(Property.id).filter(Property.pmc_id == pmc_id).all()
+            ]
+            base_q = base_q.filter(ChatSession.property_id.in_(pmc_prop_ids or [-1]))
+
+        # property filter
+        if property_id:
+            base_q = base_q.filter(ChatSession.property_id == property_id)
+
+        # status filter
+        if status:
+            base_q = base_q.filter(ChatSession.reservation_status == status)
+
+        # priority filter (depends on your fields — update mapping if needed)
+        if priority == "urgent":
+            base_q = base_q.filter(ChatSession.priority_level.in_(["critical"]))
+        elif priority == "unhappy":
+            # if you have a boolean like has_negative or similar, use it instead
+            base_q = base_q.filter(ChatSession.priority_level.in_(["attention", "critical"]))
+
+        # mine filter (assigned_to == my email or name)
+        if mine and me_email:
+            base_q = base_q.filter(func.lower(ChatSession.assigned_to) == me_email.lower())
+
+        # assigned_to search
+        if assigned_to:
+            base_q = base_q.filter(func.lower(ChatSession.assigned_to).contains(assigned_to.lower()))
+
+        # free text search (guest name, property name, last snippet)
+        if q:
+            ql = q.lower()
+            base_q = base_q.filter(
+                or_(
+                    func.lower(ChatSession.guest_name).contains(ql),
+                    func.lower(ChatSession.property_name).contains(ql),
+                    func.lower(ChatSession.last_snippet).contains(ql),
+                )
+            )
+
+        # Analytics: compute off the scoped query (before pagination/limit)
+        # NOTE: if this is slow, we can optimize with GROUP BY
+        all_for_counts = base_q.all()
+        for s in all_for_counts:
+            if getattr(s, "reservation_status", None) == "pre_booking":
+                analytics["pre_booking"] += 1
+            elif getattr(s, "reservation_status", None) == "active":
+                analytics["active"] += 1
+            elif getattr(s, "reservation_status", None) == "post_stay":
+                analytics["post_stay"] += 1
+
+            if getattr(s, "priority_level", None) in ("critical",):
+                analytics["urgent_sessions"] += 1
+
+            # adjust this logic to your real unhappy flag(s)
+            sig = getattr(s, "signals", None) or []
+            sig_lower = [x.lower() for x in sig] if isinstance(sig, list) else []
+            if "angry" in sig_lower or "upset" in sig_lower:
+                analytics["unhappy_sessions"] += 1
+
+        # Sessions list (most recent first)
+        sessions = (
+            base_q.order_by(ChatSession.last_activity_at.desc().nullslast(), ChatSession.id.desc())
+            .limit(200)
+            .all()
+        )
+
+        # Selected session detail (permission safe: fetch from SAME scoped query)
+        if session_id is not None:
+            selected_session = base_q.filter(ChatSession.id == session_id).first()
+            if not selected_session:
+                # forbidden or not found
+                raise HTTPException(status_code=404, detail="Chat not found")
+
+            selected_property = db.query(Property).filter(Property.id == selected_session.property_id).first()
+
+            selected_messages = (
+                db.query(ChatMessage)
+                .filter(ChatMessage.session_id == selected_session.id)
+                .order_by(ChatMessage.created_at.asc())
+                .all()
+            )
+
     return templates.TemplateResponse(
         "admin_dashboard.html",
         {
@@ -1921,29 +2033,39 @@ def admin_dashboard(request: Request, db: Session = Depends(get_db)):
             "properties": properties,
             "now": datetime.utcnow(),
 
-            # existing
-            "pmc": pmc_data,
+            # ✅ FIX: admin_chats.html expects `pmcs`
+            "pmcs": pmc_list,
 
-            # 👇 THIS LINE
-            "user_timezone": (pmc_user.timezone if pmc_user else None),
-
-            # NEW: billing + UI gating
+            # Billing
             "billing_status": billing_status,
             "is_paid": is_paid,
             "needs_payment": needs_payment,
             "billing_banner_title": billing_banner_title,
             "billing_banner_body": billing_banner_body,
 
-            # handy: for showing "you are admin/staff" in UI if desired
+            # Timezone
+            "user_timezone": (pmc_user.timezone if pmc_user else None),
             "pmc_user_role": (pmc_user.role if pmc_user else None),
 
+            # User info
             "user_email": me_email,
             "user_full_name": (me_user.full_name if me_user else None),
             "team_members": team_members,
             "notif_prefs": notif_prefs,
 
-        }
+            # Chats (NEW)
+            "sessions": sessions,
+            "analytics": analytics,
+            "filters": filters,
+            "selected_session": selected_session,
+            "selected_property": selected_property,
+            "selected_messages": selected_messages,
+
+            # For PMC users if you want hidden pmc_id in template
+            "pmc_id": (pmc_obj.id if pmc_obj else None),
+        },
     )
+
 
 
 
