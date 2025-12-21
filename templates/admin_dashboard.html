@@ -2208,11 +2208,18 @@ document.addEventListener("change", async (e) => {
 function singularize(kind) {
   const k = String(kind || "").trim().toLowerCase();
   if (!k) return "";
-  if (k.endsWith("ies")) return k.slice(0, -3) + "y"; // e.g. "categories" -> "category" (just in case)
-  if (k.endsWith("s")) return k.slice(0, -1);         // "guides" -> "guide"
+  if (k.endsWith("ies")) return k.slice(0, -3) + "y";
+  if (k.endsWith("s")) return k.slice(0, -1);
   return k;
 }
 
+// Helper: normalize "guide"/"guides" => "guides", "upgrade"/"upgrades" => "upgrades"
+function normalizeKind(kind) {
+  const k = String(kind || "").trim().toLowerCase();
+  if (k === "guide" || k === "guides") return "guides";
+  if (k === "upgrade" || k === "upgrades") return "upgrades";
+  return k;
+}
 
 function initReorderForTable(rootEl) {
   if (!rootEl) return;
@@ -2222,9 +2229,11 @@ function initReorderForTable(rootEl) {
     return;
   }
 
-  const kind = (rootEl.getAttribute("data-list-kind") || "").trim(); // "guides" | "upgrades"
-  if (!kind) {
-    console.warn("Missing data-list-kind on table.");
+  const kindRaw = rootEl.getAttribute("data-list-kind") || "";
+  const kind = normalizeKind(kindRaw); // ✅ "guides" | "upgrades"
+
+  if (kind !== "guides" && kind !== "upgrades") {
+    console.warn("Unexpected data-list-kind on table:", kindRaw);
     return;
   }
 
@@ -2238,7 +2247,12 @@ function initReorderForTable(rootEl) {
   if (tbody._sortable) return;
 
   const singular = singularize(kind); // "guide" | "upgrade"
-  const rowAttr = `data-${singular}-row`;
+
+  // ✅ Support both attribute styles:
+  // - preferred: data-guide-row / data-upgrade-row
+  // - current macro: data-guides-row / data-upgrades-row
+  const rowAttrSingular = `data-${singular}-row`;
+  const rowAttrPlural = `data-${kind}-row`;
 
   const hasHandles = rootEl.querySelectorAll("[data-reorder-handle]").length > 0;
 
@@ -2248,36 +2262,41 @@ function initReorderForTable(rootEl) {
     ...(hasHandles ? { handle: "[data-reorder-handle]" } : {}),
 
     onEnd: async () => {
-      // Collect ids in displayed order
-      const idsRaw = Array.from(tbody.querySelectorAll(`tr[${rowAttr}]`))
-        .map((tr) => (tr.getAttribute(rowAttr) || "").trim())
+      // Collect ids in displayed order (try singular attr first, then plural)
+      const rowsSingular = tbody.querySelectorAll(`tr[${rowAttrSingular}]`);
+      const rows = rowsSingular.length
+        ? rowsSingular
+        : tbody.querySelectorAll(`tr[${rowAttrPlural}]`);
+
+      const idsRaw = Array.from(rows)
+        .map((tr) => (tr.getAttribute(rowAttrSingular) || tr.getAttribute(rowAttrPlural) || "").trim())
         .filter(Boolean);
 
       const ids = idsRaw.map((x) => Number(x)).filter((n) => Number.isFinite(n));
 
       if (!ids.length) {
-        console.error("Reorder: no valid numeric IDs found.", { kind, idsRaw, rowAttr });
+        console.error("Reorder: no valid numeric IDs found.", {
+          kind, kindRaw, idsRaw, rowAttrSingular, rowAttrPlural
+        });
         toast("Could not reorder: row IDs missing.");
         return;
       }
 
-      // Property scoping (Guides commonly requires this)
+      // Property scoping (Guides requires same property in your backend)
       const propertyFilterId =
         kind === "guides"
           ? (document.getElementById("guidesPropertyFilter")?.value || "").trim()
           : (document.getElementById("upgradesPropertyFilter")?.value || "").trim();
 
-      // ✅ If Guides is "All properties", do NOT attempt reorder (usually ambiguous)
       if (kind === "guides" && !propertyFilterId) {
         toast("Select a property to reorder Guides.");
-        // Re-render list from server to revert the UI order back to DB order (optional but recommended)
         try { await Guides.refresh(); } catch {}
         return;
       }
 
       const payload = { ids };
 
-      // Only send property_id when it’s valid
+      // only send property_id when valid
       if (propertyFilterId && Number.isFinite(Number(propertyFilterId))) {
         payload.property_id = Number(propertyFilterId);
       }
@@ -2294,23 +2313,27 @@ function initReorderForTable(rootEl) {
         });
 
         if (!res.ok || !data.ok) {
-          console.error("Reorder failed:", { status: res.status, data, payload });
+          console.error("Reorder failed:", { status: res.status, data, payload, url });
           toast(data?.error || data?.detail || "Failed to save order.");
-          // Optional: revert UI to server order
           if (kind === "guides") await Guides.refresh();
           if (kind === "upgrades") await Upgrades.refresh();
         }
       } catch (err) {
         console.error("Reorder error:", err);
         toast("Failed to save order.");
-        // Optional: revert UI to server order
         if (kind === "guides") await Guides.refresh();
         if (kind === "upgrades") await Upgrades.refresh();
       }
     },
   });
 
-  console.log("Sortable bound:", { kind, rowAttr, hasHandles });
+  console.log("Sortable bound:", {
+    kind,
+    kindRaw,
+    rowAttrSingular,
+    rowAttrPlural,
+    hasHandles,
+  });
 }
 
 function initAllReorderTables() {
