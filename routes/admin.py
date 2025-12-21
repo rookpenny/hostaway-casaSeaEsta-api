@@ -1817,13 +1817,19 @@ def admin_dashboard(
 
     # filters (match admin_chats.html)
     pmc_id: int | None = Query(default=None),
-    property_id: int | None = Query(default=None),
+    property_id: str | None = Query(default=None),
     status: str | None = Query(default=None),
     priority: str | None = Query(default=None),   # "urgent" | "unhappy"
     mine: int | None = Query(default=None),
     assigned_to: str | None = Query(default=None),
     q: str | None = Query(default=None),
 ):
+
+    prop_id_int: int | None = None
+    if property_id and property_id.strip():
+        prop_id_int = int(property_id)
+
+    
     # ✅ If not logged in, show a login page at THIS SAME URL
     user = request.session.get("user")
     if not user:
