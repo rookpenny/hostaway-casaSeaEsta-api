@@ -1327,51 +1327,39 @@
 window.Upgrades = {
   loaded: false,
 
-  async refresh() {
-    const listEl = document.getElementById("upgrades-list");
-    if (!listEl) return;
+async refresh() {
+  const listEl = document.getElementById("upgrades-list");
+  if (!listEl) return;
 
-    const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
-    const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+  const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
+  const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
 
-    listEl.innerHTML = "Loading…";
+  listEl.innerHTML = "Loading…";
 
-    try {
-      const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
-        credentials: "include",
-        headers: { "X-Requested-With": "fetch" },
-      });
+  try {
+    const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
+      credentials: "include",
+      headers: { "X-Requested-With": "fetch" },
+    });
 
-      if (res.status === 401 || res.status === 403) return loginRedirect();
-      if (res.status === 402) {
-        window.location.href = "/pmc/signup";
-        return;
-      }
-
-      if (!res.ok) {
-        listEl.innerHTML = "Could not load upgrades.";
-        return;
-      }
-
-      const html = await res.text();
-
-      // If backend accidentally returned a full page, bail
-      const lower = html.toLowerCase();
-      if (html.includes("<html") && (lower.includes("login") || lower.includes("sign in"))) {
-        return loginRedirect();
-      }
-
-      // ✅ Inject HTML
-      listEl.innerHTML = html;
-
-      // ✅ Init sortable inside the refreshed content
-      listEl.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
-
-    } catch (err) {
-      console.error("Upgrades.refresh error:", err);
+    if (res.status === 401 || res.status === 403) return loginRedirect();
+    if (!res.ok) {
       listEl.innerHTML = "Could not load upgrades.";
+      return;
     }
-  },
+
+    const html = await res.text();
+    listEl.innerHTML = html;
+
+    // ✅ Always rebind after injection (don’t rely on local query only)
+    initAllReorderTables();
+
+    console.log("Upgrades list refreshed; reorder bound:", !!listEl.querySelector("table[data-list-kind]"));
+  } catch (err) {
+    console.error("Upgrades.refresh error:", err);
+    listEl.innerHTML = "Could not load upgrades.";
+  }
+},
 
   openNew() {
     return window.Upgrades.openEditor(null);
@@ -1845,7 +1833,7 @@ document.addEventListener("change", async (e) => {
     setTimeout(() => (el.innerHTML = ""), 2400);
   }
 
-  async function loadHtmlInto(url, targetId) {
+ async function loadHtmlInto(url, targetId) {
   const r = await fetch(url, {
     credentials: "include",
     headers: { "X-Requested-With": "fetch" },
@@ -1859,9 +1847,13 @@ document.addEventListener("change", async (e) => {
   const html = await r.text();
   target.innerHTML = html;
 
-  // ✅ only init reorder inside the new content
-  target.querySelectorAll('table[data-list-kind]').forEach(initReorderForTable);
+  // ✅ Rebind ALL reorder tables after any partial inject
+  initAllReorderTables();
+
+  // Helpful debug (you can remove later)
+  console.log("Injected partial into:", targetId, "tables:", document.querySelectorAll("table[data-list-kind]").length);
 }
+
 
 
   window.Guides = {
