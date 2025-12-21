@@ -23,7 +23,7 @@ from fastapi.exceptions import RequestValidationError
 from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func
+from sqlalchemy import func, case, and_, or_
 
 from pydantic import BaseModel
 from typing import Optional, Dict
@@ -37,6 +37,7 @@ from utils.pms_sync import sync_properties, sync_all_integrations
 from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
 from zoneinfo import ZoneInfo  # Python 3.9+
+
 
 router = APIRouter()
 templates = Jinja2Templates(directory="templates")
@@ -1805,18 +1806,20 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
     )
 
 
-
-
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
     db: Session = Depends(get_db),
+
+    # view routing + selection
     view: str | None = Query(default=None),
     session_id: int | None = Query(default=None),
+
+    # filters (match admin_chats.html)
     pmc_id: int | None = Query(default=None),
     property_id: int | None = Query(default=None),
     status: str | None = Query(default=None),
-    priority: str | None = Query(default=None),
+    priority: str | None = Query(default=None),   # "urgent" | "unhappy"
     mine: int | None = Query(default=None),
     assigned_to: str | None = Query(default=None),
     q: str | None = Query(default=None),
@@ -1844,6 +1847,9 @@ def admin_dashboard(
             },
         )
 
+    # ----------------------------
+    # Billing gating (unchanged)
+    # ----------------------------
     is_paid = True
     billing_banner_title = None
     billing_banner_body = None
@@ -1865,7 +1871,7 @@ def admin_dashboard(
     # ----------------------------
     if user_role == "super":
         properties = db.query(Property).order_by(Property.property_name.asc()).all()
-        allowed_property_ids = None
+        allowed_property_ids: list[int] | None = None
     else:
         properties = (
             db.query(Property)
@@ -1883,7 +1889,7 @@ def admin_dashboard(
         pmc_list = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
 
     # ----------------------------
-    # Team + prefs
+    # Team + prefs (unchanged)
     # ----------------------------
     me_email = get_current_admin_identity(request)
     me_user = None
@@ -1891,7 +1897,11 @@ def admin_dashboard(
     notif_prefs = {}
 
     if me_email:
-        me_user = db.query(PMCUser).filter(func.lower(PMCUser.email) == me_email.lower()).first()
+        me_user = (
+            db.query(PMCUser)
+            .filter(func.lower(PMCUser.email) == me_email.lower())
+            .first()
+        )
         if me_user and getattr(me_user, "notification_prefs", None):
             notif_prefs = me_user.notification_prefs or {}
 
@@ -1904,7 +1914,7 @@ def admin_dashboard(
         )
 
     # ----------------------------
-    # Chats: build base query with role scoping
+    # Chats: filters + data
     # ----------------------------
     filters = {
         "pmc_id": pmc_id,
@@ -1916,7 +1926,7 @@ def admin_dashboard(
         "q": q,
     }
 
-    sessions = []
+    sessions: list[dict] = []
     analytics = {
         "pre_booking": 0,
         "active": 0,
@@ -1927,96 +1937,193 @@ def admin_dashboard(
 
     selected_session = None
     selected_property = None
-    selected_messages = []
+    selected_messages: list[ChatMessage] = []
 
-    # Only compute chats if user navigates there OR if session_id is provided (direct link)
     should_load_chats = (view == "chats") or (session_id is not None)
 
     if should_load_chats:
-        # IMPORTANT: Replace ChatSession/ChatMessage with your real models
-        base_q = db.query(ChatSession)
+        # ✅ Prevent PMCs from using pmc_id filter at all
+        if user_role != "super":
+            pmc_id = None
 
-        # Scope to allowed properties for PMCs
+        # Base query: ChatSession + property name available via join
+        base_q = (
+            db.query(ChatSession)
+            .join(Property, Property.id == ChatSession.property_id)
+        )
+
+        # Scope: PMCs only see sessions tied to their properties
         if allowed_property_ids is not None:
             base_q = base_q.filter(ChatSession.property_id.in_(allowed_property_ids))
 
-        # If superuser used pmc_id filter, restrict to that PMC's properties
+        # Superuser: optional pmc filter
         if user_role == "super" and pmc_id:
-            pmc_prop_ids = [
-                pid for (pid,) in db.query(Property.id).filter(Property.pmc_id == pmc_id).all()
-            ]
-            base_q = base_q.filter(ChatSession.property_id.in_(pmc_prop_ids or [-1]))
+            base_q = base_q.filter(Property.pmc_id == pmc_id)
 
         # property filter
         if property_id:
             base_q = base_q.filter(ChatSession.property_id == property_id)
 
-        # status filter
+        # reservation stage filter
         if status:
             base_q = base_q.filter(ChatSession.reservation_status == status)
 
-        # priority filter (depends on your fields — update mapping if needed)
-        if priority == "urgent":
-            base_q = base_q.filter(ChatSession.priority_level.in_(["critical"]))
-        elif priority == "unhappy":
-            # if you have a boolean like has_negative or similar, use it instead
-            base_q = base_q.filter(ChatSession.priority_level.in_(["attention", "critical"]))
-
-        # mine filter (assigned_to == my email or name)
+        # mine filter
         if mine and me_email:
             base_q = base_q.filter(func.lower(ChatSession.assigned_to) == me_email.lower())
 
-        # assigned_to search
+        # assigned_to contains
         if assigned_to:
-            base_q = base_q.filter(func.lower(ChatSession.assigned_to).contains(assigned_to.lower()))
+            base_q = base_q.filter(func.lower(func.coalesce(ChatSession.assigned_to, "")).contains(assigned_to.lower()))
 
-        # free text search (guest name, property name, last snippet)
+        # free-text search (guest name, property name, and message content)
         if q:
             ql = q.lower()
+
+            msg_exists = (
+                db.query(ChatMessage.id)
+                .filter(ChatMessage.session_id == ChatSession.id)
+                .filter(func.lower(ChatMessage.content).contains(ql))
+                .exists()
+            )
+
             base_q = base_q.filter(
                 or_(
-                    func.lower(ChatSession.guest_name).contains(ql),
-                    func.lower(ChatSession.property_name).contains(ql),
-                    func.lower(ChatSession.last_snippet).contains(ql),
+                    func.lower(func.coalesce(ChatSession.guest_name, "")).contains(ql),
+                    func.lower(func.coalesce(Property.property_name, "")).contains(ql),
+                    msg_exists,
                 )
             )
 
-        # Analytics: compute off the scoped query (before pagination/limit)
-        # NOTE: if this is slow, we can optimize with GROUP BY
-        all_for_counts = base_q.all()
-        for s in all_for_counts:
-            if getattr(s, "reservation_status", None) == "pre_booking":
-                analytics["pre_booking"] += 1
-            elif getattr(s, "reservation_status", None) == "active":
-                analytics["active"] += 1
-            elif getattr(s, "reservation_status", None) == "post_stay":
-                analytics["post_stay"] += 1
+        # priority filter uses heat_score (model has heat_score, not priority_level)
+        # tune thresholds as you like
+        if priority == "urgent":
+            base_q = base_q.filter(ChatSession.heat_score >= 80)
+        elif priority == "unhappy":
+            base_q = base_q.filter(ChatSession.heat_score >= 50)
 
-            if getattr(s, "priority_level", None) in ("critical",):
-                analytics["urgent_sessions"] += 1
+        # ----------------------------
+        # Analytics (SQL, fast)
+        # ----------------------------
+        stage_counts = (
+            base_q.with_entities(
+                func.sum(case((ChatSession.reservation_status == "pre_booking", 1), else_=0)).label("pre_booking"),
+                func.sum(case((ChatSession.reservation_status == "active", 1), else_=0)).label("active"),
+                func.sum(case((ChatSession.reservation_status == "post_stay", 1), else_=0)).label("post_stay"),
+            )
+            .first()
+        )
+        if stage_counts:
+            analytics["pre_booking"] = int(stage_counts.pre_booking or 0)
+            analytics["active"] = int(stage_counts.active or 0)
+            analytics["post_stay"] = int(stage_counts.post_stay or 0)
 
-            # adjust this logic to your real unhappy flag(s)
-            sig = getattr(s, "signals", None) or []
-            sig_lower = [x.lower() for x in sig] if isinstance(sig, list) else []
-            if "angry" in sig_lower or "upset" in sig_lower:
-                analytics["unhappy_sessions"] += 1
+        analytics["urgent_sessions"] = int(
+            base_q.with_entities(func.sum(case((ChatSession.heat_score >= 80, 1), else_=0))).scalar() or 0
+        )
 
-        # Sessions list (most recent first)
-        sessions = (
-            base_q.order_by(ChatSession.last_activity_at.desc().nullslast(), ChatSession.id.desc())
+        # Unhappy heuristic: count sessions with negative guest sentiment in last 7 days (scoped)
+        cutoff = datetime.utcnow() - timedelta(days=7)
+        unhappy_q = (
+            db.query(func.count(func.distinct(ChatMessage.session_id)))
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(Property, Property.id == ChatSession.property_id)
+            .filter(ChatMessage.sender == "guest")
+            .filter(ChatMessage.created_at >= cutoff)
+            .filter(func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative")
+        )
+        if allowed_property_ids is not None:
+            unhappy_q = unhappy_q.filter(ChatSession.property_id.in_(allowed_property_ids))
+        if user_role == "super" and pmc_id:
+            unhappy_q = unhappy_q.filter(Property.pmc_id == pmc_id)
+        if property_id:
+            unhappy_q = unhappy_q.filter(ChatSession.property_id == property_id)
+        if status:
+            unhappy_q = unhappy_q.filter(ChatSession.reservation_status == status)
+
+        analytics["unhappy_sessions"] = int(unhappy_q.scalar() or 0)
+
+        # ----------------------------
+        # Sessions list w/ derived last_snippet (needed by admin_chats.html)
+        # ----------------------------
+        last_msg_sq = (
+            db.query(ChatMessage.content)
+            .filter(ChatMessage.session_id == ChatSession.id)
+            .order_by(ChatMessage.created_at.desc())
+            .limit(1)
+            .correlate(ChatSession)
+            .scalar_subquery()
+        )
+
+        rows = (
+            base_q.with_entities(
+                ChatSession,
+                Property.property_name.label("property_name"),
+                last_msg_sq.label("last_snippet"),
+            )
+            .order_by(ChatSession.last_activity_at.desc(), ChatSession.id.desc())
             .limit(200)
             .all()
         )
 
-        # Selected session detail (permission safe: fetch from SAME scoped query)
+        def priority_level_from_heat(heat: int) -> str:
+            if heat >= 80:
+                return "critical"
+            if heat >= 50:
+                return "attention"
+            return "routine"
+
+        sessions = []
+        for sess, prop_name, last_snip in rows:
+            heat = int(sess.heat_score or 0)
+            sessions.append({
+                "id": sess.id,
+                "property_id": sess.property_id,
+                "property_name": prop_name,
+                "guest_name": sess.guest_name,
+                "assigned_to": sess.assigned_to,
+                "reservation_status": sess.reservation_status,
+                "source": sess.source,
+                "last_activity_at": sess.last_activity_at,
+                "last_snippet": (last_snip or ""),
+                "next_action": None,  # keep for template compatibility
+                "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
+                "is_resolved": bool(sess.is_resolved),
+                "escalation_level": sess.escalation_level,
+
+                # admin_chats.html uses signals defensively; you don’t store them
+                "signals": [],
+
+                "priority_level": priority_level_from_heat(heat),
+
+                # debug tooltip fields used by admin_chats.html
+                "heat_raw": heat,
+                "heat_boosted": heat,
+                "msg_24h": None,
+                "msg_7d": None,
+                "has_urgent": heat >= 80,
+                "has_negative": None,
+            })
+
+        # ----------------------------
+        # Selected session detail (permission safe)
+        # ----------------------------
         if session_id is not None:
-            selected_session = base_q.filter(ChatSession.id == session_id).first()
+            # enforce scope again
+            sel_q = db.query(ChatSession).filter(ChatSession.id == session_id)
+            if allowed_property_ids is not None:
+                sel_q = sel_q.filter(ChatSession.property_id.in_(allowed_property_ids))
+            if user_role == "super" and pmc_id:
+                sel_q = (
+                    sel_q.join(Property, Property.id == ChatSession.property_id)
+                    .filter(Property.pmc_id == pmc_id)
+                )
+
+            selected_session = sel_q.first()
             if not selected_session:
-                # forbidden or not found
                 raise HTTPException(status_code=404, detail="Chat not found")
 
             selected_property = db.query(Property).filter(Property.id == selected_session.property_id).first()
-
             selected_messages = (
                 db.query(ChatMessage)
                 .filter(ChatMessage.session_id == selected_session.id)
@@ -2024,6 +2131,9 @@ def admin_dashboard(
                 .all()
             )
 
+    # ----------------------------
+    # Render
+    # ----------------------------
     return templates.TemplateResponse(
         "admin_dashboard.html",
         {
@@ -2033,7 +2143,7 @@ def admin_dashboard(
             "properties": properties,
             "now": datetime.utcnow(),
 
-            # ✅ FIX: admin_chats.html expects `pmcs`
+            # ✅ admin_chats.html expects `pmcs`
             "pmcs": pmc_list,
 
             # Billing
@@ -2053,7 +2163,7 @@ def admin_dashboard(
             "team_members": team_members,
             "notif_prefs": notif_prefs,
 
-            # Chats (NEW)
+            # Chats
             "sessions": sessions,
             "analytics": analytics,
             "filters": filters,
@@ -2061,10 +2171,10 @@ def admin_dashboard(
             "selected_property": selected_property,
             "selected_messages": selected_messages,
 
-            # For PMC users if you want hidden pmc_id in template
             "pmc_id": (pmc_obj.id if pmc_obj else None),
         },
     )
+
 
 
 
