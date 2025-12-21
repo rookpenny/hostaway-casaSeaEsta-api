@@ -2900,8 +2900,11 @@ function initAllReorderTables() {
     window.showView = showView;
     navItems.forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
 
-    const initial = (location.hash || "#overview").replace("#", "").split("?")[0];
-    showView(initial);
+    const params = new URLSearchParams(window.location.search);
+    const initialFromQuery = params.get("view");
+    const initialFromHash = (location.hash || "#overview").replace("#", "").split("?")[0];
+    showView(initialFromQuery || initialFromHash);
+
   }
 
   // ----------------------------
