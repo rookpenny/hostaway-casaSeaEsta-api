@@ -19,7 +19,7 @@
     {% for item in items %}
     <tr class="border-b border-slate-100"
         data-id="{{ item.id }}"
-        data-{{ kind }}-row="{{ item.id }}"
+        data-{{ kind[:-1] }}-row="{{ item.id }}"
         data-{{ singular }}-row="{{ item.id }}">
 
       <!-- Drag handle -->
