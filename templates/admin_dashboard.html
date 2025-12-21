@@ -1043,6 +1043,7 @@
     async function postJSON(url, body) {
       const res = await fetch(url, {
         method: "POST",
+        credentials: "include", 
         headers: { "Content-Type": "application/json" },
         body: body ? JSON.stringify(body) : undefined,
       });
@@ -1091,11 +1092,12 @@
     });
 
     document.getElementById("assign-btn")?.addEventListener("click", async () => {
-      if (!sid) return;
-      const v = document.getElementById("assigned-input")?.value || "";
-      await postJSON(`/admin/chats/${sid}/assign`, { assigned_to: v });
-      location.reload();
-    });
+  if (!sid) return;
+  const v = document.getElementById("assigned-input")?.value || "";
+  await postJSON(`/admin/chats/${sid}/assign`, { assigned_to: v });
+  location.reload();
+});
+
 
     document.getElementById("save-note-btn")?.addEventListener("click", async () => {
       if (!sid) return;
