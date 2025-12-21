@@ -1091,12 +1091,19 @@
       location.reload();
     });
 
-    document.getElementById("assign-btn")?.addEventListener("click", async () => {
+   document.getElementById("assign-btn")?.addEventListener("click", async () => {
   if (!sid) return;
   const v = document.getElementById("assigned-input")?.value || "";
-  await postJSON(`/admin/chats/${sid}/assign`, { assigned_to: v });
+
+  await apiJson(`/admin/chats/${sid}/assign`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ assigned_to: v }),
+  });
+
   location.reload();
 });
+
 
 
     document.getElementById("save-note-btn")?.addEventListener("click", async () => {
