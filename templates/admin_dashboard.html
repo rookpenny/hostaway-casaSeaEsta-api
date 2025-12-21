@@ -82,6 +82,7 @@
           <span class="sidebar-label font-medium">Chats</span>
         </button>
 
+
         <button data-view="pmcs"
           class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
           type="button">
@@ -583,14 +584,285 @@
 
 
         {% if user_role == "super" %}
-        <section id="view-chats" class="view hidden">
-          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+        <section id="view-chats" class="view hidden space-y-4">
+  <div class="grid grid-cols-12 gap-4">
+
+    <!-- LEFT: Chat list (embed the admin_chats table/filter UI) -->
+    <div class="col-span-12 xl:col-span-7">
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+        <div class="flex items-center justify-between gap-3">
+          <div>
             <div class="text-sm font-semibold">Chats</div>
-            <div class="mt-2 text-sm text-slate-500">
-              Go to <a class="underline font-semibold" href="/admin/chats">/admin/chats</a>.
+            <div class="text-xs text-slate-500">
+              Monitor conversations {% if user_role == "super" %}across all PMCs{% else %}for your properties{% endif %}.
             </div>
           </div>
-        </section>
+
+          <a href="/admin/dashboard?view=chats" class="text-xs font-semibold text-slate-700 hover:underline">
+            Reset
+          </a>
+        </div>
+
+        <!-- Analytics strip -->
+        <div class="mt-4 grid grid-cols-2 md:grid-cols-5 gap-2">
+          <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">Pre-booking</div>
+            <div class="text-xl font-bold">{{ analytics.pre_booking }}</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">Active</div>
+            <div class="text-xl font-bold">{{ analytics.active }}</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">Post-stay</div>
+            <div class="text-xl font-bold">{{ analytics.post_stay }}</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">Urgent sessions</div>
+            <div class="text-xl font-bold">{{ analytics.urgent_sessions }}</div>
+          </div>
+          <div class="bg-slate-50 rounded-xl border border-slate-200 p-3">
+            <div class="text-xs text-slate-500">Unhappy sessions</div>
+            <div class="text-xl font-bold">{{ analytics.unhappy_sessions }}</div>
+          </div>
+        </div>
+
+        <!-- Filters -->
+        <form class="mt-4 flex flex-wrap gap-2 items-center" method="get" action="/admin/dashboard">
+          <input type="hidden" name="view" value="chats" />
+
+          {# Super can filter by PMC; PMCs shouldn't see "All PMCs" #}
+          {% if user_role == "super" %}
+            <select name="pmc_id" class="h-10 border rounded-xl px-3 text-sm bg-white">
+              <option value="">All PMCs</option>
+              {% for p in pmcs %}
+                <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
+                  {{ p.pmc_name }}
+                </option>
+              {% endfor %}
+            </select>
+          {% else %}
+            {# optional: lock pmc_id server-side anyway, but can pass through #}
+            <input type="hidden" name="pmc_id" value="{{ pmc_id or '' }}" />
+          {% endif %}
+
+          <select name="property_id" class="h-10 border rounded-xl px-3 text-sm bg-white">
+            <option value="">All Properties</option>
+            {% for pr in properties %}
+              <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+                {{ pr.property_name }}
+              </option>
+            {% endfor %}
+          </select>
+
+          <select name="status" class="h-10 border rounded-xl px-3 text-sm bg-white">
+            <option value="">All statuses</option>
+            <option value="pre_booking" {% if filters.status=="pre_booking" %}selected{% endif %}>Pre-booking</option>
+            <option value="active" {% if filters.status=="active" %}selected{% endif %}>Active</option>
+            <option value="post_stay" {% if filters.status=="post_stay" %}selected{% endif %}>Post-stay</option>
+          </select>
+
+          <select name="priority" class="h-10 border rounded-xl px-3 text-sm bg-white">
+            <option value="">All priorities</option>
+            <option value="urgent" {% if filters.priority=="urgent" %}selected{% endif %}>🔥 Urgent only</option>
+            <option value="unhappy" {% if filters.priority=="unhappy" %}selected{% endif %}>😟 Unhappy only</option>
+          </select>
+
+          <label class="flex items-center gap-2 text-sm text-slate-700 px-2">
+            <input type="checkbox" name="mine" value="1" {% if filters.mine %}checked{% endif %} />
+            Mine
+          </label>
+
+          <input name="assigned_to" value="{{ filters.assigned_to or '' }}"
+            class="h-10 border rounded-xl px-3 text-sm w-[180px]" placeholder="Assigned to…" />
+
+          <input name="q" value="{{ filters.q or '' }}"
+            class="h-10 border rounded-xl px-3 text-sm flex-1 min-w-[220px]" placeholder="Search guest, property, snippet..." />
+
+          <button class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold">Filter</button>
+        </form>
+
+        <!-- Sessions table -->
+        {% if sessions %}
+          <div class="mt-4 overflow-x-auto border border-slate-200 rounded-2xl">
+            <table class="min-w-full text-sm bg-white">
+              <thead class="bg-slate-50 text-slate-600 text-xs">
+                <tr class="border-b border-slate-200">
+                  <th class="px-4 py-2 text-left">Property</th>
+                  <th class="px-4 py-2 text-left">Guest</th>
+                  <th class="px-4 py-2 text-left">Assigned</th>
+                  <th class="px-4 py-2 text-left">Stage</th>
+                  <th class="px-4 py-2 text-left">Priority</th>
+                  <th class="px-4 py-2 text-left">Last activity</th>
+                  <th class="px-4 py-2 text-left">Snippet</th>
+                  <th class="px-4 py-2 text-left"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {% for s in sessions %}
+                  <tr class="border-t hover:bg-slate-50 {% if selected_session and s.id == selected_session.id %}bg-slate-50{% endif %}">
+                    <td class="px-4 py-2">
+                      <div class="font-semibold">{{ s.property_name or "Unknown property" }}</div>
+                      <div class="text-xs text-slate-500">Property ID: {{ s.property_id }}</div>
+                    </td>
+                    <td class="px-4 py-2"><div class="font-medium">{{ s.guest_name or "—" }}</div></td>
+                    <td class="px-4 py-2 text-xs">
+                      {% if s.assigned_to %}
+                        <span class="inline-block px-2 py-1 rounded bg-slate-100 text-slate-800 font-semibold">{{ s.assigned_to }}</span>
+                      {% else %}<span class="text-slate-400">—</span>{% endif %}
+                    </td>
+                    <td class="px-4 py-2 text-xs">
+                      {% if s.reservation_status == "active" %}
+                        <span class="inline-block px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 font-semibold">🏖 Active</span>
+                      {% elif s.reservation_status == "pre_booking" %}
+                        <span class="inline-block px-2 py-1 rounded-full bg-blue-50 text-blue-700 font-semibold">💬 Pre-booking</span>
+                      {% elif s.reservation_status == "post_stay" %}
+                        <span class="inline-block px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">📬 Post-stay</span>
+                      {% else %}
+                        <span class="text-slate-400">Unknown</span>
+                      {% endif %}
+                    </td>
+                    <td class="px-4 py-2 text-xs">
+                      {% if s.priority_level == "critical" %}
+                        <span class="inline-block px-2 py-1 rounded-full bg-red-100 text-red-900 font-semibold">🔥 Critical</span>
+                      {% elif s.priority_level == "attention" %}
+                        <span class="inline-block px-2 py-1 rounded-full bg-yellow-100 text-yellow-800 font-semibold">⚠️ Attention</span>
+                      {% else %}
+                        <span class="inline-block px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">🕰 Routine</span>
+                      {% endif %}
+                    </td>
+                    <td class="px-4 py-2 text-xs text-slate-700">
+                      {% if s.last_activity_at %}
+                        <span class="js-rel-time" data-ts="{{ s.last_activity_at.isoformat() }}">{{ s.last_activity_at.strftime("%b %d · %I:%M %p") }}</span>
+                      {% else %}—{% endif %}
+                    </td>
+                    <td class="px-4 py-2 text-xs text-slate-600">
+                      {% set snip = (s.last_snippet or "") %}
+                      <div title="{{ snip }}">{{ snip[:140] }}{% if snip|length > 140 %}…{% endif %}</div>
+                    </td>
+                    <td class="px-4 py-2 text-right">
+                      <a
+                        href="/admin/dashboard?view=chats&session_id={{ s.id }}#chats"
+                        class="text-indigo-700 hover:underline text-xs font-semibold"
+                      >
+                        View →
+                      </a>
+                    </td>
+                  </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        {% else %}
+          <div class="mt-4 text-sm text-slate-500">No chat sessions yet.</div>
+        {% endif %}
+      </div>
+    </div>
+
+    <!-- RIGHT: Chat detail -->
+    <div class="col-span-12 xl:col-span-5">
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+        {% if selected_session %}
+          <div class="flex items-start justify-between gap-3">
+            <div>
+              <div class="text-sm font-semibold">Chat #{{ selected_session.id }}</div>
+              <div class="text-xs text-slate-500 mt-1">
+                Property: <span class="font-semibold text-slate-700">{{ selected_property.property_name if selected_property else "Unknown property" }}</span>
+              </div>
+            </div>
+            <a class="text-xs font-semibold text-slate-600 hover:underline"
+               href="/admin/dashboard?view=chats#chats">
+              Close
+            </a>
+          </div>
+
+          <!-- Action panel (same as detail page, but without reloads) -->
+          <div class="mt-4 space-y-3">
+            <div class="flex flex-wrap gap-2 items-center justify-between">
+              <div class="flex flex-wrap gap-2 items-center">
+                <span id="resolved-pill"
+                      class="inline-block px-2 py-1 rounded-full text-xs font-semibold
+                      {% if selected_session.is_resolved %}bg-emerald-50 text-emerald-700{% else %}bg-slate-100 text-slate-700{% endif %}">
+                  {% if selected_session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
+                </span>
+
+                <span id="escalation-pill"
+                      class="inline-block px-2 py-1 rounded-full text-xs font-semibold
+                      {% if selected_session.escalation_level == 'high' %}bg-red-100 text-red-900
+                      {% elif selected_session.escalation_level == 'medium' %}bg-yellow-100 text-yellow-800
+                      {% elif selected_session.escalation_level == 'low' %}bg-blue-100 text-blue-700
+                      {% else %}bg-slate-100 text-slate-600{% endif %}">
+                  {% if selected_session.escalation_level %}
+                    🚨 Escalation: {{ selected_session.escalation_level|capitalize }}
+                  {% else %}
+                    No escalation
+                  {% endif %}
+                </span>
+
+                <span class="text-xs text-slate-500">
+                  Assigned: <span class="font-semibold text-slate-700">{{ selected_session.assigned_to or "—" }}</span>
+                </span>
+              </div>
+
+              <!-- Option: keep "open full page" link -->
+              <a href="/admin/chats/{{ selected_session.id }}" class="text-xs font-semibold text-indigo-700 hover:underline">
+                Open full →
+              </a>
+            </div>
+
+            <!-- AI summary -->
+            <div class="rounded-xl border border-slate-200 p-3">
+              <div class="flex items-center justify-between gap-2">
+                <div class="text-xs font-semibold text-slate-700">AI Summary</div>
+                <button
+                  type="button"
+                  class="h-9 px-3 rounded-xl bg-slate-900 text-white text-xs font-semibold"
+                  onclick="Chats.refreshSummary({{ selected_session.id }})"
+                >
+                  Generate / Refresh
+                </button>
+              </div>
+              <div id="summary-box" class="mt-2 text-sm text-slate-800 whitespace-pre-wrap">
+                {{ selected_session.ai_summary or "No summary yet." }}
+              </div>
+            </div>
+
+            <!-- Messages -->
+            <div class="rounded-xl border border-slate-200 p-3 space-y-3 max-h-[520px] overflow-auto">
+              {% for msg in selected_messages %}
+                <div class="flex {{ 'justify-end' if msg.sender == 'assistant' else 'justify-start' }}">
+                  <div class="max-w-[86%] rounded-xl px-3 py-2 text-sm
+                    {% if msg.sender == 'assistant' %}
+                      bg-indigo-50 border border-indigo-100
+                    {% elif msg.sender == 'guest' %}
+                      bg-slate-50 border border-slate-200
+                    {% else %}
+                      bg-amber-50 border border-amber-200
+                    {% endif %}
+                  ">
+                    <div class="text-xs font-semibold mb-1 text-slate-600">
+                      {{ msg.sender|capitalize }}
+                      <span class="text-slate-400">• {{ msg.created_at }}</span>
+                    </div>
+                    <div class="whitespace-pre-wrap text-slate-800">{{ msg.content }}</div>
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+
+        {% else %}
+          <div class="text-sm font-semibold">Chat detail</div>
+          <div class="mt-2 text-sm text-slate-500">
+            Select a chat on the left to view details here.
+          </div>
+        {% endif %}
+      </div>
+    </div>
+
+  </div>
+</section>
+
 
         <section id="view-pmcs" class="view hidden">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
@@ -1320,6 +1592,24 @@
     }
   }
 });
+
+   window.Chats = {
+  async refreshSummary(sessionId) {
+    const box = document.getElementById("summary-box");
+    if (!box) return;
+
+    try {
+      box.textContent = "Generating…";
+      const res = await fetch(`/admin/chats/${sessionId}/summarize`, { method: "POST", credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || "Failed");
+      box.textContent = data.summary || "";
+    } catch (e) {
+      box.textContent = `Summary error: ${e.message}`;
+    }
+  }
+};
+
 
 // ----------------------------
 // Upgrades (single definition + resilient AJAX handling)
@@ -2398,6 +2688,18 @@ function initAllReorderTables() {
     initSidebar();
     initRouting();
 
+
+    // If server sent ?view=chats or ?session_id=..., switch to chats view on load
+    const params = new URLSearchParams(window.location.search);
+    const viewParam = (params.get("view") || "").toLowerCase();
+    if (viewParam) {
+      // convert ?view=chats into #chats routing
+      window.location.hash = `#${viewParam}`;
+    } else if (params.get("session_id")) {
+      window.location.hash = "#chats";
+    }
+    
+        
     // Chart init
     const ctx = document.getElementById("statusChart");
     if (ctx && window.Chart) {
