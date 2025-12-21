@@ -397,6 +397,78 @@ def admin_sync_properties(pmc_id: int, request: Request, db: Session = Depends(g
 
 
 # ----------------------------
+# Chats list route (god view)
+# ----------------------------
+
+@router.get("/admin/chats", response_class=HTMLResponse)
+def chats_dashboard(
+    request: Request,
+    db: Session = Depends(get_db),
+    pmc_id: Optional[int] = Query(None),
+    property_id: Optional[int] = Query(None),
+    enabled_only: Optional[int] = Query(None),  # 1/0
+):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
+    q = (
+        db.query(ChatSession, Property)
+        .join(Property, ChatSession.property_id == Property.id)
+    )
+
+    # Always scope by role
+    q = apply_chat_scope(q, user_role, pmc_obj)
+
+    # Super can filter pmc_id; PMC cannot override
+    if user_role == "super" and pmc_id is not None:
+        q = q.filter(Property.pmc_id == int(pmc_id))
+
+    if property_id is not None:
+        q = q.filter(ChatSession.property_id == int(property_id))
+
+    # Default behavior:
+    # - PMC: enabled-only unless explicitly enabled_only=0
+    # - Super: show all by default
+    if user_role == "pmc":
+        if enabled_only is None or int(enabled_only) == 1:
+            q = q.filter(Property.chat_enabled.is_(True))
+    else:
+        if enabled_only is not None and int(enabled_only) == 1:
+            q = q.filter(Property.chat_enabled.is_(True))
+
+    sessions = q.order_by(ChatSession.last_activity_at.desc()).limit(200).all()
+
+    # Build filter dropdown lists based on scope
+    props_q = db.query(Property)
+    props_q = apply_property_scope(props_q, user_role, pmc_obj)  # if you already have this helper
+    properties = props_q.order_by(Property.property_name.asc()).all()
+
+    return templates.TemplateResponse("admin/chats.html", {
+        "request": request,
+        "sessions": [...],
+        "properties": properties,
+        "filters": {...},
+        "user_role": user_role,
+    })
+
+
+# ----------------------------
+# Reusable “scope filter” helper
+# ----------------------------
+
+def apply_chat_scope(q, user_role, pmc_obj):
+    """
+    q is a SQLAlchemy query already joined to Property (or can be).
+    Superuser: no filter
+    PMC: only their properties
+    """
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+    return q
+
+
+
+# ----------------------------
 # Delete a team member (owner/admin only)
 # ----------------------------
 @router.delete("/admin/settings/team/{member_id}")
