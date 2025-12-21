@@ -1151,17 +1151,63 @@ def escalate_chat(session_id: int, request: Request, payload: dict = Body(...), 
     db.commit()
     return {"ok": True, "escalation_level": s.escalation_level}
 
+class AssignPayload(BaseModel):
+    assigned_to: str | None = None
 
+
+def require_user(request: Request) -> dict:
+    user = request.session.get("user")
+    if not user:
+        # Use 401 for "not logged in" (NOT 403)
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    return user
+
+
+def get_chat_session_in_scope(db: Session, session_id: int, user_role: str, pmc_obj):
+    """
+    Returns ChatSession if user can access it; otherwise raises 404 (or 403 if you prefer).
+    """
+    q = (
+        db.query(ChatSession)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatSession.id == session_id)
+    )
+
+    if user_role == "pmc":
+        if not pmc_obj:
+            raise HTTPException(status_code=403, detail="PMC scope not found")
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+
+    obj = q.first()
+    if not obj:
+        # 404 avoids leaking existence of sessions outside scope
+        raise HTTPException(status_code=404, detail="Chat not found")
+    return obj
+    
 @router.post("/admin/chats/{session_id}/assign")
-def assign_chat(session_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
-    s = require_session_in_scope(request, db, session_id)
-    assigned_to = (payload.get("assigned_to") or "").strip()
-    enforce_assignee_in_pmc(request, db, assigned_to)
-    s.assigned_to = assigned_to or None
-    s.updated_at = datetime.utcnow()
-    db.add(s)
+def assign_chat(
+    session_id: int,
+    payload: AssignPayload,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    # must be logged in
+    require_user(request)
+
+    # resolve role + scope (your existing helper)
+    user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
+
+    # load session in scope
+    sess = get_chat_session_in_scope(db, session_id, user_role, pmc_obj)
+
+    # apply assignment
+    assigned_to = (payload.assigned_to or "").strip()
+    sess.assigned_to = assigned_to or None
+
+    db.add(sess)
     db.commit()
-    return {"ok": True, "assigned_to": s.assigned_to}
+
+    return {"ok": True, "assigned_to": sess.assigned_to}
 
 
 @router.post("/admin/chats/{session_id}/note")
