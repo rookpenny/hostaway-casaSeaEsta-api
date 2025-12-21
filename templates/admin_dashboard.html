@@ -643,7 +643,7 @@
     <!-- LEFT: list -->
     <div class="col-span-12 xl:col-span-7 space-y-3">
       <!-- Filters -->
-      <form class="bg-white rounded-2xl border border-slate-200 p-3 card flex flex-wrap gap-2 items-center" method="get">
+      <form id="chatFilters" class="bg-white rounded-2xl border border-slate-200 p-3 card flex flex-wrap gap-2 items-center" method="get">
         <input type="hidden" name="view" value="chats" />
 
         {% if user_role == "super" %}
@@ -701,7 +701,22 @@
         <button class="bg-slate-900 text-white rounded-xl px-4 py-2 text-sm font-semibold">Filter</button>
         <a href="/admin/dashboard?view=chats" class="text-sm text-slate-600 hover:underline ml-auto">Reset</a>
       </form>
-
+      <script>
+      document.getElementById("chatFilters")?.addEventListener("submit", (e) => {
+        const form = e.currentTarget;
+        const url = new URL(form.action || window.location.pathname, window.location.origin);
+        const fd = new FormData(form);
+      
+        // Build query string, skipping empty values
+        for (const [k, v] of fd.entries()) {
+          if (String(v).trim() !== "") url.searchParams.set(k, String(v));
+        }
+      
+        // Navigate manually
+        e.preventDefault();
+        window.location.href = url.toString();
+      });
+      </script>
       <!-- Table -->
       <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden card">
         {% if sessions %}
