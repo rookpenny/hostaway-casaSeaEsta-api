@@ -1,5 +1,6 @@
 {% macro render_list_table(items, kind, show_price=false, show_delete=false) %}
-{% set singular = (kind[:-1] if kind and kind.endswith('s') else kind) %}
+  {# kind is expected to be plural: "guides" | "upgrades" #}
+  {% set singular = kind[:-1] if kind.endswith('s') else kind %}
 
 <table class="w-full text-sm" data-list-kind="{{ kind }}">
   <thead class="text-xs text-slate-500">
@@ -17,64 +18,70 @@
 
   <tbody data-reorder-body>
     {% for item in items %}
-      <tr class="border-b border-slate-100"
-          data-id="{{ item.id }}"
-          data-{{ kind }}-row="{{ item.id }}"
-          data-{{ singular }}-row="{{ item.id }}">
+    <tr class="border-b border-slate-100"
+        data-id="{{ item.id }}"
+        data-{{ singular }}-row="{{ item.id }}">
 
-        <td class="py-2 pr-2">
-          <span class="inline-flex items-center justify-center w-6 h-6 text-slate-400 cursor-grab select-none"
-                title="Drag to reorder"
-                data-reorder-handle>⋮⋮</span>
-        </td>
+      <!-- Drag handle -->
+      <td class="py-2 pr-2">
+        <span
+          class="inline-flex items-center justify-center w-6 h-6 text-slate-400 cursor-grab select-none"
+          title="Drag to reorder"
+          data-reorder-handle
+        >⋮⋮</span>
+      </td>
 
-        <td class="py-2 font-medium">{{ item.title }}</td>
+      <td class="py-2 font-medium">{{ item.title }}</td>
 
-        <td class="py-3 text-slate-600">
-          {{ item.property_name or "—" }}
-        </td>
+      <td class="py-3 text-slate-600">
+        {{ item.property_name or "—" }}
+      </td>
 
-        {% if show_price %}
-          <td class="py-2 text-slate-600">
-            ${{ '%.2f'|format((item.price_cents or 0) / 100) }}
-          </td>
+      {% if show_price %}
+      <td class="py-2 text-slate-600">
+        ${{ '%.2f'|format((item.price_cents or 0) / 100) }}
+      </td>
+      {% endif %}
+
+      <td class="py-2">
+        <label class="inline-flex items-center gap-2">
+          <input
+            type="checkbox"
+            class="h-5 w-5"
+            {% if item.is_active %}checked{% endif %}
+            data-{{ singular }}-active
+            data-{{ singular }}-id="{{ item.id }}"
+          />
+          <span class="text-sm font-medium text-slate-700">Active</span>
+        </label>
+      </td>
+
+      <td class="py-2 text-right">
+        <button
+          type="button"
+          class="text-xs font-semibold hover:underline"
+          data-{{ singular }}-edit="{{ item.id }}">
+          Edit
+        </button>
+
+        {% if show_delete %}
+        <button
+          type="button"
+          class="ml-3 text-xs font-semibold text-rose-600 hover:underline"
+          data-{{ singular }}-delete="{{ item.id }}">
+          Delete
+        </button>
         {% endif %}
-
-        <td class="py-2">
-          <label class="inline-flex items-center gap-2">
-            <input type="checkbox"
-                   class="h-5 w-5"
-                   {% if item.is_active %}checked{% endif %}
-                   data-{{ singular }}-active
-                   data-{{ singular }}-id="{{ item.id }}" />
-            <span class="text-sm font-medium text-slate-700">Active</span>
-          </label>
-        </td>
-
-        <td class="py-2 text-right">
-          <button type="button"
-                  class="text-xs font-semibold hover:underline"
-                  data-{{ singular }}-edit="{{ item.id }}">
-            Edit
-          </button>
-
-          {% if show_delete %}
-            <button type="button"
-                    class="ml-3 text-xs font-semibold text-rose-600 hover:underline"
-                    data-{{ singular }}-delete="{{ item.id }}">
-              Delete
-            </button>
-          {% endif %}
-        </td>
-      </tr>
+      </td>
+    </tr>
     {% endfor %}
 
     {% if not items %}
-      <tr>
-        <td colspan="{{ 6 if show_price else 5 }}" class="py-6 text-center text-slate-500">
-          No {{ kind }} yet.
-        </td>
-      </tr>
+    <tr>
+      <td colspan="{{ 6 if show_price else 5 }}" class="py-6 text-center text-slate-500">
+        No {{ kind }} yet.
+      </td>
+    </tr>
     {% endif %}
   </tbody>
 </table>
