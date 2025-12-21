@@ -2288,11 +2288,25 @@ function initReorderForTable(rootEl) {
           ? (document.getElementById("guidesPropertyFilter")?.value || "").trim()
           : (document.getElementById("upgradesPropertyFilter")?.value || "").trim();
 
-      if (kind === "guides" && !propertyFilterId) {
-        toast("Select a property to reorder Guides.");
-        try { await Guides.refresh(); } catch {}
-        return;
-      }
+if (kind === "guides" && !propertyFilterId) {
+  // If "All properties", only allow reorder if every visible row shares the same property_id
+  const propIds = Array.from(rows)
+    .map((tr) => (tr.getAttribute("data-property-id") || "").trim())
+    .filter(Boolean);
+
+  const unique = Array.from(new Set(propIds));
+
+  if (unique.length !== 1) {
+    toast("Select a property to reorder Guides.");
+    try { await Guides.refresh(); } catch {}
+    return;
+  }
+
+  // We can proceed; backend will enforce same-property anyway.
+  // Optional: send property_id for clarity (backend doesn’t need it)
+  payload.property_id = Number(unique[0]);
+}
+
 
       const payload = { ids };
 
