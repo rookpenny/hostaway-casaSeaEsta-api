@@ -2204,7 +2204,6 @@ document.addEventListener("change", async (e) => {
 
 
 
-// Helper: "guides" -> "guide", "upgrades" -> "upgrade"
 function singularize(kind) {
   const k = String(kind || "").trim().toLowerCase();
   if (!k) return "";
@@ -2213,46 +2212,27 @@ function singularize(kind) {
   return k;
 }
 
-// Helper: normalize "guide"/"guides" => "guides", "upgrade"/"upgrades" => "upgrades"
-function normalizeKind(kind) {
-  const k = String(kind || "").trim().toLowerCase();
-  if (k === "guide" || k === "guides") return "guides";
-  if (k === "upgrade" || k === "upgrades") return "upgrades";
-  return k;
-}
-
 function initReorderForTable(rootEl) {
   if (!rootEl) return;
-
   if (!window.Sortable) {
-    console.warn("Sortable missing — drag/drop disabled (CDN blocked or failed).");
+    console.warn("Sortable missing — drag/drop disabled.");
     return;
   }
 
-  const kindRaw = rootEl.getAttribute("data-list-kind") || "";
-  const kind = normalizeKind(kindRaw); // ✅ "guides" | "upgrades"
-
-  if (kind !== "guides" && kind !== "upgrades") {
-    console.warn("Unexpected data-list-kind on table:", kindRaw);
+  const kind = (rootEl.getAttribute("data-list-kind") || "").trim().toLowerCase(); // guides|upgrades
+  if (!kind) {
+    console.warn("Missing data-list-kind on table.");
     return;
   }
 
   const tbody = rootEl.querySelector("[data-reorder-body]") || rootEl.querySelector("tbody");
-  if (!tbody) {
-    console.warn("No tbody found for reorder table.");
-    return;
-  }
+  if (!tbody) return;
 
-  // Prevent double init
   if (tbody._sortable) return;
 
-  const singular = singularize(kind); // "guide" | "upgrade"
-
-  // ✅ Support both attribute styles:
-  // - preferred: data-guide-row / data-upgrade-row
-  // - current macro: data-guides-row / data-upgrades-row
-  const rowAttrSingular = `data-${singular}-row`;
-  const rowAttrPlural = `data-${kind}-row`;
+  const singular = singularize(kind);
+  const rowAttrPlural = `data-${kind}-row`;       // data-guides-row / data-upgrades-row
+  const rowAttrSingular = `data-${singular}-row`; // data-guide-row / data-upgrade-row
 
   const hasHandles = rootEl.querySelectorAll("[data-reorder-handle]").length > 0;
 
@@ -2262,62 +2242,43 @@ function initReorderForTable(rootEl) {
     ...(hasHandles ? { handle: "[data-reorder-handle]" } : {}),
 
     onEnd: async () => {
-      // Collect ids in displayed order (try singular attr first, then plural)
-      const rowsSingular = tbody.querySelectorAll(`tr[${rowAttrSingular}]`);
-      const rows = rowsSingular.length
-        ? rowsSingular
-        : tbody.querySelectorAll(`tr[${rowAttrPlural}]`);
+      // Prefer singular attr if present, otherwise plural
+      let rows = Array.from(tbody.querySelectorAll(`tr[${rowAttrSingular}]`));
+      if (!rows.length) rows = Array.from(tbody.querySelectorAll(`tr[${rowAttrPlural}]`));
 
-      const idsRaw = Array.from(rows)
+      const idsRaw = rows
         .map((tr) => (tr.getAttribute(rowAttrSingular) || tr.getAttribute(rowAttrPlural) || "").trim())
         .filter(Boolean);
 
       const ids = idsRaw.map((x) => Number(x)).filter((n) => Number.isFinite(n));
-
       if (!ids.length) {
-        console.error("Reorder: no valid numeric IDs found.", {
-          kind, kindRaw, idsRaw, rowAttrSingular, rowAttrPlural
-        });
-        toast("Could not reorder: row IDs missing.");
+        console.error("Reorder: no numeric ids found", { kind, idsRaw, rowAttrSingular, rowAttrPlural });
+        toast("Could not reorder: missing row ids.");
         return;
       }
 
-      // Property scoping (Guides requires same property in your backend)
-      const propertyFilterId =
+      // Guides backend enforces all same property. Enforce on client too:
+      if (kind === "guides") {
+        const propIds = rows
+          .map((tr) => (tr.getAttribute("data-property-id") || "").trim())
+          .filter(Boolean);
+
+        const unique = Array.from(new Set(propIds));
+        if (unique.length !== 1) {
+          toast("Select a property to reorder Guides.");
+          try { await Guides.refresh(); } catch {}
+          return;
+        }
+      }
+
+      const url =
         kind === "guides"
-          ? (document.getElementById("guidesPropertyFilter")?.value || "").trim()
-          : (document.getElementById("upgradesPropertyFilter")?.value || "").trim();
-
-if (kind === "guides" && !propertyFilterId) {
-  // If "All properties", only allow reorder if every visible row shares the same property_id
-  const propIds = Array.from(rows)
-    .map((tr) => (tr.getAttribute("data-property-id") || "").trim())
-    .filter(Boolean);
-
-  const unique = Array.from(new Set(propIds));
-
-  if (unique.length !== 1) {
-    toast("Select a property to reorder Guides.");
-    try { await Guides.refresh(); } catch {}
-    return;
-  }
-
-  // We can proceed; backend will enforce same-property anyway.
-  // Optional: send property_id for clarity (backend doesn’t need it)
-  payload.property_id = Number(unique[0]);
-}
-
+          ? "/admin/guides/ajax/reorder"
+          : "/admin/upgrades/ajax/reorder";
 
       const payload = { ids };
 
-      // only send property_id when valid
-      if (propertyFilterId && Number.isFinite(Number(propertyFilterId))) {
-        payload.property_id = Number(propertyFilterId);
-      }
-
-      const url = kind === "guides"
-        ? "/admin/guides/ajax/reorder"
-        : "/admin/upgrades/ajax/reorder";
+      console.log("POST reorder", { url, payload });
 
       try {
         const { res, data } = await apiJson(url, {
@@ -2331,7 +2292,10 @@ if (kind === "guides" && !propertyFilterId) {
           toast(data?.error || data?.detail || "Failed to save order.");
           if (kind === "guides") await Guides.refresh();
           if (kind === "upgrades") await Upgrades.refresh();
+          return;
         }
+
+        toast("Order saved ✓");
       } catch (err) {
         console.error("Reorder error:", err);
         toast("Failed to save order.");
@@ -2341,13 +2305,7 @@ if (kind === "guides" && !propertyFilterId) {
     },
   });
 
-  console.log("Sortable bound:", {
-    kind,
-    kindRaw,
-    rowAttrSingular,
-    rowAttrPlural,
-    hasHandles,
-  });
+  console.log("Sortable bound:", { kind, rowAttrPlural, rowAttrSingular, hasHandles });
 }
 
 function initAllReorderTables() {
