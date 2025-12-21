@@ -2202,47 +2202,71 @@ document.addEventListener("change", async (e) => {
     showSettingsPanel(getSettingsTabFromHash());
   }
 
- function initReorderForTable(rootEl) {
-  if (!rootEl || !window.Sortable) return;
+ function singularize(kind) {
+  // guides -> guide, upgrades -> upgrade
+  if (!kind) return "";
+  return kind.endsWith("s") ? kind.slice(0, -1) : kind;
+}
 
-  const tbody = rootEl.querySelector("[data-reorder-body]");
-  if (!tbody) return;
+function initReorderForTable(rootEl) {
+  if (!rootEl) return;
 
-  // Prevent double init on the same tbody
+  if (!window.Sortable) {
+    console.warn("Sortable missing — drag/drop disabled (CDN blocked or failed).");
+    return;
+  }
+
+  const kind = (rootEl.getAttribute("data-list-kind") || "").trim(); // "guides" | "upgrades"
+  if (!kind) {
+    console.warn("Missing data-list-kind on table.");
+    return;
+  }
+
+  // ✅ tolerate missing data-reorder-body in partial
+  const tbody =
+    rootEl.querySelector("[data-reorder-body]") ||
+    rootEl.querySelector("tbody");
+
+  if (!tbody) {
+    console.warn("No tbody found for reorder table.");
+    return;
+  }
+
+  // Prevent double init
   if (tbody._sortable) return;
 
-  // Expect: table[data-list-kind="guides"] or table[data-list-kind="upgrades"]
-  const kind = (rootEl.getAttribute("data-list-kind") || "").trim(); // "guides" | "upgrades"
-  if (!kind) return;
+  const singular = singularize(kind); // guide | upgrade
 
-  // ✅ IMPORTANT: your rows are almost certainly singular:
-  //   guides rows:   <tr data-guide-row="123">
-  //   upgrades rows: <tr data-upgrade-row="456">
-  const rowAttrByKind = {
-    guides: "data-guide-row",
-    upgrades: "data-upgrade-row",
-  };
+  // ✅ accept either data-upgrade-row OR data-upgrades-row (robust)
+  const rowAttrPrimary = `data-${singular}-row`; // preferred (data-upgrade-row)
+  const rowAttrAlt = `data-${kind}-row`;         // legacy (data-upgrades-row)
 
-  const rowAttr = rowAttrByKind[kind];
-  if (!rowAttr) return;
+  const hasHandles = rootEl.querySelectorAll("[data-reorder-handle]").length > 0;
 
   tbody._sortable = new Sortable(tbody, {
     animation: 150,
-    handle: "[data-reorder-handle]",
     draggable: "tr",
+    ...(hasHandles ? { handle: "[data-reorder-handle]" } : {}),
 
     onEnd: async () => {
-      const ids = Array.from(tbody.querySelectorAll(`tr[${rowAttr}]`))
-        .map((tr) => (tr.getAttribute(rowAttr) || "").trim())
+      // collect IDs from whichever attr exists
+      const rows =
+        tbody.querySelectorAll(`tr[${rowAttrPrimary}]`).length
+          ? tbody.querySelectorAll(`tr[${rowAttrPrimary}]`)
+          : tbody.querySelectorAll(`tr[${rowAttrAlt}]`);
+
+      const ids = Array.from(rows)
+        .map((tr) => (tr.getAttribute(rowAttrPrimary) || tr.getAttribute(rowAttrAlt) || "").trim())
         .filter(Boolean);
 
+      // if backend expects numeric ids:
       const order = ids
         .map((x) => Number(x))
         .filter((n) => Number.isFinite(n));
 
       if (!order.length) {
-        console.error("Reorder: no valid numeric ids found", { kind, ids });
-        toast("Could not determine new order.");
+        console.error("Reorder: no valid IDs found.", { kind, ids, rowAttrPrimary, rowAttrAlt });
+        toast("Could not reorder: row IDs missing.");
         return;
       }
 
@@ -2252,7 +2276,11 @@ document.addEventListener("change", async (e) => {
           : document.getElementById("upgradesPropertyFilter")?.value) || "";
 
       const payload = { order };
-      if (propertyIdRaw) payload.property_id = Number(propertyIdRaw);
+
+      // Only send property_id if it’s a real number
+      if (propertyIdRaw && Number.isFinite(Number(propertyIdRaw))) {
+        payload.property_id = Number(propertyIdRaw);
+      }
 
       const url =
         kind === "guides"
@@ -2268,21 +2296,22 @@ document.addEventListener("change", async (e) => {
 
         if (!res.ok || !data.ok) {
           console.error("Reorder failed:", { status: res.status, data, payload });
-          toast(data?.error || data?.detail || "Failed to save order.");
+          toast(data?.error || "Failed to save order.");
         }
       } catch (e) {
-        console.error("reorder error:", e);
+        console.error("Reorder error:", e);
         toast("Failed to save order.");
       }
     },
   });
+
+  console.log("Sortable bound:", { kind, hasHandles, rowAttrPrimary, rowAttrAlt });
 }
-
-
 
 function initAllReorderTables() {
   document.querySelectorAll("table[data-list-kind]").forEach(initReorderForTable);
 }
+
 
 
 
