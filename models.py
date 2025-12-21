@@ -262,6 +262,8 @@ class Property(Base):
     upgrades = relationship("Upgrade", back_populates="property", cascade="all, delete-orphan")
     chat_sessions = relationship("ChatSession", back_populates="property", cascade="all, delete-orphan")
 
+    chat_enabled = Column(Boolean, nullable=False, default=False)
+
     __table_args__ = (
         # ✅ New correct uniqueness rule (what your sync uses)
         UniqueConstraint("integration_id", "external_property_id", name="uq_properties_integration_external"),
