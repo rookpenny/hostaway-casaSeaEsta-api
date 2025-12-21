@@ -373,6 +373,9 @@ def get_team_table(request: Request, db: Session = Depends(get_db)):
             "request": request,
             "team_members": team_members,
             "user_email": pmc_user.email,
+            "properties": properties,
+            "sessions": sessions,
+            "property_name_by_id": property_name_by_id,
             "render_team_only": True,  # 👈 flag
         },
     )
