@@ -2208,9 +2208,19 @@ document.addEventListener("change", async (e) => {
   return kind.endsWith("s") ? kind.slice(0, -1) : kind;
 }
 
+// Helper: "guides" -> "guide", "upgrades" -> "upgrade"
+function singularize(kind) {
+  const k = String(kind || "").trim().toLowerCase();
+  if (!k) return "";
+  if (k.endsWith("ies")) return k.slice(0, -3) + "y"; // e.g. "categories" -> "category" (just in case)
+  if (k.endsWith("s")) return k.slice(0, -1);         // "guides" -> "guide"
+  return k;
+}
+
 function initReorderForTable(rootEl) {
   if (!rootEl) return;
 
+  // If Sortable didn't load, drag/drop can't work.
   if (!window.Sortable) {
     console.warn("Sortable missing — drag/drop disabled (CDN blocked or failed).");
     return;
@@ -2222,24 +2232,25 @@ function initReorderForTable(rootEl) {
     return;
   }
 
-  // ✅ tolerate missing data-reorder-body in partial
-  const tbody =
-    rootEl.querySelector("[data-reorder-body]") ||
-    rootEl.querySelector("tbody");
-
+  // Tolerate either explicit reorder body or a normal tbody
+  const tbody = rootEl.querySelector("[data-reorder-body]") || rootEl.querySelector("tbody");
   if (!tbody) {
     console.warn("No tbody found for reorder table.");
     return;
   }
 
-  // Prevent double init
-  if (tbody._sortable) return;
+  // Prevent double-init (and keep a real reference we can destroy later if needed)
+  if (tbody._sortable && typeof tbody._sortable.destroy === "function") return;
 
-  const singular = singularize(kind); // guide | upgrade
+  const singular = singularize(kind); // "guide" | "upgrade"
+  if (!singular) {
+    console.warn("Could not singularize kind:", kind);
+    return;
+  }
 
-  // ✅ accept either data-upgrade-row OR data-upgrades-row (robust)
-  const rowAttrPrimary = `data-${singular}-row`; // preferred (data-upgrade-row)
-  const rowAttrAlt = `data-${kind}-row`;         // legacy (data-upgrades-row)
+  // Accept either plural OR singular row attribute (robust across templates)
+  const rowAttrPrimary = `data-${singular}-row`; // data-upgrade-row
+  const rowAttrAlt = `data-${kind}-row`;         // data-upgrades-row (legacy)
 
   const hasHandles = rootEl.querySelectorAll("[data-reorder-handle]").length > 0;
 
@@ -2249,38 +2260,55 @@ function initReorderForTable(rootEl) {
     ...(hasHandles ? { handle: "[data-reorder-handle]" } : {}),
 
     onEnd: async () => {
-      // collect IDs from whichever attr exists
-      const rows =
-        tbody.querySelectorAll(`tr[${rowAttrPrimary}]`).length
-          ? tbody.querySelectorAll(`tr[${rowAttrPrimary}]`)
-          : tbody.querySelectorAll(`tr[${rowAttrAlt}]`);
+      // Prefer primary attribute; fall back to alt
+      const primaryRows = tbody.querySelectorAll(`tr[${rowAttrPrimary}]`);
+      const altRows = tbody.querySelectorAll(`tr[${rowAttrAlt}]`);
+      const rows = primaryRows.length ? primaryRows : altRows;
 
       const ids = Array.from(rows)
         .map((tr) => (tr.getAttribute(rowAttrPrimary) || tr.getAttribute(rowAttrAlt) || "").trim())
         .filter(Boolean);
 
-      // if backend expects numeric ids:
-      const order = ids
-        .map((x) => Number(x))
-        .filter((n) => Number.isFinite(n));
-
-      if (!order.length) {
-        console.error("Reorder: no valid IDs found.", { kind, ids, rowAttrPrimary, rowAttrAlt });
+      if (!ids.length) {
+        console.error("Reorder: no row ids found.", { kind, rowAttrPrimary, rowAttrAlt });
         toast("Could not reorder: row IDs missing.");
         return;
       }
 
+      // Enforce numeric IDs (since your backend likely validates int IDs)
+      const order = ids.map((x) => Number(x));
+
+      // If any are invalid, bail with a useful error
+      const invalid = order.filter((n) => !Number.isFinite(n));
+      if (invalid.length) {
+        console.error("Reorder: invalid numeric ids.", { kind, ids, order, rowAttrPrimary, rowAttrAlt });
+        toast("Could not reorder: invalid row IDs.");
+        return;
+      }
+
+      // Extra safety: ensure we didn’t drop rows accidentally
+      if (order.length !== ids.length) {
+        console.error("Reorder: length mismatch.", { kind, ids, order });
+        toast("Could not reorder: ID mismatch.");
+        return;
+      }
+
+      // property_id (some backends require this to validate “ids belong to property”)
       const propertyIdRaw =
         (kind === "guides"
           ? document.getElementById("guidesPropertyFilter")?.value
           : document.getElementById("upgradesPropertyFilter")?.value) || "";
 
-      const payload = { order };
+      const propertyIdNum = Number(propertyIdRaw);
+      const property_id = propertyIdRaw && Number.isFinite(propertyIdNum) ? propertyIdNum : null;
 
-      // Only send property_id if it’s a real number
-      if (propertyIdRaw && Number.isFinite(Number(propertyIdRaw))) {
-        payload.property_id = Number(propertyIdRaw);
-      }
+      // Send both keys (ids + order) until backend is confirmed
+      const payload = {
+        ids: order,
+        order: order,
+        kind: kind,
+        property_id: property_id,
+      };
 
       const url =
         kind === "guides"
@@ -2294,9 +2322,9 @@ function initReorderForTable(rootEl) {
           body: JSON.stringify(payload),
         });
 
-        if (!res.ok || !data.ok) {
+        if (!res.ok || !data?.ok) {
           console.error("Reorder failed:", { status: res.status, data, payload });
-          toast(data?.error || "Failed to save order.");
+          toast(data?.error || data?.detail || "Failed to save order.");
         }
       } catch (e) {
         console.error("Reorder error:", e);
@@ -2311,6 +2339,7 @@ function initReorderForTable(rootEl) {
 function initAllReorderTables() {
   document.querySelectorAll("table[data-list-kind]").forEach(initReorderForTable);
 }
+
 
 
 
