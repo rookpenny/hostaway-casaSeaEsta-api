@@ -70,19 +70,16 @@
   </button>
 
   <!-- Chats (PMC + Super) -->
-  <!--button data-view="chats"
+  <button data-view="chats"
     class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    type="button"-->
-  <a href="/admin/dashboard?view=chats"
-   class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700">
-    <!--span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200"-->
+    type="button">
      <span class="sidebar-label font-medium"> <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
         <path d="M21 15a4 4 0 0 1-4 4H8l-5 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8z"
           stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
       </svg>
     </span>
     <span class="sidebar-label font-medium">Chats</span>
-  <!--/button--></a>
+  <button>
 
   {% if user_role == "super" %}
     <!-- PMCs (Super only) -->
