@@ -737,7 +737,7 @@
               {% for s in sessions %}
                 <tr
                   class="border-t hover:bg-slate-50 cursor-pointer {% if selected_session and selected_session.id == s.id %}bg-slate-50{% endif %}"
-                  onclick="window.location.href='/admin/dashboard?view=chats&session_id={{ s.id }}'"
+                  onclick="window.location.href='/admin/dashboard?view=chats&session_id={{ s.id }}#chats'"
                 >
                   <td class="px-4 py-3">
                     <div class="font-semibold">
@@ -2877,80 +2877,102 @@ function initAllReorderTables() {
   // Main view routing (left nav)
   // ----------------------------
   function initRouting() {
-    const pageTitle = document.getElementById("page-title");
-    const pageSubtitle = document.getElementById("page-subtitle");
-    const navItems = Array.from(document.querySelectorAll(".nav-item"));
-    const views = Array.from(document.querySelectorAll(".view"));
+  const pageTitle = document.getElementById("page-title");
+  const pageSubtitle = document.getElementById("page-subtitle");
+  const navItems = Array.from(document.querySelectorAll(".nav-item"));
+  const views = Array.from(document.querySelectorAll(".view"));
 
-    const subtitles = {
-      overview: "{{ 'System health & activity' if user_role == 'super' else 'Your portfolio at a glance' }}",
-      properties: "Search and manage your portfolio",
-      chats: "Lifecycle, priority, escalations",
-      pmcs: "Partners, integrations, access",
-      guides: "Guest-facing guides per property",
-      upgrades: "Paid add-ons per property",
-      files: "Configs & manuals",
-      analytics: "Trends & performance",
-      settings: "Account and system settings",
-    };
+  const subtitles = {
+    overview: "{{ 'System health & activity' if user_role == 'super' else 'Your portfolio at a glance' }}",
+    properties: "Search and manage your portfolio",
+    chats: "Lifecycle, priority, escalations",
+    pmcs: "Partners, integrations, access",
+    guides: "Guest-facing guides per property",
+    upgrades: "Paid add-ons per property",
+    files: "Configs & manuals",
+    analytics: "Trends & performance",
+    settings: "Account and system settings",
+  };
 
-    function showView(key) {
-      const target = document.getElementById(`view-${key}`);
-      if (!target) key = "overview";
+  function showView(key) {
+    key = (key || "overview").toLowerCase();
 
-      views.forEach((v) => v.classList.add("hidden"));
-      document.getElementById(`view-${key}`)?.classList.remove("hidden");
+    const target = document.getElementById(`view-${key}`);
+    if (!target) key = "overview";
 
-      navItems.forEach((btn) => btn.setAttribute("aria-current", "false"));
-      const activeBtn = navItems.find((b) => b.dataset.view === key);
-      if (activeBtn) activeBtn.setAttribute("aria-current", "page");
+    views.forEach((v) => v.classList.add("hidden"));
+    document.getElementById(`view-${key}`)?.classList.remove("hidden");
 
-      const label =
-        activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
-      if (pageTitle) pageTitle.textContent = label;
-      if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
+    navItems.forEach((btn) => btn.setAttribute("aria-current", "false"));
+    const activeBtn = navItems.find((b) => (b.dataset.view || "").toLowerCase() === key);
+    if (activeBtn) activeBtn.setAttribute("aria-current", "page");
 
-      history.replaceState(null, "", `#${key}`);
+    const label =
+      activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
+    if (pageTitle) pageTitle.textContent = label;
+    if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
 
-      if (key === "properties") {
-        const global = document.getElementById("globalSearch");
-        const local = document.getElementById("searchInput");
-        if (global && local && global.value && !local.value) local.value = global.value;
-        filterProperties();
-      }
+    // ❌ remove replaceState hash updates from here (it causes weirdness)
+    // history.replaceState(null, "", `#${key}`);
 
-      if (key === "settings") {
-        initSettingsUI();
-        showSettingsPanel(getSettingsTabFromHash());
-      }
-
-      if (key === "guides" && !Guides.loaded) {
-        Guides.loaded = true;
-        Guides.refresh();
-      }
-
-      if (key === "upgrades" && !Upgrades.loaded) {
-        Upgrades.loaded = true;
-        Upgrades.refresh();
-      }
+    if (key === "properties") {
+      const global = document.getElementById("globalSearch");
+      const local = document.getElementById("searchInput");
+      if (global && local && global.value && !local.value) local.value = global.value;
+      filterProperties();
     }
 
-    window.showView = showView;
-    navItems.forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
+    if (key === "settings") {
+      initSettingsUI();
+      showSettingsPanel(getSettingsTabFromHash());
+    }
 
-    const params = new URLSearchParams(window.location.search);
-    const initialFromQuery = (params.get("view") || "").toLowerCase();
-    const hasSession = params.has("session_id");
-    
-    // If session_id exists, force chats view immediately (prevents Overview flash)
-    const initialKey = hasSession
-      ? "chats"
-      : (initialFromQuery || (location.hash || "#overview").replace("#", "").split("?")[0]);
-    
-    showView(initialKey);
+    if (key === "guides" && !Guides.loaded) {
+      Guides.loaded = true;
+      Guides.refresh();
+    }
 
-
+    if (key === "upgrades" && !Upgrades.loaded) {
+      Upgrades.loaded = true;
+      Upgrades.refresh();
+    }
   }
+
+  function route() {
+    const params = new URLSearchParams(window.location.search);
+
+    // If you opened a specific session, force chats (prevents overview flash)
+    if (params.has("session_id")) {
+      showView("chats");
+      return;
+    }
+
+    // Otherwise prefer hash, fallback to query, fallback overview
+    const fromHash = (location.hash || "#overview").replace("#", "").split("?")[0].toLowerCase();
+    if (fromHash) {
+      showView(fromHash);
+      return;
+    }
+
+    const fromQuery = (params.get("view") || "").toLowerCase();
+    showView(fromQuery || "overview");
+  }
+
+  // ✅ Nav clicks set hash (this makes it stable)
+  navItems.forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const key = (btn.dataset.view || "overview").toLowerCase();
+      location.hash = `#${key}`;   // triggers hashchange
+    });
+  });
+
+  // ✅ When hash changes, route
+  window.addEventListener("hashchange", route);
+
+  // initial
+  route();
+}
+
 
   // ----------------------------
   // DOM ready
