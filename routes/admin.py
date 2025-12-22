@@ -1855,23 +1855,21 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
     )
 
 
-
-
-
-def _parse_optional_int(value: str | None) -> int | None:
+def _parse_optional_int(v) -> int | None:
     """
-    Accepts None / "" / "   " -> None
-    Accepts numeric strings -> int
-    Anything else -> None (so we don't 422 the page)
+    Accepts: None, "", "  ", "123", 123
+    Returns: int or None (never raises)
     """
-    if value is None:
+    if v is None:
         return None
-    s = value.strip()
+    if isinstance(v, int):
+        return v
+    s = str(v).strip()
     if not s:
         return None
     try:
         return int(s)
-    except ValueError:
+    except Exception:
         return None
 
 
@@ -1884,7 +1882,7 @@ def admin_dashboard(
     view: str | None = Query(default=None),
     session_id: int | None = Query(default=None),
 
-    # filters (HTML form submits empty strings, so keep these as str)
+    # filters (HTML form submits empty strings)
     pmc_id: str | None = Query(default=None),
     property_id: str | None = Query(default=None),
     status: str | None = Query(default=None),
@@ -1896,7 +1894,7 @@ def admin_dashboard(
     pmc_id_int = _parse_optional_int(pmc_id)
     prop_id_int = _parse_optional_int(property_id)
 
-    # ✅ If not logged in, show a login page at THIS SAME URL
+    # ✅ If not logged in, show login page at THIS SAME URL
     user = request.session.get("user")
     if not user:
         request.session["post_login_redirect"] = "/admin/dashboard"
@@ -1953,7 +1951,7 @@ def admin_dashboard(
         )
         allowed_property_ids = [p.id for p in properties]
 
-    # ✅ Map for template: property_id -> property_name
+    # ✅ Map for template fallback: property_id -> property_name
     property_name_by_id = {p.id: (p.property_name or "") for p in (properties or [])}
 
     # ----------------------------
@@ -2015,10 +2013,11 @@ def admin_dashboard(
     selected_property = None
     selected_messages: list[ChatMessage] = []
 
-    should_load_chats = (view == "chats") or (session_id is not None)
+    # ✅ Always preload chats so "Chats" button shows instantly
+    should_load_chats = True
 
     if should_load_chats:
-        # ✅ Prevent PMCs from using pmc_id filter at all
+        # ✅ PMCs cannot use pmc filter
         if user_role != "super":
             pmc_id_int = None
 
@@ -2028,7 +2027,7 @@ def admin_dashboard(
             .join(Property, Property.id == ChatSession.property_id)
         )
 
-        # Scope: PMCs only see sessions tied to their properties
+        # Scope: PMCs only see their properties
         if allowed_property_ids is not None:
             base_q = base_q.filter(ChatSession.property_id.in_(allowed_property_ids))
 
@@ -2036,25 +2035,21 @@ def admin_dashboard(
         if user_role == "super" and pmc_id_int:
             base_q = base_q.filter(Property.pmc_id == pmc_id_int)
 
-        # property filter (✅ use parsed int, ignore empty/invalid)
+        # property filter
         if prop_id_int:
             base_q = base_q.filter(ChatSession.property_id == prop_id_int)
 
-        # reservation stage filter
         if status:
             base_q = base_q.filter(ChatSession.reservation_status == status)
 
-        # mine filter
         if mine and me_email:
             base_q = base_q.filter(func.lower(ChatSession.assigned_to) == me_email.lower())
 
-        # assigned_to contains
         if assigned_to:
             base_q = base_q.filter(
                 func.lower(func.coalesce(ChatSession.assigned_to, "")).contains(assigned_to.lower())
             )
 
-        # free-text search
         if q:
             ql = q.lower()
 
@@ -2073,14 +2068,13 @@ def admin_dashboard(
                 )
             )
 
-        # priority filter (heat_score)
         if priority == "urgent":
             base_q = base_q.filter(ChatSession.heat_score >= 80)
         elif priority == "unhappy":
             base_q = base_q.filter(ChatSession.heat_score >= 50)
 
         # ----------------------------
-        # Analytics (SQL)
+        # Analytics
         # ----------------------------
         stage_counts = (
             base_q.with_entities(
@@ -2120,7 +2114,7 @@ def admin_dashboard(
         analytics["unhappy_sessions"] = int(unhappy_q.scalar() or 0)
 
         # ----------------------------
-        # Sessions list with last snippet
+        # Sessions list with last snippet + property_name
         # ----------------------------
         last_msg_sq = (
             db.query(ChatMessage.content)
@@ -2155,10 +2149,7 @@ def admin_dashboard(
             sessions.append({
                 "id": sess.id,
                 "property_id": sess.property_id,
-
-                # ✅ ALWAYS have a display name (fixes Unknown property)
-                "property_name": prop_name or property_name_by_id.get(sess.property_id) or "Unknown property",
-
+                "property_name": (prop_name or property_name_by_id.get(sess.property_id) or "Unknown property"),
                 "guest_name": sess.guest_name,
                 "assigned_to": sess.assigned_to,
                 "reservation_status": sess.reservation_status,
@@ -2180,7 +2171,7 @@ def admin_dashboard(
             })
 
         # ----------------------------
-        # Selected session detail (permission safe)
+        # Selected session detail
         # ----------------------------
         if session_id is not None:
             sel_q = db.query(ChatSession).filter(ChatSession.id == session_id)
@@ -2214,30 +2205,25 @@ def admin_dashboard(
             "user_role": user_role,
             "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
             "properties": properties,
-            "property_name_by_id": property_name_by_id,  # ✅ REQUIRED by template
+            "property_name_by_id": property_name_by_id,  # ✅ required if template uses it
             "now": datetime.utcnow(),
 
-            # ✅ admin_chats expects `pmcs`
             "pmcs": pmc_list,
 
-            # Billing
             "billing_status": billing_status,
             "is_paid": is_paid,
             "needs_payment": needs_payment,
             "billing_banner_title": billing_banner_title,
             "billing_banner_body": billing_banner_body,
 
-            # Timezone
             "user_timezone": (pmc_user.timezone if pmc_user else None),
             "pmc_user_role": (pmc_user.role if pmc_user else None),
 
-            # User info
             "user_email": me_email,
             "user_full_name": (me_user.full_name if me_user else None),
             "team_members": team_members,
             "notif_prefs": notif_prefs,
 
-            # Chats
             "sessions": sessions,
             "analytics": analytics,
             "filters": filters,
@@ -2248,6 +2234,7 @@ def admin_dashboard(
             "pmc_id": (pmc_obj.id if pmc_obj else None),
         },
     )
+
 
 
 
