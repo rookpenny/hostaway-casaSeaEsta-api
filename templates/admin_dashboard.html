@@ -2939,9 +2939,16 @@ function initAllReorderTables() {
     navItems.forEach((btn) => btn.addEventListener("click", () => showView(btn.dataset.view)));
 
     const params = new URLSearchParams(window.location.search);
-    const initialFromQuery = params.get("view");
-    const initialFromHash = (location.hash || "#overview").replace("#", "").split("?")[0];
-    showView(initialFromQuery || initialFromHash);
+    const initialFromQuery = (params.get("view") || "").toLowerCase();
+    const hasSession = params.has("session_id");
+    
+    // If session_id exists, force chats view immediately (prevents Overview flash)
+    const initialKey = hasSession
+      ? "chats"
+      : (initialFromQuery || (location.hash || "#overview").replace("#", "").split("?")[0]);
+    
+    showView(initialKey);
+
 
   }
 
@@ -2954,14 +2961,14 @@ function initAllReorderTables() {
 
 
     // If server sent ?view=chats or ?session_id=..., switch to chats view on load
-    const params = new URLSearchParams(window.location.search);
-    const viewParam = (params.get("view") || "").toLowerCase();
-    if (viewParam) {
-      // convert ?view=chats into #chats routing
-      window.location.hash = `#${viewParam}`;
-    } else if (params.get("session_id")) {
-      window.location.hash = "#chats";
-    }
+    #const params = new URLSearchParams(window.location.search);
+    #const viewParam = (params.get("view") || "").toLowerCase();
+    #if (viewParam) {
+    #  // convert ?view=chats into #chats routing
+    #  window.location.hash = `#${viewParam}`;
+    #} else if (params.get("session_id")) {
+    #  window.location.hash = "#chats";
+    #}
     
         
     // Chart init
