@@ -45,16 +45,30 @@
     />
   </div>
 
-  <!-- ✅ Long description -->
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Long description</label>
-    <textarea
-      name="long_description"
-      rows="5"
-      class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm"
-      placeholder="Shown in the upgrade details / guest UI..."
-    >{{ upgrade.long_description if upgrade and upgrade.long_description else '' }}</textarea>
+  <!-- ✅ Long description (WYSIWYG via Quill) -->
+<div>
+  <label class="text-xs font-semibold text-slate-600">Long description</label>
+
+  <!-- Hidden field that actually gets submitted -->
+  <input
+    type="hidden"
+    name="long_description"
+    id="upgrade-longdesc-input"
+    value="{{ upgrade.long_description if upgrade and upgrade.long_description else '' }}"
+  />
+
+  <!-- Quill mounts here -->
+  <div
+    id="upgrade-longdesc-editor"
+    class="mt-1 bg-white rounded-xl border border-slate-200"
+    style="min-height: 180px;"
+  ></div>
+
+  <div class="mt-1 text-[11px] text-slate-500">
+    Shown in the upgrade details / guest UI...
   </div>
+</div>
+
 
   <!-- Image upload -->
   <div>
