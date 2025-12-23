@@ -59,7 +59,7 @@
   <!-- Overview -->
   <button data-view="overview"
     class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    aria-current="page"
+    aria-current="{{ 'page' if initial_view == 'overview' else 'false' }}"
     type="button">
     <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
       <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -74,7 +74,8 @@
 
     <button data-view="chats"
     class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    type="button">
+    aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}
+      type="button">
     <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
       <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
         <path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7"/>
@@ -87,6 +88,7 @@
     <!-- PMCs (Super only) -->
     <button data-view="pmcs"
       class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+      aria-current="{{ 'page' if initial_view == 'pmcs' else 'false' }}
       type="button">
       <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
         <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -100,6 +102,7 @@
     <!-- Files (Super only) -->
     <button data-view="files"
       class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+      aria-current="{{ 'page' if initial_view == 'files' else 'false' }}
       type="button">
       <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
         <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -114,6 +117,7 @@
     <!-- Analytics (Super only) -->
     <button data-view="analytics"
       class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+      aria-current="{{ 'page' if initial_view == 'analytics' else 'false' }}
       type="button">
       <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
         <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -128,6 +132,7 @@
   <!-- Properties -->
   <button data-view="properties"
     class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+    aria-current="{{ 'page' if initial_view == 'properties' else 'false' }}
     type="button">
     <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
       <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -141,6 +146,7 @@
   <!-- Guides -->
   <button data-view="guides"
     class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+    aria-current="{{ 'page' if initial_view == 'guides' else 'false' }}
     type="button">
     <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
       <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -153,6 +159,7 @@
   <!-- Upgrades -->
   <button data-view="upgrades"
     class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+    aria-current="{{ 'page' if initial_view == 'upgrades' else 'false' }}
     type="button">
     <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
       <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -167,6 +174,7 @@
   <!-- Settings -->
   <button data-view="settings"
     class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+    aria-current="{{ 'page' if initial_view == 'settings' else 'false' }}
     type="button">
     <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
       <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -2878,6 +2886,8 @@ function initAllReorderTables() {
   let routingInitialized = false;
 
 function initRouting() {
+  let currentViewKey = null;
+  
   if (routingInitialized) return;
   routingInitialized = true;
 
@@ -2899,71 +2909,87 @@ function initRouting() {
   };
 
   function showView(key) {
-    key = (key || "overview").toLowerCase();
+  key = (key || "overview").toLowerCase();
 
-    // fallback safety
-    if (!document.getElementById(`view-${key}`)) key = "overview";
+  // fallback safety FIRST
+  if (!document.getElementById(`view-${key}`)) key = "overview";
 
-    views.forEach(v => v.classList.add("hidden"));
-    document.getElementById(`view-${key}`)?.classList.remove("hidden");
+  // guard AFTER normalization + fallback
+  if (key === currentViewKey) return;
+  currentViewKey = key;
 
-    navItems.forEach(btn => btn.setAttribute("aria-current", "false"));
-    const activeBtn = navItems.find(b => (b.dataset.view || "").toLowerCase() === key);
-    if (activeBtn) activeBtn.setAttribute("aria-current", "page");
+  // Show/hide views
+  views.forEach(v => v.classList.add("hidden"));
+  document.getElementById(`view-${key}`)?.classList.remove("hidden");
 
-    const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
-    if (pageTitle) pageTitle.textContent = label;
-    if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
+  // Active nav
+  navItems.forEach(btn => btn.removeAttribute("aria-current"));
+  const activeBtn = navItems.find(b => (b.dataset.view || "").toLowerCase() === key);
+  if (activeBtn) activeBtn.setAttribute("aria-current", "page");
 
-    // view-specific hooks
-    if (key === "properties") filterProperties();
+  // Titles
+  const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
+  if (pageTitle) pageTitle.textContent = label;
+  if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
 
-    if (key === "settings") {
-      initSettingsUI();
-      showSettingsPanel(getSettingsTabFromHash());
-    }
+  // view-specific hooks
+  if (key === "properties") filterProperties();
 
-    if (key === "guides" && !Guides.loaded) {
-      Guides.loaded = true;
-      Guides.refresh();
-    }
-
-    if (key === "upgrades" && !Upgrades.loaded) {
-      Upgrades.loaded = true;
-      Upgrades.refresh();
-    }
+  if (key === "settings") {
+    initSettingsUI();
+    showSettingsPanel(getSettingsTabFromHash());
   }
+
+  if (key === "guides" && !Guides.loaded) {
+    Guides.loaded = true;
+    Guides.refresh();
+  }
+
+  if (key === "upgrades" && !Upgrades.loaded) {
+    Upgrades.loaded = true;
+    Upgrades.refresh();
+  }
+}
+
 
 function route() {
   const params = new URLSearchParams(window.location.search);
-  const keyFromHash = (location.hash || "#overview").slice(1).split("?")[0].toLowerCase() || "overview";
 
-  // Only lock into chats detail if the user is on chats (or no hash yet)
-  if (params.has("session_id") && (keyFromHash === "chats" || !location.hash)) {
+  // If a session is selected, ALWAYS show chats
+  if (params.has("session_id")) {
     showView("chats");
     return;
   }
 
-  showView(keyFromHash);
+  const keyFromHash = (location.hash || "").slice(1).split("?")[0].toLowerCase();
+  const keyFromView = (params.get("view") || "").toLowerCase();
+
+  showView(keyFromHash || keyFromView || "overview");
 }
 
 
+
+
+// nav clicks => update URL without reload + show view
 navItems.forEach(btn => {
   btn.addEventListener("click", (e) => {
     e.preventDefault();
     const key = (btn.dataset.view || "overview").toLowerCase();
 
     const url = new URL(window.location.href);
-    url.searchParams.delete("session_id");   // ✅ leave chat detail
-    url.searchParams.set("view", key);       // ✅ server renders correct initial_view
+    url.searchParams.delete("session_id");      // leave detail mode
+    url.searchParams.set("view", key);          // keep server param in sync
     url.hash = `#${key}`;
 
-    window.location.href = url.toString();
+    history.pushState(null, "", url.toString()); // ✅ no reload
+    showView(key);                               // ✅ render immediately
   });
 });
 
 
-  window.addEventListener("hashchange", route);
+
+window.addEventListener("popstate", route);
+window.addEventListener("hashchange", route);
 
   // initial route
   route();
