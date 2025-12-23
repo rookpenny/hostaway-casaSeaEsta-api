@@ -1,16 +1,21 @@
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
 
 <div class="space-y-4">
+
   <!-- Sticky Header -->
-  <div class="top-0 z-10 bg-white border-b border-slate-200">
+  <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-200">
     <div class="p-4 space-y-3">
 
-      <!-- Row 1: Chat title + property + status badge (no inner Close) -->
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="flex items-center gap-2 flex-wrap">
-            <div class="text-sm font-semibold truncate">Chat #{{ session.id }}</div>
+      <!-- 2-column header -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
 
+        <!-- LEFT: Chat meta -->
+        <div class="min-w-0 space-y-1">
+          <div class="text-sm font-semibold truncate">
+            Chat #{{ session.id }}
+          </div>
+
+          <div>
             {% if session.reservation_status == "active" %}
               <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">🏖 Active</span>
             {% elif session.reservation_status == "pre_booking" %}
@@ -22,98 +27,115 @@
             {% endif %}
           </div>
 
-          <div class="text-xs text-slate-500 mt-1 truncate">
+          <div class="text-xs text-slate-500 truncate">
             {{ prop_name or "Unknown property" }} • Property ID: {{ session.property_id }}
           </div>
         </div>
-      </div>
 
-      <!-- Row 2: Status pills (Open/Resolved + Escalation + Assigned) -->
-      <div class="flex flex-wrap items-center gap-2">
-        <span
-          id="resolved-pill"
-          class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+        <!-- RIGHT: Status + actions -->
+        <div class="space-y-3">
+
+          <!-- Row: pills -->
+          <div class="flex flex-wrap items-center gap-2">
+            <span
+              id="resolved-pill"
+              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+                {% if session.is_resolved %}
+                  bg-emerald-100 text-emerald-800
+                {% else %}
+                  bg-slate-200 text-slate-700
+                {% endif %}
+              "
+            >
+              {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
+            </span>
+
+            <span
+              id="escalation-pill"
+              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+                {% if session.escalation_level == 'high' %}
+                  bg-rose-100 text-rose-800
+                {% elif session.escalation_level == 'medium' %}
+                  bg-amber-100 text-amber-800
+                {% elif session.escalation_level == 'low' %}
+                  bg-blue-100 text-blue-800
+                {% else %}
+                  bg-slate-100 text-slate-500
+                {% endif %}
+              "
+            >
+              {% if session.escalation_level %}
+                🚨 Escalation: {{ session.escalation_level|capitalize }}
+              {% else %}
+                No escalation
+              {% endif %}
+            </span>
+
+            <span class="text-xs text-slate-500">
+              Assigned:
+              <span id="assigned-label" class="font-semibold text-slate-700">
+                {{ session.assigned_to or "—" }}
+              </span>
+            </span>
+          </div>
+
+          <!-- Row: actions -->
+          <div class="flex flex-wrap items-center gap-2">
             {% if session.is_resolved %}
-              bg-emerald-100 text-emerald-800
-            {% else %}
-              bg-slate-200 text-slate-700
-            {% endif %}
-          "
-        >
-          {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
-        </span>
-
-        <span
-          id="escalation-pill"
-          class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-            {% if session.escalation_level == 'high' %}
-              bg-rose-100 text-rose-800
-            {% elif session.escalation_level == 'medium' %}
-              bg-amber-100 text-amber-800
-            {% elif session.escalation_level == 'low' %}
-              bg-blue-100 text-blue-800
-            {% else %}
-              bg-slate-100 text-slate-500
-            {% endif %}
-          "
-        >
-          {% if session.escalation_level %}
-            🚨 Escalation: {{ session.escalation_level|capitalize }}
-          {% else %}
-            No escalation
-          {% endif %}
-        </span>
-
-        <span class="text-xs text-slate-500">
-          Assigned:
-          <span id="assigned-label" class="font-semibold text-slate-700">{{ session.assigned_to or "—" }}</span>
-        </span>
-      </div>
-
-      <!-- Row 3: Actions (Resolve/Reopen + escalation select + assign) -->
-      <div class="flex flex-wrap items-center gap-2">
-        {% if session.is_resolved %}
-          <button id="unresolve-btn"
-                  class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
-                  type="button">
-            Reopen
-          </button>
-        {% else %}
-          <button id="resolve-btn"
-                  class="h-10 px-4 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
-                  type="button">
-            Mark Resolved
-          </button>
-        {% endif %}
-
-        <select id="escalation-select" class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white">
-          <option value="" {% if not session.escalation_level %}selected{% endif %}>No escalation</option>
-          <option value="low" {% if session.escalation_level=='low' %}selected{% endif %}>Low</option>
-          <option value="medium" {% if session.escalation_level=='medium' %}selected{% endif %}>Medium</option>
-          <option value="high" {% if session.escalation_level=='high' %}selected{% endif %}>High</option>
-        </select>
-
-        <input
-          id="assigned-input"
-          value="{{ session.assigned_to or '' }}"
-          class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white w-[min(340px,60vw)]"
-          placeholder="Assign to (name/email)"
-        />
-        <button id="assign-btn"
+              <button
+                id="unresolve-btn"
                 class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
-                type="button">
-          Assign
-        </button>
+                type="button"
+              >
+                Reopen
+              </button>
+            {% else %}
+              <button
+                id="resolve-btn"
+                class="h-10 px-4 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
+                type="button"
+              >
+                Mark Resolved
+              </button>
+            {% endif %}
+
+            <select
+              id="escalation-select"
+              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white"
+            >
+              <option value="" {% if not session.escalation_level %}selected{% endif %}>No escalation</option>
+              <option value="low" {% if session.escalation_level=='low' %}selected{% endif %}>Low</option>
+              <option value="medium" {% if session.escalation_level=='medium' %}selected{% endif %}>Medium</option>
+              <option value="high" {% if session.escalation_level=='high' %}selected{% endif %}>High</option>
+            </select>
+
+            <input
+              id="assigned-input"
+              value="{{ session.assigned_to or '' }}"
+              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white w-full sm:w-[320px]"
+              placeholder="Assign to (name/email)"
+            />
+
+            <button
+              id="assign-btn"
+              class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+              type="button"
+            >
+              Assign
+            </button>
+          </div>
+
+        </div>
       </div>
 
     </div>
   </div>
 
-  <!-- Scrollable Body -->
-  <div class="p-4">
+  <!-- Body -->
+  <div class="p-4 space-y-4">
 
-    <!-- Internal note (kept in body) -->
-    <div class="rounded-2xl border border-slate-200 p-3">
+    <!-- Internal note -->
+    <div class="rounded-2xl border border-slate-200 p-3 bg-white">
       <div class="text-xs font-semibold text-slate-600 mb-1">Internal note</div>
       <textarea
         id="note-input"
@@ -123,9 +145,11 @@
       >{{ session.internal_note or "" }}</textarea>
 
       <div class="mt-2 flex items-center gap-2">
-        <button id="save-note-btn"
-                class="px-3 py-1 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800"
-                type="button">
+        <button
+          id="save-note-btn"
+          class="px-3 py-1 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800"
+          type="button"
+        >
           Save note
         </button>
         <span id="note-status" class="text-xs text-slate-500"></span>
@@ -133,7 +157,7 @@
     </div>
 
     <!-- AI Summary -->
-    <div class="rounded-2xl border border-slate-200 p-3">
+    <div class="rounded-2xl border border-slate-200 p-3 bg-white">
       <div class="flex items-center justify-between gap-3">
         <div class="min-w-0">
           <div class="text-sm font-semibold">AI Summary</div>
@@ -146,9 +170,11 @@
           </div>
         </div>
 
-        <button id="summary-btn"
-                class="bg-slate-900 text-white rounded-xl px-3 py-1 text-sm hover:bg-slate-800"
-                type="button">
+        <button
+          id="summary-btn"
+          class="bg-slate-900 text-white rounded-xl px-3 py-1 text-sm hover:bg-slate-800"
+          type="button"
+        >
           Generate / Refresh
         </button>
       </div>
@@ -163,8 +189,9 @@
     </div>
 
     <!-- Messages -->
-    <div class="rounded-2xl border border-slate-200 p-3">
+    <div class="rounded-2xl border border-slate-200 p-3 bg-white">
       <div class="text-sm font-semibold">Messages</div>
+
       <div class="mt-3 space-y-3">
         {% for msg in messages %}
           <div class="flex {{ 'justify-end' if msg.sender == 'assistant' else 'justify-start' }}">
@@ -181,6 +208,7 @@
                 {{ msg.sender|capitalize }}
                 <span class="text-slate-400">• {{ msg.created_at }}</span>
               </div>
+
               <div class="whitespace-pre-wrap text-slate-800">{{ msg.content }}</div>
 
               {% if msg.sender == 'guest' %}
