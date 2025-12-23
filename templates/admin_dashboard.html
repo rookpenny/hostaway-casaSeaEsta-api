@@ -1907,6 +1907,14 @@ async refresh() {
       if (!res.ok) return toast("Could not load upgrade editor.");
 
       editorBody.innerHTML = await res.text();
+
+      initQuillEditor({
+        editorId: "upgrade-longdesc-editor",
+        inputId: "upgrade-longdesc-input",
+        placeholder: "Shown in the upgrade details / guest UI...",
+      });
+      
+            
       if (editorTitle) editorTitle.textContent = id ? "Edit Upgrade" : "New Upgrade";
       editorWrap.classList.remove("hidden");
     } catch (err) {
