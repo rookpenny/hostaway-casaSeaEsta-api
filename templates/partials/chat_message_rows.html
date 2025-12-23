@@ -1,0 +1,28 @@
+{% for msg in messages %}
+  <div class="flex {{ 'justify-end' if msg.sender == 'assistant' else 'justify-start' }}"
+       data-msg-id="{{ msg.id }}">
+    <div class="max-w-[85%] rounded-2xl px-3 py-2 text-sm border
+      {% if msg.sender == 'assistant' %}
+        bg-blue-50 border-blue-100
+      {% elif msg.sender == 'guest' %}
+        bg-slate-50 border-slate-200
+      {% else %}
+        bg-amber-50 border-amber-200
+      {% endif %}
+    ">
+      <div class="text-xs font-semibold mb-1 text-slate-600">
+        {{ msg.sender|capitalize }}
+        <span class="text-slate-400">• {{ msg.created_at }}</span>
+      </div>
+      <div class="whitespace-pre-wrap text-slate-800">{{ msg.content }}</div>
+
+      {% if msg.sender == 'guest' %}
+        <div class="mt-1 text-[11px] text-slate-500">
+          Category: {{ msg.category or '—' }} •
+          Log: {{ msg.log_type or '—' }} •
+          Sentiment: {{ msg.sentiment or '—' }}
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endfor %}
