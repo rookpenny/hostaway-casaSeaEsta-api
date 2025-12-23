@@ -41,6 +41,7 @@ from zoneinfo import ZoneInfo  # Python 3.9+
 
 
 router = APIRouter()
+
 templates = Jinja2Templates(directory="templates")
 logging.basicConfig(level=logging.INFO)
 
@@ -121,39 +122,43 @@ def delete_local_upgrade_image(image_url: str) -> None:
 # Flask-ish example
 # ----------------------------
 
-@app.get("/admin/chats/partial/detail")
-def chat_detail_partial():
-    # Optional: only allow AJAX/overlay usage
-    # (remove this block if you want the URL to work in a normal browser tab too)
-    if request.headers.get("X-Requested-With") != "fetch":
-        abort(404)
+@router.get("/admin/chats/partial/detail", response_class=HTMLResponse)
+def chat_detail_partial(
+    request: Request,
+    session_id: int,
+    db: Session = Depends(get_db),
+):
+    # Auth check (reuse your existing logic if needed)
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=401)
 
-    sid = request.args.get("session_id", type=int)
-    if not sid:
-        abort(400, description="Missing session_id")
+    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not session:
+        raise HTTPException(status_code=404, detail="Chat not found")
 
-    chat_session = ChatSession.query.get_or_404(sid)
-
-    prop = Property.query.get(chat_session.property_id) if chat_session.property_id else None
+    property_obj = (
+        db.query(Property)
+        .filter(Property.id == session.property_id)
+        .first()
+    )
 
     messages = (
-        ChatMessage.query
-        .filter_by(session_id=sid)
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session_id)
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
 
-    html = render_template(
+    return templates.TemplateResponse(
         "partials/chat_detail_panel.html",
-        session=chat_session,
-        property=prop,      # keep name "property" if your template expects it
-        messages=messages,
+        {
+            "request": request,
+            "session": session,
+            "property": property_obj,
+            "messages": messages,
+        },
     )
-
-    # Prevent weird caching when navigating back/forward with history
-    resp = make_response(html)
-    resp.headers["Cache-Control"] = "no-store"
-    return resp
 
 
 # ----------------------------
