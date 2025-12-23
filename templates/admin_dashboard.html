@@ -2873,10 +2873,12 @@ function initAllReorderTables() {
 
 
 
-  // ----------------------------
-  // Main view routing (left nav)
-  // ----------------------------
-  function initRouting() {
+  let routingInitialized = false;
+
+function initRouting() {
+  if (routingInitialized) return;
+  routingInitialized = true;
+
   const pageTitle = document.getElementById("page-title");
   const pageSubtitle = document.getElementById("page-subtitle");
   const navItems = Array.from(document.querySelectorAll(".nav-item"));
@@ -2897,30 +2899,22 @@ function initAllReorderTables() {
   function showView(key) {
     key = (key || "overview").toLowerCase();
 
-    const target = document.getElementById(`view-${key}`);
-    if (!target) key = "overview";
+    // fallback safety
+    if (!document.getElementById(`view-${key}`)) key = "overview";
 
-    views.forEach((v) => v.classList.add("hidden"));
+    views.forEach(v => v.classList.add("hidden"));
     document.getElementById(`view-${key}`)?.classList.remove("hidden");
 
-    navItems.forEach((btn) => btn.setAttribute("aria-current", "false"));
-    const activeBtn = navItems.find((b) => (b.dataset.view || "").toLowerCase() === key);
+    navItems.forEach(btn => btn.setAttribute("aria-current", "false"));
+    const activeBtn = navItems.find(b => (b.dataset.view || "").toLowerCase() === key);
     if (activeBtn) activeBtn.setAttribute("aria-current", "page");
 
-    const label =
-      activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
+    const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
     if (pageTitle) pageTitle.textContent = label;
     if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
 
-    // ❌ remove replaceState hash updates from here (it causes weirdness)
-    // history.replaceState(null, "", `#${key}`);
-
-    if (key === "properties") {
-      const global = document.getElementById("globalSearch");
-      const local = document.getElementById("searchInput");
-      if (global && local && global.value && !local.value) local.value = global.value;
-      filterProperties();
-    }
+    // view-specific hooks
+    if (key === "properties") filterProperties();
 
     if (key === "settings") {
       initSettingsUI();
@@ -2941,56 +2935,53 @@ function initAllReorderTables() {
   function route() {
     const params = new URLSearchParams(window.location.search);
 
-    // If you opened a specific session, force chats (prevents overview flash)
+    // If a session is selected, always show chats
     if (params.has("session_id")) {
       showView("chats");
       return;
     }
 
-    // Otherwise prefer hash, fallback to query, fallback overview
-    const fromHash = (location.hash || "#overview").replace("#", "").split("?")[0].toLowerCase();
-    if (fromHash) {
-      showView(fromHash);
-      return;
-    }
-
-    const fromQuery = (params.get("view") || "").toLowerCase();
-    showView(fromQuery || "overview");
+    const keyFromHash = (location.hash || "#overview").slice(1).split("?")[0].toLowerCase();
+    showView(keyFromHash || "overview");
   }
 
-  // ✅ Nav clicks set hash (this makes it stable)
-  navItems.forEach((btn) => {
-    btn.addEventListener("click", () => {
+  // nav clicks => set hash (don’t call showView directly)
+  navItems.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
       const key = (btn.dataset.view || "overview").toLowerCase();
-      location.hash = `#${key}`;   // triggers hashchange
+      location.hash = `#${key}`;
     });
   });
 
-  // ✅ When hash changes, route
   window.addEventListener("hashchange", route);
 
-  // initial
+  // initial route
   route();
 }
+
 
 
   // ----------------------------
   // DOM ready
   // ----------------------------
   document.addEventListener("DOMContentLoaded", () => {
-    initSidebar();
-    initRouting();
+  initSidebar();
+  initRouting();
 
+  // keep these
+  document.getElementById("searchInput")?.addEventListener("input", filterProperties);
+  document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
 
-    // If server sent ?view=chats or ?session_id=..., switch to chats view on load
-    #const params = new URLSearchParams(window.location.search);
-    #const viewParam = (params.get("view") || "").toLowerCase();
-    #if (viewParam) {
-    #  // convert ?view=chats into #chats routing
-    #  window.location.hash = `#${viewParam}`;
-    #} else if (params.get("session_id")) {
-    #  window.location.hash = "#chats";
-    #}
+  document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
+  document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
+    Upgrades.closeEditor();
+    Upgrades.refresh();
+  });
+
+  updateOverviewUI();
+  });
+  
     
         
     // Chart init
