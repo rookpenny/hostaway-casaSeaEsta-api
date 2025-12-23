@@ -1888,40 +1888,54 @@ async refresh() {
     return window.Upgrades.openEditor(null);
   },
 
-  async openEditor(id) {
-    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
+async openEditor(id) {
+  if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
 
-    const editorWrap = document.getElementById("upgrades-editor");
-    const editorBody = document.getElementById("upgrades-editor-body");
-    const editorTitle = document.getElementById("upgrades-editor-title");
-    if (!editorWrap || !editorBody) return;
+  const editorWrap = document.getElementById("upgrades-editor");
+  const editorBody = document.getElementById("upgrades-editor-body");
+  const editorTitle = document.getElementById("upgrades-editor-title");
+  if (!editorWrap || !editorBody) return;
 
-    const url = id
-      ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`
-      : `/admin/upgrades/partial/form`;
+  const url = id
+    ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`
+    : `/admin/upgrades/partial/form`;
 
-    try {
-      const res = await fetch(url, { credentials: "include" });
+  // Show modal immediately (better UX, and ensures DOM exists)
+  if (editorTitle) editorTitle.textContent = id ? "Edit Upgrade" : "New Upgrade";
+  editorWrap.classList.remove("hidden");
+  editorBody.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
 
-      if (res.status === 401 || res.status === 403) return loginRedirect();
-      if (!res.ok) return toast("Could not load upgrade editor.");
+  try {
+    const res = await fetch(url, { credentials: "include" });
 
-      editorBody.innerHTML = await res.text();
-
-      initQuillEditor({
-        editorId: "upgrade-longdesc-editor",
-        inputId: "upgrade-longdesc-input",
-        placeholder: "Shown in the upgrade details / guest UI...",
-      });
-      
-            
-      if (editorTitle) editorTitle.textContent = id ? "Edit Upgrade" : "New Upgrade";
-      editorWrap.classList.remove("hidden");
-    } catch (err) {
-      console.error(err);
-      toast("Network error loading editor.");
+    if (res.status === 401 || res.status === 403) return loginRedirect();
+    if (!res.ok) {
+      editorBody.innerHTML = `<div class="text-sm text-rose-700">Could not load upgrade editor.</div>`;
+      return;
     }
-  },
+
+    editorBody.innerHTML = await res.text();
+
+    // ✅ Don’t let editor init break the modal
+    try {
+      if (typeof initQuillEditor === "function") {
+        initQuillEditor({
+          editorId: "upgrade-longdesc-editor",
+          inputId: "upgrade-longdesc-input",
+          placeholder: "Shown in the upgrade details / guest UI...",
+        });
+      } else {
+        console.warn("initQuillEditor is not defined (Quill init skipped).");
+      }
+    } catch (e) {
+      console.error("Quill init failed (skipped):", e);
+    }
+  } catch (err) {
+    console.error("Fetch failed:", err);
+    editorBody.innerHTML = `<div class="text-sm text-rose-700">Network error loading editor.</div>`;
+  }
+}
+
 
   closeEditor() {
     document.getElementById("upgrades-editor")?.classList.add("hidden");
