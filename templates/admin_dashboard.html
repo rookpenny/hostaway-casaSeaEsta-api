@@ -898,81 +898,106 @@
       return data;
     }
 
-    function initChatDetailHandlers(sessionId) {
-      // IMPORTANT: handlers are bound AFTER the HTML is injected
+    function initChatDetailHandlers(sessionId, panelEl) {
+  const $ = (sel) => panelEl.querySelector(sel);
 
-      const summaryBtn = document.getElementById("summary-btn");
-      const summaryBox = document.getElementById("summary-box");
+  const summaryBtn = $("#summary-btn");
+  const summaryBox = $("#summary-box");
 
-      summaryBtn?.addEventListener("click", async () => {
-        summaryBtn.disabled = true;
-        summaryBtn.textContent = "Generating…";
-        try {
-          const res = await fetch(`/admin/chats/${sessionId}/summarize`, { method: "POST", credentials: "include" });
-          const data = await res.json().catch(() => ({}));
-          if (!res.ok || !data.ok) throw new Error(data.error || "Failed");
-          if (summaryBox) summaryBox.textContent = data.summary || "";
-        } catch (e) {
-          if (summaryBox) summaryBox.textContent = `Summary error: ${e.message}`;
-        } finally {
-          summaryBtn.disabled = false;
-          summaryBtn.textContent = "Generate / Refresh";
-        }
+  summaryBtn?.addEventListener("click", async () => {
+    summaryBtn.disabled = true;
+    summaryBtn.textContent = "Generating…";
+    try {
+      const res = await fetch(`/admin/chats/${sessionId}/summarize`, {
+        method: "POST",
+        credentials: "include",
       });
-
-      document.getElementById("resolve-btn")?.addEventListener("click", async () => {
-        await chatPostJSON(`/admin/chats/${sessionId}/resolve`);
-        await loadChatDetail(sessionId);
-      });
-
-      document.getElementById("unresolve-btn")?.addEventListener("click", async () => {
-        await chatPostJSON(`/admin/chats/${sessionId}/unresolve`);
-        await loadChatDetail(sessionId);
-      });
-
-      document.getElementById("escalation-select")?.addEventListener("change", async (e) => {
-        await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level: e.target.value });
-        await loadChatDetail(sessionId);
-      });
-
-      document.getElementById("assign-btn")?.addEventListener("click", async () => {
-        const v = document.getElementById("assigned-input")?.value || "";
-        await chatPostJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
-        await loadChatDetail(sessionId);
-      });
-
-      document.getElementById("save-note-btn")?.addEventListener("click", async () => {
-        const note = document.getElementById("note-input")?.value || "";
-        await chatPostJSON(`/admin/chats/${sessionId}/note`, { note });
-
-        const status = document.getElementById("note-status");
-        if (status) {
-          status.textContent = "Saved ✅";
-          setTimeout(() => (status.textContent = ""), 1200);
-        }
-      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) throw new Error(data.error || "Failed");
+      if (summaryBox) summaryBox.textContent = data.summary || "";
+    } catch (e) {
+      if (summaryBox) summaryBox.textContent = `Summary error: ${e.message}`;
+    } finally {
+      summaryBtn.disabled = false;
+      summaryBtn.textContent = "Generate / Refresh";
     }
+  });
 
-    async function loadChatDetail(sessionId) {
-      const panel = document.getElementById("chat-detail-panel");
-      if (!panel) return;
+  $("#resolve-btn")?.addEventListener("click", async () => {
+    await postJSON(`/admin/chats/${sessionId}/resolve`);
+    await loadChatDetail(sessionId);
+  });
 
-      panel.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+  $("#unresolve-btn")?.addEventListener("click", async () => {
+    await postJSON(`/admin/chats/${sessionId}/unresolve`);
+    await loadChatDetail(sessionId);
+  });
 
-      const res = await fetch(
-        `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`,
-        { credentials: "include", headers: { "X-Requested-With": "fetch" } }
-      );
+  $("#escalation-select")?.addEventListener("change", async (e) => {
+    await postJSON(`/admin/chats/${sessionId}/escalate`, { level: e.target.value });
+    await loadChatDetail(sessionId);
+  });
 
-      if (res.status === 401 || res.status === 403) return loginRedirect?.();
-      if (!res.ok) {
-        panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
-        return;
+  $("#assign-btn")?.addEventListener("click", async () => {
+    const v = $("#assigned-input")?.value || "";
+    await postJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
+    await loadChatDetail(sessionId);
+  });
+
+  $("#save-note-btn")?.addEventListener("click", async () => {
+    const note = $("#note-input")?.value || "";
+    await postJSON(`/admin/chats/${sessionId}/note`, { note });
+
+    const s = $("#note-status");
+    if (s) {
+      s.textContent = "Saved ✅";
+      setTimeout(() => (s.textContent = ""), 1200);
+    }
+  });
+}
+
+
+    let chatDetailAbort = null;
+
+async function loadChatDetail(sessionId) {
+  const panel = document.getElementById("chat-detail-panel");
+  if (!panel) return;
+
+  // Cancel any in-flight request so we don't render stale content
+  if (chatDetailAbort) chatDetailAbort.abort();
+  chatDetailAbort = new AbortController();
+
+  panel.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+
+  try {
+    const res = await fetch(
+      `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`,
+      {
+        credentials: "include",
+        headers: { "X-Requested-With": "fetch" },
+        signal: chatDetailAbort.signal,
       }
+    );
 
-      panel.innerHTML = await res.text();
-      initChatDetailHandlers(sessionId);
+    if (res.status === 401 || res.status === 403) return loginRedirect?.();
+
+    if (!res.ok) {
+      panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
+      return;
     }
+
+    panel.innerHTML = await res.text();
+
+    // IMPORTANT: bind handlers after injection
+    initChatDetailHandlers(sessionId, panel);
+  } catch (err) {
+    // Abort is expected when switching chats quickly
+    if (err?.name === "AbortError") return;
+    console.error("loadChatDetail error:", err);
+    panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
+  }
+}
+
 
     async function openChatDetail(sessionId) {
       setDetailOpen(true);
