@@ -885,59 +885,6 @@ function clearChatUrl() {
   history.pushState({}, "", url.toString());
 }
 
-let chatDetailAbort = null;
-
-async function loadChatDetail(sessionId) {
-  const panel = document.getElementById("chat-detail-panel");
-  if (!panel) return;
-
-  if (chatDetailAbort) chatDetailAbort.abort();
-  chatDetailAbort = new AbortController();
-
-  panel.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
-
-  try {
-    const res = await fetch(
-      `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`,
-      {
-        credentials: "include",
-        headers: { "X-Requested-With": "fetch" },
-        signal: chatDetailAbort.signal,
-      }
-    );
-
-    if (res.status === 401 || res.status === 403) return loginRedirect?.();
-    if (!res.ok) {
-      panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
-      return;
-    }
-
-    panel.innerHTML = await res.text();
-
-    // bind handlers after injection
-    initChatDetailHandlers(sessionId, panel);
-  } catch (err) {
-    if (err?.name === "AbortError") return;
-    console.error("loadChatDetail error:", err);
-    panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
-  }
-}
-
-async function openChatDetail(sessionId) {
-  setInlineDetailOpen(true);
-  pushChatUrl(sessionId);
-  await loadChatDetail(String(sessionId));
-}
-
-function closeChatDetail() {
-  setInlineDetailOpen(false);
-  clearChatUrl();
-  const panel = document.getElementById("chat-detail-panel");
-  if (panel) panel.innerHTML = "";
-}
-
-window.openChatDetail = openChatDetail;
-
 // Back button
 document.addEventListener("click", (e) => {
   if (e.target && e.target.closest("#chat-detail-back")) {
@@ -1008,29 +955,29 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 
   $("#resolve-btn")?.addEventListener("click", async () => {
-    await postJSON(`/admin/chats/${sessionId}/resolve`);
+    await chatPostJSON(`/admin/chats/${sessionId}/resolve`);
     await loadChatDetail(sessionId);
   });
 
   $("#unresolve-btn")?.addEventListener("click", async () => {
-    await postJSON(`/admin/chats/${sessionId}/unresolve`);
+    await chatPostJSON(`/admin/chats/${sessionId}/unresolve`);
     await loadChatDetail(sessionId);
   });
 
   $("#escalation-select")?.addEventListener("change", async (e) => {
-    await postJSON(`/admin/chats/${sessionId}/escalate`, { level: e.target.value });
+    await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level: e.target.value });
     await loadChatDetail(sessionId);
   });
 
   $("#assign-btn")?.addEventListener("click", async () => {
     const v = $("#assigned-input")?.value || "";
-    await postJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
+    await chatPostJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
     await loadChatDetail(sessionId);
   });
 
   $("#save-note-btn")?.addEventListener("click", async () => {
     const note = $("#note-input")?.value || "";
-    await postJSON(`/admin/chats/${sessionId}/note`, { note });
+    await chatPostJSON(`/admin/chats/${sessionId}/note`, { note });
 
     const s = $("#note-status");
     if (s) {
@@ -1083,54 +1030,20 @@ async function loadChatDetail(sessionId) {
 }
 
 
-    async function openChatDetail(sessionId) {
-      setDetailOpen(true);
-      pushChatUrl(sessionId);
-      await loadChatDetail(String(sessionId));
-    }
+   async function openChatDetail(sessionId) {
+  setInlineDetailOpen(true);
+  pushChatUrl(sessionId);
+  await loadChatDetail(String(sessionId));
+}
 
-    function closeChatDetail() {
-      setDetailOpen(false);
-      clearChatUrl();
-      const panel = document.getElementById("chat-detail-panel");
-      if (panel) panel.innerHTML = "";
-    }
+function closeChatDetail() {
+  setInlineDetailOpen(false);
+  clearChatUrl();
+  const panel = document.getElementById("chat-detail-panel");
+  if (panel) panel.innerHTML = "";
+}
 
-    window.openChatDetail = openChatDetail;
-
-    // Close: backdrop + button
-    document.addEventListener("click", (e) => {
-      if (e.target.closest("[data-chat-detail-close]")) closeChatDetail();
-    });
-
-    // ESC closes
-    document.addEventListener("keydown", (e) => {
-      if (e.key !== "Escape") return;
-      const overlay = document.getElementById("chat-detail-overlay");
-      if (overlay && !overlay.classList.contains("hidden")) closeChatDetail();
-    });
-
-    // Back/forward support
-    window.addEventListener("popstate", () => {
-      const params = new URLSearchParams(window.location.search);
-      const sid = params.get("session_id");
-      if (sid) {
-        setDetailOpen(true);
-        loadChatDetail(sid);
-      } else {
-        closeChatDetail();
-      }
-    });
-
-    // Load on entry if session_id exists
-    document.addEventListener("DOMContentLoaded", () => {
-      const params = new URLSearchParams(window.location.search);
-      const sid = params.get("session_id");
-      if (sid) {
-        setDetailOpen(true);
-        loadChatDetail(sid);
-      }
-    });
+window.openChatDetail = openChatDetail;
 
     // ----------------------------
     // Relative time updater
