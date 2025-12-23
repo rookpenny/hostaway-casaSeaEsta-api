@@ -297,22 +297,6 @@ def get_user_role_and_scope(request: Request, db: Session):
 
 
 
-@app.get("/admin/chats/partial/detail")
-def chat_detail_partial():
-    sid = request.args.get("session_id", type=int)
-    if not sid:
-        return "Missing session_id", 400
-
-    session = ChatSession.query.get_or_404(sid)
-    property = Property.query.get(session.property_id) if session else None
-    messages = ChatMessage.query.filter_by(session_id=sid).order_by(ChatMessage.created_at.asc()).all()
-
-    return render_template(
-        "partials/chat_detail_panel.html",
-        session=session,
-        property=property,
-        messages=messages,
-    )
 
 
 @router.get("/admin/settings/team/table", response_class=HTMLResponse)
