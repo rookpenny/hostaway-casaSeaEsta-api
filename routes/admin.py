@@ -116,6 +116,27 @@ def delete_local_upgrade_image(image_url: str) -> None:
     p = Path(rel)
     _safe_unlink(p)
 
+# ----------------------------
+# Flask-ish example
+# ----------------------------
+
+@app.get("/admin/chats/partial/detail")
+def chat_detail_partial():
+    sid = request.args.get("session_id", type=int)
+    if not sid:
+        return "Missing session_id", 400
+
+    # load your session + messages
+    selected_session = get_session(sid)
+    selected_messages = get_messages(sid)
+    selected_property = get_property(selected_session.property_id) if selected_session else None
+
+    return render_template(
+        "partials/chat_detail.html",
+        selected_session=selected_session,
+        selected_messages=selected_messages,
+        selected_property=selected_property,
+    )
 
 
 # ----------------------------
