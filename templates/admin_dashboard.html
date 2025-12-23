@@ -75,7 +75,7 @@
 
     <button data-view="chats"
     class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}
+    aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}"
       type="button">
     <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
       <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -89,7 +89,7 @@
     <!-- PMCs (Super only) -->
     <button data-view="pmcs"
       class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-      aria-current="{{ 'page' if initial_view == 'pmcs' else 'false' }}
+      aria-current="{{ 'page' if initial_view == 'pmcs' else 'false' }}"
       type="button">
       <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
         <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -103,7 +103,7 @@
     <!-- Files (Super only) -->
     <button data-view="files"
       class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-      aria-current="{{ 'page' if initial_view == 'files' else 'false' }}
+      aria-current="{{ 'page' if initial_view == 'files' else 'false' }}"
       type="button">
       <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
         <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -118,7 +118,7 @@
     <!-- Analytics (Super only) -->
     <button data-view="analytics"
       class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-      aria-current="{{ 'page' if initial_view == 'analytics' else 'false' }}
+      aria-current="{{ 'page' if initial_view == 'analytics' else 'false' }}"
       type="button">
       <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
         <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
@@ -2899,25 +2899,18 @@ function initReorderForTable(rootEl) {
 
   console.log("Sortable bound:", { rawKind, kind, rowAttrSingular, rowAttrPlural, hasHandles });
 }
-
-function initAllReorderTables() {
+ation initAllReorderTables() {
   document.querySelectorAll("table[data-list-kind]").forEach(initReorderForTable);
 }
 
 
-
-
-
-
-
-  let routingInitialized = false;
+let routingInitialized = false;
+let currentViewKey = null;
 
 function initRouting() {
-  let currentViewKey = null;
-  
   if (routingInitialized) return;
   routingInitialized = true;
-
+  
   const pageTitle = document.getElementById("page-title");
   const pageSubtitle = document.getElementById("page-subtitle");
   const navItems = Array.from(document.querySelectorAll(".nav-item"));
