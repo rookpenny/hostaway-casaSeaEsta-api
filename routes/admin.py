@@ -9,7 +9,6 @@ import sqlalchemy as sa
 import secrets
 import shutil, uuid
 
-
 from pathlib import Path
 
 from database import get_db  # <- update import path
@@ -32,6 +31,8 @@ from datetime import datetime, timedelta, date
 
 from database import SessionLocal
 from models import PMC, Property, ChatSession, ChatMessage, PMCUser, Guide, Upgrade
+
+from flask import request, render_template, abort, make_response
 
 from utils.pms_sync import sync_properties, sync_all_integrations
 from utils.emailer import send_invite_email, email_enabled
@@ -122,21 +123,37 @@ def delete_local_upgrade_image(image_url: str) -> None:
 
 @app.get("/admin/chats/partial/detail")
 def chat_detail_partial():
+    # Optional: only allow AJAX/overlay usage
+    # (remove this block if you want the URL to work in a normal browser tab too)
+    if request.headers.get("X-Requested-With") != "fetch":
+        abort(404)
+
     sid = request.args.get("session_id", type=int)
     if not sid:
-        return "Missing session_id", 400
+        abort(400, description="Missing session_id")
 
-    # load your session + messages
-    selected_session = get_session(sid)
-    selected_messages = get_messages(sid)
-    selected_property = get_property(selected_session.property_id) if selected_session else None
+    chat_session = ChatSession.query.get_or_404(sid)
 
-    return render_template(
-        "partials/chat_detail.html",
-        selected_session=selected_session,
-        selected_messages=selected_messages,
-        selected_property=selected_property,
+    prop = Property.query.get(chat_session.property_id) if chat_session.property_id else None
+
+    messages = (
+        ChatMessage.query
+        .filter_by(session_id=sid)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
     )
+
+    html = render_template(
+        "partials/chat_detail_panel.html",
+        session=chat_session,
+        property=prop,      # keep name "property" if your template expects it
+        messages=messages,
+    )
+
+    # Prevent weird caching when navigating back/forward with history
+    resp = make_response(html)
+    resp.headers["Cache-Control"] = "no-store"
+    return resp
 
 
 # ----------------------------
