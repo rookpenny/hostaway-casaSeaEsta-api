@@ -2934,27 +2934,34 @@ function initRouting() {
     }
   }
 
-  function route() {
-    const params = new URLSearchParams(window.location.search);
+function route() {
+  const params = new URLSearchParams(window.location.search);
+  const keyFromHash = (location.hash || "#overview").slice(1).split("?")[0].toLowerCase() || "overview";
 
-    // If a session is selected, always show chats
-    if (params.has("session_id")) {
-      showView("chats");
-      return;
-    }
-
-    const keyFromHash = (location.hash || "#overview").slice(1).split("?")[0].toLowerCase();
-    showView(keyFromHash || "overview");
+  // Only lock into chats detail if the user is on chats (or no hash yet)
+  if (params.has("session_id") && (keyFromHash === "chats" || !location.hash)) {
+    showView("chats");
+    return;
   }
 
-  // nav clicks => set hash (don’t call showView directly)
-  navItems.forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const key = (btn.dataset.view || "overview").toLowerCase();
-      location.hash = `#${key}`;
-    });
+  showView(keyFromHash);
+}
+
+
+navItems.forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const key = (btn.dataset.view || "overview").toLowerCase();
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete("session_id");   // ✅ leave chat detail
+    url.searchParams.set("view", key);       // ✅ server renders correct initial_view
+    url.hash = `#${key}`;
+
+    window.location.href = url.toString();
   });
+});
+
 
   window.addEventListener("hashchange", route);
 
