@@ -642,8 +642,9 @@
     </div>
   </div>
 
-  <!-- Analytics strip -->
-  <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+  <!-- Analytics strip-->
+  {% if not selected_session %}
+  <div id="chat-analytics-strip" class="grid grid-cols-2 md:grid-cols-5 gap-2">
     <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
       <div class="text-xs text-slate-500">Pre-booking</div>
       <div class="text-xl font-semibold">{{ analytics.pre_booking }}</div>
@@ -664,7 +665,8 @@
       <div class="text-xs text-slate-500">Unhappy sessions</div>
       <div class="text-xl font-semibold">{{ analytics.unhappy_sessions }}</div>
     </div>
-  </div>
+        </div>
+ {% endif %}
 
   <!-- FULL-WIDTH LIST -->
   <div id="chat-list-wrap" class="space-y-3">
@@ -860,14 +862,18 @@
 function setInlineDetailOpen(open) {
   const inline = document.getElementById("chat-detail-inline");
   const list = document.getElementById("chat-list-wrap");
+  const analytics = document.getElementById("chat-analytics-strip"); // ✅ add
   if (!inline || !list) return;
 
   inline.classList.toggle("hidden", !open);
   list.classList.toggle("hidden", open);
 
-  // optional: scroll to top of chats view when opening detail
+  // ✅ hide analytics while detail is open
+  if (analytics) analytics.classList.toggle("hidden", open);
+
   if (open) inline.scrollIntoView({ behavior: "smooth", block: "start" });
 }
+
 
 function pushChatUrl(sessionId) {
   const url = new URL(window.location.href);
