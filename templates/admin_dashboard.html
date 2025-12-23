@@ -1977,7 +1977,7 @@ async openEditor(id) {
     console.error("Fetch failed:", err);
     editorBody.innerHTML = `<div class="text-sm text-rose-700">Network error loading editor.</div>`;
   }
-}
+},
 
 
   closeEditor() {
@@ -2899,7 +2899,7 @@ function initReorderForTable(rootEl) {
 
   console.log("Sortable bound:", { rawKind, kind, rowAttrSingular, rowAttrPlural, hasHandles });
 }
-ation initAllReorderTables() {
+function initAllReorderTables() {
   document.querySelectorAll("table[data-list-kind]").forEach(initReorderForTable);
 }
 
