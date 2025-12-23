@@ -2963,60 +2963,43 @@ function initRouting() {
 
 
   // ----------------------------
-  // DOM ready
-  // ----------------------------
-  document.addEventListener("DOMContentLoaded", () => {
+// DOM ready (single, clean)
+// ----------------------------
+document.addEventListener("DOMContentLoaded", () => {
   initSidebar();
   initRouting();
 
-  // keep these
+  // Hook property filters
   document.getElementById("searchInput")?.addEventListener("input", filterProperties);
   document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
 
+  // Guides / Upgrades dropdowns
   document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
   document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
     Upgrades.closeEditor();
     Upgrades.refresh();
   });
 
-  updateOverviewUI();
-  });
-  
-    
-        
-    // Chart init
-    const ctx = document.getElementById("statusChart");
-    if (ctx && window.Chart) {
-      statusChartInstance = new Chart(ctx, {
-        type: "bar",
-        data: {
-          labels: ["LIVE", "OFFLINE"],
-          datasets: [
-            { label: "Properties", data: [{{ live_props }}, {{ offline_props }}] },
-          ],
-        },
-        options: {
-          responsive: true,
-          plugins: { legend: { display: false } },
-          scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
-        },
-      });
-    }
-
-    // Hook filters
-    document.getElementById("searchInput")?.addEventListener("input", filterProperties);
-    document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
-
-    // Property filters for guides/upgrades
-    document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
-    document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
-      Upgrades.closeEditor();
-      Upgrades.refresh();
+  // Chart init (run after DOM is ready)
+  const ctx = document.getElementById("statusChart");
+  if (ctx && window.Chart) {
+    statusChartInstance = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: ["LIVE", "OFFLINE"],
+        datasets: [{ label: "Properties", data: [{{ live_props }}, {{ offline_props }}] }],
+      },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: false } },
+        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+      },
     });
+  }
 
-    // Optional: keep overview counters consistent if you render stat ids
-    updateOverviewUI();
-  });
+  updateOverviewUI();
+});
+
 </script>
 
 </body>
