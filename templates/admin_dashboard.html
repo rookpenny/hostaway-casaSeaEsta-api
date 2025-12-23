@@ -22,6 +22,7 @@
 
 <body class="bg-slate-50 text-slate-900">
   <div class="min-h-screen flex">
+{% set initial_view = 'chats' if (request.query_params.get('view') == 'chats' or request.query_params.get('session_id')) else 'overview' %}
 
     <!-- Sidebar -->
     <aside id="sidebar"
@@ -284,7 +285,7 @@
         {% endif %}
 
         <!-- OVERVIEW -->
-        <section id="view-overview" class="view space-y-6">
+        <section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
 
           {% set total_props = properties|length %}
 
@@ -593,7 +594,8 @@
 
 
         
-        <section id="view-chats" class="view hidden space-y-4">
+        <section id="view-chats" class="view space-y-4 {% if initial_view != 'chats' %}hidden{% endif %}">
+
   <!-- Top strip -->
   <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
     <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
