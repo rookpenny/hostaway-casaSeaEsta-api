@@ -25,6 +25,20 @@
             {% else %}
               <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">Unknown</span>
             {% endif %}
+            
+             <span
+              id="resolved-pill"
+              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+                {% if session.is_resolved %}
+                  bg-emerald-100 text-emerald-800
+                {% else %}
+                  bg-slate-200 text-slate-700
+                {% endif %}
+              "
+            >
+              {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
+            </span>
+            
             <span
               id="escalation-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
