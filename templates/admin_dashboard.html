@@ -17,6 +17,7 @@
   </style>
   <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+  
 
 </head>
 
@@ -1842,6 +1843,48 @@ async function loadChatDetail(sessionId) {
     }
   }
 };
+
+   function initQuillEditor({ editorId, inputId, placeholder = "" }) {
+  const editorEl = document.getElementById(editorId);
+  const inputEl = document.getElementById(inputId);
+
+  if (!editorEl || !inputEl) {
+    console.warn("Quill init skipped: missing elements", { editorId, inputId });
+    return null;
+  }
+  if (!window.Quill) {
+    console.warn("Quill init skipped: Quill library not loaded");
+    return null;
+  }
+
+  // Prevent double-init if you reopen editor
+  if (editorEl.__quill) return editorEl.__quill;
+
+  const quill = new Quill(editorEl, {
+    theme: "snow",
+    placeholder,
+    modules: {
+      toolbar: [
+        ["bold", "italic", "underline", "strike"],
+        [{ header: [1, 2, 3, false] }],
+        [{ list: "ordered" }, { list: "bullet" }],
+        ["link", "blockquote"],
+        ["clean"]
+      ],
+    },
+  });
+
+  // seed initial content from hidden input
+  quill.root.innerHTML = inputEl.value || "";
+
+  // keep hidden input updated for form submit
+  quill.on("text-change", () => {
+    inputEl.value = quill.root.innerHTML;
+  });
+
+  editorEl.__quill = quill;
+  return quill;
+}
 
 
 // ----------------------------
