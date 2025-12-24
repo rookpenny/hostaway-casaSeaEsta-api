@@ -355,11 +355,12 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
     pmc = getattr(prop, "pmc", None)
 
-    # Property/provider compatibility: new field is Property.provider
-   # prop_provider = (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "").strip().lower()
-   # pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
-
+    # ✅ define these BEFORE you use them
+    prop_provider = (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "").strip().lower()
+    pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
+    
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
+
 
     # ---- Load config/manual from disk ----
     context = load_property_context(prop)
