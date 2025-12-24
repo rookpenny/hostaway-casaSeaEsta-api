@@ -427,6 +427,7 @@
   window.PROPERTY_ID = {{ property_id | tojson }};
   window.PROPERTY_NAME = {{ property_name | tojson }};
   window.SANDY_LIVE = {{ is_live | tojson }};
+  window.SANDY_ENABLED = {{ sandy_enabled | tojson }};
   window.INITIAL_VERIFIED = {{ is_verified | tojson }};
 </script>
 
@@ -1115,6 +1116,10 @@
       
       <script>
   document.addEventListener("DOMContentLoaded", function () {
+
+        // Normalize Sandy live flag (boolean-safe)
+    const sandyLive = window.SANDY_LIVE === true || window.SANDY_LIVE === "true";
+
     // --- Screens + core elements ---
     const screens = {
       home: document.getElementById("screen-home"),
@@ -1122,6 +1127,20 @@
       experiences: document.getElementById("screen-experiences"),
       upgrades: document.getElementById("screen-upgrades"),
     };
+
+    const sandyEnabled = window.SANDY_ENABLED === true || window.SANDY_ENABLED === "true";
+    if (!sandyEnabled) {
+      // show a simple message or redirect; backend gating is primary so this is backup
+      document.body.innerHTML = `
+        <div class="min-h-screen bg-[#f5f5f5] flex items-center justify-center p-6">
+          <div class="max-w-md w-full bg-white rounded-3xl p-6 shadow-sm text-center">
+            <h1 class="text-2xl font-semibold text-slate-900">Guest experience unavailable</h1>
+            <p class="mt-3 text-slate-600">This property hasn’t enabled Sandy yet. Please contact your host.</p>
+          </div>
+        </div>`;
+      return;
+    }
+
 
     const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
     const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
@@ -2128,7 +2147,7 @@ function closeMenu() {
     const chatSend = document.getElementById("chat-send");
     const chatPlus = document.querySelector(".chat-plus");
 
-    if (!window.SANDY_LIVE) {
+    if (!sandyLive) {
       if (chatBox) {
         renderMessage(
           "Sandy is currently offline for this property 🌙\n\n" +
@@ -2252,7 +2271,7 @@ function closeMenu() {
       const text = (chatInput?.value || "").trim();
       if (!text) return;
 
-      if (window.SANDY_LIVE === "false") {
+      if (!sandyLive) {
         renderMessage(
           "Sandy is currently offline for this property. Please contact your host directly. 🙏",
           "bot"
