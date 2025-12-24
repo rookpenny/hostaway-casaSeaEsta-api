@@ -60,6 +60,13 @@
                 No escalation
               {% endif %}
             </span>
+            <br>
+             <span class="text-xs text-slate-500">
+              Assigned:
+              <span id="assigned-label" class="font-semibold text-slate-700">
+                {{ session.assigned_to or "—" }}
+              </span>
+            </span>
           </div>
 
           
@@ -105,12 +112,7 @@
             
 
            
- <span class="text-xs text-slate-500">
-              Assigned:
-              <span id="assigned-label" class="font-semibold text-slate-700">
-                {{ session.assigned_to or "—" }}
-              </span>
-            </span>
+
             <input
               id="assigned-input"
               value="{{ session.assigned_to or '' }}"
