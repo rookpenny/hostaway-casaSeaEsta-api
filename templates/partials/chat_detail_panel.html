@@ -74,8 +74,7 @@
 
              <select
               id="escalation-select"
-              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white"
-            >
+              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white">
               <option value="" {% if not session.escalation_level %}selected{% endif %}>No escalation</option>
               <option value="low" {% if session.escalation_level=='low' %}selected{% endif %}>Low</option>
               <option value="medium" {% if session.escalation_level=='medium' %}selected{% endif %}>Medium</option>
@@ -99,14 +98,6 @@
                 Mark Resolved
               </button>
             {% endif %}
-
-
-            <span class="text-xs text-slate-500">
-              Assigned:
-              <span id="assigned-label" class="font-semibold text-slate-700">
-                {{ session.assigned_to or "—" }}
-              </span>
-            </span>
           </div>
 
           <!-- Row: actions -->
@@ -114,7 +105,12 @@
             
 
            
-
+ <span class="text-xs text-slate-500">
+              Assigned:
+              <span id="assigned-label" class="font-semibold text-slate-700">
+                {{ session.assigned_to or "—" }}
+              </span>
+            </span>
             <input
               id="assigned-input"
               value="{{ session.assigned_to or '' }}"
