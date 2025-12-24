@@ -330,11 +330,34 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
+    # ✅ HARD GATE: property must have sandy_enabled
+    if not bool(getattr(prop, "sandy_enabled", False)):
+        return HTMLResponse(
+            """
+            <html>
+              <head>
+                <meta name="viewport" content="width=device-width, initial-scale=1" />
+                <title>Guest experience unavailable</title>
+                <script src="https://cdn.tailwindcss.com"></script>
+              </head>
+              <body class="min-h-screen bg-[#f5f5f5] flex items-center justify-center p-6">
+                <div class="max-w-md w-full bg-white rounded-3xl p-6 shadow-sm text-center">
+                  <h1 class="text-2xl font-semibold text-slate-900">Guest experience unavailable</h1>
+                  <p class="mt-3 text-slate-600">
+                    This property hasn’t enabled Sandy yet. Please contact your host for assistance.
+                  </p>
+                </div>
+              </body>
+            </html>
+            """,
+            status_code=403,
+        )
+
     pmc = getattr(prop, "pmc", None)
 
     # Property/provider compatibility: new field is Property.provider
-    prop_provider = (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "").strip().lower()
-    pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
+   # prop_provider = (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "").strip().lower()
+   # pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
 
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
@@ -412,7 +435,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             Upgrade.property_id == prop.id,
             Upgrade.is_active.is_(True),
         )
-        .order_by(Upgrade.id.asc())
+        .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
         .all()
     )
 
@@ -499,8 +522,11 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "hero_image_url": hero_image_url,
             "experiences_hero_url": experiences_hero_url,
             "google_maps_link": google_maps_link,
+            
             "is_live": is_live,
+            "sandy_enabled": bool(getattr(prop, "sandy_enabled", False)),
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
+
 
             # Upgrades + turnover flags for the template
             "upgrades": visible_upgrades,
