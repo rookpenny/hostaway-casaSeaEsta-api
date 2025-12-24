@@ -70,6 +70,26 @@
 
           <!-- Row: pills -->
           <div class="flex flex-wrap items-center gap-2">
+
+            {% if session.is_resolved %}
+              <button
+                id="unresolve-btn"
+                class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+                type="button"
+              >
+                Reopen
+              </button>
+            {% else %}
+              <button
+                id="resolve-btn"
+                class="h-10 px-4 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
+                type="button"
+              >
+                Mark Resolved
+              </button>
+            {% endif %}
+
+            
             <span
               id="resolved-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
@@ -114,23 +134,7 @@
 
           <!-- Row: actions -->
           <div class="flex flex-wrap items-center gap-2">
-            {% if session.is_resolved %}
-              <button
-                id="unresolve-btn"
-                class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
-                type="button"
-              >
-                Reopen
-              </button>
-            {% else %}
-              <button
-                id="resolve-btn"
-                class="h-10 px-4 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
-                type="button"
-              >
-                Mark Resolved
-              </button>
-            {% endif %}
+            
 
             <select
               id="escalation-select"
