@@ -71,6 +71,17 @@
           <!-- Row: pills -->
           <div class="flex flex-wrap items-center gap-2">
 
+
+             <select
+              id="escalation-select"
+              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white"
+            >
+              <option value="" {% if not session.escalation_level %}selected{% endif %}>No escalation</option>
+              <option value="low" {% if session.escalation_level=='low' %}selected{% endif %}>Low</option>
+              <option value="medium" {% if session.escalation_level=='medium' %}selected{% endif %}>Medium</option>
+              <option value="high" {% if session.escalation_level=='high' %}selected{% endif %}>High</option>
+            </select>
+            
             {% if session.is_resolved %}
               <button
                 id="unresolve-btn"
@@ -89,40 +100,6 @@
               </button>
             {% endif %}
 
-            
-            <span
-              id="resolved-pill"
-              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if session.is_resolved %}
-                  bg-emerald-100 text-emerald-800
-                {% else %}
-                  bg-slate-200 text-slate-700
-                {% endif %}
-              "
-            >
-              {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
-            </span>
-
-            <span
-              id="escalation-pill"
-              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if session.escalation_level == 'high' %}
-                  bg-rose-100 text-rose-800
-                {% elif session.escalation_level == 'medium' %}
-                  bg-amber-100 text-amber-800
-                {% elif session.escalation_level == 'low' %}
-                  bg-blue-100 text-blue-800
-                {% else %}
-                  bg-slate-100 text-slate-500
-                {% endif %}
-              "
-            >
-              {% if session.escalation_level %}
-                🚨 Escalation: {{ session.escalation_level|capitalize }}
-              {% else %}
-                No escalation
-              {% endif %}
-            </span>
 
             <span class="text-xs text-slate-500">
               Assigned:
@@ -136,15 +113,7 @@
           <div class="flex flex-wrap items-center gap-2">
             
 
-            <select
-              id="escalation-select"
-              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white"
-            >
-              <option value="" {% if not session.escalation_level %}selected{% endif %}>No escalation</option>
-              <option value="low" {% if session.escalation_level=='low' %}selected{% endif %}>Low</option>
-              <option value="medium" {% if session.escalation_level=='medium' %}selected{% endif %}>Medium</option>
-              <option value="high" {% if session.escalation_level=='high' %}selected{% endif %}>High</option>
-            </select>
+           
 
             <input
               id="assigned-input"
