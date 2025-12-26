@@ -2380,7 +2380,13 @@ def save_manual_file(
     put_response = requests.put(github_api_url, headers=headers, json=payload)
 
     if put_response.status_code in (200, 201):
-        return HTMLResponse("<h2>Manual saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
+        from utils.github_sync import ensure_repo
+        ensure_repo()
+
+        return HTMLResponse(
+            "<h2>Manual saved to GitHub successfully.</h2>"
+            "<a href='/auth/dashboard'>Return to Dashboard</a>"
+        )
 
     return HTMLResponse(
         f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>",
@@ -2468,6 +2474,9 @@ def save_config_file(
 
     put_response = requests.put(github_api_url, headers=headers, json=payload)
     if put_response.status_code in (200, 201):
+        from utils.github_sync import ensure_repo
+        ensure_repo()
+
         return HTMLResponse("<h2>Config saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
 
     return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
@@ -2498,6 +2507,9 @@ def save_github_file(
 
     put_response = requests.put(github_api_url, headers=headers, json=payload)
     if put_response.status_code in (200, 201):
+        from utils.github_sync import ensure_repo
+        ensure_repo()
+
         return HTMLResponse("<h2>File saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
 
     return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
