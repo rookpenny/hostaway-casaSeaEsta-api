@@ -370,7 +370,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
 
     # ---- Load config/manual from disk ----
-    context = load_property_context(prop)
+    context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
     wifi = cfg.get("wifi") or {}
 
@@ -1172,7 +1172,7 @@ def property_chat(
         return {"response": reply_text, "session_id": session.id}
 
     # 8) General LLM flow
-    context = load_property_context(prop)
+    context = load_property_context(prop, db)
     system_prompt = build_system_prompt(prop, pmc, context, session.language)
 
     history = (
@@ -1230,6 +1230,20 @@ def property_chat(
     db.commit()
 
     return {"response": reply_text, "session_id": session.id}
+
+
+@app.get("/debug/property-context/{property_id}")
+def debug_property_context(property_id: int, db: Session = Depends(get_db)):
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    ctx = load_property_context(prop, db)
+    return {
+        "property_id": prop.id,
+        "base_dir": ctx.get("base_dir"),
+        "has_config": bool(ctx.get("config")),
+        "manual_len": len((ctx.get("manual") or "").strip()),
+    }
 
 
 
