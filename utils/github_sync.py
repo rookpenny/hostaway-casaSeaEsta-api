@@ -8,7 +8,7 @@ GITHUB_REPO = "rookpenny/hostscout_data"
 BRANCH = "main"
 LOCAL_CLONE_PATH = os.getenv("DATA_REPO_DIR", "/var/data/hostscout_data")
 COMMIT_AUTHOR = os.getenv("COMMIT_AUTHOR", "PMS Sync Bot")
-COMMIT_EMAIL = os.getenv("COMMIT_EMAIL", "syncbot@hostscout.io")
+COMMIT_EMAIL = os.getenv("COMMIT_EMAIL", "syncbot@hostscout.ai")
 
 def github_url_with_token():
     if not GITHUB_TOKEN:
