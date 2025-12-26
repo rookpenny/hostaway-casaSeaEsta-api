@@ -34,6 +34,7 @@ from pydantic import BaseModel
 from seed_guides_route import router as seed_guides_router
 
 
+
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
 from models import Property, ChatSession, ChatMessage, PMC, PMCIntegration, Upgrade, Reservation, Guide
@@ -44,6 +45,7 @@ from utils.pms_access import get_pms_access_info, ensure_pms_data
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
+from utils.github_sync import ensure_repo
 
 from apscheduler.schedulers.background import BackgroundScheduler
 
@@ -120,6 +122,11 @@ async def cleanup_tmp_upgrades_forever():
 async def _start_cleanup_task():
     asyncio.create_task(cleanup_tmp_upgrades_forever())
 
+
+@app.on_event("startup")
+def ensure_data_repo_on_boot():
+    ensure_repo()
+    
 
 def hour_to_ampm(hour):
     if hour is None:
