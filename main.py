@@ -12,7 +12,7 @@ import time as pytime
 
 from pathlib import Path as FSPath
 
-from typing import Optional, Any, List
+from typing import Optional, Any, List, Dict
 from datetime import datetime, timedelta, date, time as dt_time
 
 from sqlalchemy import text
