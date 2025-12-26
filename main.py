@@ -210,6 +210,12 @@ def debug_session(request: Request):
 def root():
     return {"message": "Welcome to the multi-property Sandy API (FastAPI edition)!"}
 
+
+@app.head("/")
+def head_root():
+    return Response(status_code=200)
+
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
