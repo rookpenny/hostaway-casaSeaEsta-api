@@ -363,6 +363,8 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     # ✅ define these BEFORE you use them
     prop_provider = (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "").strip().lower()
     pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
+
+    
     
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
@@ -1279,25 +1281,22 @@ def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
 
 logger = logging.getLogger("uvicorn.error")
 
-# Where the hostscout_data repo lives on the server (Render disk recommended)
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()  # e.g. /var/data/hostscout_data
 
 
-def load_property_context(prop: "Property") -> Dict[str, Any]:
+def load_property_context(prop: "Property", db) -> dict:
     """
     Loads config/manual for a property.
 
     Resolution order:
       1) prop.data_folder_path (explicit override)
-      2) {DATA_REPO_DIR}/data/{provider}_{pms_property_id}/
+      2) {DATA_REPO_DIR}/data/{provider}_{account_id}/{provider}_{pms_property_id}/
       3) {DATA_REPO_DIR}/defaults/
 
-    Expected files:
-      - config.json
-      - manual.txt
+    Requires db so we can reliably fetch PMCIntegration.account_id.
     """
 
-    def _read_json(path: str) -> Dict[str, Any]:
+    def _read_json(path: str) -> dict:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
@@ -1314,21 +1313,41 @@ def load_property_context(prop: "Property") -> Dict[str, Any]:
             logger.warning("load_property_context: failed text %s: %s", path, repr(e))
             return ""
 
-    # 1) Explicit override path (if you ever set it)
+    used_default_cfg = False
+    used_default_manual = False
+
+    # 1) explicit override
     base_dir = (getattr(prop, "data_folder_path", None) or "").strip()
 
-    # 2) Otherwise build from DATA_REPO_DIR + provider/pms_property_id
+    # 2) computed dir from provider + integration.account_id + pms_property_id
     if not base_dir and DATA_REPO_DIR:
         provider = (getattr(prop, "provider", None) or "").strip().lower()
         pms_property_id = getattr(prop, "pms_property_id", None)
 
-        if provider and pms_property_id:
-            base_dir = os.path.join(DATA_REPO_DIR, "data", f"{provider}_{pms_property_id}")
+        account_id = None
+        try:
+            # uses your existing helper
+            integ = get_integration_for_property(db, prop)
+            account_id = (getattr(integ, "account_id", None) or "").strip()
+        except Exception as e:
+            logger.warning(
+                "load_property_context: could not resolve integration/account_id for prop_id=%s: %s",
+                getattr(prop, "id", None),
+                repr(e),
+            )
 
-    config: Dict[str, Any] = {}
-    manual_text: str = ""
+        if provider and account_id and pms_property_id:
+            base_dir = os.path.join(
+                DATA_REPO_DIR,
+                "data",
+                f"{provider}_{account_id}",
+                f"{provider}_{pms_property_id}",
+            )
 
-    # Try property-specific files first
+    config = {}
+    manual_text = ""
+
+    # property-specific
     if base_dir:
         cfg_path = os.path.join(base_dir, "config.json")
         man_path = os.path.join(base_dir, "manual.txt")
@@ -1339,7 +1358,7 @@ def load_property_context(prop: "Property") -> Dict[str, Any]:
         if os.path.exists(man_path):
             manual_text = _read_text(man_path)
 
-    # 3) Fallback defaults
+    # defaults fallback
     if DATA_REPO_DIR:
         defaults_dir = os.path.join(DATA_REPO_DIR, "defaults")
         fallback_cfg = os.path.join(defaults_dir, "config.json")
@@ -1347,11 +1366,23 @@ def load_property_context(prop: "Property") -> Dict[str, Any]:
 
         if not config and os.path.exists(fallback_cfg):
             config = _read_json(fallback_cfg)
+            used_default_cfg = True
 
         if not manual_text.strip() and os.path.exists(fallback_man):
             manual_text = _read_text(fallback_man)
+            used_default_manual = True
 
-    # Optional: return base_dir so you can see where it loaded from during debugging
+    # single useful debug line
+    logger.info(
+        "context: prop_id=%s provider=%s pms_property_id=%s base_dir=%s default_cfg=%s default_manual=%s",
+        getattr(prop, "id", None),
+        (getattr(prop, "provider", None) or "").strip().lower(),
+        getattr(prop, "pms_property_id", None),
+        base_dir,
+        used_default_cfg,
+        used_default_manual,
+    )
+
     return {"config": config, "manual": manual_text, "base_dir": base_dir}
 
 
