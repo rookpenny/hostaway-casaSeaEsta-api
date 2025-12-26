@@ -12,7 +12,7 @@ import time as pytime
 
 from pathlib import Path as FSPath
 
-from typing import Optional, Any
+from typing import Optional, Any, List
 from datetime import datetime, timedelta, date, time as dt_time
 
 from sqlalchemy import text
@@ -46,7 +46,6 @@ from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 
 from apscheduler.schedulers.background import BackgroundScheduler
-from typing import List
 
 from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
 
@@ -979,19 +978,48 @@ def create_upgrade_checkout(
     return {"checkout_url": checkout_session.url}
 
     
+import logging
+import re
+from datetime import datetime, timedelta
+from typing import Optional
+
+from fastapi import Depends, HTTPException, Request
+from sqlalchemy.orm import Session
+
+# Use uvicorn logger (shows in Render runtime logs more reliably than print)
+logger = logging.getLogger("uvicorn.error")
+
+
 @app.post("/properties/{property_id}/chat")
 def property_chat(
     request: Request,
     property_id: int,
     payload: PropertyChatRequest,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
 ):
     now = datetime.utcnow()
 
-    # 🔐 optional: enforce unlock server-side
-    verified_flag = request.session.get(f"guest_verified_{property_id}", False)
+    # 0) TEMP / SAFE DEBUG MODE (no logs required)
+    # Call: POST /properties/{id}/chat?debug=1
+    debug_mode = request.query_params.get("debug") == "1"
+
+    verified_key = f"guest_verified_{property_id}"
+    verified_flag = bool(request.session.get(verified_key, False))
+
+    if debug_mode:
+        return {
+            "debug": {
+                "cookie_header_present": bool(request.headers.get("cookie")),
+                "cookie_header": request.headers.get("cookie"),
+                "session_keys": list(request.session.keys()),
+                "verified_key": verified_key,
+                "verified_value": verified_flag,
+            },
+            "response": "debug mode",
+        }
+
+    # 1) Enforce unlock before allowing chat
     if not verified_flag:
-        # you can choose how strict you want this message to be
         return {
             "response": (
                 "For security, please unlock your stay first with the last 4 digits "
@@ -999,25 +1027,28 @@ def property_chat(
             )
         }
 
-    print("SESSION COOKIE:", request.headers.get("cookie"))
-    print("SESSION KEYS:", list(request.session.keys()))
-    print("VERIFIED FLAG:", verified_flag, "KEY:", f"guest_verified_{property_id}")
+    # Log session info (should show in runtime logs)
+    logger.info("property_chat: property_id=%s verified=%s", property_id, verified_flag)
+    logger.info("property_chat: cookie_present=%s", bool(request.headers.get("cookie")))
+    logger.info("property_chat: session_keys=%s", list(request.session.keys()))
 
-
-    # 0️⃣ Extract and validate user message
+    # 2) Validate message
     user_message = (payload.message or "").strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
     lowered = user_message.lower()
 
-    # 1️⃣ Look up property + PMC, enforce Sandy enabled
+    # 3) Look up property + PMC and enforce Sandy enabled
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
     pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
-    if not pmc or not pmc.active or not prop.sandy_enabled:
+    sandy_enabled = bool(getattr(prop, "sandy_enabled", False))
+    pmc_active = bool(pmc and getattr(pmc, "active", False))
+
+    if not sandy_enabled or not pmc_active:
         return {
             "response": (
                 "Sandy is currently offline for this property 🌙\n\n"
@@ -1025,21 +1056,16 @@ def property_chat(
             )
         }
 
-    # 2️⃣ Create or reuse a ChatSession
+    # 4) Create or reuse a ChatSession
     session: Optional[ChatSession] = None
 
-    # Try to reuse explicit session_id from client if provided
     if payload.session_id:
         session = (
             db.query(ChatSession)
-            .filter(
-                ChatSession.id == payload.session_id,
-                ChatSession.property_id == property_id,
-            )
+            .filter(ChatSession.id == payload.session_id, ChatSession.property_id == property_id)
             .first()
         )
 
-    # If none, fall back to last 4 hours
     if not session:
         recent_cutoff = now - timedelta(hours=4)
         session = (
@@ -1052,7 +1078,6 @@ def property_chat(
             .first()
         )
 
-    # If still none, create a new one
     if not session:
         session = ChatSession(
             property_id=property_id,
@@ -1065,10 +1090,11 @@ def property_chat(
         db.commit()
         db.refresh(session)
 
-    # 3️⃣ Attach PMS data (phone_last4 + reservation_id + guest info) for this session
-    ensure_pms_data(db, session)  # -> updates ChatSession in Postgres
+    # 5) Attach PMS data (phone_last4 + reservation_id + guest info) for this session
+    # NOTE: if this throws sometimes, wrap in try/except and proceed gracefully
+    ensure_pms_data(db, session)
 
-    # 4️⃣ Log guest message with intelligence fields
+    # 6) Log guest message to DB
     category = classify_category(user_message)
     log_type = detect_log_types(user_message)
     sentiment = simple_sentiment(user_message)
@@ -1085,29 +1111,25 @@ def property_chat(
     db.add(guest_msg)
     session.last_activity_at = now
 
-    # 🔤 Save preferred language onto session (if set)
+    # Save preferred language
     if getattr(payload, "language", None) and payload.language != "auto":
         session.language = payload.language
 
     db.commit()
     db.refresh(session)
 
-    # 5️⃣ Door code logic (door code == last 4 of reservation phone)
-    code_keywords = [
-        "door code", "access code", "entry code", "pin", "key code", "lock code"
-    ]
+    # 7) Door code branch
+    code_keywords = ["door code", "access code", "entry code", "pin", "key code", "lock code"]
     is_code_request = any(k in lowered for k in code_keywords)
 
-    # extract any 4-digit block they might have sent
     code_match = re.search(r"\b(\d{4})\b", user_message)
     provided_last4 = code_match.group(1) if code_match else None
 
-    pms_last4 = session.phone_last4  # filled by ensure_pms_data (Hostaway)
+    pms_last4 = getattr(session, "phone_last4", None)
 
     if is_code_request:
-        # ✅ PMS has phone_last4 and guest provided matching last 4
-        if pms_last4 and provided_last4 and provided_last4 == pms_last4:
-            door_code = pms_last4  # by design: door code == last 4 digits of reservation phone
+        if pms_last4 and provided_last4 and provided_last4 == str(pms_last4).strip():
+            door_code = str(pms_last4).strip()
             reply_text = (
                 f"**Your door code** 🔐\n\n"
                 f"- Entry code: **{door_code}**\n"
@@ -1115,16 +1137,12 @@ def property_chat(
                 "If the lock gives any trouble, try the code slowly and firmly, "
                 "and contact your host if it still doesn’t work."
             )
-
-        # 🔒 PMS has last4 but guest hasn’t proven it yet
         elif pms_last4 and not provided_last4:
             reply_text = (
                 "I can help with your door code 🔐\n\n"
                 "For security, please reply with the **last 4 digits of the phone number** "
                 "on your reservation, and I’ll confirm your entry code."
             )
-
-        # ❌ No PMS reservation / no phone_last4 available
         else:
             reply_text = (
                 "I’m not seeing an active reservation linked to this chat yet, "
@@ -1133,28 +1151,22 @@ def property_chat(
                 "or contact your host directly for access help."
             )
 
-        # Log assistant message for door-code branch
-        assistant_msg = ChatMessage(
-            session_id=session.id,
-            sender="assistant",
-            content=reply_text,
-            created_at=datetime.utcnow(),
+        db.add(
+            ChatMessage(
+                session_id=session.id,
+                sender="assistant",
+                content=reply_text,
+                created_at=datetime.utcnow(),
+            )
         )
-        db.add(assistant_msg)
         db.commit()
 
-        return {
-            "response": reply_text,
-            "session_id": session.id,
-        }
+        return {"response": reply_text, "session_id": session.id}
 
-    # 6️⃣ General LLM flow for non door-code messages
-
-    # Load property-specific context from config/manual
+    # 8) General LLM flow
     context = load_property_context(prop)
     system_prompt = build_system_prompt(prop, pmc, context, session.language)
 
-    # Rebuild conversation history from DB
     history = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == session.id)
@@ -1169,54 +1181,48 @@ def property_chat(
 
     try:
         ai_response = client.chat.completions.create(
-            model="gpt-4o-mini",   # cheaper + less quota pain
+            model="gpt-4o-mini",
             temperature=0.7,
             messages=messages,
         )
         reply_text = ai_response.choices[0].message.content
-    except RateLimitError as e:
-        # quota / rate limit
+    except RateLimitError:
         logging.exception("OpenAI rate/quota limit")
         reply_text = (
             "I’m temporarily unavailable because we hit our AI usage limit. 🐚\n\n"
             "Please try again in a little bit, or contact your host if it’s urgent."
         )
-    
-    except AuthenticationError as e:
+    except AuthenticationError:
         logging.exception("OpenAI auth error")
         reply_text = (
             "I’m temporarily unavailable due to a configuration issue. 🐚\n\n"
             "Please contact your host for urgent help."
         )
-    
-    except APIStatusError as e:
+    except APIStatusError:
         logging.exception("OpenAI API status error")
         reply_text = (
             "I’m having trouble connecting right now. 🐚\n\n"
             "Please try again in a moment."
         )
-    
-    except Exception as e:
+    except Exception:
         logging.exception("OpenAI unknown error")
         reply_text = (
             "Oops, I ran into a technical issue while answering just now. 🐚\n\n"
             "Please try again in a moment, or contact your host directly if it’s urgent."
         )
-    # Log assistant message for general replies
-    assistant_msg = ChatMessage(
-        session_id=session.id,
-        sender="assistant",
-        content=reply_text,
-        created_at=datetime.utcnow(),
+
+    db.add(
+        ChatMessage(
+            session_id=session.id,
+            sender="assistant",
+            content=reply_text,
+            created_at=datetime.utcnow(),
+        )
     )
-    db.add(assistant_msg)
     db.commit()
 
-    # 7️⃣ Response shape expected by chat.html
-    return {
-        "response": reply_text,
-        "session_id": session.id,
-    }
+    return {"response": reply_text, "session_id": session.id}
+
 
 
 def simple_sentiment(message: str) -> str:
