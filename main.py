@@ -999,6 +999,11 @@ def property_chat(
             )
         }
 
+    print("SESSION COOKIE:", request.headers.get("cookie"))
+    print("SESSION KEYS:", list(request.session.keys()))
+    print("VERIFIED FLAG:", verified_flag, "KEY:", f"guest_verified_{property_id}")
+
+
     # 0️⃣ Extract and validate user message
     user_message = (payload.message or "").strip()
     if not user_message:
