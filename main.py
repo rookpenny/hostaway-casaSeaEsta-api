@@ -1277,31 +1277,82 @@ def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
     )
     return upcoming
 
+logger = logging.getLogger("uvicorn.error")
 
-def load_property_context(prop: Property) -> dict:
-    config = {}
-    manual_text = ""
+# Where the hostscout_data repo lives on the server (Render disk recommended)
+DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()  # e.g. /var/data/hostscout_data
 
-    base_dir = prop.data_folder_path or ""
+
+def load_property_context(prop: "Property") -> Dict[str, Any]:
+    """
+    Loads config/manual for a property.
+
+    Resolution order:
+      1) prop.data_folder_path (explicit override)
+      2) {DATA_REPO_DIR}/data/{provider}_{pms_property_id}/
+      3) {DATA_REPO_DIR}/defaults/
+
+    Expected files:
+      - config.json
+      - manual.txt
+    """
+
+    def _read_json(path: str) -> Dict[str, Any]:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            return data if isinstance(data, dict) else {}
+        except Exception as e:
+            logger.warning("load_property_context: failed json %s: %s", path, repr(e))
+            return {}
+
+    def _read_text(path: str) -> str:
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception as e:
+            logger.warning("load_property_context: failed text %s: %s", path, repr(e))
+            return ""
+
+    # 1) Explicit override path (if you ever set it)
+    base_dir = (getattr(prop, "data_folder_path", None) or "").strip()
+
+    # 2) Otherwise build from DATA_REPO_DIR + provider/pms_property_id
+    if not base_dir and DATA_REPO_DIR:
+        provider = (getattr(prop, "provider", None) or "").strip().lower()
+        pms_property_id = getattr(prop, "pms_property_id", None)
+
+        if provider and pms_property_id:
+            base_dir = os.path.join(DATA_REPO_DIR, "data", f"{provider}_{pms_property_id}")
+
+    config: Dict[str, Any] = {}
+    manual_text: str = ""
+
+    # Try property-specific files first
     if base_dir:
-        config_path = os.path.join(base_dir, "config.json")
-        manual_path = os.path.join(base_dir, "manual.txt")
+        cfg_path = os.path.join(base_dir, "config.json")
+        man_path = os.path.join(base_dir, "manual.txt")
 
-        if os.path.exists(config_path):
-            try:
-                with open(config_path, "r", encoding="utf-8") as f:
-                    config = json.load(f)
-            except Exception:
-                config = {}
+        if os.path.exists(cfg_path):
+            config = _read_json(cfg_path)
 
-        if os.path.exists(manual_path):
-            try:
-                with open(manual_path, "r", encoding="utf-8") as f:
-                    manual_text = f.read()
-            except Exception:
-                manual_text = ""
+        if os.path.exists(man_path):
+            manual_text = _read_text(man_path)
 
-    return {"config": config, "manual": manual_text}
+    # 3) Fallback defaults
+    if DATA_REPO_DIR:
+        defaults_dir = os.path.join(DATA_REPO_DIR, "defaults")
+        fallback_cfg = os.path.join(defaults_dir, "config.json")
+        fallback_man = os.path.join(defaults_dir, "manual.txt")
+
+        if not config and os.path.exists(fallback_cfg):
+            config = _read_json(fallback_cfg)
+
+        if not manual_text.strip() and os.path.exists(fallback_man):
+            manual_text = _read_text(fallback_man)
+
+    # Optional: return base_dir so you can see where it loaded from during debugging
+    return {"config": config, "manual": manual_text, "base_dir": base_dir}
 
 
 def build_system_prompt(
