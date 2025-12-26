@@ -25,7 +25,7 @@ from fastapi import (
 )
 from fastapi import Path as FPath
 
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
