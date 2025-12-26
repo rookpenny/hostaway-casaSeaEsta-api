@@ -6,7 +6,7 @@ from datetime import datetime
 GITHUB_TOKEN = os.getenv("GITHUB_TOKEN")
 GITHUB_REPO = "rookpenny/hostscout_data"
 BRANCH = "main"
-LOCAL_CLONE_PATH = "/tmp/hostscout-data"
+LOCAL_CLONE_PATH = os.getenv("DATA_REPO_DIR", "/var/data/hostscout_data")
 COMMIT_AUTHOR = os.getenv("COMMIT_AUTHOR", "PMS Sync Bot")
 COMMIT_EMAIL = os.getenv("COMMIT_EMAIL", "syncbot@hostscout.io")
 
@@ -20,9 +20,23 @@ def clone_repo():
         shutil.rmtree(LOCAL_CLONE_PATH)
     return Repo.clone_from(github_url_with_token(), LOCAL_CLONE_PATH, branch=BRANCH)
 
+def ensure_repo():
+    if os.path.exists(os.path.join(LOCAL_CLONE_PATH, ".git")):
+        repo = Repo(LOCAL_CLONE_PATH)
+        repo.git.fetch("--all")
+        repo.git.reset("--hard", f"origin/{BRANCH}")
+        return repo
+
+    os.makedirs(LOCAL_CLONE_PATH, exist_ok=True)
+    return Repo.clone_from(
+        github_url_with_token(),
+        LOCAL_CLONE_PATH,
+        branch=BRANCH,
+    )
 
 def sync_pmc_to_github(dest_folder_path: str, updated_files: dict):
-    repo = clone_repo()
+   
+    repo = ensure_repo()
 
     for rel_path, local_source_path in updated_files.items():
         full_path = os.path.join(LOCAL_CLONE_PATH, rel_path)
