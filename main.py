@@ -54,6 +54,9 @@ from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
 from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 
 
+logger = logging.getLogger("uvicorn.error")
+DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
+
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 # --- Init ---
@@ -1307,19 +1310,19 @@ def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
     )
     return upcoming
 
-logger = logging.getLogger("uvicorn.error")
-
-DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()  # e.g. /var/data/hostscout_data
-
 
 def load_property_context(prop: "Property", db) -> dict:
     """
     Loads config/manual for a property.
 
     Resolution order:
-      1) prop.data_folder_path (explicit override)
+      1) prop.data_folder_path (explicit override; absolute OR relative to DATA_REPO_DIR)
       2) {DATA_REPO_DIR}/data/{provider}_{account_id}/{provider}_{pms_property_id}/
       3) {DATA_REPO_DIR}/defaults/
+
+    Expected files:
+      - config.json
+      - manual.txt
 
     Requires db so we can reliably fetch PMCIntegration.account_id.
     """
@@ -1329,39 +1332,64 @@ def load_property_context(prop: "Property", db) -> dict:
             with open(path, "r", encoding="utf-8") as f:
                 data = json.load(f)
             return data if isinstance(data, dict) else {}
+        except FileNotFoundError:
+            return {}
         except Exception as e:
-            logger.warning("load_property_context: failed json %s: %s", path, repr(e))
+            logger.warning("load_property_context: failed json %s: %r", path, e)
             return {}
 
     def _read_text(path: str) -> str:
         try:
             with open(path, "r", encoding="utf-8") as f:
                 return f.read()
-        except Exception as e:
-            logger.warning("load_property_context: failed text %s: %s", path, repr(e))
+        except FileNotFoundError:
             return ""
+        except Exception as e:
+            logger.warning("load_property_context: failed text %s: %r", path, e)
+            return ""
+
+    def _abs_in_repo(path: str) -> str:
+        """
+        If given a relative path like 'data/hostaway_63652/hostaway_256853',
+        convert to absolute inside DATA_REPO_DIR.
+        """
+        p = (path or "").strip()
+        if not p:
+            return ""
+        if os.path.isabs(p):
+            return p
+        if not DATA_REPO_DIR:
+            return p  # can't resolve; return as-is
+        return os.path.join(DATA_REPO_DIR, p)
 
     used_default_cfg = False
     used_default_manual = False
+    resolved_from = "none"
 
+    # -------------------------
     # 1) explicit override
-    base_dir = (getattr(prop, "data_folder_path", None) or "").strip()
+    # -------------------------
+    base_dir = _abs_in_repo(getattr(prop, "data_folder_path", None) or "")
+    if base_dir:
+        resolved_from = "prop.data_folder_path"
 
-    # 2) computed dir from provider + integration.account_id + pms_property_id
-    if not base_dir and DATA_REPO_DIR:
+    # -------------------------
+    # 2) computed from provider+account_id+pms_property_id
+    # -------------------------
+    if (not base_dir) and DATA_REPO_DIR:
         provider = (getattr(prop, "provider", None) or "").strip().lower()
-        pms_property_id = getattr(prop, "pms_property_id", None)
+        pms_property_id = (getattr(prop, "pms_property_id", None) or "")
+        pms_property_id = str(pms_property_id).strip() if pms_property_id is not None else ""
 
-        account_id = None
+        account_id = ""
         try:
-            # uses your existing helper
             integ = get_integration_for_property(db, prop)
             account_id = (getattr(integ, "account_id", None) or "").strip()
         except Exception as e:
             logger.warning(
-                "load_property_context: could not resolve integration/account_id for prop_id=%s: %s",
+                "load_property_context: could not resolve integration/account_id for prop_id=%s: %r",
                 getattr(prop, "id", None),
-                repr(e),
+                e,
             )
 
         if provider and account_id and pms_property_id:
@@ -1371,11 +1399,14 @@ def load_property_context(prop: "Property", db) -> dict:
                 f"{provider}_{account_id}",
                 f"{provider}_{pms_property_id}",
             )
+            resolved_from = "computed(provider+account_id+pms_property_id)"
 
-    config = {}
-    manual_text = ""
+    # -------------------------
+    # Read property-specific files (if any)
+    # -------------------------
+    config: dict[str, Any] = {}
+    manual_text: str = ""
 
-    # property-specific
     if base_dir:
         cfg_path = os.path.join(base_dir, "config.json")
         man_path = os.path.join(base_dir, "manual.txt")
@@ -1386,7 +1417,9 @@ def load_property_context(prop: "Property", db) -> dict:
         if os.path.exists(man_path):
             manual_text = _read_text(man_path)
 
-    # defaults fallback
+    # -------------------------
+    # 3) defaults fallback
+    # -------------------------
     if DATA_REPO_DIR:
         defaults_dir = os.path.join(DATA_REPO_DIR, "defaults")
         fallback_cfg = os.path.join(defaults_dir, "config.json")
@@ -1400,15 +1433,19 @@ def load_property_context(prop: "Property", db) -> dict:
             manual_text = _read_text(fallback_man)
             used_default_manual = True
 
-    # single useful debug line
+    # -------------------------
+    # Logging
+    # -------------------------
     logger.info(
-        "context: prop_id=%s provider=%s pms_property_id=%s base_dir=%s default_cfg=%s default_manual=%s",
+        "context: prop_id=%s provider=%s pms_property_id=%s base_dir=%s resolved_from=%s default_cfg=%s default_manual=%s manual_len=%s",
         getattr(prop, "id", None),
         (getattr(prop, "provider", None) or "").strip().lower(),
         getattr(prop, "pms_property_id", None),
         base_dir,
+        resolved_from,
         used_default_cfg,
         used_default_manual,
+        len((manual_text or "").strip()),
     )
 
     return {"config": config, "manual": manual_text, "base_dir": base_dir}
