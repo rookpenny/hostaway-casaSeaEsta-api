@@ -21,6 +21,7 @@ load_dotenv()
 
 logger = logging.getLogger("uvicorn.error")
 
+
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
 if not DATA_REPO_DIR:
     logger.warning("DATA_REPO_DIR is not set. PMS sync will write to local working dir unless fixed.")
@@ -103,51 +104,47 @@ def _slugify(value: str, max_length: int = 64) -> str:
     return value[:max_length]
 
 
+
+
 def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -> str:
     """
-    Creates / ensures folder structure in the *data repo*:
+    Creates/ensures:
 
-    {DATA_REPO_DIR}/
-      data/
-        {provider}_{account_id}/
-          {provider}_{pms_property_id}/
-            config.json
-            manual.txt
+    {DATA_REPO_DIR}/data/{provider}_{account_id}/{provider}_{pms_property_id}/
+      - config.json
+      - manual.txt
 
-    Returns the absolute folder path.
+    Example:
+      data/hostaway_63652/hostaway_256853/
     """
     provider = (provider or "").strip().lower()
+    account_id = (account_id or "").strip()
+    pms_property_id = str(pms_property_id).strip()
+
     if not provider:
         raise ValueError("ensure_pmc_structure: provider is required")
-    if not account_id or not str(account_id).strip():
+    if not account_id:
         raise ValueError("ensure_pmc_structure: account_id is required")
-    if not pms_property_id or not str(pms_property_id).strip():
+    if not pms_property_id:
         raise ValueError("ensure_pmc_structure: pms_property_id is required")
+    if not DATA_REPO_DIR:
+        raise RuntimeError("DATA_REPO_DIR is not set (must point to hostscout_data repo root)")
 
-    acct_dir = f"{provider}_{_slugify(str(account_id).strip(), max_length=128)}"
-    prop_dir = f"{provider}_{_slugify(str(pms_property_id).strip(), max_length=128)}"
+    acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
+    prop_dir = f"{provider}_{_slugify(pms_property_id, max_length=128)}"
 
-    # If DATA_REPO_DIR is set, write into the cloned hostscout_data repo
-    if DATA_REPO_DIR:
-        base_dir = os.path.join(DATA_REPO_DIR, "data", acct_dir, prop_dir)
-    else:
-        # fallback (not ideal) - writes inside app working directory
-        base_dir = os.path.join("data", acct_dir, prop_dir)
+    base_dir = Path(DATA_REPO_DIR) / "data" / acct_dir / prop_dir
+    base_dir.mkdir(parents=True, exist_ok=True)
 
-    os.makedirs(base_dir, exist_ok=True)
+    cfg = base_dir / "config.json"
+    man = base_dir / "manual.txt"
 
-    config_path = os.path.join(base_dir, "config.json")
-    manual_path = os.path.join(base_dir, "manual.txt")
+    if not cfg.exists():
+        cfg.write_text("{}", encoding="utf-8")
+    if not man.exists():
+        man.write_text("", encoding="utf-8")
 
-    if not os.path.exists(config_path):
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write("{}")
-
-    if not os.path.exists(manual_path):
-        with open(manual_path, "w", encoding="utf-8") as f:
-            f.write("")
-
-    return base_dir
+    return str(base_dir)
 
 
 
