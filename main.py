@@ -145,6 +145,13 @@ def hour_to_ampm(hour):
     return f"{hour12}:00 {suffix}"
 
 
+@app.on_event("startup")
+def ensure_data_repo_on_boot():
+    try:
+        ensure_repo()
+    except Exception:
+        logging.getLogger("uvicorn.error").exception("ensure_repo failed (continuing)")
+
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
