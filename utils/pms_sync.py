@@ -13,7 +13,8 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal, engine
 from models import PMC, PMCIntegration
-from utils.github_sync import sync_pmc_to_github
+from utils.github_sync import sync_files_to_github
+
 
 load_dotenv()
 
