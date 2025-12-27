@@ -96,21 +96,28 @@ def _slugify(value: str, max_length: int = 64) -> str:
     return value[:max_length]
 
 
-def ensure_pmc_structure(pmc_name: str, property_id: str, property_name: str) -> str:
+def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -> str:
     """
-    data/{pmc_slug}/{property_id}/
-      - config.json
-      - manual.txt
+    Creates / ensures folder structure in the *data repo*:
+
+    data/
+      {provider}_{account_id}/
+        {provider}_{pms_property_id}/
+          config.json
+          manual.txt
     """
-    if not pmc_name:
-        raise ValueError("ensure_pmc_structure: pmc_name is required")
-    if not property_id:
-        raise ValueError("ensure_pmc_structure: property_id is required")
+    provider = (provider or "").strip().lower()
+    if not provider:
+        raise ValueError("ensure_pmc_structure: provider is required")
+    if not account_id:
+        raise ValueError("ensure_pmc_structure: account_id is required")
+    if not pms_property_id:
+        raise ValueError("ensure_pmc_structure: pms_property_id is required")
 
-    pmc_slug = _slugify(pmc_name)
-    prop_id_safe = _slugify(property_id, max_length=128)
+    acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
+    prop_dir = f"{provider}_{_slugify(str(pms_property_id), max_length=128)}"
 
-    base_dir = os.path.join("data", pmc_slug, prop_id_safe)
+    base_dir = os.path.join("data", acct_dir, prop_dir)
     os.makedirs(base_dir, exist_ok=True)
 
     config_path = os.path.join(base_dir, "config.json")
@@ -125,6 +132,7 @@ def ensure_pmc_structure(pmc_name: str, property_id: str, property_name: str) ->
             f.write("")
 
     return base_dir
+
 
 
 # ----------------------------
