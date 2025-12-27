@@ -14,9 +14,16 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import PMC, PMCIntegration
 from utils.github_sync import sync_files_to_github
-
+import logging
+from pathlib import Path
 
 load_dotenv()
+
+logger = logging.getLogger("uvicorn.error")
+
+DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
+if not DATA_REPO_DIR:
+    logger.warning("DATA_REPO_DIR is not set. PMS sync will write to local working dir unless fixed.")
 
 
 # ----------------------------
@@ -100,24 +107,33 @@ def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -
     """
     Creates / ensures folder structure in the *data repo*:
 
-    data/
-      {provider}_{account_id}/
-        {provider}_{pms_property_id}/
-          config.json
-          manual.txt
+    {DATA_REPO_DIR}/
+      data/
+        {provider}_{account_id}/
+          {provider}_{pms_property_id}/
+            config.json
+            manual.txt
+
+    Returns the absolute folder path.
     """
     provider = (provider or "").strip().lower()
     if not provider:
         raise ValueError("ensure_pmc_structure: provider is required")
-    if not account_id:
+    if not account_id or not str(account_id).strip():
         raise ValueError("ensure_pmc_structure: account_id is required")
-    if not pms_property_id:
+    if not pms_property_id or not str(pms_property_id).strip():
         raise ValueError("ensure_pmc_structure: pms_property_id is required")
 
-    acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
-    prop_dir = f"{provider}_{_slugify(str(pms_property_id), max_length=128)}"
+    acct_dir = f"{provider}_{_slugify(str(account_id).strip(), max_length=128)}"
+    prop_dir = f"{provider}_{_slugify(str(pms_property_id).strip(), max_length=128)}"
 
-    base_dir = os.path.join("data", acct_dir, prop_dir)
+    # If DATA_REPO_DIR is set, write into the cloned hostscout_data repo
+    if DATA_REPO_DIR:
+        base_dir = os.path.join(DATA_REPO_DIR, "data", acct_dir, prop_dir)
+    else:
+        # fallback (not ideal) - writes inside app working directory
+        base_dir = os.path.join("data", acct_dir, prop_dir)
+
     os.makedirs(base_dir, exist_ok=True)
 
     config_path = os.path.join(base_dir, "config.json")
@@ -152,11 +168,13 @@ def save_to_postgres(
     """
     provider = (provider or "").strip().lower()
     if not provider:
-        raise Exception("save_to_postgres: provider is required")
+        raise ValueError("save_to_postgres: provider is required")
     if pmc_record_id is None:
-        raise Exception("save_to_postgres: pmc_record_id is required")
+        raise ValueError("save_to_postgres: pmc_record_id is required")
     if integration_id is None:
-        raise Exception("save_to_postgres: integration_id is required")
+        raise ValueError("save_to_postgres: integration_id is required")
+    if not client_id or not str(client_id).strip():
+        raise ValueError("save_to_postgres: client_id (account_id) is required")
 
     def _external_id(p: dict) -> Optional[str]:
         for k in ("id", "listingId", "propertyId", "uid", "externalId"):
@@ -172,7 +190,8 @@ def save_to_postgres(
                 return str(v).strip()
         return f"Property {pid}"
 
-    stmt = text("""
+    stmt = text(
+        """
         INSERT INTO public.properties (
             property_name,
             pmc_id,
@@ -200,7 +219,8 @@ def save_to_postgres(
             pms_property_id  = EXCLUDED.pms_property_id,
             data_folder_path = EXCLUDED.data_folder_path,
             last_synced      = EXCLUDED.last_synced;
-    """)
+        """
+    )
 
     now = datetime.utcnow()
     upserted = 0
@@ -212,12 +232,13 @@ def save_to_postgres(
                 continue
 
             name = _name(prop, ext_id)
-           folder = ensure_pmc_structure(
+
+            # Builds/ensures folder structure and returns the folder path you store in DB
+            folder = ensure_pmc_structure(
                 provider=provider,
-                account_id=client_id,
+                account_id=str(client_id).strip(),
                 pms_property_id=ext_id,
             )
-
 
             conn.execute(
                 stmt,
@@ -232,6 +253,7 @@ def save_to_postgres(
                     "last_synced": now,
                 },
             )
+
             upserted += 1
 
     return upserted
@@ -268,8 +290,8 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
 
             sync_files_to_github(
                 updated_files={
-                    rel_config: os.path.join(base_dir, "config.json"),
-                    rel_manual: os.path.join(base_dir, "manual.txt"),
+                    rel_config: os.path.join(DATA_REPO_DIR, "config.json"),
+                    rel_manual: os.path.join(DATA_REPO_DIR, "manual.txt"),
                 },
                 commit_hint=f"sync {provider} {account_id} {ext_id}",
             )
