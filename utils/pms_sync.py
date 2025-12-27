@@ -212,13 +212,12 @@ def save_to_postgres(
                 continue
 
             name = _name(prop, ext_id)
-            folder_property_id = f"{provider}_{ext_id}"
-
-            folder = ensure_pmc_structure(
-                pmc_name=(client_id or str(pmc_record_id)),
-                property_id=folder_property_id,
-                property_name=name,
+           folder = ensure_pmc_structure(
+                provider=provider,
+                account_id=client_id,
+                pms_property_id=ext_id,
             )
+
 
             conn.execute(
                 stmt,
@@ -249,38 +248,32 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
                 return str(v).strip()
         return None
 
-    def _name(p: dict) -> str:
-        for k in ("internalListingName", "name", "title", "listingName", "propertyName"):
-            v = p.get(k)
-            if v and str(v).strip():
-                return str(v).strip()
-        return "Property"
-
     try:
-        for prop in properties:
+        for prop in properties or []:
             ext_id = _external_id(prop)
             if not ext_id:
                 continue
 
-            name = _name(prop)
-            folder_property_id = f"{provider}_{ext_id}"
-
             base_dir = ensure_pmc_structure(
-                pmc_name=account_id,
-                property_id=folder_property_id,
-                property_name=name,
+                provider=provider,
+                account_id=account_id,
+                pms_property_id=ext_id,
             )
 
-            rel_config = os.path.join("data", account_id, folder_property_id, "config.json")
-            rel_manual = os.path.join("data", account_id, folder_property_id, "manual.txt")
+            acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
+            prop_dir = f"{provider}_{_slugify(str(ext_id), max_length=128)}"
 
-            sync_pmc_to_github(
-                base_dir,
-                {
+            rel_config = os.path.join("data", acct_dir, prop_dir, "config.json")
+            rel_manual = os.path.join("data", acct_dir, prop_dir, "manual.txt")
+
+            sync_files_to_github(
+                updated_files={
                     rel_config: os.path.join(base_dir, "config.json"),
                     rel_manual: os.path.join(base_dir, "manual.txt"),
                 },
+                commit_hint=f"sync {provider} {account_id} {ext_id}",
             )
+
     except Exception as e:
         print(f"[GITHUB] ⚠️ Failed GitHub sync for account_id={account_id} provider={provider}: {e}")
 
