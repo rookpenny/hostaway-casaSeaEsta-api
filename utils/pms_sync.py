@@ -176,12 +176,13 @@ def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -
     Ensures folder structure in the data repo:
 
       {DATA_REPO_DIR}/data/{provider}_{account_id}/{provider}_{pms_property_id}/
-        config.json
-        manual.txt
+        ├── config.json
+        └── manual.txt
 
-    Returns the *repo-relative* folder path to store in Postgres, e.g.:
+    Returns the *repo-relative* path to store in Postgres, e.g.:
       data/hostaway_63652/hostaway_256853
     """
+
     provider = (provider or "").strip().lower()
     account_id = (account_id or "").strip()
     pms_property_id = str(pms_property_id or "").strip()
@@ -192,23 +193,31 @@ def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -
         raise ValueError("ensure_pmc_structure: account_id is required")
     if not pms_property_id:
         raise ValueError("ensure_pmc_structure: pms_property_id is required")
+    if not DATA_REPO_DIR:
+        raise RuntimeError("DATA_REPO_DIR must be set (repo root, e.g. /data/hostscout_data)")
 
     acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
     prop_dir = f"{provider}_{_slugify(pms_property_id, max_length=128)}"
 
-    rel_dir = os.path.join("data", acct_dir, prop_dir)  # <-- store THIS in DB
-    abs_dir = _repo_root() / rel_dir                    # <-- write HERE on disk
+    # ✅ repo-relative path (this is what goes in Postgres)
+    rel_dir = os.path.join("data", acct_dir, prop_dir)
+
+    # ✅ absolute path on disk (this is what we mkdir/write)
+    abs_dir = Path(DATA_REPO_DIR) / rel_dir
     abs_dir.mkdir(parents=True, exist_ok=True)
 
     cfg = abs_dir / "config.json"
     man = abs_dir / "manual.txt"
 
-    if not cfg.exists():
+    # ✅ guarantee valid JSON (prevents JSONDecodeError)
+    if not cfg.exists() or cfg.stat().st_size == 0:
         cfg.write_text("{}", encoding="utf-8")
+
     if not man.exists():
         man.write_text("", encoding="utf-8")
 
     return rel_dir
+
 
 
 # ----------------------------
@@ -322,13 +331,8 @@ def save_to_postgres(
 # ----------------------------
 # GitHub sync (optional, non-fatal)
 # ----------------------------
-'''
+
 def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> None:
-    """
-    Push config/manual placeholders (or updates) to GitHub under:
-      data/{provider}_{account_id}/{provider}_{pms_property_id}/config.json
-      data/{provider}_{account_id}/{provider}_{pms_property_id}/manual.txt
-    """
     def _external_id(p: dict) -> Optional[str]:
         for k in ("id", "listingId", "propertyId", "uid", "externalId"):
             v = p.get(k)
@@ -336,44 +340,45 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
                 return str(v).strip()
         return None
 
-    provider = (provider or "").strip().lower()
-    account_id = (account_id or "").strip()
-
-    if not provider or not account_id:
-        logger.warning("[GITHUB] skip sync (missing provider/account_id)")
-        return
-
     try:
         for prop in properties or []:
             ext_id = _external_id(prop)
             if not ext_id:
                 continue
 
-            # ensure local files exist on disk
+            # 1) Ensure folder + files exist in the repo working tree
             base_dir = ensure_pmc_structure(
                 provider=provider,
                 account_id=account_id,
                 pms_property_id=ext_id,
             )
 
+            # 2) Repo-relative paths (destination)
             acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
             prop_dir = f"{provider}_{_slugify(str(ext_id), max_length=128)}"
 
             rel_config = os.path.join("data", acct_dir, prop_dir, "config.json")
             rel_manual = os.path.join("data", acct_dir, prop_dir, "manual.txt")
 
+            # 3) Local source paths (the actual files you just ensured)
+            src_config = os.path.join(base_dir, "config.json")
+            src_manual = os.path.join(base_dir, "manual.txt")
+
             sync_files_to_github(
                 updated_files={
-                    rel_config: os.path.join(base_dir, "config.json"),
-                    rel_manual: os.path.join(base_dir, "manual.txt"),
+                    rel_config: src_config,
+                    rel_manual: src_manual,
                 },
                 commit_hint=f"sync {provider} {account_id} {ext_id}",
             )
 
     except Exception as e:
-        logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
+        logger.warning(
+            "[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r",
+            account_id, provider, e
+        )
 
-'''
+
 # ----------------------------
 # Main sync entrypoint
 # ----------------------------
