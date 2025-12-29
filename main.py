@@ -1381,7 +1381,13 @@ def load_property_context(prop: "Property", db) -> dict:
             acct_dir = f"{provider}_{_slugify(account_id)}"
             prop_dir = f"{provider}_{_slugify(pms_property_id)}"
 
-            base_dir = os.path.join(DATA_REPO_DIR, "data", acct_dir, prop_dir)
+            #base_dir = os.path.join(DATA_REPO_DIR, "data", acct_dir, prop_dir)
+            base_dir = os.path.join(
+                DATA_REPO_DIR,
+                "data",
+                f"{provider}_{account_id}",
+                f"{provider}_{pms_property_id}",
+            )
             resolved_from = "computed(provider+account_id+pms_property_id)"
 
     config: Dict[str, Any] = {}
