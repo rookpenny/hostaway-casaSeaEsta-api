@@ -346,37 +346,30 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
             if not ext_id:
                 continue
 
-            # 1) Ensure folder + files exist in the repo working tree
-            base_dir = ensure_pmc_structure(
+            # Creates the folder + returns the repo-relative folder path, e.g.
+            # "data/hostaway_63652/hostaway_256853"
+            rel_dir = ensure_pmc_structure(
                 provider=provider,
                 account_id=account_id,
                 pms_property_id=ext_id,
             )
 
-            # 2) Repo-relative paths (destination)
-            acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
-            prop_dir = f"{provider}_{_slugify(str(ext_id), max_length=128)}"
+            # Absolute folder on disk
+            abs_dir = os.path.join(DATA_REPO_DIR, rel_dir)
 
-            rel_config = os.path.join("data", acct_dir, prop_dir, "config.json")
-            rel_manual = os.path.join("data", acct_dir, prop_dir, "manual.txt")
-
-            # 3) Local source paths (the actual files you just ensured)
-            src_config = os.path.join(base_dir, "config.json")
-            src_manual = os.path.join(base_dir, "manual.txt")
+            rel_config = os.path.join(rel_dir, "config.json")
+            rel_manual = os.path.join(rel_dir, "manual.txt")
 
             sync_files_to_github(
                 updated_files={
-                    rel_config: src_config,
-                    rel_manual: src_manual,
+                    rel_config: os.path.join(abs_dir, "config.json"),
+                    rel_manual: os.path.join(abs_dir, "manual.txt"),
                 },
-                commit_hint=f"sync {provider} {account_id} {ext_id}",
+                commit_hint=f"bootstrap {provider}_{account_id} {ext_id}",
             )
 
     except Exception as e:
-        logger.warning(
-            "[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r",
-            account_id, provider, e
-        )
+        logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
 
 
 # ----------------------------
