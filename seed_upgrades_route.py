@@ -5,7 +5,7 @@ Browser-accessible endpoint to:
 2) Upsert sample upgrades for a chosen property_id (idempotent)
 
 Visit:
-    /seed-upgrades?property_id=1
+    https://hostaway-casaseaesta-api.onrender.com/seed-upgrades?property_id=2
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query
