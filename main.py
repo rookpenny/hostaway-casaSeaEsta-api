@@ -9,6 +9,7 @@ import re
 import stripe
 import asyncio
 import time as pytime
+import unicodedata
 
 from pathlib import Path as FSPath
 
