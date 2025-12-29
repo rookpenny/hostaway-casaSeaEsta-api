@@ -266,6 +266,11 @@ def save_to_postgres(
 # GitHub sync (optional, non-fatal)
 # ----------------------------
 def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> None:
+    """
+    Push config/manual placeholders (or updates) to GitHub under:
+      data/{provider}_{account_id}/{provider}_{pms_property_id}/config.json
+      data/{provider}_{account_id}/{provider}_{pms_property_id}/manual.txt
+    """
     def _external_id(p: dict) -> Optional[str]:
         for k in ("id", "listingId", "propertyId", "uid", "externalId"):
             v = p.get(k)
@@ -273,17 +278,31 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
                 return str(v).strip()
         return None
 
+    provider = (provider or "").strip().lower()
+    account_id = (account_id or "").strip()
+
+    if not provider or not account_id:
+        logger.warning("[GITHUB] skip sync (missing provider/account_id)")
+        return
+
     try:
         for prop in properties or []:
             ext_id = _external_id(prop)
             if not ext_id:
                 continue
 
-            rel_dir = ensure_pmc_structure(provider=provider, account_id=account_id, pms_property_id=ext_id)
-            abs_dir = _repo_root() / rel_dir
+            # ensure local files exist on disk
+            base_dir = ensure_pmc_structure(
+                provider=provider,
+                account_id=account_id,
+                pms_property_id=ext_id,
+            )
 
-            rel_config = os.path.join(rel_dir, "config.json")
-            rel_manual = os.path.join(rel_dir, "manual.txt")
+            acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
+            prop_dir = f"{provider}_{_slugify(str(ext_id), max_length=128)}"
+
+            rel_config = os.path.join("data", acct_dir, prop_dir, "config.json")
+            rel_manual = os.path.join("data", acct_dir, prop_dir, "manual.txt")
 
             sync_files_to_github(
                 updated_files={
@@ -292,7 +311,7 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
                 },
                 commit_hint=f"sync {provider} {account_id} {ext_id}",
             )
-            
+
     except Exception as e:
         logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
 
