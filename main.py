@@ -1456,69 +1456,92 @@ def build_system_prompt(
     prop: Property,
     pmc,
     context: dict,
-    session_language: str | None = None
+    session_language: str | None = None,
+    session: ChatSession | None = None,
 ) -> str:
     """
     Build a property-aware system prompt for Sandy.
-    Adds support for session.language (preferred language) while
-    keeping your original tone, formatting rules, and property data.
+    Adds support for session.language + (optional) guest stay context.
     """
 
-    config = context.get("config", {})
-    manual = context.get("manual", "")
+    config = context.get("config", {}) or {}
+    manual = context.get("manual", "") or ""
 
     house_rules = config.get("house_rules") or ""
     wifi = config.get("wifi") or {}
     wifi_info = ""
     if isinstance(wifi, dict):
-        wifi_info = f"WiFi network: {wifi.get('ssid', '')}, password: {wifi.get('password', '')}"
+        ssid = (wifi.get("ssid") or "").strip()
+        pw = (wifi.get("password") or "").strip()
+        if ssid or pw:
+            wifi_info = f"WiFi network: {ssid}, password: {pw}"
 
-    emergency_phone = config.get("emergency_phone") or (pmc.main_contact if pmc else "")
+    emergency_phone = config.get("emergency_phone") or (getattr(pmc, "main_contact", "") if pmc else "")
 
-    # 🔤 Normalize session_language
-    # - None or "" or "auto" → auto-detect mirror mode
-    # - Otherwise → enforce that language
+    # ----------------------------
+    # Guest stay details (verified)
+    # ----------------------------
+    guest_block = ""
+    if session:
+        guest_name = (getattr(session, "guest_name", None) or "").strip()
+        arrival_date = getattr(session, "arrival_date", None)
+        departure_date = getattr(session, "departure_date", None)
+
+        if guest_name or arrival_date or departure_date:
+            guest_block = f"""
+Guest stay details (PRIVATE; only for this verified guest):
+- Guest name: {guest_name or "Unknown"}
+- Check-in date: {arrival_date or "Unknown"}
+- Check-out date: {departure_date or "Unknown"}
+
+Rules:
+- You MAY share these details with the guest if they ask (e.g., "what’s my name?", "when do I check out?").
+- Do NOT share these details with anyone else. If the guest is not verified, you must refuse and ask them to unlock first.
+""".strip()
+
+    # ----------------------------
+    # Language handling
+    # ----------------------------
     lang_code = (session_language or "").strip().lower()
-
-    if lang_code in ("", "auto", None):
+    if not lang_code or lang_code == "auto":
         language_instruction = "Always answer in the SAME language the guest uses."
         lang_label = "auto"
     else:
-        # enforce a specific language, e.g. 'es' or 'fr'
         lang_label = lang_code
-        language_instruction = (
-            f"Always answer in **{lang_code.upper()}**, unless the guest clearly switches languages."
-        )
+        language_instruction = f"Always answer in **{lang_code.upper()}**, unless the guest clearly switches languages."
 
+    # ----------------------------
+    # Prompt
+    # ----------------------------
     return f"""
-        You are Sandy, a beachy, upbeat AI concierge for a vacation rental called "{prop.property_name}".
-        
-        Property host/manager: {pmc.pmc_name if pmc else "Unknown PMC"}.
-        Emergency or urgent issues should be directed to: {emergency_phone} (phone).
-        
-        Guest preferred language setting: **{lang_label}**  
-        {language_instruction}
-        
-        Always:
-        - Use a clear, friendly, warm tone with light emojis.
-        - Use markdown formatting: **bold headers**, bullet points, and line breaks.
-        - Keep replies concise but helpful.
-        - If you reference locations, include Google Maps links when possible.
-        
-        Important property info:
-        - House rules: {house_rules}
-        - WiFi: {wifi_info}
-        - Other details from the house manual are below.
-        
-        House manual:
-        \"\"\"
-        {manual}
-        \"\"\"
-        
-        If you don't know something, say you aren't sure and suggest the guest contact the host.
-        Never make up access codes or sensitive details that are not explicitly in the config/manual.
-        """.strip()
+You are Sandy, a beachy, upbeat AI concierge for a vacation rental called "{prop.property_name}".
 
+Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}.
+Emergency or urgent issues should be directed to: {emergency_phone} (phone).
+
+Guest preferred language setting: **{lang_label}**
+{language_instruction}
+
+{guest_block}
+
+Always:
+- Use a clear, friendly, warm tone with light emojis.
+- Use markdown formatting: **bold headers**, bullet points, and line breaks.
+- Keep replies concise but helpful.
+- If you reference locations, include Google Maps links when possible.
+
+Important property info:
+- House rules: {house_rules}
+- WiFi: {wifi_info}
+
+House manual:
+\"\"\"
+{manual}
+\"\"\"
+
+If you don't know something, say you aren't sure and suggest the guest contact the host.
+Never make up access codes or sensitive details that are not explicitly in the config/manual.
+""".strip()
 
 
 # --- Start Server ---
