@@ -126,26 +126,6 @@ async def _start_cleanup_task():
     asyncio.create_task(cleanup_tmp_upgrades_forever())
 
 
-@app.on_event("startup")
-def ensure_data_repo_on_boot():
-    ensure_repo()
-    
-
-def hour_to_ampm(hour):
-    if hour is None:
-        return None
-    try:
-        hour = int(hour)
-    except Exception:
-        return None
-
-    hour = hour % 24
-    suffix = "AM" if hour < 12 else "PM"
-    hour12 = hour % 12
-    if hour12 == 0:
-        hour12 = 12
-
-    return f"{hour12}:00 {suffix}"
 
 
 @app.on_event("startup")
@@ -1316,15 +1296,9 @@ def load_property_context(prop: "Property", db) -> dict:
     Loads config/manual for a property.
 
     Resolution order:
-      1) prop.data_folder_path (explicit override; absolute OR relative to DATA_REPO_DIR)
+      1) prop.data_folder_path (absolute OR relative to DATA_REPO_DIR)
       2) {DATA_REPO_DIR}/data/{provider}_{account_id}/{provider}_{pms_property_id}/
       3) {DATA_REPO_DIR}/defaults/
-
-    Expected files:
-      - config.json
-      - manual.txt
-
-    Requires db so we can reliably fetch PMCIntegration.account_id.
     """
 
     def _read_json(path: str) -> dict:
@@ -1348,9 +1322,19 @@ def load_property_context(prop: "Property", db) -> dict:
             logger.warning("load_property_context: failed text %s: %r", path, e)
             return ""
 
+    def _slugify(value: str, max_length: int = 128) -> str:
+        if not value:
+            return "unknown"
+        value = unicodedata.normalize("NFKD", value)
+        value = value.encode("ascii", "ignore").decode("ascii")
+        value = value.lower()
+        value = re.sub(r"[^\w\-]+", "_", value)
+        value = re.sub(r"_+", "_", value).strip("_")
+        return value[:max_length]
+
     def _abs_in_repo(path: str) -> str:
         """
-        If given a relative path like 'data/hostaway_63652/hostaway_256853',
+        If given a repo-relative path like 'data/hostaway_63652/hostaway_256853',
         convert to absolute inside DATA_REPO_DIR.
         """
         p = (path or "").strip()
@@ -1378,7 +1362,7 @@ def load_property_context(prop: "Property", db) -> dict:
     # -------------------------
     if (not base_dir) and DATA_REPO_DIR:
         provider = (getattr(prop, "provider", None) or "").strip().lower()
-        pms_property_id = (getattr(prop, "pms_property_id", None) or "")
+        pms_property_id = getattr(prop, "pms_property_id", None)
         pms_property_id = str(pms_property_id).strip() if pms_property_id is not None else ""
 
         account_id = ""
@@ -1393,27 +1377,24 @@ def load_property_context(prop: "Property", db) -> dict:
             )
 
         if provider and account_id and pms_property_id:
-            base_dir = os.path.join(
-                DATA_REPO_DIR,
-                "data",
-                f"{provider}_{account_id}",
-                f"{provider}_{pms_property_id}",
-            )
+            acct_dir = f"{provider}_{_slugify(account_id)}"
+            prop_dir = f"{provider}_{_slugify(pms_property_id)}"
+
+            base_dir = os.path.join(DATA_REPO_DIR, "data", acct_dir, prop_dir)
             resolved_from = "computed(provider+account_id+pms_property_id)"
 
-    # -------------------------
-    # Read property-specific files (if any)
-    # -------------------------
-    config: dict[str, Any] = {}
+    config: Dict[str, Any] = {}
     manual_text: str = ""
 
+    # -------------------------
+    # Read property-specific files
+    # -------------------------
     if base_dir:
         cfg_path = os.path.join(base_dir, "config.json")
         man_path = os.path.join(base_dir, "manual.txt")
 
         if os.path.exists(cfg_path):
             config = _read_json(cfg_path)
-
         if os.path.exists(man_path):
             manual_text = _read_text(man_path)
 
@@ -1433,9 +1414,6 @@ def load_property_context(prop: "Property", db) -> dict:
             manual_text = _read_text(fallback_man)
             used_default_manual = True
 
-    # -------------------------
-    # Logging
-    # -------------------------
     logger.info(
         "context: prop_id=%s provider=%s pms_property_id=%s base_dir=%s resolved_from=%s default_cfg=%s default_manual=%s manual_len=%s",
         getattr(prop, "id", None),
