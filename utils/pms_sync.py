@@ -3,7 +3,9 @@ from __future__ import annotations
 import os
 import re
 import unicodedata
+import logging
 from datetime import datetime
+from pathlib import Path
 from typing import Optional, List, Dict
 
 import requests
@@ -14,14 +16,11 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import PMC, PMCIntegration
 from utils.github_sync import sync_files_to_github
-import logging
-from pathlib import Path
 
 load_dotenv()
-
 logger = logging.getLogger("uvicorn.error")
 
-
+# Repo root on Render Disk, e.g. /data/hostscout_data
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
 if not DATA_REPO_DIR:
     logger.warning("DATA_REPO_DIR is not set. PMS sync will write to local working dir unless fixed.")
@@ -104,22 +103,31 @@ def _slugify(value: str, max_length: int = 64) -> str:
     return value[:max_length]
 
 
+def _repo_root() -> Path:
+    """
+    Where to write the data repo on disk.
+    DATA_REPO_DIR should be your repo root (contains /data and /defaults).
+    """
+    if DATA_REPO_DIR:
+        return Path(DATA_REPO_DIR)
+    # fallback: local working directory (not ideal for Render)
+    return Path(".")
 
 
 def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -> str:
     """
-    Creates/ensures:
+    Ensures folder structure in the data repo:
 
-    {DATA_REPO_DIR}/data/{provider}_{account_id}/{provider}_{pms_property_id}/
-      - config.json
-      - manual.txt
+      {DATA_REPO_DIR}/data/{provider}_{account_id}/{provider}_{pms_property_id}/
+        config.json
+        manual.txt
 
-    Example:
-      data/hostaway_63652/hostaway_256853/
+    Returns the *repo-relative* folder path to store in Postgres, e.g.:
+      data/hostaway_63652/hostaway_256853
     """
     provider = (provider or "").strip().lower()
     account_id = (account_id or "").strip()
-    pms_property_id = str(pms_property_id).strip()
+    pms_property_id = str(pms_property_id or "").strip()
 
     if not provider:
         raise ValueError("ensure_pmc_structure: provider is required")
@@ -127,25 +135,23 @@ def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -
         raise ValueError("ensure_pmc_structure: account_id is required")
     if not pms_property_id:
         raise ValueError("ensure_pmc_structure: pms_property_id is required")
-    if not DATA_REPO_DIR:
-        raise RuntimeError("DATA_REPO_DIR is not set (must point to hostscout_data repo root)")
 
     acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
     prop_dir = f"{provider}_{_slugify(pms_property_id, max_length=128)}"
 
-    base_dir = Path(DATA_REPO_DIR) / "data" / acct_dir / prop_dir
-    base_dir.mkdir(parents=True, exist_ok=True)
+    rel_dir = os.path.join("data", acct_dir, prop_dir)  # <-- store THIS in DB
+    abs_dir = _repo_root() / rel_dir                    # <-- write HERE on disk
+    abs_dir.mkdir(parents=True, exist_ok=True)
 
-    cfg = base_dir / "config.json"
-    man = base_dir / "manual.txt"
+    cfg = abs_dir / "config.json"
+    man = abs_dir / "manual.txt"
 
     if not cfg.exists():
         cfg.write_text("{}", encoding="utf-8")
     if not man.exists():
         man.write_text("", encoding="utf-8")
 
-    return str(base_dir)
-
+    return rel_dir
 
 
 # ----------------------------
@@ -160,8 +166,9 @@ def save_to_postgres(
 ) -> int:
     """
     ✅ Upserts by UNIQUE(integration_id, external_property_id)
-    ✅ Writes integration_id (ties property to a specific integration)
+    ✅ Writes integration_id
     ✅ Does NOT overwrite sandy_enabled
+    ✅ Stores data_folder_path as repo-relative: data/{provider}_{account}/{provider}_{prop}
     """
     provider = (provider or "").strip().lower()
     if not provider:
@@ -230,8 +237,8 @@ def save_to_postgres(
 
             name = _name(prop, ext_id)
 
-            # Builds/ensures folder structure and returns the folder path you store in DB
-            folder = ensure_pmc_structure(
+            # Creates folder on disk + returns repo-relative folder path
+            rel_folder = ensure_pmc_structure(
                 provider=provider,
                 account_id=str(client_id).strip(),
                 pms_property_id=ext_id,
@@ -246,11 +253,10 @@ def save_to_postgres(
                     "provider": provider,
                     "pms_property_id": ext_id,
                     "external_property_id": ext_id,
-                    "data_folder_path": folder,
+                    "data_folder_path": rel_folder,  # repo-relative
                     "last_synced": now,
                 },
             )
-
             upserted += 1
 
     return upserted
@@ -273,28 +279,22 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
             if not ext_id:
                 continue
 
-            base_dir = ensure_pmc_structure(
-                provider=provider,
-                account_id=account_id,
-                pms_property_id=ext_id,
-            )
+            rel_dir = ensure_pmc_structure(provider=provider, account_id=account_id, pms_property_id=ext_id)
+            abs_dir = _repo_root() / rel_dir
 
-            acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
-            prop_dir = f"{provider}_{_slugify(str(ext_id), max_length=128)}"
-
-            rel_config = os.path.join("data", acct_dir, prop_dir, "config.json")
-            rel_manual = os.path.join("data", acct_dir, prop_dir, "manual.txt")
+            rel_config = os.path.join(rel_dir, "config.json")
+            rel_manual = os.path.join(rel_dir, "manual.txt")
 
             sync_files_to_github(
                 updated_files={
-                    rel_config: os.path.join(DATA_REPO_DIR, "config.json"),
-                    rel_manual: os.path.join(DATA_REPO_DIR, "manual.txt"),
+                    rel_config: str(abs_dir / "config.json"),
+                    rel_manual: str(abs_dir / "manual.txt"),
                 },
                 commit_hint=f"sync {provider} {account_id} {ext_id}",
             )
 
     except Exception as e:
-        print(f"[GITHUB] ⚠️ Failed GitHub sync for account_id={account_id} provider={provider}: {e}")
+        logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
 
 
 # ----------------------------
@@ -360,7 +360,7 @@ def sync_properties(integration_id: int) -> int:
 
         db.commit()
 
-        print(f"[SYNC] ✅ Upserted {len(props)} properties for integration_id={integration_id} provider={provider}")
+        logger.info("[SYNC] ✅ Upserted %s properties for integration_id=%s provider=%s", len(props), integration_id, provider)
         return len(props)
 
     except Exception:
@@ -391,9 +391,9 @@ def sync_all_integrations() -> int:
         try:
             total += sync_properties(iid)
         except Exception as e:
-            print(f"[SYNC] ❌ integration_id={iid} failed: {e}")
+            logger.warning("[SYNC] ❌ integration_id=%s failed: %r", iid, e)
 
-    print(f"[SYNC] ✅ Total properties synced: {total}")
+    logger.info("[SYNC] ✅ Total properties synced: %s", total)
     return total
 
 
