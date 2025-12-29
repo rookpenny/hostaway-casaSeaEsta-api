@@ -89,6 +89,63 @@ def fetch_properties(access_token: str, base_url: str, provider: str) -> List[Di
     return data.get("properties", []) or []
 
 
+
+
+
+def bootstrap_account_folders_to_github(provider: str, account_id: str, properties: List[Dict]) -> None:
+    """
+    Ensures folder structure + placeholder files exist for every property,
+    then commits/pushes them to hostscout_data in ONE commit.
+    Folder structure:
+      data/{provider}_{account_id}/{provider}_{pms_property_id}/(config.json, manual.txt)
+    """
+    def _external_id(p: dict) -> Optional[str]:
+        for k in ("id", "listingId", "propertyId", "uid", "externalId"):
+            v = p.get(k)
+            if v is not None and str(v).strip():
+                return str(v).strip()
+        return None
+
+    provider = (provider or "").strip().lower()
+    account_id = (account_id or "").strip()
+    if not provider or not account_id:
+        logger.warning("[bootstrap] missing provider/account_id; skipping")
+        return
+
+    acct_dir = f"{provider}_{_slugify(account_id, max_length=128)}"
+    updated_files: Dict[str, str] = {}
+
+    for prop in properties or []:
+        ext_id = _external_id(prop)
+        if not ext_id:
+            continue
+
+        # Create files inside the repo working tree (DATA_REPO_DIR)
+        base_dir = ensure_pmc_structure(
+            provider=provider,
+            account_id=account_id,
+            pms_property_id=ext_id,
+        )
+
+        prop_dir = f"{provider}_{_slugify(str(ext_id), max_length=128)}"
+
+        rel_config = os.path.join("data", acct_dir, prop_dir, "config.json")
+        rel_manual = os.path.join("data", acct_dir, prop_dir, "manual.txt")
+
+        # Copy from the files we just ensured exist
+        updated_files[rel_config] = os.path.join(base_dir, "config.json")
+        updated_files[rel_manual] = os.path.join(base_dir, "manual.txt")
+
+    if not updated_files:
+        logger.info("[bootstrap] no property files to push")
+        return
+
+    sync_files_to_github(
+        updated_files=updated_files,
+        commit_hint=f"bootstrap {provider}_{account_id} ({len(updated_files)//2} properties)",
+    )
+    logger.info("[bootstrap] ✅ pushed %s properties for %s_%s", len(updated_files)//2, provider, account_id)
+
 # ----------------------------
 # Filesystem helpers
 # ----------------------------
@@ -265,6 +322,7 @@ def save_to_postgres(
 # ----------------------------
 # GitHub sync (optional, non-fatal)
 # ----------------------------
+'''
 def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> None:
     """
     Push config/manual placeholders (or updates) to GitHub under:
@@ -315,13 +373,16 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
     except Exception as e:
         logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
 
-
+'''
 # ----------------------------
 # Main sync entrypoint
 # ----------------------------
 def sync_properties(integration_id: int) -> int:
     """
     Sync properties for one integration (source of truth: pmc_integrations).
+    - Upserts properties into Postgres
+    - Ensures the hostscout_data folder structure exists
+    - Pushes structure/files to GitHub in a single commit
     """
     if integration_id is None:
         raise Exception("integration_id is required")
@@ -359,6 +420,7 @@ def sync_properties(integration_id: int) -> int:
 
         props = fetch_properties(token, base_url, provider) or []
 
+        # 1) DB upsert (also calls ensure_pmc_structure for each property in your current code)
         save_to_postgres(
             properties=props,
             client_id=account_id,
@@ -367,8 +429,17 @@ def sync_properties(integration_id: int) -> int:
             integration_id=int(integration_id),
         )
 
-        _try_github_sync(account_id=account_id, provider=provider, properties=props)
+        # 2) Ensure folders/files exist in the repo + push to GitHub (ONE commit)
+        try:
+            bootstrap_account_folders_to_github(
+                provider=provider,
+                account_id=account_id,
+                properties=props,
+            )
+        except Exception as e:
+            logger.warning("[SYNC] ⚠️ GitHub bootstrap failed (non-fatal): %r", e)
 
+        # 3) Update last_synced_at timestamps
         now = datetime.utcnow()
         if hasattr(integ, "last_synced_at"):
             integ.last_synced_at = now
@@ -379,7 +450,12 @@ def sync_properties(integration_id: int) -> int:
 
         db.commit()
 
-        logger.info("[SYNC] ✅ Upserted %s properties for integration_id=%s provider=%s", len(props), integration_id, provider)
+        logger.info(
+            "[SYNC] ✅ Upserted %s properties for integration_id=%s provider=%s",
+            len(props),
+            integration_id,
+            provider,
+        )
         return len(props)
 
     except Exception:
@@ -387,6 +463,7 @@ def sync_properties(integration_id: int) -> int:
         raise
     finally:
         db.close()
+
 
 
 def sync_all_integrations() -> int:
