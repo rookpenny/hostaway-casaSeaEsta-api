@@ -287,12 +287,12 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
 
             sync_files_to_github(
                 updated_files={
-                    rel_config: str(abs_dir / "config.json"),
-                    rel_manual: str(abs_dir / "manual.txt"),
+                    rel_config: os.path.join(base_dir, "config.json"),
+                    rel_manual: os.path.join(base_dir, "manual.txt"),
                 },
                 commit_hint=f"sync {provider} {account_id} {ext_id}",
             )
-
+            
     except Exception as e:
         logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
 
