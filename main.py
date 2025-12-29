@@ -1187,7 +1187,14 @@ def property_chat(
 
     # 8) General LLM flow
     context = load_property_context(prop, db)
-    system_prompt = build_system_prompt(prop, pmc, context, session.language)
+    system_prompt = build_system_prompt(
+        prop=prop,
+        pmc=pmc,
+        context=context,
+        session_language=session.language,
+        session=session,
+    )
+
 
     history = (
         db.query(ChatMessage)
