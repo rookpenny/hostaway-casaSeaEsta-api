@@ -1116,6 +1116,15 @@ def property_chat(
     # NOTE: if this throws sometimes, wrap in try/except and proceed gracefully
     ensure_pms_data(db, session)
 
+    logger.info(
+        "[PMS SESSION DATA] guest_name=%r arrival_date=%r departure_date=%r reservation_id=%r",
+        getattr(session, "guest_name", None),
+        getattr(session, "arrival_date", None),
+        getattr(session, "departure_date", None),
+        getattr(session, "reservation_id", None),
+    )
+
+
     # 6) Log guest message to DB
     category = classify_category(user_message)
     log_type = detect_log_types(user_message)
