@@ -1028,6 +1028,77 @@ def enforce_no_raw_urls(text: str) -> str:
     return out
 
 
+_URL_RE = re.compile(r'(https?://[^\s\)\]"\']+|www\.[^\s\)\]"\']+)', re.IGNORECASE)
+_MD_LINK_RE = re.compile(r'\[([^\]]+)\]\((.*?)\)', re.DOTALL | re.IGNORECASE)
+
+def _extract_first_url(s: str) -> str:
+    if not s:
+        return ""
+    m = _URL_RE.search(s)
+    if not m:
+        return ""
+    url = m.group(1).strip().rstrip(').,;')
+    if url.lower().startswith("www."):
+        url = "https://" + url
+    return url
+
+def enforce_click_here_links(text: str) -> str:
+    """
+    Enforces:
+      - no HTML anchors
+      - no raw URLs visible
+      - no nested markdown links
+      - ONLY outputs maps links as: [Click here for directions](URL)
+    """
+    if not text:
+        return text
+
+    # 1) Turn HTML anchors into just their href URL
+    text = re.sub(
+        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>.*?</a>',
+        r'\1',
+        text,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    # Remove any remaining HTML tags (defensive)
+    text = re.sub(r'<[^>]+>', '', text)
+
+    # 2) Normalize ALL markdown links to the strict anchor, extracting the first real URL inside ()
+    def _md_link_normalize(m: re.Match) -> str:
+        raw_target = (m.group(2) or "").strip()
+        url = _extract_first_url(raw_target)
+        if not url:
+            # If there's no valid URL in the target, drop the link entirely (avoid broken markdown)
+            return m.group(1)  # keep just the text
+        return f"[Click here for directions]({url})"
+
+    text = _MD_LINK_RE.sub(_md_link_normalize, text)
+
+    # 3) Replace any remaining raw URLs with strict anchor
+    # (If the model outputs a naked URL anywhere, this hides it.)
+    def _raw_url_replace(m: re.Match) -> str:
+        url = _extract_first_url(m.group(0))
+        if not url:
+            return ""
+        return f"[Click here for directions]({url})"
+
+    text = _URL_RE.sub(_raw_url_replace, text)
+
+    # 4) Optional: prevent repeated adjacent identical anchors (cleaner output)
+    text = re.sub(
+        r'(\[Click here for directions\]\([^)]+\))(\s+\1)+',
+        r'\1',
+        text,
+        flags=re.IGNORECASE,
+    )
+
+    return text
+
+
+
+
+
+
 @app.post("/properties/{property_id}/chat")
 def property_chat(
     request: Request,
@@ -1241,6 +1312,8 @@ def property_chat(
         )
         reply_text = ai_response.choices[0].message.content
         reply_text = enforce_click_here_links(reply_text)
+        logger.info("[SANITIZED REPLY]\n%s", reply_text)
+
 
     except RateLimitError:
         logging.exception("OpenAI rate/quota limit")
@@ -1349,71 +1422,6 @@ _URL_RE = re.compile(r'(https?://[^\s\)"]+|www\.[^\s\)"]+)', re.IGNORECASE)
 # Matches markdown links: [text](url)
 _MD_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
 
-def enforce_click_here_links(text: str) -> str:
-    """
-    Enforce:
-      - no HTML anchors
-      - no raw URLs
-      - no nested markdown links
-      - only one allowed link anchor: [Click here for directions](URL)
-
-    Strategy:
-      1) Strip HTML <a ...>...</a> down to just its href URL (if present)
-      2) Remove any nested markdown constructs inside link targets
-      3) Convert any markdown links to the strict anchor
-      4) Convert any remaining raw URLs to the strict anchor (on their own line)
-    """
-    if not text:
-        return text
-
-    # 1) Strip HTML anchors -> keep href only (if present)
-    # Example: <a href="URL" ...>stuff</a>  -> URL
-    text = re.sub(
-        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>.*?</a>',
-        r'\1',
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-
-    # Also remove any other HTML tags (defensive)
-    text = re.sub(r'<[^>]+>', '', text)
-
-    # 2) Fix broken nested markdown link patterns inside () by flattening:
-    # [Click here for directions]([Click here](URL)) -> [Click here for directions](URL)
-    def _flatten_nested(m):
-        outer_text = m.group(1)
-        inner = m.group(2)
-
-        # If inner contains a markdown link, extract its URL
-        inner_m = _MD_LINK_RE.search(inner)
-        if inner_m:
-            inner_url = inner_m.group(2).strip().strip('"').strip("'")
-            return f"[{outer_text}]({inner_url})"
-
-        return m.group(0)
-
-    text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', _flatten_nested, text)
-
-    # 3) Convert ALL markdown links to strict anchor
-    def _md_to_click_here(m):
-        url = m.group(2).strip()
-
-        # Remove junk like quotes or trailing punctuation
-        url = url.strip().strip('"').strip("'").rstrip(').,;')
-
-        return f"[Click here for directions]({url})"
-
-    text = _MD_LINK_RE.sub(_md_to_click_here, text)
-
-    # 4) Convert any remaining raw URLs to strict anchor (on their own line)
-    # We'll replace raw URLs with the click-here markdown.
-    def _raw_url_to_click_here(m):
-        url = m.group(1).strip().rstrip(').,;')
-        return f"[Click here for directions]({url})"
-
-    text = _URL_RE.sub(_raw_url_to_click_here, text)
-
-    return text
 
 
 
