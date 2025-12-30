@@ -1000,16 +1000,32 @@ def create_upgrade_checkout(
     return {"checkout_url": checkout_session.url}
 
     
-import logging
-import re
-from datetime import datetime, timedelta
-from typing import Optional
-
-from fastapi import Depends, HTTPException, Request
-from sqlalchemy.orm import Session
-
 # Use uvicorn logger (shows in Render runtime logs more reliably than print)
 logger = logging.getLogger("uvicorn.error")
+
+
+_URL_RE = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
+
+def enforce_no_raw_urls(text: str) -> str:
+    """
+    Guarantees raw URLs are never shown. If the model outputs a raw URL,
+    we replace it with a safe markdown link.
+    """
+    if not text:
+        return text
+
+    def _repl(match: re.Match) -> str:
+        url = match.group(0).rstrip(").,!?]}")
+        # Preserve the URL but hide it behind anchor text
+        return f"[Click here]({url})"
+
+    # Replace any naked URL with [Click here](url)
+    out = _URL_RE.sub(_repl, text)
+
+    # Also guard against goo.gl shortlinks showing (still wrap them if present)
+    out = re.sub(r"\bgoo\.gl/\S+\b", lambda m: f"[Click here](https://{m.group(0)})", out)
+
+    return out
 
 
 @app.post("/properties/{property_id}/chat")
@@ -1224,6 +1240,8 @@ def property_chat(
             messages=messages,
         )
         reply_text = ai_response.choices[0].message.content
+        reply_text = enforce_no_raw_urls(reply_text)
+
     except RateLimitError:
         logging.exception("OpenAI rate/quota limit")
         reply_text = (
@@ -1477,25 +1495,34 @@ def build_system_prompt(
 ) -> str:
     """
     Build a property-aware system prompt for Sandy.
-    Adds support for session.language + (optional) guest stay context.
+    Supports guest-specific stay details, language preferences,
+    and strict link formatting rules.
     """
 
+    # ----------------------------
+    # Property context
+    # ----------------------------
     config = context.get("config", {}) or {}
     manual = context.get("manual", "") or ""
 
-    house_rules = config.get("house_rules") or ""
-    wifi = config.get("wifi") or {}
+    house_rules = (config.get("house_rules") or "").strip()
+
     wifi_info = ""
+    wifi = config.get("wifi")
     if isinstance(wifi, dict):
         ssid = (wifi.get("ssid") or "").strip()
-        pw = (wifi.get("password") or "").strip()
-        if ssid or pw:
-            wifi_info = f"WiFi network: {ssid}, password: {pw}"
+        password = (wifi.get("password") or "").strip()
+        if ssid or password:
+            wifi_info = f"WiFi network: {ssid}, password: {password}"
 
-    emergency_phone = config.get("emergency_phone") or (getattr(pmc, "main_contact", "") if pmc else "")
+    emergency_phone = (
+        config.get("emergency_phone")
+        or getattr(pmc, "main_contact", "")
+        or "the property host"
+    )
 
     # ----------------------------
-    # Guest stay details (verified)
+    # Guest stay context (PRIVATE)
     # ----------------------------
     guest_block = ""
     if session:
@@ -1505,14 +1532,16 @@ def build_system_prompt(
 
         if guest_name or arrival_date or departure_date:
             guest_block = f"""
-Guest stay details (PRIVATE; only for this verified guest):
+Guest stay details (PRIVATE — for this verified guest only):
 - Guest name: {guest_name or "Unknown"}
 - Check-in date: {arrival_date or "Unknown"}
 - Check-out date: {departure_date or "Unknown"}
 
 Rules:
-- You MAY share these details with the guest if they ask (e.g., "what’s my name?", "when do I check out?").
-- Do NOT share these details with anyone else. If the guest is not verified, you must refuse and ask them to unlock first.
+- You MAY share these details with the guest if they ask directly
+  (e.g., “what’s my name?”, “when do I check out?”).
+- NEVER share these details with anyone else.
+- If the guest is not verified, refuse and ask them to unlock their stay first.
 """.strip()
 
     # ----------------------------
@@ -1520,31 +1549,43 @@ Rules:
     # ----------------------------
     lang_code = (session_language or "").strip().lower()
     if not lang_code or lang_code == "auto":
-        language_instruction = "Always answer in the SAME language the guest uses."
         lang_label = "auto"
+        language_instruction = "Always answer in the SAME language the guest uses."
     else:
         lang_label = lang_code
-        language_instruction = f"Always answer in **{lang_code.upper()}**, unless the guest clearly switches languages."
+        language_instruction = (
+            f"Always answer in **{lang_code.upper()}**, unless the guest clearly switches languages."
+        )
 
     # ----------------------------
-    # Prompt
+    # System prompt
     # ----------------------------
     return f"""
-You are Sandy, a beachy, upbeat AI concierge for a vacation rental called "{prop.property_name}".
+You are **Sandy**, a beachy, upbeat AI concierge for a vacation rental called
+**"{prop.property_name}"** 🏖️
 
-Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}.
-Emergency or urgent issues should be directed to: {emergency_phone} (phone).
+Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}  
+Emergency or urgent issues should be directed to: **{emergency_phone}**
 
-Guest preferred language setting: **{lang_label}**
+Guest preferred language setting: **{lang_label}**  
 {language_instruction}
 
 {guest_block}
 
-Always:
+Always follow these rules:
 - Use a clear, friendly, warm tone with light emojis.
 - Use markdown formatting: **bold headers**, bullet points, and line breaks.
-- Keep replies concise but helpful.
-- If you reference locations, include Google Maps links when possible.
+- Keep replies concise, helpful, and guest-focused.
+- Personalize answers using guest stay details when relevant.
+
+Links & maps (CRITICAL):
+- NEVER show raw URLs.
+- NEVER output "http://", "https://", "www.", or "goo.gl".
+- ALWAYS wrap links as markdown hyperlinks using friendly anchor text.
+  Example: **[Click here for directions](FULL_URL)**
+- When sharing map links, prefer full Google Maps URLs:
+  - https://www.google.com/maps/search/?api=1&query=...
+  - https://www.google.com/maps/dir/?api=1&destination=...
 
 Important property info:
 - House rules: {house_rules}
@@ -1555,9 +1596,10 @@ House manual:
 {manual}
 \"\"\"
 
-If you don't know something, say you aren't sure and suggest the guest contact the host.
-Never make up access codes or sensitive details that are not explicitly in the config/manual.
+If you don’t know something, say you aren’t sure and suggest contacting the host.
+Never invent access codes, policies, or sensitive information.
 """.strip()
+
 
 
 # --- Start Server ---
