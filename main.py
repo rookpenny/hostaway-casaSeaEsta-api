@@ -1097,6 +1097,97 @@ def enforce_click_here_links(text: str) -> str:
 
 
 
+def enforce_click_here_links(text: str) -> str:
+    """
+    Normalizes *any* links into a single consistent format:
+
+      Click here for directions: [Click here for directions](URL)
+
+    Rules:
+    - No raw URLs should appear in the final text.
+    - No HTML anchors.
+    - No nested markdown.
+    - Any markdown link text becomes "Click here for directions".
+    """
+    if not text:
+        return text
+
+    out = text
+
+    # -------------------------
+    # 1) Convert HTML anchors -> markdown
+    #    <a href="URL" ...>anything</a>  -> [Click here for directions](URL)
+    # -------------------------
+    def _html_anchor_repl(match: re.Match) -> str:
+        url = (match.group(1) or "").strip()
+        if not url:
+            return "Click here for directions"
+        return f"[Click here for directions]({url})"
+
+    out = re.sub(
+        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>.*?</a>',
+        _html_anchor_repl,
+        out,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+
+    # Also strip any other leftover HTML tags (defensive)
+    out = re.sub(r"<[^>]+>", "", out)
+
+    # -------------------------
+    # 2) Fix nested markdown links
+    #    [Click here]([Click here](URL))  -> [Click here for directions](URL)
+    # -------------------------
+    out = re.sub(
+        r"\[([^\]]+)\]\(\s*\[([^\]]+)\]\((https?://[^)]+)\)\s*\)",
+        r"[Click here for directions](\3)",
+        out,
+        flags=re.IGNORECASE,
+    )
+
+    # -------------------------
+    # 3) Convert ANY markdown link to "Click here for directions"
+    #    [Anything](URL) -> [Click here for directions](URL)
+    # -------------------------
+    out = re.sub(
+        r"\[[^\]]+\]\((https?://[^)\s]+)\)",
+        r"[Click here for directions](\1)",
+        out,
+        flags=re.IGNORECASE,
+    )
+
+    # -------------------------
+    # 4) Convert remaining raw URLs into markdown "Click here..."
+    # -------------------------
+    def _raw_url_repl(match: re.Match) -> str:
+        url = match.group(0).strip()
+
+        # trim trailing punctuation that commonly sticks to URLs
+        trailing = ""
+        while url and url[-1] in ".,);:!?]":
+            trailing = url[-1] + trailing
+            url = url[:-1]
+
+        if url.lower().startswith("www."):
+            url = "https://" + url
+
+        return f"[Click here for directions]({url}){trailing}"
+
+    out = re.sub(
+        r"(?:(?:https?://|www\.)\S+)",
+        _raw_url_repl,
+        out,
+        flags=re.IGNORECASE,
+    )
+
+    # -------------------------
+    # 5) Final cleanup: prevent accidental double-brackets etc.
+    # -------------------------
+    out = re.sub(r"\[Click here for directions\]\s*\[Click here for directions\]", "[Click here for directions]", out)
+
+    return out
+
+
 
 
 @app.post("/properties/{property_id}/chat")
@@ -1578,30 +1669,26 @@ def build_system_prompt(
 ) -> str:
     """
     Build a property-aware system prompt for Sandy.
-    Enforces strict, single-format Google Maps links.
+    Includes (optional) verified guest stay context.
+    Forces link formatting that your UI can render reliably.
     """
 
     config = context.get("config", {}) or {}
     manual = context.get("manual", "") or ""
 
-    house_rules = (config.get("house_rules") or "").strip()
-
+    house_rules = config.get("house_rules") or ""
+    wifi = config.get("wifi") or {}
     wifi_info = ""
-    wifi = config.get("wifi")
     if isinstance(wifi, dict):
         ssid = (wifi.get("ssid") or "").strip()
-        password = (wifi.get("password") or "").strip()
-        if ssid or password:
-            wifi_info = f"WiFi network: {ssid}, password: {password}"
+        pw = (wifi.get("password") or "").strip()
+        if ssid or pw:
+            wifi_info = f"WiFi network: {ssid}, password: {pw}"
 
-    emergency_phone = (
-        config.get("emergency_phone")
-        or getattr(pmc, "main_contact", "")
-        or "the property host"
-    )
+    emergency_phone = config.get("emergency_phone") or (getattr(pmc, "main_contact", "") if pmc else "")
 
     # ----------------------------
-    # Guest stay context (PRIVATE)
+    # Guest stay details (verified)
     # ----------------------------
     guest_block = ""
     if session:
@@ -1611,15 +1698,14 @@ def build_system_prompt(
 
         if guest_name or arrival_date or departure_date:
             guest_block = f"""
-Guest stay details (PRIVATE — verified guest only):
+Verified guest stay details (PRIVATE):
 - Guest name: {guest_name or "Unknown"}
 - Check-in date: {arrival_date or "Unknown"}
 - Check-out date: {departure_date or "Unknown"}
 
 Rules:
-- You MAY share these details with the guest if they ask directly.
-- NEVER share these details with anyone else.
-- If the guest is not verified, refuse and ask them to unlock first.
+- You MAY share these details ONLY if the guest asks.
+- If the guest is not verified, you must refuse and ask them to unlock first.
 """.strip()
 
     # ----------------------------
@@ -1627,52 +1713,31 @@ Rules:
     # ----------------------------
     lang_code = (session_language or "").strip().lower()
     if not lang_code or lang_code == "auto":
-        lang_label = "auto"
         language_instruction = "Always answer in the SAME language the guest uses."
+        lang_label = "auto"
     else:
         lang_label = lang_code
-        language_instruction = f"Always answer in **{lang_code.upper()}**, unless the guest clearly switches languages."
+        language_instruction = f"Always answer in {lang_code.upper()} unless the guest clearly switches languages."
 
-    # ----------------------------
-    # System prompt
-    # ----------------------------
     return f"""
-You are **Sandy**, a friendly, beachy AI concierge for the vacation rental
-**"{prop.property_name}"** 🏖️
+You are Sandy, a beachy, upbeat AI concierge for "{prop.property_name}".
 
-Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}  
-Emergency or urgent issues should be directed to: **{emergency_phone}**
+Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}.
+Emergency or urgent issues: {emergency_phone} (phone).
 
-Guest preferred language setting: **{lang_label}**  
+Guest preferred language setting: {lang_label}
 {language_instruction}
 
 {guest_block}
 
-Tone & style:
-- Warm, friendly, upbeat, with light emojis.
-- Use clean markdown: headers, bullet points, short paragraphs.
-- Be concise and helpful.
-
-🚨 LINK RULES (STRICT — NO EXCEPTIONS):
-- NEVER show raw URLs.
-- NEVER show place names as links.
-- NEVER nest links.
-- NEVER include “Google Maps” in link text.
-- You are allowed EXACTLY ONE link phrase:
-
-  **Click here for directions**
-
-- That phrase must be the ONLY markdown link, formatted exactly like this:
-  [Click here for directions](FULL_GOOGLE_MAPS_URL)
-
-- The link must appear on its OWN line.
-- The place name must appear as plain text ABOVE the link.
-
-Correct example:
-
-Afternoon:
-**Crescent Beach**: A quiet spot for relaxing and swimming.  
-[Click here for directions](https://www.google.com/maps/search/?api=1&query=Crescent+Beach)
+Style rules:
+- Warm, helpful tone with light emojis.
+- Use markdown formatting (bold headers, bullets, short paragraphs).
+- Do NOT output any HTML (no <a>, no target=_blank, no tags).
+- Do NOT output raw URLs (no http://, https://, www., goo.gl).
+- If you include a map/directions link, use EXACTLY this format on its own line:
+  [Click here for directions](https://www.google.com/maps/search/?api=1&query=PLACE)
+- Never nest links. Never wrap a link inside another link.
 
 Important property info:
 - House rules: {house_rules}
@@ -1683,8 +1748,8 @@ House manual:
 {manual}
 \"\"\"
 
-If you don’t know something, say so and suggest contacting the host.
-Never invent details or sensitive information.
+If you don't know something, say so and suggest contacting the host.
+Never make up access codes or sensitive details not explicitly provided.
 """.strip()
 
 
