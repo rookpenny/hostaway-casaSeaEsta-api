@@ -387,6 +387,10 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
     wifi = cfg.get("wifi") or {}
+    
+    # ✅ NEW: assistant/personality config (always a dict)
+    assistant_config = cfg.get("assistant") if isinstance(cfg.get("assistant"), dict) else {}
+
 
     address = cfg.get("address")
     city_name = cfg.get("city_name")
@@ -549,6 +553,8 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "sandy_enabled": bool(getattr(prop, "sandy_enabled", False)),
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
 
+            # ✅ NEW: assistant/personality config for guest_app.html
+            "assistant_config": assistant_config,
 
             # Upgrades + turnover flags for the template
             "upgrades": visible_upgrades,
@@ -1676,6 +1682,14 @@ def build_system_prompt(
     config = context.get("config", {}) or {}
     manual = context.get("manual", "") or ""
 
+    # ✅ NEW: assistant/personality config
+    assistant = config.get("assistant") if isinstance(config.get("assistant"), dict) else {}
+    assistant_name = (assistant.get("name") or "Sandy").strip()
+    assistant_style = (assistant.get("style") or "").strip()
+    assistant_do = assistant.get("do") if isinstance(assistant.get("do"), list) else []
+    assistant_dont = assistant.get("dont") if isinstance(assistant.get("dont"), list) else []
+
+
     house_rules = config.get("house_rules") or ""
     wifi = config.get("wifi") or {}
     wifi_info = ""
@@ -1720,37 +1734,43 @@ Rules:
         language_instruction = f"Always answer in {lang_code.upper()} unless the guest clearly switches languages."
 
     return f"""
-You are Sandy, a beachy, upbeat AI concierge for "{prop.property_name}".
+        You are {assistant_name}, an AI concierge for "{prop.property_name}".
+        
+        Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}.
+        Emergency or urgent issues: {emergency_phone} (phone).
+        
+        Guest preferred language setting: {lang_label}
+        {language_instruction}
+        
+        {guest_block}
+        
+        Style rules:
+        - Follow this personality style: {assistant_style or "Warm, helpful, concise."}
+        - Do items:
+        {chr(10).join([f"- {x}" for x in assistant_do]) if assistant_do else "- (none)"}
+        - Don't items:
+        {chr(10).join([f"- {x}" for x in assistant_dont]) if assistant_dont else "- (none)"}
+        
+        - Use markdown formatting (bold headers, bullets, short paragraphs).
+        - Do NOT output any HTML (no <a>, no target=_blank, no tags).
+        - Do NOT output raw URLs (no http://, https://, www., goo.gl).
+        - If you include a map/directions link, use EXACTLY this format on its own line:
+          [Click here for directions](https://www.google.com/maps/search/?api=1&query=PLACE)
+        - Never nest links. Never wrap a link inside another link.
 
-Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}.
-Emergency or urgent issues: {emergency_phone} (phone).
-
-Guest preferred language setting: {lang_label}
-{language_instruction}
-
-{guest_block}
-
-Style rules:
-- Warm, helpful tone with light emojis.
-- Use markdown formatting (bold headers, bullets, short paragraphs).
-- Do NOT output any HTML (no <a>, no target=_blank, no tags).
-- Do NOT output raw URLs (no http://, https://, www., goo.gl).
-- If you include a map/directions link, use EXACTLY this format on its own line:
-  [Click here for directions](https://www.google.com/maps/search/?api=1&query=PLACE)
-- Never nest links. Never wrap a link inside another link.
-
-Important property info:
-- House rules: {house_rules}
-- WiFi: {wifi_info}
-
-House manual:
-\"\"\"
-{manual}
-\"\"\"
-
-If you don't know something, say so and suggest contacting the host.
-Never make up access codes or sensitive details not explicitly provided.
-""".strip()
+        
+        Important property info:
+        - House rules: {house_rules}
+        - WiFi: {wifi_info}
+        
+        House manual:
+        \"\"\"
+        {manual}
+        \"\"\"
+        
+        If you don't know something, say so and suggest contacting the host.
+        Never make up access codes or sensitive details not explicitly provided.
+        """.strip()
 
 
 
