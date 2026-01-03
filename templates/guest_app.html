@@ -1585,47 +1585,64 @@ async function loadGuidesIfNeeded() {
 
 
     function showScreen(name) {
-      const sandy = document.getElementById("chat-header-sandy");
-      if (sandy) {
-        if (name === "chat") sandy.classList.remove("hidden");
-        else sandy.classList.add("hidden");
-      }
-            
-      Object.entries(screens).forEach(([key, el]) => {
-        if (!el) return;
-        if (key === name) el.classList.remove("hidden");
-        else el.classList.add("hidden");
-      });
+  const sandy = document.getElementById("chat-header-sandy");
+  if (sandy) {
+    if (name === "chat") sandy.classList.remove("hidden");
+    else sandy.classList.add("hidden");
+  }
 
-      if (name === "chat") document.body.classList.add("chat-screen");
-      else document.body.classList.remove("chat-screen");
+  Object.entries(screens).forEach(([key, el]) => {
+    if (!el) return;
+    if (key === name) el.classList.remove("hidden");
+    else el.classList.add("hidden");
+  });
 
-      if (name === "experiences") loadGuidesIfNeeded();
+  if (name === "chat") document.body.classList.add("chat-screen");
+  else document.body.classList.remove("chat-screen");
 
-      if (name === "chat") {
-        swapLogoWithFade(LOGO_BLACK);
-      } else if (!isMenuOpen) {
-        swapLogoWithFade(LOGO_WHITE);
-      }
+  if (name === "experiences") loadGuidesIfNeeded();
 
-      if (name === "chat") {
-        if (
-          window.SANDY_LIVE === "true" &&
-          chatBox &&
-          !chatHasWelcome &&
-          chatBox.children.length === 0
-        ) {
-          const intro = guestName
-            ? `Hi ${guestName}! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. You can ask about check-in, WiFi, parking, or local tips.`
-            : `Hi there! I’m Sandy, your stay assistant for ${window.PROPERTY_NAME}. Ask me anything about check-in, WiFi, parking, or local recommendations.`;
+  if (name === "chat") {
+    swapLogoWithFade(LOGO_BLACK);
+  } else if (!isMenuOpen) {
+    swapLogoWithFade(LOGO_WHITE);
+  }
 
-          renderMessage(intro, "bot");
-          chatHasWelcome = true;
-        }
+  // ✅ If you added quick replies support, toggle it here (safe if not defined)
+  if (typeof showQuickReplies === "function") {
+    showQuickReplies(name === "chat");
+  }
 
-        scrollChatToBottom();
-      }
+  if (name === "chat") {
+    const sandyLive =
+      window.SANDY_LIVE === true || window.SANDY_LIVE === "true";
+
+    if (sandyLive && chatBox && !chatHasWelcome && chatBox.children.length === 0) {
+      // ✅ Pull welcome text from config.json
+      const assistantCfg = window.ASSISTANT_CONFIG || {};
+      const assistantName = assistantCfg.name || "Sandy";
+      const voiceCfg = assistantCfg.voice || {};
+
+      const template = guestName
+        ? (voiceCfg.welcome_template || "")
+        : (voiceCfg.welcome_template_no_name || "");
+
+      const intro = (template || "")
+        .replaceAll("{{guest_name}}", guestName || "")
+        .replaceAll("{{assistant_name}}", assistantName)
+        .replaceAll("{{property_name}}", window.PROPERTY_NAME || "");
+
+      renderMessage(
+        intro || `Hi! I’m ${assistantName}, your stay assistant for ${window.PROPERTY_NAME}. How can I help?`,
+        "bot"
+      );
+      chatHasWelcome = true;
     }
+
+    scrollChatToBottom();
+  }
+}
+
 
     // --- Stripe checkout for upgrades ---
     async function purchaseUpgrade(upgradeId, guestEmail) {
@@ -2149,21 +2166,29 @@ function closeMenu() {
     const chatSend = document.getElementById("chat-send");
     const chatPlus = document.querySelector(".chat-plus");
 
+    // ✅ Assistant config from config.json (injected by server)
+    const assistantCfg = window.ASSISTANT_CONFIG || {};
+    const assistantName = assistantCfg.name || "Sandy";
+    const voiceCfg = assistantCfg.voice || {};
+    const quickReplies = Array.isArray(assistantCfg.quick_replies) ? assistantCfg.quick_replies : [];
+
+
     if (!sandyLive) {
       if (chatBox) {
         renderMessage(
-          "Sandy is currently offline for this property 🌙\n\n" +
-            "For urgent questions, please contact your host directly via your booking app or email.",
+          voiceCfg.offline_message ||
+            "I’m currently offline for this property 🌙\n\nFor urgent questions, please contact your host directly.",
           "bot"
         );
       }
       if (chatInput) {
         chatInput.disabled = true;
-        chatInput.placeholder = "Sandy is offline for this property.";
+        chatInput.placeholder = `${assistantName} is offline for this property.`;
       }
       chatSend && (chatSend.disabled = true);
       chatPlus && (chatPlus.disabled = true);
     }
+
 
     function formatTime(date) {
       let hours = date.getHours();
