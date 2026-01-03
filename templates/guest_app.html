@@ -423,13 +423,15 @@
     body.modal-open #mobile-menu { pointer-events: none !important; }
   </style>
 
-  <script>
+<script>
   window.PROPERTY_ID = {{ property_id | tojson }};
   window.PROPERTY_NAME = {{ property_name | tojson }};
   window.SANDY_LIVE = {{ is_live | tojson }};
   window.SANDY_ENABLED = {{ sandy_enabled | tojson }};
   window.INITIAL_VERIFIED = {{ is_verified | tojson }};
+  window.ASSISTANT_CONFIG = {{ assistant_config | tojson }};
 </script>
+
 
 </head>
 
