@@ -1455,7 +1455,7 @@
           language: getSelectedLanguage(),
         };
 
-        const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
+        const res = await fetch(`/properties/${window.PROPERTY_ID}/chat?stream=1`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
