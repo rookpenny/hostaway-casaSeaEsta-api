@@ -822,40 +822,36 @@
                   {% if same_day_turnover and is_time_flex %}
                     {# skip time-flex on same-day turnover #}
                   {% else %}
-                    <button
-                      type="button"
-                      class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
-                      data-upgrade-id="{{ up.id }}"
-                      data-upgrade-title="{{ up.title }}"
-                      data-upgrade-price="{{ up.price_display or '' }}"
-                    >
-                      <div class="upgrade-card-inner w-[280px] h-[360px] bg-white relative">
-                        {% if up.image_url %}
-                          <img src="{{ up.image_url }}" alt="{{ up.title }}" class="w-full h-full object-cover" />
-                        {% else %}
-                          <img
-                            src="{{ hero_image_url or default_image_url }}"
-                            alt="{{ up.title }}"
-                            class="w-full h-full object-cover"
-                          />
-                        {% endif %}
-                    
-                        <!-- ✅ TEXT OVERLAY -->
-                        <div class="absolute inset-0 bg-gradient-to-t from-black/70 via-black/10 to-transparent"></div>
-                        <div class="absolute left-4 right-4 bottom-4 text-white">
-                          <div class="text-sm font-semibold leading-tight line-clamp-2">
-                            {{ up.title }}
-                          </div>
-                          {% if up.price_display %}
-                            <div class="text-xs opacity-90 mt-1">{{ up.price_display }}</div>
-                          {% endif %}
-                        </div>
-                      </div>
-                    
-                      <p class="hidden upgrade-long">
-                        {{ up.long_description or up.short_description }}
-                      </p>
-                    </button>
+                   <button
+        type="button"
+        class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
+        data-upgrade-id="{{ up.id }}"
+        data-upgrade-title="{{ up.title }}"
+        data-upgrade-price="{{ up.price_display or '' }}"
+      >
+        <div
+          class="upgrade-card-inner w-[280px] h-[360px] bg-white"
+        >
+          {% if up.image_url %}
+            <img
+              src="{{ up.image_url }}"
+              alt="{{ up.title }}"
+              class="w-full h-full object-cover"
+            />
+          {% else %}
+            <img
+              src="{{ hero_image_url or default_image_url }}"
+              alt="{{ up.title }}"
+              class="w-full h-full object-cover"
+            />
+          {% endif %}
+        </div>
+      
+        <!-- hidden long copy so JS can read it -->
+        <p class="hidden upgrade-long">
+          {{ up.long_description or up.short_description }}
+        </p>
+      </button>
 
                   {% endif %}
                 {% endfor %}
