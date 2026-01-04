@@ -394,6 +394,26 @@
       transform: scale(0.7) translateY(4px);
     }
 
+    /*NEW UPGRADE CSS OPTIONS */
+
+    .upgrade-slide {
+      position: relative;
+      z-index: 1;
+    }
+    
+    /* Active card always on top */
+    .upgrade-slide.is-active {
+      z-index: 10;
+    }
+    
+    /* Inactive cards sit behind */
+   .upgrade-slide.is-inactive {
+      z-index: 1;
+      filter: brightness(0.92);
+    }
+
+
+
     /* JS masonry columns */
     .masonry-columns {
       display: flex;
