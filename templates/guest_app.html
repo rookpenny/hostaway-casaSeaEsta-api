@@ -15,7 +15,8 @@
   <!-- Tailwind CDN + DOMPurify -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/dompurify@3.1.6/dist/purify.min.js"></script>
-
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  
   <style>
     html,
     body {
@@ -421,6 +422,23 @@
 
     body.modal-open #top-bar-chrome,
     body.modal-open #mobile-menu { pointer-events: none !important; }
+
+    .message-text pre {
+      background: #0b1120;
+      color: #e5e7eb;
+      padding: 0.75rem;
+      border-radius: 0.75rem;
+      overflow-x: auto;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    
+    .message-text code {
+      background: rgba(15, 23, 42, 0.08);
+      padding: 0.15rem 0.35rem;
+      border-radius: 0.4rem;
+    }
+
   </style>
 
   <!-- Server-injected runtime config -->
@@ -1301,23 +1319,44 @@
     }
 
     function formatMessage(text) {
-      let escaped = text
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-
-      escaped = escaped.replace(
+      const raw = String(text || "");
+    
+      // 1) Pre-process: replace Google Maps URLs with a friendly link label
+      const withMapLinks = raw.replace(
         /(https:\/\/www\.google\.com\/maps[^\s]+)/g,
-        '<a href="$1" target="_blank" rel="noopener noreferrer" class="gmap-link">📍 View on Google Maps</a>'
+        `[📍 View on Google Maps]($1)`
       );
-
-      escaped = escaped.replace(
-        /(https?:\/\/[^\s]+)/g,
-        (m) => `<a href="${m}" target="_blank" rel="noopener noreferrer">${m}</a>`
+    
+      // 2) Markdown -> HTML (ChatGPT-like formatting)
+      const html = marked.parse(withMapLinks, {
+        breaks: true,   // convert single newlines to <br>
+        gfm: true
+      });
+    
+      // 3) Sanitize the HTML for safety
+      const clean = DOMPurify.sanitize(html, {
+        USE_PROFILES: { html: true },
+        FORBID_TAGS: ["script", "iframe", "object", "embed"],
+        FORBID_ATTR: ["onerror", "onclick", "onload"],
+      });
+    
+      // 4) Ensure links open in new tab safely (marked doesn't always add these)
+      const withSafeTargets = clean.replace(
+        /<a\s+([^>]*href="[^"]+"[^>]*)>/g,
+        (match, attrs) => {
+          const hasTarget = /target=/.test(attrs);
+          const hasRel = /rel=/.test(attrs);
+          let out = `<a ${attrs}`;
+          if (!hasTarget) out += ` target="_blank"`;
+          if (!hasRel) out += ` rel="noopener noreferrer"`;
+          out += `>`;
+          return out;
+        }
       );
-
-      return escaped.replace(/\n/g, "<br>");
+    
+      return withSafeTargets;
     }
+
 
     function renderMessage(text, sender) {
       if (!chatBox) return;
