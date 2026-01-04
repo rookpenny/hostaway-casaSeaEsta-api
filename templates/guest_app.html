@@ -1889,94 +1889,133 @@
     const unlockError = document.getElementById("unlock-error");
     const unlockSpinner = document.getElementById("unlock-spinner");
 
-    async function attemptUnlock() {
-      const code = (unlockCodeInput?.value || "").trim();
-      if (unlockError) unlockError.textContent = "";
+    // --- Unlock / Verify (clean + hardened) ---
 
-      if (!/^\d{4}$/.test(code)) {
-        if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
-        return;
+let unlockInFlight = false;
+
+async function attemptUnlock() {
+  if (unlockInFlight) return; // prevent double-submit
+  unlockInFlight = true;
+
+  const code = String(unlockCodeInput?.value || "").trim();
+
+  if (unlockError) unlockError.textContent = "";
+
+  // Validate property id early (prevents /guest/undefined/verify-json)
+  const propertyId = window.PROPERTY_ID;
+  if (!propertyId && propertyId !== 0) {
+    if (unlockError) unlockError.textContent = "Missing property id. Please refresh the page.";
+    unlockInFlight = false;
+    return;
+  }
+
+  // Validate 4 digits
+  if (!/^\d{4}$/.test(code)) {
+    if (unlockError) unlockError.textContent = "Please enter exactly 4 digits.";
+    unlockInFlight = false;
+    return;
+  }
+
+  if (unlockBtn) unlockBtn.disabled = true;
+  unlockSpinner?.classList.remove("hidden");
+
+  try {
+    const res = await fetch(`/guest/${propertyId}/verify-json`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ code }),
+    });
+
+    // Be robust if backend returns non-JSON on error
+    let data = {};
+    try {
+      data = await res.json();
+    } catch {
+      data = {};
+    }
+
+    // Handle failure (HTTP or logical)
+    if (!res.ok || !data.success) {
+      const fallback =
+        res.status === 401
+          ? "Please refresh and try again."
+          : res.status === 403
+          ? "That code didn’t match the reservation phone number."
+          : "We couldn’t verify that code. Please double-check or contact your host.";
+
+      if (unlockError) unlockError.textContent = data.error || fallback;
+      return;
+    }
+
+    // Success
+    isUnlocked = true;
+    lastUnlockCode = code;
+
+    if (unlockError) unlockError.textContent = "";
+    if (unlockCodeInput) unlockCodeInput.value = "";
+
+    // Apply PMS / guest info safely
+    try {
+      if (data.guest_name) {
+        guestName = data.guest_name;
+        updateGuestNameInUI(guestName);
       }
 
-      unlockBtn && (unlockBtn.disabled = true);
-      unlockSpinner?.classList.remove("hidden");
+      if (data.arrival_date) {
+        arrivalDate = data.arrival_date;
+        const el = document.getElementById("arrival-date-span");
+        if (el) el.textContent = formatDateLong(arrivalDate);
+      }
 
-      try {
-        const res = await fetch(`/guest/${window.PROPERTY_ID}/verify-json`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ code }),
-        });
+      if (data.departure_date) {
+        departureDate = data.departure_date;
+        const el = document.getElementById("departure-date-span");
+        if (el) el.textContent = formatDateLong(departureDate);
+      }
 
-        const data = await res.json();
+      if (data.checkin_time) {
+        checkinTime = data.checkin_time;
+        const el = document.getElementById("checkin-time-span");
+        if (el) el.textContent = checkinTime;
+      }
 
-        if (!res.ok || !data.success) {
-          if (unlockError) {
-            unlockError.textContent =
-              data.error || "We couldn’t verify that code. Please double-check or contact your host.";
-          }
-          return;
-        }
-
-        isUnlocked = true;
-        lastUnlockCode = code;
-
-        if (unlockError) unlockError.textContent = "";
-        if (unlockCodeInput) unlockCodeInput.value = "";
-
-        try {
-          if (data.guest_name) {
-            guestName = data.guest_name;
-            updateGuestNameInUI(guestName);
-          }
-
-          if (data.arrival_date) {
-            arrivalDate = data.arrival_date;
-            const el = document.getElementById("arrival-date-span");
-            if (el) el.textContent = formatDateLong(arrivalDate);
-          }
-
-          if (data.departure_date) {
-            departureDate = data.departure_date;
-            const el = document.getElementById("departure-date-span");
-            if (el) el.textContent = formatDateLong(departureDate);
-          }
-
-          if (data.checkin_time) {
-            checkinTime = data.checkin_time;
-            const el = document.getElementById("checkin-time-span");
-            if (el) el.textContent = checkinTime;
-          }
-
-          if (data.checkout_time) {
-            checkoutTime = data.checkout_time;
-            const el = document.getElementById("checkout-time-span");
-            if (el) el.textContent = checkoutTime;
-          }
+      if (data.checkout_time) {
+        checkoutTime = data.checkout_time;
+        const el = document.getElementById("checkout-time-span");
+        if (el) el.textContent = checkoutTime;
+      }
         } catch (e) {
-          console.warn("Error applying PMS guest info to UI:", e);
+          console.warn("Error applying guest info to UI:", e);
         }
-
+    
         saveGuestState();
         updateHomeState();
         showScreen("home");
       } catch (err) {
-        console.error(err);
+        console.error("Verify error:", err);
         if (unlockError) unlockError.textContent = "Something went wrong while verifying. Please try again.";
       } finally {
-        unlockBtn && (unlockBtn.disabled = false);
+        if (unlockBtn) unlockBtn.disabled = false;
         unlockSpinner?.classList.add("hidden");
+        unlockInFlight = false;
       }
     }
-
-    unlockBtn?.addEventListener("click", attemptUnlock);
+    
+    // Click to unlock
+    unlockBtn?.addEventListener("click", (e) => {
+      e.preventDefault();
+      attemptUnlock();
+    });
+    
+    // Enter key to unlock
     unlockCodeInput?.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         attemptUnlock();
       }
     });
+
 
     // --- Modals: Door + WiFi ---
     const checkinButton = document.getElementById("checkin-button");
