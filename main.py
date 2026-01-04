@@ -783,6 +783,12 @@ def verify_json(
             status_code=400,
         )
 
+    code = (payload.code or "").strip()
+
+    # DEBUG (remove after)
+    print("[verify_json] received code:", repr(code))
+    print("[verify_json] TEST_UNLOCK_CODE:", repr(os.getenv("TEST_UNLOCK_CODE")))
+
     # 2) test override
     test_code = (os.getenv("TEST_UNLOCK_CODE") or "").strip()
     if test_code and code == test_code:
