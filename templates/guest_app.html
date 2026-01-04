@@ -369,6 +369,10 @@
       overflow: visible;
       transition: transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 250ms ease;
     }
+
+   
+    
+        
     .upgrade-card-inner {
       width: 280px;
       height: 360px;
@@ -378,6 +382,7 @@
       border: 4px solid #ffffff;
       transform-origin: center center;
       transition: box-shadow 300ms ease, transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1), opacity 250ms ease;
+      will-change: transform;
     }
     .upgrade-slide img {
       width: 100%;
@@ -2278,15 +2283,22 @@ function initUpgradesCarousel() {
   setActiveSlideByIndex(0);
 
   // center first slide after layout settles
-  requestAnimationFrame(() => centerSlide(0, "auto"));
+  requestAnimationFrame(() => {
+  centerSlide(0, "auto");
+  applyScaleEasing();
+});
 
   // update on scroll (throttled-ish)
-  let t = null;
-  upgradesCarousel.addEventListener("scroll", () => {
-    if (t) cancelAnimationFrame(t);
-    t = requestAnimationFrame(updateActiveFromScroll);
-  }, { passive: true });
+ let t = null;
+upgradesCarousel.addEventListener("scroll", () => {
+  if (t) cancelAnimationFrame(t);
+  t = requestAnimationFrame(() => {
+    applyScaleEasing();      // ✅ continuous smooth scaling
+    updateActiveFromScroll(); // ✅ keeps your active index + text logic
+  });
+}, { passive: true });
 
+  
   // tap a card to center it + activate it
   upgradeSlides.forEach((slide, idx) => {
     slide.addEventListener("click", () => {
@@ -2298,9 +2310,45 @@ function initUpgradesCarousel() {
 
   // keep correct on resize
   window.addEventListener("resize", () => {
-    updateActiveFromScroll();
+  updateActiveFromScroll();
+  applyScaleEasing();
+});
+}
+
+    function applyScaleEasing() {
+  if (!upgradesCarousel || !upgradeSlides.length) return;
+
+  const viewportCenter = upgradesCarousel.scrollLeft + upgradesCarousel.clientWidth / 2;
+
+  upgradeSlides.forEach((slide) => {
+    const rect = slide.getBoundingClientRect();
+    // slide center in scroll container coordinates:
+    const slideCenter =
+      slide.offsetLeft + slide.offsetWidth / 2;
+
+    const dist = Math.abs(viewportCenter - slideCenter);
+
+    // Normalize distance: 0 at center, 1 when far
+    const maxDist = upgradesCarousel.clientWidth * 0.7; // tweak “spread”
+    const t = Math.min(dist / maxDist, 1);
+
+    // Easing curve (smooth falloff)
+    const eased = 1 - Math.pow(t, 1.8);
+
+    // Scale range: center 1.0 -> edges 0.72 (match your design)
+    const minScale = 0.72;
+    const scale = minScale + (1 - minScale) * eased;
+
+    // Optional: tiny lift + fade to sell depth
+    const lift = (1 - scale) * 18; // px
+    const opacity = 0.65 + 0.35 * eased;
+
+    // Apply to the slide container for “whole card” motion
+    slide.style.transform = `translateY(${lift}px) scale(${scale})`;
+    slide.style.opacity = opacity.toFixed(3);
   });
 }
+
 
   });
 </script>
