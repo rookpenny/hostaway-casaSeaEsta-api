@@ -1847,6 +1847,12 @@
 
   if (name === "experiences") loadGuidesIfNeeded();
 
+     if (name === "upgrades") {
+  initUpgradesCarousel();
+  requestAnimationFrame(updateActiveFromScroll);
+}
+
+
   if (name === "chat") swapLogoWithFade(LOGO_BLACK);
   else if (!isMenuOpen) swapLogoWithFade(LOGO_WHITE);
 
@@ -2151,6 +2157,100 @@ async function attemptUnlock() {
       if (chatSend) chatSend.disabled = true;
       if (chatPlus) chatPlus.disabled = true;
     }
+
+    // --- Upgrades carousel (Beats-style) ---
+const upgradesCarousel = document.getElementById("upgrades-carousel");
+const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
+
+let upgradesBound = false;
+
+function getCarouselCenterX() {
+  if (!upgradesCarousel) return 0;
+  const r = upgradesCarousel.getBoundingClientRect();
+  return r.left + r.width / 2;
+}
+
+function setActiveSlideByIndex(activeIdx) {
+  upgradeSlides.forEach((slide, idx) => {
+    slide.classList.toggle("is-active", idx === activeIdx);
+    slide.classList.toggle("is-inactive", idx !== activeIdx);
+  });
+}
+
+function findClosestSlideIndex() {
+  if (!upgradesCarousel || !upgradeSlides.length) return 0;
+
+  const centerX = getCarouselCenterX();
+  let bestIdx = 0;
+  let bestDist = Infinity;
+
+  upgradeSlides.forEach((slide, idx) => {
+    const r = slide.getBoundingClientRect();
+    const slideCenter = r.left + r.width / 2;
+    const dist = Math.abs(slideCenter - centerX);
+    if (dist < bestDist) {
+      bestDist = dist;
+      bestIdx = idx;
+    }
+  });
+
+  return bestIdx;
+}
+
+function centerSlide(idx, behavior = "smooth") {
+  if (!upgradesCarousel || !upgradeSlides[idx]) return;
+
+  const slide = upgradeSlides[idx];
+  const cRect = upgradesCarousel.getBoundingClientRect();
+  const sRect = slide.getBoundingClientRect();
+
+  // current scrollLeft + delta from centers
+  const current = upgradesCarousel.scrollLeft;
+  const delta = (sRect.left + sRect.width / 2) - (cRect.left + cRect.width / 2);
+
+  upgradesCarousel.scrollTo({ left: current + delta, behavior });
+}
+
+function updateActiveFromScroll() {
+  const idx = findClosestSlideIndex();
+  setActiveSlideByIndex(idx);
+}
+
+// Bind once
+function initUpgradesCarousel() {
+  if (upgradesBound) return;
+  upgradesBound = true;
+
+  if (!upgradesCarousel || !upgradeSlides.length) return;
+
+  // default state
+  setActiveSlideByIndex(0);
+
+  // center first slide after layout settles
+  requestAnimationFrame(() => centerSlide(0, "auto"));
+
+  // update on scroll (throttled-ish)
+  let t = null;
+  upgradesCarousel.addEventListener("scroll", () => {
+    if (t) cancelAnimationFrame(t);
+    t = requestAnimationFrame(updateActiveFromScroll);
+  }, { passive: true });
+
+  // tap a card to center it + activate it
+  upgradeSlides.forEach((slide, idx) => {
+    slide.addEventListener("click", () => {
+      setActiveSlideByIndex(idx);
+      centerSlide(idx, "smooth");
+      // (optional) open modal here if you want click to open details instead of center
+    });
+  });
+
+  // keep correct on resize
+  window.addEventListener("resize", () => {
+    updateActiveFromScroll();
+  });
+}
+
   });
 </script>
 
