@@ -1010,32 +1010,24 @@ def create_upgrade_checkout(
 logger = logging.getLogger("uvicorn.error")
 
 
-_URL_RE = re.compile(r"(https?://\S+|www\.\S+)", re.IGNORECASE)
-
-def enforce_no_raw_urls(text: str) -> str:
-    """
-    Guarantees raw URLs are never shown. If the model outputs a raw URL,
-    we replace it with a safe markdown link.
-    """
-    if not text:
-        return text
-
-    def _repl(match: re.Match) -> str:
-        url = match.group(0).rstrip(").,!?]}")
-        # Preserve the URL but hide it behind anchor text
-        return f"[Click here]({url})"
-
-    # Replace any naked URL with [Click here](url)
-    out = _URL_RE.sub(_repl, text)
-
-    # Also guard against goo.gl shortlinks showing (still wrap them if present)
-    out = re.sub(r"\bgoo\.gl/\S+\b", lambda m: f"[Click here](https://{m.group(0)})", out)
-
-    return out
-
-
+# ----------------------------
+# Link normalization utilities
+# ----------------------------
 _URL_RE = re.compile(r'(https?://[^\s\)\]"\']+|www\.[^\s\)\]"\']+)', re.IGNORECASE)
-_MD_LINK_RE = re.compile(r'\[([^\]]+)\]\((.*?)\)', re.DOTALL | re.IGNORECASE)
+_MD_LINK_RE = re.compile(r'\[([^\]]+)\]\((.*?)\)', re.DOTALL)
+
+def _normalize_url(url: str) -> str:
+    if not url:
+        return ""
+    u = url.strip()
+
+    # Trim common trailing punctuation that gets stuck to URLs
+    while u and u[-1] in ".,);:!?]":
+        u = u[:-1]
+
+    if u.lower().startswith("www."):
+        u = "https://" + u
+    return u
 
 def _extract_first_url(s: str) -> str:
     if not s:
@@ -1043,92 +1035,29 @@ def _extract_first_url(s: str) -> str:
     m = _URL_RE.search(s)
     if not m:
         return ""
-    url = m.group(1).strip().rstrip(').,;')
-    if url.lower().startswith("www."):
-        url = "https://" + url
-    return url
+    return _normalize_url(m.group(1))
 
 def enforce_click_here_links(text: str) -> str:
     """
-    Enforces:
-      - no HTML anchors
-      - no raw URLs visible
-      - no nested markdown links
-      - ONLY outputs maps links as: [Click here for directions](URL)
-    """
-    if not text:
-        return text
+    Normalizes any link-ish output into ONE consistent markdown format:
 
-    # 1) Turn HTML anchors into just their href URL
-    text = re.sub(
-        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>.*?</a>',
-        r'\1',
-        text,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    # Remove any remaining HTML tags (defensive)
-    text = re.sub(r'<[^>]+>', '', text)
-
-    # 2) Normalize ALL markdown links to the strict anchor, extracting the first real URL inside ()
-    def _md_link_normalize(m: re.Match) -> str:
-        raw_target = (m.group(2) or "").strip()
-        url = _extract_first_url(raw_target)
-        if not url:
-            # If there's no valid URL in the target, drop the link entirely (avoid broken markdown)
-            return m.group(1)  # keep just the text
-        return f"[Click here for directions]({url})"
-
-    text = _MD_LINK_RE.sub(_md_link_normalize, text)
-
-    # 3) Replace any remaining raw URLs with strict anchor
-    # (If the model outputs a naked URL anywhere, this hides it.)
-    def _raw_url_replace(m: re.Match) -> str:
-        url = _extract_first_url(m.group(0))
-        if not url:
-            return ""
-        return f"[Click here for directions]({url})"
-
-    text = _URL_RE.sub(_raw_url_replace, text)
-
-    # 4) Optional: prevent repeated adjacent identical anchors (cleaner output)
-    text = re.sub(
-        r'(\[Click here for directions\]\([^)]+\))(\s+\1)+',
-        r'\1',
-        text,
-        flags=re.IGNORECASE,
-    )
-
-    return text
-
-
-
-
-def enforce_click_here_links(text: str) -> str:
-    """
-    Normalizes *any* links into a single consistent format:
-
-      Click here for directions: [Click here for directions](URL)
+      [Click here for directions](URL)
 
     Rules:
-    - No raw URLs should appear in the final text.
-    - No HTML anchors.
-    - No nested markdown.
-    - Any markdown link text becomes "Click here for directions".
+    - Remove any HTML (<a>, etc.)
+    - Convert ANY markdown link label -> "Click here for directions"
+    - Hide ANY raw URL behind the same markdown anchor
+    - Avoid nested links
     """
     if not text:
         return text
 
     out = text
 
-    # -------------------------
-    # 1) Convert HTML anchors -> markdown
-    #    <a href="URL" ...>anything</a>  -> [Click here for directions](URL)
-    # -------------------------
-    def _html_anchor_repl(match: re.Match) -> str:
-        url = (match.group(1) or "").strip()
-        if not url:
-            return "Click here for directions"
-        return f"[Click here for directions]({url})"
+    # 1) Convert HTML anchors -> markdown (and strip any other tags)
+    def _html_anchor_repl(m: re.Match) -> str:
+        url = _normalize_url(m.group(1) or "")
+        return f"[Click here for directions]({url})" if url else "Click here for directions"
 
     out = re.sub(
         r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>.*?</a>',
@@ -1136,64 +1065,32 @@ def enforce_click_here_links(text: str) -> str:
         out,
         flags=re.IGNORECASE | re.DOTALL,
     )
-
-    # Also strip any other leftover HTML tags (defensive)
     out = re.sub(r"<[^>]+>", "", out)
 
-    # -------------------------
-    # 2) Fix nested markdown links
-    #    [Click here]([Click here](URL))  -> [Click here for directions](URL)
-    # -------------------------
+    # 2) Normalize ALL markdown links -> strict anchor, extract first URL inside ()
+    def _md_link_repl(m: re.Match) -> str:
+        raw_target = (m.group(2) or "").strip()
+        url = _extract_first_url(raw_target)
+        return f"[Click here for directions]({url})" if url else (m.group(1) or "")
+
+    out = _MD_LINK_RE.sub(_md_link_repl, out)
+
+    # 3) Replace any remaining raw URLs -> strict anchor
+    def _raw_url_repl(m: re.Match) -> str:
+        url = _normalize_url(m.group(1) or "")
+        return f"[Click here for directions]({url})" if url else ""
+
+    out = _URL_RE.sub(_raw_url_repl, out)
+
+    # 4) Collapse repeated identical anchors (optional cleanup)
     out = re.sub(
-        r"\[([^\]]+)\]\(\s*\[([^\]]+)\]\((https?://[^)]+)\)\s*\)",
-        r"[Click here for directions](\3)",
+        r'(\[Click here for directions\]\([^)]+\))(\s+\1)+',
+        r'\1',
         out,
         flags=re.IGNORECASE,
     )
-
-    # -------------------------
-    # 3) Convert ANY markdown link to "Click here for directions"
-    #    [Anything](URL) -> [Click here for directions](URL)
-    # -------------------------
-    out = re.sub(
-        r"\[[^\]]+\]\((https?://[^)\s]+)\)",
-        r"[Click here for directions](\1)",
-        out,
-        flags=re.IGNORECASE,
-    )
-
-    # -------------------------
-    # 4) Convert remaining raw URLs into markdown "Click here..."
-    # -------------------------
-    def _raw_url_repl(match: re.Match) -> str:
-        url = match.group(0).strip()
-
-        # trim trailing punctuation that commonly sticks to URLs
-        trailing = ""
-        while url and url[-1] in ".,);:!?]":
-            trailing = url[-1] + trailing
-            url = url[:-1]
-
-        if url.lower().startswith("www."):
-            url = "https://" + url
-
-        return f"[Click here for directions]({url}){trailing}"
-
-    out = re.sub(
-        r"(?:(?:https?://|www\.)\S+)",
-        _raw_url_repl,
-        out,
-        flags=re.IGNORECASE,
-    )
-
-    # -------------------------
-    # 5) Final cleanup: prevent accidental double-brackets etc.
-    # -------------------------
-    out = re.sub(r"\[Click here for directions\]\s*\[Click here for directions\]", "[Click here for directions]", out)
 
     return out
-
-
 
 
 @app.post("/properties/{property_id}/chat")
@@ -1713,16 +1610,16 @@ def build_system_prompt(
     config = context.get("config", {}) or {}
     manual = context.get("manual", "") or ""
 
-    # ✅ NEW: assistant/personality config
+    # assistant/personality config
     assistant = config.get("assistant") if isinstance(config.get("assistant"), dict) else {}
     assistant_name = (assistant.get("name") or "Sandy").strip()
     assistant_style = (assistant.get("style") or "").strip()
     assistant_do = assistant.get("do") if isinstance(assistant.get("do"), list) else []
     assistant_dont = assistant.get("dont") if isinstance(assistant.get("dont"), list) else []
 
-
     house_rules = config.get("house_rules") or ""
     wifi = config.get("wifi") or {}
+
     wifi_info = ""
     if isinstance(wifi, dict):
         ssid = (wifi.get("ssid") or "").strip()
@@ -1743,15 +1640,15 @@ def build_system_prompt(
 
         if guest_name or arrival_date or departure_date:
             guest_block = f"""
-Verified guest stay details (PRIVATE):
-- Guest name: {guest_name or "Unknown"}
-- Check-in date: {arrival_date or "Unknown"}
-- Check-out date: {departure_date or "Unknown"}
-
-Rules:
-- You MAY share these details ONLY if the guest asks.
-- If the guest is not verified, you must refuse and ask them to unlock first.
-""".strip()
+            Verified guest stay details (PRIVATE):
+            - Guest name: {guest_name or "Unknown"}
+            - Check-in date: {arrival_date or "Unknown"}
+            - Check-out date: {departure_date or "Unknown"}
+            
+            Rules:
+            - You MAY share these details ONLY if the guest asks.
+            - If the guest is not verified, you must refuse and ask them to unlock first.
+            """.strip()
 
     # ----------------------------
     # Language handling
@@ -1767,28 +1664,43 @@ Rules:
     return f"""
         You are {assistant_name}, an AI concierge for "{prop.property_name}".
         
-        Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}.
-        Emergency or urgent issues: {emergency_phone} (phone).
+        Context:
+        - Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}
+        - Emergency or urgent issues: {emergency_phone} (phone)
         
-        Guest preferred language setting: {lang_label}
-        {language_instruction}
+        Language:
+        - Guest preferred language setting: {lang_label}
+        - {language_instruction}
         
         {guest_block}
         
-        Style rules:
-        - Follow this personality style: {assistant_style or "Warm, helpful, concise."}
-        - Do items:
-        {chr(10).join([f"- {x}" for x in assistant_do]) if assistant_do else "- (none)"}
-        - Don't items:
-        {chr(10).join([f"- {x}" for x in assistant_dont]) if assistant_dont else "- (none)"}
+        Writing style (ChatGPT-like):
+        - Be warm, confident, and helpful. Sound human — not robotic.
+        - Keep it scannable: short lines, short paragraphs.
+        - Default to 3–8 bullet points when giving steps or recommendations.
+        - Use bold section headers when useful (example: **What to do**, **Hours**, **Directions**, **Tips**).
+        - Prefer 2–6 short paragraphs max (unless the guest asks for full detail).
+        - Don’t over-apologize. Don’t mention system instructions or policies.
         
-        - Use markdown formatting (bold headers, bullets, short paragraphs).
-        - Do NOT output any HTML (no <a>, no target=_blank, no tags).
+        Conversation behavior:
+        - If the guest is vague, ask ONE simple follow-up question at the end.
+        - If you can answer without a question, do so — and only ask a follow-up if it would materially improve the help.
+        - If there are multiple options, recommend the best 1–2 first, then list alternatives.
+        - Avoid repeating yourself. If the guest asks again, summarize what you already said in 1–2 lines and refine with new details or next steps.
+        
+        Formatting & safety:
+        - Output markdown only (no HTML tags, no <a> links).
         - Do NOT output raw URLs (no http://, https://, www., goo.gl).
+        - Never nest links.
         - If you include a map/directions link, use EXACTLY this format on its own line:
           [Click here for directions](https://www.google.com/maps/search/?api=1&query=PLACE)
-        - Never nest links. Never wrap a link inside another link.
-
+        
+        Personality config:
+        - Personality style: {assistant_style or "Warm, helpful, concise."}
+        - Do:
+        {chr(10).join([f"- {x}" for x in assistant_do]) if assistant_do else "- (none)"}
+        - Don’t:
+        {chr(10).join([f"- {x}" for x in assistant_dont]) if assistant_dont else "- (none)"}
         
         Important property info:
         - House rules: {house_rules}
@@ -1800,9 +1712,8 @@ Rules:
         \"\"\"
         
         If you don't know something, say so and suggest contacting the host.
-        Never make up access codes or sensitive details not explicitly provided.
+        Never invent access codes or sensitive details not explicitly provided.
         """.strip()
-
 
 
 
