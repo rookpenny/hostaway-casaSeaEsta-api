@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 
 from fastapi import (
     FastAPI, Request, Query, HTTPException, Header, Form,
-    APIRouter, Depends, status
+    APIRouter, Depends, StreamingResponse, status
 )
 from fastapi import Path as FPath
 
@@ -1197,7 +1197,7 @@ def enforce_click_here_links(text: str) -> str:
 
 
 @app.post("/properties/{property_id}/chat")
-def property_chat(
+async def property_chat(
     request: Request,
     property_id: int,
     payload: PropertyChatRequest,
@@ -1205,8 +1205,10 @@ def property_chat(
 ):
     now = datetime.utcnow()
 
+    # enable streaming with ?stream=1
+    stream_mode = request.query_params.get("stream") == "1"
+
     # 0) TEMP / SAFE DEBUG MODE (no logs required)
-    # Call: POST /properties/{id}/chat?debug=1
     debug_mode = request.query_params.get("debug") == "1"
 
     verified_key = f"guest_verified_{property_id}"
@@ -1232,11 +1234,6 @@ def property_chat(
                 "of the phone number on your reservation, then try again. 🔐"
             )
         }
-
-    # Log session info (should show in runtime logs)
-    logger.info("property_chat: property_id=%s verified=%s", property_id, verified_flag)
-    logger.info("property_chat: cookie_present=%s", bool(request.headers.get("cookie")))
-    logger.info("property_chat: session_keys=%s", list(request.session.keys()))
 
     # 2) Validate message
     user_message = (payload.message or "").strip()
@@ -1296,25 +1293,18 @@ def property_chat(
         db.commit()
         db.refresh(session)
 
-    # 5) Attach PMS data (phone_last4 + reservation_id + guest info) for this session
-    # NOTE: if this throws sometimes, wrap in try/except and proceed gracefully
-    ensure_pms_data(db, session)
+    # 5) Attach PMS data
+    try:
+        ensure_pms_data(db, session)
+    except Exception:
+        logger.exception("ensure_pms_data failed (continuing)")
 
-    logger.info(
-        "[PMS SESSION DATA] guest_name=%r arrival_date=%r departure_date=%r reservation_id=%r",
-        getattr(session, "guest_name", None),
-        getattr(session, "arrival_date", None),
-        getattr(session, "departure_date", None),
-        getattr(session, "reservation_id", None),
-    )
-
-
-    # 6) Log guest message to DB
+    # 6) Log guest message
     category = classify_category(user_message)
     log_type = detect_log_types(user_message)
     sentiment = simple_sentiment(user_message)
 
-    guest_msg = ChatMessage(
+    db.add(ChatMessage(
         session_id=session.id,
         sender="guest",
         content=user_message,
@@ -1322,8 +1312,7 @@ def property_chat(
         log_type=log_type,
         sentiment=sentiment,
         created_at=now,
-    )
-    db.add(guest_msg)
+    ))
     session.last_activity_at = now
 
     # Save preferred language
@@ -1333,13 +1322,12 @@ def property_chat(
     db.commit()
     db.refresh(session)
 
-    # 7) Door code branch
+    # 7) Door code branch (keep your logic)
     code_keywords = ["door code", "access code", "entry code", "pin", "key code", "lock code"]
     is_code_request = any(k in lowered for k in code_keywords)
 
     code_match = re.search(r"\b(\d{4})\b", user_message)
     provided_last4 = code_match.group(1) if code_match else None
-
     pms_last4 = getattr(session, "phone_last4", None)
 
     if is_code_request:
@@ -1366,19 +1354,18 @@ def property_chat(
                 "or contact your host directly for access help."
             )
 
-        db.add(
-            ChatMessage(
-                session_id=session.id,
-                sender="assistant",
-                content=reply_text,
-                created_at=datetime.utcnow(),
-            )
-        )
+        db.add(ChatMessage(
+            session_id=session.id,
+            sender="assistant",
+            content=reply_text,
+            created_at=datetime.utcnow(),
+        ))
         db.commit()
 
+        # Door-code can stay non-streaming (simple + instant)
         return {"response": reply_text, "session_id": session.id}
 
-    # 8) General LLM flow
+    # 8) Build system prompt + history
     context = load_property_context(prop, db)
     system_prompt = build_system_prompt(
         prop=prop,
@@ -1387,7 +1374,6 @@ def property_chat(
         session_language=session.language,
         session=session,
     )
-
 
     history = (
         db.query(ChatMessage)
@@ -1401,53 +1387,98 @@ def property_chat(
         role = "assistant" if m.sender == "assistant" else "user"
         messages.append({"role": role, "content": m.content})
 
+    # --------------------------
+    # STREAMING MODE (?stream=1)
+    # --------------------------
+    if stream_mode:
+
+        async def ndjson_stream():
+            full_parts: list[str] = []
+
+            try:
+                stream = client.chat.completions.create(
+                    model="gpt-4o-mini",
+                    temperature=0.7,
+                    messages=messages,
+                    stream=True,
+                )
+
+                for chunk in stream:
+                    delta = chunk.choices[0].delta.content or ""
+                    if not delta:
+                        continue
+                    full_parts.append(delta)
+                    yield (json.dumps({"delta": delta}) + "\n").encode("utf-8")
+
+            except Exception as e:
+                yield (json.dumps({"error": str(e)}) + "\n").encode("utf-8")
+                return
+
+            reply_text = "".join(full_parts).strip()
+            reply_text = enforce_click_here_links(reply_text)
+
+            db.add(ChatMessage(
+                session_id=session.id,
+                sender="assistant",
+                content=reply_text,
+                created_at=datetime.utcnow(),
+            ))
+            db.commit()
+
+            yield (json.dumps({"done": True, "session_id": session.id}) + "\n").encode("utf-8")
+
+        return StreamingResponse(
+            ndjson_stream(),
+            media_type="application/x-ndjson",
+            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+        )
+
+    # --------------------------
+    # NON-STREAM MODE (default)
+    # --------------------------
     try:
         ai_response = client.chat.completions.create(
             model="gpt-4o-mini",
             temperature=0.7,
             messages=messages,
         )
-        reply_text = ai_response.choices[0].message.content
+        reply_text = ai_response.choices[0].message.content or ""
         reply_text = enforce_click_here_links(reply_text)
-        logger.info("[SANITIZED REPLY]\n%s", reply_text)
-
-
     except RateLimitError:
-        logging.exception("OpenAI rate/quota limit")
+        logger.exception("OpenAI rate/quota limit")
         reply_text = (
             "I’m temporarily unavailable because we hit our AI usage limit. 🐚\n\n"
             "Please try again in a little bit, or contact your host if it’s urgent."
         )
     except AuthenticationError:
-        logging.exception("OpenAI auth error")
+        logger.exception("OpenAI auth error")
         reply_text = (
             "I’m temporarily unavailable due to a configuration issue. 🐚\n\n"
             "Please contact your host for urgent help."
         )
     except APIStatusError:
-        logging.exception("OpenAI API status error")
+        logger.exception("OpenAI API status error")
         reply_text = (
             "I’m having trouble connecting right now. 🐚\n\n"
             "Please try again in a moment."
         )
     except Exception:
-        logging.exception("OpenAI unknown error")
+        logger.exception("OpenAI unknown error")
         reply_text = (
             "Oops, I ran into a technical issue while answering just now. 🐚\n\n"
             "Please try again in a moment, or contact your host directly if it’s urgent."
         )
 
-    db.add(
-        ChatMessage(
-            session_id=session.id,
-            sender="assistant",
-            content=reply_text,
-            created_at=datetime.utcnow(),
-        )
-    )
+    db.add(ChatMessage(
+        session_id=session.id,
+        sender="assistant",
+        content=reply_text,
+        created_at=datetime.utcnow(),
+    ))
     db.commit()
 
     return {"response": reply_text, "session_id": session.id}
+
 
 
 @app.get("/debug/property-context/{property_id}")
