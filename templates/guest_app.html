@@ -1838,25 +1838,33 @@
       showQuickReplies(name === "chat");
 
       if (name === "chat") {
-        if (sandyLive && chatBox && !chatHasWelcome && chatBox.children.length === 0) {
+      // ✅ hard guard: once per page load (and per property)
+      const welcomeKey = `welcome_shown_${window.PROPERTY_ID}`;
+      if (!chatHasWelcome && !sessionStorage.getItem(welcomeKey)) {
+        if (sandyLive && chatBox && chatBox.children.length === 0) {
           const template = guestName
             ? (voiceCfg.welcome_template || "")
             : (voiceCfg.welcome_template_no_name || "");
-
+    
           const intro = (template || "")
             .replaceAll("{{guest_name}}", guestName || "")
-            .replaceAll("{{assistant_name}}", assistantName)
+            .replaceAll("{{assistant_name}}", assistantName || "Sandy")
             .replaceAll("{{property_name}}", window.PROPERTY_NAME || "");
-
-          renderMessage(
-            intro ||
-              `Hi! I’m ${assistantName}, your stay assistant for ${window.PROPERTY_NAME}. How can I help?`,
-            "bot"
-          );
+    
+          const finalIntro =
+            intro && intro.trim()
+              ? intro.trim()
+              : `Hi! I’m ${assistantName || "Sandy"}, your stay assistant for ${window.PROPERTY_NAME || "your stay"}. How can I help?`;
+    
+          renderMessage(finalIntro, "bot");
+    
           chatHasWelcome = true;
+          sessionStorage.setItem(welcomeKey, "1");
         }
-        scrollChatToBottom();
       }
+    
+      scrollChatToBottom();
+    }
     }
 
     // --- Menu screen links ---
