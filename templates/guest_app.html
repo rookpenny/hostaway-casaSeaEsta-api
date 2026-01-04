@@ -2182,12 +2182,35 @@ function getCarouselCenterX() {
   return r.left + r.width / 2;
 }
 
-function setActiveSlideByIndex(activeIdx) {
-  upgradeSlides.forEach((slide, idx) => {
-    slide.classList.toggle("is-active", idx === activeIdx);
-    slide.classList.toggle("is-inactive", idx !== activeIdx);
+function setActiveSlideByIndex(idx) {
+  const slide = upgradeSlides[idx];
+  if (!slide) return;
+
+  // your existing active/inactive class toggles here...
+  upgradeSlides.forEach((s, i) => {
+    s.classList.toggle("is-active", i === idx);
+    s.classList.toggle("is-inactive", i !== idx);
   });
+
+  // ✅ populate below-carousel text
+  const infoWrap = document.getElementById("upgrade-active-info");
+  const titleEl  = document.getElementById("upgrade-active-title");
+  const descEl   = document.getElementById("upgrade-active-description");
+  const ctaWrap  = document.getElementById("upgrade-active-cta");
+  const ctaLabel = document.getElementById("upgrade-active-button-label");
+
+  const title = slide.dataset.upgradeTitle || "Upgrade";
+  const price = slide.dataset.upgradePrice || "";
+  const long  = slide.querySelector(".upgrade-long")?.textContent?.trim() || "";
+
+  if (titleEl) titleEl.textContent = title;
+  if (descEl)  descEl.textContent  = long;
+  if (ctaLabel) ctaLabel.textContent = price ? `${price} – Purchase` : "Purchase";
+
+  infoWrap?.classList.remove("hidden");
+  ctaWrap?.classList.remove("hidden");
 }
+
 
 function findClosestSlideIndex() {
   if (!upgradesCarousel || !upgradeSlides.length) return 0;
