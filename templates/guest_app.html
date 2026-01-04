@@ -1396,6 +1396,11 @@
       scrollChatToBottom();
     }
 
+    console.log("assistantName=", assistantName);
+    console.log("template=", template);
+    console.log("intro(before trim)=", intro);
+
+
     function addTyping() {
       if (!chatBox || document.getElementById("typing-indicator")) return;
 
@@ -1818,54 +1823,63 @@
       }
     }
 
+ function safeReplaceAll(str, needle, replacement) {
+  str = String(str ?? "");
+  needle = String(needle ?? "");
+  replacement = String(replacement ?? "");
+  if (!needle) return str; // ✅ critical: prevents replaceAll("")
+  return str.split(needle).join(replacement);
+}
+
+
+
     // --- Screen router ---
-    function showScreen(name) {
-      const sandyHeader = document.getElementById("chat-header-sandy");
-      if (sandyHeader) sandyHeader.classList.toggle("hidden", name !== "chat");
+   function showScreen(name) {
+  const sandyHeader = document.getElementById("chat-header-sandy");
+  if (sandyHeader) sandyHeader.classList.toggle("hidden", name !== "chat");
 
-      Object.entries(screens).forEach(([key, el]) => {
-        if (!el) return;
-        el.classList.toggle("hidden", key !== name);
-      });
+  Object.entries(screens).forEach(([key, el]) => {
+    if (!el) return;
+    el.classList.toggle("hidden", key !== name);
+  });
 
-      document.body.classList.toggle("chat-screen", name === "chat");
+  document.body.classList.toggle("chat-screen", name === "chat");
 
-      if (name === "experiences") loadGuidesIfNeeded();
+  if (name === "experiences") loadGuidesIfNeeded();
 
-      if (name === "chat") swapLogoWithFade(LOGO_BLACK);
-      else if (!isMenuOpen) swapLogoWithFade(LOGO_WHITE);
+  if (name === "chat") swapLogoWithFade(LOGO_BLACK);
+  else if (!isMenuOpen) swapLogoWithFade(LOGO_WHITE);
 
-      showQuickReplies(name === "chat");
+  showQuickReplies(name === "chat");
 
-      if (name === "chat") {
-      // ✅ hard guard: once per page load (and per property)
-      const welcomeKey = `welcome_shown_${window.PROPERTY_ID}`;
-      if (!chatHasWelcome && !sessionStorage.getItem(welcomeKey)) {
-        if (sandyLive && chatBox && chatBox.children.length === 0) {
-          const template = guestName
-            ? (voiceCfg.welcome_template || "")
-            : (voiceCfg.welcome_template_no_name || "");
-    
-          const intro = (template || "")
-            .replaceAll("{{guest_name}}", guestName || "")
-            .replaceAll("{{assistant_name}}", assistantName || "Sandy")
-            .replaceAll("{{property_name}}", window.PROPERTY_NAME || "");
-    
-          const finalIntro =
-            intro && intro.trim()
-              ? intro.trim()
-              : `Hi! I’m ${assistantName || "Sandy"}, your stay assistant for ${window.PROPERTY_NAME || "your stay"}. How can I help?`;
-    
-          renderMessage(finalIntro, "bot");
-    
-          chatHasWelcome = true;
-          sessionStorage.setItem(welcomeKey, "1");
-        }
+  if (name === "chat") {
+    // ✅ hard guard: once per page load (and per property)
+    const welcomeKey = `welcome_shown_${window.PROPERTY_ID}`;
+
+    if (!chatHasWelcome && !sessionStorage.getItem(welcomeKey)) {
+      if (sandyLive && chatBox && chatBox.children.length === 0) {
+        const template = guestName
+          ? (voiceCfg.welcome_template || "")
+          : (voiceCfg.welcome_template_no_name || "");
+
+        let intro = String(template || "");
+
+        intro = safeReplaceAll(intro, "{{guest_name}}", guestName || "");
+        intro = safeReplaceAll(intro, "{{assistant_name}}", assistantName || "Sandy");
+        intro = safeReplaceAll(intro, "{{property_name}}", window.PROPERTY_NAME || "");
+
+        const fallback = `Hi! I’m ${assistantName || "Sandy"}, your stay assistant for ${window.PROPERTY_NAME || "your stay"}. How can I help?`;
+
+        renderMessage((intro.trim() || fallback), "bot");
+
+        chatHasWelcome = true;
+        sessionStorage.setItem(welcomeKey, "1");
       }
-    
-      scrollChatToBottom();
     }
-    }
+
+    scrollChatToBottom();
+  }
+}
 
     // --- Menu screen links ---
     menuLinks.forEach((btn) => {
