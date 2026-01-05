@@ -406,6 +406,37 @@
             </div>
           </div>
 
+
+          <!-- Inline Assistant Config Panel (inside Properties view) -->
+<div id="configPanelWrap" class="hidden">
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <div class="text-sm font-semibold">Assistant Config</div>
+        <div class="text-xs text-slate-500" id="configScopeLabel">Select a property to edit its config.</div>
+      </div>
+
+      <button
+        type="button"
+        class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+        onclick="closeInlineConfig()"
+      >
+        Close
+      </button>
+    </div>
+
+    <div class="mt-4">
+      <iframe
+        id="configIframe"
+        class="w-full rounded-xl border border-slate-200 bg-white"
+        style="height: 860px;"
+        src="about:blank"
+      ></iframe>
+    </div>
+  </div>
+</div>
+
+
           <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
             {% for prop in properties %}
             <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
@@ -455,15 +486,14 @@
              <div class="mt-4 flex gap-2 flex-wrap items-center">
   {% if prop.data_folder_path %}
     <a
-      href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
-      data-config-file="{{ prop.data_folder_path }}/config.json"
-      data-config-label="{{ prop.property_name|e }}"
-      onclick="return openAssistantConfig(this);"
-      class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-      {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-    >
-      Assistant Config
-    </a>
+  href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
+  onclick="return openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
+  class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+  {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+>
+  Assistant Config
+</a>
+
 
     <a
       href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
@@ -503,47 +533,7 @@
             </div>
             {% endfor %}
           </div>
-
-
-
-<!-- Inline Config Panel (loads partial UI here) -->
-<div id="configPanelWrap" class="hidden">
-  <div class="mt-6 rounded-2xl border border-slate-200 bg-white p-4 card">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <div class="text-sm font-semibold">Assistant Config</div>
-        <div class="text-xs text-slate-500" id="configScopeLabel">
-          Select a property to edit its config.
-        </div>
-      </div>
-
-      <div class="flex items-center gap-3">
-        <div id="configLoading" class="hidden text-xs text-slate-500">
-          Loading…
-        </div>
-        <button
-          type="button"
-          class="text-xs font-semibold text-slate-600 hover:text-slate-900"
-          onclick="
-            document.getElementById('configPanel').innerHTML='';
-            document.getElementById('configScopeLabel').textContent='Select a property to edit its config.';
-            document.getElementById('configPanelWrap').classList.add('hidden');
-          "
-        >
-          Close
-        </button>
-      </div>
-    </div>
-
-    <div id="configPanel" class="mt-4">
-      <!-- config UI partial loads here -->
-    </div>
-  </div>
-</div>
-
-
-
-                    
+       
         </section>
 
 
@@ -1593,72 +1583,47 @@ window.openChatDetail = openChatDetail;
       console.error("UNHANDLED PROMISE:", e.reason);
     });
 
-
-
-   function openAssistantConfig(linkEl) {
+function openInlineConfig(filePath, propertyName) {
   try {
     if (window.IS_LOCKED) {
       toast?.("Complete payment to unlock config editing.");
       return false;
     }
 
-    const drawer = document.getElementById("configDrawer");
-    const body = document.getElementById("configDrawerBody");
-    const label = document.getElementById("configDrawerLabel");
-    if (!drawer || !body || !label) return true; // fallback to href navigation
+    const wrap = document.getElementById("configPanelWrap");
+    const iframe = document.getElementById("configIframe");
+    const label = document.getElementById("configScopeLabel");
 
-    const file = (linkEl.getAttribute("data-config-file") || "").trim();
-    const propLabel = (linkEl.getAttribute("data-config-label") || "Property").trim();
+    if (!wrap || !iframe || !label) return true; // fallback to normal link
 
-    label.textContent = `Editing: ${propLabel}`;
-    drawer.classList.remove("hidden");
-    document.body.classList.add("overflow-hidden");
+    // show panel
+    wrap.classList.remove("hidden");
+    label.textContent = `Editing: ${propertyName || "Property"}`;
 
-    // loading state
-    body.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+    // load existing full-page UI inside iframe
+    const url = `/admin/config-ui?file=${encodeURIComponent(filePath)}`;
+    iframe.src = url;
 
-    // Load the PARTIAL html into the drawer
-    // IMPORTANT: this should return just the editor HTML (not a full <html> doc)
-    fetch(`/admin/config-ui/partial?file=${encodeURIComponent(file)}`, {
-      credentials: "include",
-      headers: { "X-Requested-With": "fetch" }
-    })
-      .then(async (res) => {
-        if (res.status === 401 || res.status === 403) {
-          loginRedirect?.();
-          return;
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const html = await res.text();
-        body.innerHTML = html || `<div class="text-sm text-slate-500">No content.</div>`;
-      })
-      .catch((err) => {
-        console.error("Config drawer load failed:", err);
-        body.innerHTML = `
-          <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
-            Could not load config editor. Falling back to full page…
-          </div>
-        `;
-        // fallback: navigate to the href after a short tick
-        setTimeout(() => { window.location.href = linkEl.href; }, 400);
-      });
+    // scroll panel into view
+    wrap.scrollIntoView({ behavior: "smooth", block: "start" });
 
-    return false; // prevent navigation
+    return false; // prevent normal navigation
   } catch (e) {
     console.error(e);
-    return true; // fallback to href
+    return true; // fallback
   }
 }
 
-function closeAssistantConfig() {
-  const drawer = document.getElementById("configDrawer");
-  const body = document.getElementById("configDrawerBody");
-  const label = document.getElementById("configDrawerLabel");
-  if (drawer) drawer.classList.add("hidden");
-  document.body.classList.remove("overflow-hidden");
-  if (label) label.textContent = "Select a property";
-  if (body) body.innerHTML = `<div class="text-sm text-slate-500">Select a property to edit its config.</div>`;
+function closeInlineConfig() {
+  const wrap = document.getElementById("configPanelWrap");
+  const iframe = document.getElementById("configIframe");
+  const label = document.getElementById("configScopeLabel");
+
+  if (wrap) wrap.classList.add("hidden");
+  if (label) label.textContent = "Select a property to edit its config.";
+  if (iframe) iframe.src = "about:blank";
 }
+
 
    
 
