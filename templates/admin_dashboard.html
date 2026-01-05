@@ -451,16 +451,24 @@
               </div>
 
               <div class="mt-4 flex gap-2 flex-wrap items-center">
-                {% if user_role == "super" and prop.data_folder_path %}
-                  <a href="/edit-file?file={{ prop.data_folder_path }}/config.json"
-                     class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800">
-                    Edit Config
+                {% if prop.data_folder_path %}
+                  <a
+                    href="/edit-file?file={{ prop.data_folder_path }}/config.json"
+                    class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                    {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                  >
+                    Assistant Config
                   </a>
-                  <a href="/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                     class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50">
-                    Edit Manual
+                
+                  <a
+                    href="/edit-file?file={{ prop.data_folder_path }}/house_manual.txt"
+                    class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                    {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                  >
+                    House Manual
                   </a>
                 {% endif %}
+
 
                 <button
                   onclick="syncProperty({{ prop.id }}, this)"
