@@ -1577,6 +1577,7 @@ window.openChatDetail = openChatDetail;
       console.error("UNHANDLED PROMISE:", e.reason);
     });
 
+
 window.openInlineConfig = async function (filePath, propertyName) {
   // Hide cards, show config area
   document.getElementById("propertiesList")?.classList.add("hidden");
@@ -1591,23 +1592,48 @@ window.openInlineConfig = async function (filePath, propertyName) {
   try {
     const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}`, {
       credentials: "include",
-      headers: { "X-Requested-With": "fetch" }
+      headers: { "X-Requested-With": "fetch" },
     });
 
     if (res.status === 401 || res.status === 403) return loginRedirect?.();
-    if (!res.ok) throw new Error("Could not load config UI");
+    if (!res.ok) throw new Error(`Could not load config UI (HTTP ${res.status})`);
 
-    const html = await res.text();
-    if (panel) panel.innerHTML = html;
+    const htmlText = await res.text();
 
-    // Scroll into view for a nice UX
+    // Parse returned HTML safely
+    const doc = new DOMParser().parseFromString(htmlText, "text/html");
+
+    // Prefer body content if it's a full document; otherwise fallback
+    const bodyHtml = doc.body?.innerHTML?.trim();
+    const contentHtml = bodyHtml && bodyHtml.length ? bodyHtml : htmlText;
+
+    // Inject
+    panel.innerHTML = contentHtml;
+
+    // IMPORTANT: scripts inserted via innerHTML do NOT execute.
+    // Recreate them so they execute.
+    const scripts = Array.from(panel.querySelectorAll("script"));
+    for (const old of scripts) {
+      const s = document.createElement("script");
+
+      // copy attributes (src, type, etc.)
+      for (const attr of old.attributes) s.setAttribute(attr.name, attr.value);
+
+      // inline script content
+      if (!old.src) s.textContent = old.textContent || "";
+
+      // Replace old with new executable script
+      old.replaceWith(s);
+    }
+
+    // Scroll into view
     document.getElementById("configPanelWrap")?.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     console.error(e);
-    if (panel) panel.innerHTML = `<div class="text-sm text-rose-700">Failed to load config.</div>`;
+    if (panel) panel.innerHTML = `<div class="text-sm text-rose-700">Failed to load config: ${e.message}</div>`;
   }
 
-  return false; // safety
+  return false;
 };
 
 window.closeInlineConfig = function () {
@@ -1620,8 +1646,6 @@ window.closeInlineConfig = function () {
   const label = document.getElementById("configScopeLabel");
   if (label) label.textContent = "Select a property to edit its config.";
 };
-
-
 
    
 
