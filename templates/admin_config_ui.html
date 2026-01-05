@@ -59,7 +59,15 @@
         <span id="dot" class="status-dot"></span>
         <span id="statusText" class="muted">Loaded.</span>
         <button class="btn" id="btnReload" type="button">Reload</button>
-        <button class="btn danger" id="btnResetAll" type="button">Reset to defaults</button>
+
+        {% if not is_defaults %}
+          <button class="btn danger" id="btnResetAll" type="button">Reset to defaults</button>
+        {% else %}
+          <button class="btn" id="btnResetAll" type="button" disabled title="You are editing defaults already">
+            Reset to defaults
+          </button>
+        {% endif %}
+
         <button class="btn primary" id="btnSave" type="button">Save</button>
       </div>
     </div>
@@ -232,7 +240,6 @@
     // -----------------------
     const FILE_PATH = {{ file_path|tojson }};
     const IS_DEFAULTS = {{ (is_defaults or False)|tojson }};
-    const DEFAULTS_PATH = "defaults/config.json";
     const initialConfig = {{ config_json|tojson }};
 
     // -----------------------
@@ -253,12 +260,12 @@
     }
     function splitLines(text){
       return (text || "")
-        .split("\\n")
+        .split("\n")
         .map(s => s.trim())
         .filter(Boolean);
     }
     function joinLines(arr){
-      return (arr || []).join("\\n");
+      return (arr || []).join("\n");
     }
     function deepClone(x){ return JSON.parse(JSON.stringify(x || {})); }
 
@@ -268,6 +275,9 @@
     let cfg = deepClone(initialConfig || {});
     let dirty = false;
     let saving = false;
+
+    // ✅ prevents raw JSON textarea from being overwritten while user is typing there
+    let editingRaw = false;
 
     // Ensure base structure
     function ensureShape(){
@@ -306,24 +316,31 @@
 
       renderQuickReplies();
 
-      // sync raw json too
-      $("rawJson").value = JSON.stringify(cfg, null, 2);
+      // ✅ only sync raw JSON if user isn't actively editing it
+      if (!editingRaw) {
+        $("rawJson").value = JSON.stringify(cfg, null, 2);
+      }
 
       // preview
       const name = a.name || "Sandy";
       $("pvName").textContent = name;
       $("pvName2").textContent = name;
 
-      const welcome = (a.voice.welcome_template_no_name || "").replaceAll("{{assistant_name}}", name).replaceAll("{{property_name}}", "Casa Sea Esta");
+      const welcome = (a.voice.welcome_template_no_name || "")
+        .replaceAll("{{assistant_name}}", name)
+        .replaceAll("{{property_name}}", "Casa Sea Esta");
+
       $("pvWelcome").textContent = welcome || `Hi there! I’m ${name}, your stay assistant for Casa Sea Esta.`;
 
       // simple preview reply depends on tone/verbosity
       const v = (a.verbosity || "balanced");
       const t = (a.tone || "luxury");
+
       let reply = "<b>WiFi</b><br/>Network: …<br/>Password: …<br/><br/><b>Parking</b><br/>Here are the best options…";
       if (v === "short") reply = "<b>WiFi</b><br/>Network: … / Password: …<br/><b>Parking</b><br/>Best option: …";
       if (v === "detailed") reply = "<b>WiFi</b><br/>Network: …<br/>Password: …<br/>Tip: …<br/><br/><b>Parking</b><br/>Options: …<br/>Notes: …<br/>Map: …";
       if (t === "luxury") reply = reply.replace("Here are the best options…", "Here are the best options, tailored for a smooth arrival…");
+
       $("pvReply").innerHTML = reply;
     }
 
@@ -334,6 +351,7 @@
       const list = $("quickRepliesList");
       list.innerHTML = "";
       const a = cfg.assistant;
+
       (a.quick_replies || []).forEach((txt, idx) => {
         const row = document.createElement("div");
         row.className = "list-item";
@@ -346,9 +364,9 @@
             <span>${escapeHtml(txt)}</span>
           </div>
           <div class="row" style="gap:8px;">
-            <button class="btn" data-act="up">↑</button>
-            <button class="btn" data-act="down">↓</button>
-            <button class="btn danger" data-act="del">Remove</button>
+            <button class="btn" data-act="up" type="button">↑</button>
+            <button class="btn" data-act="down" type="button">↓</button>
+            <button class="btn danger" data-act="del" type="button">Remove</button>
           </div>
         `;
 
@@ -526,9 +544,13 @@
         alert("Invalid JSON: " + (e.message || e));
       }
     }
+
     function syncFormToRaw(){
       readFormIntoCfg();
+
+      // user explicitly asked to sync, so we DO overwrite raw json even if editing
       $("rawJson").value = JSON.stringify(cfg, null, 2);
+
       setStatus("warn", "Synced form → raw JSON (unsaved)...");
       dirty = true;
       scheduleAutosave();
@@ -538,23 +560,35 @@
     // Wire events
     // -----------------------
     function wire(){
+      // ✅ track when user is editing raw JSON
+      $("rawJson").addEventListener("focus", () => { editingRaw = true; });
+      $("rawJson").addEventListener("blur", () => { editingRaw = false; });
+
       const inputs = document.querySelectorAll("input, textarea, select");
       inputs.forEach(el => {
         el.addEventListener("input", () => {
-          // keep cfg in sync + autosave
           readFormIntoCfg();
           dirty = true;
           setStatus("warn", "Unsaved changes…");
-          $("rawJson").value = JSON.stringify(cfg, null, 2);
+
+          // ✅ do not overwrite raw JSON while editing it
+          if (!editingRaw) {
+            $("rawJson").value = JSON.stringify(cfg, null, 2);
+          }
+
           scheduleAutosave();
-          // keep preview updated
           render();
         });
+
         el.addEventListener("change", () => {
           readFormIntoCfg();
           dirty = true;
           setStatus("warn", "Unsaved changes…");
-          $("rawJson").value = JSON.stringify(cfg, null, 2);
+
+          if (!editingRaw) {
+            $("rawJson").value = JSON.stringify(cfg, null, 2);
+          }
+
           scheduleAutosave();
           render();
         });
@@ -562,7 +596,11 @@
 
       $("btnSave").addEventListener("click", saveNow);
       $("btnReload").addEventListener("click", () => location.reload());
-      $("btnResetAll").addEventListener("click", resetToDefaults);
+
+      const resetBtn = $("btnResetAll");
+      if (resetBtn) {
+        resetBtn.addEventListener("click", resetToDefaults);
+      }
 
       $("btnApplyRaw").addEventListener("click", applyRawToForm);
       $("btnSyncRaw").addEventListener("click", syncFormToRaw);
