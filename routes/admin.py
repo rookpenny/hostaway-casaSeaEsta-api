@@ -36,6 +36,7 @@ from models import PMC, Property, ChatSession, ChatMessage, PMCUser, Guide, Upgr
 
 from flask import request, render_template, abort, make_response
 
+from utils.github_sync import ensure_repo, sync_files_to_github
 from utils.pms_sync import sync_properties, sync_all_integrations
 from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
@@ -80,6 +81,157 @@ TMP_DIR.mkdir(parents=True, exist_ok=True)
 #    finally:
 #        db.close()
 
+# ----------------------------
+# GitHub helpers
+# ----------------------------
+def _read_repo_file_text(rel_path: str) -> str:
+    repo, repo_root = ensure_repo()
+    abs_path = (repo_root / rel_path).resolve()
+
+    # safety: must remain under repo_root
+    if not str(abs_path).startswith(str(repo_root.resolve())):
+        raise HTTPException(status_code=400, detail="Invalid path")
+
+    if not abs_path.exists():
+        raise HTTPException(status_code=404, detail=f"File not found: {rel_path}")
+
+    return abs_path.read_text(encoding="utf-8")
+
+
+def _write_repo_file_text_via_git(rel_path: str, text: str, commit_msg: str) -> None:
+    tmp_dir = Path("/tmp/hostscout_ui_edits")
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+    tmp_file = tmp_dir / f"{uuid.uuid4().hex}.txt"
+    tmp_file.write_text(text, encoding="utf-8")
+
+    sync_files_to_github(
+        updated_files={rel_path: str(tmp_file)},
+        commit_hint=commit_msg,
+    )
+
+# ----------------------------
+# The 3 FastAPI routes to use your templates/admin_config_ui.html
+# ----------------------------
+
+def _normalize_config(cfg: dict) -> dict:
+    if not isinstance(cfg, dict):
+        cfg = {}
+
+    a = cfg.get("assistant")
+    if not isinstance(a, dict):
+        a = {}
+        cfg["assistant"] = a
+
+    a.setdefault("name", "Sandy")
+    a.setdefault("tone", "luxury")
+    a.setdefault("verbosity", "balanced")
+    a.setdefault("emoji_level", "light")
+    a.setdefault("formality", "polished")
+    a.setdefault("avatar_url", "/static/img/sandy.png")
+    a.setdefault("style", "Minimal, premium hotel concierge tone. Calm, professional, very short.")
+    a.setdefault("extra_instructions", "")
+
+    if not isinstance(a.get("do"), list): a["do"] = []
+    if not isinstance(a.get("dont"), list): a["dont"] = []
+
+    v = a.get("voice")
+    if not isinstance(v, dict):
+        v = {}
+        a["voice"] = v
+
+    v.setdefault("welcome_template", "Hi {{guest_name}}! I’m {{assistant_name}}, your stay assistant for {{property_name}}. You can ask about check-in, WiFi, parking, or local tips.")
+    v.setdefault("welcome_template_no_name", "Hi there! I’m {{assistant_name}}, your stay assistant for {{property_name}}. Ask me anything about check-in, WiFi, parking, or local recommendations.")
+    v.setdefault("offline_message", "I’m currently offline for this property 🌙\n\nFor urgent questions, please contact your host directly via your booking app or email.")
+    v.setdefault("fallback_message", "Hmm, I didn’t catch that — could you try again? 🌴")
+    v.setdefault("error_message", "Oops! Something went wrong. Please try again in a moment. 🐚")
+
+    if not isinstance(a.get("quick_replies"), list):
+        a["quick_replies"] = ["WiFi", "Door code", "Parking", "Check-out time", "Local restaurants", "House rules"]
+
+    return cfg
+
+
+@router.get("/admin/config-ui", response_class=HTMLResponse)
+def admin_config_ui(request: Request, file: str = Query(...), db: Session = Depends(get_db)):
+    # ✅ scope gate + sanitize
+    file = require_file_in_scope(request, db, file)
+
+    raw = _read_repo_file_text(file)
+    try:
+        cfg = json.loads(raw or "{}")
+    except Exception:
+        cfg = {}
+
+    cfg = _normalize_config(cfg)
+
+    is_defaults = file.strip().lower() == "defaults/config.json"
+    scope_label = "Defaults" if is_defaults else "Property"
+
+    return templates.TemplateResponse(
+        "admin_config_ui.html",
+        {
+            "request": request,
+            "file_path": file,
+            "config_json": cfg,
+            "is_defaults": is_defaults,
+            "scope_label": scope_label,
+        },
+    )
+
+
+@router.post("/admin/config-ui/save")
+async def admin_config_ui_save(request: Request, db: Session = Depends(get_db)):
+    payload = await request.json()
+    file_path = (payload.get("file_path") or "").strip()
+    config = payload.get("config") or {}
+
+    if not file_path:
+        return JSONResponse({"ok": False, "error": "Missing file_path"}, status_code=400)
+
+    file_path = require_file_in_scope(request, db, file_path)
+
+    if not isinstance(config, dict):
+        return JSONResponse({"ok": False, "error": "Invalid config payload"}, status_code=400)
+
+    config = _normalize_config(config)
+    text = json.dumps(config, indent=2, ensure_ascii=False) + "\n"
+
+    _write_repo_file_text_via_git(
+        rel_path=file_path,
+        text=text,
+        commit_msg=f"Update config via UI: {file_path}",
+    )
+    return {"ok": True}
+
+
+@router.post("/admin/config-ui/reset")
+async def admin_config_ui_reset(request: Request, db: Session = Depends(get_db)):
+    payload = await request.json()
+    file_path = (payload.get("file_path") or "").strip()
+    if not file_path:
+        return JSONResponse({"ok": False, "error": "Missing file_path"}, status_code=400)
+
+    file_path = require_file_in_scope(request, db, file_path)
+
+    defaults_raw = _read_repo_file_text("defaults/config.json")
+    try:
+        defaults_cfg = json.loads(defaults_raw or "{}")
+    except Exception:
+        defaults_cfg = {}
+    defaults_cfg = _normalize_config(defaults_cfg)
+
+    # If resetting defaults file itself, just return it
+    if file_path.strip().lower() == "defaults/config.json":
+        return {"ok": True, "config": defaults_cfg}
+
+    text = json.dumps(defaults_cfg, indent=2, ensure_ascii=False) + "\n"
+
+    _write_repo_file_text_via_git(
+        rel_path=file_path,
+        text=text,
+        commit_msg=f"Reset config to defaults: {file_path}",
+    )
+    return {"ok": True, "config": defaults_cfg}
 
 
 # ----------------------------
@@ -774,6 +926,10 @@ def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
     file_path = (file_path or "").strip().lstrip("/").strip()
     if ".." in file_path.split("/"):
         raise HTTPException(status_code=400, detail="Invalid path")
+
+    # ✅ Allow defaults for everyone who is logged in + scoped (or super)
+    if file_path.startswith("defaults/"):
+        return file_path
 
     if user_role == "super":
         return file_path
