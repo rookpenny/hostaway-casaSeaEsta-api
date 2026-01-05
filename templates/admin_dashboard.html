@@ -452,27 +452,18 @@
                 {% endif %}
               </div>
 
-              <div class="mt-4 flex gap-2 flex-wrap items-center">
+             <div class="mt-4 flex gap-2 flex-wrap items-center">
   {% if prop.data_folder_path %}
- <a
-  href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
-  hx-get="/admin/config-ui/partial?file={{ prop.data_folder_path }}/config.json"
-  hx-target="#configPanel"
-  hx-swap="innerHTML"
-  hx-indicator="#configLoading"
-  hx-on::after-request="
-    document.getElementById('configScopeLabel').textContent='Editing: {{ prop.property_name|e }}';
-    document.getElementById('configPanelWrap').classList.remove('hidden');
-    document.getElementById('configPanelWrap').scrollIntoView({behavior:'smooth', block:'start'});
-  "
-  class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-  {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
->
-  Assistant Config
-</a>
-
-
-
+    <a
+      href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
+      data-config-file="{{ prop.data_folder_path }}/config.json"
+      data-config-label="{{ prop.property_name|e }}"
+      onclick="return openAssistantConfig(this);"
+      class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+      {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+    >
+      Assistant Config
+    </a>
 
     <a
       href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
@@ -482,6 +473,7 @@
       House Manual
     </a>
   {% endif %}
+
   <button
     onclick="syncProperty({{ prop.id }}, this)"
     class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
@@ -506,6 +498,7 @@
     </a>
   {% endif %}
 </div>
+
 
             </div>
             {% endfor %}
@@ -553,27 +546,6 @@
                     
         </section>
 
-<section id="config" class="mt-6">
-  <div class="rounded-2xl border border-slate-200 bg-white p-4">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <div class="text-sm font-semibold">Assistant Config</div>
-        <div class="text-xs text-slate-500" id="configScopeLabel">Select a property to edit its config.</div>
-      </div>
-      <button
-        type="button"
-        class="text-xs font-semibold text-slate-600 hover:text-slate-900"
-        onclick="document.getElementById('configPanel').innerHTML=''; document.getElementById('configScopeLabel').textContent='Select a property to edit its config.';"
-      >
-        Close
-      </button>
-    </div>
-
-    <div id="configPanel" class="mt-4">
-      <!-- config UI partial loads here -->
-    </div>
-  </div>
-</section>
 
         <section id="view-guides" class="view hidden space-y-4">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
@@ -1569,6 +1541,39 @@ window.openChatDetail = openChatDetail;
 
 
       </div>
+
+                    <!-- Assistant Config Drawer -->
+<div id="configDrawer" class="fixed inset-0 z-[9999] hidden">
+  <!-- Backdrop -->
+  <div
+    class="absolute inset-0 bg-black/30"
+    onclick="closeAssistantConfig()"
+    aria-hidden="true"
+  ></div>
+
+  <!-- Panel -->
+  <div class="absolute right-0 top-0 h-full w-full sm:max-w-[720px] bg-white border-l border-slate-200 shadow-2xl flex flex-col">
+    <div class="h-16 px-5 flex items-center justify-between border-b border-slate-200">
+      <div class="min-w-0">
+        <div class="text-sm font-semibold">Assistant Config</div>
+        <div id="configDrawerLabel" class="text-xs text-slate-500 truncate">Select a property</div>
+      </div>
+
+      <button
+        type="button"
+        class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+        onclick="closeAssistantConfig()"
+      >
+        Close
+      </button>
+    </div>
+
+    <div id="configDrawerBody" class="flex-1 overflow-auto p-4 bg-slate-50">
+      <div class="text-sm text-slate-500">Select a property to edit its config.</div>
+    </div>
+  </div>
+</div>
+
     </main>
   </div>
 
@@ -1588,6 +1593,74 @@ window.openChatDetail = openChatDetail;
       console.error("UNHANDLED PROMISE:", e.reason);
     });
 
+
+
+   function openAssistantConfig(linkEl) {
+  try {
+    if (window.IS_LOCKED) {
+      toast?.("Complete payment to unlock config editing.");
+      return false;
+    }
+
+    const drawer = document.getElementById("configDrawer");
+    const body = document.getElementById("configDrawerBody");
+    const label = document.getElementById("configDrawerLabel");
+    if (!drawer || !body || !label) return true; // fallback to href navigation
+
+    const file = (linkEl.getAttribute("data-config-file") || "").trim();
+    const propLabel = (linkEl.getAttribute("data-config-label") || "Property").trim();
+
+    label.textContent = `Editing: ${propLabel}`;
+    drawer.classList.remove("hidden");
+    document.body.classList.add("overflow-hidden");
+
+    // loading state
+    body.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+
+    // Load the PARTIAL html into the drawer
+    // IMPORTANT: this should return just the editor HTML (not a full <html> doc)
+    fetch(`/admin/config-ui/partial?file=${encodeURIComponent(file)}`, {
+      credentials: "include",
+      headers: { "X-Requested-With": "fetch" }
+    })
+      .then(async (res) => {
+        if (res.status === 401 || res.status === 403) {
+          loginRedirect?.();
+          return;
+        }
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const html = await res.text();
+        body.innerHTML = html || `<div class="text-sm text-slate-500">No content.</div>`;
+      })
+      .catch((err) => {
+        console.error("Config drawer load failed:", err);
+        body.innerHTML = `
+          <div class="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-900">
+            Could not load config editor. Falling back to full page…
+          </div>
+        `;
+        // fallback: navigate to the href after a short tick
+        setTimeout(() => { window.location.href = linkEl.href; }, 400);
+      });
+
+    return false; // prevent navigation
+  } catch (e) {
+    console.error(e);
+    return true; // fallback to href
+  }
+}
+
+function closeAssistantConfig() {
+  const drawer = document.getElementById("configDrawer");
+  const body = document.getElementById("configDrawerBody");
+  const label = document.getElementById("configDrawerLabel");
+  if (drawer) drawer.classList.add("hidden");
+  document.body.classList.remove("overflow-hidden");
+  if (label) label.textContent = "Select a property";
+  if (body) body.innerHTML = `<div class="text-sm text-slate-500">Select a property to edit its config.</div>`;
+}
+
+   
 
   // ----------------------------
   // Small UI helpers
