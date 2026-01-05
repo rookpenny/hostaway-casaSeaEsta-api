@@ -296,245 +296,239 @@
         {% endif %}
 
         <!-- OVERVIEW -->
-        <section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
+<section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
 
-          {% set total_props = properties|length %}
-
-          {% if is_locked %}
-            {% set live_props = 0 %}
-            {% set offline_props = total_props %}
-          {% else %}
-            {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
-            {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
-          {% endif %}
-
-          <div class="grid grid-cols-12 gap-4">
-            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-xs text-slate-500">Properties</div>
-              <div class="mt-2 text-3xl font-semibold" id="stat-total">{{ total_props }}</div>
-              <div class="mt-2 text-xs text-slate-500">Portfolio size</div>
-            </div>
-
-            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-xs text-slate-500">Live</div>
-              <div class="mt-2 text-3xl font-semibold" id="stat-live">{{ live_props }}</div>
-              <div class="mt-2 text-xs text-emerald-600">Sandy enabled</div>
-            </div>
-
-            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-xs text-slate-500">Offline</div>
-              <div class="mt-2 text-3xl font-semibold" id="stat-offline">{{ offline_props }}</div>
-              <div class="mt-2 text-xs text-rose-600">Needs attention</div>
-            </div>
-
-            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-xs text-slate-500">Last Sync</div>
-              <div class="mt-2 text-lg font-semibold">
-                {% if properties and properties[0].last_synced %}
-                  {% set seconds = (now - properties[0].last_synced).total_seconds() %}
-                  {% if seconds < 60 %} just now
-                  {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
-                  {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
-                  {% else %} {{ (seconds // 86400)|int }} days ago
-                  {% endif %}
-                {% else %}
-                  —
-                {% endif %}
-              </div>
-              <div class="mt-2 text-xs text-slate-500">Most recent property record</div>
-            </div>
-          </div>
-
-          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm font-semibold">Status Overview</div>
-                <div class="text-xs text-slate-500">LIVE vs OFFLINE</div>
-              </div>
-              <div class="text-xs text-slate-500">Auto-updates with your data</div>
-            </div>
-            <div class="mt-4">
-              <canvas id="statusChart" height="90"></canvas>
-            </div>
-          </div>
-
-          {% if user_role == "super" %}
-          <div class="grid grid-cols-12 gap-4">
-            <div class="col-span-12 xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-sm font-semibold">Chat Volume</div>
-              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
-                Chart placeholder
-              </div>
-            </div>
-            <div class="col-span-12 xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-sm font-semibold">Priority Inbox</div>
-              <div class="mt-2 text-xs text-slate-500">Escalations & time-sensitive issues</div>
-              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
-                Queue placeholder
-              </div>
-            </div>
-          </div>
-          {% endif %}
-        </section>
-
-        <!-- PROPERTIES -->
-        <section id="view-properties" class="view hidden space-y-4">
-
-          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-            <div class="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
-              <div>
-                <div class="text-sm font-semibold">Properties</div>
-                <div class="text-xs text-slate-500">Search and manage your portfolio</div>
-              </div>
-
-              <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-                <input
-                  type="text"
-                  id="searchInput"
-                  placeholder="Search properties…"
-                  class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72"
-                />
-                <select
-                  id="statusFilter"
-                  class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-48"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="live">LIVE</option>
-                  <option value="offline">OFFLINE</option>
-                </select>
-              </div>
-            </div>
-          </div>
-
-
-          <!-- Inline Assistant Config Panel (inside Properties view) -->
-<div id="configPanelWrap" class="hidden">
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-    <div class="flex items-center justify-between gap-3">
-      <div>
-        <div class="text-sm font-semibold">Assistant Config</div>
-        <div class="text-xs text-slate-500" id="configScopeLabel">Select a property to edit its config.</div>
-      </div>
-
-      <button
-        type="button"
-        class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
-        onclick="closeInlineConfig()"
-      >
-        Close
-      </button>
-    </div>
-
-    <div class="mt-4">
-      <iframe
-        id="configIframe"
-        class="w-full rounded-xl border border-slate-200 bg-white"
-        style="height: 860px;"
-        src="about:blank"
-      ></iframe>
-    </div>
-  </div>
-</div>
-
-
-          <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-            {% for prop in properties %}
-            <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
-                 data-property-card
-                 data-name="{{ prop.property_name }}"
-                 data-live="{{ 'true' if prop.sandy_enabled else 'false' }}">
-
-              <div class="flex items-start justify-between gap-3">
-                <div class="min-w-0">
-                  <div class="text-lg font-semibold truncate">{{ prop.property_name }}</div>
-                  <div class="mt-1 text-xs text-slate-500">
-                    ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %}
-                  </div>
-                </div>
-
-                {% if is_locked %}
-                  <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
-                    LOCKED
-                  </span>
-                {% else %}
-                  {% if prop.sandy_enabled %}
-                    <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold">
-                      LIVE
-                    </span>
-                  {% else %}
-                    <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
-                      OFFLINE
-                    </span>
-                  {% endif %}
-                {% endif %}
-              </div>
-
-              <div class="mt-3 text-xs text-slate-500">
-                <span class="font-semibold text-slate-700">Last synced:</span>
-                {% if prop.last_synced %}
-                  {% set seconds = (now - prop.last_synced).total_seconds() %}
-                  {% if seconds < 60 %} just now
-                  {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
-                  {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
-                  {% else %} {{ (seconds // 86400)|int }} days ago
-                  {% endif %}
-                {% else %}
-                  —
-                {% endif %}
-              </div>
-
-             <div class="mt-4 flex gap-2 flex-wrap items-center">
-  {% if prop.data_folder_path %}
-    <a
-  href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
-  onclick="return openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
-  class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-  {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
->
-  Assistant Config
-</a>
-
-
-    <a
-      href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-      class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-      {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-    >
-      House Manual
-    </a>
-  {% endif %}
-
-  <button
-    onclick="syncProperty({{ prop.id }}, this)"
-    class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-    type="button"
-    {% if is_locked %}disabled{% endif %}
-  >
-    Sync
-  </button>
-
-  <button
-    onclick="toggleProperty({{ prop.id }}, this)"
-    class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-    type="button"
-    {% if is_locked %}disabled{% endif %}
-  >
-    {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
-  </button>
+  {% set total_props = properties|length %}
 
   {% if is_locked %}
-    <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
-      Unlock →
-    </a>
+    {% set live_props = 0 %}
+    {% set offline_props = total_props %}
+  {% else %}
+    {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
+    {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
   {% endif %}
-</div>
 
+  <div class="grid grid-cols-12 gap-4">
+    <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+      <div class="text-xs text-slate-500">Properties</div>
+      <div class="mt-2 text-3xl font-semibold" id="stat-total">{{ total_props }}</div>
+      <div class="mt-2 text-xs text-slate-500">Portfolio size</div>
+    </div>
 
+    <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+      <div class="text-xs text-slate-500">Live</div>
+      <div class="mt-2 text-3xl font-semibold" id="stat-live">{{ live_props }}</div>
+      <div class="mt-2 text-xs text-emerald-600">Sandy enabled</div>
+    </div>
+
+    <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+      <div class="text-xs text-slate-500">Offline</div>
+      <div class="mt-2 text-3xl font-semibold" id="stat-offline">{{ offline_props }}</div>
+      <div class="mt-2 text-xs text-rose-600">Needs attention</div>
+    </div>
+
+    <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+      <div class="text-xs text-slate-500">Last Sync</div>
+      <div class="mt-2 text-lg font-semibold">
+        {% if properties and properties[0].last_synced %}
+          {% set seconds = (now - properties[0].last_synced).total_seconds() %}
+          {% if seconds < 60 %} just now
+          {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+          {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+          {% else %} {{ (seconds // 86400)|int }} days ago
+          {% endif %}
+        {% else %}
+          —
+        {% endif %}
+      </div>
+      <div class="mt-2 text-xs text-slate-500">Most recent property record</div>
+    </div>
+  </div>
+
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-sm font-semibold">Status Overview</div>
+        <div class="text-xs text-slate-500">LIVE vs OFFLINE</div>
+      </div>
+      <div class="text-xs text-slate-500">Auto-updates with your data</div>
+    </div>
+    <div class="mt-4">
+      <canvas id="statusChart" height="90"></canvas>
+    </div>
+  </div>
+
+  {% if user_role == "super" %}
+  <div class="grid grid-cols-12 gap-4">
+    <div class="col-span-12 xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
+      <div class="text-sm font-semibold">Chat Volume</div>
+      <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
+        Chart placeholder
+      </div>
+    </div>
+    <div class="col-span-12 xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
+      <div class="text-sm font-semibold">Priority Inbox</div>
+      <div class="mt-2 text-xs text-slate-500">Escalations & time-sensitive issues</div>
+      <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
+        Queue placeholder
+      </div>
+    </div>
+  </div>
+  {% endif %}
+</section>
+
+<!-- PROPERTIES -->
+<section id="view-properties" class="view hidden space-y-4">
+
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+      <div>
+        <div class="text-sm font-semibold">Properties</div>
+        <div class="text-xs text-slate-500">Search and manage your portfolio</div>
+      </div>
+
+      <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+        <input
+          type="text"
+          id="searchInput"
+          placeholder="Search properties…"
+          class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72"
+        />
+        <select
+          id="statusFilter"
+          class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-48"
+        >
+          <option value="all">All statuses</option>
+          <option value="live">LIVE</option>
+          <option value="offline">OFFLINE</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Inline Assistant Config (loads into main area; hides property cards while open) -->
+  <div id="configPanelWrap" class="hidden space-y-4">
+    <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <div class="text-sm font-semibold">Assistant Config</div>
+          <div class="text-xs text-slate-500" id="configScopeLabel">Editing…</div>
+        </div>
+
+        <button
+          type="button"
+          class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+          onclick="closeInlineConfig()"
+        >
+          Close
+        </button>
+      </div>
+
+      <div id="configPanel" class="mt-4">
+        <!-- /admin/config-ui HTML loads here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Property cards (we hide this whole block while config is open) -->
+  <div id="propertiesList">
+    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+      {% for prop in properties %}
+      <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
+           data-property-card
+           data-name="{{ prop.property_name }}"
+           data-live="{{ 'true' if prop.sandy_enabled else 'false' }}">
+
+        <div class="flex items-start justify-between gap-3">
+          <div class="min-w-0">
+            <div class="text-lg font-semibold truncate">{{ prop.property_name }}</div>
+            <div class="mt-1 text-xs text-slate-500">
+              ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %}
             </div>
-            {% endfor %}
           </div>
-       
-        </section>
+
+          {% if is_locked %}
+            <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+              LOCKED
+            </span>
+          {% else %}
+            {% if prop.sandy_enabled %}
+              <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold">
+                LIVE
+              </span>
+            {% else %}
+              <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
+                OFFLINE
+              </span>
+            {% endif %}
+          {% endif %}
+        </div>
+
+        <div class="mt-3 text-xs text-slate-500">
+          <span class="font-semibold text-slate-700">Last synced:</span>
+          {% if prop.last_synced %}
+            {% set seconds = (now - prop.last_synced).total_seconds() %}
+            {% if seconds < 60 %} just now
+            {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+            {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+            {% else %} {{ (seconds // 86400)|int }} days ago
+            {% endif %}
+          {% else %}
+            —
+          {% endif %}
+        </div>
+
+        <div class="mt-4 flex gap-2 flex-wrap items-center">
+          {% if prop.data_folder_path %}
+            <a
+              href="#"
+              onclick="openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}'); return false;"
+              class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+              {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+            >
+              Assistant Config
+            </a>
+
+            <a
+              href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+              class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+              {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+            >
+              House Manual
+            </a>
+          {% endif %}
+
+          <button
+            onclick="syncProperty({{ prop.id }}, this)"
+            class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            {% if is_locked %}disabled{% endif %}
+          >
+            Sync
+          </button>
+
+          <button
+            onclick="toggleProperty({{ prop.id }}, this)"
+            class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+            type="button"
+            {% if is_locked %}disabled{% endif %}
+          >
+            {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
+          </button>
+
+          {% if is_locked %}
+            <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
+              Unlock →
+            </a>
+          {% endif %}
+        </div>
+
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+
+</section>
 
 
         <section id="view-guides" class="view hidden space-y-4">
@@ -1583,46 +1577,50 @@ window.openChatDetail = openChatDetail;
       console.error("UNHANDLED PROMISE:", e.reason);
     });
 
-function openInlineConfig(filePath, propertyName) {
+window.openInlineConfig = async function (filePath, propertyName) {
+  // Hide cards, show config area
+  document.getElementById("propertiesList")?.classList.add("hidden");
+  document.getElementById("configPanelWrap")?.classList.remove("hidden");
+
+  const label = document.getElementById("configScopeLabel");
+  if (label) label.textContent = `Editing: ${propertyName || ""}`;
+
+  const panel = document.getElementById("configPanel");
+  if (panel) panel.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+
   try {
-    if (window.IS_LOCKED) {
-      toast?.("Complete payment to unlock config editing.");
-      return false;
-    }
+    const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}`, {
+      credentials: "include",
+      headers: { "X-Requested-With": "fetch" }
+    });
 
-    const wrap = document.getElementById("configPanelWrap");
-    const iframe = document.getElementById("configIframe");
-    const label = document.getElementById("configScopeLabel");
+    if (res.status === 401 || res.status === 403) return loginRedirect?.();
+    if (!res.ok) throw new Error("Could not load config UI");
 
-    if (!wrap || !iframe || !label) return true; // fallback to normal link
+    const html = await res.text();
+    if (panel) panel.innerHTML = html;
 
-    // show panel
-    wrap.classList.remove("hidden");
-    label.textContent = `Editing: ${propertyName || "Property"}`;
-
-    // load existing full-page UI inside iframe
-    const url = `/admin/config-ui?file=${encodeURIComponent(filePath)}`;
-    iframe.src = url;
-
-    // scroll panel into view
-    wrap.scrollIntoView({ behavior: "smooth", block: "start" });
-
-    return false; // prevent normal navigation
+    // Scroll into view for a nice UX
+    document.getElementById("configPanelWrap")?.scrollIntoView({ behavior: "smooth", block: "start" });
   } catch (e) {
     console.error(e);
-    return true; // fallback
+    if (panel) panel.innerHTML = `<div class="text-sm text-rose-700">Failed to load config.</div>`;
   }
-}
 
-function closeInlineConfig() {
-  const wrap = document.getElementById("configPanelWrap");
-  const iframe = document.getElementById("configIframe");
+  return false; // safety
+};
+
+window.closeInlineConfig = function () {
+  document.getElementById("configPanelWrap")?.classList.add("hidden");
+  document.getElementById("propertiesList")?.classList.remove("hidden");
+
+  const panel = document.getElementById("configPanel");
+  if (panel) panel.innerHTML = "";
+
   const label = document.getElementById("configScopeLabel");
-
-  if (wrap) wrap.classList.add("hidden");
   if (label) label.textContent = "Select a property to edit its config.";
-  if (iframe) iframe.src = "about:blank";
-}
+};
+
 
 
    
