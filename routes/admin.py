@@ -80,6 +80,200 @@ TMP_DIR.mkdir(parents=True, exist_ok=True)
 #    finally:
 #        db.close()
 
+
+
+# ----------------------------
+# Config UI: GitHub load/save helpers
+# ----------------------------
+
+def _github_get_file_text(repo_owner: str, repo_name: str, file_path: str) -> tuple[str, str]:
+    """
+    Returns: (decoded_text, sha)
+    Raises HTTPException on errors.
+    """
+    headers = _github_headers()
+    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file_path}"
+    r = requests.get(url, headers=headers)
+    if r.status_code != 200:
+        raise HTTPException(status_code=404, detail=f"GitHub fetch failed: {r.status_code} {r.text}")
+    data = r.json()
+    sha = data.get("sha")
+    if not sha:
+        raise HTTPException(status_code=500, detail="GitHub fetch missing SHA")
+    try:
+        text = base64.b64decode(data["content"]).decode("utf-8")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to decode file content")
+    return text, sha
+
+
+def _github_put_file_text(repo_owner: str, repo_name: str, file_path: str, new_text: str, sha: str, message: str) -> None:
+    headers = _github_headers()
+    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file_path}"
+    encoded = base64.b64encode(new_text.encode("utf-8")).decode("utf-8")
+    payload = {"message": message, "content": encoded, "sha": sha}
+    r = requests.put(url, headers=headers, json=payload)
+    if r.status_code not in (200, 201):
+        raise HTTPException(status_code=500, detail=f"GitHub save failed: {r.status_code} {r.text}")
+
+
+def _normalize_config_shape(cfg: dict) -> dict:
+    """
+    Ensures required structure exists and types are correct.
+    """
+    if not isinstance(cfg, dict):
+        cfg = {}
+
+    a = cfg.get("assistant")
+    if not isinstance(a, dict):
+        a = {}
+        cfg["assistant"] = a
+
+    a.setdefault("name", "Sandy")
+    a.setdefault("tone", "luxury")
+    a.setdefault("verbosity", "balanced")
+    a.setdefault("emoji_level", "light")
+    a.setdefault("formality", "polished")
+    a.setdefault("avatar_url", "/static/img/sandy.png")
+    a.setdefault("style", "Minimal, premium hotel concierge tone. Calm, professional, very short.")
+    a.setdefault("extra_instructions", "")
+
+    if not isinstance(a.get("do"), list): a["do"] = []
+    if not isinstance(a.get("dont"), list): a["dont"] = []
+
+    v = a.get("voice")
+    if not isinstance(v, dict):
+        v = {}
+        a["voice"] = v
+
+    v.setdefault("welcome_template", "Hi {{guest_name}}! I’m {{assistant_name}}, your stay assistant for {{property_name}}. You can ask about check-in, WiFi, parking, or local tips.")
+    v.setdefault("welcome_template_no_name", "Hi there! I’m {{assistant_name}}, your stay assistant for {{property_name}}. Ask me anything about check-in, WiFi, parking, or local recommendations.")
+    v.setdefault("offline_message", "I’m currently offline for this property 🌙\n\nFor urgent questions, please contact your host directly via your booking app or email.")
+    v.setdefault("fallback_message", "Hmm, I didn’t catch that — could you try again? 🌴")
+    v.setdefault("error_message", "Oops! Something went wrong. Please try again in a moment. 🐚")
+
+    if not isinstance(a.get("quick_replies"), list):
+        a["quick_replies"] = ["WiFi", "Door code", "Parking", "Check-out time", "Local restaurants", "House rules"]
+
+    return cfg
+
+
+# ----------------------------
+# 3) FastAPI routes (GET shows form, POST saves JSON)
+# ----------------------------
+
+@router.get("/admin/config-ui", response_class=HTMLResponse)
+def admin_config_ui(request: Request, file: str = Query(...), db: Session = Depends(get_db)):
+    # Scope gate (reuses your existing logic)
+    file = require_file_in_scope(request, db, file)
+
+    repo_owner = "rookpenny"
+    repo_name = "hostscout_data"
+
+    text, _sha = _github_get_file_text(repo_owner, repo_name, file)
+
+    try:
+        cfg = json.loads(text)
+    except Exception:
+        cfg = {}
+
+    cfg = _normalize_config_shape(cfg)
+
+    is_defaults = file.strip().lower() == "defaults/config.json"
+    scope_label = "Defaults" if is_defaults else "Account / Property"
+
+    return templates.TemplateResponse(
+        "admin_config_ui.html",
+        {
+            "request": request,
+            "file_path": file,
+            "config_json": cfg,
+            "is_defaults": is_defaults,
+            "scope_label": scope_label,
+        },
+    )
+
+
+@router.post("/admin/config-ui/save")
+async def admin_config_ui_save(request: Request, db: Session = Depends(get_db)):
+    payload = await request.json()
+    file_path = (payload.get("file_path") or "").strip()
+    config = payload.get("config") or {}
+
+    if not file_path:
+        return JSONResponse({"ok": False, "error": "Missing file_path"}, status_code=400)
+
+    file_path = require_file_in_scope(request, db, file_path)
+
+    # Validate config is dict + normalize
+    if not isinstance(config, dict):
+        return JSONResponse({"ok": False, "error": "Invalid config payload"}, status_code=400)
+
+    config = _normalize_config_shape(config)
+
+    # Save back to GitHub
+    repo_owner = "rookpenny"
+    repo_name = "hostscout_data"
+
+    current_text, sha = _github_get_file_text(repo_owner, repo_name, file_path)
+    new_text = json.dumps(config, indent=2, ensure_ascii=False) + "\n"
+
+    _github_put_file_text(
+        repo_owner, repo_name, file_path,
+        new_text=new_text,
+        sha=sha,
+        message=f"Update config via UI: {file_path}",
+    )
+
+    from utils.github_sync import ensure_repo
+    ensure_repo()
+
+    return {"ok": True}
+
+
+@router.post("/admin/config-ui/reset")
+async def admin_config_ui_reset(request: Request, db: Session = Depends(get_db)):
+    """
+    Overwrites current file with defaults/config.json
+    (Only makes sense for account configs; for defaults it just returns defaults.)
+    """
+    payload = await request.json()
+    file_path = (payload.get("file_path") or "").strip()
+    if not file_path:
+        return JSONResponse({"ok": False, "error": "Missing file_path"}, status_code=400)
+
+    file_path = require_file_in_scope(request, db, file_path)
+
+    repo_owner = "rookpenny"
+    repo_name = "hostscout_data"
+
+    defaults_text, _defaults_sha = _github_get_file_text(repo_owner, repo_name, "defaults/config.json")
+    try:
+        defaults_cfg = json.loads(defaults_text)
+    except Exception:
+        defaults_cfg = {}
+    defaults_cfg = _normalize_config_shape(defaults_cfg)
+
+    # If user is already editing defaults, do not overwrite — just return
+    if file_path.strip().lower() == "defaults/config.json":
+        return {"ok": True, "config": defaults_cfg}
+
+    _current_text, current_sha = _github_get_file_text(repo_owner, repo_name, file_path)
+    new_text = json.dumps(defaults_cfg, indent=2, ensure_ascii=False) + "\n"
+
+    _github_put_file_text(
+        repo_owner, repo_name, file_path,
+        new_text=new_text,
+        sha=current_sha,
+        message=f"Reset config to defaults: {file_path}",
+    )
+
+    from utils.github_sync import ensure_repo
+    ensure_repo()
+
+    return {"ok": True, "config": defaults_cfg}
+
+
 # ----------------------------
 # JSON CONFIG Helpers
 # ----------------------------
