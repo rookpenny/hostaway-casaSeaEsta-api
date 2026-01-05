@@ -451,47 +451,49 @@
               </div>
 
               <div class="mt-4 flex gap-2 flex-wrap items-center">
-                {% if prop.data_folder_path %}
-                  <a
-                    href="/edit-file?file={{ prop.data_folder_path }}/config.json"
-                    class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-                    {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-                  >
-                    Assistant Config
-                  </a>
-                
-                  <a
-                    href="/edit-file?file={{ prop.data_folder_path }}/house_manual.txt"
-                    class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-                    {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-                  >
-                    House Manual
-                  </a>
-                {% endif %}
+  {% if prop.data_folder_path %}
+    <a
+      href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json"
+      class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+      {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+    >
+      Assistant Config
+    </a>
 
+    <a
+      href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+      class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+      {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+    >
+      House Manual
+    </a>
+  {% endif %}
 
-                <button
-                  onclick="syncProperty({{ prop.id }}, this)"
-                  class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                  type="button"
-                  {% if is_locked %}disabled{% endif %}>
-                  Sync
-                </button>
+  <button
+    onclick="syncProperty({{ prop.id }}, this)"
+    class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+    type="button"
+    {% if is_locked %}disabled{% endif %}
+  >
+    Sync
+  </button>
 
-                <button
-                  onclick="toggleProperty({{ prop.id }}, this)"
-                  class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  type="button"
-                  {% if is_locked %}disabled{% endif %}>
-                  {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
-                </button>
+  <button
+    onclick="toggleProperty({{ prop.id }}, this)"
+    class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+    type="button"
+    {% if is_locked %}disabled{% endif %}
+  >
+    {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
+  </button>
 
-                {% if is_locked %}
-                  <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
-                    Unlock →
-                  </a>
-                {% endif %}
-              </div>
+  {% if is_locked %}
+    <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
+      Unlock →
+    </a>
+  {% endif %}
+</div>
+
             </div>
             {% endfor %}
           </div>
