@@ -11,6 +11,8 @@ import asyncio
 import time as pytime
 import unicodedata
 
+from fastapi.staticfiles import StaticFiles
+
 from pathlib import Path as FSPath
 
 from typing import Optional, Any, List, Dict
@@ -63,6 +65,8 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # --- Init ---
 
 app = FastAPI()
+
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Routers ---
 app.include_router(admin.router)
