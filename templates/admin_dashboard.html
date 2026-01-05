@@ -452,13 +452,17 @@
 
               <div class="mt-4 flex gap-2 flex-wrap items-center">
   {% if prop.data_folder_path %}
-    <a
-      href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
-      class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-      {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-    >
-      Assistant Config
-    </a>
+   <a
+  hx-get="/admin/config-ui/partial?file={{ prop.data_folder_path }}/config.json"
+  hx-target="#configPanel"
+  hx-swap="innerHTML"
+  hx-on::after-request="document.getElementById('configScopeLabel').textContent='Editing: {{ prop.property_name|e }}';"
+  class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+  {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+>
+  Assistant Config
+</a>
+
 
     <a
       href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
@@ -498,6 +502,27 @@
           </div>
         </section>
 
+<section id="config" class="mt-6">
+  <div class="rounded-2xl border border-slate-200 bg-white p-4">
+    <div class="flex items-center justify-between gap-3">
+      <div>
+        <div class="text-sm font-semibold">Assistant Config</div>
+        <div class="text-xs text-slate-500" id="configScopeLabel">Select a property to edit its config.</div>
+      </div>
+      <button
+        type="button"
+        class="text-xs font-semibold text-slate-600 hover:text-slate-900"
+        onclick="document.getElementById('configPanel').innerHTML=''; document.getElementById('configScopeLabel').textContent='Select a property to edit its config.';"
+      >
+        Close
+      </button>
+    </div>
+
+    <div id="configPanel" class="mt-4">
+      <!-- config UI partial loads here -->
+    </div>
+  </div>
+</section>
 
         <section id="view-guides" class="view hidden space-y-4">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
