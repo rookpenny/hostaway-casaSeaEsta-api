@@ -1,0 +1,57 @@
+<form method="post" action="/admin/config-ui/save">
+  <input type="hidden" name="file_path" value="{{ file_path }}"/>
+
+  {% if errors and errors|length %}
+    <div class="alert alert-danger">
+      <b>Fix these issues:</b>
+      <ul>
+        {% for e in errors %}<li>{{ e }}</li>{% endfor %}
+      </ul>
+    </div>
+  {% endif %}
+
+  {% for sec in form_schema %}
+    <div class="card" style="padding:16px; margin-bottom:16px;">
+      <h3 style="margin:0 0 6px 0;">{{ sec.section }}</h3>
+      {% if sec.description %}<div style="opacity:.75; margin-bottom:12px;">{{ sec.description }}</div>{% endif %}
+
+      {% for f in sec.fields %}
+        <div style="margin-bottom:12px;">
+          <label style="display:block; font-weight:600; margin-bottom:6px;">{{ f.label }}</label>
+
+          {% if f.type == "text" %}
+            <input class="form-control" type="text" name="{{ f.path }}" value="{{ f.value or '' }}"/>
+
+          {% elif f.type == "textarea" %}
+            <textarea class="form-control" name="{{ f.path }}" rows="4">{{ f.value or '' }}</textarea>
+
+          {% elif f.type == "number" %}
+            <input class="form-control" type="number" name="{{ f.path }}"
+                   value="{{ f.value }}" min="{{ f.min }}" max="{{ f.max }}"/>
+
+          {% elif f.type == "toggle" %}
+            <label style="display:flex; gap:8px; align-items:center;">
+              <input type="checkbox" name="{{ f.path }}" {% if f.value %}checked{% endif %}/>
+              <span>Enabled</span>
+            </label>
+
+          {% elif f.type == "select" %}
+            <select class="form-control" name="{{ f.path }}">
+              {% for val, lab in f.options %}
+                <option value="{{ val }}" {% if f.value == val %}selected{% endif %}>{{ lab }}</option>
+              {% endfor %}
+            </select>
+
+          {% elif f.type == "list_text" %}
+            <textarea class="form-control" name="{{ f.path }}" rows="5"
+              placeholder="One item per line">{% if f.value %}{{ f.value|join('\n') }}{% endif %}</textarea>
+          {% endif %}
+
+          {% if f.help %}<small style="opacity:.75;">{{ f.help }}</small>{% endif %}
+        </div>
+      {% endfor %}
+    </div>
+  {% endfor %}
+
+  <button type="submit" class="btn btn-primary">Save</button>
+</form>
