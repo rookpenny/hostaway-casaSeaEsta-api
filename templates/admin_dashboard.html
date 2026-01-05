@@ -17,6 +17,8 @@
   </style>
   <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+
   
 
 </head>
@@ -452,21 +454,23 @@
 
               <div class="mt-4 flex gap-2 flex-wrap items-center">
   {% if prop.data_folder_path %}
-  <a
-  href="/admin/edit-file?file={{ prop.data_folder_path }}/config.json"
+ <a
+  href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
   hx-get="/admin/config-ui/partial?file={{ prop.data_folder_path }}/config.json"
   hx-target="#configPanel"
   hx-swap="innerHTML"
+  hx-indicator="#configLoading"
   hx-on::after-request="
     document.getElementById('configScopeLabel').textContent='Editing: {{ prop.property_name|e }}';
-    document.getElementById('configEmpty')?.classList.add('hidden');
-    document.getElementById('configCard')?.scrollIntoView({behavior:'smooth', block:'start'});
+    document.getElementById('configPanelWrap').classList.remove('hidden');
+    document.getElementById('configPanelWrap').scrollIntoView({behavior:'smooth', block:'start'});
   "
   class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
   {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
 >
   Assistant Config
 </a>
+
 
 
 
