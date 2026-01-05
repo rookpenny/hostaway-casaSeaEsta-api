@@ -295,7 +295,7 @@
         </div>
         {% endif %}
 
-        <!-- OVERVIEW -->
+ <!-- OVERVIEW -->
 <section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
 
   {% set total_props = properties|length %}
@@ -380,7 +380,8 @@
 <!-- PROPERTIES -->
 <section id="view-properties" class="view hidden space-y-4">
 
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+  <!-- Filters / header (we hide this when config is open) -->
+  <div id="propertiesHeaderCard" class="bg-white border border-slate-200 rounded-2xl p-4 card">
     <div class="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
       <div>
         <div class="text-sm font-semibold">Properties</div>
@@ -406,8 +407,8 @@
     </div>
   </div>
 
-  <!-- Inline Assistant Config (loads into main area; hides property cards while open) -->
-  <div id="configPanelWrap" class="hidden space-y-4">
+  <!-- Inline Assistant Config Panel -->
+  <div id="configPanelWrap" class="hidden">
     <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
       <div class="flex items-center justify-between gap-3">
         <div>
@@ -424,111 +425,167 @@
         </button>
       </div>
 
-      <div id="configPanel" class="mt-4">
-        <!-- /admin/config-ui HTML loads here -->
+      <div class="mt-4">
+        <iframe
+          id="configIframe"
+          class="w-full rounded-xl border border-slate-200 bg-white"
+          style="height: 860px;"
+          src="about:blank"
+        ></iframe>
       </div>
     </div>
   </div>
 
-  <!-- Property cards (we hide this whole block while config is open) -->
-  <div id="propertiesList">
-    <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-      {% for prop in properties %}
-      <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
-           data-property-card
-           data-name="{{ prop.property_name }}"
-           data-live="{{ 'true' if prop.sandy_enabled else 'false' }}">
+  <!-- Property cards (we hide this when config is open) -->
+  <div id="propertiesGridWrap" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+    {% for prop in properties %}
+    <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
+         data-property-card
+         data-name="{{ prop.property_name }}"
+         data-live="{{ 'true' if prop.sandy_enabled else 'false' }}">
 
-        <div class="flex items-start justify-between gap-3">
-          <div class="min-w-0">
-            <div class="text-lg font-semibold truncate">{{ prop.property_name }}</div>
-            <div class="mt-1 text-xs text-slate-500">
-              ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %}
-            </div>
+      <div class="flex items-start justify-between gap-3">
+        <div class="min-w-0">
+          <div class="text-lg font-semibold truncate">{{ prop.property_name }}</div>
+          <div class="mt-1 text-xs text-slate-500">
+            ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %}
           </div>
+        </div>
 
-          {% if is_locked %}
-            <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
-              LOCKED
+        {% if is_locked %}
+          <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+            LOCKED
+          </span>
+        {% else %}
+          {% if prop.sandy_enabled %}
+            <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold">
+              LIVE
             </span>
           {% else %}
-            {% if prop.sandy_enabled %}
-              <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold">
-                LIVE
-              </span>
-            {% else %}
-              <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
-                OFFLINE
-              </span>
-            {% endif %}
+            <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
+              OFFLINE
+            </span>
           {% endif %}
-        </div>
-
-        <div class="mt-3 text-xs text-slate-500">
-          <span class="font-semibold text-slate-700">Last synced:</span>
-          {% if prop.last_synced %}
-            {% set seconds = (now - prop.last_synced).total_seconds() %}
-            {% if seconds < 60 %} just now
-            {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
-            {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
-            {% else %} {{ (seconds // 86400)|int }} days ago
-            {% endif %}
-          {% else %}
-            —
-          {% endif %}
-        </div>
-
-        <div class="mt-4 flex gap-2 flex-wrap items-center">
-          {% if prop.data_folder_path %}
-            <a
-              href="#"
-              onclick="openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}'); return false;"
-              class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-              {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-            >
-              Assistant Config
-            </a>
-
-            <a
-              href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-              class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-              {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-            >
-              House Manual
-            </a>
-          {% endif %}
-
-          <button
-            onclick="syncProperty({{ prop.id }}, this)"
-            class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-            type="button"
-            {% if is_locked %}disabled{% endif %}
-          >
-            Sync
-          </button>
-
-          <button
-            onclick="toggleProperty({{ prop.id }}, this)"
-            class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-            type="button"
-            {% if is_locked %}disabled{% endif %}
-          >
-            {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
-          </button>
-
-          {% if is_locked %}
-            <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
-              Unlock →
-            </a>
-          {% endif %}
-        </div>
-
+        {% endif %}
       </div>
-      {% endfor %}
+
+      <div class="mt-3 text-xs text-slate-500">
+        <span class="font-semibold text-slate-700">Last synced:</span>
+        {% if prop.last_synced %}
+          {% set seconds = (now - prop.last_synced).total_seconds() %}
+          {% if seconds < 60 %} just now
+          {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+          {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+          {% else %} {{ (seconds // 86400)|int }} days ago
+          {% endif %}
+        {% else %}
+          —
+        {% endif %}
+      </div>
+
+      <div class="mt-4 flex gap-2 flex-wrap items-center">
+        {% if prop.data_folder_path %}
+          <a
+            href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
+            onclick="return openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
+            class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+            {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+          >
+            Assistant Config
+          </a>
+
+          <a
+            href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+            class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+            {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+          >
+            House Manual
+          </a>
+        {% endif %}
+
+        <button
+          onclick="syncProperty({{ prop.id }}, this)"
+          class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+          type="button"
+          {% if is_locked %}disabled{% endif %}
+        >
+          Sync
+        </button>
+
+        <button
+          onclick="toggleProperty({{ prop.id }}, this)"
+          class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+          type="button"
+          {% if is_locked %}disabled{% endif %}
+        >
+          {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
+        </button>
+
+        {% if is_locked %}
+          <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
+            Unlock →
+          </a>
+        {% endif %}
+      </div>
+
     </div>
+    {% endfor %}
   </div>
 
 </section>
+
+<script>
+  // Opens the full Config UI in an iframe (keeps its CSS intact),
+  // and hides the properties list until Close is pressed.
+  function openInlineConfig(filePath, propertyName) {
+    const wrap = document.getElementById("configPanelWrap");
+    const iframe = document.getElementById("configIframe");
+    const label = document.getElementById("configScopeLabel");
+
+    const grid = document.getElementById("propertiesGridWrap");
+    const header = document.getElementById("propertiesHeaderCard");
+
+    if (!wrap || !iframe) return false;
+
+    if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
+
+    const url = `/admin/config-ui?file=${encodeURIComponent(filePath)}`;
+    iframe.src = url;
+
+    // show config
+    wrap.classList.remove("hidden");
+
+    // hide list + filters
+    if (grid) grid.classList.add("hidden");
+    if (header) header.classList.add("hidden");
+
+    // scroll into view
+    wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+
+    // prevent navigation
+    return false;
+  }
+
+  function closeInlineConfig() {
+    const wrap = document.getElementById("configPanelWrap");
+    const iframe = document.getElementById("configIframe");
+    const label = document.getElementById("configScopeLabel");
+
+    const grid = document.getElementById("propertiesGridWrap");
+    const header = document.getElementById("propertiesHeaderCard");
+
+    if (iframe) iframe.src = "about:blank";
+    if (label) label.textContent = "Select a property to edit its config.";
+
+    if (wrap) wrap.classList.add("hidden");
+    if (grid) grid.classList.remove("hidden");
+    if (header) header.classList.remove("hidden");
+
+    // optional: scroll back to top of properties
+    header?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+</script>
+
 
 
         <section id="view-guides" class="view hidden space-y-4">
