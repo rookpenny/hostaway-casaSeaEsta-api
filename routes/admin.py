@@ -8,6 +8,8 @@ import re
 import sqlalchemy as sa
 import secrets
 import shutil, uuid
+import json
+from copy import deepcopy
 
 from pathlib import Path
 
@@ -78,6 +80,199 @@ TMP_DIR.mkdir(parents=True, exist_ok=True)
 #    finally:
 #        db.close()
 
+# ----------------------------
+# JSON CONFIG Helpers
+# ----------------------------
+def deep_get(d: dict, path: str, default=None):
+    cur = d
+    for part in path.split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return default
+        cur = cur[part]
+    return cur
+
+def deep_set(d: dict, path: str, value):
+    cur = d
+    parts = path.split(".")
+    for p in parts[:-1]:
+        if p not in cur or not isinstance(cur[p], dict):
+            cur[p] = {}
+        cur = cur[p]
+    cur[parts[-1]] = value
+
+def apply_defaults(cfg: dict) -> dict:
+    cfg = deepcopy(cfg or {})
+    for sec in CONFIG_FORM:
+        for f in sec["fields"]:
+            if deep_get(cfg, f["path"], None) is None:
+                deep_set(cfg, f["path"], deepcopy(f.get("default")))
+    return cfg
+
+
+def parse_field_value(field, raw: str | None):
+    t = field["type"]
+
+    if t == "toggle":
+        return raw is not None  # checkbox present
+
+    if t == "number":
+        s = (raw or "").strip()
+        if s == "":
+            return field.get("default", 0)
+        try:
+            return int(s)
+        except Exception:
+            return field.get("default", 0)
+
+    if t == "list_text":
+        # textarea lines -> list of strings
+        lines = (raw or "").splitlines()
+        out = [ln.strip() for ln in lines if ln.strip()]
+        return out
+
+    # text / textarea / select
+    return (raw or "").strip()
+
+
+ALLOWED_TEMPLATE_VARS = {"guest_name", "assistant_name", "property_name"}
+
+def validate_config(cfg: dict) -> list[str]:
+    errors = []
+
+    # escalation ordering
+    try:
+        low = int(deep_get(cfg, "escalation.low", 0))
+        med = int(deep_get(cfg, "escalation.medium", 0))
+        high = int(deep_get(cfg, "escalation.high", 0))
+        if not (0 <= low <= 100 and 0 <= med <= 100 and 0 <= high <= 100):
+            errors.append("Escalation thresholds must be between 0 and 100.")
+        if not (low < med < high):
+            errors.append("Escalation thresholds must satisfy low < medium < high.")
+    except Exception:
+        errors.append("Escalation thresholds are invalid.")
+
+    # template variable safety
+    import re
+    for p in [
+        "assistant.voice.welcome_template",
+        "assistant.voice.welcome_template_no_name",
+        "assistant.voice.offline_message",
+        "assistant.voice.fallback_message",
+        "assistant.voice.error_message",
+    ]:
+        txt = deep_get(cfg, p, "") or ""
+        found = set(re.findall(r"{{\s*([a-zA-Z0-9_]+)\s*}}", txt))
+        bad = sorted([v for v in found if v not in ALLOWED_TEMPLATE_VARS])
+        if bad:
+            errors.append(f"{p} uses unknown template vars: {', '.join(bad)}")
+
+    return errors
+
+
+@router.get("/admin/config-ui", response_class=HTMLResponse)
+def config_ui_get(request: Request, file: str, db: Session = Depends(get_db)):
+    file = require_file_in_scope(request, db, file)
+
+    # Load from GitHub (reuse your existing logic)
+    cfg = {}
+    try:
+        repo_owner = "rookpenny"
+        repo_name = "hostscout_data"
+        github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
+        headers = _github_headers()
+        res = requests.get(github_api_url, headers=headers)
+        if res.status_code == 200:
+            data = res.json()
+            raw = base64.b64decode(data["content"]).decode("utf-8")
+            cfg = json.loads(raw or "{}")
+    except Exception:
+        cfg = {}
+
+    cfg = apply_defaults(cfg)
+
+    # attach values for rendering
+    form_schema = deepcopy(CONFIG_FORM)
+    for sec in form_schema:
+        for f in sec["fields"]:
+            f["value"] = deep_get(cfg, f["path"], f.get("default"))
+
+    return templates.TemplateResponse("admin_config_ui.html", {
+        "request": request,
+        "file_path": file,
+        "form_schema": form_schema,
+        "errors": [],
+    })
+
+
+@router.post("/admin/config-ui/save", response_class=HTMLResponse)
+async def config_ui_save(request: Request, db: Session = Depends(get_db)):
+    form = await request.form()
+    file = require_file_in_scope(request, db, str(form.get("file_path") or ""))
+
+    # Start from existing config (so unknown keys survive)
+    import json
+    cfg = {}
+    sha = None
+
+    repo_owner = "rookpenny"
+    repo_name = "hostscout_data"
+    github_api_url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/contents/{file}"
+    headers = _github_headers()
+
+    res = requests.get(github_api_url, headers=headers)
+    if res.status_code == 200:
+        data = res.json()
+        sha = data.get("sha")
+        raw = base64.b64decode(data["content"]).decode("utf-8")
+        cfg = json.loads(raw or "{}")
+
+    cfg = apply_defaults(cfg)
+
+    # apply updates from form
+    for sec in CONFIG_FORM:
+        for f in sec["fields"]:
+            raw = form.get(f["path"])
+            val = parse_field_value(f, raw)
+            deep_set(cfg, f["path"], val)
+
+    errors = validate_config(cfg)
+    if errors:
+        # re-render with values and errors
+        form_schema = deepcopy(CONFIG_FORM)
+        for sec in form_schema:
+            for f in sec["fields"]:
+                f["value"] = deep_get(cfg, f["path"], f.get("default"))
+
+        return templates.TemplateResponse("admin_config_ui.html", {
+            "request": request,
+            "file_path": file,
+            "form_schema": form_schema,
+            "errors": errors,
+        })
+
+    # write back to GitHub
+    encoded = base64.b64encode(json.dumps(cfg, indent=2).encode("utf-8")).decode("utf-8")
+    payload = {"message": f"Update config UI: {file}", "content": encoded}
+    if sha:
+        payload["sha"] = sha
+
+    put = requests.put(github_api_url, headers=headers, json=payload)
+    if put.status_code not in (200, 201):
+        errors = [f"GitHub save error: {put.status_code} {put.text}"]
+
+        form_schema = deepcopy(CONFIG_FORM)
+        for sec in form_schema:
+            for f in sec["fields"]:
+                f["value"] = deep_get(cfg, f["path"], f.get("default"))
+
+        return templates.TemplateResponse("admin_config_ui.html", {
+            "request": request,
+            "file_path": file,
+            "form_schema": form_schema,
+            "errors": errors,
+        })
+
+    return RedirectResponse(url=f"/admin/config-ui?file={file}", status_code=HTTP_303_SEE_OTHER)
 
 
 # ----------------------------
@@ -2513,6 +2708,122 @@ def save_github_file(
         return HTMLResponse("<h2>File saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
 
     return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
+
+# ----------------------------
+# renders sections + dropdowns + lists CONFIG.JSON
+# ----------------------------
+CONFIG_FORM = [
+    {
+        "section": "Assistant",
+        "description": "Brand voice + behavior settings for Sandy.",
+        "fields": [
+            {"path": "assistant.name", "label": "Assistant name", "type": "text", "default": "Sandy"},
+            {"path": "assistant.tone", "label": "Tone", "type": "select", "default": "luxury",
+             "options": [("luxury","Luxury"),("beachy","Beachy"),("professional","Professional"),("friendly","Friendly")]},
+            {"path": "assistant.verbosity", "label": "Verbosity", "type": "select", "default": "balanced",
+             "options": [("very_short","Very short"),("balanced","Balanced"),("detailed","Detailed")]},
+            {"path": "assistant.emoji_level", "label": "Emoji level", "type": "select", "default": "light",
+             "options": [("none","None"),("light","Light"),("medium","Medium"),("high","High")]},
+            {"path": "assistant.formality", "label": "Formality", "type": "select", "default": "polished",
+             "options": [("casual","Casual"),("friendly","Friendly"),("polished","Polished"),("formal","Formal")]},
+            {"path": "assistant.avatar_url", "label": "Avatar URL", "type": "text", "default": "/static/img/sandy.png"},
+            {"path": "assistant.style", "label": "Style (1–2 sentences)", "type": "textarea", "default": ""},
+            {"path": "assistant.extra_instructions", "label": "Extra instructions", "type": "textarea", "default": ""}
+        ]
+    },
+    {
+        "section": "Assistant Guidelines",
+        "description": "Short bullet rules Sandy should follow/avoid.",
+        "fields": [
+            {"path": "assistant.do", "label": "Do (one per line)", "type": "list_text", "default": []},
+            {"path": "assistant.dont", "label": "Don’t (one per line)", "type": "list_text", "default": []}
+        ]
+    },
+    {
+        "section": "Voice & Templates",
+        "description": "Guest-facing messages. Supports {{guest_name}}, {{assistant_name}}, {{property_name}}.",
+        "fields": [
+            {"path": "assistant.voice.welcome_template", "label": "Welcome template (with guest name)", "type": "textarea", "default": ""},
+            {"path": "assistant.voice.welcome_template_no_name", "label": "Welcome template (no guest name)", "type": "textarea", "default": ""},
+            {"path": "assistant.voice.offline_message", "label": "Offline message", "type": "textarea", "default": ""},
+            {"path": "assistant.voice.fallback_message", "label": "Fallback message", "type": "textarea", "default": ""},
+            {"path": "assistant.voice.error_message", "label": "Error message", "type": "textarea", "default": ""}
+        ]
+    },
+    {
+        "section": "Quick Replies",
+        "description": "Buttons guests can tap. One per line.",
+        "fields": [
+            {"path": "assistant.quick_replies", "label": "Quick replies", "type": "list_text", "default": []}
+        ]
+    },
+    {
+        "section": "Property Info",
+        "description": "Shown to the assistant and used for templates.",
+        "fields": [
+            {"path": "property.display_name", "label": "Property display name", "type": "text", "default": ""},
+            {"path": "property.address_line", "label": "Address line (optional)", "type": "text", "default": ""},
+            {"path": "property.timezone", "label": "Timezone", "type": "select", "default": "America/Los_Angeles",
+             "options": [
+                 ("America/Los_Angeles","America/Los_Angeles"),
+                 ("America/Denver","America/Denver"),
+                 ("America/Chicago","America/Chicago"),
+                 ("America/New_York","America/New_York")
+             ]},
+            {"path": "property.check_in_time", "label": "Check-in time", "type": "text", "default": "4:00 PM"},
+            {"path": "property.check_out_time", "label": "Check-out time", "type": "text", "default": "10:00 AM"}
+        ]
+    },
+    {
+        "section": "Quiet Hours",
+        "description": "Used for noise/house rules responses.",
+        "fields": [
+            {"path": "property.quiet_hours.enabled", "label": "Enable quiet hours", "type": "toggle", "default": False},
+            {"path": "property.quiet_hours.start", "label": "Quiet hours start", "type": "text", "default": "10:00 PM"},
+            {"path": "property.quiet_hours.end", "label": "Quiet hours end", "type": "text", "default": "8:00 AM"}
+        ]
+    },
+    {
+        "section": "Links",
+        "description": "Optional URLs used in answers.",
+        "fields": [
+            {"path": "links.house_manual_url", "label": "House manual URL", "type": "text", "default": ""},
+            {"path": "links.wifi_instructions_url", "label": "WiFi instructions URL", "type": "text", "default": ""},
+            {"path": "links.parking_instructions_url", "label": "Parking instructions URL", "type": "text", "default": ""},
+            {"path": "links.checkin_instructions_url", "label": "Check-in instructions URL", "type": "text", "default": ""}
+        ]
+    },
+    {
+        "section": "Features",
+        "description": "Toggle assistant features.",
+        "fields": [
+            {"path": "features.include_google_maps_links", "label": "Include Google Maps links", "type": "toggle", "default": True},
+            {"path": "features.enable_quick_replies", "label": "Enable quick replies", "type": "toggle", "default": True},
+            {"path": "features.enable_upsells", "label": "Enable upsells", "type": "toggle", "default": False}
+        ]
+    },
+    {
+        "section": "Routing & Handoff",
+        "description": "Where the assistant escalates or routes internal tasks.",
+        "fields": [
+            {"path": "routing.handoff_email", "label": "Handoff email", "type": "text", "default": ""},
+            {"path": "routing.auto_assign", "label": "Auto-assign", "type": "select", "default": "off",
+             "options": [("off","Off"),("by_role","By role")]},
+            {"path": "routing.auto_assign_role", "label": "Auto-assign role", "type": "select", "default": "ops_manager",
+             "options": [("owner","Owner"),("admin","Admin"),("ops_manager","Ops manager"),("maintenance","Maintenance"),("cleaner","Cleaner"),("staff","Staff"),("read_only","Read only")]}
+        ]
+    },
+    {
+        "section": "Escalation Thresholds",
+        "description": "Heat score thresholds (0–100). Must satisfy low < medium < high.",
+        "fields": [
+            {"path": "escalation.enabled", "label": "Enable escalation", "type": "toggle", "default": True},
+            {"path": "escalation.low", "label": "Low threshold", "type": "number", "default": 35, "min": 0, "max": 100},
+            {"path": "escalation.medium", "label": "Medium threshold", "type": "number", "default": 60, "min": 0, "max": 100},
+            {"path": "escalation.high", "label": "High threshold", "type": "number", "default": 85, "min": 0, "max": 100}
+        ]
+    }
+]
 
 
 # ----------------------------
