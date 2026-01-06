@@ -1071,6 +1071,7 @@
     // Normalize Sandy live flag (boolean-safe)
     const sandyLive = window.SANDY_LIVE === true || window.SANDY_LIVE === "true";
 
+   
     // --- Screens + core elements ---
     const screens = {
       home: document.getElementById("screen-home"),
@@ -1421,9 +1422,14 @@ function renderErrorWithActions(message) {
     "px-3 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold active:scale-95";
   retry.textContent = "Try again";
   retry.addEventListener("click", () => {
-    if (!chatInput) return;
-    chatInput.focus();
-  });
+  if (!lastUserMessage) {
+    chatInput?.focus();
+    return;
+  }
+  chatInput.value = lastUserMessage;
+  sendChat();
+});
+
 
   const guides = document.createElement("button");
   guides.type = "button";
@@ -1477,6 +1483,11 @@ function renderErrorWithActions(message) {
     let departureDate = null;
     let checkinTime = null;
     let checkoutTime = null;
+
+    let lastUserMessage = null;
+    let chatInFlight = false;
+    let chatAbort = null;
+
 
     let chatHasWelcome = false;
     let guidesAbortController = null;
@@ -1814,8 +1825,14 @@ function renderErrorWithActions(message) {
     
 
     async function sendChat() {
-      const text = (chatInput?.value || "").trim();
-      if (!text) return;
+  if (chatInFlight) return; // ⛔ prevent double-send
+
+  const text = (chatInput?.value || "").trim();
+  if (!text) return;
+
+  chatInFlight = true;
+
+      lastUserMessage = text;
 
       // Slash commands (interactive shortcuts)
       const t = text.toLowerCase();
@@ -1862,6 +1879,10 @@ function renderErrorWithActions(message) {
       }
 
       renderMessage(text, "user");
+      // Disable input while sending
+      if (chatInput) chatInput.disabled = true;
+      if (chatSend) chatSend.disabled = true;
+
       haptic(12);
       maybeUpdateMemoryFromUserText(text);
 
@@ -1885,6 +1906,10 @@ function renderErrorWithActions(message) {
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(body),
+          chatInFlight = false;
+          if (chatInput) chatInput.disabled = false;
+          if (chatSend) chatSend.disabled = false;
+
         });
         
         const data = await readJsonSafely(res);
@@ -1931,10 +1956,17 @@ if (bubble?.body) {
 }
 
       } catch (err) {
-        console.error(err);
-        removeTyping();
-        renderErrorWithActions(voiceCfg.error_message || "Oops! Something went wrong. Please try again.");
-      }
+  console.error(err);
+  removeTyping();
+  renderErrorWithActions(
+    voiceCfg.error_message || "Oops! Something went wrong. Please try again."
+  );
+} finally {
+  chatInFlight = false;
+  if (chatInput) chatInput.disabled = false;
+  if (chatSend) chatSend.disabled = false;
+}
+
     }
 
     if (chatSend && chatInput) {
@@ -2280,12 +2312,32 @@ if (bubble?.body) {
   return str.split(needle).join(replacement);
 }
 
-  function renderWelcomeTemplate(template, vars) {
-  // Build regex via RegExp so the HTML source never contains "{{"
-  const re = new RegExp("\\{\\{\\s*(guest_name|assistant_name|property_name)\\s*\\}\\}", "g");
+ function renderWelcomeTemplate(template, vars) {
+  const open = "{" + "{";
+  const close = "}" + "}";
+  const keys = ["guest_name", "assistant_name", "property_name"];
 
-  return String(template || "").replace(re, (_, key) => String(vars[key] ?? ""));
+  let out = String(template || "");
+
+  keys.forEach((k) => {
+    const v = String(vars?.[k] ?? "");
+
+    // Replace common spacing variants:
+    const variants = [
+      open + k + close,               // {{guest_name}}
+      open + " " + k + close,         // {{ guest_name}}
+      open + k + " " + close,         // {{guest_name }}
+      open + " " + k + " " + close,   // {{ guest_name }}
+    ];
+
+    variants.forEach((needle) => {
+      out = safeReplaceAll(out, needle, v);
+    });
+  });
+
+  return out;
 }
+
 
 
 
