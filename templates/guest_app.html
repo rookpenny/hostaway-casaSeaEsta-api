@@ -1121,9 +1121,9 @@ function haptic(ms = 10) {
 
 // --- Chat persistence ---
 function getChatStorageKey() {
-  const sid = currentSessionId || "no_session";
-  return `chat_history_${window.PROPERTY_ID}_${sid}`;
+  return `chat_history_${window.PROPERTY_ID}`; // stable per property
 }
+
 
 function saveChatHistory() {
   try {
@@ -1309,19 +1309,20 @@ function buildFollowups(userText, botText) {
 
   // restaurant-ish
   if (t.includes("restaurant") || t.includes("food")) {
-    return [
-      pref ? `Any good ${pref} options?` : "Any top-rated options?",
-      "What’s closest to the house?",
-      "Any kid-friendly places?",
-      "Make a date-night plan",
-    ];
-  }
+  return [
+    "Show me 3 closest options",
+    "Any kid-friendly places?",
+    "Any date-night spots?",
+    "Open Guides",
+  ];
+}
+
 
   // generic helpful followups
   return [
     "Any tips for today?",
     "What are the best local spots?",
-    "Show me the Guides",
+    "Whats the weather for today?",
     "How do I contact the host?",
   ];
 }
@@ -1339,10 +1340,18 @@ function renderFollowupChips(labels) {
       "px-3 py-2 rounded-full bg-white border border-slate-200 text-slate-900 text-sm font-semibold whitespace-nowrap active:scale-95";
     btn.textContent = label;
     btn.addEventListener("click", () => {
-      if (!chatInput) return;
-      chatInput.value = label;
-      sendChat();
-    });
+  const v = label.toLowerCase();
+
+  if (v.includes("wifi")) return openWifiModal();
+  if (v.includes("door") || v.includes("code")) return openCheckinModal();
+  if (v.includes("guides")) return showScreen("experiences");
+  if (v.includes("upgrades")) return showScreen("upgrades");
+
+  if (!chatInput) return;
+  chatInput.value = label;
+  sendChat();
+});
+
     wrap.appendChild(btn);
   });
 
@@ -1772,33 +1781,7 @@ function renderErrorWithActions(message) {
    //console.log("intro(before trim)=", intro);
 
 
-    function addTyping() {
-      if (!chatBox || document.getElementById("typing-indicator")) return;
-
-      const row = document.createElement("div");
-      row.id = "typing-indicator";
-      row.className = "msg bot";
-
-      const avatar = document.createElement("div");
-      avatar.className = "avatar avatar-sandy";
-
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      bubble.innerHTML = `
-        <span class="typing-dots">
-          <span> </span><span> </span><span> </span>
-        </span>
-      `;
-
-      const column = document.createElement("div");
-      column.appendChild(bubble);
-
-      row.appendChild(avatar);
-      row.appendChild(column);
-
-      chatBox.appendChild(row);
-      scrollChatToBottom();
-    }
+   
 
     function removeTyping() {
       document.getElementById("typing-indicator")?.remove();
@@ -1833,6 +1816,42 @@ function renderErrorWithActions(message) {
     async function sendChat() {
       const text = (chatInput?.value || "").trim();
       if (!text) return;
+
+      // Slash commands (interactive shortcuts)
+      const t = text.toLowerCase();
+      
+      if (t === "/wifi") {
+        renderMessage(text, "user");
+        if (chatInput) chatInput.value = "";
+        openWifiModal();
+        renderSystemNote("Opening WiFi details.");
+        return;
+      }
+      
+      if (t === "/door" || t === "/code") {
+        renderMessage(text, "user");
+        if (chatInput) chatInput.value = "";
+        openCheckinModal();
+        renderSystemNote("Opening your door code.");
+        return;
+      }
+      
+      if (t === "/guides") {
+        renderMessage(text, "user");
+        if (chatInput) chatInput.value = "";
+        showScreen("experiences");
+        renderSystemNote("Opening Guides.");
+        return;
+      }
+      
+      if (t === "/upgrades") {
+        renderMessage(text, "user");
+        if (chatInput) chatInput.value = "";
+        showScreen("upgrades");
+        renderSystemNote("Opening Upgrades.");
+        return;
+      }
+
 
       if (!sandyLive) {
         renderMessage(
@@ -2262,11 +2281,12 @@ if (bubble?.body) {
 }
 
   function renderWelcomeTemplate(template, vars) {
-  return String(template || "").replace(
-    /\{\{\s*(guest_name|assistant_name|property_name)\s*\}\}/g,
-    (_, key) => String(vars[key] ?? "")
-  );
+  // Build regex via RegExp so the HTML source never contains "{{"
+  const re = new RegExp("\\{\\{\\s*(guest_name|assistant_name|property_name)\\s*\\}\\}", "g");
+
+  return String(template || "").replace(re, (_, key) => String(vars[key] ?? ""));
 }
+
 
 
 
