@@ -1303,126 +1303,170 @@ async function typewriterTo(el, fullText, { speed = 12 } = {}) {
   });
 }
 
-function inferIntent(userText, botText) {
-  const u = String(userText || "").toLowerCase();
-  const b = String(botText || "").toLowerCase();
-  const t = `${u}\n${b}`;
+function detectIntent(text = "") {
+  const t = String(text || "").toLowerCase();
+
+  // Highest priority: emergencies and lockouts
+  if (/\b(911|emergency|urgent|ambulance|fire|police|hospital)\b/.test(t)) return "emergency";
+  if (/\b(lock(ed)? out|can'?t (get )?in|won'?t unlock)\b/.test(t)) return "door";
 
   // Stay ops
-  if (/(wifi|ssid|password|network)/.test(t)) return "wifi";
-  if (/(door code|entry code|keypad|lock|check-?in code)/.test(t)) return "door";
-  if (/(check-?in time|check-?out time|late checkout|early check)/.test(t)) return "times";
-  if (/(upgrade|add[- ]on|purchase)/.test(t)) return "upgrades";
+  if (/\b(wifi|wi-fi|internet|ssid|password|network)\b/.test(t)) return "wifi";
+  if (/\b(door|lock|keypad|entry|code|check-?in code|door code)\b/.test(t)) return "door";
+  if (/\b(park|parking|driveway|garage)\b/.test(t)) return "parking";
+
+  // Times (split into checkin vs checkout)
+  if (/\b(check\s*in|check-?in|arrival|arriving|early check)\b/.test(t)) return "checkin";
+  if (/\b(check\s*out|check-?out|checkout|leaving|late check|late checkout)\b/.test(t)) return "checkout";
+
+  // House / property ops
+  if (/\b(house rules|rules|quiet hours|no smoking|pets|occupancy|part(y|ies))\b/.test(t)) return "house_rules";
+  if (/\b(trash|garbage|recycl(e|ing)|bins?)\b/.test(t)) return "trash";
+
+  // Support / escalation
+  if (/\b(contact|host|phone|call|text|message|support)\b/.test(t)) return "contact_host";
 
   // Concierge
-  if (/(restaurant|food|dinner|lunch|breakfast|coffee|brunch)/.test(t)) return "food";
-  if (/(things to do|activities|recommend|spots|bars|beach|hike|museum)/.test(t)) return "local";
-  if (/(weather|forecast|rain|temperature)/.test(t)) return "weather";
-
-  // Support
-  if (/(contact|host|phone|call|text|message)/.test(t)) return "host";
+  if (/\b(restaurant|food|dinner|lunch|breakfast|brunch|coffee|cafe|espresso)\b/.test(t)) return "food";
+  if (/\b(things to do|activities|fun|recommend|spots|bars|museum|hike|shopping|nightlife|beach)\b/.test(t)) return "things_to_do";
+  if (/\b(weather|forecast|rain|temperature|wind)\b/.test(t)) return "weather";
 
   return "general";
 }
 
-  function detectIntentFromText(text = "") {
-  const t = text.toLowerCase();
-
-  if (t.match(/\bwifi|internet|password\b/)) return "wifi";
-  if (t.match(/\bdoor|code|lock|entry|keypad\b/)) return "door";
-  if (t.match(/\bpark|parking\b/)) return "parking";
-  if (t.match(/\bcheck\s*out|checkout|leaving\b/)) return "checkout";
-  if (t.match(/\bcheck\s*in|arrival|arriving\b/)) return "checkin";
-  if (t.match(/\btrash|garbage|recycling\b/)) return "trash";
-  if (t.match(/\bemergency|hospital|911\b/)) return "emergency";
-  if (t.match(/\bcontact|call|host\b/)) return "contact_host";
-  if (t.match(/\brestaurant|food|dinner|lunch\b/)) return "restaurants";
-  if (t.match(/\bcoffee|cafe|espresso\b/)) return "coffee";
-  if (t.match(/\bthings to do|activities|fun\b/)) return "things_to_do";
-  if (t.match(/\bbeach\b/)) return "beach";
-  if (t.match(/\bgrocery|store|market\b/)) return "grocery";
-
-  return "generic";
-}
   
 
 // --- Follow-up chips under each bot answer ---
 function buildFollowups(userText, botText) {
-  const intent = inferIntent(userText, botText);
+  const intent = lastBotIntent || inferIntent(userText, botText);
 
   switch (intent) {
     case "wifi":
-      return ["Open WiFi", "Copy password", "Any speed tips?", "Contact the host"];
+      return [
+        { label: "Open WiFi", action: "OPEN_WIFI" },
+        { label: "Copy password", action: "COPY_WIFI_PASSWORD" },
+        { label: "Any speed tips?", action: "ASK", text: "Any tips to improve WiFi speed?" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
 
     case "door":
-      return ["Open Door Code", "Lock troubleshooting", "What if it won’t unlock?", "Contact the host"];
+      return [
+        { label: "Open Door Code", action: "OPEN_DOOR" },
+        { label: "Lock troubleshooting", action: "ASK", text: "The lock isn’t working—what should I try?" },
+        { label: "What if it won’t unlock?", action: "ASK", text: "What do I do if the door won’t unlock?" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
 
-    case "times":
-      return ["What’s check-in time?", "What’s check-out time?", "Request late checkout", "View Upgrades"];
+    case "checkin":
+      return [
+        { label: "Open Door Code", action: "OPEN_DOOR" },
+        { label: "Check-in time", action: "ASK", text: "What’s check-in time?" },
+        { label: "Early check-in", action: "OPEN_UPGRADES" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
 
-    case "upgrades":
-      return ["View Upgrades", "What’s included?", "Any discounts?", "Contact the host"];
+    case "checkout":
+      return [
+        { label: "Check-out time", action: "ASK", text: "What’s check-out time?" },
+        { label: "Late checkout", action: "OPEN_UPGRADES" },
+        { label: "Checkout steps", action: "ASK", text: "What are the check-out instructions?" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
+
+    case "parking":
+      return [
+        { label: "Parking instructions", action: "ASK", text: "Where should we park?" },
+        { label: "Any restrictions?", action: "ASK", text: "Are there any parking restrictions?" },
+        { label: "Open Guides", action: "OPEN_GUIDES" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
+
+    case "house_rules":
+      return [
+        { label: "House rules", action: "ASK", text: "What are the house rules?" },
+        { label: "Quiet hours", action: "ASK", text: "What are the quiet hours?" },
+        { label: "No smoking / pets", action: "ASK", text: "Can you confirm smoking/pets policy?" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
+
+    case "trash":
+      return [
+        { label: "Trash instructions", action: "ASK", text: "Where do I take the trash?" },
+        { label: "Trash day", action: "ASK", text: "What day is trash pickup?" },
+        { label: "Recycling", action: "ASK", text: "How does recycling work here?" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
+
+    case "emergency":
+      return [
+        { label: "Emergency steps", action: "ASK", text: "What should I do in an emergency?" },
+        { label: "Nearest hospital", action: "ASK", text: "Where is the nearest hospital?" },
+        { label: "Non-emergency police", action: "ASK", text: "What’s the non-emergency police number?" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
+
+    case "contact_host":
+      return [
+        { label: "How do I contact the host?", action: "CONTACT_HOST" },
+        { label: "House rules", action: "ASK", text: "What are the house rules?" },
+        { label: "Emergency info", action: "ASK", text: "What’s the emergency info / nearest hospital?" },
+        { label: "Open Guides", action: "OPEN_GUIDES" },
+      ];
 
     case "food":
-      return ["3 closest options", "Kid-friendly places?", "Date-night spots?", "Open Guides"];
+      return [
+        { label: "3 closest options", action: "ASK", text: "Give me 3 closest restaurant options with quick notes." },
+        { label: "Kid-friendly places?", action: "ASK", text: "Any kid-friendly restaurants nearby?" },
+        { label: "Date-night spots?", action: "ASK", text: "Any great date-night spots nearby?" },
+        { label: "Open Guides", action: "OPEN_GUIDES" },
+      ];
 
-    case "local":
-      return ["Top 3 nearby spots", "Something indoors?", "Family-friendly ideas", "Open Guides"];
+    case "things_to_do":
+      return [
+        { label: "Top 3 nearby spots", action: "ASK", text: "What are the top 3 nearby things to do?" },
+        { label: "Something indoors?", action: "ASK", text: "Any good indoor activities nearby?" },
+        { label: "Family-friendly ideas", action: "ASK", text: "Any family-friendly activities nearby?" },
+        { label: "Open Guides", action: "OPEN_GUIDES" },
+      ];
 
     case "weather":
-      return ["What about tomorrow?", "Best time to go out?", "Any indoor options?", "Open Guides"];
-
-    case "host":
-      return ["How do I contact the host?", "Emergency info", "House rules", "Open Guides"];
+      return [
+        { label: "What about tomorrow?", action: "ASK", text: "What’s the weather like tomorrow?" },
+        { label: "Best time to go out?", action: "ASK", text: "What’s the best time to go out today?" },
+        { label: "Indoor options", action: "ASK", text: "If it rains, what indoor activities do you recommend?" },
+        { label: "Open Guides", action: "OPEN_GUIDES" },
+      ];
 
     default:
-      return ["Any tips for today?", "Best local spots?", "What’s the weather?", "How do I contact the host?"];
+      return [
+        { label: "WiFi", action: "OPEN_WIFI" },
+        { label: "Door code", action: "OPEN_DOOR" },
+        { label: "Open Guides", action: "OPEN_GUIDES" },
+        { label: "Contact the host", action: "CONTACT_HOST" },
+      ];
   }
 }
 
 
-function renderFollowupChips(labels) {
+
+
+function renderFollowupChips(items) {
   if (!chatBox) return;
 
   const wrap = document.createElement("div");
-  wrap.className = "flex gap-2 flex-wrap ml-[52px] mt-2 mb-4"; // aligns under bot bubble (avatar width)
+  wrap.className = "flex gap-2 flex-wrap ml-[52px] mt-2 mb-4";
 
-  labels.slice(0, 4).forEach((label) => {
+  (items || []).slice(0, 4).forEach((item) => {
+    const obj = typeof item === "string" ? { label: item, action: "ASK", text: item } : item;
+    const label = obj.label || "Option";
+
     const btn = document.createElement("button");
     btn.type = "button";
     btn.className =
       "px-3 py-2 rounded-full bg-white border border-slate-200 text-slate-900 text-sm font-semibold whitespace-nowrap active:scale-95";
     btn.textContent = label;
-    btn.addEventListener("click", () => {
-  const v = label.toLowerCase();
 
-  if (v.includes("open wifi")) return openWifiModal();
-  if (v.includes("copy password")) {
-    const pw = document.getElementById("wifi-password")?.textContent?.trim();
-    if (pw) navigator.clipboard?.writeText(pw);
-    return renderSystemNote("Copied WiFi password.");
-  }
-
-  if (v.includes("wifi")) return openWifiModal();
-  if (v.includes("door")) return openCheckinModal();
-  if (v.includes("guides")) return showScreen("experiences");
-  if (v.includes("contact")) {
-    renderMessage("You can reach your host at the number provided in your booking.", "bot");
-    return;
-  }
-    
-
-  if (v.includes("open door") || v.includes("door code")) return openCheckinModal();
-
-  if (v.includes("open guides")) return showScreen("experiences");
-  if (v.includes("view upgrades")) return showScreen("upgrades");
-
-  // default: send as chat message
-  if (!chatInput) return;
-  chatInput.value = label;
-  sendChat();
-});
-
+    btn.addEventListener("click", () => runFollowupAction(obj));
 
     wrap.appendChild(btn);
   });
@@ -1430,6 +1474,45 @@ function renderFollowupChips(labels) {
   chatBox.appendChild(wrap);
   scrollChatToBottom();
 }
+
+function runFollowupAction(item) {
+  const action = item?.action;
+
+  switch (action) {
+    case "OPEN_WIFI":
+      return openWifiModal();
+
+    case "COPY_WIFI_PASSWORD": {
+      const pw = document.getElementById("wifi-password")?.textContent?.trim();
+      if (pw) navigator.clipboard?.writeText(pw);
+      return renderSystemNote("Copied WiFi password.");
+    }
+
+    case "OPEN_DOOR":
+      return openCheckinModal();
+
+    case "OPEN_GUIDES":
+      return showScreen("experiences");
+
+    case "OPEN_UPGRADES":
+      return showScreen("upgrades");
+
+    case "CONTACT_HOST":
+      // replace later with real host contact details from config/manual
+      return renderMessage("You can reach your host via your booking app (Airbnb/VRBO) messages.", "bot");
+
+    case "ASK":
+    default: {
+      const text = item?.text || item?.label;
+      if (!text) return;
+      if (!chatInput) return;
+      chatInput.value = text;
+      return sendChat();
+    }
+  }
+}
+
+
 
 // --- Rich “cards” (frontend-only parser; backend optional) ---
 function renderCardsFromText(botText) {
@@ -1907,7 +1990,13 @@ function renderErrorWithActions(message) {
       chatInFlight = true;
 
       lastUserMessage = text;
-      lastUserIntent = detectIntentFromText(text);
+      lastUserIntent = detectIntent(text);
+
+      function endChatFlight() {
+        chatInFlight = false;
+        if (chatInput) chatInput.disabled = false;
+        if (chatSend) chatSend.disabled = false;
+      }
 
       // Slash commands (interactive shortcuts)
       const t = text.toLowerCase();
@@ -1917,6 +2006,7 @@ function renderErrorWithActions(message) {
         if (chatInput) chatInput.value = "";
         openWifiModal();
         renderSystemNote("Opening WiFi details.");
+        endChatFlight();
         return;
       }
       
@@ -1925,6 +2015,7 @@ function renderErrorWithActions(message) {
         if (chatInput) chatInput.value = "";
         openCheckinModal();
         renderSystemNote("Opening your door code.");
+        endChatFlight();
         return;
       }
       
@@ -1933,6 +2024,7 @@ function renderErrorWithActions(message) {
         if (chatInput) chatInput.value = "";
         showScreen("experiences");
         renderSystemNote("Opening Guides.");
+        endChatFlight();
         return;
       }
       
@@ -1941,6 +2033,7 @@ function renderErrorWithActions(message) {
         if (chatInput) chatInput.value = "";
         showScreen("upgrades");
         renderSystemNote("Opening Upgrades.");
+        endChatFlight();
         return;
       }
 
@@ -1950,6 +2043,7 @@ function renderErrorWithActions(message) {
           "Sandy is currently offline for this property. Please contact your host directly. 🙏",
           "bot"
         );
+        endChatFlight();
         return;
       }
 
@@ -2007,6 +2101,8 @@ function renderErrorWithActions(message) {
 }
 
 const botText = data.response || voiceCfg.fallback_message || "Could you try that again?";
+lastBotIntent = inferIntent(text, botText);
+
 
 // Typewriter “streaming”
 const bubble = createBotBubble();
@@ -2033,11 +2129,10 @@ if (bubble?.body) {
   renderErrorWithActions(
     voiceCfg.error_message || "Oops! Something went wrong. Please try again."
   );
-} finally {
-  chatInFlight = false;
-  if (chatInput) chatInput.disabled = false;
-  if (chatSend) chatSend.disabled = false;
+} } finally {
+  endChatFlight();
 }
+
 
     }
 
