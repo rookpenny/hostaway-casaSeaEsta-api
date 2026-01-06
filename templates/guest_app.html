@@ -1303,30 +1303,64 @@ async function typewriterTo(el, fullText, { speed = 12 } = {}) {
   });
 }
 
+function inferIntent(userText, botText) {
+  const u = String(userText || "").toLowerCase();
+  const b = String(botText || "").toLowerCase();
+  const t = `${u}\n${b}`;
+
+  // Stay ops
+  if (/(wifi|ssid|password|network)/.test(t)) return "wifi";
+  if (/(door code|entry code|keypad|lock|check-?in code)/.test(t)) return "door";
+  if (/(check-?in time|check-?out time|late checkout|early check)/.test(t)) return "times";
+  if (/(upgrade|add[- ]on|purchase)/.test(t)) return "upgrades";
+
+  // Concierge
+  if (/(restaurant|food|dinner|lunch|breakfast|coffee|brunch)/.test(t)) return "food";
+  if (/(things to do|activities|recommend|spots|bars|beach|hike|museum)/.test(t)) return "local";
+  if (/(weather|forecast|rain|temperature)/.test(t)) return "weather";
+
+  // Support
+  if (/(contact|host|phone|call|text|message)/.test(t)) return "host";
+
+  return "general";
+}
+
+    
+
 // --- Follow-up chips under each bot answer ---
 function buildFollowups(userText, botText) {
-  const t = String(userText || "").toLowerCase();
-  const pref = sandyMemory?.last_food_pref;
+  const intent = inferIntent(userText, botText);
 
-  // restaurant-ish
-  if (t.includes("restaurant") || t.includes("food")) {
-  return [
-    "Show me 3 closest options",
-    "Any kid-friendly places?",
-    "Any date-night spots?",
-    "Open Guides",
-  ];
+  switch (intent) {
+    case "wifi":
+      return ["Open WiFi", "Copy password", "Any speed tips?", "Contact the host"];
+
+    case "door":
+      return ["Open Door Code", "Lock troubleshooting", "What if it won’t unlock?", "Contact the host"];
+
+    case "times":
+      return ["What’s check-in time?", "What’s check-out time?", "Request late checkout", "View Upgrades"];
+
+    case "upgrades":
+      return ["View Upgrades", "What’s included?", "Any discounts?", "Contact the host"];
+
+    case "food":
+      return ["3 closest options", "Kid-friendly places?", "Date-night spots?", "Open Guides"];
+
+    case "local":
+      return ["Top 3 nearby spots", "Something indoors?", "Family-friendly ideas", "Open Guides"];
+
+    case "weather":
+      return ["What about tomorrow?", "Best time to go out?", "Any indoor options?", "Open Guides"];
+
+    case "host":
+      return ["How do I contact the host?", "Emergency info", "House rules", "Open Guides"];
+
+    default:
+      return ["Any tips for today?", "Best local spots?", "What’s the weather?", "How do I contact the host?"];
+  }
 }
 
-
-  // generic helpful followups
-  return [
-    "Any tips for today?",
-    "What are the best local spots?",
-    "Whats the weather for today?",
-    "How do I contact the host?",
-  ];
-}
 
 function renderFollowupChips(labels) {
   if (!chatBox) return;
@@ -1343,15 +1377,24 @@ function renderFollowupChips(labels) {
     btn.addEventListener("click", () => {
   const v = label.toLowerCase();
 
-  if (v.includes("wifi")) return openWifiModal();
-  if (v.includes("door") || v.includes("code")) return openCheckinModal();
-  if (v.includes("guides")) return showScreen("experiences");
-  if (v.includes("upgrades")) return showScreen("upgrades");
+  if (v.includes("open wifi")) return openWifiModal();
+  if (v.includes("copy password")) {
+    const pw = document.getElementById("wifi-password")?.textContent?.trim();
+    if (pw) navigator.clipboard?.writeText(pw);
+    return renderSystemNote("Copied WiFi password.");
+  }
 
+  if (v.includes("open door") || v.includes("door code")) return openCheckinModal();
+
+  if (v.includes("open guides")) return showScreen("experiences");
+  if (v.includes("view upgrades")) return showScreen("upgrades");
+
+  // default: send as chat message
   if (!chatInput) return;
   chatInput.value = label;
   sendChat();
 });
+
 
     wrap.appendChild(btn);
   });
