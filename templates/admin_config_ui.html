@@ -4,8 +4,7 @@
   <meta charset="utf-8" />
   <title>Config Editor</title>
   <meta name="viewport" content="width=device-width,initial-scale=1" />
- <link rel="stylesheet" href="/static/css/admin_config_ui.css">
-
+  <link rel="stylesheet" href="/static/css/admin_config_ui.css">
 </head>
 <body>
   <div class="wrap">
@@ -239,8 +238,11 @@
     let dirty = false;
     let saving = false;
 
-    // ✅ prevents raw JSON textarea from being overwritten while user is typing there
+    // prevents raw JSON textarea from being overwritten while user is typing there
     let editingRaw = false;
+
+    // Default voice templates (used for UI + preview fallback)
+    const DEFAULT_WELCOME_NO_NAME = "Hi there! I’m {{assistant_name}}, your stay assistant for {{property_name}}.";
 
     // Ensure base structure
     function ensureShape(){
@@ -272,14 +274,15 @@
       $("assistant_dont").value = joinLines(a.dont);
 
       $("voice_welcome_template").value = a.voice.welcome_template || "";
-      $("voice_welcome_template_no_name").value = a.voice.welcome_template_no_name || "";
+      // Show a sensible default in the UI if it's empty
+      $("voice_welcome_template_no_name").value = a.voice.welcome_template_no_name || DEFAULT_WELCOME_NO_NAME;
       $("voice_offline_message").value = a.voice.offline_message || "";
       $("voice_fallback_message").value = a.voice.fallback_message || "";
       $("voice_error_message").value = a.voice.error_message || "";
 
       renderQuickReplies();
 
-      // ✅ only sync raw JSON if user isn't actively editing it
+      // Only sync raw JSON if user isn't actively editing it
       if (!editingRaw) {
         $("rawJson").value = JSON.stringify(cfg, null, 2);
       }
@@ -289,14 +292,26 @@
       $("pvName").textContent = name;
       $("pvName2").textContent = name;
 
-      const welcome = (a.voice.welcome_template_no_name || "")
-        .replaceAll("{{assistant_name}}", name)
-        .replaceAll("{{property_name}}", "Casa Sea Esta");
+      // ---- Welcome preview (safe + clean) ----
+      const tplRaw = String(a.voice?.welcome_template_no_name || "");
+      const tpl = tplRaw.trim();
 
-      console.log("welcome_template_no_name length:", (a.voice.welcome_template_no_name || "").length);
-      console.log("welcome_template_no_name preview:", (a.voice.welcome_template_no_name || "").slice(0, 200));
+      // Use the template only if it is meaningful; otherwise fall back
+      let welcomeText = tpl
+        ? tpl
+            .replaceAll("{{assistant_name}}", name)
+            .replaceAll("{{property_name}}", "Casa Sea Esta")
+        : DEFAULT_WELCOME_NO_NAME
+            .replaceAll("{{assistant_name}}", name)
+            .replaceAll("{{property_name}}", "Casa Sea Esta");
 
-      $("pvWelcome").textContent = welcome || `Hi there! I’m ${name}, your stay assistant for Casa Sea Esta.`;
+      // Cap preview so corrupted configs can't destroy the UI
+      const MAX_PREVIEW_CHARS = 220;
+      if (welcomeText.length > MAX_PREVIEW_CHARS) {
+        welcomeText = welcomeText.slice(0, MAX_PREVIEW_CHARS) + "…";
+      }
+
+      $("pvWelcome").textContent = welcomeText;
 
       // simple preview reply depends on tone/verbosity
       const v = (a.verbosity || "balanced");
@@ -526,7 +541,7 @@
     // Wire events
     // -----------------------
     function wire(){
-      // ✅ track when user is editing raw JSON
+      // track when user is editing raw JSON
       $("rawJson").addEventListener("focus", () => { editingRaw = true; });
       $("rawJson").addEventListener("blur", () => { editingRaw = false; });
 
@@ -537,7 +552,7 @@
           dirty = true;
           setStatus("warn", "Unsaved changes…");
 
-          // ✅ do not overwrite raw JSON while editing it
+          // do not overwrite raw JSON while editing it
           if (!editingRaw) {
             $("rawJson").value = JSON.stringify(cfg, null, 2);
           }
