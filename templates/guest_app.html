@@ -1902,15 +1902,12 @@ function renderErrorWithActions(message) {
 
 
         const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify(body),
-          chatInFlight = false;
-          if (chatInput) chatInput.disabled = false;
-          if (chatSend) chatSend.disabled = false;
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  credentials: "include",
+  body: JSON.stringify(body),
+});
 
-        });
         
         const data = await readJsonSafely(res);
         removeTyping();
