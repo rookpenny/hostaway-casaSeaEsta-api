@@ -1325,7 +1325,26 @@ function inferIntent(userText, botText) {
   return "general";
 }
 
-    
+  function detectIntentFromText(text = "") {
+  const t = text.toLowerCase();
+
+  if (t.match(/\bwifi|internet|password\b/)) return "wifi";
+  if (t.match(/\bdoor|code|lock|entry|keypad\b/)) return "door";
+  if (t.match(/\bpark|parking\b/)) return "parking";
+  if (t.match(/\bcheck\s*out|checkout|leaving\b/)) return "checkout";
+  if (t.match(/\bcheck\s*in|arrival|arriving\b/)) return "checkin";
+  if (t.match(/\btrash|garbage|recycling\b/)) return "trash";
+  if (t.match(/\bemergency|hospital|911\b/)) return "emergency";
+  if (t.match(/\bcontact|call|host\b/)) return "contact_host";
+  if (t.match(/\brestaurant|food|dinner|lunch\b/)) return "restaurants";
+  if (t.match(/\bcoffee|cafe|espresso\b/)) return "coffee";
+  if (t.match(/\bthings to do|activities|fun\b/)) return "things_to_do";
+  if (t.match(/\bbeach\b/)) return "beach";
+  if (t.match(/\bgrocery|store|market\b/)) return "grocery";
+
+  return "generic";
+}
+  
 
 // --- Follow-up chips under each bot answer ---
 function buildFollowups(userText, botText) {
@@ -1383,6 +1402,15 @@ function renderFollowupChips(labels) {
     if (pw) navigator.clipboard?.writeText(pw);
     return renderSystemNote("Copied WiFi password.");
   }
+
+  if (v.includes("wifi")) return openWifiModal();
+  if (v.includes("door")) return openCheckinModal();
+  if (v.includes("guides")) return showScreen("experiences");
+  if (v.includes("contact")) {
+    renderMessage("You can reach your host at the number provided in your booking.", "bot");
+    return;
+  }
+    
 
   if (v.includes("open door") || v.includes("door code")) return openCheckinModal();
 
@@ -1530,6 +1558,9 @@ function renderErrorWithActions(message) {
     let lastUserMessage = null;
     let chatInFlight = false;
     let chatAbort = null;
+    let lastUserIntent = null;
+    let lastBotIntent = null;
+
 
 
     let chatHasWelcome = false;
@@ -1868,14 +1899,15 @@ function renderErrorWithActions(message) {
     
 
     async function sendChat() {
-  if (chatInFlight) return; // ⛔ prevent double-send
+      if (chatInFlight) return; // ⛔ prevent double-send
+    
+      const text = (chatInput?.value || "").trim();
+      if (!text) return;
 
-  const text = (chatInput?.value || "").trim();
-  if (!text) return;
-
-  chatInFlight = true;
+      chatInFlight = true;
 
       lastUserMessage = text;
+      lastUserIntent = detectIntentFromText(text);
 
       // Slash commands (interactive shortcuts)
       const t = text.toLowerCase();
