@@ -1866,10 +1866,11 @@
 
   function renderWelcomeTemplate(template, vars) {
   return String(template || "").replace(
-    /{{\s*(guest_name|assistant_name|property_name)\s*}}/g,
+    /\{\{\s*(guest_name|assistant_name|property_name)\s*\}\}/g,
     (_, key) => String(vars[key] ?? "")
   );
 }
+
 
 
 
