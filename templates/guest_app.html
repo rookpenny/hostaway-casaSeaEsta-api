@@ -1110,6 +1110,330 @@
     const chatSend = document.getElementById("chat-send");
     const chatPlus = document.querySelector(".chat-plus");
 
+    // ===============================
+// NEW: Chat UX Enhancements
+// ===============================
+
+// --- Haptics (mobile) ---
+function haptic(ms = 10) {
+  try { if (navigator.vibrate) navigator.vibrate(ms); } catch {}
+}
+
+// --- Chat persistence ---
+function getChatStorageKey() {
+  const sid = currentSessionId || "no_session";
+  return `chat_history_${window.PROPERTY_ID}_${sid}`;
+}
+
+function saveChatHistory() {
+  try {
+    if (!chatBox) return;
+    const items = [];
+    chatBox.querySelectorAll(".msg").forEach((row) => {
+      const isUser = row.classList.contains("user");
+      const textEl = row.querySelector(".message-text");
+      const raw = textEl ? textEl.textContent : "";
+      items.push({ sender: isUser ? "user" : "bot", text: raw });
+    });
+    localStorage.setItem(getChatStorageKey(), JSON.stringify(items));
+  } catch {}
+}
+
+function restoreChatHistory() {
+  try {
+    if (!chatBox) return;
+    const raw = localStorage.getItem(getChatStorageKey());
+    if (!raw) return;
+    const items = JSON.parse(raw);
+    if (!Array.isArray(items) || items.length === 0) return;
+
+    chatBox.innerHTML = "";
+    items.forEach((m) => renderMessage(m.text, m.sender, { skipSave: true }));
+    scrollChatToBottom();
+  } catch {}
+}
+
+// --- Lightweight “memory” (frontend-only) ---
+const MEMORY_KEY = `sandy_memory_${window.PROPERTY_ID}`;
+
+function loadMemory() {
+  try {
+    const raw = localStorage.getItem(MEMORY_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveMemory(mem) {
+  try { localStorage.setItem(MEMORY_KEY, JSON.stringify(mem || {})); } catch {}
+}
+
+let sandyMemory = loadMemory();
+
+function maybeUpdateMemoryFromUserText(text) {
+  const t = String(text || "").toLowerCase();
+
+  // very simple “preferences”
+  const cuisines = ["mexican","italian","sushi","seafood","thai","indian","bbq","steak","vegan","vegetarian","gluten-free","coffee","breakfast","brunch"];
+  const found = cuisines.find(c => t.includes(c));
+  if (found) {
+    sandyMemory.last_food_pref = found;
+    saveMemory(sandyMemory);
+    renderSystemNote(`Noted: you mentioned **${found}**.`); // feels ChatGPT-like
+  }
+}
+
+function renderSystemNote(mdText) {
+  // system note uses bot styling but lighter tone
+  renderMessage(mdText, "bot", { variant: "system" });
+}
+
+// --- Typing indicator w/ “thinking” label ---
+function getThinkingLabel(userText) {
+  const t = String(userText || "").toLowerCase();
+  if (t.includes("restaurant") || t.includes("food") || t.includes("coffee")) return "Looking up nearby spots…";
+  if (t.includes("wifi")) return "Checking WiFi details…";
+  if (t.includes("check") || t.includes("door") || t.includes("code")) return "Pulling up check-in info…";
+  if (t.includes("late") || t.includes("early")) return "Checking availability…";
+  if (t.includes("guide") || t.includes("things to do")) return "Finding local tips…";
+  return "Thinking…";
+}
+
+// Replace your addTyping() with this version (same name)
+function addTyping(labelText = "Thinking…") {
+  if (!chatBox || document.getElementById("typing-indicator")) return;
+
+  const row = document.createElement("div");
+  row.id = "typing-indicator";
+  row.className = "msg bot";
+
+  const avatar = document.createElement("div");
+  avatar.className = "avatar avatar-sandy";
+
+  const column = document.createElement("div");
+
+  const label = document.createElement("div");
+  label.className = "timestamp";
+  label.textContent = labelText;
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.innerHTML = `
+    <span class="typing-dots">
+      <span> </span><span> </span><span> </span>
+    </span>
+  `;
+
+  column.appendChild(label);
+  column.appendChild(bubble);
+
+  row.appendChild(avatar);
+  row.appendChild(column);
+
+  chatBox.appendChild(row);
+  scrollChatToBottom();
+}
+
+// --- Typewriter “streaming” effect ---
+function createBotBubble({ variant } = {}) {
+  if (!chatBox) return null;
+
+  const row = document.createElement("div");
+  row.className = "msg bot";
+
+  const avatar = document.createElement("div");
+  avatar.className = "avatar avatar-sandy";
+
+  const column = document.createElement("div");
+
+  const time = document.createElement("div");
+  time.className = "timestamp";
+  time.textContent = formatTime(new Date());
+
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+
+  // system-style variant (subtle)
+  if (variant === "system") {
+    bubble.style.background = "#e2e8f0";
+    bubble.style.color = "#0f172a";
+  }
+
+  const body = document.createElement("div");
+  body.className = "message-text";
+  body.innerHTML = ""; // will be filled
+
+  bubble.appendChild(body);
+  column.appendChild(time);
+  column.appendChild(bubble);
+
+  row.appendChild(avatar);
+  row.appendChild(column);
+
+  chatBox.appendChild(row);
+  scrollChatToBottom();
+
+  return { row, body };
+}
+
+async function typewriterTo(el, fullText, { speed = 12 } = {}) {
+  const text = String(fullText || "");
+  let i = 0;
+
+  // render markdown progressively (simple + stable approach)
+  // We incrementally set textContent first, then finalize with formatted markdown at the end.
+  el.textContent = "";
+
+  return new Promise((resolve) => {
+    const tick = () => {
+      i += Math.max(1, Math.round(text.length / 220)); // adaptive chunking
+      el.textContent = text.slice(0, i);
+
+      scrollChatToBottom();
+
+      if (i >= text.length) {
+        // finalize formatting once at the end (prevents jumpy HTML)
+        el.innerHTML = formatMessage(text);
+        resolve();
+        return;
+      }
+      setTimeout(tick, speed);
+    };
+    tick();
+  });
+}
+
+// --- Follow-up chips under each bot answer ---
+function buildFollowups(userText, botText) {
+  const t = String(userText || "").toLowerCase();
+  const pref = sandyMemory?.last_food_pref;
+
+  // restaurant-ish
+  if (t.includes("restaurant") || t.includes("food")) {
+    return [
+      pref ? `Any good ${pref} options?` : "Any top-rated options?",
+      "What’s closest to the house?",
+      "Any kid-friendly places?",
+      "Make a date-night plan",
+    ];
+  }
+
+  // generic helpful followups
+  return [
+    "Any tips for today?",
+    "What are the best local spots?",
+    "Show me the Guides",
+    "How do I contact the host?",
+  ];
+}
+
+function renderFollowupChips(labels) {
+  if (!chatBox) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "flex gap-2 flex-wrap ml-[52px] mt-2 mb-4"; // aligns under bot bubble (avatar width)
+
+  labels.slice(0, 4).forEach((label) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className =
+      "px-3 py-2 rounded-full bg-white border border-slate-200 text-slate-900 text-sm font-semibold whitespace-nowrap active:scale-95";
+    btn.textContent = label;
+    btn.addEventListener("click", () => {
+      if (!chatInput) return;
+      chatInput.value = label;
+      sendChat();
+    });
+    wrap.appendChild(btn);
+  });
+
+  chatBox.appendChild(wrap);
+  scrollChatToBottom();
+}
+
+// --- Rich “cards” (frontend-only parser; backend optional) ---
+function renderCardsFromText(botText) {
+  const text = String(botText || "");
+
+  // Restaurant heuristic: if response includes “http…maps” or lines like “1) Name - …”
+  // Keep it simple: create a “Helpful actions” card for maps/next steps.
+  const hasMaps = /google\.com\/maps/i.test(text);
+
+  if (!hasMaps) return;
+
+  const card = document.createElement("div");
+  card.className =
+    "ml-[52px] mb-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm";
+
+  const title = document.createElement("div");
+  title.className = "font-semibold text-slate-900";
+  title.textContent = "Quick actions";
+  card.appendChild(title);
+
+  const row = document.createElement("div");
+  row.className = "mt-3 flex gap-2 flex-wrap";
+
+  const btn1 = document.createElement("button");
+  btn1.type = "button";
+  btn1.className =
+    "px-3 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold active:scale-95";
+  btn1.textContent = "Open Guides";
+  btn1.addEventListener("click", () => showScreen("experiences"));
+
+  const btn2 = document.createElement("button");
+  btn2.type = "button";
+  btn2.className =
+    "px-3 py-2 rounded-full bg-white border border-slate-200 text-slate-900 text-sm font-semibold active:scale-95";
+  btn2.textContent = "Ask for more options";
+  btn2.addEventListener("click", () => {
+    if (!chatInput) return;
+    chatInput.value = "Give me 3 more options with short notes.";
+    sendChat();
+  });
+
+  row.appendChild(btn1);
+  row.appendChild(btn2);
+
+  card.appendChild(row);
+
+  chatBox.appendChild(card);
+  scrollChatToBottom();
+}
+
+// --- Better error UI (retry etc.) ---
+function renderErrorWithActions(message) {
+  renderMessage(message || "Oops! Something went wrong.", "bot");
+
+  const actions = document.createElement("div");
+  actions.className = "flex gap-2 flex-wrap ml-[52px] mt-2 mb-4";
+
+  const retry = document.createElement("button");
+  retry.type = "button";
+  retry.className =
+    "px-3 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold active:scale-95";
+  retry.textContent = "Try again";
+  retry.addEventListener("click", () => {
+    if (!chatInput) return;
+    chatInput.focus();
+  });
+
+  const guides = document.createElement("button");
+  guides.type = "button";
+  guides.className =
+    "px-3 py-2 rounded-full bg-white border border-slate-200 text-slate-900 text-sm font-semibold active:scale-95";
+  guides.textContent = "Open Guides";
+  guides.addEventListener("click", () => showScreen("experiences"));
+
+  actions.appendChild(retry);
+  actions.appendChild(guides);
+
+  chatBox?.appendChild(actions);
+  scrollChatToBottom();
+}
+
+
+
+    
+
     // ✅ Assistant config from config.json (injected by server)
     const assistantCfg = window.ASSISTANT_CONFIG || {};
     const assistantName = assistantCfg.name || "Sandy";
@@ -1132,6 +1456,8 @@
       guides: [],
       activeFilter: "all",
     };
+
+    
 
     // --- Global state ---
     let isUnlocked = !!window.INITIAL_VERIFIED;
@@ -1391,43 +1717,55 @@
     }
 
 
-    function renderMessage(text, sender) {
-      if (!chatBox) return;
+    function renderMessage(text, sender, opts = {}) {
+  if (!chatBox) return;
 
-      const isUser = sender === "user";
-      const ts = formatTime(new Date());
+  const { skipSave = false, variant = "normal" } = opts;
 
-      const row = document.createElement("div");
-      row.className = "msg " + (isUser ? "user" : "bot");
+  const isUser = sender === "user";
+  const ts = formatTime(new Date());
 
-      let avatar = null;
-      if (!isUser) {
-        avatar = document.createElement("div");
-        avatar.className = "avatar avatar-sandy";
-      }
+  const row = document.createElement("div");
+  row.className = "msg " + (isUser ? "user" : "bot");
 
-      const column = document.createElement("div");
+  let avatar = null;
+  if (!isUser) {
+    avatar = document.createElement("div");
+    avatar.className = "avatar avatar-sandy";
+  }
 
-      const bubble = document.createElement("div");
-      bubble.className = "bubble";
-      bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
+  const column = document.createElement("div");
 
-      const time = document.createElement("div");
-      time.className = "timestamp";
-      time.textContent = ts;
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
 
-      column.appendChild(time);
-      column.appendChild(bubble);
+  // system variant (subtle)
+  if (variant === "system") {
+    bubble.style.background = "#e2e8f0";
+    bubble.style.color = "#0f172a";
+  }
 
-      if (isUser) row.appendChild(column);
-      else {
-        row.appendChild(avatar);
-        row.appendChild(column);
-      }
+  bubble.innerHTML = `<div class="message-text">${formatMessage(text)}</div>`;
 
-      chatBox.appendChild(row);
-      scrollChatToBottom();
-    }
+  const time = document.createElement("div");
+  time.className = "timestamp";
+  time.textContent = ts;
+
+  column.appendChild(time);
+  column.appendChild(bubble);
+
+  if (isUser) row.appendChild(column);
+  else {
+    row.appendChild(avatar);
+    row.appendChild(column);
+  }
+
+  chatBox.appendChild(row);
+  scrollChatToBottom();
+
+  if (!skipSave) saveChatHistory();
+}
+
 
     //console.log("assistantName=", assistantName);
     //console.log("template=", template);
@@ -1505,8 +1843,12 @@
       }
 
       renderMessage(text, "user");
+      haptic(12);
+      maybeUpdateMemoryFromUserText(text);
+
       if (chatInput) chatInput.value = "";
-      addTyping();
+      addTyping(getThinkingLabel(text));
+
 
       try {
         const body = {
@@ -1514,6 +1856,10 @@
           session_id: currentSessionId,
           language: getSelectedLanguage(),
         };
+       
+        // subtle “sent” feel
+        try { chatSend?.classList.add("scale-90"); setTimeout(() => chatSend?.classList.remove("scale-90"), 120); } catch {}
+
 
         const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
           method: "POST",
@@ -1539,16 +1885,36 @@
           saveGuestState();
         }
 
-        if (data.error) renderMessage(data.error, "bot");
-        else
-          renderMessage(
-            data.response || voiceCfg.fallback_message || "Could you try that again?",
-            "bot"
-          );
+        if (data.error) {
+  renderErrorWithActions(data.error);
+  return;
+}
+
+const botText = data.response || voiceCfg.fallback_message || "Could you try that again?";
+
+// Typewriter “streaming”
+const bubble = createBotBubble();
+if (bubble?.body) {
+  await typewriterTo(bubble.body, botText, { speed: 12 });
+  saveChatHistory();
+
+  // Follow-up chips (backend suggestions optional)
+  const followups = Array.isArray(data.suggestions) && data.suggestions.length
+    ? data.suggestions
+    : buildFollowups(text, botText);
+
+  renderFollowupChips(followups);
+
+  // Rich cards (frontend heuristic)
+  renderCardsFromText(botText);
+} else {
+  renderMessage(botText, "bot");
+}
+
       } catch (err) {
         console.error(err);
         removeTyping();
-        renderMessage(voiceCfg.error_message || "Something went wrong. Please try again.", "bot");
+        renderErrorWithActions(voiceCfg.error_message || "Oops! Something went wrong. Please try again.");
       }
     }
 
@@ -1934,6 +2300,7 @@
 
   if (name === "chat") {
     // ✅ hard guard: once per page load (and per property)
+    restoreChatHistory();
     const welcomeKey = `welcome_shown_${window.PROPERTY_ID}`;
 
     if (!chatHasWelcome && !sessionStorage.getItem(welcomeKey)) {
