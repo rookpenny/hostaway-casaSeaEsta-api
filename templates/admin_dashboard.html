@@ -429,7 +429,7 @@
         <iframe
           id="configIframe"
           class="w-full rounded-xl border border-slate-200 bg-white"
-          style="height: 860px;"
+          style="height: calc(100vh - 240px); min-height: 720px;"
           src="about:blank"
         ></iframe>
       </div>
@@ -537,7 +537,7 @@
 <script>
   // Opens the full Config UI in an iframe (keeps its CSS intact),
   // and hides the properties list until Close is pressed.
-  function openInlineConfig(filePath, propertyName) {
+  window.openInlineConfig = function (filePath, propertyName) {
     const wrap = document.getElementById("configPanelWrap");
     const iframe = document.getElementById("configIframe");
     const label = document.getElementById("configScopeLabel");
@@ -564,9 +564,9 @@
 
     // prevent navigation
     return false;
-  }
+  };
 
-  function closeInlineConfig() {
+  window.closeInlineConfig = function () {
     const wrap = document.getElementById("configPanelWrap");
     const iframe = document.getElementById("configIframe");
     const label = document.getElementById("configScopeLabel");
@@ -581,10 +581,10 @@
     if (grid) grid.classList.remove("hidden");
     if (header) header.classList.remove("hidden");
 
-    // optional: scroll back to top of properties
     header?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
+  };
 </script>
+
 
 
 
@@ -1635,74 +1635,6 @@ window.openChatDetail = openChatDetail;
     });
 
 
-window.openInlineConfig = async function (filePath, propertyName) {
-  // Hide cards, show config area
-  document.getElementById("propertiesList")?.classList.add("hidden");
-  document.getElementById("configPanelWrap")?.classList.remove("hidden");
-
-  const label = document.getElementById("configScopeLabel");
-  if (label) label.textContent = `Editing: ${propertyName || ""}`;
-
-  const panel = document.getElementById("configPanel");
-  if (panel) panel.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
-
-  try {
-    const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}`, {
-      credentials: "include",
-      headers: { "X-Requested-With": "fetch" },
-    });
-
-    if (res.status === 401 || res.status === 403) return loginRedirect?.();
-    if (!res.ok) throw new Error(`Could not load config UI (HTTP ${res.status})`);
-
-    const htmlText = await res.text();
-
-    // Parse returned HTML safely
-    const doc = new DOMParser().parseFromString(htmlText, "text/html");
-
-    // Prefer body content if it's a full document; otherwise fallback
-    const bodyHtml = doc.body?.innerHTML?.trim();
-    const contentHtml = bodyHtml && bodyHtml.length ? bodyHtml : htmlText;
-
-    // Inject
-    panel.innerHTML = contentHtml;
-
-    // IMPORTANT: scripts inserted via innerHTML do NOT execute.
-    // Recreate them so they execute.
-    const scripts = Array.from(panel.querySelectorAll("script"));
-    for (const old of scripts) {
-      const s = document.createElement("script");
-
-      // copy attributes (src, type, etc.)
-      for (const attr of old.attributes) s.setAttribute(attr.name, attr.value);
-
-      // inline script content
-      if (!old.src) s.textContent = old.textContent || "";
-
-      // Replace old with new executable script
-      old.replaceWith(s);
-    }
-
-    // Scroll into view
-    document.getElementById("configPanelWrap")?.scrollIntoView({ behavior: "smooth", block: "start" });
-  } catch (e) {
-    console.error(e);
-    if (panel) panel.innerHTML = `<div class="text-sm text-rose-700">Failed to load config: ${e.message}</div>`;
-  }
-
-  return false;
-};
-
-window.closeInlineConfig = function () {
-  document.getElementById("configPanelWrap")?.classList.add("hidden");
-  document.getElementById("propertiesList")?.classList.remove("hidden");
-
-  const panel = document.getElementById("configPanel");
-  if (panel) panel.innerHTML = "";
-
-  const label = document.getElementById("configScopeLabel");
-  if (label) label.textContent = "Select a property to edit its config.";
-};
 
    
 
