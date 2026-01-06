@@ -1470,6 +1470,28 @@
       return "auto";
     }
 
+    async function readJsonSafely(res) {
+      const contentType = (res.headers.get("content-type") || "").toLowerCase();
+      const text = await res.text(); // read response once
+    
+      if (contentType.includes("application/json")) {
+        try {
+          return JSON.parse(text);
+        } catch (e) {
+          return { error: "Invalid JSON response from server." };
+        }
+      }
+    
+      // Fallback for HTML / text / streaming responses
+      return {
+        error: `Server returned ${res.status} (${res.statusText})`,
+        raw: text.slice(0, 300),
+      };
+    }
+
+
+    
+
     async function sendChat() {
       const text = (chatInput?.value || "").trim();
       if (!text) return;
@@ -1493,15 +1515,24 @@
           language: getSelectedLanguage(),
         };
 
-        const res = await fetch(`/properties/${window.PROPERTY_ID}/chat?stream=1`, {
+        const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify(body),
         });
-
-        const data = await res.json();
+        
+        const data = await readJsonSafely(res);
         removeTyping();
+        
+        if (!res.ok) {
+          renderMessage(
+            data?.error || voiceCfg.error_message || "Something went wrong. Please try again.",
+            "bot"
+          );
+          return;
+        }
+
 
         if (data.session_id) {
           currentSessionId = data.session_id;
