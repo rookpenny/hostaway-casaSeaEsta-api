@@ -231,6 +231,23 @@
     }
     function deepClone(x){ return JSON.parse(JSON.stringify(x || {})); }
 
+
+    function sanitizePreviewText(s) {
+      s = String(s || "");
+    
+      // Remove zero-width characters that can cause weird rendering
+      s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
+    
+      // Collapse newlines/tabs into single spaces
+      s = s.replace(/\s+/g, " ").trim();
+    
+      // Hard cap so a bad save can't blow up the UI
+      if (s.length > 260) s = s.slice(0, 260) + "…";
+    
+      return s;
+    }
+
+
     // -----------------------
     // State
     // -----------------------
@@ -295,7 +312,7 @@
       // ---- Welcome preview (safe + clean) ----
       const tplRaw = String(a.voice?.welcome_template_no_name || "");
       const tpl = tplRaw.trim();
-
+      
       // Use the template only if it is meaningful; otherwise fall back
       let welcomeText = tpl
         ? tpl
@@ -304,14 +321,12 @@
         : DEFAULT_WELCOME_NO_NAME
             .replaceAll("{{assistant_name}}", name)
             .replaceAll("{{property_name}}", "Casa Sea Esta");
-
-      // Cap preview so corrupted configs can't destroy the UI
-      const MAX_PREVIEW_CHARS = 220;
-      if (welcomeText.length > MAX_PREVIEW_CHARS) {
-        welcomeText = welcomeText.slice(0, MAX_PREVIEW_CHARS) + "…";
-      }
-
+      
+      // ✅ sanitize + cap preview so corrupted configs can't destroy the UI
+      welcomeText = sanitizePreviewText(welcomeText);
+      
       $("pvWelcome").textContent = welcomeText;
+
 
       // simple preview reply depends on tone/verbosity
       const v = (a.verbosity || "balanced");
