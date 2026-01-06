@@ -161,7 +161,6 @@ def get_hostaway_properties():
     return response.json().get("result", [])
 
 
-from typing import Optional, Tuple
 
 def get_listing_overview(
     listing_id: str,
