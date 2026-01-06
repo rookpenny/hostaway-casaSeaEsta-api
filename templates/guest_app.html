@@ -1864,6 +1864,13 @@
   return str.split(needle).join(replacement);
 }
 
+    function renderWelcomeTemplate(tpl, vars) {
+      return String(tpl || "").replace(/{{\s*(guest_name|assistant_name|property_name)\s*}}/g, (_, key) => {
+        return String(vars[key] ?? "");
+      });
+    }
+
+
 
 
     // --- Screen router ---
@@ -1903,9 +1910,12 @@
 
         let intro = String(template || "");
 
-        intro = safeReplaceAll(intro, "{{guest_name}}", guestName || "");
-        intro = safeReplaceAll(intro, "{{assistant_name}}", assistantName || "Sandy");
-        intro = safeReplaceAll(intro, "{{property_name}}", window.PROPERTY_NAME || "");
+        intro = renderWelcomeTemplate(template, {
+          guest_name: guestName || "",
+          assistant_name: assistantName || "Sandy",
+          property_name: window.PROPERTY_NAME || "",
+        });
+
 
         const fallback = `Hi! I’m ${assistantName || "Sandy"}, your stay assistant for ${window.PROPERTY_NAME || "your stay"}. How can I help?`;
 
