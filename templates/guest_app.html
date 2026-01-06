@@ -1864,11 +1864,13 @@
   return str.split(needle).join(replacement);
 }
 
-    function renderWelcomeTemplate(tpl, vars) {
-      return String(tpl || "").replace(/{{\s*(guest_name|assistant_name|property_name)\s*}}/g, (_, key) => {
-        return String(vars[key] ?? "");
-      });
-    }
+  function renderWelcomeTemplate(template, vars) {
+  return String(template || "").replace(
+    /{{\s*(guest_name|assistant_name|property_name)\s*}}/g,
+    (_, key) => String(vars[key] ?? "")
+  );
+}
+
 
 
 
@@ -1908,9 +1910,7 @@
           ? (voiceCfg.welcome_template || "")
           : (voiceCfg.welcome_template_no_name || "");
 
-        let intro = String(template || "");
-
-        intro = renderWelcomeTemplate(template, {
+        const intro = renderWelcomeTemplate(template, {
           guest_name: guestName || "",
           assistant_name: assistantName || "Sandy",
           property_name: window.PROPERTY_NAME || "",
