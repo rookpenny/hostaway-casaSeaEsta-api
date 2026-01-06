@@ -1338,7 +1338,7 @@ function detectIntent(text = "") {
 
 // --- Follow-up chips under each bot answer ---
 function buildFollowups(userText, botText) {
-  const intent = lastBotIntent || inferIntent(userText, botText);
+  const intent = lastBotIntent || detectIntent(`${userText}\n${botText}`);
 
   switch (intent) {
     case "wifi":
@@ -1381,14 +1381,6 @@ function buildFollowups(userText, botText) {
         { label: "Contact the host", action: "CONTACT_HOST" },
       ];
 
-    case "house_rules":
-      return [
-        { label: "House rules", action: "ASK", text: "What are the house rules?" },
-        { label: "Quiet hours", action: "ASK", text: "What are the quiet hours?" },
-        { label: "No smoking / pets", action: "ASK", text: "Can you confirm smoking/pets policy?" },
-        { label: "Contact the host", action: "CONTACT_HOST" },
-      ];
-
     case "trash":
       return [
         { label: "Trash instructions", action: "ASK", text: "Where do I take the trash?" },
@@ -1401,8 +1393,8 @@ function buildFollowups(userText, botText) {
       return [
         { label: "Emergency steps", action: "ASK", text: "What should I do in an emergency?" },
         { label: "Nearest hospital", action: "ASK", text: "Where is the nearest hospital?" },
-        { label: "Non-emergency police", action: "ASK", text: "What’s the non-emergency police number?" },
         { label: "Contact the host", action: "CONTACT_HOST" },
+        { label: "Call 911", action: "ASK", text: "Call 911" },
       ];
 
     case "contact_host":
@@ -1446,6 +1438,7 @@ function buildFollowups(userText, botText) {
       ];
   }
 }
+
 
 
 
@@ -2101,7 +2094,8 @@ function renderErrorWithActions(message) {
 }
 
 const botText = data.response || voiceCfg.fallback_message || "Could you try that again?";
-lastBotIntent = inferIntent(text, botText);
+lastBotIntent = detectIntent(`${text}\n${botText}`);
+
 
 
 // Typewriter “streaming”
