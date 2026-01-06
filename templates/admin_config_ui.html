@@ -293,6 +293,9 @@
         .replaceAll("{{assistant_name}}", name)
         .replaceAll("{{property_name}}", "Casa Sea Esta");
 
+      console.log("welcome_template_no_name length:", (a.voice.welcome_template_no_name || "").length);
+      console.log("welcome_template_no_name preview:", (a.voice.welcome_template_no_name || "").slice(0, 200));
+
       $("pvWelcome").textContent = welcome || `Hi there! I’m ${name}, your stay assistant for Casa Sea Esta.`;
 
       // simple preview reply depends on tone/verbosity
