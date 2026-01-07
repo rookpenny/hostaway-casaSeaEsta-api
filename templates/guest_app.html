@@ -1131,33 +1131,26 @@ function getChatStorageKey() {
 }
 
 
-function saveChatHistory() {
+function saveTranscript() {
   try {
-    if (!chatBox) return;
-    const items = [];
-    chatBox.querySelectorAll(".msg").forEach((row) => {
-      const isUser = row.classList.contains("user");
-      const textEl = row.querySelector(".message-text");
-      const raw = textEl ? textEl.textContent : "";
-      items.push({ sender: isUser ? "user" : "bot", text: raw });
-    });
-    localStorage.setItem(getChatStorageKey(), JSON.stringify(items));
+    localStorage.setItem(getChatStorageKey(), JSON.stringify(transcript));
   } catch {}
 }
 
 function restoreChatHistory() {
   try {
-    if (!chatBox) return;
     const raw = localStorage.getItem(getChatStorageKey());
     if (!raw) return;
     const items = JSON.parse(raw);
-    if (!Array.isArray(items) || items.length === 0) return;
+    if (!Array.isArray(items)) return;
 
+    transcript = items;
     chatBox.innerHTML = "";
-    items.forEach((m) => renderMessage(m.text, m.sender, { skipSave: true }));
+    transcript.forEach((m) => renderMessage(m.text, m.sender, { skipSave: true, variant: m.variant || "normal" }));
     scrollChatToBottom();
   } catch {}
 }
+
 
 // --- Lightweight “memory” (frontend-only) ---
 const MEMORY_KEY = `sandy_memory_${window.PROPERTY_ID}`;
@@ -1310,7 +1303,42 @@ async function typewriterTo(el, fullText, { speed = 12 } = {}) {
 
     
 
+function isCheckoutDay() {
+  if (!departureDate) return false;
+  const today = new Date().toISOString().slice(0, 10);
+  return departureDate === today;
+}
 
+function hourNow() {
+  return new Date().getHours();
+}
+
+function maybeSendTimeNudge() {
+  if (!isChatVisible() || !chatBox) return;
+
+  const h = hourNow();
+
+  // checkout day nudge
+  if (isCheckoutDay() && h >= 7 && h <= 11) {
+    renderSystemNote(`Heads up — checkout is **${checkoutTime || "10:00 AM"}**. Want late checkout?`);
+    return;
+  }
+
+  // evening nudge
+  if (h >= 21) {
+    renderSystemNote("If you’re looking for something open late, tell me what you’re craving.");
+  }
+}
+function shouldSendNudge(key, ttlMinutes = 180) {
+  try {
+    const k = `nudge_${window.PROPERTY_ID}_${key}`;
+    const last = Number(localStorage.getItem(k) || 0);
+    const now = Date.now();
+    if (now - last < ttlMinutes * 60 * 1000) return false;
+    localStorage.setItem(k, String(now));
+    return true;
+  } catch { return true; }
+}
 
     
 function detectIntent(text = "") {
@@ -1660,7 +1688,7 @@ function renderErrorWithActions(message) {
     let chatAbort = null;
     let lastUserIntent = null;
     let lastBotIntent = null;
-
+    let transcript = [];
 
 
     let chatHasWelcome = false;
@@ -1925,20 +1953,15 @@ function autoActOnIntent(intent) {
       });
     
       // 4) Ensure links open in new tab safely (marked doesn't always add these)
-      const withSafeTargets = clean.replace(
-        /<a\s+([^>]*href="[^"]+"[^>]*)>/g,
-        (match, attrs) => {
-          const hasTarget = /target=/.test(attrs);
-          const hasRel = /rel=/.test(attrs);
-          let out = `<a ${attrs}`;
-          if (!hasTarget) out += ` target="_blank"`;
-          if (!hasRel) out += ` rel="noopener noreferrer"`;
-          out += `>`;
-          return out;
-        }
-      );
+      const tmp = document.createElement("div");
+      tmp.innerHTML = clean;
+      tmp.querySelectorAll("a").forEach((a) => {
+        a.target = "_blank";
+        a.rel = "noopener noreferrer";
+      });
+      return tmp.innerHTML;
     
-      return withSafeTargets;
+      //return withSafeTargets;
     }
 
 
@@ -2022,14 +2045,17 @@ if (!isUser && variant !== "system") {
 
     column.appendChild(reactions);
     scrollChatToBottom();
-  }, { once: true });
+  });
 }
 
 
   chatBox.appendChild(row);
   scrollChatToBottom();
 
-  if (!skipSave) saveChatHistory();
+  if (!skipSave) {
+  transcript.push({ sender, text: String(text || ""), variant, ts: Date.now() });
+  saveTranscript();
+}
 }
 
 
@@ -2192,32 +2218,7 @@ if (!isUser && variant !== "system") {
 const botText = data.response || voiceCfg.fallback_message || "Could you try that again?";
 lastBotIntent = detectIntent(`${text}\n${botText}`);
 
-function isCheckoutDay() {
-  if (!departureDate) return false;
-  const today = new Date().toISOString().slice(0, 10);
-  return departureDate === today;
-}
 
-function hourNow() {
-  return new Date().getHours();
-}
-
-function maybeSendTimeNudge() {
-  if (!isChatVisible() || !chatBox) return;
-
-  const h = hourNow();
-
-  // checkout day nudge
-  if (isCheckoutDay() && h >= 7 && h <= 11) {
-    renderSystemNote(`Heads up — checkout is **${checkoutTime || "10:00 AM"}**. Want late checkout?`);
-    return;
-  }
-
-  // evening nudge
-  if (h >= 21) {
-    renderSystemNote("If you’re looking for something open late, tell me what you’re craving.");
-  }
-}
 
 
 // Typewriter “streaming”
@@ -2657,7 +2658,10 @@ if (bubble?.body) {
 
   if (name === "chat") {
     // ✅ hard guard: once per page load (and per property)
-    restoreChatHistory();
+    if (!chatRestored) {
+      restoreChatHistory();
+      chatRestored = true;
+    }
     const welcomeKey = `welcome_shown_${window.PROPERTY_ID}`;
 maybeSendTimeNudge();
     
