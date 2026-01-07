@@ -1340,6 +1340,79 @@ function shouldSendNudge(key, ttlMinutes = 180) {
   } catch { return true; }
 }
 
+
+    function withAcknowledgement(finalBotText, intent) {
+  const openers = {
+    wifi: "Sure thing — ",
+    door: "Absolutely — ",
+    checkin: "Happy to help — ",
+    checkout: "Good question — ",
+    parking: "Yep — ",
+    trash: "Got it — ",
+    food: "Love that — ",
+    things_to_do: "Great idea — ",
+    weather: "You got it — ",
+    general: "",
+  };
+
+  const prefix = openers[intent] || "";
+  // Don’t double-prefix if your backend already starts like this
+  const t = String(finalBotText || "");
+  if (!prefix) return t;
+  if (/^(sure thing|absolutely|happy to help|good question|got it|you got it)/i.test(t.trim())) return t;
+
+  return prefix + t;
+}
+
+    function applyMemoryTofinalBotText(finalBotText, intent) {
+  const t = String(finalBotText || "");
+
+  // Only lightly weave memory in when it helps.
+  if (intent === "food" && sandyMemory?.last_food_pref) {
+    return (
+      t +
+      `\n\nSince you mentioned **${sandyMemory.last_food_pref}** earlier, I can lean that direction.`
+    );
+  }
+
+  if (intent === "things_to_do" && sandyMemory?.last_food_pref) {
+    // optional: tiny personalization
+    return t + `\n\nWant me to pair this with a **${sandyMemory.last_food_pref}** spot nearby?`;
+  }
+
+  return t;
+}
+
+    function userExplicitlyWantsOpen(text, intent) {
+  const t = String(text || "").toLowerCase();
+
+  // verbs that mean “open/show”
+  const openVerb = /\b(open|show|pull up|bring up|take me to|go to|launch)\b/;
+
+  // intent-specific targets
+  const targets = {
+    wifi: /\b(wifi|wi-fi|internet|ssid|password|network)\b/,
+    door: /\b(door|lock|keypad|entry|code|check-?in)\b/,
+    checkin: /\b(check\s*in|check-?in|arrival|early check)\b/,
+    checkout: /\b(check\s*out|check-?out|checkout|late checkout)\b/,
+    experiences: /\b(guides|things to do|activities|recommendations|recommend)\b/,
+    upgrades: /\b(upgrades|late checkout|early check-?in)\b/,
+  };
+
+  // map your intent to a target bucket
+  let bucket = null;
+  if (intent === "wifi") bucket = "wifi";
+  else if (intent === "door") bucket = "door";
+  else if (intent === "checkin") bucket = "checkin";
+  else if (intent === "checkout") bucket = "checkout";
+  else if (intent === "things_to_do") bucket = "experiences";
+  else if (intent === "food") bucket = "experiences";
+
+  if (!bucket) return false;
+
+  return openVerb.test(t) && (targets[bucket]?.test(t) ?? false);
+}
+
     
 function detectIntent(text = "") {
   const t = String(text || "").toLowerCase();
@@ -1375,8 +1448,8 @@ function detectIntent(text = "") {
   
 
 // --- Follow-up chips under each bot answer ---
-function buildFollowups(userText, botText) {
-  const intent = lastBotIntent || detectIntent(`${userText}\n${botText}`);
+function buildFollowups(userText, finalBotText) {
+  const intent = lastBotIntent || detectIntent(`${userText}\n${finalBotText}`);
 
   switch (intent) {
     case "wifi":
@@ -1546,8 +1619,8 @@ function runFollowupAction(item) {
 
 
 // --- Rich “cards” (frontend-only parser; backend optional) ---
-function renderCardsFromText(botText) {
-  const text = String(botText || "");
+function renderCardsFromText(finalBotText) {
+  const text = String(finalBotText || "");
   const intent = lastBotIntent || detectIntent(text);
 
   if (!chatBox) return;
@@ -1872,7 +1945,7 @@ function renderErrorWithActions(message) {
     });
 
     // --- Chat rendering helpers ---
-function hasExplicitOpenRequest(text = "") {
+/*function hasExplicitOpenRequest(text = "") {
   const t = String(text).toLowerCase();
 
   // verbs that mean "open / show / pull up"
@@ -1911,7 +1984,7 @@ function shouldAutoOpen(key, ttlMs = 2 * 60 * 1000) {
   } catch {
     return true;
   }
-}
+}*/
 
 function isAnyOverlayOpen() {
   const wifiModal = document.getElementById("wifi-modal");
@@ -1934,42 +2007,41 @@ function isAnyOverlayOpen() {
   );
 }
 
+   function pushTranscript(sender, text, variant="normal") {
+  transcript.push({ sender, text: String(text || ""), variant, ts: Date.now() });
+  saveTranscript();
+}
     
-function autoActOnIntent(intent, userText = "") {
+function autoActOnIntent(intent, userText) {
   try {
-    if (!isChatVisible()) return;
-    if (isAnyOverlayOpen()) return;
+    if (!userExplicitlyWantsOpen(userText, intent)) return;
+    if (isAnyOverlayOpen()) return; // ✅ don’t “take over” while something is open
 
-    const wants = hasExplicitOpenRequest(userText);
+    switch (intent) {
+      case "wifi":
+        setTimeout(() => { if (isChatVisible()) openWifiModal(); }, 250);
+        break;
 
-    // Explicit request → auto-open (still rate-limited)
-    if (intent === "wifi" && wants.wifi && shouldAutoOpen("wifi")) {
-      setTimeout(() => { if (isChatVisible()) openWifiModal(); }, 250);
-      return;
-    }
+      case "door":
+      case "checkin":
+        setTimeout(() => { if (isChatVisible()) openCheckinModal(); }, 250);
+        break;
 
-    if ((intent === "door" || intent === "checkin") && wants.door && shouldAutoOpen("door")) {
-      setTimeout(() => { if (isChatVisible()) openCheckinModal(); }, 250);
-      return;
-    }
+      case "checkout":
+        setTimeout(() => { if (isChatVisible()) showScreen("upgrades"); }, 250);
+        break;
 
-    if ((intent === "things_to_do" || intent === "food") && wants.guides && shouldAutoOpen("guides")) {
-      setTimeout(() => { if (isChatVisible()) showScreen("experiences"); }, 250);
-      return;
-    }
+      case "things_to_do":
+      case "food":
+        setTimeout(() => { if (isChatVisible()) showScreen("experiences"); }, 250);
+        break;
 
-    if ((intent === "checkout" || intent === "checkin") && wants.upgrades && shouldAutoOpen("upgrades")) {
-      setTimeout(() => { if (isChatVisible()) showScreen("upgrades"); }, 250);
-      return;
-    }
-
-    // Not explicit → soft suggestion (no takeover)
-    // (also rate-limit so it doesn't spam)
-    if (shouldAutoOpen(`suggest_${intent}`, 90 * 1000)) {
-      renderSoftSuggestion(intent);
+      default:
+        break;
     }
   } catch {}
 }
+
 
 
 
@@ -2105,7 +2177,7 @@ if (!isUser && variant !== "system") {
       btn.addEventListener("click", () => {
         reactions.remove();
         renderSystemNote(responseText);
-        saveTranscript();
+        //saveTranscript();
       });
 
       return btn;
@@ -2129,9 +2201,9 @@ if (!isUser && variant !== "system") {
   scrollChatToBottom();
 
   if (!skipSave) {
-  transcript.push({ sender, text: String(text || ""), variant, ts: Date.now() });
-  saveTranscript();
+  pushTranscript(sender, text, variant);
 }
+
 }
 
 
@@ -2286,39 +2358,44 @@ if (!isUser && variant !== "system") {
           saveGuestState();
         }
 
-        if (data.error) {
+       if (data.error) {
   renderErrorWithActions(data.error);
   return;
 }
 
-const botText = data.response || voiceCfg.fallback_message || "Could you try that again?";
-lastBotIntent = detectIntent(`${text}\n${botText}`);
+const rawBotText =
+  data.response || voiceCfg.fallback_message || "Could you try that again?";
 
+lastBotIntent = detectIntent(`${text}\n${rawBotText}`);
 
+// ✅ Use finalBotText (your preferred variable name)
+let finalBotText = rawBotText;
 
+// 2) memory
+finalBotText = applyMemoryTofinalBotText(finalBotText, lastBotIntent);
+
+// 1) acknowledgement
+finalBotText = withAcknowledgement(finalBotText, lastBotIntent);
 
 // Typewriter “streaming”
 const bubble = createBotBubble();
 if (bubble?.body) {
-  await typewriterTo(bubble.body, botText, { speed: 12 });
-  transcript.push({ sender: "bot", text: String(botText || ""), variant: "normal", ts: Date.now() });
-saveTranscript();
+  await typewriterTo(bubble.body, finalBotText, { speed: 12 });
+
+  pushTranscript("bot", finalBotText, "normal");
   autoActOnIntent(lastBotIntent, text);
 
-
-
-  // Follow-up chips (backend suggestions optional)
-  const followups = Array.isArray(data.suggestions) && data.suggestions.length
-    ? data.suggestions
-    : buildFollowups(text, botText);
+  const followups =
+    Array.isArray(data.suggestions) && data.suggestions.length
+      ? data.suggestions
+      : buildFollowups(text, finalBotText);
 
   renderFollowupChips(followups);
-
-  // Rich cards (frontend heuristic)
-  renderCardsFromText(botText);
+  renderCardsFromText(finalBotText);
 } else {
-  renderMessage(botText, "bot");
+  renderMessage(finalBotText, "bot");
 }
+
 
       } catch (err) {
   console.error(err);
