@@ -1,6 +1,7 @@
 from datetime import datetime, timezone
 from typing import Optional, Literal
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Request
+
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
@@ -13,41 +14,54 @@ def ms_to_dt(ms: int) -> datetime:
 
 @router.get("/summary")
 def summary(
+    request: Request,
     from_ms: int = Query(..., alias="from"),
     to_ms: int = Query(..., alias="to"),
     property_id: Optional[int] = None,
     pmc_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
+    user = request.state.user  # 👈 REQUIRED
+
+    # 🔒 ENFORCE SCOPE
+    if user.role != "super":
+        pmc_id = user.pmc_id  # host locked to their PMC
+
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    # ⚠️ Update these event names to match what your chat emits.
     row = db.execute(
         text("""
         with base as (
           select *
           from analytics_events
           where ts >= :start and ts < :end
-            and (:property_id::bigint is null or property_id = :property_id)
             and (:pmc_id::bigint is null or pmc_id = :pmc_id)
+            and (:property_id::bigint is null or property_id = :property_id)
         )
         select
-          (select count(*) from base where event_name = 'chat_session_created') as sessions_total,
-          (select count(*) from base where event_name = 'message_sent' and data->>'role' = 'user') as user_messages,
-          (select count(*) from base where event_name = 'message_sent' and data->>'role' = 'assistant') as assistant_messages,
-          (select count(*) from base where event_name = 'followup_click') as followup_click,
-          (select count(*) from base where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
-          (select count(*) from base where event_name = 'reaction_set' and data->>'value' = 'down') as reactions_down
+          count(*) filter (where event_name = 'chat_session_created') as sessions_total,
+          count(*) filter (where event_name = 'message_sent' and data->>'role' = 'user') as user_messages,
+          count(*) filter (where event_name = 'message_sent' and data->>'role' = 'assistant') as assistant_messages,
+          count(*) filter (where event_name = 'followup_click') as followup_click,
+          count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
+          count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'down') as reactions_down
         ;
         """),
-        {"start": start, "end": end, "property_id": property_id, "pmc_id": pmc_id},
+        {
+            "start": start,
+            "end": end,
+            "pmc_id": pmc_id,
+            "property_id": property_id,
+        },
     ).mappings().first()
 
     return dict(row or {})
 
+
 @router.get("/timeseries")
 def timeseries(
+    request: Request,
     bucket: Literal["day", "hour"] = "day",
     from_ms: int = Query(..., alias="from"),
     to_ms: int = Query(..., alias="to"),
@@ -55,6 +69,12 @@ def timeseries(
     pmc_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
+    user = request.state.user  # 👈 REQUIRED
+
+    # 🔒 ENFORCE SCOPE
+    if user.role != "super":
+        pmc_id = user.pmc_id
+
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
     trunc = "day" if bucket == "day" else "hour"
@@ -72,8 +92,8 @@ def timeseries(
           select *
           from analytics_events
           where ts >= :start and ts < :end
-            and (:property_id::bigint is null or property_id = :property_id)
             and (:pmc_id::bigint is null or pmc_id = :pmc_id)
+            and (:property_id::bigint is null or property_id = :property_id)
         ),
         agg as (
           select
@@ -93,13 +113,15 @@ def timeseries(
         left join agg using (b)
         order by buckets.b asc;
         """),
-        {"start": start, "end": end, "property_id": property_id, "pmc_id": pmc_id},
+        {
+            "start": start,
+            "end": end,
+            "pmc_id": pmc_id,
+            "property_id": property_id,
+        },
     ).mappings().all()
 
-    labels = []
-    sessions = []
-    messages = []
-    followup_click = []
+    labels, sessions, messages, followup_click = [], [], [], []
 
     for r in rows:
         dt = r["bucket"]
@@ -116,3 +138,4 @@ def timeseries(
             "followup_click": followup_click,
         },
     }
+
