@@ -14,8 +14,7 @@ import unicodedata
 from routes.analytics import router as analytics_router
 from routes.admin_analytics import router as admin_analytics_router
 
-app.include_router(analytics_router)
-app.include_router(admin_analytics_router)
+
 
 
 from fastapi.staticfiles import StaticFiles
@@ -72,6 +71,9 @@ client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # --- Init ---
 
 app = FastAPI()
+
+app.include_router(analytics_router)
+app.include_router(admin_analytics_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
