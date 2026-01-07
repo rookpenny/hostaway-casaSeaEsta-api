@@ -22,21 +22,46 @@ class AnalyticsEventIn(BaseModel):
     data: Dict[str, Any] = Field(default_factory=dict)
 
 @router.post("/analytics/event")
-def ingest_event(payload: AnalyticsEventIn, db: Session = Depends(get_db)):
+def ingest_event(payload: AnalyticsEventIn, request: Request, db: Session = Depends(get_db)):
+    user = request.state.user  # however you already attach user
+
+    # 🔐 enforce scope
+    if user.role != "super":
+        pmc_id = user.pmc_id
+    else:
+        pmc_id = payload.pmc_id  # super can send / override
+
     db.execute(
         text("""
-          insert into analytics_events (event_name, pmc_id, property_id, session_id, user_id, context, data)
-          values (:event_name, :pmc_id, :property_id, :session_id, :user_id, :context::jsonb, :data::jsonb)
+          insert into analytics_events (
+            event_name,
+            pmc_id,
+            property_id,
+            session_id,
+            user_id,
+            context,
+            data
+          )
+          values (
+            :event_name,
+            :pmc_id,
+            :property_id,
+            :session_id,
+            :user_id,
+            :context::jsonb,
+            :data::jsonb
+          )
         """),
         {
             "event_name": payload.event_name,
-            "pmc_id": payload.pmc_id,
+            "pmc_id": pmc_id,
             "property_id": payload.property_id,
             "session_id": payload.session_id,
-            "user_id": payload.user_id,
+            "user_id": user.id if user.is_authenticated else None,
             "context": payload.context,
             "data": payload.data,
         },
     )
     db.commit()
     return {"ok": True}
+
