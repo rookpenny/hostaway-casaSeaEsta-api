@@ -1,3 +1,4 @@
+import json
 from fastapi import APIRouter, Depends, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -26,26 +27,16 @@ INSERT_EVENT_SQL = text("""
         :session_id,
         :user_id,
         :event_name,
-        :context,
-        :data
+        cast(:context as jsonb),
+        cast(:data as jsonb)
     )
 """)
 
 @router.post("/analytics/event")
-async def ingest_analytics_event(
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    try:
-        payload = await request.json()
-    except Exception:
-        return {"ok": False, "error": "Invalid JSON"}
+async def ingest_analytics_event(request: Request, db: Session = Depends(get_db)):
+    payload = await request.json()
 
-    # ✅ Accept BOTH shapes:
-    # 1) { events: [ ... ] }
-    # 2) { event_name: "...", ... }  (single event)
-    events: List[Dict[str, Any]] = []
-
+    # accept both {events:[...]} and single event payload
     if isinstance(payload, dict) and isinstance(payload.get("events"), list):
         events = [e for e in payload["events"] if isinstance(e, dict)]
     elif isinstance(payload, dict) and payload.get("event_name"):
@@ -62,7 +53,6 @@ async def ingest_analytics_event(
         if not event_name:
             continue
 
-        # --- enforce PMC scope ---
         if user and not getattr(user, "is_superuser", False):
             pmc_id = getattr(user, "pmc_id", None)
             user_id = getattr(user, "id", None)
@@ -91,8 +81,9 @@ async def ingest_analytics_event(
                 "session_id": evt.get("session_id"),
                 "user_id": user_id,
                 "event_name": event_name,
-                "context": context,
-                "data": data,
+                # ✅ key fix: send JSON strings, not dicts
+                "context": json.dumps(context),
+                "data": json.dumps(data),
             },
         )
         inserted += 1
