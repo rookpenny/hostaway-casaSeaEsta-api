@@ -8,6 +8,7 @@ from database import get_db
 
 router = APIRouter()
 
+
 @router.post("/analytics/event")
 async def ingest_analytics_event(
     request: Request,
@@ -20,7 +21,6 @@ async def ingest_analytics_event(
         return {"ok": True, "inserted": 0}
 
     user = getattr(request.state, "user", None)
-
     inserted = 0
 
     for evt in events:
@@ -34,7 +34,7 @@ async def ingest_analytics_event(
 
         event_name = evt.get("event_name")
         if not event_name:
-            continue  # skip bad events, don't fail batch
+            continue  # skip invalid events silently
 
         db.execute(
             text("""
@@ -55,8 +55,8 @@ async def ingest_analytics_event(
                     :session_id,
                     :user_id,
                     :event_name,
-                    :context::jsonb,
-                    :data::jsonb
+                    :context,
+                    :data
                 )
             """),
             {
