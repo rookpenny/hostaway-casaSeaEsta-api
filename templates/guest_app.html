@@ -1689,7 +1689,7 @@ function renderErrorWithActions(message) {
     let lastUserIntent = null;
     let lastBotIntent = null;
     let transcript = [];
-
+    let chatRestored = false;
 
     let chatHasWelcome = false;
     let guidesAbortController = null;
@@ -1950,15 +1950,20 @@ function autoActOnIntent(intent) {
         USE_PROFILES: { html: true },
         FORBID_TAGS: ["script", "iframe", "object", "embed"],
         FORBID_ATTR: ["onerror", "onclick", "onload"],
+        ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|\/|#)/i,
       });
     
       // 4) Ensure links open in new tab safely (marked doesn't always add these)
       const tmp = document.createElement("div");
       tmp.innerHTML = clean;
       tmp.querySelectorAll("a").forEach((a) => {
-        a.target = "_blank";
-        a.rel = "noopener noreferrer";
+        const href = (a.getAttribute("href") || "").trim();
+        if (href && !href.startsWith("#")) {
+          a.target = "_blank";
+          a.rel = "noopener noreferrer";
+        }
       });
+
       return tmp.innerHTML;
     
       //return withSafeTargets;
@@ -2029,7 +2034,7 @@ if (!isUser && variant !== "system") {
       btn.addEventListener("click", () => {
         reactions.remove();
         renderSystemNote(responseText);
-        saveChatHistory();
+        saveTranscript();
       });
 
       return btn;
@@ -2225,7 +2230,8 @@ lastBotIntent = detectIntent(`${text}\n${botText}`);
 const bubble = createBotBubble();
 if (bubble?.body) {
   await typewriterTo(bubble.body, botText, { speed: 12 });
-  saveChatHistory();
+  transcript.push({ sender: "bot", text: String(botText || ""), variant: "normal", ts: Date.now() });
+saveTranscript();
   autoActOnIntent(lastBotIntent);
 
 
