@@ -371,3 +371,50 @@ class ChatMessage(Base):
     sentiment = Column(String, nullable=True)
 
     session = relationship("ChatSession", back_populates="messages")
+
+# -------------------------------------------------------------------
+# ANALYTICS EVENTS (append-only)
+# -------------------------------------------------------------------
+class AnalyticsEvent(Base):
+    __tablename__ = "analytics_events"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    # --- Ownership / scope ---
+    pmc_id = Column(
+        Integer,
+        ForeignKey("pmc.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    property_id = Column(
+        Integer,
+        ForeignKey("properties.id", ondelete="CASCADE"),
+        nullable=True,
+        index=True,
+    )
+
+    # --- Chat linkage ---
+    thread_id = Column(String, nullable=True, index=True)
+    session_id = Column(Integer, ForeignKey("chat_sessions.id"), nullable=True, index=True)
+
+    message_id = Column(String, nullable=True, index=True)
+    parent_id = Column(String, nullable=True, index=True)
+
+    # --- Event metadata ---
+    event_name = Column(String, nullable=False, index=True)
+    sender = Column(String, nullable=True)       # user | bot | system
+    variant = Column(String, nullable=True)      # normal | system | error
+    length = Column(Integer, nullable=True)
+
+    # flexible payload (NO MIGRATIONS needed later)
+    data = Column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    # --- Relationships (optional, but useful later) ---
+    pmc = relationship("PMC")
+    property = relationship("Property")
+    session = relationship("ChatSession")
+
