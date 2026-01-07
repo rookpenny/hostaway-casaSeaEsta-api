@@ -11,6 +11,13 @@ import asyncio
 import time as pytime
 import unicodedata
 
+from routes.analytics import router as analytics_router
+from routes.admin_analytics import router as admin_analytics_router
+
+app.include_router(analytics_router)
+app.include_router(admin_analytics_router)
+
+
 from fastapi.staticfiles import StaticFiles
 
 from pathlib import Path as FSPath
