@@ -1872,35 +1872,99 @@ function renderErrorWithActions(message) {
     });
 
     // --- Chat rendering helpers ---
+function hasExplicitOpenRequest(text = "") {
+  const t = String(text).toLowerCase();
 
-function autoActOnIntent(intent) {
+  // verbs that mean "open / show / pull up"
+  const verbs = /\b(open|show|bring up|pull up|launch|take me to|go to|view)\b/;
+
+  // targets
+  const wantsWifi   = /\b(wifi|wi-fi|internet|password|ssid|network)\b/.test(t);
+  const wantsDoor   = /\b(door|lock|keypad|entry|code|check-?in)\b/.test(t);
+  const wantsGuides = /\b(guides?|things to do|activities|recommendations?|spots)\b/.test(t);
+  const wantsUpgrades = /\b(upgrades?|late checkout|early check-?in)\b/.test(t);
+
+  // Explicit phrases that should trigger without verbs
+  const directPhrases =
+    /\b(door code|open wifi|show wifi|wifi password|show guides|open guides|open upgrades|show upgrades)\b/.test(t);
+
+  // “what’s the wifi password” should NOT auto-open unless they explicitly say open/show
+  // so we require verbs OR direct phrases.
+  const hasVerb = verbs.test(t);
+
+  return {
+    wifi: (hasVerb && wantsWifi) || /\b(open|show)\s+(wifi|wi-fi)\b/.test(t) || directPhrases,
+    door: (hasVerb && wantsDoor) || /\b(open|show)\s+(door|code|check-?in)\b/.test(t) || directPhrases,
+    guides: (hasVerb && wantsGuides) || /\b(open|show)\s+(guides?|things to do)\b/.test(t) || directPhrases,
+    upgrades: (hasVerb && wantsUpgrades) || /\b(open|show)\s+upgrades?\b/.test(t) || directPhrases,
+  };
+}
+
+function shouldAutoOpen(key, ttlMs = 2 * 60 * 1000) {
   try {
-    switch (intent) {
-      case "wifi":
-        // don’t steal focus if user is typing
-        setTimeout(() => { if (isChatVisible()) openWifiModal(); }, 450);
-        break;
+    const k = `auto_open_${window.PROPERTY_ID}_${key}`;
+    const last = Number(sessionStorage.getItem(k) || 0);
+    const now = Date.now();
+    if (now - last < ttlMs) return false;
+    sessionStorage.setItem(k, String(now));
+    return true;
+  } catch {
+    return true;
+  }
+}
 
-      case "door":
-      case "checkin":
-        setTimeout(() => { if (isChatVisible()) openCheckinModal(); }, 450);
-        break;
+function isAnyOverlayOpen() {
+  const wifiModal = document.getElementById("wifi-modal");
+  const checkinModal = document.getElementById("checkin-modal");
+  const guideModal = document.getElementById("guide-modal");
+  const upgradeModal = document.getElementById("upgrade-modal");
+  const drawer = document.getElementById("suggestions-drawer");
 
-      case "checkout":
-        // checkout questions often want upgrades / late checkout
-        setTimeout(() => { if (isChatVisible()) showScreen("upgrades"); }, 450);
-        break;
+  const open = (el) => el && !el.classList.contains("hidden");
 
-      case "things_to_do":
-      case "food":
-        setTimeout(() => { if (isChatVisible()) showScreen("experiences"); }, 450);
-        break;
+  return (
+    open(wifiModal) ||
+    open(checkinModal) ||
+    open(guideModal) ||
+    open(upgradeModal) ||
+    open(drawer) ||
+    document.body.classList.contains("menu-open") ||
+    document.body.classList.contains("modal-open") ||
+    document.body.classList.contains("guide-open")
+  );
+}
 
-      default:
-        break;
+    
+function autoActOnIntent(intent, userText = "") {
+  try {
+    if (!isChatVisible()) return;
+    if (isAnyOverlayOpen()) return;
+
+    const wants = hasExplicitOpenRequest(userText);
+
+    // Only auto-open when the user explicitly asked to open/show that thing.
+    if (intent === "wifi" && wants.wifi && shouldAutoOpen("wifi")) {
+      setTimeout(() => { if (isChatVisible()) openWifiModal(); }, 250);
+      return;
+    }
+
+    if ((intent === "door" || intent === "checkin") && wants.door && shouldAutoOpen("door")) {
+      setTimeout(() => { if (isChatVisible()) openCheckinModal(); }, 250);
+      return;
+    }
+
+    if ((intent === "things_to_do" || intent === "food") && wants.guides && shouldAutoOpen("guides")) {
+      setTimeout(() => { if (isChatVisible()) showScreen("experiences"); }, 250);
+      return;
+    }
+
+    if ((intent === "checkout" || intent === "checkin") && wants.upgrades && shouldAutoOpen("upgrades")) {
+      setTimeout(() => { if (isChatVisible()) showScreen("upgrades"); }, 250);
+      return;
     }
   } catch {}
 }
+
 
     
     function scrollChatToBottom() {
@@ -2232,7 +2296,8 @@ if (bubble?.body) {
   await typewriterTo(bubble.body, botText, { speed: 12 });
   transcript.push({ sender: "bot", text: String(botText || ""), variant: "normal", ts: Date.now() });
 saveTranscript();
-  autoActOnIntent(lastBotIntent);
+  autoActOnIntent(lastBotIntent, text);
+
 
 
   // Follow-up chips (backend suggestions optional)
