@@ -1130,6 +1130,31 @@ function getChatStorageKey() {
   return `chat_history_${window.PROPERTY_ID}`; // stable per property
 }
 
+    // ---------- IDs / Threading ----------
+
+// Stable per-property thread id (per “chat session” on the frontend).
+// If you want it to reset when backend gives a new session_id, see note below.
+const THREAD_KEY = `chat_thread_${window.PROPERTY_ID}`;
+
+function getOrCreateThreadId() {
+  try {
+    let id = localStorage.getItem(THREAD_KEY);
+    if (!id) {
+      id = `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+      localStorage.setItem(THREAD_KEY, id);
+    }
+    return id;
+  } catch {
+    return `t_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+}
+
+let currentThreadId = getOrCreateThreadId();
+
+function newMessageId(prefix = "m") {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+}
+
 
 function saveTranscript() {
   try {
@@ -1139,8 +1164,6 @@ function saveTranscript() {
 
 function restoreChatHistory() {
   try {
-    if (!chatBox) return;
-
     const raw = localStorage.getItem(getChatStorageKey());
     if (!raw) return;
 
@@ -1149,19 +1172,27 @@ function restoreChatHistory() {
 
     transcript = items;
 
+    // Ensure we have a thread_id in memory (for older stored messages)
+    const anyThread = transcript.find((m) => m?.thread_id)?.thread_id;
+    if (anyThread) currentThreadId = anyThread;
+
     chatBox.innerHTML = "";
 
     transcript.forEach((m) => {
+      // Render without re-saving (transcript is already source of truth)
       renderMessage(m.text, m.sender, {
-        skipSave: true,
+        id: m.id,
+        thread_id: m.thread_id || currentThreadId,
+        parent_id: m.parent_id ?? null,
         variant: m.variant || "normal",
-        id: m.id || null, // ✅ preserve message IDs for analytics + reactions
+        skipSave: true,
       });
     });
 
     scrollChatToBottom();
   } catch {}
 }
+
 
 
 
@@ -1194,10 +1225,22 @@ function maybeUpdateMemoryFromUserText(text) {
   }
 }
 
-function renderSystemNote(mdText) {
-  // system note uses bot styling but lighter tone
-  renderMessage(mdText, "bot", { variant: "system" });
+function renderSystemNote(mdText, { parent_id = null } = {}) {
+  if (!mdText) return;
+
+  const entry = pushTranscript("bot", mdText, "system", {
+    thread_id: currentThreadId,
+    parent_id,
+  });
+
+  renderMessage(mdText, "bot", {
+    id: entry?.id,
+    variant: "system",
+    parent_id,
+    skipSave: true,
+  });
 }
+
 
 // --- Typing indicator w/ “thinking” label ---
 function getThinkingLabel(userText) {
@@ -1246,16 +1289,16 @@ function addTyping(labelText = "Thinking…") {
 }
 
 // --- Typewriter “streaming” effect ---
-function createBotBubble({ variant = "normal", id = null } = {}) {
+function createBotBubble({ id, thread_id, parent_id, variant } = {}) {
   if (!chatBox) return null;
 
   const row = document.createElement("div");
   row.className = "msg bot";
 
-  // ✅ message identity for reactions + analytics
+  // analytics hooks on the row
   if (id) row.dataset.mid = id;
-  row.dataset.sender = "bot";
-  row.dataset.variant = variant;
+  if (thread_id) row.dataset.threadId = thread_id;
+  if (parent_id) row.dataset.parentId = parent_id;
 
   const avatar = document.createElement("div");
   avatar.className = "avatar avatar-sandy";
@@ -1269,7 +1312,11 @@ function createBotBubble({ variant = "normal", id = null } = {}) {
   const bubble = document.createElement("div");
   bubble.className = "bubble";
 
-  // system-style variant (subtle)
+  // analytics hooks on the bubble too (handy for click handlers)
+  if (id) bubble.dataset.mid = id;
+  if (thread_id) bubble.dataset.threadId = thread_id;
+  if (parent_id) bubble.dataset.parentId = parent_id;
+
   if (variant === "system") {
     bubble.style.background = "#e2e8f0";
     bubble.style.color = "#0f172a";
@@ -1277,7 +1324,7 @@ function createBotBubble({ variant = "normal", id = null } = {}) {
 
   const body = document.createElement("div");
   body.className = "message-text";
-  body.innerHTML = ""; // filled by typewriter
+  body.innerHTML = "";
 
   bubble.appendChild(body);
   column.appendChild(time);
@@ -1289,8 +1336,9 @@ function createBotBubble({ variant = "normal", id = null } = {}) {
   chatBox.appendChild(row);
   scrollChatToBottom();
 
-  return { row, body };
+  return { row, bubble, body };
 }
+
 
 
 async function typewriterTo(el, fullText, { speed = 12 } = {}) {
@@ -1701,8 +1749,20 @@ function renderCardsFromText(finalBotText) {
 
 
 // --- Better error UI (retry etc.) ---
-function renderErrorWithActions(message) {
-  renderMessage(message || "Oops! Something went wrong.", "bot");
+function renderErrorWithActions(message, { parent_id = null } = {}) {
+  const text = message || "Oops! Something went wrong.";
+
+  // Persist + render error message (bot, normal variant)
+  const entry = pushTranscript("bot", text, "normal", {
+    thread_id: currentThreadId,
+    parent_id,
+  });
+
+  renderMessage(text, "bot", {
+    id: entry?.id,
+    parent_id,
+    skipSave: true,
+  });
 
   const actions = document.createElement("div");
   actions.className = "flex gap-2 flex-wrap ml-[52px] mt-2 mb-4";
@@ -1712,15 +1772,15 @@ function renderErrorWithActions(message) {
   retry.className =
     "px-3 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold active:scale-95";
   retry.textContent = "Try again";
-  retry.addEventListener("click", () => {
-  if (!lastUserMessage) {
-    chatInput?.focus();
-    return;
-  }
-  chatInput.value = lastUserMessage;
-  sendChat();
-});
 
+  retry.addEventListener("click", () => {
+    if (!lastUserMessage) {
+      chatInput?.focus();
+      return;
+    }
+    chatInput.value = lastUserMessage;
+    sendChat();
+  });
 
   const guides = document.createElement("button");
   guides.type = "button";
@@ -1735,6 +1795,7 @@ function renderErrorWithActions(message) {
   chatBox?.appendChild(actions);
   scrollChatToBottom();
 }
+
 
 
 
@@ -2037,20 +2098,22 @@ function makeMessageId() {
   );
 }
 
-function pushTranscript(sender, text, variant = "normal", extra = {}) {
+function pushTranscript(sender, text, variant = "normal", meta = {}) {
   const entry = {
-    id: makeMessageId(),
+    id: meta.id || newMessageId(sender === "user" ? "u" : "b"),
+    thread_id: meta.thread_id || currentThreadId,
+    parent_id: meta.parent_id ?? null,
     sender,
-    text: String(text || ""),
     variant,
-    ts: Date.now(),
-    ...extra,
+    text: String(text || ""),
+    ts: meta.ts || Date.now(),
   };
 
   transcript.push(entry);
   saveTranscript();
-  return entry; // ✅ critical so callers can tag DOM with the same ID
+  return entry;
 }
+
 
     
 function autoActOnIntent(intent, userText) {
@@ -2154,16 +2217,34 @@ function autoActOnIntent(intent, userText) {
     }
 
 
- function renderMessage(text, sender, opts = {}) {
+function renderMessage(text, sender, opts = {}) {
   if (!chatBox) return;
 
-  const { skipSave = false, variant = "normal", id = null } = opts;
+  const {
+    skipSave = false,
+    variant = "normal",
+    id = null,
+    thread_id = (typeof currentThreadId !== "undefined" ? currentThreadId : null),
+    parent_id = null,
+  } = opts;
 
   const isUser = sender === "user";
   const ts = formatTime(new Date());
 
+  // Ensure we always have an id for analytics/reactions
+  const mid =
+    id ||
+    (typeof newMessageId === "function"
+      ? newMessageId(isUser ? "u" : "b")
+      : `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`);
+
   const row = document.createElement("div");
   row.className = "msg " + (isUser ? "user" : "bot");
+
+  // Analytics / threading hooks on row
+  row.dataset.mid = mid;
+  if (thread_id) row.dataset.threadId = thread_id;
+  if (parent_id) row.dataset.parentId = parent_id;
 
   let avatar = null;
   if (!isUser) {
@@ -2175,6 +2256,11 @@ function autoActOnIntent(intent, userText) {
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
+
+  // Analytics hooks on bubble too (handy for click handlers)
+  bubble.dataset.mid = mid;
+  if (thread_id) bubble.dataset.threadId = thread_id;
+  if (parent_id) bubble.dataset.parentId = parent_id;
 
   // system variant (subtle)
   if (variant === "system") {
@@ -2197,58 +2283,79 @@ function autoActOnIntent(intent, userText) {
     row.appendChild(column);
   }
 
-      // 🔹 Message reactions (bot only)
-if (!isUser && variant !== "system") {
-  bubble.style.cursor = "pointer";
+  // 🔹 Message reactions (bot only)
+  if (!isUser && variant !== "system") {
+    bubble.style.cursor = "pointer";
 
-  bubble.addEventListener("click", () => {
-    const mid = row.dataset.mid;
-    if (!mid) return;
+    bubble.addEventListener("click", () => {
+      const mid = row.dataset.mid;
+      if (!mid) return;
 
-    // prevent duplicate UI
-    if (column.querySelector(".reaction-row")) return;
+      // prevent duplicate UI
+      if (column.querySelector(".reaction-row")) return;
 
-    // if already reacted, show a small note and bail
-    if (reactionsById[mid]) {
-      renderSystemNote("Already saved your feedback — thank you!");
-      return;
-    }
+      // if already reacted, show a small note and bail
+      if (typeof reactionsById === "object" && reactionsById?.[mid]) {
+        renderSystemNote("Already saved your feedback — thank you!");
+        return;
+      }
 
-    const reactions = document.createElement("div");
-    reactions.className = "reaction-row flex gap-2 mt-2";
+      const reactions = document.createElement("div");
+      reactions.className = "reaction-row flex gap-2 mt-2";
 
-    function reactionButton(label, reactionValue, responseText) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className =
-        "text-xs px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 transition";
-      btn.textContent = label;
+      function reactionButton(label, reactionValue, responseText) {
+        const btn = document.createElement("button");
+        btn.type = "button";
+        btn.className =
+          "text-xs px-3 py-1 rounded-full bg-white border border-slate-200 text-slate-700 hover:bg-slate-100 active:scale-95 transition";
+        btn.textContent = label;
 
-      btn.addEventListener("click", () => {
-        // persist reaction tied to message id
-        reactionsById[mid] = {
-          reaction: reactionValue, // "up" | "down"
-          ts: Date.now(),
-        };
-        saveReactions(reactionsById);
+        btn.addEventListener("click", () => {
+          // persist reaction tied to message id + thread context
+          if (typeof reactionsById === "object") {
+            reactionsById[mid] = {
+              reaction: reactionValue, // "up" | "down"
+              ts: Date.now(),
+              thread_id: row.dataset.threadId || null,
+              parent_id: row.dataset.parentId || null,
+            };
+            try {
+              if (typeof saveReactions === "function") saveReactions(reactionsById);
+            } catch {}
+          }
 
-        reactions.remove();
-        renderSystemNote(responseText); // goes through pushTranscript()
-      });
+          reactions.remove();
+          renderSystemNote(responseText); // (your version should pushTranscript)
+        });
 
-      return btn;
-    }
+        return btn;
+      }
 
-    reactions.appendChild(
-      reactionButton("👍 Helpful", "up", "Glad that helped! 😊")
-    );
-    reactions.appendChild(
-      reactionButton("👎 Not quite", "down", "Got it — tell me what you were hoping for instead.")
-    );
+      reactions.appendChild(reactionButton("👍 Helpful", "up", "Glad that helped! 😊"));
+      reactions.appendChild(
+        reactionButton("👎 Not quite", "down", "Got it — tell me what you were hoping for instead.")
+      );
 
-    column.appendChild(reactions);
-    scrollChatToBottom();
-  });
+      column.appendChild(reactions);
+      scrollChatToBottom();
+    });
+  }
+
+  chatBox.appendChild(row);
+  scrollChatToBottom();
+
+  // Persist (ONLY here, and consistently via pushTranscript)
+  if (!skipSave && typeof pushTranscript === "function") {
+    pushTranscript(sender, text, variant, {
+      id: mid,
+      thread_id,
+      parent_id,
+      ts: Date.now(),
+    });
+  }
+
+  // Return the rendered DOM refs + ids (useful for analytics)
+  return { row, bubble, id: mid, thread_id, parent_id };
 }
 
 
@@ -2328,77 +2435,161 @@ if (!isUser && variant !== "system") {
     if (chatSend) chatSend.disabled = false;
   }
 
+  // --- helpers: IDs + threading ---
+  function ensureThreadId() {
+    // Prefer server session_id if present, but we need a client thread id immediately.
+    if (typeof currentThreadId === "undefined") window.currentThreadId = null;
+
+    if (!currentThreadId) {
+      const key = `thread_id_${window.PROPERTY_ID}`;
+      try {
+        const cached = sessionStorage.getItem(key);
+        if (cached) currentThreadId = cached;
+      } catch {}
+
+      if (!currentThreadId) {
+        currentThreadId =
+          (typeof newThreadId === "function" && newThreadId()) ||
+          `th_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+        try {
+          sessionStorage.setItem(key, currentThreadId);
+        } catch {}
+      }
+    }
+    return currentThreadId;
+  }
+
+  function newMid(prefix) {
+    return (
+      (typeof newMessageId === "function" ? newMessageId(prefix) : null) ||
+      `m_${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
+  }
+
+  const thread_id = ensureThreadId();
+
+  // Render-only (never saves) — for the user message you *already* pushed
+  function renderUserSaved(entry) {
+    renderMessage(entry.text, "user", {
+      id: entry.id,
+      thread_id: entry.thread_id,
+      parent_id: entry.parent_id || null,
+      variant: entry.variant || "normal",
+      skipSave: true,
+    });
+  }
+
+  function renderBotSaved(entry, { typewriter = false } = {}) {
+    if (typewriter) {
+      const bubble = createBotBubble({
+        id: entry.id,
+        variant: entry.variant || "normal",
+        thread_id: entry.thread_id,
+        parent_id: entry.parent_id || null,
+      });
+      if (bubble?.body) return typewriterTo(bubble.body, entry.text, { speed: 12 });
+      // fallback if bubble couldn't be created
+    }
+    renderMessage(entry.text, "bot", {
+      id: entry.id,
+      thread_id: entry.thread_id,
+      parent_id: entry.parent_id || null,
+      variant: entry.variant || "normal",
+      skipSave: true,
+    });
+  }
+
+  // Commit helpers: pushTranscript is the single source of truth
+  function commitUserMessage(userText, variant = "normal") {
+    const entry = pushTranscript("user", userText, variant, {
+      id: newMid("u"),
+      thread_id,
+      parent_id: null,
+      ts: Date.now(),
+    });
+    // pushTranscript should return the stored entry; be defensive:
+    const e = entry || { id: newMid("u"), text: userText, variant, thread_id, parent_id: null };
+    renderUserSaved(e);
+    return e;
+  }
+
+  function commitSystemNote(mdText, parent_id = null) {
+    const entry = pushTranscript("bot", mdText, "system", {
+      id: newMid("s"),
+      thread_id,
+      parent_id,
+      ts: Date.now(),
+    });
+    const e = entry || { id: newMid("s"), text: mdText, variant: "system", thread_id, parent_id };
+    renderMessage(e.text, "bot", {
+      id: e.id,
+      thread_id: e.thread_id,
+      parent_id: e.parent_id,
+      variant: "system",
+      skipSave: true,
+    });
+    return e;
+  }
+
+  async function commitBotMessage(botText, variant = "normal", parent_id = null, { typewriter = true } = {}) {
+    const entry = pushTranscript("bot", botText, variant, {
+      id: newMid("b"),
+      thread_id,
+      parent_id,
+      ts: Date.now(),
+    });
+    const e = entry || { id: newMid("b"), text: botText, variant, thread_id, parent_id };
+    await renderBotSaved(e, { typewriter });
+    return e;
+  }
+
   // --- Slash commands (interactive shortcuts) ---
   const t = text.toLowerCase();
 
-  // helper: render + persist user msg consistently (IDs!)
-  function commitUserMessage(userText, variant = "normal") {
-    const entry = pushTranscript("user", userText, variant);
-    // assumes your renderMessage accepts { id, variant, skipSave }
-    renderMessage(userText, "user", { id: entry?.id, variant, skipSave: true });
-    return entry;
-  }
-
-  // helper: render + persist system/bot note consistently (IDs!)
-  function commitSystemNote(mdText) {
-    const entry = pushTranscript("bot", mdText, "system");
-    renderMessage(mdText, "bot", { id: entry?.id, variant: "system", skipSave: true });
-    return entry;
-  }
-
-  // helper: render + persist bot (typewriter) consistently (IDs!)
-  async function commitBotMessage(botText, variant = "normal") {
-    const entry = pushTranscript("bot", botText, variant);
-    const bubble = createBotBubble({ id: entry?.id, variant });
-    if (bubble?.body) {
-      await typewriterTo(bubble.body, botText, { speed: 12 });
-    } else {
-      renderMessage(botText, "bot", { id: entry?.id, variant, skipSave: true });
-    }
-    return entry;
-  }
-
   if (t === "/wifi") {
-    commitUserMessage(text);
+    const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     openWifiModal();
-    commitSystemNote("Opening WiFi details.");
+    commitSystemNote("Opening WiFi details.", u.id);
     endChatFlight();
     return;
   }
 
   if (t === "/door" || t === "/code") {
-    commitUserMessage(text);
+    const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     openCheckinModal();
-    commitSystemNote("Opening your door code.");
+    commitSystemNote("Opening your door code.", u.id);
     endChatFlight();
     return;
   }
 
   if (t === "/guides") {
-    commitUserMessage(text);
+    const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     showScreen("experiences");
-    commitSystemNote("Opening Guides.");
+    commitSystemNote("Opening Guides.", u.id);
     endChatFlight();
     return;
   }
 
   if (t === "/upgrades") {
-    commitUserMessage(text);
+    const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     showScreen("upgrades");
-    commitSystemNote("Opening Upgrades.");
+    commitSystemNote("Opening Upgrades.", u.id);
     endChatFlight();
     return;
   }
 
   if (!sandyLive) {
-    // bot offline message (still ID’d + persisted)
+    // bot offline message (parented to user message for analytics consistency)
+    const u = commitUserMessage(text);
+    if (chatInput) chatInput.value = "";
     await commitBotMessage(
       "Sandy is currently offline for this property. Please contact your host directly. 🙏",
-      "normal"
+      "normal",
+      u.id,
+      { typewriter: true }
     );
     endChatFlight();
     return;
@@ -2422,8 +2613,10 @@ if (!isUser && variant !== "system") {
       message: text,
       session_id: currentSessionId,
       language: getSelectedLanguage(),
-      // optional for backend analytics/threading:
-      // client_message_id: userEntry?.id,
+
+      // ✅ analytics/threading (optional if your backend wants it)
+      thread_id,
+      client_message_id: userEntry.id,
     };
 
     // subtle “sent” feel
@@ -2445,25 +2638,36 @@ if (!isUser && variant !== "system") {
     if (!res.ok) {
       await commitBotMessage(
         data?.error || voiceCfg.error_message || "Something went wrong. Please try again.",
-        "normal"
+        "normal",
+        userEntry.id
       );
       return;
     }
 
+    // If backend gives a canonical session_id, keep it
     if (data.session_id) {
       currentSessionId = data.session_id;
       saveGuestState();
+    
+      // Bind client thread to server session (canonical thread)
+      if (!currentThreadId) {
+        currentThreadId = `t_${data.session_id}`;
+        localStorage.setItem(THREAD_KEY, currentThreadId);
+      }
     }
 
+
+
     if (data.error) {
-      // keep your nicer UI, but make it consistent by ensuring it uses pushTranscript internally
-      // (if it currently calls renderMessage directly, you’ll want to update it similarly)
+      // Ensure the error text is tied to the user message for analytics
+      await commitBotMessage(String(data.error), "normal", userEntry.id);
+      // If you still want the fancy actions UI, make sure it DOES NOT double-save.
+      // (Ideally it only renders UI + uses commitSystemNote / pushTranscript internally.)
       renderErrorWithActions(data.error);
       return;
     }
 
-    const rawBotText =
-      data.response || voiceCfg.fallback_message || "Could you try that again?";
+    const rawBotText = data.response || voiceCfg.fallback_message || "Could you try that again?";
 
     lastBotIntent = detectIntent(`${text}\n${rawBotText}`);
 
@@ -2476,8 +2680,8 @@ if (!isUser && variant !== "system") {
     // 1) acknowledgement
     finalBotText = withAcknowledgement(finalBotText, lastBotIntent);
 
-    // ✅ Commit bot message ONCE (pushTranscript everywhere + message IDs)
-    await commitBotMessage(finalBotText, "normal");
+    // ✅ Commit bot message ONCE, parented to the user message it answered
+    const botEntry = await commitBotMessage(finalBotText, "normal", userEntry.id, { typewriter: true });
 
     // follow-on automation stays the same
     autoActOnIntent(lastBotIntent, text);
@@ -2489,20 +2693,22 @@ if (!isUser && variant !== "system") {
 
     renderFollowupChips(followups);
     renderCardsFromText(finalBotText);
+
+    // (optional) if you want analytics for followups linked to the bot msg:
+    // commitSystemNote(`Followups_shown:${JSON.stringify(followups.map(f=>f.label||f))}`, botEntry.id);
+
   } catch (err) {
     console.error(err);
     removeTyping();
 
-    // consistent error message (ID’d + persisted)
     await commitBotMessage(
       voiceCfg.error_message || "Oops! Something went wrong. Please try again.",
-      "normal"
+      "normal",
+      userEntry.id
     );
 
-    // keep your action UI too (but ideally refactor it to use pushTranscript internally)
-    renderErrorWithActions(
-      voiceCfg.error_message || "Oops! Something went wrong. Please try again."
-    );
+    // Keep your action UI if desired (but ensure it doesn't double-save messages)
+    renderErrorWithActions(voiceCfg.error_message || "Oops! Something went wrong. Please try again.");
   } finally {
     endChatFlight();
   }
@@ -2517,6 +2723,7 @@ if (chatSend && chatInput) {
     }
   });
 }
+
 
 
   const REACTIONS_KEY = `sandy_reactions_${window.PROPERTY_ID}`;
