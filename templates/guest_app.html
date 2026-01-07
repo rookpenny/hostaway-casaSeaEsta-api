@@ -2788,11 +2788,12 @@ function renderMessage(text, sender, opts = {}) {
   try {
     const body = {
       message: text,
-      session_id: currentSessionId,
+      session_id: currentSessionId || null,
       language: getSelectedLanguage(),
 
       thread_id: currentThreadId || null,
-      client_message_id: userEntry.id,
+      client_message_id: userEntry.id,      // user message id you generated
+      parent_id: userEntry.parent_id || null // optional: if user clicked a chip
     };
 
     try {
@@ -2808,8 +2809,18 @@ function renderMessage(text, sender, opts = {}) {
     });
 
     const data = await readJsonSafely(res);
-    console.log("CHAT RESPONSE:", data);
     removeTyping();
+    
+    // 🔎 Debug guard: ensure server replied to the expected user message
+    if (data.reply_to && data.reply_to !== userEntry.id) {
+      console.warn("Server replied to unexpected message id", {
+        expected: userEntry.id,
+        got: data.reply_to,
+        thread_id: currentThreadId || null,
+        session_id: currentSessionId || null,
+      });
+    }
+
 
     if (!res.ok) {
       await commitBotMessage(
@@ -2821,13 +2832,24 @@ function renderMessage(text, sender, opts = {}) {
     }
 
    // ✅ keep client thread stable; store server session separately
-    if (data.session_id) {
+    if (data.session_id != null) {                 // handles 0 too
       currentSessionId = data.session_id;
       saveGuestState();
     
-      // optional: persist server session too (separate key)
-      try { localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(data.session_id)); } catch {}
+      try {
+        localStorage.setItem(
+          `server_session_${window.PROPERTY_ID}`,
+          String(data.session_id)
+        );
+      } catch {}
     }
+    
+    // ✅ if/when backend starts returning thread_id, prefer it
+    if (data.thread_id) {
+      currentThreadId = data.thread_id;
+      try { localStorage.setItem(THREAD_KEY, currentThreadId); } catch {}
+    }
+
 
 
     if (data.error) {
@@ -3340,7 +3362,7 @@ function loadReactions() {
 maybeSendTimeNudge();
     
     if (!chatHasWelcome && !sessionStorage.getItem(welcomeKey)) {
-      if (sandyLive && chatBox && chatBox.children.length === 0) {
+      if (sandyLive && (!transcript || transcript.length === 0)) {
         const template = guestName
           ? (voiceCfg.welcome_template || "")
           : (voiceCfg.welcome_template_no_name || "");
@@ -3742,6 +3764,7 @@ function updateActiveFromScroll() {
 
 // Bind once
 function initUpgradesCarousel() {
+  const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
   if (upgradesBound) return;
   upgradesBound = true;
 
