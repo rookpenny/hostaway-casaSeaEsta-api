@@ -1212,12 +1212,53 @@ window.openChatDetail = openChatDetail;
           </div>
         </section>
 
-        <section id="view-analytics" class="view hidden">
-          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-            <div class="text-sm font-semibold">Analytics</div>
-            <div class="mt-2 text-sm text-slate-500">Response time, containment, outcomes.</div>
-          </div>
-        </section>
+        <section id="view-analytics" class="view hidden space-y-4">
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-sm font-semibold">Chat Analytics</div>
+        <div class="text-xs text-slate-500">Last 30 days</div>
+      </div>
+      <select id="analyticsRange" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+        <option value="7">Last 7 days</option>
+        <option value="30" selected>Last 30 days</option>
+        <option value="90">Last 90 days</option>
+      </select>
+    </div>
+
+    <div class="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2" id="analyticsCards">
+      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">Sessions</div>
+        <div class="text-xl font-semibold" data-kpi="sessions_total">—</div>
+      </div>
+      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">User msgs</div>
+        <div class="text-xl font-semibold" data-kpi="user_messages">—</div>
+      </div>
+      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">Assistant msgs</div>
+        <div class="text-xl font-semibold" data-kpi="assistant_messages">—</div>
+      </div>
+      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">Followup clicks</div>
+        <div class="text-xl font-semibold" data-kpi="followup_click">—</div>
+      </div>
+      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">👍</div>
+        <div class="text-xl font-semibold" data-kpi="reactions_up">—</div>
+      </div>
+      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">👎</div>
+        <div class="text-xl font-semibold" data-kpi="reactions_down">—</div>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <canvas id="chatAnalyticsChart" height="100"></canvas>
+    </div>
+  </div>
+</section>
+
        
 
         <section id="view-settings" class="view hidden space-y-4">
@@ -1626,6 +1667,80 @@ window.openChatDetail = openChatDetail;
   const IS_LOCKED = {{ 'true' if (user_role == 'pmc' and needs_payment) else 'false' }};
   const CONTENT_LOCKED = IS_LOCKED;
 
+
+  let chatAnalyticsChart = null;
+
+  function rangeToMs(days) {
+    const to = Date.now();
+    const from = to - (Number(days) * 24 * 60 * 60 * 1000);
+    return { from, to };
+  }
+
+  async function loadChatAnalytics(days) {
+    const { from, to } = rangeToMs(days);
+
+    const summaryRes = await fetch(`/admin/analytics/chat/summary?from=${from}&to=${to}`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    const summary = await summaryRes.json().catch(() => ({}));
+
+    document.querySelectorAll("[data-kpi]").forEach(el => {
+      const k = el.getAttribute("data-kpi");
+      el.textContent = (summary && summary[k] != null) ? String(summary[k]) : "0";
+    });
+
+    const tsRes = await fetch(`/admin/analytics/chat/timeseries?bucket=day&from=${from}&to=${to}`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    const ts = await tsRes.json().catch(() => ({}));
+
+    const ctx = document.getElementById("chatAnalyticsChart");
+    if (!ctx || !window.Chart) return;
+
+    const labels = ts.labels || [];
+    const series = ts.series || {};
+    const sessions = series.sessions || [];
+    const messages = series.messages || [];
+    const followup_click = series.followup_click || [];
+
+    if (!chatAnalyticsChart) {
+      chatAnalyticsChart = new Chart(ctx, {
+        type: "line",
+        data: {
+          labels,
+          datasets: [
+            { label: "Sessions", data: sessions },
+            { label: "Messages", data: messages },
+            { label: "Followup clicks", data: followup_click },
+          ],
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: true } },
+          scales: { y: { beginAtZero: true } },
+        },
+      });
+    } else {
+      chatAnalyticsChart.data.labels = labels;
+      chatAnalyticsChart.data.datasets[0].data = sessions;
+      chatAnalyticsChart.data.datasets[1].data = messages;
+      chatAnalyticsChart.data.datasets[2].data = followup_click;
+      chatAnalyticsChart.update();
+    }
+  }
+
+  // Hook into your routing: when Analytics view is shown, load it.
+  // Add inside showView(key) after you show the view:
+  // if (key === "analytics") loadChatAnalytics(document.getElementById("analyticsRange")?.value || 30);
+
+  document.addEventListener("change", (e) => {
+    if (e.target && e.target.id === "analyticsRange") {
+      loadChatAnalytics(e.target.value);
+    }
+  });
+   
    // --- Debug spotlight: surface errors that stop menu/charts ---
     window.addEventListener("error", (e) => {
       console.error("GLOBAL JS ERROR:", e.error || e.message, e.filename, e.lineno);
