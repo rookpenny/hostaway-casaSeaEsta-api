@@ -1116,6 +1116,31 @@
     const chatSend = document.getElementById("chat-send");
     const chatPlus = document.querySelector(".chat-plus");
 
+
+     // --- Global state ---
+    let isUnlocked = !!window.INITIAL_VERIFIED;
+    let lastUnlockCode = null;
+    let currentSessionId = null;
+    let guestName = null;
+    let arrivalDate = null;
+    let departureDate = null;
+    let checkinTime = null;
+    let checkoutTime = null;
+
+    let nextUserParentId = null; // set when user clicks a chip; consumed by sendChat()
+
+
+    let lastUserMessage = null;
+    let chatInFlight = false;
+    let chatAbort = null;
+    let lastUserIntent = null;
+    let lastBotIntent = null;
+    let transcript = [];
+    let chatRestored = false;
+
+    let chatHasWelcome = false;
+    let guidesAbortController = null;
+    
     // ===============================
 // NEW: Chat UX Enhancements
 // ===============================
@@ -1127,14 +1152,45 @@ function haptic(ms = 10) {
 
 // --- Chat persistence ---
 function getChatStorageKey() {
-  return `chat_history_${window.PROPERTY_ID}`; // stable per property
+  return `chat_history_${window.PROPERTY_ID}`;
 }
 
-    // ---------- IDs / Threading ----------
 
-// Stable per-property thread id (per “chat session” on the frontend).
-// If you want it to reset when backend gives a new session_id, see note below.
-const THREAD_KEY = `chat_thread_${window.PROPERTY_ID}`;
+// ===============================
+// IDs / Threading / Reactions / Analytics
+// ===============================
+
+const THREAD_KEY = `thread_${window.PROPERTY_ID}`;
+
+// canonical thread id (bind to server session_id when available)
+let currentThreadId = null;
+try {
+  currentThreadId = localStorage.getItem(THREAD_KEY) || null;
+} catch {}
+
+function newMid(prefix = "m") {
+  // good-enough client id for analytics + reactions
+  return `${prefix}_${Date.now().toString(16)}_${Math.random().toString(16).slice(2)}`;
+}
+
+// Reactions storage
+const REACTIONS_KEY = `sandy_reactions_${window.PROPERTY_ID}`;
+let reactionsById = (() => {
+  try { return JSON.parse(localStorage.getItem(REACTIONS_KEY) || "{}") || {}; } catch { return {}; }
+})();
+function saveReactions(map) {
+  try { localStorage.setItem(REACTIONS_KEY, JSON.stringify(map || {})); } catch {}
+}
+
+// Analytics hook (NO UI IMPACT)
+// Replace internals later with your analytics SDK if you want.
+function emitAnalytics(eventName, payload = {}) {
+  try {
+    // window.analytics?.track?.(eventName, payload);
+    // console.log("[analytics]", eventName, payload);
+  } catch {}
+}
+
 
 function getOrCreateThreadId() {
   try {
@@ -1149,16 +1205,12 @@ function getOrCreateThreadId() {
   }
 }
 
-let currentThreadId = getOrCreateThreadId();
-
-function newMessageId(prefix = "m") {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-}
+currentThreadId = getOrCreateThreadId();
 
 
 function saveTranscript() {
   try {
-    localStorage.setItem(getChatStorageKey(), JSON.stringify(transcript));
+    localStorage.setItem(getChatStorageKey(), JSON.stringify(transcript || []));
   } catch {}
 }
 
@@ -1172,26 +1224,30 @@ function restoreChatHistory() {
 
     transcript = items;
 
-    // Ensure we have a thread_id in memory (for older stored messages)
-    const anyThread = transcript.find((m) => m?.thread_id)?.thread_id;
-    if (anyThread) currentThreadId = anyThread;
+    // recover thread id from history if present (older sessions)
+    const lastWithThread = [...transcript].reverse().find((m) => m?.thread_id);
+    if (lastWithThread?.thread_id && !currentThreadId) {
+      currentThreadId = lastWithThread.thread_id;
+      try { localStorage.setItem(THREAD_KEY, currentThreadId); } catch {}
+    }
 
     chatBox.innerHTML = "";
 
     transcript.forEach((m) => {
-      // Render without re-saving (transcript is already source of truth)
       renderMessage(m.text, m.sender, {
-        id: m.id,
-        thread_id: m.thread_id || currentThreadId,
+        skipSave: true,
+        id: m.id || null,
+        thread_id: m.thread_id || currentThreadId || null,
         parent_id: m.parent_id ?? null,
         variant: m.variant || "normal",
-        skipSave: true,
+        ts: m.ts || null,
       });
     });
 
     scrollChatToBottom();
   } catch {}
 }
+
 
 
 
@@ -1225,21 +1281,37 @@ function maybeUpdateMemoryFromUserText(text) {
   }
 }
 
-function renderSystemNote(mdText, { parent_id = null } = {}) {
+function renderSystemNote(mdText, parent_id = null) {
   if (!mdText) return;
 
   const entry = pushTranscript("bot", mdText, "system", {
-    thread_id: currentThreadId,
+    id: newMid("s"),
+    thread_id: currentThreadId || null,
     parent_id,
+    ts: Date.now(),
   });
 
   renderMessage(mdText, "bot", {
-    id: entry?.id,
-    variant: "system",
-    parent_id,
     skipSave: true,
+    id: entry.id,
+    thread_id: entry.thread_id,
+    parent_id: entry.parent_id,
+    variant: "system",
+    ts: entry.ts,
   });
+
+  emitAnalytics("message_sent", {
+    sender: "bot",
+    message_id: entry.id,
+    parent_id: entry.parent_id,
+    thread_id: entry.thread_id,
+    variant: entry.variant,
+    length: entry.text.length,
+  });
+
+  return entry;
 }
+
 
 
 // --- Typing indicator w/ “thinking” label ---
@@ -1289,13 +1361,12 @@ function addTyping(labelText = "Thinking…") {
 }
 
 // --- Typewriter “streaming” effect ---
-function createBotBubble({ id, thread_id, parent_id, variant } = {}) {
+function createBotBubble({ id = null, thread_id = null, parent_id = null, variant = "normal", ts = null } = {}) {
   if (!chatBox) return null;
 
   const row = document.createElement("div");
   row.className = "msg bot";
 
-  // analytics hooks on the row
   if (id) row.dataset.mid = id;
   if (thread_id) row.dataset.threadId = thread_id;
   if (parent_id) row.dataset.parentId = parent_id;
@@ -1307,20 +1378,20 @@ function createBotBubble({ id, thread_id, parent_id, variant } = {}) {
 
   const time = document.createElement("div");
   time.className = "timestamp";
-  time.textContent = formatTime(new Date());
+  time.textContent = formatTime(ts ? new Date(ts) : new Date());
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-
-  // analytics hooks on the bubble too (handy for click handlers)
-  if (id) bubble.dataset.mid = id;
-  if (thread_id) bubble.dataset.threadId = thread_id;
-  if (parent_id) bubble.dataset.parentId = parent_id;
 
   if (variant === "system") {
     bubble.style.background = "#e2e8f0";
     bubble.style.color = "#0f172a";
   }
+
+  // handy for click handlers
+  if (id) bubble.dataset.mid = id;
+  if (thread_id) bubble.dataset.threadId = thread_id;
+  if (parent_id) bubble.dataset.parentId = parent_id;
 
   const body = document.createElement("div");
   body.className = "message-text";
@@ -1338,6 +1409,7 @@ function createBotBubble({ id, thread_id, parent_id, variant } = {}) {
 
   return { row, bubble, body };
 }
+
 
 
 
@@ -1618,17 +1690,153 @@ function buildFollowups(userText, finalBotText) {
 }
 
 
+// ===============================
+// Analytics (no UI impact)
+// ===============================
+const ANALYTICS_ENDPOINT = "/analytics/event"; // change if you want
+const ANALYTICS_QUEUE_KEY = `analytics_q_${window.PROPERTY_ID}`;
+
+function getAnonId() {
+  try {
+    const k = `anon_${window.PROPERTY_ID}`;
+    let v = localStorage.getItem(k);
+    if (!v) {
+      v = `a_${Math.random().toString(36).slice(2)}_${Date.now()}`;
+      localStorage.setItem(k, v);
+    }
+    return v;
+  } catch {
+    return `a_${Date.now()}`;
+  }
+}
+
+function baseAnalyticsContext() {
+  return {
+    property_id: window.PROPERTY_ID,
+    thread_id: currentThreadId || null,
+    session_id: currentSessionId || null,
+    anon_id: getAnonId(),
+    path: location.pathname,
+    ua: navigator.userAgent,
+    ts: Date.now(),
+  };
+}
+
+function readAnalyticsQueue() {
+  try {
+    const raw = localStorage.getItem(ANALYTICS_QUEUE_KEY);
+    const arr = raw ? JSON.parse(raw) : [];
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeAnalyticsQueue(arr) {
+  try {
+    localStorage.setItem(ANALYTICS_QUEUE_KEY, JSON.stringify(arr || []));
+  } catch {}
+}
+
+function enqueueAnalytics(evt) {
+  const q = readAnalyticsQueue();
+  q.push(evt);
+
+  // keep it bounded
+  while (q.length > 200) q.shift();
+
+  writeAnalyticsQueue(q);
+}
+
+function flushAnalyticsQueue() {
+  const q = readAnalyticsQueue();
+  if (!q.length) return;
+
+  const payload = JSON.stringify({ events: q });
+
+  // prefer sendBeacon if available
+  try {
+    if (navigator.sendBeacon) {
+      const ok = navigator.sendBeacon(ANALYTICS_ENDPOINT, payload);
+      if (ok) {
+        writeAnalyticsQueue([]);
+        return;
+      }
+    }
+  } catch {}
+
+  // fallback fetch (non-blocking)
+  fetch(ANALYTICS_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    keepalive: true,
+    body: payload,
+  })
+    .then((res) => {
+      if (res.ok) writeAnalyticsQueue([]);
+    })
+    .catch(() => {
+      // keep queue for later
+    });
+}
+
+
+// Bridge emitAnalytics -> queue (NO UI IMPACT)
+// Guard against double-wrapping
+    
+if (!emitAnalytics.__queued) {
+  const _emitAnalytics = emitAnalytics;
+
+  function queuedEmitAnalytics(eventName, payload = {}) {
+    try { _emitAnalytics(eventName, payload); } catch {}
+
+    enqueueAnalytics({
+      event_name: eventName,
+      ...baseAnalyticsContext(),
+      data: payload,
+    });
+
+    if (document.visibilityState === "hidden") flushAnalyticsQueue();
+    else if (Math.random() < 0.15) flushAnalyticsQueue();
+  }
+
+  queuedEmitAnalytics.__queued = true;
+  emitAnalytics = queuedEmitAnalytics;
+
+  // Flush when leaving / backgrounding (bind once)
+  if (!window.__analyticsFlushBound) {
+    window.__analyticsFlushBound = true;
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "hidden") flushAnalyticsQueue();
+    });
+    window.addEventListener("pagehide", flushAnalyticsQueue);
+  }
+}
 
 
 
-function renderFollowupChips(items) {
+function renderFollowupChips(items, { parent_id = null } = {}) {
   if (!chatBox) return;
 
   const wrap = document.createElement("div");
   wrap.className = "flex gap-2 flex-wrap ml-[52px] mt-2 mb-4";
 
-  (items || []).slice(0, 4).forEach((item) => {
-    const obj = typeof item === "string" ? { label: item, action: "ASK", text: item } : item;
+  if (parent_id) wrap.dataset.parentId = parent_id;
+  if (currentThreadId) wrap.dataset.threadId = currentThreadId;
+
+  const list = (items || []).slice(0, 4).map((item) =>
+    typeof item === "string" ? { label: item, action: "ASK", text: item } : item
+  );
+
+  emitAnalytics("followups_shown", {
+    thread_id: currentThreadId || null,
+    parent_id: parent_id || null,
+    count: list.length,
+    labels: list.map((x) => x?.label || "").filter(Boolean),
+  });
+
+  list.forEach((obj, idx) => {
     const label = obj.label || "Option";
 
     const btn = document.createElement("button");
@@ -1637,7 +1845,22 @@ function renderFollowupChips(items) {
       "px-3 py-2 rounded-full bg-white border border-slate-200 text-slate-900 text-sm font-semibold whitespace-nowrap active:scale-95";
     btn.textContent = label;
 
-    btn.addEventListener("click", () => runFollowupAction(obj));
+    btn.dataset.parentId = parent_id || "";
+    btn.dataset.threadId = currentThreadId || "";
+    btn.dataset.action = obj.action || "ASK";
+    btn.dataset.index = String(idx);
+
+    btn.addEventListener("click", () => {
+      emitAnalytics("followup_click", {
+        thread_id: currentThreadId || null,
+        parent_id: parent_id || null,
+        index: idx,
+        label,
+        action: obj.action || "ASK",
+      });
+
+      runFollowupAction(obj, { parent_id: parent_id || null });
+    });
 
     wrap.appendChild(btn);
   });
@@ -1646,42 +1869,54 @@ function renderFollowupChips(items) {
   scrollChatToBottom();
 }
 
-function runFollowupAction(item) {
+function runFollowupAction(item, { parent_id = null } = {}) {
   const action = item?.action;
 
   switch (action) {
     case "OPEN_WIFI":
+      emitAnalytics("ui_open", { target: "wifi_modal", parent_id });
       return openWifiModal();
 
     case "COPY_WIFI_PASSWORD": {
       const pw = document.getElementById("wifi-password")?.textContent?.trim();
       if (pw) navigator.clipboard?.writeText(pw);
-      return renderSystemNote("Copied WiFi password.");
+      renderSystemNote("Copied WiFi password.", parent_id);
+      emitAnalytics("copy", { what: "wifi_password", parent_id });
+      return;
     }
 
     case "OPEN_DOOR":
+      emitAnalytics("ui_open", { target: "door_modal", parent_id });
       return openCheckinModal();
 
     case "OPEN_GUIDES":
+      emitAnalytics("navigate", { screen: "experiences", parent_id });
       return showScreen("experiences");
 
     case "OPEN_UPGRADES":
+      emitAnalytics("navigate", { screen: "upgrades", parent_id });
       return showScreen("upgrades");
 
     case "CONTACT_HOST":
-      // replace later with real host contact details from config/manual
-      return renderMessage("You can reach your host via your booking app (Airbnb/VRBO) messages.", "bot");
+      emitAnalytics("contact_host_shown", { parent_id });
+      renderSystemNote("You can reach your host via your booking app messages.", parent_id);
+      return;
 
     case "ASK":
     default: {
       const text = item?.text || item?.label;
-      if (!text) return;
-      if (!chatInput) return;
+      if (!text || !chatInput) return;
+
+      // ✅ next user message should be parented to the bot message that offered the chip
+      nextUserParentId = parent_id || null;
+
       chatInput.value = text;
       return sendChat();
     }
   }
 }
+
+
 
 
 
@@ -1752,16 +1987,30 @@ function renderCardsFromText(finalBotText) {
 function renderErrorWithActions(message, { parent_id = null } = {}) {
   const text = message || "Oops! Something went wrong.";
 
-  // Persist + render error message (bot, normal variant)
+  // Persist + render error message
   const entry = pushTranscript("bot", text, "normal", {
-    thread_id: currentThreadId,
+    id: newMid("b"),
+    thread_id: currentThreadId || null,
     parent_id,
+    ts: Date.now(),
   });
 
   renderMessage(text, "bot", {
-    id: entry?.id,
-    parent_id,
+    id: entry.id,
+    thread_id: entry.thread_id,
+    parent_id: entry.parent_id,
+    variant: "normal",
+    ts: entry.ts,
     skipSave: true,
+  });
+
+  emitAnalytics("message_sent", {
+    sender: "bot",
+    message_id: entry.id,
+    parent_id: entry.parent_id,
+    thread_id: entry.thread_id,
+    variant: entry.variant,
+    length: entry.text.length,
   });
 
   const actions = document.createElement("div");
@@ -1772,8 +2021,8 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
   retry.className =
     "px-3 py-2 rounded-full bg-slate-900 text-white text-sm font-semibold active:scale-95";
   retry.textContent = "Try again";
-
   retry.addEventListener("click", () => {
+    emitAnalytics("error_action_click", { parent_id, action: "retry" });
     if (!lastUserMessage) {
       chatInput?.focus();
       return;
@@ -1787,7 +2036,10 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
   guides.className =
     "px-3 py-2 rounded-full bg-white border border-slate-200 text-slate-900 text-sm font-semibold active:scale-95";
   guides.textContent = "Open Guides";
-  guides.addEventListener("click", () => showScreen("experiences"));
+  guides.addEventListener("click", () => {
+    emitAnalytics("error_action_click", { parent_id, action: "open_guides" });
+    showScreen("experiences");
+  });
 
   actions.appendChild(retry);
   actions.appendChild(guides);
@@ -1795,6 +2047,7 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
   chatBox?.appendChild(actions);
   scrollChatToBottom();
 }
+
 
 
 
@@ -1826,26 +2079,7 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
 
     
 
-    // --- Global state ---
-    let isUnlocked = !!window.INITIAL_VERIFIED;
-    let lastUnlockCode = null;
-    let currentSessionId = null;
-    let guestName = null;
-    let arrivalDate = null;
-    let departureDate = null;
-    let checkinTime = null;
-    let checkoutTime = null;
-
-    let lastUserMessage = null;
-    let chatInFlight = false;
-    let chatAbort = null;
-    let lastUserIntent = null;
-    let lastBotIntent = null;
-    let transcript = [];
-    let chatRestored = false;
-
-    let chatHasWelcome = false;
-    let guidesAbortController = null;
+   
 
     // Keep guest name in sync across UI
     function updateGuestNameInUI(name) {
@@ -2087,33 +2321,28 @@ function isAnyOverlayOpen() {
   );
 }
 
-function makeMessageId() {
-  // Stable-ish, collision-resistant enough for client analytics
-  // Example: m_lw9f2k8a_k3j91q
-  return (
-    "m_" +
-    Date.now().toString(36) +
-    "_" +
-    Math.random().toString(36).slice(2, 8)
-  );
-}
 
+
+/**
+ * pushTranscript(sender, text, variant, meta?)
+ * Returns the saved entry (source of truth).
+ */
 function pushTranscript(sender, text, variant = "normal", meta = {}) {
   const entry = {
-    id: meta.id || newMessageId(sender === "user" ? "u" : "b"),
-    thread_id: meta.thread_id || currentThreadId,
+    id: meta.id || newMid(sender === "user" ? "u" : "b"),
+    thread_id: meta.thread_id ?? currentThreadId ?? null,
     parent_id: meta.parent_id ?? null,
-    sender,
-    variant,
+    sender: sender === "user" ? "user" : "bot",
+    variant: variant || "normal",
     text: String(text || ""),
-    ts: meta.ts || Date.now(),
+    ts: meta.ts ?? Date.now(),
   };
 
+  transcript = Array.isArray(transcript) ? transcript : [];
   transcript.push(entry);
   saveTranscript();
   return entry;
 }
-
 
     
 function autoActOnIntent(intent, userText) {
@@ -2218,33 +2447,30 @@ function autoActOnIntent(intent, userText) {
 
 
 function renderMessage(text, sender, opts = {}) {
-  if (!chatBox) return;
+  if (!chatBox) return null;
 
   const {
     skipSave = false,
     variant = "normal",
     id = null,
-    thread_id = (typeof currentThreadId !== "undefined" ? currentThreadId : null),
+    thread_id = currentThreadId || null,
     parent_id = null,
+    ts = null,
   } = opts;
 
   const isUser = sender === "user";
-  const ts = formatTime(new Date());
-
-  // Ensure we always have an id for analytics/reactions
-  const mid =
-    id ||
-    (typeof newMessageId === "function"
-      ? newMessageId(isUser ? "u" : "b")
-      : `m_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`);
+  const mid = id || newMid(isUser ? "u" : "b");
+  const timeObj = ts ? new Date(ts) : new Date();
+  const timeLabel = formatTime(timeObj);
 
   const row = document.createElement("div");
   row.className = "msg " + (isUser ? "user" : "bot");
-
-  // Analytics / threading hooks on row
   row.dataset.mid = mid;
+  row.dataset.sender = isUser ? "user" : "bot";
+  row.dataset.variant = variant || "normal";
   if (thread_id) row.dataset.threadId = thread_id;
   if (parent_id) row.dataset.parentId = parent_id;
+  row.dataset.ts = String(ts || Date.now());
 
   let avatar = null;
   if (!isUser) {
@@ -2256,13 +2482,10 @@ function renderMessage(text, sender, opts = {}) {
 
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-
-  // Analytics hooks on bubble too (handy for click handlers)
   bubble.dataset.mid = mid;
   if (thread_id) bubble.dataset.threadId = thread_id;
   if (parent_id) bubble.dataset.parentId = parent_id;
 
-  // system variant (subtle)
   if (variant === "system") {
     bubble.style.background = "#e2e8f0";
     bubble.style.color = "#0f172a";
@@ -2272,18 +2495,19 @@ function renderMessage(text, sender, opts = {}) {
 
   const time = document.createElement("div");
   time.className = "timestamp";
-  time.textContent = ts;
+  time.textContent = timeLabel;
 
   column.appendChild(time);
   column.appendChild(bubble);
 
-  if (isUser) row.appendChild(column);
-  else {
+  if (isUser) {
+    row.appendChild(column);
+  } else {
     row.appendChild(avatar);
     row.appendChild(column);
   }
 
-  // 🔹 Message reactions (bot only)
+  // 🔹 Reactions (bot only, not system)
   if (!isUser && variant !== "system") {
     bubble.style.cursor = "pointer";
 
@@ -2291,12 +2515,10 @@ function renderMessage(text, sender, opts = {}) {
       const mid = row.dataset.mid;
       if (!mid) return;
 
-      // prevent duplicate UI
       if (column.querySelector(".reaction-row")) return;
 
-      // if already reacted, show a small note and bail
-      if (typeof reactionsById === "object" && reactionsById?.[mid]) {
-        renderSystemNote("Already saved your feedback — thank you!");
+      if (reactionsById[mid]) {
+        renderSystemNote("Already saved your feedback — thank you!", mid);
         return;
       }
 
@@ -2311,21 +2533,20 @@ function renderMessage(text, sender, opts = {}) {
         btn.textContent = label;
 
         btn.addEventListener("click", () => {
-          // persist reaction tied to message id + thread context
-          if (typeof reactionsById === "object") {
-            reactionsById[mid] = {
-              reaction: reactionValue, // "up" | "down"
-              ts: Date.now(),
-              thread_id: row.dataset.threadId || null,
-              parent_id: row.dataset.parentId || null,
-            };
-            try {
-              if (typeof saveReactions === "function") saveReactions(reactionsById);
-            } catch {}
-          }
+          reactionsById[mid] = {
+            reaction: reactionValue,
+            ts: Date.now(),
+          };
+          saveReactions(reactionsById);
+
+          emitAnalytics("reaction_set", {
+            thread_id: row.dataset.threadId || currentThreadId || null,
+            message_id: mid,
+            reaction: reactionValue,
+          });
 
           reactions.remove();
-          renderSystemNote(responseText); // (your version should pushTranscript)
+          renderSystemNote(responseText, mid);
         });
 
         return btn;
@@ -2344,47 +2565,27 @@ function renderMessage(text, sender, opts = {}) {
   chatBox.appendChild(row);
   scrollChatToBottom();
 
-  // Persist (ONLY here, and consistently via pushTranscript)
-  if (!skipSave && typeof pushTranscript === "function") {
-    pushTranscript(sender, text, variant, {
+  // Optional persistence path (try to avoid using this; prefer commit helpers)
+  if (!skipSave) {
+    const entry = pushTranscript(sender, text, variant, {
       id: mid,
       thread_id,
       parent_id,
-      ts: Date.now(),
+      ts: ts || Date.now(),
+    });
+
+    emitAnalytics("message_sent", {
+      sender: entry.sender,
+      message_id: entry.id,
+      parent_id: entry.parent_id,
+      thread_id: entry.thread_id,
+      variant: entry.variant,
+      length: entry.text.length,
     });
   }
 
-  // Return the rendered DOM refs + ids (useful for analytics)
-  return { row, bubble, id: mid, thread_id, parent_id };
+  return { row, bubble, id: mid };
 }
-
-
-
- chatBox.appendChild(row);
-  scrollChatToBottom();
-
-  // ✅ persist + tag DOM
-  if (!skipSave) {
-    const entry = pushTranscript(sender, text, variant, id ? { id } : {});
-    row.dataset.mid = entry.id;
-    row.dataset.sender = entry.sender;
-    row.dataset.variant = entry.variant;
-  } else if (id) {
-    // restore path can supply id
-    row.dataset.mid = id;
-    row.dataset.sender = sender;
-    row.dataset.variant = variant;
-  }
-
-  return row; // ✅ helpful for callers (reactions, etc.)
-}
-
-}
-
-
-    //console.log("assistantName=", assistantName);
-    //console.log("template=", template);
-   //console.log("intro(before trim)=", intro);
 
 
    
@@ -2420,7 +2621,7 @@ function renderMessage(text, sender, opts = {}) {
     
 
  async function sendChat() {
-  if (chatInFlight) return; // ⛔ prevent double-send
+  if (chatInFlight) return;
 
   const text = (chatInput?.value || "").trim();
   if (!text) return;
@@ -2435,121 +2636,99 @@ function renderMessage(text, sender, opts = {}) {
     if (chatSend) chatSend.disabled = false;
   }
 
-  // --- helpers: IDs + threading ---
-  function ensureThreadId() {
-    // Prefer server session_id if present, but we need a client thread id immediately.
-    if (typeof currentThreadId === "undefined") window.currentThreadId = null;
-
-    if (!currentThreadId) {
-      const key = `thread_id_${window.PROPERTY_ID}`;
-      try {
-        const cached = sessionStorage.getItem(key);
-        if (cached) currentThreadId = cached;
-      } catch {}
-
-      if (!currentThreadId) {
-        currentThreadId =
-          (typeof newThreadId === "function" && newThreadId()) ||
-          `th_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-        try {
-          sessionStorage.setItem(key, currentThreadId);
-        } catch {}
-      }
-    }
-    return currentThreadId;
-  }
-
-  function newMid(prefix) {
-    return (
-      (typeof newMessageId === "function" ? newMessageId(prefix) : null) ||
-      `m_${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 10)}`;
-  }
-
-  const thread_id = ensureThreadId();
-
-  // Render-only (never saves) — for the user message you *already* pushed
-  function renderUserSaved(entry) {
-    renderMessage(entry.text, "user", {
-      id: entry.id,
-      thread_id: entry.thread_id,
-      parent_id: entry.parent_id || null,
-      variant: entry.variant || "normal",
-      skipSave: true,
-    });
-  }
-
-  function renderBotSaved(entry, { typewriter = false } = {}) {
-    if (typewriter) {
-      const bubble = createBotBubble({
-        id: entry.id,
-        variant: entry.variant || "normal",
-        thread_id: entry.thread_id,
-        parent_id: entry.parent_id || null,
-      });
-      if (bubble?.body) return typewriterTo(bubble.body, entry.text, { speed: 12 });
-      // fallback if bubble couldn't be created
-    }
-    renderMessage(entry.text, "bot", {
-      id: entry.id,
-      thread_id: entry.thread_id,
-      parent_id: entry.parent_id || null,
-      variant: entry.variant || "normal",
-      skipSave: true,
-    });
-  }
-
-  // Commit helpers: pushTranscript is the single source of truth
+  // --- commit helpers (single source of truth) ---
   function commitUserMessage(userText, variant = "normal") {
+    const parent_id = nextUserParentId || null;
+    nextUserParentId = null; // consume once
+
     const entry = pushTranscript("user", userText, variant, {
       id: newMid("u"),
-      thread_id,
-      parent_id: null,
-      ts: Date.now(),
-    });
-    // pushTranscript should return the stored entry; be defensive:
-    const e = entry || { id: newMid("u"), text: userText, variant, thread_id, parent_id: null };
-    renderUserSaved(e);
-    return e;
-  }
-
-  function commitSystemNote(mdText, parent_id = null) {
-    const entry = pushTranscript("bot", mdText, "system", {
-      id: newMid("s"),
-      thread_id,
+      thread_id: currentThreadId || null,
       parent_id,
       ts: Date.now(),
     });
-    const e = entry || { id: newMid("s"), text: mdText, variant: "system", thread_id, parent_id };
-    renderMessage(e.text, "bot", {
-      id: e.id,
-      thread_id: e.thread_id,
-      parent_id: e.parent_id,
-      variant: "system",
+
+    renderMessage(userText, "user", {
       skipSave: true,
+      id: entry.id,
+      thread_id: entry.thread_id,
+      parent_id: entry.parent_id,
+      variant: entry.variant,
+      ts: entry.ts,
     });
-    return e;
+
+    emitAnalytics("message_sent", {
+      sender: "user",
+      message_id: entry.id,
+      parent_id: entry.parent_id,
+      thread_id: entry.thread_id,
+      variant: entry.variant,
+      length: entry.text.length,
+    });
+
+    return entry;
   }
 
   async function commitBotMessage(botText, variant = "normal", parent_id = null, { typewriter = true } = {}) {
     const entry = pushTranscript("bot", botText, variant, {
       id: newMid("b"),
-      thread_id,
+      thread_id: currentThreadId || null,
       parent_id,
       ts: Date.now(),
     });
-    const e = entry || { id: newMid("b"), text: botText, variant, thread_id, parent_id };
-    await renderBotSaved(e, { typewriter });
-    return e;
+
+    emitAnalytics("message_sent", {
+      sender: "bot",
+      message_id: entry.id,
+      parent_id: entry.parent_id,
+      thread_id: entry.thread_id,
+      variant: entry.variant,
+      length: entry.text.length,
+    });
+
+    if (typewriter) {
+      const bubble = createBotBubble({
+        id: entry.id,
+        thread_id: entry.thread_id,
+        parent_id: entry.parent_id,
+        variant: entry.variant,
+        ts: entry.ts,
+      });
+
+      if (bubble?.body) {
+        await typewriterTo(bubble.body, entry.text, { speed: 12 });
+      } else {
+        renderMessage(entry.text, "bot", {
+          skipSave: true,
+          id: entry.id,
+          thread_id: entry.thread_id,
+          parent_id: entry.parent_id,
+          variant: entry.variant,
+          ts: entry.ts,
+        });
+      }
+    } else {
+      renderMessage(entry.text, "bot", {
+        skipSave: true,
+        id: entry.id,
+        thread_id: entry.thread_id,
+        parent_id: entry.parent_id,
+        variant: entry.variant,
+        ts: entry.ts,
+      });
+    }
+
+    return entry;
   }
 
-  // --- Slash commands (interactive shortcuts) ---
+  // --- Slash commands ---
   const t = text.toLowerCase();
 
   if (t === "/wifi") {
     const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     openWifiModal();
-    commitSystemNote("Opening WiFi details.", u.id);
+    renderSystemNote("Opening WiFi details.", u.id);
     endChatFlight();
     return;
   }
@@ -2558,7 +2737,7 @@ function renderMessage(text, sender, opts = {}) {
     const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     openCheckinModal();
-    commitSystemNote("Opening your door code.", u.id);
+    renderSystemNote("Opening your door code.", u.id);
     endChatFlight();
     return;
   }
@@ -2567,7 +2746,7 @@ function renderMessage(text, sender, opts = {}) {
     const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     showScreen("experiences");
-    commitSystemNote("Opening Guides.", u.id);
+    renderSystemNote("Opening Guides.", u.id);
     endChatFlight();
     return;
   }
@@ -2576,13 +2755,12 @@ function renderMessage(text, sender, opts = {}) {
     const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     showScreen("upgrades");
-    commitSystemNote("Opening Upgrades.", u.id);
+    renderSystemNote("Opening Upgrades.", u.id);
     endChatFlight();
     return;
   }
 
   if (!sandyLive) {
-    // bot offline message (parented to user message for analytics consistency)
     const u = commitUserMessage(text);
     if (chatInput) chatInput.value = "";
     await commitBotMessage(
@@ -2595,10 +2773,9 @@ function renderMessage(text, sender, opts = {}) {
     return;
   }
 
-  // ✅ Commit the user message ONCE (pushTranscript everywhere)
+  // ✅ Commit user message once
   const userEntry = commitUserMessage(text);
 
-  // Disable input while sending
   if (chatInput) chatInput.disabled = true;
   if (chatSend) chatSend.disabled = true;
 
@@ -2614,12 +2791,10 @@ function renderMessage(text, sender, opts = {}) {
       session_id: currentSessionId,
       language: getSelectedLanguage(),
 
-      // ✅ analytics/threading (optional if your backend wants it)
-      thread_id,
+      thread_id: currentThreadId || null,
       client_message_id: userEntry.id,
     };
 
-    // subtle “sent” feel
     try {
       chatSend?.classList.add("scale-90");
       setTimeout(() => chatSend?.classList.remove("scale-90"), 120);
@@ -2644,46 +2819,31 @@ function renderMessage(text, sender, opts = {}) {
       return;
     }
 
-    // If backend gives a canonical session_id, keep it
+   // ✅ keep client thread stable; store server session separately
     if (data.session_id) {
       currentSessionId = data.session_id;
       saveGuestState();
     
-      // Bind client thread to server session (canonical thread)
-      if (!currentThreadId) {
-        currentThreadId = `t_${data.session_id}`;
-        localStorage.setItem(THREAD_KEY, currentThreadId);
-      }
+      // optional: persist server session too (separate key)
+      try { localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(data.session_id)); } catch {}
     }
 
 
-
     if (data.error) {
-      // Ensure the error text is tied to the user message for analytics
-      await commitBotMessage(String(data.error), "normal", userEntry.id);
-      // If you still want the fancy actions UI, make sure it DOES NOT double-save.
-      // (Ideally it only renders UI + uses commitSystemNote / pushTranscript internally.)
-      renderErrorWithActions(data.error);
+      renderErrorWithActions(String(data.error), { parent_id: userEntry.id });
       return;
     }
 
     const rawBotText = data.response || voiceCfg.fallback_message || "Could you try that again?";
-
     lastBotIntent = detectIntent(`${text}\n${rawBotText}`);
 
-    // ✅ Use finalBotText (your preferred variable name)
     let finalBotText = rawBotText;
-
-    // 2) memory
     finalBotText = applyMemoryTofinalBotText(finalBotText, lastBotIntent);
-
-    // 1) acknowledgement
     finalBotText = withAcknowledgement(finalBotText, lastBotIntent);
 
-    // ✅ Commit bot message ONCE, parented to the user message it answered
+    // ✅ bot response parented to user msg
     const botEntry = await commitBotMessage(finalBotText, "normal", userEntry.id, { typewriter: true });
 
-    // follow-on automation stays the same
     autoActOnIntent(lastBotIntent, text);
 
     const followups =
@@ -2691,28 +2851,20 @@ function renderMessage(text, sender, opts = {}) {
         ? data.suggestions
         : buildFollowups(text, finalBotText);
 
-    renderFollowupChips(followups);
+    // ✅ chips parented to bot msg
+    renderFollowupChips(followups, { parent_id: botEntry.id });
     renderCardsFromText(finalBotText);
-
-    // (optional) if you want analytics for followups linked to the bot msg:
-    // commitSystemNote(`Followups_shown:${JSON.stringify(followups.map(f=>f.label||f))}`, botEntry.id);
-
   } catch (err) {
     console.error(err);
     removeTyping();
-
-    await commitBotMessage(
-      voiceCfg.error_message || "Oops! Something went wrong. Please try again.",
-      "normal",
-      userEntry.id
-    );
-
-    // Keep your action UI if desired (but ensure it doesn't double-save messages)
-    renderErrorWithActions(voiceCfg.error_message || "Oops! Something went wrong. Please try again.");
+    renderErrorWithActions(voiceCfg.error_message || "Oops! Something went wrong. Please try again.", {
+      parent_id: userEntry.id,
+    });
   } finally {
     endChatFlight();
   }
 }
+
 
 if (chatSend && chatInput) {
   chatSend.addEventListener("click", sendChat);
@@ -2726,7 +2878,6 @@ if (chatSend && chatInput) {
 
 
 
-  const REACTIONS_KEY = `sandy_reactions_${window.PROPERTY_ID}`;
 
 function loadReactions() {
   try {
@@ -2735,14 +2886,6 @@ function loadReactions() {
     return {};
   }
 }
-
-function saveReactions(map) {
-  try {
-    localStorage.setItem(REACTIONS_KEY, JSON.stringify(map || {}));
-  } catch {}
-}
-
-let reactionsById = loadReactions();
 
   
     function renderSoftSuggestion(intent) {
@@ -3210,7 +3353,30 @@ maybeSendTimeNudge();
 
         const fallback = `Hi! I’m ${assistantName || "Sandy"}, your stay assistant for ${window.PROPERTY_NAME || "your stay"}. How can I help?`;
 
-        renderMessage((intro.trim() || fallback), "bot");
+        // Persist welcome + render once
+const welcomeEntry = pushTranscript("bot", (intro.trim() || fallback), "normal", {
+  id: newMid("b"),
+  thread_id: currentThreadId || null,
+  parent_id: null,
+  ts: Date.now(),
+});
+renderMessage(welcomeEntry.text, "bot", {
+  skipSave: true,
+  id: welcomeEntry.id,
+  thread_id: welcomeEntry.thread_id,
+  parent_id: welcomeEntry.parent_id,
+  variant: welcomeEntry.variant,
+  ts: welcomeEntry.ts,
+});
+emitAnalytics("message_sent", {
+  sender: "bot",
+  message_id: welcomeEntry.id,
+  parent_id: null,
+  thread_id: welcomeEntry.thread_id,
+  variant: welcomeEntry.variant,
+  length: welcomeEntry.text.length,
+});
+
 
         chatHasWelcome = true;
         sessionStorage.setItem(welcomeKey, "1");
