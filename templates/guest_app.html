@@ -2808,6 +2808,7 @@ function renderMessage(text, sender, opts = {}) {
     });
 
     const data = await readJsonSafely(res);
+    console.log("CHAT RESPONSE:", data);
     removeTyping();
 
     if (!res.ok) {
