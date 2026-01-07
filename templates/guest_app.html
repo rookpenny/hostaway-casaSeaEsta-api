@@ -1139,17 +1139,30 @@ function saveTranscript() {
 
 function restoreChatHistory() {
   try {
+    if (!chatBox) return;
+
     const raw = localStorage.getItem(getChatStorageKey());
     if (!raw) return;
+
     const items = JSON.parse(raw);
     if (!Array.isArray(items)) return;
 
     transcript = items;
+
     chatBox.innerHTML = "";
-    transcript.forEach((m) => renderMessage(m.text, m.sender, { skipSave: true, variant: m.variant || "normal" }));
+
+    transcript.forEach((m) => {
+      renderMessage(m.text, m.sender, {
+        skipSave: true,
+        variant: m.variant || "normal",
+        id: m.id || null, // ✅ preserve message IDs for analytics + reactions
+      });
+    });
+
     scrollChatToBottom();
   } catch {}
 }
+
 
 
 // --- Lightweight “memory” (frontend-only) ---
@@ -1233,11 +1246,16 @@ function addTyping(labelText = "Thinking…") {
 }
 
 // --- Typewriter “streaming” effect ---
-function createBotBubble({ variant } = {}) {
+function createBotBubble({ variant = "normal", id = null } = {}) {
   if (!chatBox) return null;
 
   const row = document.createElement("div");
   row.className = "msg bot";
+
+  // ✅ message identity for reactions + analytics
+  if (id) row.dataset.mid = id;
+  row.dataset.sender = "bot";
+  row.dataset.variant = variant;
 
   const avatar = document.createElement("div");
   avatar.className = "avatar avatar-sandy";
@@ -1259,7 +1277,7 @@ function createBotBubble({ variant } = {}) {
 
   const body = document.createElement("div");
   body.className = "message-text";
-  body.innerHTML = ""; // will be filled
+  body.innerHTML = ""; // filled by typewriter
 
   bubble.appendChild(body);
   column.appendChild(time);
@@ -1273,6 +1291,7 @@ function createBotBubble({ variant } = {}) {
 
   return { row, body };
 }
+
 
 async function typewriterTo(el, fullText, { speed = 12 } = {}) {
   const text = String(fullText || "");
@@ -2007,10 +2026,32 @@ function isAnyOverlayOpen() {
   );
 }
 
-   function pushTranscript(sender, text, variant="normal") {
-  transcript.push({ sender, text: String(text || ""), variant, ts: Date.now() });
-  saveTranscript();
+function makeMessageId() {
+  // Stable-ish, collision-resistant enough for client analytics
+  // Example: m_lw9f2k8a_k3j91q
+  return (
+    "m_" +
+    Date.now().toString(36) +
+    "_" +
+    Math.random().toString(36).slice(2, 8)
+  );
 }
+
+function pushTranscript(sender, text, variant = "normal", extra = {}) {
+  const entry = {
+    id: makeMessageId(),
+    sender,
+    text: String(text || ""),
+    variant,
+    ts: Date.now(),
+    ...extra,
+  };
+
+  transcript.push(entry);
+  saveTranscript();
+  return entry; // ✅ critical so callers can tag DOM with the same ID
+}
+
     
 function autoActOnIntent(intent, userText) {
   try {
@@ -2113,10 +2154,10 @@ function autoActOnIntent(intent, userText) {
     }
 
 
-    function renderMessage(text, sender, opts = {}) {
+ function renderMessage(text, sender, opts = {}) {
   if (!chatBox) return;
 
-  const { skipSave = false, variant = "normal" } = opts;
+  const { skipSave = false, variant = "normal", id = null } = opts;
 
   const isUser = sender === "user";
   const ts = formatTime(new Date());
@@ -2161,13 +2202,22 @@ if (!isUser && variant !== "system") {
   bubble.style.cursor = "pointer";
 
   bubble.addEventListener("click", () => {
-    // Prevent duplicate reactions
+    const mid = row.dataset.mid;
+    if (!mid) return;
+
+    // prevent duplicate UI
     if (column.querySelector(".reaction-row")) return;
+
+    // if already reacted, show a small note and bail
+    if (reactionsById[mid]) {
+      renderSystemNote("Already saved your feedback — thank you!");
+      return;
+    }
 
     const reactions = document.createElement("div");
     reactions.className = "reaction-row flex gap-2 mt-2";
 
-    function reactionButton(label, responseText) {
+    function reactionButton(label, reactionValue, responseText) {
       const btn = document.createElement("button");
       btn.type = "button";
       btn.className =
@@ -2175,20 +2225,25 @@ if (!isUser && variant !== "system") {
       btn.textContent = label;
 
       btn.addEventListener("click", () => {
+        // persist reaction tied to message id
+        reactionsById[mid] = {
+          reaction: reactionValue, // "up" | "down"
+          ts: Date.now(),
+        };
+        saveReactions(reactionsById);
+
         reactions.remove();
-        renderSystemNote(responseText);
-        //saveTranscript();
+        renderSystemNote(responseText); // goes through pushTranscript()
       });
 
       return btn;
     }
 
     reactions.appendChild(
-      reactionButton("👍 Helpful", "Glad that helped! 😊")
+      reactionButton("👍 Helpful", "up", "Glad that helped! 😊")
     );
-
     reactions.appendChild(
-      reactionButton("👎 Not quite", "Got it — tell me what you were hoping for instead.")
+      reactionButton("👎 Not quite", "down", "Got it — tell me what you were hoping for instead.")
     );
 
     column.appendChild(reactions);
@@ -2197,11 +2252,24 @@ if (!isUser && variant !== "system") {
 }
 
 
-  chatBox.appendChild(row);
+
+ chatBox.appendChild(row);
   scrollChatToBottom();
 
+  // ✅ persist + tag DOM
   if (!skipSave) {
-  pushTranscript(sender, text, variant);
+    const entry = pushTranscript(sender, text, variant, id ? { id } : {});
+    row.dataset.mid = entry.id;
+    row.dataset.sender = entry.sender;
+    row.dataset.variant = entry.variant;
+  } else if (id) {
+    // restore path can supply id
+    row.dataset.mid = id;
+    row.dataset.sender = sender;
+    row.dataset.variant = variant;
+  }
+
+  return row; // ✅ helpful for callers (reactions, etc.)
 }
 
 }
@@ -2244,183 +2312,232 @@ if (!isUser && variant !== "system") {
 
     
 
-    async function sendChat() {
-      if (chatInFlight) return; // ⛔ prevent double-send
-    
-      const text = (chatInput?.value || "").trim();
-      if (!text) return;
+ async function sendChat() {
+  if (chatInFlight) return; // ⛔ prevent double-send
 
-      chatInFlight = true;
+  const text = (chatInput?.value || "").trim();
+  if (!text) return;
 
-      lastUserMessage = text;
-      lastUserIntent = detectIntent(text);
+  chatInFlight = true;
+  lastUserMessage = text;
+  lastUserIntent = detectIntent(text);
 
-      function endChatFlight() {
-        chatInFlight = false;
-        if (chatInput) chatInput.disabled = false;
-        if (chatSend) chatSend.disabled = false;
-      }
+  function endChatFlight() {
+    chatInFlight = false;
+    if (chatInput) chatInput.disabled = false;
+    if (chatSend) chatSend.disabled = false;
+  }
 
-      // Slash commands (interactive shortcuts)
-      const t = text.toLowerCase();
-      
-      if (t === "/wifi") {
-        renderMessage(text, "user");
-        if (chatInput) chatInput.value = "";
-        openWifiModal();
-        renderSystemNote("Opening WiFi details.");
-        endChatFlight();
-        return;
-      }
-      
-      if (t === "/door" || t === "/code") {
-        renderMessage(text, "user");
-        if (chatInput) chatInput.value = "";
-        openCheckinModal();
-        renderSystemNote("Opening your door code.");
-        endChatFlight();
-        return;
-      }
-      
-      if (t === "/guides") {
-        renderMessage(text, "user");
-        if (chatInput) chatInput.value = "";
-        showScreen("experiences");
-        renderSystemNote("Opening Guides.");
-        endChatFlight();
-        return;
-      }
-      
-      if (t === "/upgrades") {
-        renderMessage(text, "user");
-        if (chatInput) chatInput.value = "";
-        showScreen("upgrades");
-        renderSystemNote("Opening Upgrades.");
-        endChatFlight();
-        return;
-      }
+  // --- Slash commands (interactive shortcuts) ---
+  const t = text.toLowerCase();
 
+  // helper: render + persist user msg consistently (IDs!)
+  function commitUserMessage(userText, variant = "normal") {
+    const entry = pushTranscript("user", userText, variant);
+    // assumes your renderMessage accepts { id, variant, skipSave }
+    renderMessage(userText, "user", { id: entry?.id, variant, skipSave: true });
+    return entry;
+  }
 
-      if (!sandyLive) {
-        renderMessage(
-          "Sandy is currently offline for this property. Please contact your host directly. 🙏",
-          "bot"
-        );
-        endChatFlight();
-        return;
-      }
+  // helper: render + persist system/bot note consistently (IDs!)
+  function commitSystemNote(mdText) {
+    const entry = pushTranscript("bot", mdText, "system");
+    renderMessage(mdText, "bot", { id: entry?.id, variant: "system", skipSave: true });
+    return entry;
+  }
 
-      renderMessage(text, "user");
-      // Disable input while sending
-      if (chatInput) chatInput.disabled = true;
-      if (chatSend) chatSend.disabled = true;
+  // helper: render + persist bot (typewriter) consistently (IDs!)
+  async function commitBotMessage(botText, variant = "normal") {
+    const entry = pushTranscript("bot", botText, variant);
+    const bubble = createBotBubble({ id: entry?.id, variant });
+    if (bubble?.body) {
+      await typewriterTo(bubble.body, botText, { speed: 12 });
+    } else {
+      renderMessage(botText, "bot", { id: entry?.id, variant, skipSave: true });
+    }
+    return entry;
+  }
 
-      haptic(12);
-      maybeUpdateMemoryFromUserText(text);
+  if (t === "/wifi") {
+    commitUserMessage(text);
+    if (chatInput) chatInput.value = "";
+    openWifiModal();
+    commitSystemNote("Opening WiFi details.");
+    endChatFlight();
+    return;
+  }
 
-      if (chatInput) chatInput.value = "";
-      addTyping(getThinkingLabel(text));
+  if (t === "/door" || t === "/code") {
+    commitUserMessage(text);
+    if (chatInput) chatInput.value = "";
+    openCheckinModal();
+    commitSystemNote("Opening your door code.");
+    endChatFlight();
+    return;
+  }
 
+  if (t === "/guides") {
+    commitUserMessage(text);
+    if (chatInput) chatInput.value = "";
+    showScreen("experiences");
+    commitSystemNote("Opening Guides.");
+    endChatFlight();
+    return;
+  }
 
-      try {
-        const body = {
-          message: text,
-          session_id: currentSessionId,
-          language: getSelectedLanguage(),
-        };
-       
-        // subtle “sent” feel
-        try { chatSend?.classList.add("scale-90"); setTimeout(() => chatSend?.classList.remove("scale-90"), 120); } catch {}
+  if (t === "/upgrades") {
+    commitUserMessage(text);
+    if (chatInput) chatInput.value = "";
+    showScreen("upgrades");
+    commitSystemNote("Opening Upgrades.");
+    endChatFlight();
+    return;
+  }
 
+  if (!sandyLive) {
+    // bot offline message (still ID’d + persisted)
+    await commitBotMessage(
+      "Sandy is currently offline for this property. Please contact your host directly. 🙏",
+      "normal"
+    );
+    endChatFlight();
+    return;
+  }
 
-        const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  credentials: "include",
-  body: JSON.stringify(body),
-});
+  // ✅ Commit the user message ONCE (pushTranscript everywhere)
+  const userEntry = commitUserMessage(text);
 
-        
-        const data = await readJsonSafely(res);
-        removeTyping();
-        
-        if (!res.ok) {
-          renderMessage(
-            data?.error || voiceCfg.error_message || "Something went wrong. Please try again.",
-            "bot"
-          );
-          return;
-        }
+  // Disable input while sending
+  if (chatInput) chatInput.disabled = true;
+  if (chatSend) chatSend.disabled = true;
 
+  haptic(12);
+  maybeUpdateMemoryFromUserText(text);
 
-        if (data.session_id) {
-          currentSessionId = data.session_id;
-          saveGuestState();
-        }
+  if (chatInput) chatInput.value = "";
+  addTyping(getThinkingLabel(text));
 
-       if (data.error) {
-  renderErrorWithActions(data.error);
-  return;
-}
+  try {
+    const body = {
+      message: text,
+      session_id: currentSessionId,
+      language: getSelectedLanguage(),
+      // optional for backend analytics/threading:
+      // client_message_id: userEntry?.id,
+    };
 
-const rawBotText =
-  data.response || voiceCfg.fallback_message || "Could you try that again?";
+    // subtle “sent” feel
+    try {
+      chatSend?.classList.add("scale-90");
+      setTimeout(() => chatSend?.classList.remove("scale-90"), 120);
+    } catch {}
 
-lastBotIntent = detectIntent(`${text}\n${rawBotText}`);
+    const res = await fetch(`/properties/${window.PROPERTY_ID}/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify(body),
+    });
 
-// ✅ Use finalBotText (your preferred variable name)
-let finalBotText = rawBotText;
+    const data = await readJsonSafely(res);
+    removeTyping();
 
-// 2) memory
-finalBotText = applyMemoryTofinalBotText(finalBotText, lastBotIntent);
-
-// 1) acknowledgement
-finalBotText = withAcknowledgement(finalBotText, lastBotIntent);
-
-// Typewriter “streaming”
-const bubble = createBotBubble();
-if (bubble?.body) {
-  await typewriterTo(bubble.body, finalBotText, { speed: 12 });
-
-  pushTranscript("bot", finalBotText, "normal");
-  autoActOnIntent(lastBotIntent, text);
-
-  const followups =
-    Array.isArray(data.suggestions) && data.suggestions.length
-      ? data.suggestions
-      : buildFollowups(text, finalBotText);
-
-  renderFollowupChips(followups);
-  renderCardsFromText(finalBotText);
-} else {
-  renderMessage(finalBotText, "bot");
-}
-
-
-      } catch (err) {
-  console.error(err);
-  removeTyping();
-  renderErrorWithActions(
-    voiceCfg.error_message || "Oops! Something went wrong. Please try again."
-  );
-} finally {
-  endChatFlight();
-}
-
-
+    if (!res.ok) {
+      await commitBotMessage(
+        data?.error || voiceCfg.error_message || "Something went wrong. Please try again.",
+        "normal"
+      );
+      return;
     }
 
-    if (chatSend && chatInput) {
-      chatSend.addEventListener("click", sendChat);
-      chatInput.addEventListener("keypress", (e) => {
-        if (e.key === "Enter" && !e.shiftKey) {
-          e.preventDefault();
-          sendChat();
-        }
-      });
+    if (data.session_id) {
+      currentSessionId = data.session_id;
+      saveGuestState();
     }
 
+    if (data.error) {
+      // keep your nicer UI, but make it consistent by ensuring it uses pushTranscript internally
+      // (if it currently calls renderMessage directly, you’ll want to update it similarly)
+      renderErrorWithActions(data.error);
+      return;
+    }
 
+    const rawBotText =
+      data.response || voiceCfg.fallback_message || "Could you try that again?";
+
+    lastBotIntent = detectIntent(`${text}\n${rawBotText}`);
+
+    // ✅ Use finalBotText (your preferred variable name)
+    let finalBotText = rawBotText;
+
+    // 2) memory
+    finalBotText = applyMemoryTofinalBotText(finalBotText, lastBotIntent);
+
+    // 1) acknowledgement
+    finalBotText = withAcknowledgement(finalBotText, lastBotIntent);
+
+    // ✅ Commit bot message ONCE (pushTranscript everywhere + message IDs)
+    await commitBotMessage(finalBotText, "normal");
+
+    // follow-on automation stays the same
+    autoActOnIntent(lastBotIntent, text);
+
+    const followups =
+      Array.isArray(data.suggestions) && data.suggestions.length
+        ? data.suggestions
+        : buildFollowups(text, finalBotText);
+
+    renderFollowupChips(followups);
+    renderCardsFromText(finalBotText);
+  } catch (err) {
+    console.error(err);
+    removeTyping();
+
+    // consistent error message (ID’d + persisted)
+    await commitBotMessage(
+      voiceCfg.error_message || "Oops! Something went wrong. Please try again.",
+      "normal"
+    );
+
+    // keep your action UI too (but ideally refactor it to use pushTranscript internally)
+    renderErrorWithActions(
+      voiceCfg.error_message || "Oops! Something went wrong. Please try again."
+    );
+  } finally {
+    endChatFlight();
+  }
+}
+
+if (chatSend && chatInput) {
+  chatSend.addEventListener("click", sendChat);
+  chatInput.addEventListener("keypress", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      sendChat();
+    }
+  });
+}
+
+
+  const REACTIONS_KEY = `sandy_reactions_${window.PROPERTY_ID}`;
+
+function loadReactions() {
+  try {
+    return JSON.parse(localStorage.getItem(REACTIONS_KEY) || "{}");
+  } catch {
+    return {};
+  }
+}
+
+function saveReactions(map) {
+  try {
+    localStorage.setItem(REACTIONS_KEY, JSON.stringify(map || {}));
+  } catch {}
+}
+
+let reactionsById = loadReactions();
+
+  
     function renderSoftSuggestion(intent) {
   if (!chatBox) return;
 
