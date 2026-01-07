@@ -1764,12 +1764,14 @@ function flushAnalyticsQueue() {
   const q = readAnalyticsQueue();
   if (!q.length) return;
 
-  const payload = JSON.stringify({ events: q });
+  const blob = new Blob(
+    [JSON.stringify({ events: q })],
+    { type: "application/json" }
+  );
 
-  // prefer sendBeacon if available
   try {
     if (navigator.sendBeacon) {
-      const ok = navigator.sendBeacon(ANALYTICS_ENDPOINT, payload);
+      const ok = navigator.sendBeacon(ANALYTICS_ENDPOINT, blob);
       if (ok) {
         writeAnalyticsQueue([]);
         return;
@@ -1777,21 +1779,20 @@ function flushAnalyticsQueue() {
     }
   } catch {}
 
-  // fallback fetch (non-blocking)
+  // fallback fetch
   fetch(ANALYTICS_ENDPOINT, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
     keepalive: true,
-    body: payload,
+    body: JSON.stringify({ events: q }),
   })
     .then((res) => {
       if (res.ok) writeAnalyticsQueue([]);
     })
-    .catch(() => {
-      // keep queue for later
-    });
+    .catch(() => {});
 }
+
 
 
 // Bridge emitAnalytics -> queue (NO UI IMPACT)
