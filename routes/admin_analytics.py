@@ -21,11 +21,11 @@ def summary(
     pmc_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
-    user = request.state.user  # 👈 REQUIRED
+    user = request.state.user  # REQUIRED (your auth middleware must set this)
 
     # 🔒 ENFORCE SCOPE
     if user.role != "super":
-        pmc_id = user.pmc_id  # host locked to their PMC
+        pmc_id = user.pmc_id
 
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
@@ -41,12 +41,22 @@ def summary(
         )
         select
           count(*) filter (where event_name = 'chat_session_created') as sessions_total,
-          count(*) filter (where event_name = 'message_sent' and data->>'role' = 'user') as user_messages,
-          count(*) filter (where event_name = 'message_sent' and data->>'role' = 'assistant') as assistant_messages,
+
+          -- IMPORTANT: your client sends data.sender, not data.role
+          count(*) filter (
+            where event_name = 'message_sent'
+              and coalesce(data->>'sender', data->>'role') = 'user'
+          ) as user_messages,
+
+          count(*) filter (
+            where event_name = 'message_sent'
+              and coalesce(data->>'sender', data->>'role') = 'assistant'
+          ) as assistant_messages,
+
           count(*) filter (where event_name = 'followup_click') as followup_click,
           count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
           count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'down') as reactions_down
-        ;
+        from base;
         """),
         {
             "start": start,
@@ -69,7 +79,7 @@ def timeseries(
     pmc_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
-    user = request.state.user  # 👈 REQUIRED
+    user = request.state.user  # REQUIRED
 
     # 🔒 ENFORCE SCOPE
     if user.role != "super":
@@ -138,4 +148,3 @@ def timeseries(
             "followup_click": followup_click,
         },
     }
-
