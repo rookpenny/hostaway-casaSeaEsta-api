@@ -1,13 +1,20 @@
 from datetime import datetime, timezone
 from typing import Optional, Literal
-from fastapi import APIRouter, Depends, Query, Request
 
+from fastapi import APIRouter, Depends, Query, Request
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from database import get_db
 
 router = APIRouter(prefix="/admin/analytics/chat")
+
+# --------------------------------------------------
+# Fake Stripe creds (placeholders for later wiring)
+# --------------------------------------------------
+STRIPE_PUBLIC_KEY = "pk_test_FAKE_1234567890"
+STRIPE_SECRET_KEY = "sk_test_FAKE_1234567890"
+STRIPE_WEBHOOK_SECRET = "whsec_FAKE_1234567890"
 
 # --------------------------------------------------
 # EVENT NAME CONFIG (edit to match what you emit)
@@ -49,14 +56,23 @@ def _enforce_scope(request: Request, pmc_id: Optional[int]) -> Optional[int]:
     if not user:
         raise RuntimeError("request.state.user is required for analytics")
 
-    if user.role != "super":
-        return user.pmc_id
+    role = getattr(user, "role", None)
+    if role != "super":
+        return getattr(user, "pmc_id", None)
 
     return pmc_id
 
 
 def _num(x, default=0):
     return default if x is None else x
+
+
+def _clamp_int(value: int, lo: int, hi: int) -> int:
+    try:
+        v = int(value)
+    except Exception:
+        return lo
+    return max(lo, min(hi, v))
 
 
 # --------------------------------------------------
@@ -76,8 +92,10 @@ def summary(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    row = db.execute(
-        text("""
+    row = (
+        db.execute(
+            text(
+                """
         with base as (
             select *
             from analytics_events
@@ -151,12 +169,12 @@ def summary(
             ) as followup_conversion_rate,
 
             -- upgrades funnel
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
 
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
+              count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
             ) as upgrade_conversion_rate,
 
             -- reactions
@@ -167,38 +185,39 @@ def summary(
             (select avg(response_seconds) from response_clean) as avg_response_seconds,
             (select percentile_cont(0.5) within group (order by response_seconds) from response_clean) as p50_response_seconds
         from base;
-        """),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "property_id": property_id,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "upgrade_start_events": list(UPGRADE_START_EVENTS),
-            "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-        },
-    ).mappings().first() or {}
+        """
+            ),
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "property_id": property_id,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "upgrade_start_events": list(UPGRADE_START_EVENTS),
+                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
+            },
+        )
+        .mappings()
+        .first()
+        or {}
+    )
 
     return {
         "sessions_total": int(_num(row.get("sessions_total"), 0)),
         "user_messages": int(_num(row.get("user_messages"), 0)),
         "assistant_messages": int(_num(row.get("assistant_messages"), 0)),
-
         # followups conversion
         "followups_shown": int(_num(row.get("followups_shown"), 0)),
         "followup_clicks": int(_num(row.get("followup_clicks"), 0)),
         "followup_conversion_rate": float(_num(row.get("followup_conversion_rate"), 0.0)),
-
         # upgrades conversion
         "upgrade_checkouts_started": int(_num(row.get("upgrade_checkouts_started"), 0)),
         "upgrade_purchases": int(_num(row.get("upgrade_purchases"), 0)),
         "upgrade_conversion_rate": float(_num(row.get("upgrade_conversion_rate"), 0.0)),
-
         # reactions
         "reactions_up": int(_num(row.get("reactions_up"), 0)),
         "reactions_down": int(_num(row.get("reactions_down"), 0)),
-
         # response time
         "avg_response_seconds": float(_num(row.get("avg_response_seconds"), 0.0)),
         "p50_response_seconds": float(_num(row.get("p50_response_seconds"), 0.0)),
@@ -224,8 +243,10 @@ def timeseries(
     end = ms_to_dt(to_ms)
     trunc = "day" if bucket == "day" else "hour"
 
-    rows = db.execute(
-        text(f"""
+    rows = (
+        db.execute(
+            text(
+                f"""
         with buckets as (
             select generate_series(
                 date_trunc('{trunc}', :start::timestamptz),
@@ -260,16 +281,20 @@ def timeseries(
         from buckets b
         left join agg a using (bucket)
         order by b.bucket asc;
-        """),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "property_id": property_id,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-        },
-    ).mappings().all()
+        """
+            ),
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "property_id": property_id,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+            },
+        )
+        .mappings()
+        .all()
+    )
 
     labels, sessions, messages, followup_clicks, followups_shown = [], [], [], [], []
 
@@ -305,11 +330,15 @@ def top_properties(
     db: Session = Depends(get_db),
 ):
     pmc_id = _enforce_scope(request, pmc_id)
+    limit = _clamp_int(limit, 1, 50)
+
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    rows = db.execute(
-        text("""
+    rows = (
+        db.execute(
+            text(
+                """
         with base as (
           select *
           from analytics_events
@@ -329,8 +358,8 @@ def top_properties(
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
             -- upgrades
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases
 
           from base
           group by 1
@@ -350,18 +379,22 @@ def top_properties(
         from agg
         order by sessions desc, messages desc
         limit :limit;
-        """),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "limit": limit,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "upgrade_start_events": list(UPGRADE_START_EVENTS),
-            "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-        },
-    ).mappings().all()
+        """
+            ),
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "limit": limit,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "upgrade_start_events": list(UPGRADE_START_EVENTS),
+                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
+            },
+        )
+        .mappings()
+        .all()
+    )
 
     return {"rows": [dict(r) for r in rows]}
 
@@ -379,11 +412,14 @@ def conversion(
     db: Session = Depends(get_db),
 ):
     pmc_id = _enforce_scope(request, pmc_id)
+
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    row = db.execute(
-        text("""
+    row = (
+        db.execute(
+            text(
+                """
         with base as (
           select *
           from analytics_events
@@ -401,32 +437,36 @@ def conversion(
           ) as followup_conversion_rate,
 
           -- upgrades funnel
-          count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-          count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+          count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+          count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
           (
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-            / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+            / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
           ) as upgrade_conversion_rate
         from base;
-        """),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "property_id": property_id,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "upgrade_start_events": list(UPGRADE_START_EVENTS),
-            "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-        },
-    ).mappings().first() or {}
+        """
+            ),
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "property_id": property_id,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "upgrade_start_events": list(UPGRADE_START_EVENTS),
+                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
+            },
+        )
+        .mappings()
+        .first()
+        or {}
+    )
 
     return {
         # followups
         "followups_shown": int(row.get("followups_shown") or 0),
         "followup_clicks": int(row.get("followup_clicks") or 0),
         "followup_conversion_rate": float(row.get("followup_conversion_rate") or 0.0),
-
         # upgrades
         "upgrade_checkouts_started": int(row.get("upgrade_checkouts_started") or 0),
         "upgrade_purchases": int(row.get("upgrade_purchases") or 0),
@@ -447,11 +487,14 @@ def response_time(
     db: Session = Depends(get_db),
 ):
     pmc_id = _enforce_scope(request, pmc_id)
+
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    row = db.execute(
-        text("""
+    row = (
+        db.execute(
+            text(
+                """
         with base as (
           select *
           from analytics_events
@@ -503,9 +546,14 @@ def response_time(
           percentile_cont(0.5) within group (order by response_seconds) as p50_seconds,
           percentile_cont(0.9) within group (order by response_seconds) as p90_seconds
         from clean;
-        """),
-        {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
-    ).mappings().first() or {}
+        """
+            ),
+            {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
+        )
+        .mappings()
+        .first()
+        or {}
+    )
 
     return {
         "samples": int(row.get("samples") or 0),
@@ -518,7 +566,7 @@ def response_time(
 # --------------------------------------------------
 # 🧠 PER-ASSISTANT PERFORMANCE
 # (groups by data.assistant OR data.variant OR 'default')
-# Now includes both conversions IF those events carry assistant/variant in data.
+# Includes both conversions IF those events carry assistant/variant in data.
 # --------------------------------------------------
 @router.get("/assistant-performance")
 def assistant_performance(
@@ -531,11 +579,15 @@ def assistant_performance(
     db: Session = Depends(get_db),
 ):
     pmc_id = _enforce_scope(request, pmc_id)
+    limit = _clamp_int(limit, 1, 200)
+
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    rows = db.execute(
-        text("""
+    rows = (
+        db.execute(
+            text(
+                """
         with base as (
           select
             *,
@@ -615,11 +667,11 @@ def assistant_performance(
             ) as followup_conversion_rate,
 
             -- upgrades funnel
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
+              count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
             ) as upgrade_conversion_rate
           from base
           group by 1
@@ -647,18 +699,22 @@ def assistant_performance(
         full join funnels f using (assistant_key)
         order by assistant_messages desc, response_samples desc
         limit :limit;
-        """),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "property_id": property_id,
-            "limit": limit,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "upgrade_start_events": list(UPGRADE_START_EVENTS),
-            "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-        },
-    ).mappings().all()
+        """
+            ),
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "property_id": property_id,
+                "limit": limit,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "upgrade_start_events": list(UPGRADE_START_EVENTS),
+                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
+            },
+        )
+        .mappings()
+        .all()
+    )
 
     return {"rows": [dict(r) for r in rows]}
