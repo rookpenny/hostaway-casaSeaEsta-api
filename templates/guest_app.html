@@ -1709,18 +1709,30 @@ function getAnonId() {
     return `a_${Date.now()}`;
   }
 }
-
 function baseAnalyticsContext() {
   return {
-    property_id: window.PROPERTY_ID,
+    // NEVER trust client for permissions, but include for convenience
+    property_id: window.PROPERTY_ID || null,
+
+    // identity / scoping (server will enforce)
+    pmc_id: window.PMC_ID || null,
+    user_id: window.USER_ID || null,
+    user_role: window.USER_ROLE || "host", // "host" | "super"
+
+    // chat threading
     thread_id: currentThreadId || null,
     session_id: currentSessionId || null,
+
+    // anon fallback (guest chats)
     anon_id: getAnonId(),
+
+    // request metadata
     path: location.pathname,
     ua: navigator.userAgent,
     ts: Date.now(),
   };
 }
+
 
 function readAnalyticsQueue() {
   try {
