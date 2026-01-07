@@ -1785,10 +1785,12 @@ function flushAnalyticsQueue() {
 // Bridge emitAnalytics -> queue (NO UI IMPACT)
 // Guard against double-wrapping
     
-if (!emitAnalytics.__queued) {
+if (!window.__emitAnalyticsQueued) {
+  window.__emitAnalyticsQueued = true;
+
   const _emitAnalytics = emitAnalytics;
 
-  function queuedEmitAnalytics(eventName, payload = {}) {
+  emitAnalytics = function queuedEmitAnalytics(eventName, payload = {}) {
     try { _emitAnalytics(eventName, payload); } catch {}
 
     enqueueAnalytics({
@@ -1799,20 +1801,19 @@ if (!emitAnalytics.__queued) {
 
     if (document.visibilityState === "hidden") flushAnalyticsQueue();
     else if (Math.random() < 0.15) flushAnalyticsQueue();
-  }
+  };
 
-  queuedEmitAnalytics.__queued = true;
-  emitAnalytics = queuedEmitAnalytics;
-
-  // Flush when leaving / backgrounding (bind once)
+  // flush bindings once
   if (!window.__analyticsFlushBound) {
     window.__analyticsFlushBound = true;
+
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "hidden") flushAnalyticsQueue();
     });
     window.addEventListener("pagehide", flushAnalyticsQueue);
   }
 }
+
 
 
 
