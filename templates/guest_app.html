@@ -1942,7 +1942,7 @@ function autoActOnIntent(intent, userText = "") {
 
     const wants = hasExplicitOpenRequest(userText);
 
-    // Only auto-open when the user explicitly asked to open/show that thing.
+    // Explicit request → auto-open (still rate-limited)
     if (intent === "wifi" && wants.wifi && shouldAutoOpen("wifi")) {
       setTimeout(() => { if (isChatVisible()) openWifiModal(); }, 250);
       return;
@@ -1962,8 +1962,15 @@ function autoActOnIntent(intent, userText = "") {
       setTimeout(() => { if (isChatVisible()) showScreen("upgrades"); }, 250);
       return;
     }
+
+    // Not explicit → soft suggestion (no takeover)
+    // (also rate-limit so it doesn't spam)
+    if (shouldAutoOpen(`suggest_${intent}`, 90 * 1000)) {
+      renderSoftSuggestion(intent);
+    }
   } catch {}
 }
+
 
 
     
@@ -2335,6 +2342,57 @@ saveTranscript();
         }
       });
     }
+
+
+    function renderSoftSuggestion(intent) {
+  if (!chatBox) return;
+
+  // prevent stacking multiple soft suggestions in a row
+  if (chatBox.querySelector("[data-soft-suggest='1']")) return;
+
+  const wrap = document.createElement("div");
+  wrap.dataset.softSuggest = "1";
+  wrap.className = "flex gap-2 flex-wrap ml-[52px] mt-2 mb-4";
+
+  function btn(label, onClick) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className =
+      "px-3 py-2 rounded-full bg-white border border-slate-200 text-slate-900 text-sm font-semibold whitespace-nowrap active:scale-95";
+    b.textContent = label;
+    b.addEventListener("click", () => {
+      wrap.remove();
+      onClick();
+    });
+    return b;
+  }
+
+  // choose suggestion based on intent
+  if (intent === "wifi") {
+    wrap.appendChild(btn("Open WiFi", openWifiModal));
+    wrap.appendChild(btn("Copy password", () => runFollowupAction({ action: "COPY_WIFI_PASSWORD" })));
+  } else if (intent === "door" || intent === "checkin") {
+    wrap.appendChild(btn("Open Door Code", openCheckinModal));
+  } else if (intent === "things_to_do" || intent === "food") {
+    wrap.appendChild(btn("Open Guides", () => showScreen("experiences")));
+  } else if (intent === "checkout") {
+    wrap.appendChild(btn("See Upgrades", () => showScreen("upgrades")));
+  } else {
+    return; // no suggestion for general
+  }
+
+  chatBox.appendChild(wrap);
+  scrollChatToBottom();
+
+  // auto-remove after a bit so it doesn't linger forever
+  setTimeout(() => {
+    try { wrap.remove(); } catch {}
+  }, 12000);
+}
+
+
+
+    
 
     // --- Quick replies + suggestions drawer ---
     const quickBar = document.getElementById("quick-replies-bar");
