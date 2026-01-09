@@ -41,24 +41,44 @@ def ms_to_dt(ms: int) -> datetime:
     return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc)
 
 
+def _is_super(role: Optional[str]) -> bool:
+    r = (role or "").strip().lower()
+    return r in ("super", "superuser")
+
 def _enforce_scope(request: Request, pmc_id: Optional[int]) -> Optional[int]:
     """
     Enforce analytics scope:
-    - super users: can query any pmc_id
-    - non-super users: locked to their own pmc_id
+    - super: can query any pmc_id (or all when pmc_id is None)
+    - pmc: locked to session pmc_id
     """
-    user = getattr(request.state, "user", None)
-    if not user:
-        raise RuntimeError("request.state.user is required for analytics")
+    role = request.session.get("role")
+    if _is_super(role):
+        return pmc_id
 
-    if user.role != "super":
-        return user.pmc_id
+    if (role or "").strip().lower() == "pmc":
+        sess_pmc_id = request.session.get("pmc_id")
+        if not sess_pmc_id:
+            raise RuntimeError("PMC scope missing (pmc_id not in session)")
+        return int(sess_pmc_id)
 
-    return pmc_id
+    # not logged in / unauthorized
+    raise RuntimeError("Unauthorized")
+
 
 
 def _num(x, default=0):
     return default if x is None else x
+
+
+def _assert_property_in_pmc(db: Session, property_id: int, pmc_id: int) -> None:
+    ok = db.execute(
+        text("select 1 from properties where id=:pid and pmc_id=:pmc limit 1"),
+        {"pid": int(property_id), "pmc": int(pmc_id)},
+    ).first()
+    if not ok:
+        # property doesn't exist or not in scope
+        raise RuntimeError("Forbidden property scope")
+
 
 
 # --------------------------------------------------
