@@ -495,7 +495,7 @@ def top_properties(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-        rows = db.execute(
+    rows = db.execute(
         text("""
         with base as (
           select *
