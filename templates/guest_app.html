@@ -1122,7 +1122,11 @@
      // --- Global state ---
     let isUnlocked = !!window.INITIAL_VERIFIED;
     let lastUnlockCode = null;
-    let currentSessionId = null;
+    let currentSessionId =
+      window.INITIAL_SESSION_ID ||
+      localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ||
+      null;
+
     let guestName = null;
     let arrivalDate = null;
     let departureDate = null;
@@ -1505,7 +1509,7 @@ function shouldSendNudge(key, ttlMinutes = 180) {
   return prefix + t;
 }
 
-    function applyMemoryTofinalBotText(finalBotText, intent) {
+    function applyMemoryToFinalBotText(finalBotText, intent) {
   const t = String(finalBotText || "");
 
   // Only lightly weave memory in when it helps.
@@ -2156,6 +2160,11 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
 
     function loadGuestState() {
       try {
+
+        if (window.INITIAL_SESSION_ID) {
+          currentSessionId = window.INITIAL_SESSION_ID;
+        }
+
         const raw = window.localStorage.getItem(GUEST_STATE_KEY);
         if (!raw) return null;
 
@@ -2460,7 +2469,7 @@ function autoActOnIntent(intent, userText) {
       const clean = DOMPurify.sanitize(html, {
         USE_PROFILES: { html: true },
         FORBID_TAGS: ["script", "iframe", "object", "embed"],
-        FORBID_ATTR: ["onerror", "onclick", "onload"],
+        FORBID_ATTR: ["onerror", "onclick", "onload", "style"],
         ALLOWED_URI_REGEXP: /^(?:(?:https?|mailto|tel):|\/|#)/i,
       });
     
@@ -3549,6 +3558,16 @@ async function attemptUnlock() {
     // Success
     isUnlocked = true;
     lastUnlockCode = code;
+
+    // ✅ bind server session immediately after verify
+    if (data.session_id != null) {
+      currentSessionId = data.session_id;
+    
+      try {
+        localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(data.session_id));
+      } catch {}
+    }
+
 
     if (unlockError) unlockError.textContent = "";
     if (unlockCodeInput) unlockCodeInput.value = "";
