@@ -1,0 +1,311 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title>Analytics</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <style>
+      body { font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial; margin: 24px; }
+      .row { display: flex; gap: 12px; flex-wrap: wrap; }
+      .card { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px 14px; min-width: 210px; }
+      .card h3 { margin: 0 0 6px; font-size: 13px; color: #6b7280; font-weight: 600; }
+      .card .v { font-size: 22px; font-weight: 700; }
+      .muted { color: #6b7280; font-size: 12px; }
+      .section { margin-top: 22px; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { padding: 10px; border-bottom: 1px solid #eee; text-align: left; font-size: 13px; }
+      th { font-size: 12px; color: #6b7280; font-weight: 700; }
+      .controls { display:flex; gap: 12px; align-items: end; flex-wrap: wrap; margin-bottom: 14px; }
+      label { display:block; font-size: 12px; color:#374151; margin-bottom: 4px; }
+      input, select, button { padding: 8px 10px; border: 1px solid #d1d5db; border-radius: 10px; font-size: 14px; }
+      button { cursor: pointer; background: #111827; color: white; border-color: #111827; }
+      button:disabled { opacity: 0.6; cursor: not-allowed; }
+      .error { color: #b91c1c; }
+      .chart { border: 1px solid #e5e7eb; border-radius: 12px; padding: 12px; }
+      canvas { width: 100%; height: 260px; }
+      .topbar { display:flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+      .topbar a { color: #111827; text-decoration: none; font-weight: 600; }
+    </style>
+  </head>
+
+  <body>
+    <div class="topbar">
+      <div>
+        <h1 style="margin:0 0 4px;">Analytics</h1>
+        <div class="muted">Role: {{ role }}{% if pmc_id %} • PMC: {{ pmc_id }}{% endif %}</div>
+      </div>
+      <div>
+        <a href="/admin/dashboard">← Back to Admin</a>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="controls">
+        <div>
+          <label>From</label>
+          <input id="fromDate" type="date" />
+        </div>
+        <div>
+          <label>To</label>
+          <input id="toDate" type="date" />
+        </div>
+        <div>
+          <label>Bucket</label>
+          <select id="bucket">
+            <option value="day" selected>Day</option>
+            <option value="hour">Hour</option>
+          </select>
+        </div>
+        <div>
+          <label>Property ID (optional)</label>
+          <input id="propertyId" type="number" min="1" placeholder="e.g. 123" />
+        </div>
+        <div>
+          <button id="refreshBtn">Refresh</button>
+        </div>
+        <div id="status" class="muted"></div>
+      </div>
+
+      <div id="err" class="error"></div>
+    </div>
+
+    <div class="row" id="cards"></div>
+
+    <div class="section">
+      <h2 style="margin:0 0 10px;">Time series</h2>
+      <div class="chart">
+        <canvas id="tsChart"></canvas>
+        <div class="muted" style="margin-top:8px;">Sessions, Messages, Followups, Errors, Contact Host clicks</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2 style="margin:0 0 10px;">Top properties</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Property</th>
+            <th>Sessions</th>
+            <th>Messages</th>
+            <th>Followups shown</th>
+            <th>Followup clicks</th>
+            <th>Followup CVR</th>
+            <th>Errors</th>
+            <th>Contact host</th>
+          </tr>
+        </thead>
+        <tbody id="topPropsBody"></tbody>
+      </table>
+    </div>
+
+    <div class="section">
+      <h2 style="margin:0 0 10px;">Assistant performance</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Assistant</th>
+            <th>User msgs</th>
+            <th>Asst msgs</th>
+            <th>Resp samples</th>
+            <th>Avg resp (s)</th>
+            <th>P50 resp (s)</th>
+            <th>Followups shown</th>
+            <th>Followup clicks</th>
+            <th>Followup CVR</th>
+            <th>Errors</th>
+            <th>Contact host</th>
+          </tr>
+        </thead>
+        <tbody id="asstBody"></tbody>
+      </table>
+    </div>
+
+    <!-- Chart.js (simple, CDN) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+    <script>
+      const $ = (id) => document.getElementById(id);
+
+      function toMs(dateStr, endOfDay=false) {
+        // dateStr is yyyy-mm-dd in local time; convert to UTC ms boundaries
+        const d = new Date(dateStr + "T00:00:00");
+        if (endOfDay) d.setDate(d.getDate() + 1); // make "to" exclusive
+        return d.getTime();
+      }
+
+      function pct(x) {
+        if (!x || isNaN(x)) return "0%";
+        return (x * 100).toFixed(1) + "%";
+      }
+
+      function num(x) {
+        return (x ?? 0);
+      }
+
+      function fmt(x, digits=1) {
+        const n = Number(x ?? 0);
+        if (!isFinite(n)) return "0";
+        return n.toFixed(digits);
+      }
+
+      async function apiGet(path, params) {
+        const qs = new URLSearchParams(params).toString();
+        const res = await fetch(path + "?" + qs, { credentials: "include" });
+        if (!res.ok) {
+          const t = await res.text();
+          throw new Error(`HTTP ${res.status}: ${t}`);
+        }
+        return await res.json();
+      }
+
+      function setDefaultDates() {
+        const now = new Date();
+        const to = now.toISOString().slice(0,10);
+        const fromD = new Date(now);
+        fromD.setDate(fromD.getDate() - 14);
+        const from = fromD.toISOString().slice(0,10);
+        $("fromDate").value = from;
+        $("toDate").value = to;
+      }
+
+      let chart;
+
+      function renderCards(s) {
+        const cards = [
+          ["Sessions", num(s.sessions_total)],
+          ["User messages", num(s.user_messages)],
+          ["Assistant messages", num(s.assistant_messages)],
+          ["Response rate", pct(s.response_rate)],
+          ["Avg response (s)", fmt(s.avg_response_seconds, 1)],
+          ["P50 response (s)", fmt(s.p50_response_seconds, 1)],
+          ["Followups shown", num(s.followups_shown)],
+          ["Followup clicks", num(s.followup_clicks)],
+          ["Followup CVR", pct(s.followup_conversion_rate)],
+          ["Chat errors", num(s.chat_errors)],
+          ["Error rate / user msg", pct(s.error_rate_per_user_message)],
+          ["Contact host clicks", num(s.contact_host_clicks)],
+        ];
+
+        $("cards").innerHTML = cards.map(([k,v]) => `
+          <div class="card">
+            <h3>${k}</h3>
+            <div class="v">${v}</div>
+          </div>
+        `).join("");
+      }
+
+      function renderTopProps(rows) {
+        $("topPropsBody").innerHTML = (rows || []).map(r => `
+          <tr>
+            <td>${r.property_id}</td>
+            <td>${num(r.sessions)}</td>
+            <td>${num(r.messages)}</td>
+            <td>${num(r.followups_shown)}</td>
+            <td>${num(r.followup_clicks)}</td>
+            <td>${pct(r.followup_conversion_rate)}</td>
+            <td>${num(r.chat_errors)}</td>
+            <td>${num(r.contact_host_clicks)}</td>
+          </tr>
+        `).join("") || `<tr><td colspan="8" class="muted">No data</td></tr>`;
+      }
+
+      function renderAsst(rows) {
+        $("asstBody").innerHTML = (rows || []).map(r => `
+          <tr>
+            <td>${r.assistant_key}</td>
+            <td>${num(r.user_messages)}</td>
+            <td>${num(r.assistant_messages)}</td>
+            <td>${num(r.response_samples)}</td>
+            <td>${fmt(r.avg_response_seconds, 1)}</td>
+            <td>${fmt(r.p50_response_seconds, 1)}</td>
+            <td>${num(r.followups_shown)}</td>
+            <td>${num(r.followup_clicks)}</td>
+            <td>${pct(r.followup_conversion_rate)}</td>
+            <td>${num(r.chat_errors)}</td>
+            <td>${num(r.contact_host_clicks)}</td>
+          </tr>
+        `).join("") || `<tr><td colspan="11" class="muted">No data</td></tr>`;
+      }
+
+      function renderTimeseries(ts) {
+        const labels = ts.labels || [];
+        const series = ts.series || {};
+
+        const datasets = [
+          { label: "sessions", data: series.sessions || [] },
+          { label: "messages", data: series.messages || [] },
+          { label: "followups_shown", data: series.followups_shown || [] },
+          { label: "followup_clicks", data: series.followup_clicks || [] },
+          { label: "chat_errors", data: series.chat_errors || [] },
+          { label: "contact_host_clicks", data: series.contact_host_clicks || [] },
+        ];
+
+        if (chart) chart.destroy();
+        chart = new Chart($("tsChart"), {
+          type: "line",
+          data: { labels, datasets },
+          options: {
+            responsive: true,
+            interaction: { mode: "index", intersect: false },
+            plugins: { legend: { position: "bottom" } },
+            scales: { y: { beginAtZero: true } }
+          }
+        });
+      }
+
+      async function refresh() {
+        $("err").textContent = "";
+        $("status").textContent = "Loading...";
+        $("refreshBtn").disabled = true;
+
+        try {
+          const from = $("fromDate").value;
+          const to = $("toDate").value;
+          const bucket = $("bucket").value;
+          const propertyId = $("propertyId").value.trim();
+
+          const params = {
+            from: toMs(from, false),
+            to: toMs(to, true),
+          };
+          if (propertyId) params.property_id = propertyId;
+
+          const summary = await apiGet("/admin/analytics/chat/summary", params);
+          renderCards(summary);
+
+          const ts = await apiGet("/admin/analytics/chat/timeseries", {
+            ...params,
+            bucket
+          });
+          renderTimeseries(ts);
+
+          const topProps = await apiGet("/admin/analytics/chat/top-properties", {
+            ...params,
+            limit: 10
+          });
+          renderTopProps(topProps.rows);
+
+          const asst = await apiGet("/admin/analytics/chat/assistant-performance", {
+            ...params,
+            limit: 50
+          });
+          renderAsst(asst.rows);
+
+          $("status").textContent = "Updated";
+        } catch (e) {
+          console.error(e);
+          $("err").textContent = e.message || String(e);
+          $("status").textContent = "Error";
+        } finally {
+          $("refreshBtn").disabled = false;
+        }
+      }
+
+      $("refreshBtn").addEventListener("click", refresh);
+
+      setDefaultDates();
+      refresh();
+    </script>
+  </body>
+</html>
