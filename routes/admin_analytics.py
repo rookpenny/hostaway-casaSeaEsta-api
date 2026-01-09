@@ -9,6 +9,7 @@ from database import get_db
 
 router = APIRouter(prefix="/admin/analytics/chat")
 
+
 # --------------------------------------------------
 # EVENT NAME CONFIG (edit to match what you emit)
 # --------------------------------------------------
