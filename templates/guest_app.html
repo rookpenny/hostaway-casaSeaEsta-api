@@ -1709,10 +1709,19 @@ function getAnonId() {
     return `a_${Date.now()}`;
   }
 }
+
+
 function baseAnalyticsContext() {
   return {
+    // chat/threading
     thread_id: currentThreadId || null,
+    session_id: currentSessionId || null,
+
+    // guest identity (anon)
     anon_id: getAnonId(),
+    user_role: "guest",
+
+    // request metadata
     path: location.pathname,
     ua: navigator.userAgent,
     ts: Date.now(),
@@ -1790,18 +1799,25 @@ if (!window.__emitAnalyticsQueued) {
 
   const _emitAnalytics = emitAnalytics;
 
- emitAnalytics = function queuedEmitAnalytics(eventName, payload = {}) {
+emitAnalytics = function queuedEmitAnalytics(eventName, payload = {}) {
+  try { _emitAnalytics(eventName, payload); } catch {}
+
   enqueueAnalytics({
     event_name: eventName,
+
+    // ✅ stored in columns (not only JSON)
     property_id: window.PROPERTY_ID || null,
     session_id: currentSessionId || null,
-    context: baseAnalyticsContext(),   // <- now actually stored in JSONB context
-    data: payload,                     // <- stored in JSONB data
+
+    // ✅ stored in JSONB context/data
+    context: baseAnalyticsContext(),
+    data: payload,
   });
 
   if (document.visibilityState === "hidden") flushAnalyticsQueue();
   else if (Math.random() < 0.15) flushAnalyticsQueue();
 };
+
 
 
   // flush bindings once
@@ -1900,9 +1916,14 @@ function runFollowupAction(item, { parent_id = null } = {}) {
       return showScreen("upgrades");
 
     case "CONTACT_HOST":
-      emitAnalytics("contact_host_click", { parent_id, thread_id: currentThreadId || null });
+      emitAnalytics("contact_host_click", {
+        parent_id,
+        thread_id: currentThreadId || null,
+        session_id: currentSessionId || null,
+      });
       renderSystemNote("You can reach your host via your booking app messages.", parent_id);
       return;
+
 
     case "ASK":
     default: {
@@ -1997,12 +2018,14 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
     ts: Date.now(),
   });
 
+  
   emitAnalytics("chat_error", {
-    thread_id: entry.thread_id,
-    parent_id,
+    thread_id: entry.thread_id || currentThreadId || null,
+    parent_id: parent_id || null,
     message_id: entry.id,
     error: text,
   });
+
 
 
   renderMessage(text, "bot", {
@@ -2552,8 +2575,10 @@ function renderMessage(text, sender, opts = {}) {
           emitAnalytics("reaction_set", {
             thread_id: row.dataset.threadId || currentThreadId || null,
             message_id: mid,
-            value: reactionValue, // 'up' | 'down'
+            value: reactionValue,     // ✅ admin SQL expects data->>'value'
+            reaction: reactionValue,  // optional (keep for debugging)
           });
+
 
           reactions.remove();
           renderSystemNote(responseText, mid);
@@ -3364,6 +3389,16 @@ function loadReactions() {
 
   if (name === "chat") {
     // ✅ hard guard: once per page load (and per property)
+    // ✅ count a chat session once per page load (per property)
+      const chatSessionKey = `chat_session_created_${window.PROPERTY_ID}`;
+      if (isUnlocked && !sessionStorage.getItem(chatSessionKey)) {
+        sessionStorage.setItem(chatSessionKey, "1");
+        emitAnalytics("chat_session_created", {
+          thread_id: currentThreadId || null,
+          session_id: currentSessionId || null,
+        });
+      }
+
     if (!chatRestored) {
       restoreChatHistory();
       chatRestored = true;
