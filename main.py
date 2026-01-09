@@ -569,6 +569,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             # ✅ NEW: assistant/personality config for guest_app.html
             "assistant_config": assistant_config,
 
+            # ✅ add this
+            "initial_session_id": request.session.get(f"guest_session_{property_id}", None),
+
             # Upgrades + turnover flags for the template
             "upgrades": visible_upgrades,
             "same_day_turnover": same_day_turnover,
@@ -796,27 +799,7 @@ def verify_json(
             status_code=400,
         )
 
-    code = (payload.code or "").strip()
-
-    # DEBUG (remove after)
-    print("[verify_json] received code:", repr(code))
-    print("[verify_json] TEST_UNLOCK_CODE:", repr(os.getenv("TEST_UNLOCK_CODE")))
-
-    # 2) test override
-    test_code = (os.getenv("TEST_UNLOCK_CODE") or "").strip()
-    if test_code and code == test_code:
-        request.session[f"guest_verified_{property_id}"] = True
-        today = datetime.utcnow().date()
-        return {
-            "success": True,
-            "guest_name": "Test Guest",
-            "arrival_date": today.strftime("%Y-%m-%d"),
-            "departure_date": (today + timedelta(days=3)).strftime("%Y-%m-%d"),
-            "checkin_time": "4:00 PM",
-            "checkout_time": "10:00 AM",
-        }
-
-    # 3) load property + pmc
+    # 2) load property + pmc
     prop = db.query(Property).filter(Property.id == int(property_id)).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -827,6 +810,51 @@ def verify_json(
             {"success": False, "error": "This property is not linked to a PMC."},
             status_code=400,
         )
+
+    # 3) test override (still creates a session)
+    test_code = (os.getenv("TEST_UNLOCK_CODE") or "").strip()
+    if test_code and code == test_code:
+        request.session[f"guest_verified_{property_id}"] = True
+
+        today = datetime.utcnow().date()
+        arrival = today.strftime("%Y-%m-%d")
+        departure = (today + timedelta(days=3)).strftime("%Y-%m-%d")
+
+        # ✅ create a real ChatSession now (so analytics has a session_id)
+        now = datetime.utcnow()
+        session = ChatSession(
+            property_id=property_id,
+            source="guest_web",
+            is_verified=True,
+            created_at=now,
+            last_activity_at=now,
+        )
+
+        # best-effort attach fields if your model has them
+        if hasattr(session, "guest_name"):
+            session.guest_name = "Test Guest"
+        if hasattr(session, "arrival_date"):
+            session.arrival_date = arrival
+        if hasattr(session, "departure_date"):
+            session.departure_date = departure
+        if hasattr(session, "phone_last4"):
+            session.phone_last4 = code
+
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+
+        request.session[f"guest_session_{property_id}"] = session.id
+
+        return {
+            "success": True,
+            "session_id": session.id,
+            "guest_name": "Test Guest",
+            "arrival_date": arrival,
+            "departure_date": departure,
+            "checkin_time": "4:00 PM",
+            "checkout_time": "10:00 AM",
+        }
 
     # 4) integration/provider resolution (safe)
     integ = None
@@ -850,7 +878,7 @@ def verify_json(
 
             (
                 phone_last4,
-                _door_code,       # unused; kept for consistency
+                _door_code,       # unused
                 reservation_id,
                 guest_name,
                 arrival_date,
@@ -863,7 +891,7 @@ def verify_json(
         else:
             (
                 phone_last4,
-                _door_code,       # unused; kept for consistency
+                _door_code,       # unused
                 reservation_id,
                 guest_name,
                 arrival_date,
@@ -895,7 +923,6 @@ def verify_json(
             status_code=400,
         )
 
-    # Normalize just in case Hostaway returns " 5366"
     phone_last4 = str(phone_last4).strip()
     if code != phone_last4:
         return JSONResponse(
@@ -903,23 +930,51 @@ def verify_json(
             status_code=403,
         )
 
-    # 8) compute display times safely (avoid NameError)
-    # If you have config-driven times, replace these defaults with your cfg values.
+    # 8) compute display times safely
     checkin_time_display = _format_time_display(getattr(prop, "checkin_time", None), default="4:00 PM")
     checkout_time_display = _format_time_display(getattr(prop, "checkout_time", None), default="10:00 AM")
 
-    # 9) success
+    # 9) success + ✅ create ChatSession NOW
     request.session[f"guest_verified_{property_id}"] = True
+
+    now = datetime.utcnow()
+
+    session = ChatSession(
+        property_id=property_id,
+        source="guest_web",
+        is_verified=True,
+        created_at=now,
+        last_activity_at=now,
+    )
+
+    # best-effort attach fields if your model has them
+    if hasattr(session, "guest_name"):
+        session.guest_name = (guest_name or "Guest").strip()
+    if hasattr(session, "arrival_date"):
+        session.arrival_date = arrival_date
+    if hasattr(session, "departure_date"):
+        session.departure_date = departure_date
+    if hasattr(session, "phone_last4"):
+        session.phone_last4 = phone_last4
+    if hasattr(session, "reservation_id"):
+        session.reservation_id = reservation_id
+
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+
+    request.session[f"guest_session_{property_id}"] = session.id
+
     return {
         "success": True,
+        "session_id": session.id,
         "guest_name": guest_name or "Guest",
         "arrival_date": arrival_date,
         "departure_date": departure_date,
         "checkin_time": checkin_time_display,
         "checkout_time": checkout_time_display,
-        "reservation_id": reservation_id,  # optional but often useful
+        "reservation_id": reservation_id,
     }
-
 
 
 
@@ -928,6 +983,10 @@ class PropertyChatRequest(BaseModel):
     session_id: Optional[int] = None
     language: Optional[str] = None
 
+    # optional (frontend may send these)
+    thread_id: Optional[str] = None
+    client_message_id: Optional[str] = None
+    parent_id: Optional[str] = None
 
 
 @app.get("/manifest/{property_id}.webmanifest")
@@ -1178,12 +1237,16 @@ async def property_chat(
     # 4) Create or reuse a ChatSession
     session: Optional[ChatSession] = None
 
-    if payload.session_id:
+    # ✅ prefer explicit payload.session_id, else server-stored guest session id
+    effective_session_id = payload.session_id or request.session.get(f"guest_session_{property_id}")
+    
+    if effective_session_id:
         session = (
             db.query(ChatSession)
-            .filter(ChatSession.id == payload.session_id, ChatSession.property_id == property_id)
+            .filter(ChatSession.id == int(effective_session_id), ChatSession.property_id == property_id)
             .first()
         )
+
 
     if not session:
         recent_cutoff = now - timedelta(hours=4)
