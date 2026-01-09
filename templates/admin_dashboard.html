@@ -1765,6 +1765,8 @@ async function loadTopProperties({ from, to, pmcId, propertyId }) {
 
   const qs = new URLSearchParams({ from: String(from), to: String(to), limit: "10" });
   if (pmcId) qs.set("pmc_id", String(pmcId));
+  if (propertyId) qs.set("property_id", String(propertyId)); // ✅ add
+
 
   tbody.innerHTML = `<tr><td class="px-4 py-4 text-slate-500" colspan="6">Loading…</td></tr>`;
 
