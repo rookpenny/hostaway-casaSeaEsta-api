@@ -110,8 +110,8 @@ def summary(
             from analytics_events
             where ts >= :start
               and ts < :end
-              and (:pmc_id::bigint is null or pmc_id = :pmc_id)
-              and (:property_id::bigint is null or property_id = :property_id)
+              and (:pmc_id is null or pmc_id = :pmc_id)
+              and (:property_id is null or property_id = :property_id)
         ),
         msg_base as (
             select
@@ -185,11 +185,11 @@ def summary(
             ) as followup_conversion_rate,
 
             -- upgrades funnel (kept for later)
-            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[]))) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[]))) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
+              count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[])))::float
+              / nullif(count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[])))::float, 0)
             ) as upgrade_conversion_rate,
 
 
@@ -290,8 +290,8 @@ def response_rate(
             from analytics_events
             where ts >= :start
               and ts < :end
-              and (:pmc_id::bigint is null or pmc_id = :pmc_id)
-              and (:property_id::bigint is null or property_id = :property_id)
+              and (:pmc_id is null or pmc_id = :pmc_id)
+              and (:property_id is null or property_id = :property_id)
         ),
         msg_base as (
             select
@@ -395,18 +395,19 @@ def timeseries(
         text(f"""
         with buckets as (
             select generate_series(
-                date_trunc('{trunc}', :start::timestamptz),
-                date_trunc('{trunc}', :end::timestamptz),
+                date_trunc('{trunc}', CAST(:start AS timestamptz)),
+                date_trunc('{trunc}', CAST(:end AS timestamptz)),
                 interval '1 {trunc}'
             ) as bucket
+
         ),
         filtered as (
             select *
             from analytics_events
             where ts >= :start
               and ts < :end
-              and (:pmc_id::bigint is null or pmc_id = :pmc_id)
-              and (:property_id::bigint is null or property_id = :property_id)
+              and (:pmc_id is null or pmc_id = :pmc_id)
+              and (:property_id is null or property_id = :property_id)
         ),
         agg as (
             select
@@ -497,7 +498,7 @@ def top_properties(
           select *
           from analytics_events
           where ts >= :start and ts < :end
-            and (:pmc_id::bigint is null or pmc_id = :pmc_id)
+            and (:pmc_id is null or pmc_id = :pmc_id)
             and property_id is not null
         ),
         agg as (
@@ -512,8 +513,8 @@ def top_properties(
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
             -- upgrades (kept for later)
-            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[]))) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[]))) as upgrade_purchases,
 
             -- errors + escalation
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
@@ -584,8 +585,8 @@ def conversion(
           select *
           from analytics_events
           where ts >= :start and ts < :end
-            and (:pmc_id::bigint is null or pmc_id = :pmc_id)
-            and (:property_id::bigint is null or property_id = :property_id)
+            and (:pmc_id is null or pmc_id = :pmc_id)
+            and (:property_id is null or property_id = :property_id)
         )
         select
           -- followups funnel
@@ -597,11 +598,11 @@ def conversion(
           ) as followup_conversion_rate,
 
           -- upgrades funnel (kept for later)
-          count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
-          count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
+          count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[]))) as upgrade_checkouts_started,
+          count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[]))) as upgrade_purchases,
           (
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
-            / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
+            count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[])))::float
+            / nullif(count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[])))::float, 0)
           ) as upgrade_conversion_rate
         from base;
         """),
@@ -654,8 +655,8 @@ def response_time(
           select *
           from analytics_events
           where ts >= :start and ts < :end
-            and (:pmc_id::bigint is null or pmc_id = :pmc_id)
-            and (:property_id::bigint is null or property_id = :property_id)
+            and (:pmc_id is null or pmc_id = :pmc_id)
+            and (:property_id is null or property_id = :property_id)
         ),
         msg_base as (
           select
@@ -744,8 +745,8 @@ def assistant_performance(
             coalesce(data->>'assistant', data->>'variant', 'default') as assistant_key
           from analytics_events
           where ts >= :start and ts < :end
-            and (:pmc_id::bigint is null or pmc_id = :pmc_id)
-            and (:property_id::bigint is null or property_id = :property_id)
+            and (:pmc_id is null or pmc_id = :pmc_id)
+            and (:property_id is null or property_id = :property_id)
         ),
         msg_base as (
           select
@@ -817,11 +818,11 @@ def assistant_performance(
             ) as followup_conversion_rate,
 
             -- upgrades (kept for later)
-            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[]))) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[]))) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
+              count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[])))::float
+              / nullif(count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[])))::float, 0)
             ) as upgrade_conversion_rate,
 
             -- errors + escalation
