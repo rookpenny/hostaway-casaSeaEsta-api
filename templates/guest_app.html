@@ -1711,27 +1711,14 @@ function getAnonId() {
 }
 function baseAnalyticsContext() {
   return {
-    // NEVER trust client for permissions, but include for convenience
-    property_id: window.PROPERTY_ID || null,
-
-    // identity / scoping (server will enforce)
-    pmc_id: window.PMC_ID || null,
-    user_id: window.USER_ID || null,
-    user_role: window.USER_ROLE || "host", // "host" | "super"
-
-    // chat threading
     thread_id: currentThreadId || null,
-    session_id: currentSessionId || null,
-
-    // anon fallback (guest chats)
     anon_id: getAnonId(),
-
-    // request metadata
     path: location.pathname,
     ua: navigator.userAgent,
     ts: Date.now(),
   };
 }
+
 
 
 function readAnalyticsQueue() {
@@ -1803,18 +1790,19 @@ if (!window.__emitAnalyticsQueued) {
 
   const _emitAnalytics = emitAnalytics;
 
-  emitAnalytics = function queuedEmitAnalytics(eventName, payload = {}) {
-    try { _emitAnalytics(eventName, payload); } catch {}
+ emitAnalytics = function queuedEmitAnalytics(eventName, payload = {}) {
+  enqueueAnalytics({
+    event_name: eventName,
+    property_id: window.PROPERTY_ID || null,
+    session_id: currentSessionId || null,
+    context: baseAnalyticsContext(),   // <- now actually stored in JSONB context
+    data: payload,                     // <- stored in JSONB data
+  });
 
-    enqueueAnalytics({
-      event_name: eventName,
-      ...baseAnalyticsContext(),
-      data: payload,
-    });
+  if (document.visibilityState === "hidden") flushAnalyticsQueue();
+  else if (Math.random() < 0.15) flushAnalyticsQueue();
+};
 
-    if (document.visibilityState === "hidden") flushAnalyticsQueue();
-    else if (Math.random() < 0.15) flushAnalyticsQueue();
-  };
 
   // flush bindings once
   if (!window.__analyticsFlushBound) {
@@ -1912,7 +1900,7 @@ function runFollowupAction(item, { parent_id = null } = {}) {
       return showScreen("upgrades");
 
     case "CONTACT_HOST":
-      emitAnalytics("contact_host_shown", { parent_id });
+      emitAnalytics("contact_host_click", { parent_id, thread_id: currentThreadId || null });
       renderSystemNote("You can reach your host via your booking app messages.", parent_id);
       return;
 
@@ -2008,6 +1996,14 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
     parent_id,
     ts: Date.now(),
   });
+
+  emitAnalytics("chat_error", {
+    thread_id: entry.thread_id,
+    parent_id,
+    message_id: entry.id,
+    error: text,
+  });
+
 
   renderMessage(text, "bot", {
     id: entry.id,
@@ -2556,7 +2552,7 @@ function renderMessage(text, sender, opts = {}) {
           emitAnalytics("reaction_set", {
             thread_id: row.dataset.threadId || currentThreadId || null,
             message_id: mid,
-            reaction: reactionValue,
+            value: reactionValue, // 'up' | 'down'
           });
 
           reactions.remove();
