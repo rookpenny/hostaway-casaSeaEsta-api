@@ -3,8 +3,7 @@ from fastapi import APIRouter, Depends, Request, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 from typing import Any, Dict, List
-from datetime import datetime
-
+from datetime import datetime, timezone
 from database import get_db
 
 router = APIRouter()
@@ -56,7 +55,7 @@ async def ingest_analytics_event(request: Request, db: Session = Depends(get_db)
     else:
         return {"ok": True, "inserted": 0}
 
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     inserted = 0
 
     # session identity (admin-side emits can be attributed)
