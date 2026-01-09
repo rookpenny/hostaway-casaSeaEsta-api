@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional, Literal
+
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import text, bindparam, BigInteger
-from sqlalchemy.dialects.postgresql import ARRAY, TEXT
+from sqlalchemy import text
 
 from database import get_db
 
@@ -46,6 +46,7 @@ def _is_super(role: Optional[str]) -> bool:
     r = (role or "").strip().lower()
     return r in ("super", "superuser")
 
+
 def _enforce_scope(request: Request, pmc_id: Optional[int]) -> Optional[int]:
     role = request.session.get("role")
     if _is_super(role):
@@ -60,8 +61,6 @@ def _enforce_scope(request: Request, pmc_id: Optional[int]) -> Optional[int]:
     raise HTTPException(status_code=403, detail="Forbidden")
 
 
-
-
 def _num(x, default=0):
     return default if x is None else x
 
@@ -70,14 +69,10 @@ def _assert_property_in_pmc(db: Session, property_id: int, pmc_id: int) -> None:
     stmt = text("""
         select 1
         from properties
-        where id = :pid
-          and pmc_id = :pmc
+        where id = :pid::bigint
+          and pmc_id = :pmc::bigint
         limit 1
-    """).bindparams(
-        bindparam("pid", type_=BigInteger),
-        bindparam("pmc", type_=BigInteger),
-    )
-
+    """)
     ok = db.execute(stmt, {"pid": int(property_id), "pmc": int(pmc_id)}).first()
     if not ok:
         raise HTTPException(status_code=403, detail="Forbidden property scope")
@@ -85,11 +80,6 @@ def _assert_property_in_pmc(db: Session, property_id: int, pmc_id: int) -> None:
 
 # --------------------------------------------------
 # SUMMARY
-# Adds:
-# - response rate (message pairing)
-# - error rate (chat_error)
-# - escalation clicks (contact_host_click)
-# - (keeps conversions + response times)
 # --------------------------------------------------
 @router.get("/summary")
 def summary(
@@ -108,15 +98,14 @@ def summary(
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-
     stmt = text("""
         with base as (
             select *
             from analytics_events
             where ts >= :start
               and ts < :end
-              and (:pmc_id is null or pmc_id = :pmc_id)
-              and (:property_id is null or property_id = :property_id)
+              and (:pmc_id::bigint is null or pmc_id = :pmc_id::bigint)
+              and (:property_id::bigint is null or property_id = :property_id::bigint)
         ),
         msg_base as (
             select
@@ -159,8 +148,10 @@ def summary(
               and response_seconds <= 1800
         )
         select
+            -- sessions
             count(*) filter (where event_name = 'chat_session_created') as sessions_total,
 
+            -- messages
             count(*) filter (
                 where event_name = 'message_sent'
                   and coalesce(data->>'sender', data->>'role') in ('user', 'guest')
@@ -171,6 +162,7 @@ def summary(
                   and coalesce(data->>'sender', data->>'role') in ('assistant', 'bot')
             ) as assistant_messages,
 
+            -- response rate (pairing)
             (select count(*) from user_msgs) as user_message_samples,
             (select count(*) from response_clean) as responded_user_messages,
             (
@@ -178,6 +170,7 @@ def summary(
               / nullif((select count(*) from user_msgs)::float, 0)
             ) as response_rate,
 
+            -- followups funnel
             count(*) filter (where event_name = :followups_shown_event) as followups_shown,
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
             (
@@ -185,6 +178,7 @@ def summary(
               / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
             ) as followup_conversion_rate,
 
+            -- upgrades funnel
             count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
             count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
             (
@@ -192,13 +186,13 @@ def summary(
               / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
             ) as upgrade_conversion_rate,
 
-
+            -- reactions
             count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
             count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'down') as reactions_down,
 
+            -- errors + escalation
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks,
-
             (
               count(*) filter (where event_name = :chat_error_event)::float
               / nullif(count(*) filter (where event_name = 'message_sent'
@@ -206,15 +200,11 @@ def summary(
                  )::float, 0)
             ) as error_rate_per_user_message,
 
+            -- response time (seconds)
             (select avg(response_seconds) from response_clean) as avg_response_seconds,
             (select percentile_cont(0.5) within group (order by response_seconds) from response_clean) as p50_response_seconds
         from base;
-    """).bindparams(
-        bindparam("pmc_id", type_=BigInteger),
-        bindparam("property_id", type_=BigInteger),
-        bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
-        bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
-    )
+    """)
 
     try:
         row = db.execute(
@@ -235,45 +225,31 @@ def summary(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"summary query failed: {e}")
 
-
     return {
-        # volume
         "sessions_total": int(_num(row.get("sessions_total"), 0)),
         "user_messages": int(_num(row.get("user_messages"), 0)),
         "assistant_messages": int(_num(row.get("assistant_messages"), 0)),
-
-        # response rate
         "user_message_samples": int(_num(row.get("user_message_samples"), 0)),
         "responded_user_messages": int(_num(row.get("responded_user_messages"), 0)),
         "response_rate": float(_num(row.get("response_rate"), 0.0)),
-
-        # followups conversion
         "followups_shown": int(_num(row.get("followups_shown"), 0)),
         "followup_clicks": int(_num(row.get("followup_clicks"), 0)),
         "followup_conversion_rate": float(_num(row.get("followup_conversion_rate"), 0.0)),
-
-        # upgrades conversion (will be 0 until you emit events)
         "upgrade_checkouts_started": int(_num(row.get("upgrade_checkouts_started"), 0)),
         "upgrade_purchases": int(_num(row.get("upgrade_purchases"), 0)),
         "upgrade_conversion_rate": float(_num(row.get("upgrade_conversion_rate"), 0.0)),
-
-        # reactions
         "reactions_up": int(_num(row.get("reactions_up"), 0)),
         "reactions_down": int(_num(row.get("reactions_down"), 0)),
-
-        # errors + escalation
         "chat_errors": int(_num(row.get("chat_errors"), 0)),
         "contact_host_clicks": int(_num(row.get("contact_host_clicks"), 0)),
         "error_rate_per_user_message": float(_num(row.get("error_rate_per_user_message"), 0.0)),
-
-        # response time
         "avg_response_seconds": float(_num(row.get("avg_response_seconds"), 0.0)),
         "p50_response_seconds": float(_num(row.get("p50_response_seconds"), 0.0)),
     }
 
 
 # --------------------------------------------------
-# RESPONSE RATE (standalone, with thresholds)
+# RESPONSE RATE
 # --------------------------------------------------
 @router.get("/response-rate")
 def response_rate(
@@ -291,15 +267,14 @@ def response_rate(
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-
     stmt = text("""
         with base as (
             select *
             from analytics_events
             where ts >= :start
               and ts < :end
-              and (:pmc_id is null or pmc_id = :pmc_id)
-              and (:property_id is null or property_id = :property_id)
+              and (:pmc_id::bigint is null or pmc_id = :pmc_id::bigint)
+              and (:property_id::bigint is null or property_id = :property_id::bigint)
         ),
         msg_base as (
             select
@@ -344,15 +319,11 @@ def response_rate(
             (select count(*) from user_msgs) as user_messages,
             (select count(*) from clean) as responded_messages,
             ((select count(*) from clean)::float / nullif((select count(*) from user_msgs)::float, 0)) as response_rate,
-
             count(*) filter (where response_seconds <= 30) as responded_30s,
             count(*) filter (where response_seconds <= 60) as responded_60s,
             count(*) filter (where response_seconds <= 300) as responded_5m
         from clean;
-    """).bindparams(
-        bindparam("pmc_id", type_=BigInteger),
-        bindparam("property_id", type_=BigInteger),
-    )
+    """)
 
     try:
         row = db.execute(
@@ -363,14 +334,13 @@ def response_rate(
         raise HTTPException(status_code=500, detail=f"response-rate query failed: {e}")
 
     user_messages = int(_num(row.get("user_messages"), 0))
-    responded = int(_num(row.get("responded_messages"), 0))
 
     def _rate(n: int) -> float:
         return float(n) / float(user_messages) if user_messages else 0.0
 
     return {
         "user_messages": user_messages,
-        "responded_messages": responded,
+        "responded_messages": int(_num(row.get("responded_messages"), 0)),
         "response_rate": float(_num(row.get("response_rate"), 0.0)),
         "responded_30s": int(_num(row.get("responded_30s"), 0)),
         "responded_60s": int(_num(row.get("responded_60s"), 0)),
@@ -383,10 +353,6 @@ def response_rate(
 
 # --------------------------------------------------
 # TIME SERIES
-# Adds:
-# - chat_errors
-# - contact_host_clicks
-# (response_rate is best computed as an overall metric; bucketed pairing is tricky)
 # --------------------------------------------------
 @router.get("/timeseries")
 def timeseries(
@@ -406,7 +372,7 @@ def timeseries(
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-
+    # NOTE: trunc is controlled by Literal["day","hour"] above (safe)
     stmt = text(f"""
         with buckets as (
             select generate_series(
@@ -420,8 +386,8 @@ def timeseries(
             from analytics_events
             where ts >= :start
               and ts < :end
-              and (:pmc_id is null or pmc_id = :pmc_id)
-              and (:property_id is null or property_id = :property_id)
+              and (:pmc_id::bigint is null or pmc_id = :pmc_id::bigint)
+              and (:property_id::bigint is null or property_id = :property_id::bigint)
         ),
         agg as (
             select
@@ -446,10 +412,7 @@ def timeseries(
         from buckets b
         left join agg a using (bucket)
         order by b.bucket asc;
-    """).bindparams(
-        bindparam("pmc_id", type_=BigInteger),
-        bindparam("property_id", type_=BigInteger),
-    )
+    """)
 
     rows = db.execute(
         stmt,
@@ -464,7 +427,6 @@ def timeseries(
             "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
         },
     ).mappings().all()
-
 
     labels = []
     sessions, messages = [], []
@@ -495,10 +457,7 @@ def timeseries(
 
 
 # --------------------------------------------------
-# 🔥 TOP PROPERTIES
-# Adds:
-# - chat_errors
-# - contact_host_clicks
+# TOP PROPERTIES
 # --------------------------------------------------
 @router.get("/top-properties")
 def top_properties(
@@ -518,7 +477,7 @@ def top_properties(
           select *
           from analytics_events
           where ts >= :start and ts < :end
-            and (:pmc_id is null or pmc_id = :pmc_id)
+            and (:pmc_id::bigint is null or pmc_id = :pmc_id::bigint)
             and property_id is not null
         ),
         agg as (
@@ -530,12 +489,11 @@ def top_properties(
             count(*) filter (where event_name = :followups_shown_event) as followups_shown,
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
 
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
-
           from base
           group by 1
         )
@@ -557,11 +515,7 @@ def top_properties(
         from agg
         order by sessions desc, messages desc
         limit :limit;
-    """).bindparams(
-        bindparam("pmc_id", type_=BigInteger),
-        bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
-        bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
-    )
+    """)
 
     try:
         rows = db.execute(
@@ -586,7 +540,7 @@ def top_properties(
 
 
 # --------------------------------------------------
-# 📊 CONVERSION RATE (both meanings, kept for later)
+# CONVERSION
 # --------------------------------------------------
 @router.get("/conversion")
 def conversion(
@@ -604,16 +558,16 @@ def conversion(
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-
     stmt = text("""
         with base as (
           select *
           from analytics_events
           where ts >= :start and ts < :end
-            and (:pmc_id is null or pmc_id = :pmc_id)
-            and (:property_id is null or property_id = :property_id)
+            and (:pmc_id::bigint is null or pmc_id = :pmc_id::bigint)
+            and (:property_id::bigint is null or property_id = :property_id::bigint)
         )
         select
+          -- followups funnel
           count(*) filter (where event_name = :followups_shown_event) as followups_shown,
           count(*) filter (where event_name = :followup_click_event) as followup_clicks,
           (
@@ -621,21 +575,15 @@ def conversion(
             / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
           ) as followup_conversion_rate,
 
+          -- upgrades funnel
           count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
           count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
           (
-           count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
-           / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
-            ) as upgrade_conversion_rate,
-
-          
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+            / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
+          ) as upgrade_conversion_rate
         from base;
-    """).bindparams(
-        bindparam("pmc_id", type_=BigInteger),
-        bindparam("property_id", type_=BigInteger),
-        bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
-        bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
-    )
+    """)
 
     try:
         row = db.execute(
@@ -654,13 +602,10 @@ def conversion(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"conversion query failed: {e}")
 
-
-
     return {
         "followups_shown": int(row.get("followups_shown") or 0),
         "followup_clicks": int(row.get("followup_clicks") or 0),
         "followup_conversion_rate": float(row.get("followup_conversion_rate") or 0.0),
-
         "upgrade_checkouts_started": int(row.get("upgrade_checkouts_started") or 0),
         "upgrade_purchases": int(row.get("upgrade_purchases") or 0),
         "upgrade_conversion_rate": float(row.get("upgrade_conversion_rate") or 0.0),
@@ -668,7 +613,7 @@ def conversion(
 
 
 # --------------------------------------------------
-# ⏱ AVG RESPONSE TIME (kept)
+# RESPONSE TIME
 # --------------------------------------------------
 @router.get("/response-time")
 def response_time(
@@ -686,14 +631,13 @@ def response_time(
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-
     stmt = text("""
         with base as (
           select *
           from analytics_events
           where ts >= :start and ts < :end
-            and (:pmc_id is null or pmc_id = :pmc_id)
-            and (:property_id is null or property_id = :property_id)
+            and (:pmc_id::bigint is null or pmc_id = :pmc_id::bigint)
+            and (:property_id::bigint is null or property_id = :property_id::bigint)
         ),
         msg_base as (
           select
@@ -739,10 +683,7 @@ def response_time(
           percentile_cont(0.5) within group (order by response_seconds) as p50_seconds,
           percentile_cont(0.9) within group (order by response_seconds) as p90_seconds
         from clean;
-    """).bindparams(
-        bindparam("pmc_id", type_=BigInteger),
-        bindparam("property_id", type_=BigInteger),
-    )
+    """)
 
     try:
         row = db.execute(
@@ -751,7 +692,6 @@ def response_time(
         ).mappings().first() or {}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"response-time query failed: {e}")
-
 
     return {
         "samples": int(row.get("samples") or 0),
@@ -762,9 +702,7 @@ def response_time(
 
 
 # --------------------------------------------------
-# 🧠 PER-ASSISTANT PERFORMANCE
-# Adds:
-# - chat_errors, contact_host_clicks (if those events include data.assistant/data.variant)
+# ASSISTANT PERFORMANCE
 # --------------------------------------------------
 @router.get("/assistant-performance")
 def assistant_performance(
@@ -783,7 +721,6 @@ def assistant_performance(
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-
     stmt = text("""
         with base as (
           select
@@ -791,8 +728,8 @@ def assistant_performance(
             coalesce(data->>'assistant', data->>'variant', 'default') as assistant_key
           from analytics_events
           where ts >= :start and ts < :end
-            and (:pmc_id is null or pmc_id = :pmc_id)
-            and (:property_id is null or property_id = :property_id)
+            and (:pmc_id::bigint is null or pmc_id = :pmc_id::bigint)
+            and (:property_id::bigint is null or property_id = :property_id::bigint)
         ),
         msg_base as (
           select
@@ -855,6 +792,7 @@ def assistant_performance(
           select
             assistant_key,
 
+            -- followups
             count(*) filter (where event_name = :followups_shown_event) as followups_shown,
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
             (
@@ -862,6 +800,7 @@ def assistant_performance(
               / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
             ) as followup_conversion_rate,
 
+            -- upgrades
             count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
             count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
             (
@@ -869,10 +808,9 @@ def assistant_performance(
               / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
             ) as upgrade_conversion_rate,
 
-
+            -- errors + escalation
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
-
           from base
           group by 1
         )
@@ -896,18 +834,12 @@ def assistant_performance(
 
           coalesce(f.chat_errors, 0) as chat_errors,
           coalesce(f.contact_host_clicks, 0) as contact_host_clicks
-
         from msgs m
         full join rt r using (assistant_key)
         full join funnels f using (assistant_key)
         order by assistant_messages desc, response_samples desc
         limit :limit;
-    """).bindparams(
-        bindparam("pmc_id", type_=BigInteger),
-        bindparam("property_id", type_=BigInteger),
-        bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
-        bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
-    )
+    """)
 
     try:
         rows = db.execute(
@@ -928,7 +860,5 @@ def assistant_performance(
         ).mappings().all()
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"assistant-performance query failed: {e}")
-
-
 
     return {"rows": [dict(r) for r in rows]}
