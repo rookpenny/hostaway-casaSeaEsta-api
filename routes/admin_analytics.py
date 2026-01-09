@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 from typing import Optional, Literal
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
-
 from sqlalchemy.orm import Session
-from sqlalchemy import text
+from sqlalchemy import text, bindparam
+from sqlalchemy.dialects.postgresql import ARRAY, TEXT
 
 from database import get_db
 
@@ -103,7 +103,7 @@ def summary(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-    row = db.execute(
+        row = db.execute(
         text("""
         with base as (
             select *
@@ -185,13 +185,12 @@ def summary(
             ) as followup_conversion_rate,
 
             -- upgrades funnel (kept for later)
-            count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[]))) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[]))) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[])))::float
-              / nullif(count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[])))::float, 0)
+              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
+              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
             ) as upgrade_conversion_rate,
-
 
             -- reactions
             count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
@@ -212,7 +211,10 @@ def summary(
             (select avg(response_seconds) from response_clean) as avg_response_seconds,
             (select percentile_cont(0.5) within group (order by response_seconds) from response_clean) as p50_response_seconds
         from base;
-        """),
+        """).bindparams(
+            bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
+            bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
+        ),
         {
             "start": start,
             "end": end,
@@ -226,6 +228,7 @@ def summary(
             "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
         },
     ).mappings().first() or {}
+
 
     return {
         # volume
@@ -395,8 +398,8 @@ def timeseries(
         text(f"""
         with buckets as (
             select generate_series(
-                date_trunc('{trunc}', CAST(:start AS timestamptz)),
-                date_trunc('{trunc}', CAST(:end AS timestamptz)),
+                date_trunc('{trunc}', :start),
+                date_trunc('{trunc}', :end),
                 interval '1 {trunc}'
             ) as bucket
 
@@ -492,7 +495,7 @@ def top_properties(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    rows = db.execute(
+        rows = db.execute(
         text("""
         with base as (
           select *
@@ -513,8 +516,8 @@ def top_properties(
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
             -- upgrades (kept for later)
-            count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[]))) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[]))) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
 
             -- errors + escalation
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
@@ -541,7 +544,10 @@ def top_properties(
         from agg
         order by sessions desc, messages desc
         limit :limit;
-        """),
+        """).bindparams(
+            bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
+            bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
+        ),
         {
             "start": start,
             "end": end,
@@ -555,6 +561,7 @@ def top_properties(
             "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
         },
     ).mappings().all()
+
 
     return {"rows": [dict(r) for r in rows]}
 
@@ -579,7 +586,7 @@ def conversion(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-    row = db.execute(
+        row = db.execute(
         text("""
         with base as (
           select *
@@ -598,14 +605,17 @@ def conversion(
           ) as followup_conversion_rate,
 
           -- upgrades funnel (kept for later)
-          count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[]))) as upgrade_checkouts_started,
-          count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[]))) as upgrade_purchases,
+          count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
+          count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
           (
-            count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[])))::float
-            / nullif(count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[])))::float, 0)
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
+            / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
           ) as upgrade_conversion_rate
         from base;
-        """),
+        """).bindparams(
+            bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
+            bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
+        ),
         {
             "start": start,
             "end": end,
@@ -617,6 +627,7 @@ def conversion(
             "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
         },
     ).mappings().first() or {}
+
 
     return {
         "followups_shown": int(row.get("followups_shown") or 0),
@@ -737,7 +748,7 @@ def assistant_performance(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-    rows = db.execute(
+        rows = db.execute(
         text("""
         with base as (
           select
@@ -818,11 +829,11 @@ def assistant_performance(
             ) as followup_conversion_rate,
 
             -- upgrades (kept for later)
-            count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[]))) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[]))) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(CAST(:upgrade_purchase_events AS text[])))::float
-              / nullif(count(*) filter (where event_name = ANY(CAST(:upgrade_start_events AS text[])))::float, 0)
+              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
+              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
             ) as upgrade_conversion_rate,
 
             -- errors + escalation
@@ -858,7 +869,10 @@ def assistant_performance(
         full join funnels f using (assistant_key)
         order by assistant_messages desc, response_samples desc
         limit :limit;
-        """),
+        """).bindparams(
+            bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
+            bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
+        ),
         {
             "start": start,
             "end": end,
@@ -873,5 +887,6 @@ def assistant_performance(
             "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
         },
     ).mappings().all()
+
 
     return {"rows": [dict(r) for r in rows]}
