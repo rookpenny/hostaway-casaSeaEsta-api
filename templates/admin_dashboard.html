@@ -1828,51 +1828,79 @@ async function loadChatAnalytics(daysOverride = null) {
     });
 
     // Timeseries
-    const tsRes = await fetch(`/admin/analytics/chat/timeseries?bucket=day&${qs}`, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
+// Timeseries
+// Timeseries (robust chart init/update)
+const tsRes = await fetch(`/admin/analytics/chat/timeseries?bucket=day&${qs}`, {
+  credentials: "include",
+  headers: { Accept: "application/json" },
+});
+if (tsRes.status === 401 || tsRes.status === 403) return loginRedirect();
+
+let ts = {};
+try {
+  if (!tsRes.ok) throw new Error(`timeseries HTTP ${tsRes.status}`);
+  ts = await tsRes.json();
+} catch (e) {
+  console.error("timeseries parse/fetch failed:", e);
+  ts = { labels: [], series: {} };
+}
+
+const canvas = document.getElementById("chatAnalyticsChart");
+if (!canvas || typeof canvas.getContext !== "function" || !window.Chart) {
+  console.warn("Chart canvas or Chart.js missing; skipping render.");
+} else {
+  const ctx = canvas.getContext("2d");
+
+  const labels = Array.isArray(ts.labels) ? ts.labels : [];
+  const series = ts.series && typeof ts.series === "object" ? ts.series : {};
+
+  const sessions = Array.isArray(series.sessions) ? series.sessions : [];
+  const messages = Array.isArray(series.messages) ? series.messages : [];
+  const followupClicks = Array.isArray(series.followup_clicks) ? series.followup_clicks : [];
+  const chatErrors = Array.isArray(series.chat_errors) ? series.chat_errors : [];
+
+  const datasets = [
+    { label: "Sessions", data: sessions },
+    { label: "Messages", data: messages },
+    { label: "Followup clicks", data: followupClicks },
+    { label: "Errors", data: chatErrors },
+  ];
+
+  const existing = window.chatAnalyticsChart;
+
+  // Valid Chart.js instance check
+  const isValidChart =
+    existing &&
+    typeof existing.update === "function" &&
+    existing.data &&
+    typeof existing.data === "object" &&
+    Array.isArray(existing.data.datasets);
+
+  // If something non-chart got assigned, clean it up
+  if (existing && !isValidChart) {
+    try { existing.destroy?.(); } catch {}
+    window.chatAnalyticsChart = null;
+  }
+
+  if (!window.chatAnalyticsChart) {
+    window.chatAnalyticsChart = new Chart(ctx, {
+      type: "line",
+      data: { labels, datasets },
+      options: {
+        responsive: true,
+        plugins: { legend: { display: true } },
+        scales: { y: { beginAtZero: true } },
+      },
     });
-    if (tsRes.status === 401 || tsRes.status === 403) return loginRedirect();
-    const ts = await tsRes.json().catch(() => ({}));
+  } else {
+    // Ensure dataset slots exist (in case something mutated the chart)
+    window.chatAnalyticsChart.data.labels = labels;
+    window.chatAnalyticsChart.data.datasets = datasets;
+    window.chatAnalyticsChart.update();
+  }
+}
 
-    const canvas = document.getElementById("chatAnalyticsChart");
-    const ctx = canvas?.getContext?.("2d");
 
-    if (ctx && window.Chart) {
-      const labels = ts.labels || [];
-      const series = ts.series || {};
-      const sessions = series.sessions || [];
-      const messages = series.messages || [];
-      const followupClicks = series.followup_clicks || [];
-      const chatErrors = series.chat_errors || [];
-
-      if (!window.chatAnalyticsChart) {
-        window.chatAnalyticsChart = new Chart(ctx, {
-          type: "line",
-          data: {
-            labels,
-            datasets: [
-              { label: "Sessions", data: sessions },
-              { label: "Messages", data: messages },
-              { label: "Followup clicks", data: followupClicks },
-              { label: "Errors", data: chatErrors },
-            ],
-          },
-          options: {
-            responsive: true,
-            plugins: { legend: { display: true } },
-            scales: { y: { beginAtZero: true } },
-          },
-        });
-      } else {
-        window.chatAnalyticsChart.data.labels = labels;
-        window.chatAnalyticsChart.data.datasets[0].data = sessions;
-        window.chatAnalyticsChart.data.datasets[1].data = messages;
-        window.chatAnalyticsChart.data.datasets[2].data = followupClicks;
-        window.chatAnalyticsChart.data.datasets[3].data = chatErrors;
-        window.chatAnalyticsChart.update();
-      }
-    }
 
     await loadTopProperties({ from, to, pmcId, propertyId });
   } catch (err) {
