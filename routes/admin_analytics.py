@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Optional, Literal
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from sqlalchemy.orm import Session
-from sqlalchemy import text, bindparam
+from sqlalchemy import text, bindparam, BigInteger
 from sqlalchemy.dialects.postgresql import ARRAY, TEXT
 
 from database import get_db
@@ -103,8 +103,7 @@ def summary(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-        row = db.execute(
-        text("""
+            stmt = text("""
         with base as (
             select *
             from analytics_events
@@ -154,10 +153,8 @@ def summary(
               and response_seconds <= 1800
         )
         select
-            -- sessions
             count(*) filter (where event_name = 'chat_session_created') as sessions_total,
 
-            -- messages
             count(*) filter (
                 where event_name = 'message_sent'
                   and coalesce(data->>'sender', data->>'role') in ('user', 'guest')
@@ -168,7 +165,6 @@ def summary(
                   and coalesce(data->>'sender', data->>'role') in ('assistant', 'bot')
             ) as assistant_messages,
 
-            -- response rate (pairing)
             (select count(*) from user_msgs) as user_message_samples,
             (select count(*) from response_clean) as responded_user_messages,
             (
@@ -176,7 +172,6 @@ def summary(
               / nullif((select count(*) from user_msgs)::float, 0)
             ) as response_rate,
 
-            -- followups funnel
             count(*) filter (where event_name = :followups_shown_event) as followups_shown,
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
             (
@@ -184,7 +179,6 @@ def summary(
               / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
             ) as followup_conversion_rate,
 
-            -- upgrades funnel (kept for later)
             count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
             count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
             (
@@ -192,11 +186,9 @@ def summary(
               / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
             ) as upgrade_conversion_rate,
 
-            -- reactions
             count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
             count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'down') as reactions_down,
 
-            -- errors + escalation
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks,
 
@@ -207,27 +199,36 @@ def summary(
                  )::float, 0)
             ) as error_rate_per_user_message,
 
-            -- response time (seconds)
             (select avg(response_seconds) from response_clean) as avg_response_seconds,
             (select percentile_cont(0.5) within group (order by response_seconds) from response_clean) as p50_response_seconds
         from base;
-        """).bindparams(
-            bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
-            bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
-        ),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "property_id": property_id,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "chat_error_event": CHAT_ERROR_EVENT,
-            "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
-            "upgrade_start_events": list(UPGRADE_START_EVENTS),
-            "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-        },
-    ).mappings().first() or {}
+    """).bindparams(
+        bindparam("pmc_id", type_=BigInteger),
+        bindparam("property_id", type_=BigInteger),
+        bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
+        bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
+    )
+
+    try:
+        row = db.execute(
+            stmt,
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "property_id": property_id,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "chat_error_event": CHAT_ERROR_EVENT,
+                "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
+                "upgrade_start_events": list(UPGRADE_START_EVENTS),
+                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
+            },
+        ).mappings().first() or {}
+    except Exception as e:
+        # prevents the misleading UnboundLocalError and gives you the real SQL error
+        raise HTTPException(status_code=500, detail=f"summary query failed: {e}")
+
 
 
     return {
@@ -286,8 +287,7 @@ def response_rate(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-    row = db.execute(
-        text("""
+        stmt = text("""
         with base as (
             select *
             from analytics_events
@@ -340,14 +340,23 @@ def response_rate(
             (select count(*) from clean) as responded_messages,
             ((select count(*) from clean)::float / nullif((select count(*) from user_msgs)::float, 0)) as response_rate,
 
-            -- speed buckets
             count(*) filter (where response_seconds <= 30) as responded_30s,
             count(*) filter (where response_seconds <= 60) as responded_60s,
             count(*) filter (where response_seconds <= 300) as responded_5m
         from clean;
-        """),
-        {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
-    ).mappings().first() or {}
+    """).bindparams(
+        bindparam("pmc_id", type_=BigInteger),
+        bindparam("property_id", type_=BigInteger),
+    )
+
+    try:
+        row = db.execute(
+            stmt,
+            {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
+        ).mappings().first() or {}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"response-rate query failed: {e}")
+
 
     user_messages = int(_num(row.get("user_messages"), 0))
     responded = int(_num(row.get("responded_messages"), 0))
@@ -495,8 +504,7 @@ def top_properties(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    rows = db.execute(
-        text("""
+        stmt = text("""
         with base as (
           select *
           from analytics_events
@@ -507,19 +515,15 @@ def top_properties(
         agg as (
           select
             property_id,
-
             count(*) filter (where event_name = 'chat_session_created') as sessions,
             count(*) filter (where event_name = 'message_sent') as messages,
 
-            -- followups
             count(*) filter (where event_name = :followups_shown_event) as followups_shown,
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
-            -- upgrades (kept for later)
             count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
             count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
 
-            -- errors + escalation
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
 
@@ -544,23 +548,31 @@ def top_properties(
         from agg
         order by sessions desc, messages desc
         limit :limit;
-        """).bindparams(
-            bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
-            bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
-        ),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "limit": limit,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "chat_error_event": CHAT_ERROR_EVENT,
-            "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
-            "upgrade_start_events": list(UPGRADE_START_EVENTS),
-            "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-        },
-    ).mappings().all()
+    """).bindparams(
+        bindparam("pmc_id", type_=BigInteger),
+        bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
+        bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
+    )
+
+    try:
+        rows = db.execute(
+            stmt,
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "limit": limit,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "chat_error_event": CHAT_ERROR_EVENT,
+                "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
+                "upgrade_start_events": list(UPGRADE_START_EVENTS),
+                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
+            },
+        ).mappings().all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"top-properties query failed: {e}")
+
 
 
     return {"rows": [dict(r) for r in rows]}
@@ -586,8 +598,7 @@ def conversion(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-        row = db.execute(
-        text("""
+        stmt = text("""
         with base as (
           select *
           from analytics_events
@@ -596,7 +607,6 @@ def conversion(
             and (:property_id is null or property_id = :property_id)
         )
         select
-          -- followups funnel
           count(*) filter (where event_name = :followups_shown_event) as followups_shown,
           count(*) filter (where event_name = :followup_click_event) as followup_clicks,
           (
@@ -604,7 +614,6 @@ def conversion(
             / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
           ) as followup_conversion_rate,
 
-          -- upgrades funnel (kept for later)
           count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
           count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
           (
@@ -612,21 +621,30 @@ def conversion(
             / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
           ) as upgrade_conversion_rate
         from base;
-        """).bindparams(
-            bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
-            bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
-        ),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "property_id": property_id,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "upgrade_start_events": list(UPGRADE_START_EVENTS),
-            "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-        },
-    ).mappings().first() or {}
+    """).bindparams(
+        bindparam("pmc_id", type_=BigInteger),
+        bindparam("property_id", type_=BigInteger),
+        bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
+        bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
+    )
+
+    try:
+        row = db.execute(
+            stmt,
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "property_id": property_id,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "upgrade_start_events": list(UPGRADE_START_EVENTS),
+                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
+            },
+        ).mappings().first() or {}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"conversion query failed: {e}")
+
 
 
     return {
@@ -660,8 +678,7 @@ def response_time(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-    row = db.execute(
-        text("""
+        stmt = text("""
         with base as (
           select *
           from analytics_events
@@ -713,9 +730,19 @@ def response_time(
           percentile_cont(0.5) within group (order by response_seconds) as p50_seconds,
           percentile_cont(0.9) within group (order by response_seconds) as p90_seconds
         from clean;
-        """),
-        {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
-    ).mappings().first() or {}
+    """).bindparams(
+        bindparam("pmc_id", type_=BigInteger),
+        bindparam("property_id", type_=BigInteger),
+    )
+
+    try:
+        row = db.execute(
+            stmt,
+            {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
+        ).mappings().first() or {}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"response-time query failed: {e}")
+
 
     return {
         "samples": int(row.get("samples") or 0),
@@ -748,8 +775,7 @@ def assistant_performance(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-        rows = db.execute(
-        text("""
+        stmt = text("""
         with base as (
           select
             *,
@@ -820,7 +846,6 @@ def assistant_performance(
           select
             assistant_key,
 
-            -- followups
             count(*) filter (where event_name = :followups_shown_event) as followups_shown,
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
             (
@@ -828,7 +853,6 @@ def assistant_performance(
               / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
             ) as followup_conversion_rate,
 
-            -- upgrades (kept for later)
             count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
             count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
             (
@@ -836,7 +860,6 @@ def assistant_performance(
               / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
             ) as upgrade_conversion_rate,
 
-            -- errors + escalation
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
 
@@ -869,24 +892,33 @@ def assistant_performance(
         full join funnels f using (assistant_key)
         order by assistant_messages desc, response_samples desc
         limit :limit;
-        """).bindparams(
-            bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
-            bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
-        ),
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "property_id": property_id,
-            "limit": limit,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "chat_error_event": CHAT_ERROR_EVENT,
-            "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
-            "upgrade_start_events": list(UPGRADE_START_EVENTS),
-            "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-        },
-    ).mappings().all()
+    """).bindparams(
+        bindparam("pmc_id", type_=BigInteger),
+        bindparam("property_id", type_=BigInteger),
+        bindparam("upgrade_start_events", type_=ARRAY(TEXT)),
+        bindparam("upgrade_purchase_events", type_=ARRAY(TEXT)),
+    )
+
+    try:
+        rows = db.execute(
+            stmt,
+            {
+                "start": start,
+                "end": end,
+                "pmc_id": pmc_id,
+                "property_id": property_id,
+                "limit": limit,
+                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
+                "followup_click_event": FOLLOWUP_CLICK_EVENT,
+                "chat_error_event": CHAT_ERROR_EVENT,
+                "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
+                "upgrade_start_events": list(UPGRADE_START_EVENTS),
+                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
+            },
+        ).mappings().all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"assistant-performance query failed: {e}")
+
 
 
     return {"rows": [dict(r) for r in rows]}
