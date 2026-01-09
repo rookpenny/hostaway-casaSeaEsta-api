@@ -67,14 +67,20 @@ def _num(x, default=0):
 
 
 def _assert_property_in_pmc(db: Session, property_id: int, pmc_id: int) -> None:
-    ok = db.execute(
-        text("select 1 from properties where id=:pid and pmc_id=:pmc limit 1"),
-        {"pid": int(property_id), "pmc": int(pmc_id)},
-    ).first()
-    if not ok:
-        # property doesn't exist or not in scope
-        raise HTTPException(status_code=403, detail="Forbidden property scope")
+    stmt = text("""
+        select 1
+        from properties
+        where id = :pid
+          and pmc_id = :pmc
+        limit 1
+    """).bindparams(
+        bindparam("pid", type_=BigInteger),
+        bindparam("pmc", type_=BigInteger),
+    )
 
+    ok = db.execute(stmt, {"pid": int(property_id), "pmc": int(pmc_id)}).first()
+    if not ok:
+        raise HTTPException(status_code=403, detail="Forbidden property scope")
 
 
 # --------------------------------------------------
@@ -103,7 +109,7 @@ def summary(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-            stmt = text("""
+    stmt = text("""
         with base as (
             select *
             from analytics_events
@@ -179,12 +185,13 @@ def summary(
               / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
             ) as followup_conversion_rate,
 
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
+              count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
             ) as upgrade_conversion_rate,
+
 
             count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
             count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'down') as reactions_down,
@@ -226,9 +233,7 @@ def summary(
             },
         ).mappings().first() or {}
     except Exception as e:
-        # prevents the misleading UnboundLocalError and gives you the real SQL error
         raise HTTPException(status_code=500, detail=f"summary query failed: {e}")
-
 
 
     return {
@@ -287,7 +292,7 @@ def response_rate(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-        stmt = text("""
+    stmt = text("""
         with base as (
             select *
             from analytics_events
@@ -357,7 +362,6 @@ def response_rate(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"response-rate query failed: {e}")
 
-
     user_messages = int(_num(row.get("user_messages"), 0))
     responded = int(_num(row.get("responded_messages"), 0))
 
@@ -403,15 +407,13 @@ def timeseries(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-    rows = db.execute(
-        text(f"""
+    stmt = text(f"""
         with buckets as (
             select generate_series(
                 date_trunc('{trunc}', :start),
                 date_trunc('{trunc}', :end),
                 interval '1 {trunc}'
             ) as bucket
-
         ),
         filtered as (
             select *
@@ -444,7 +446,13 @@ def timeseries(
         from buckets b
         left join agg a using (bucket)
         order by b.bucket asc;
-        """),
+    """).bindparams(
+        bindparam("pmc_id", type_=BigInteger),
+        bindparam("property_id", type_=BigInteger),
+    )
+
+    rows = db.execute(
+        stmt,
         {
             "start": start,
             "end": end,
@@ -456,6 +464,7 @@ def timeseries(
             "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
         },
     ).mappings().all()
+
 
     labels = []
     sessions, messages = [], []
@@ -504,7 +513,7 @@ def top_properties(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-        stmt = text("""
+    stmt = text("""
         with base as (
           select *
           from analytics_events
@@ -573,8 +582,6 @@ def top_properties(
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"top-properties query failed: {e}")
 
-
-
     return {"rows": [dict(r) for r in rows]}
 
 
@@ -598,7 +605,7 @@ def conversion(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-        stmt = text("""
+    stmt = text("""
         with base as (
           select *
           from analytics_events
@@ -614,12 +621,14 @@ def conversion(
             / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
           ) as followup_conversion_rate,
 
-          count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-          count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+          count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+          count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
           (
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-            / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
-          ) as upgrade_conversion_rate
+           count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+           / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
+            ) as upgrade_conversion_rate,
+
+          
         from base;
     """).bindparams(
         bindparam("pmc_id", type_=BigInteger),
@@ -678,7 +687,7 @@ def response_time(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-        stmt = text("""
+    stmt = text("""
         with base as (
           select *
           from analytics_events
@@ -775,7 +784,7 @@ def assistant_performance(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
 
-        stmt = text("""
+    stmt = text("""
         with base as (
           select
             *,
@@ -853,12 +862,13 @@ def assistant_performance(
               / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
             ) as followup_conversion_rate,
 
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
+              count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
             ) as upgrade_conversion_rate,
+
 
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
