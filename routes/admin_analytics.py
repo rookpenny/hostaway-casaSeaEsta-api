@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 from typing import Optional, Literal
-from fastapi import APIRouter, Depends, Query, Request
+from fastapi import APIRouter, Depends, Query, Request, HTTPException
 
 from sqlalchemy.orm import Session
 from sqlalchemy import text
@@ -47,11 +47,6 @@ def _is_super(role: Optional[str]) -> bool:
     return r in ("super", "superuser")
 
 def _enforce_scope(request: Request, pmc_id: Optional[int]) -> Optional[int]:
-    """
-    Enforce analytics scope:
-    - super: can query any pmc_id (or all when pmc_id is None)
-    - pmc: locked to session pmc_id
-    """
     role = request.session.get("role")
     if _is_super(role):
         return pmc_id
@@ -59,11 +54,11 @@ def _enforce_scope(request: Request, pmc_id: Optional[int]) -> Optional[int]:
     if (role or "").strip().lower() == "pmc":
         sess_pmc_id = request.session.get("pmc_id")
         if not sess_pmc_id:
-            raise RuntimeError("PMC scope missing (pmc_id not in session)")
+            raise HTTPException(status_code=401, detail="Missing pmc_id in session")
         return int(sess_pmc_id)
 
-    # not logged in / unauthorized
-    raise RuntimeError("Unauthorized")
+    raise HTTPException(status_code=401, detail="Unauthorized")
+
 
 
 
@@ -78,7 +73,7 @@ def _assert_property_in_pmc(db: Session, property_id: int, pmc_id: int) -> None:
     ).first()
     if not ok:
         # property doesn't exist or not in scope
-        raise RuntimeError("Forbidden property scope")
+        raise HTTPException(status_code=403, detail="Forbidden property scope")
 
 
 
