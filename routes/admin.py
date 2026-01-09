@@ -652,7 +652,7 @@ def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
 # ----------------------------
 # Return team table rows (HTML partial)
 # ----------------------------
-@router.get("/admin/settings/team")
+'''@router.get("/admin/settings/team")
 def get_team_table(request: Request, db: Session = Depends(get_db)):
     user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
 
@@ -674,8 +674,31 @@ def get_team_table(request: Request, db: Session = Depends(get_db)):
             "property_name_by_id": property_name_by_id,
             "render_team_only": True,  # 👈 flag
         },
+    )'''
+
+@router.get("/admin/settings/team", response_class=HTMLResponse)
+def get_team_table(request: Request, db: Session = Depends(get_db)):
+    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
+    me_email = (get_current_admin_identity(request) or "").strip().lower()
+
+    team_members = (
+        db.query(PMCUser)
+        .filter(PMCUser.pmc_id == pmc_obj.id)
+        .order_by(func.lower(PMCUser.email).asc())
+        .all()
     )
 
+    # Return the same rows partial your UI already uses
+    return templates.TemplateResponse(
+        "admin/_team_table_rows.html",
+        {
+            "request": request,
+            "team_members": team_members,
+            "user_email": me_email,
+        },
+    )
 
 
 
@@ -699,7 +722,7 @@ def admin_sync_properties(pmc_id: int, request: Request, db: Session = Depends(g
 # ----------------------------
 # Chats list route (god view)
 # ----------------------------
-
+'''
 @router.get("/admin/chats", response_class=HTMLResponse)
 def chats_dashboard(
     request: Request,
@@ -749,7 +772,7 @@ def chats_dashboard(
         "filters": {...},
         "user_role": user_role,
     })
-
+'''
 
 # ----------------------------
 # Reusable “scope filter” helper
@@ -1208,10 +1231,15 @@ def admin_chats(
         latest_msgs = (
             db.query(ChatMessage)
             .filter(ChatMessage.session_id.in_(session_ids))
-            .order_by(ChatMessage.session_id.asc(), ChatMessage.created_at.desc())
+            .order_by(
+                ChatMessage.session_id.asc(),
+                ChatMessage.created_at.desc(),
+                ChatMessage.id.desc(),
+            )
             .distinct(ChatMessage.session_id)  # DISTINCT ON (Postgres)
             .all()
         )
+
         last_msg_map = {int(m.session_id): m for m in latest_msgs}
 
         urgent_ids = set(
@@ -1608,6 +1636,231 @@ def chats_analytics(request: Request, db: Session = Depends(get_db)):
             "urgent": int(urgent_sessions),
             "unhappy": int(unhappy_sessions),
         },
+    }
+
+# ----------------------------
+# Analytics: Summary + Top Properties (scoped)
+# ----------------------------
+
+def _apply_scope_to_property_query(q, user_role: str, pmc_obj: Optional[PMC]):
+    """
+    Ensures PMC users only see their PMC's properties.
+    Super users see all.
+    """
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+    return q
+
+
+def _apply_scope_to_session_query(q, user_role: str, pmc_obj: Optional[PMC]):
+    """
+    Ensures PMC users only see sessions under their PMC's properties.
+    Super users see all.
+    Expects q joined to Property OR joins it here.
+    """
+    # If Property isn't already joined, join it
+    try:
+        # This is safe even if already joined in most SA setups, but if you prefer:
+        # you can remove and require caller to join.
+        q = q.join(Property, Property.id == ChatSession.property_id)
+    except Exception:
+        pass
+
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+    return q
+
+
+@router.get("/admin/analytics/summary")
+def admin_analytics_summary(
+    request: Request,
+    db: Session = Depends(get_db),
+    days: int = Query(30, ge=1, le=365),
+):
+    """
+    High-level summary cards for dashboard:
+    - properties total / enabled
+    - sessions total / last N days
+    - messages last N days
+    - urgent/unhappy sessions last N days
+    Scoped to PMC if user_role == "pmc"
+    """
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
+    cutoff = datetime.utcnow() - timedelta(days=int(days))
+
+    # Properties
+    props_q = db.query(Property)
+    props_q = _apply_scope_to_property_query(props_q, user_role, pmc_obj)
+
+    total_properties = props_q.with_entities(func.count(Property.id)).scalar() or 0
+    enabled_properties = props_q.with_entities(
+        func.count(case((Property.chat_enabled.is_(True), 1)))
+    ).scalar() or 0
+
+    # Sessions
+    sess_q = db.query(ChatSession)
+    sess_q = _apply_scope_to_session_query(sess_q, user_role, pmc_obj)
+
+    total_sessions = sess_q.with_entities(func.count(ChatSession.id)).scalar() or 0
+    sessions_last_n_days = sess_q.filter(ChatSession.last_activity_at >= cutoff).with_entities(
+        func.count(ChatSession.id)
+    ).scalar() or 0
+
+    # Messages last N days
+    msg_q = (
+        db.query(func.count(ChatMessage.id))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatMessage.created_at >= cutoff)
+    )
+    if user_role == "pmc":
+        msg_q = msg_q.filter(Property.pmc_id == pmc_obj.id)
+
+    messages_last_n_days = msg_q.scalar() or 0
+
+    # Urgent/unhappy sessions last N days (distinct sessions)
+    urgent_sessions_q = (
+        db.query(func.count(func.distinct(ChatMessage.session_id)))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.sender == "guest")
+        .filter(ChatMessage.category == "urgent")
+    )
+    unhappy_sessions_q = (
+        db.query(func.count(func.distinct(ChatMessage.session_id)))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.sender == "guest")
+        .filter(func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative")
+    )
+
+    if user_role == "pmc":
+        urgent_sessions_q = urgent_sessions_q.filter(Property.pmc_id == pmc_obj.id)
+        unhappy_sessions_q = unhappy_sessions_q.filter(Property.pmc_id == pmc_obj.id)
+
+    urgent_sessions = urgent_sessions_q.scalar() or 0
+    unhappy_sessions = unhappy_sessions_q.scalar() or 0
+
+    return {
+        "window_days": int(days),
+        "properties": {
+            "total": int(total_properties),
+            "chat_enabled": int(enabled_properties),
+        },
+        "sessions": {
+            "total": int(total_sessions),
+            "active_last_n_days": int(sessions_last_n_days),
+        },
+        "messages": {
+            "last_n_days": int(messages_last_n_days),
+        },
+        "flags": {
+            "urgent_sessions_last_n_days": int(urgent_sessions),
+            "unhappy_sessions_last_n_days": int(unhappy_sessions),
+        },
+    }
+
+
+@router.get("/admin/analytics/top-properties")
+def admin_analytics_top_properties(
+    request: Request,
+    db: Session = Depends(get_db),
+    days: int = Query(7, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50),
+    sort: str = Query("messages", pattern="^(messages|sessions|urgent_sessions|unhappy_sessions)$"),
+):
+    """
+    Top properties leaderboard over last N days.
+    sort:
+      - messages
+      - sessions
+      - urgent_sessions
+      - unhappy_sessions
+    Scoped to PMC if user_role == "pmc"
+    """
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
+    cutoff = datetime.utcnow() - timedelta(days=int(days))
+
+    # Base: properties in scope
+    prop_q = db.query(Property.id, Property.property_name)
+    prop_q = _apply_scope_to_property_query(prop_q, user_role, pmc_obj)
+    prop_rows = prop_q.all()
+    prop_ids = [int(p.id) for p in prop_rows]
+    if not prop_ids:
+        return {"window_days": int(days), "items": []}
+
+    # Sessions per property (last N days by last_activity_at)
+    sessions_counts = dict(
+        db.query(ChatSession.property_id, func.count(ChatSession.id))
+        .filter(ChatSession.property_id.in_(prop_ids))
+        .filter(ChatSession.last_activity_at >= cutoff)
+        .group_by(ChatSession.property_id)
+        .all()
+    )
+
+    # Messages per property (last N days)
+    messages_counts = dict(
+        db.query(ChatSession.property_id, func.count(ChatMessage.id))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .filter(ChatSession.property_id.in_(prop_ids))
+        .filter(ChatMessage.created_at >= cutoff)
+        .group_by(ChatSession.property_id)
+        .all()
+    )
+
+    # Urgent sessions per property (distinct sessions, last N days)
+    urgent_sessions_counts = dict(
+        db.query(ChatSession.property_id, func.count(func.distinct(ChatMessage.session_id)))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .filter(ChatSession.property_id.in_(prop_ids))
+        .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.sender == "guest")
+        .filter(ChatMessage.category == "urgent")
+        .group_by(ChatSession.property_id)
+        .all()
+    )
+
+    # Unhappy sessions per property (distinct sessions, last N days)
+    unhappy_sessions_counts = dict(
+        db.query(ChatSession.property_id, func.count(func.distinct(ChatMessage.session_id)))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .filter(ChatSession.property_id.in_(prop_ids))
+        .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.sender == "guest")
+        .filter(func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative")
+        .group_by(ChatSession.property_id)
+        .all()
+    )
+
+    # Build leaderboard
+    items = []
+    name_by_id = {int(p.id): (p.property_name or "") for p in prop_rows}
+
+    for pid in prop_ids:
+        items.append({
+            "property_id": int(pid),
+            "property_name": name_by_id.get(int(pid), "") or "Unknown",
+            "sessions": int(sessions_counts.get(pid, 0) or 0),
+            "messages": int(messages_counts.get(pid, 0) or 0),
+            "urgent_sessions": int(urgent_sessions_counts.get(pid, 0) or 0),
+            "unhappy_sessions": int(unhappy_sessions_counts.get(pid, 0) or 0),
+        })
+
+    items.sort(key=lambda x: (x.get(sort, 0), x["messages"], x["sessions"]), reverse=True)
+
+    return {
+        "window_days": int(days),
+        "sort": sort,
+        "limit": int(limit),
+        "items": items[: int(limit)],
     }
 
 
