@@ -373,60 +373,62 @@ def timeseries(
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
     # NOTE: trunc is controlled by Literal["day","hour"] above (safe)
-    stmt = text(f"""
-        with buckets as (
-            select generate_series(
-                date_trunc('{trunc}', :start),
-                date_trunc('{trunc}', :end),
-                interval '1 {trunc}'
-            ) as bucket
-        ),
-        filtered as (
-            select *
-            from analytics_events
-            where ts >= :start
-              and ts < :end
-              and (:pmc_id::bigint is null or pmc_id = :pmc_id::bigint)
-              and (:property_id::bigint is null or property_id = :property_id::bigint)
-        ),
-        agg as (
-            select
-                date_trunc('{trunc}', ts) as bucket,
-                count(*) filter (where event_name = 'chat_session_created') as sessions,
-                count(*) filter (where event_name = 'message_sent') as messages,
-                count(*) filter (where event_name = :followup_click_event) as followup_clicks,
-                count(*) filter (where event_name = :followups_shown_event) as followups_shown,
-                count(*) filter (where event_name = :chat_error_event) as chat_errors,
-                count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
-            from filtered
-            group by 1
-        )
-        select
-            b.bucket,
-            coalesce(a.sessions, 0) as sessions,
-            coalesce(a.messages, 0) as messages,
-            coalesce(a.followup_clicks, 0) as followup_clicks,
-            coalesce(a.followups_shown, 0) as followups_shown,
-            coalesce(a.chat_errors, 0) as chat_errors,
-            coalesce(a.contact_host_clicks, 0) as contact_host_clicks
-        from buckets b
-        left join agg a using (bucket)
-        order by b.bucket asc;
+    
+    stmt = text("""
+    with buckets as (
+      select generate_series(
+        date_trunc('day', :start),
+        date_trunc('day', :end),
+        interval '1 day'
+      ) as bucket
+    ),
+    filtered as (
+      select *
+      from analytics_events
+      where ts >= :start
+        and ts < :end
+        and (:pmc_id is null or pmc_id = :pmc_id)
+        and (:property_id is null or property_id = :property_id)
+    ),
+    agg as (
+      select
+        date_trunc('day', ts) as bucket,
+        count(*) filter (where event_name = 'chat_session_created') as sessions,
+        count(*) filter (where event_name = 'message_sent') as messages,
+        count(*) filter (where event_name = :followup_click_event) as followup_clicks,
+        count(*) filter (where event_name = :followups_shown_event) as followups_shown,
+        count(*) filter (where event_name = :chat_error_event) as chat_errors,
+        count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
+      from filtered
+      group by 1
+    )
+    select
+      b.bucket,
+      coalesce(a.sessions, 0) as sessions,
+      coalesce(a.messages, 0) as messages,
+      coalesce(a.followup_clicks, 0) as followup_clicks,
+      coalesce(a.followups_shown, 0) as followups_shown,
+      coalesce(a.chat_errors, 0) as chat_errors,
+      coalesce(a.contact_host_clicks, 0) as contact_host_clicks
+    from buckets b
+    left join agg a using (bucket)
+    order by b.bucket asc;
     """)
-
+    
     rows = db.execute(
-        stmt,
-        {
-            "start": start,
-            "end": end,
-            "pmc_id": pmc_id,
-            "property_id": property_id,
-            "followup_click_event": FOLLOWUP_CLICK_EVENT,
-            "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-            "chat_error_event": CHAT_ERROR_EVENT,
-            "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
-        },
+      stmt,
+      {
+        "start": start_dt,
+        "end": end_dt,
+        "pmc_id": pmc_id,               # int | None
+        "property_id": property_id,     # int | None
+        "followup_click_event": "followup_click",
+        "followups_shown_event": "followups_shown",
+        "chat_error_event": "chat_error",
+        "contact_host_click_event": "contact_host_click",
+      }
     ).mappings().all()
+
 
     labels = []
     sessions, messages = [], []
