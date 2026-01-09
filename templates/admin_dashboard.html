@@ -25,7 +25,7 @@
 
 <body class="bg-slate-50 text-slate-900">
   <div class="min-h-screen flex">
-{% set initial_view = 'chats' if (request.query_params.get('view') == 'chats' or request.query_params.get('session_id')) else 'overview' %}
+{% set initial_view = request.query_params.get('view') or ('chats' if request.query_params.get('session_id') else 'overview') %}
 
     <!-- Sidebar -->
     <aside id="sidebar"
@@ -116,8 +116,9 @@
       </span>
       <span class="sidebar-label font-medium">Configs & Manuals</span>
     </button>
+  {% endif %}
 
-    <!-- Analytics (Super only) -->
+    <!-- Analytics (Super + PMC) -->
     <button data-view="analytics"
       class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
       aria-current="{{ 'page' if initial_view == 'analytics' else 'false' }}"
@@ -130,7 +131,7 @@
       </span>
       <span class="sidebar-label font-medium">Analytics</span>
     </button>
-  {% endif %}
+
 
   <!-- Properties -->
   <button data-view="properties"
@@ -1214,18 +1215,41 @@ window.openChatDetail = openChatDetail;
 
         <section id="view-analytics" class="view hidden space-y-4">
   <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-    <div class="flex items-center justify-between">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
       <div>
         <div class="text-sm font-semibold">Chat Analytics</div>
-        <div class="text-xs text-slate-500">Last 30 days</div>
+        <div class="text-xs text-slate-500">Trends & performance</div>
       </div>
-      <select id="analyticsRange" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
-        <option value="7">Last 7 days</option>
-        <option value="30" selected>Last 30 days</option>
-        <option value="90">Last 90 days</option>
-      </select>
+
+      <div class="flex flex-col sm:flex-row gap-2">
+        <!-- Range -->
+        <select id="analyticsRange" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+          <option value="7">Last 7 days</option>
+          <option value="30" selected>Last 30 days</option>
+          <option value="90">Last 90 days</option>
+        </select>
+
+        <!-- Super: PMC filter -->
+        {% if user_role == "super" %}
+          <select id="analyticsPmcFilter" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+            <option value="">All PMCs</option>
+            {% for p in pmcs %}
+              <option value="{{ p.id }}">{{ p.pmc_name }}</option>
+            {% endfor %}
+          </select>
+        {% endif %}
+
+        <!-- Everyone: Property filter -->
+        <select id="analyticsPropertyFilter" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+          <option value="">All Properties</option>
+          {% for pr in properties %}
+            <option value="{{ pr.id }}">{{ pr.property_name }}</option>
+          {% endfor %}
+        </select>
+      </div>
     </div>
 
+    <!-- KPI cards -->
     <div class="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2" id="analyticsCards">
       <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
         <div class="text-xs text-slate-500">Sessions</div>
@@ -1240,16 +1264,16 @@ window.openChatDetail = openChatDetail;
         <div class="text-xl font-semibold" data-kpi="assistant_messages">—</div>
       </div>
       <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+        <div class="text-xs text-slate-500">Response rate</div>
+        <div class="text-xl font-semibold" data-kpi="response_rate">—</div>
+      </div>
+      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
         <div class="text-xs text-slate-500">Followup clicks</div>
-        <div class="text-xl font-semibold" data-kpi="followup_click">—</div>
+        <div class="text-xl font-semibold" data-kpi="followup_clicks">—</div>
       </div>
       <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">👍</div>
-        <div class="text-xl font-semibold" data-kpi="reactions_up">—</div>
-      </div>
-      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">👎</div>
-        <div class="text-xl font-semibold" data-kpi="reactions_down">—</div>
+        <div class="text-xs text-slate-500">Errors</div>
+        <div class="text-xl font-semibold" data-kpi="chat_errors">—</div>
       </div>
     </div>
 
@@ -1257,7 +1281,37 @@ window.openChatDetail = openChatDetail;
       <canvas id="chatAnalyticsChart" height="100"></canvas>
     </div>
   </div>
+
+  <!-- Top Properties table -->
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex items-center justify-between">
+      <div>
+        <div class="text-sm font-semibold">Top Properties</div>
+        <div class="text-xs text-slate-500">Most active in selected range</div>
+      </div>
+      <div class="text-xs text-slate-500">Sorted by sessions</div>
+    </div>
+
+    <div class="mt-3 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead class="bg-slate-50">
+          <tr>
+            <th class="px-4 py-3 text-left">Property</th>
+            <th class="px-4 py-3 text-left">Sessions</th>
+            <th class="px-4 py-3 text-left">Messages</th>
+            <th class="px-4 py-3 text-left">Followup CTR</th>
+            <th class="px-4 py-3 text-left">Errors</th>
+            <th class="px-4 py-3 text-left">Escalations</th>
+          </tr>
+        </thead>
+        <tbody id="analyticsTopPropsBody">
+          <tr><td class="px-4 py-4 text-slate-500" colspan="6">Loading…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
 </section>
+
 
        
 
@@ -1676,34 +1730,114 @@ window.openChatDetail = openChatDetail;
     return { from, to };
   }
 
-  async function loadChatAnalytics(days) {
-    const { from, to } = rangeToMs(days);
+  function fmtPct(x) {
+  const n = Number(x);
+  if (!Number.isFinite(n)) return "—";
+  return `${Math.round(n * 1000) / 10}%`; // 1 decimal
+}
 
-    const summaryRes = await fetch(`/admin/analytics/chat/summary?from=${from}&to=${to}`, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-    const summary = await summaryRes.json().catch(() => ({}));
+function getAnalyticsFilters() {
+  const days = document.getElementById("analyticsRange")?.value || 30;
+  const propertyId = document.getElementById("analyticsPropertyFilter")?.value || "";
+  const pmcId = document.getElementById("analyticsPmcFilter")?.value || ""; // super only
+  return { days, propertyId, pmcId };
+}
 
-    document.querySelectorAll("[data-kpi]").forEach(el => {
-      const k = el.getAttribute("data-kpi");
-      el.textContent = (summary && summary[k] != null) ? String(summary[k]) : "0";
-    });
+function buildAnalyticsQS({ from, to, propertyId, pmcId }) {
+  const qs = new URLSearchParams({ from: String(from), to: String(to) });
+  if (propertyId) qs.set("property_id", String(propertyId));
+  if (pmcId) qs.set("pmc_id", String(pmcId));
+  return qs.toString();
+}
 
-    const tsRes = await fetch(`/admin/analytics/chat/timeseries?bucket=day&from=${from}&to=${to}`, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-    const ts = await tsRes.json().catch(() => ({}));
+async function loadTopProperties({ from, to, propertyId, pmcId }) {
+  const tbody = document.getElementById("analyticsTopPropsBody");
+  if (!tbody) return;
 
-    const ctx = document.getElementById("chatAnalyticsChart");
-    if (!ctx || !window.Chart) return;
+  // top-properties endpoint doesn’t accept property_id (it aggregates across properties),
+  // but we DO pass pmc_id for super filtering.
+  const qs = new URLSearchParams({ from: String(from), to: String(to), limit: "10" });
+  if (pmcId) qs.set("pmc_id", String(pmcId));
 
+  tbody.innerHTML = `<tr><td class="px-4 py-4 text-slate-500" colspan="6">Loading…</td></tr>`;
+
+  const res = await fetch(`/admin/analytics/chat/top-properties?${qs.toString()}`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (res.status === 401 || res.status === 403) return loginRedirect();
+
+  const data = await res.json().catch(() => ({}));
+  const rows = data.rows || [];
+
+  if (!rows.length) {
+    tbody.innerHTML = `<tr><td class="px-4 py-4 text-slate-500" colspan="6">No data yet.</td></tr>`;
+    return;
+  }
+
+  // If a property filter is selected, just highlight it (top-props is still global)
+  const selectedPid = (propertyId || "").trim();
+
+  tbody.innerHTML = rows.map(r => {
+    const pid = String(r.property_id ?? "");
+    const isSelected = selectedPid && pid === selectedPid;
+
+    return `
+      <tr class="border-t ${isSelected ? "bg-slate-50" : ""}">
+        <td class="px-4 py-3 font-medium">#${pid}</td>
+        <td class="px-4 py-3">${r.sessions ?? 0}</td>
+        <td class="px-4 py-3">${r.messages ?? 0}</td>
+        <td class="px-4 py-3">${fmtPct(r.followup_conversion_rate)}</td>
+        <td class="px-4 py-3">${r.chat_errors ?? 0}</td>
+        <td class="px-4 py-3">${r.contact_host_clicks ?? 0}</td>
+      </tr>
+    `;
+  }).join("");
+}
+
+async function loadChatAnalytics(daysOverride = null) {
+  const { days, propertyId, pmcId } = getAnalyticsFilters();
+  const daysToUse = daysOverride != null ? daysOverride : days;
+
+  const { from, to } = rangeToMs(daysToUse);
+  const qs = buildAnalyticsQS({ from, to, propertyId, pmcId });
+
+  // ---- Summary KPIs ----
+  const summaryRes = await fetch(`/admin/analytics/chat/summary?${qs}`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  if (summaryRes.status === 401 || summaryRes.status === 403) return loginRedirect();
+  const summary = await summaryRes.json().catch(() => ({}));
+
+  document.querySelectorAll("[data-kpi]").forEach(el => {
+    const k = el.getAttribute("data-kpi");
+    let val = summary?.[k];
+
+    // prettify a couple fields
+    if (k === "response_rate") val = fmtPct(val);
+    if (k === "followup_conversion_rate") val = fmtPct(val);
+
+    el.textContent = (val != null && val !== "") ? String(val) : "0";
+  });
+
+  // ---- Timeseries chart ----
+  const tsRes = await fetch(`/admin/analytics/chat/timeseries?bucket=day&${qs}`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  if (tsRes.status === 401 || tsRes.status === 403) return loginRedirect();
+  const ts = await tsRes.json().catch(() => ({}));
+
+  const ctx = document.getElementById("chatAnalyticsChart");
+  if (ctx && window.Chart) {
     const labels = ts.labels || [];
     const series = ts.series || {};
     const sessions = series.sessions || [];
     const messages = series.messages || [];
-    const followup_click = series.followup_click || [];
+    const followupClicks = series.followup_clicks || []; // ✅ correct key
+    const chatErrors = series.chat_errors || [];         // ✅ useful
 
     if (!chatAnalyticsChart) {
       chatAnalyticsChart = new Chart(ctx, {
@@ -1713,7 +1847,8 @@ window.openChatDetail = openChatDetail;
           datasets: [
             { label: "Sessions", data: sessions },
             { label: "Messages", data: messages },
-            { label: "Followup clicks", data: followup_click },
+            { label: "Followup clicks", data: followupClicks },
+            { label: "Errors", data: chatErrors },
           ],
         },
         options: {
@@ -1726,20 +1861,41 @@ window.openChatDetail = openChatDetail;
       chatAnalyticsChart.data.labels = labels;
       chatAnalyticsChart.data.datasets[0].data = sessions;
       chatAnalyticsChart.data.datasets[1].data = messages;
-      chatAnalyticsChart.data.datasets[2].data = followup_click;
+      chatAnalyticsChart.data.datasets[2].data = followupClicks;
+      chatAnalyticsChart.data.datasets[3].data = chatErrors;
       chatAnalyticsChart.update();
     }
   }
 
+  // ---- Top properties ----
+  await loadTopProperties({ from, to, propertyId, pmcId });
+}
+
+
+    function fmtNum(x) {
+      const n = Number(x || 0);
+      return Number.isFinite(n) ? String(n) : "0";
+    }
+    function fmtSeconds(x) {
+      const n = Number(x || 0);
+      return Number.isFinite(n) ? n.toFixed(1) : "0.0";
+    }
+
+
   // Hook into your routing: when Analytics view is shown, load it.
   // Add inside showView(key) after you show the view:
-  // if (key === "analytics") loadChatAnalytics(document.getElementById("analyticsRange")?.value || 30);
+
 
   document.addEventListener("change", (e) => {
-    if (e.target && e.target.id === "analyticsRange") {
-      loadChatAnalytics(e.target.value);
+    if (!e.target) return;
+  
+    if (e.target.id === "analyticsRange" ||
+        e.target.id === "analyticsPropertyFilter" ||
+        e.target.id === "analyticsPmcFilter") {
+      loadChatAnalytics(e.target.id === "analyticsRange" ? e.target.value : null);
     }
   });
+  
    
    // --- Debug spotlight: surface errors that stop menu/charts ---
     window.addEventListener("error", (e) => {
@@ -3175,12 +3331,17 @@ function initRouting() {
     guides: "Guest-facing guides per property",
     upgrades: "Paid add-ons per property",
     files: "Configs & manuals",
-    analytics: "Trends & performance",
+    analytics: "{{ 'Trends & performance' if user_role == 'super' else 'Your chat trends & performance' }}",
     settings: "Account and system settings",
   };
 
   function showView(key) {
   key = (key || "overview").toLowerCase();
+
+  if (key === "analytics") {
+    loadChatAnalytics(document.getElementById("analyticsRange")?.value || 30);
+  }
+
 
   // fallback safety FIRST
   if (!document.getElementById(`view-${key}`)) key = "overview";
@@ -3194,7 +3355,7 @@ function initRouting() {
   document.getElementById(`view-${key}`)?.classList.remove("hidden");
 
   // Active nav
-  navItems.forEach(btn => btn.removeAttribute("aria-current"));
+  navItems.forEach(btn => btn.setAttribute("aria-current", "false"));
   const activeBtn = navItems.find(b => (b.dataset.view || "").toLowerCase() === key);
   if (activeBtn) activeBtn.setAttribute("aria-current", "page");
 
