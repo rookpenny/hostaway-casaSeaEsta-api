@@ -498,16 +498,12 @@ def timeseries(
 # --------------------------------------------------
 # TOP PROPERTIES
 # --------------------------------------------------
-# --------------------------------------------------
-# TOP PROPERTIES
-# --------------------------------------------------
 @router.get("/top-properties")
 def top_properties(
     request: Request,
     from_ms: int = Query(..., alias="from"),
     to_ms: int = Query(..., alias="to"),
     pmc_id: Optional[int] = None,
-    property_id: Optional[int] = None,  # ✅ add (optional filter)
     limit: int = 10,
     db: Session = Depends(get_db),
 ):
@@ -515,28 +511,34 @@ def top_properties(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    # ✅ If property filter is provided, enforce scope
-    if property_id is not None and pmc_id is not None:
-        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
-
     stmt = text("""
         with base as (
           select
             ae.*,
-            -- ✅ pull property_id from column OR JSON
+
+            -- robust property_id extraction (column first, then JSON fallbacks)
             coalesce(
               ae.property_id,
-              nullif(ae.data->>'property_id','')::bigint
-            ) as prop_id
+              case when (ae.data->>'property_id') ~ '^[0-9]+$' then (ae.data->>'property_id')::bigint end,
+              case when (ae.data->>'propertyId')  ~ '^[0-9]+$' then (ae.data->>'propertyId')::bigint end,
+              case when (ae.data->'property'->>'id') ~ '^[0-9]+$' then (ae.data->'property'->>'id')::bigint end
+            ) as prop_id,
+
+            -- robust pmc_id extraction (column first, then JSON fallbacks)
+            coalesce(
+              ae.pmc_id,
+              case when (ae.data->>'pmc_id') ~ '^[0-9]+$' then (ae.data->>'pmc_id')::bigint end,
+              case when (ae.data->>'pmcId')  ~ '^[0-9]+$' then (ae.data->>'pmcId')::bigint end
+            ) as pmc_id_eff
+
           from analytics_events ae
           where ae.ts >= :start and ae.ts < :end
-            and (:pmc_id::bigint is null or ae.pmc_id = :pmc_id::bigint)
         ),
-        filtered as (
+        scoped as (
           select *
           from base
-          where prop_id is not null
-            and (:property_id::bigint is null or prop_id = :property_id::bigint)
+          where (:pmc_id::bigint is null or pmc_id_eff = :pmc_id::bigint)
+            and prop_id is not null
         ),
         agg as (
           select
@@ -553,12 +555,13 @@ def top_properties(
 
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
-          from filtered
+
+          from scoped
           group by 1
         )
         select
           a.property_id,
-          p.property_name,  -- ✅ add name for UI
+          p.property_name,
 
           a.sessions,
           a.messages,
@@ -573,6 +576,7 @@ def top_properties(
 
           a.chat_errors,
           a.contact_host_clicks
+
         from agg a
         left join properties p on p.id = a.property_id
         order by a.sessions desc, a.messages desc
@@ -586,8 +590,7 @@ def top_properties(
                 "start": start,
                 "end": end,
                 "pmc_id": pmc_id,
-                "property_id": property_id,
-                "limit": limit,
+                "limit": int(limit),
                 "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
                 "followup_click_event": FOLLOWUP_CLICK_EVENT,
                 "chat_error_event": CHAT_ERROR_EVENT,
@@ -600,6 +603,7 @@ def top_properties(
         raise HTTPException(status_code=500, detail=f"top-properties query failed: {e}")
 
     return {"rows": [dict(r) for r in rows]}
+
 
 
 # --------------------------------------------------
