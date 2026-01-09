@@ -12,6 +12,9 @@ import time as pytime
 import unicodedata
 
 from routes.analytics import router as analytics_router
+
+from routes.admin_analytics_ui import router as admin_analytics_ui_router
+from routes.admin_analytics import router as admin_analytics_api_router
 from routes.admin_analytics import router as admin_analytics_router
 
 
@@ -74,6 +77,8 @@ app = FastAPI()
 
 app.include_router(analytics_router)
 app.include_router(admin_analytics_router)
+app.include_router(admin_analytics_ui_router)
+app.include_router(admin_analytics_api_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
