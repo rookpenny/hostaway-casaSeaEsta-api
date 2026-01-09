@@ -57,7 +57,7 @@ def _enforce_scope(request: Request, pmc_id: Optional[int]) -> Optional[int]:
             raise HTTPException(status_code=401, detail="Missing pmc_id in session")
         return int(sess_pmc_id)
 
-    raise HTTPException(status_code=401, detail="Unauthorized")
+    raise HTTPException(status_code=403, detail="Forbidden")
 
 
 
@@ -98,6 +98,10 @@ def summary(
 
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
+
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
+
 
     row = db.execute(
         text("""
@@ -181,12 +185,13 @@ def summary(
             ) as followup_conversion_rate,
 
             -- upgrades funnel (kept for later)
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
+              count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
             ) as upgrade_conversion_rate,
+
 
             -- reactions
             count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
@@ -273,6 +278,10 @@ def response_rate(
     pmc_id = _enforce_scope(request, pmc_id)
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
+
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
+
 
     row = db.execute(
         text("""
@@ -377,6 +386,10 @@ def timeseries(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
     trunc = "day" if bucket == "day" else "hour"
+
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
+
 
     rows = db.execute(
         text(f"""
@@ -499,8 +512,8 @@ def top_properties(
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
             -- upgrades (kept for later)
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
 
             -- errors + escalation
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
@@ -561,6 +574,10 @@ def conversion(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
+
+
     row = db.execute(
         text("""
         with base as (
@@ -580,11 +597,11 @@ def conversion(
           ) as followup_conversion_rate,
 
           -- upgrades funnel (kept for later)
-          count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-          count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+          count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+          count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
           (
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-            / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+            / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
           ) as upgrade_conversion_rate
         from base;
         """),
@@ -626,6 +643,10 @@ def response_time(
     pmc_id = _enforce_scope(request, pmc_id)
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
+
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
+
 
     row = db.execute(
         text("""
@@ -711,6 +732,10 @@ def assistant_performance(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
+
+
     rows = db.execute(
         text("""
         with base as (
@@ -792,11 +817,11 @@ def assistant_performance(
             ) as followup_conversion_rate,
 
             -- upgrades (kept for later)
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
+              count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[]))::float
+              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events::text[]))::float, 0)
             ) as upgrade_conversion_rate,
 
             -- errors + escalation
