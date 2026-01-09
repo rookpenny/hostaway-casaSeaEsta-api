@@ -498,12 +498,16 @@ def timeseries(
 # --------------------------------------------------
 # TOP PROPERTIES
 # --------------------------------------------------
+# --------------------------------------------------
+# TOP PROPERTIES
+# --------------------------------------------------
 @router.get("/top-properties")
 def top_properties(
     request: Request,
     from_ms: int = Query(..., alias="from"),
     to_ms: int = Query(..., alias="to"),
     pmc_id: Optional[int] = None,
+    property_id: Optional[int] = None,  # ✅ add (optional filter)
     limit: int = 10,
     db: Session = Depends(get_db),
 ):
@@ -511,56 +515,69 @@ def top_properties(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    stmt = _with_upgrade_array_binds("""
+    # ✅ If property filter is provided, enforce scope
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
+
+    stmt = text("""
         with base as (
+          select
+            ae.*,
+            -- ✅ pull property_id from column OR JSON
+            coalesce(
+              ae.property_id,
+              nullif(ae.data->>'property_id','')::bigint
+            ) as prop_id
+          from analytics_events ae
+          where ae.ts >= :start and ae.ts < :end
+            and (:pmc_id::bigint is null or ae.pmc_id = :pmc_id::bigint)
+        ),
+        filtered as (
           select *
-          from analytics_events
-          where ts >= :start and ts < :end
-            and (:pmc_id is null or pmc_id = :pmc_id)
-            and property_id is not null
+          from base
+          where prop_id is not null
+            and (:property_id::bigint is null or prop_id = :property_id::bigint)
         ),
         agg as (
           select
-            property_id,
+            prop_id as property_id,
+
             count(*) filter (where event_name = 'chat_session_created') as sessions,
             count(*) filter (where event_name = 'message_sent') as messages,
 
             count(*) filter (where event_name = :followups_shown_event) as followups_shown,
             count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
 
             count(*) filter (where event_name = :chat_error_event) as chat_errors,
             count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
-          from base
+          from filtered
           group by 1
         )
         select
-          property_id,
-          sessions,
-          messages,
+          a.property_id,
+          p.property_name,  -- ✅ add name for UI
 
-          followups_shown,
-          followup_clicks,
-          (followup_clicks::float / nullif(followups_shown::float, 0)) as followup_conversion_rate,
+          a.sessions,
+          a.messages,
 
-          upgrade_checkouts_started,
-          upgrade_purchases,
-          (upgrade_purchases::float / nullif(upgrade_checkouts_started::float, 0)) as upgrade_conversion_rate,
+          a.followups_shown,
+          a.followup_clicks,
+          (a.followup_clicks::float / nullif(a.followups_shown::float, 0)) as followup_conversion_rate,
 
-          chat_errors,
-          contact_host_clicks
-        from agg
-        order by sessions desc, messages desc
+          a.upgrade_checkouts_started,
+          a.upgrade_purchases,
+          (a.upgrade_purchases::float / nullif(a.upgrade_checkouts_started::float, 0)) as upgrade_conversion_rate,
+
+          a.chat_errors,
+          a.contact_host_clicks
+        from agg a
+        left join properties p on p.id = a.property_id
+        order by a.sessions desc, a.messages desc
         limit :limit;
-    """).bindparams(
-        bindparam("limit"),
-        bindparam("followups_shown_event", type_=PG_TEXT),
-        bindparam("followup_click_event", type_=PG_TEXT),
-        bindparam("chat_error_event", type_=PG_TEXT),
-        bindparam("contact_host_click_event", type_=PG_TEXT),
-    )
+    """)
 
     try:
         rows = db.execute(
@@ -569,7 +586,7 @@ def top_properties(
                 "start": start,
                 "end": end,
                 "pmc_id": pmc_id,
-                "property_id": None,
+                "property_id": property_id,
                 "limit": limit,
                 "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
                 "followup_click_event": FOLLOWUP_CLICK_EVENT,
