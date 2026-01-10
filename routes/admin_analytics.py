@@ -48,18 +48,23 @@ def _is_super(role: Optional[str]) -> bool:
     return r in ("super", "superuser")
 
 
-def _enforce_scope(request: Request, pmc_id: Optional[int]) -> Optional[int]:
-    role = request.session.get("role")
-    if _is_super(role):
-        return pmc_id
+from fastapi import HTTPException, Request
 
-    if (role or "").strip().lower() == "pmc":
-        sess_pmc_id = request.session.get("pmc_id")
-        if not sess_pmc_id:
-            raise HTTPException(status_code=401, detail="Missing pmc_id in session")
-        return int(sess_pmc_id)
+def _enforce_scope(request: Request, pmc_id: int | None) -> int | None:
+    role = (request.session.get("role") or "").lower()
 
-    raise HTTPException(status_code=403, detail="Forbidden")
+    # PMC users: FORCE scope to their session pmc_id, ignore query param
+    if role == "pmc":
+        session_pmc_id = request.session.get("pmc_id")
+        if not session_pmc_id:
+            raise HTTPException(status_code=403, detail="PMC scope missing in session")
+        return int(session_pmc_id)
+
+    # Super users: allow optional pmc_id filter
+    if role == "super":
+        return int(pmc_id) if pmc_id is not None else None
+
+    raise HTTPException(status_code=401, detail="Not authenticated")
 
 
 def _num(x, default=0):
