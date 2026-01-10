@@ -16,6 +16,7 @@ from datetime import datetime, timedelta, time as dt_time
 from sqlalchemy import text, desc
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
+from sqlalchemy.inspection import inspect as sa_inspect
 
 from fastapi import FastAPI, Request, HTTPException, Depends, status
 from fastapi.responses import JSONResponse, HTMLResponse, Response, StreamingResponse
@@ -1042,6 +1043,101 @@ def _safe_role(value: str) -> str:
         return v
     return "user"
 
+from sqlalchemy.inspection import inspect as sa_inspect
+
+def _chatmessage_columns() -> set[str]:
+    try:
+        return {attr.key for attr in sa_inspect(ChatMessage).mapper.column_attrs}
+    except Exception:
+        return set()
+
+_CHATMSG_COLS = _chatmessage_columns()
+
+def _pick_first(d: dict, keys: list[str]):
+    for k in keys:
+        if k in d and d[k] is not None:
+            return d[k]
+    return None
+
+def _msg_get_role(m: ChatMessage) -> str:
+    # Try common role/sender fields, fallback to "user"
+    for key in ["role", "sender", "message_role", "author", "from_role", "kind"]:
+        if hasattr(m, key):
+            v = (getattr(m, key) or "").strip().lower()
+            if v in {"user", "assistant", "system"}:
+                return v
+
+    # Try boolean flags
+    for key in ["is_user", "from_user", "from_guest", "guest", "user"]:
+        if hasattr(m, key):
+            try:
+                return "user" if bool(getattr(m, key)) else "assistant"
+            except Exception:
+                pass
+
+    return "user"
+
+def _msg_get_content(m: ChatMessage) -> str:
+    for key in ["content", "message", "text", "body", "message_text"]:
+        if hasattr(m, key):
+            v = getattr(m, key)
+            return (v or "").strip()
+    return ""
+
+def _new_chat_message(session_id: int, role: str, content: str) -> ChatMessage:
+    """
+    Create ChatMessage using only columns that exist on your model.
+    This avoids TypeError('role' invalid kwarg) etc.
+    """
+    now = datetime.utcnow()
+    data = {}
+
+    # session link column (try common names)
+    if "session_id" in _CHATMSG_COLS:
+        data["session_id"] = session_id
+    elif "chat_session_id" in _CHATMSG_COLS:
+        data["chat_session_id"] = session_id
+
+    # content column (try common names)
+    if "content" in _CHATMSG_COLS:
+        data["content"] = content
+    elif "message" in _CHATMSG_COLS:
+        data["message"] = content
+    elif "text" in _CHATMSG_COLS:
+        data["text"] = content
+    elif "body" in _CHATMSG_COLS:
+        data["body"] = content
+    elif "message_text" in _CHATMSG_COLS:
+        data["message_text"] = content
+
+    # role/sender column (try common names)
+    if "role" in _CHATMSG_COLS:
+        data["role"] = role
+    elif "sender" in _CHATMSG_COLS:
+        data["sender"] = role
+    elif "message_role" in _CHATMSG_COLS:
+        data["message_role"] = role
+    elif "author" in _CHATMSG_COLS:
+        data["author"] = role
+    else:
+        # boolean style fallback
+        if "is_user" in _CHATMSG_COLS:
+            data["is_user"] = (role == "user")
+        elif "from_user" in _CHATMSG_COLS:
+            data["from_user"] = (role == "user")
+        elif "from_guest" in _CHATMSG_COLS:
+            data["from_guest"] = (role == "user")
+
+    # timestamp column (optional)
+    if "created_at" in _CHATMSG_COLS:
+        data["created_at"] = now
+    elif "timestamp" in _CHATMSG_COLS:
+        data["timestamp"] = now
+    elif "created" in _CHATMSG_COLS:
+        data["created"] = now
+
+    return ChatMessage(**data)
+
 @app.post("/properties/{property_id}/chat")
 def property_chat(
     property_id: int,
@@ -1062,7 +1158,6 @@ def property_chat(
     # 3) get or create chat session
     session_id = payload.session_id or request.session.get(f"guest_session_{property_id}")
     session = None
-
     if session_id:
         session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
 
@@ -1084,8 +1179,6 @@ def property_chat(
     # 4) load context + build system prompt
     context = load_property_context(prop, db)
     pmc = getattr(prop, "pmc", None)
-
-    # IMPORTANT: pass is_verified into your updated build_system_prompt
     system_prompt = build_system_prompt(
         prop,
         pmc,
@@ -1100,136 +1193,48 @@ def property_chat(
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
-    # 6) fetch last assistant message + last N messages for context
-    HISTORY_LIMIT = 18  # keep small-ish for speed/cost
+    # 6) load recent history for context (so "yes" works)
+    HISTORY_LIMIT = 18
     history_rows = (
         db.query(ChatMessage)
-        .filter(ChatMessage.session_id == int(session_id))
+        # support either session_id or chat_session_id
+        .filter(
+            (getattr(ChatMessage, "session_id", None) == int(session_id))
+            if hasattr(ChatMessage, "session_id")
+            else (getattr(ChatMessage, "chat_session_id") == int(session_id))
+        )
         .order_by(ChatMessage.id.asc())
         .limit(HISTORY_LIMIT)
         .all()
     )
 
-    last_assistant_text = ""
-    for m in reversed(history_rows):
-        # adjust attribute names if needed
-        role = _safe_role(getattr(m, "role", "") or getattr(m, "sender", ""))
-        if role == "assistant":
-            last_assistant_text = (getattr(m, "content", "") or getattr(m, "message", "") or "").strip()
-            break
-
-    normalized_user = user_message.lower().strip()
-
-    # 7) OPTIONAL: fast-path confirmations for upgrades (makes "yes" feel smart)
-    # If the user says "yes" and the last assistant message was about late checkout,
-    # return a helpful response + suggestion without calling OpenAI.
-    if normalized_user in AFFIRMATIONS and ("late checkout" in (last_assistant_text.lower())):
-        late = (
-            db.query(Upgrade)
-            .filter(
-                Upgrade.property_id == property_id,
-                Upgrade.is_active.is_(True),
-            )
-            .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
-            .all()
-        )
-        late_upgrade = None
-        for up in late:
-            t = ((up.title or "") + " " + (up.slug or "")).lower()
-            if "late" in t and "check" in t:
-                late_upgrade = up
-                break
-
-        # Save the user's "yes" as a message
-        now = datetime.utcnow()
-        db.add(ChatMessage(
-            session_id=session_id,
-            role="user",          # adjust if your model uses different field name
-            content=user_message, # adjust if your model uses different field name
-            created_at=now,
-        ))
-        session.last_activity_at = now
-        db.add(session)
-        db.commit()
-
-        if late_upgrade:
-            reply = (
-                "Perfect — late checkout it is.\n\n"
-                "Open **Upgrades** and select **Late Checkout** to confirm and pay. "
-                "Once it’s purchased, we’ll extend your checkout time."
-            )
-            return {
-                "response": reply,
-                "session_id": session_id,
-                "thread_id": payload.thread_id,
-                "reply_to": payload.client_message_id,
-                "suggestions": [
-                    {
-                        "type": "upgrade",
-                        "upgrade_id": late_upgrade.id,
-                        "slug": late_upgrade.slug,
-                        "title": late_upgrade.title,
-                    }
-                ],
-            }
-
-        # If no upgrade configured, fall back to a normal helpful message
-        reply = (
-            "Got it — you’d like a late checkout.\n\n"
-            "I can help, but this property doesn’t have a late checkout upgrade set up yet. "
-            "I’ll notify the host/manager to confirm availability and pricing."
-        )
-        return {
-            "response": reply,
-            "session_id": session_id,
-            "thread_id": payload.thread_id,
-            "reply_to": payload.client_message_id,
-            "suggestions": [],
-        }
-
-    # 8) Build OpenAI messages with history (THIS is the key fix)
     messages = [{"role": "system", "content": system_prompt}]
-
     for m in history_rows:
-        role = _safe_role(getattr(m, "role", "") or getattr(m, "sender", ""))
-        content = (getattr(m, "content", "") or getattr(m, "message", "") or "").strip()
-        if content:
-            messages.append({"role": role, "content": content})
+        r = _msg_get_role(m)
+        c = _msg_get_content(m)
+        if c:
+            messages.append({"role": r, "content": c})
 
     messages.append({"role": "user", "content": user_message})
 
-    # 9) Call OpenAI
+    # 7) OpenAI call
     client = get_openai(request)
     model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
 
     try:
         resp = client.chat.completions.create(
             model=model,
-            temperature=0.5,  # slightly lower = fewer “generic” answers
+            temperature=0.5,  # less generic than 0.7
             messages=messages,
         )
         text = (resp.choices[0].message.content or "").strip()
-
-        # Normalize links (your helper)
         text = enforce_click_here_links(text)
 
-        # 10) Save messages to DB (user + assistant)
-        now = datetime.utcnow()
+        # 8) save user + assistant messages (schema-safe)
+        db.add(_new_chat_message(int(session_id), "user", user_message))
+        db.add(_new_chat_message(int(session_id), "assistant", text))
 
-        db.add(ChatMessage(
-            session_id=session_id,
-            role="user",          # adjust if needed
-            content=user_message, # adjust if needed
-            created_at=now,
-        ))
-        db.add(ChatMessage(
-            session_id=session_id,
-            role="assistant",  # adjust if needed
-            content=text,      # adjust if needed
-            created_at=now,
-        ))
-
-        session.last_activity_at = now
+        session.last_activity_at = datetime.utcnow()
         db.add(session)
         db.commit()
 
