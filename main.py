@@ -1288,7 +1288,15 @@ def property_chat(
         logger.exception("Unexpected property_chat error")
         raise HTTPException(status_code=500, detail="Unexpected server error.")
 
-
+ def parse_ts(x: str | int | None) -> int | None:
+    if x is None:
+        return None
+    v = int(x)
+    # if it looks like milliseconds, convert to seconds
+    if v > 10_000_000_000:  # ~2286-11-20 in seconds; anything bigger is ms in practice
+        v = v // 1000
+    return v
+  
 
 @app.get("/debug/property-context/{property_id}")
 def debug_property_context(property_id: int, db: Session = Depends(get_db)):
