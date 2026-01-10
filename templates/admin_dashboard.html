@@ -1733,11 +1733,12 @@ window.openChatDetail = openChatDetail;
 // ----------------------------
 window.chatAnalyticsChart = window.chatAnalyticsChart || null;
 
-function rangeToMs(days) {
-  const to = Date.now();
-  const from = to - (Number(days) * 24 * 60 * 60 * 1000);
+function rangeToUnixSeconds(days) {
+  const to = Math.floor(Date.now() / 1000);
+  const from = to - (Number(days) * 24 * 60 * 60);
   return { from, to };
 }
+
 
 function fmtPct(x) {
   const n = Number(x);
@@ -1809,7 +1810,7 @@ async function loadChatAnalytics(daysOverride = null) {
     const { days, propertyId, pmcId } = getAnalyticsFilters();
     const daysToUse = daysOverride != null ? daysOverride : days;
 
-    const { from, to } = rangeToMs(daysToUse);
+    const { from, to } = rangeToUnixSeconds(daysToUse);
     const qs = buildAnalyticsQS({ from, to, propertyId, pmcId });
 
     // Summary KPIs
@@ -1921,6 +1922,7 @@ function resizeChatAnalyticsChartSoon() {
   });
 }
 
+   
 // Debounced filter reload ONLY when Analytics view is visible
 let analyticsDebounce = null;
 function isAnalyticsVisible() {
@@ -1950,7 +1952,15 @@ document.addEventListener("change", (e) => {
 });
 
 
-   
+ def parse_ts(x: str | int | None) -> int | None:
+    if x is None:
+        return None
+    v = int(x)
+    # if it looks like milliseconds, convert to seconds
+    if v > 10_000_000_000:  # ~2286-11-20 in seconds; anything bigger is ms in practice
+        v = v // 1000
+    return v
+  
 
   // ----------------------------
   // Small UI helpers
