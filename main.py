@@ -14,8 +14,7 @@ import unicodedata
 from routes.analytics import router as analytics_router
 
 from routes.admin_analytics_ui import router as admin_analytics_ui_router
-from routes.admin_analytics import router as admin_analytics_api_router
-from routes.admin_analytics import router as admin_analytics_router
+from routes.admin_analytics import router as admin_analytics_api_router, admin_analytics_router
 
 from pathlib import Path as FSPath
 from typing import Optional, Any, List, Dict
@@ -79,7 +78,7 @@ app.include_router(admin_analytics_router)
 app.include_router(admin_analytics_ui_router)
 app.include_router(admin_analytics_api_router)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+, name="static")
 
 # --- Routers ---
 app.include_router(admin.router)
