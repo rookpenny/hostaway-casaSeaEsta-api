@@ -13,7 +13,7 @@ from pathlib import Path as FSPath
 from typing import Optional, Any, Dict
 from datetime import datetime, timedelta, time as dt_time
 
-from sqlalchemy import text
+from sqlalchemy import text, desc
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -1031,7 +1031,17 @@ def create_upgrade_checkout(
     return {"checkout_url": checkout_session.url}
 
 
-@app.post("/properties/{property_id}/chat")
+
+
+AFFIRMATIONS = {"yes", "y", "yeah", "yep", "sure", "ok", "okay", "please", "sounds good"}
+NEGATIONS = {"no", "n", "nope", "not now", "nah"}
+
+def _safe_role(value: str) -> str:
+    v = (value or "").strip().lower()
+    if v in {"user", "assistant", "system"}:
+        return v
+    return "user"
+
 @app.post("/properties/{property_id}/chat")
 def property_chat(
     property_id: int,
@@ -1040,8 +1050,8 @@ def property_chat(
     db: Session = Depends(get_db),
 ):
     # 1) require unlock
-    verified_flag = bool(request.session.get(f"guest_verified_{property_id}", False))
-    if not verified_flag:
+    is_verified = bool(request.session.get(f"guest_verified_{property_id}", False))
+    if not is_verified:
         raise HTTPException(status_code=403, detail="Please unlock your stay first.")
 
     # 2) validate property exists
@@ -1049,15 +1059,14 @@ def property_chat(
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # 3) pick up session id (from payload or session)
+    # 3) get or create chat session
     session_id = payload.session_id or request.session.get(f"guest_session_{property_id}")
-    session: ChatSession | None = None
+    session = None
+
     if session_id:
         session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
 
-    # 3b) if verified but no session_id, create a lightweight session so prompt has proof/context
-    # (optional but strongly recommended)
-    if verified_flag and not session:
+    if session is None:
         now = datetime.utcnow()
         session = ChatSession(
             property_id=property_id,
@@ -1072,56 +1081,162 @@ def property_chat(
         session_id = session.id
         request.session[f"guest_session_{property_id}"] = session_id
 
-    # 4) load context + build system prompt (PASS verified_flag)
+    # 4) load context + build system prompt
     context = load_property_context(prop, db)
     pmc = getattr(prop, "pmc", None)
 
-    # IMPORTANT: update build_system_prompt to accept is_verified=bool (see my note below)
+    # IMPORTANT: pass is_verified into your updated build_system_prompt
     system_prompt = build_system_prompt(
         prop,
         pmc,
         context,
         payload.language,
         session,
-        is_verified=verified_flag,
+        is_verified=is_verified,
     )
 
-    # 5) call OpenAI
-    client = get_openai(request)
-    model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
+    # 5) validate user message
     user_message = (payload.message or "").strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
+    # 6) fetch last assistant message + last N messages for context
+    HISTORY_LIMIT = 18  # keep small-ish for speed/cost
+    history_rows = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == int(session_id))
+        .order_by(ChatMessage.id.asc())
+        .limit(HISTORY_LIMIT)
+        .all()
+    )
+
+    last_assistant_text = ""
+    for m in reversed(history_rows):
+        # adjust attribute names if needed
+        role = _safe_role(getattr(m, "role", "") or getattr(m, "sender", ""))
+        if role == "assistant":
+            last_assistant_text = (getattr(m, "content", "") or getattr(m, "message", "") or "").strip()
+            break
+
+    normalized_user = user_message.lower().strip()
+
+    # 7) OPTIONAL: fast-path confirmations for upgrades (makes "yes" feel smart)
+    # If the user says "yes" and the last assistant message was about late checkout,
+    # return a helpful response + suggestion without calling OpenAI.
+    if normalized_user in AFFIRMATIONS and ("late checkout" in (last_assistant_text.lower())):
+        late = (
+            db.query(Upgrade)
+            .filter(
+                Upgrade.property_id == property_id,
+                Upgrade.is_active.is_(True),
+            )
+            .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
+            .all()
+        )
+        late_upgrade = None
+        for up in late:
+            t = ((up.title or "") + " " + (up.slug or "")).lower()
+            if "late" in t and "check" in t:
+                late_upgrade = up
+                break
+
+        # Save the user's "yes" as a message
+        now = datetime.utcnow()
+        db.add(ChatMessage(
+            session_id=session_id,
+            role="user",          # adjust if your model uses different field name
+            content=user_message, # adjust if your model uses different field name
+            created_at=now,
+        ))
+        session.last_activity_at = now
+        db.add(session)
+        db.commit()
+
+        if late_upgrade:
+            reply = (
+                "Perfect — late checkout it is.\n\n"
+                "Open **Upgrades** and select **Late Checkout** to confirm and pay. "
+                "Once it’s purchased, we’ll extend your checkout time."
+            )
+            return {
+                "response": reply,
+                "session_id": session_id,
+                "thread_id": payload.thread_id,
+                "reply_to": payload.client_message_id,
+                "suggestions": [
+                    {
+                        "type": "upgrade",
+                        "upgrade_id": late_upgrade.id,
+                        "slug": late_upgrade.slug,
+                        "title": late_upgrade.title,
+                    }
+                ],
+            }
+
+        # If no upgrade configured, fall back to a normal helpful message
+        reply = (
+            "Got it — you’d like a late checkout.\n\n"
+            "I can help, but this property doesn’t have a late checkout upgrade set up yet. "
+            "I’ll notify the host/manager to confirm availability and pricing."
+        )
+        return {
+            "response": reply,
+            "session_id": session_id,
+            "thread_id": payload.thread_id,
+            "reply_to": payload.client_message_id,
+            "suggestions": [],
+        }
+
+    # 8) Build OpenAI messages with history (THIS is the key fix)
+    messages = [{"role": "system", "content": system_prompt}]
+
+    for m in history_rows:
+        role = _safe_role(getattr(m, "role", "") or getattr(m, "sender", ""))
+        content = (getattr(m, "content", "") or getattr(m, "message", "") or "").strip()
+        if content:
+            messages.append({"role": role, "content": content})
+
+    messages.append({"role": "user", "content": user_message})
+
+    # 9) Call OpenAI
+    client = get_openai(request)
+    model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
+
     try:
         resp = client.chat.completions.create(
             model=model,
-            temperature=0.7,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
+            temperature=0.5,  # slightly lower = fewer “generic” answers
+            messages=messages,
         )
         text = (resp.choices[0].message.content or "").strip()
 
-        # optional: your link normalizer
+        # Normalize links (your helper)
         text = enforce_click_here_links(text)
 
-        # 6) (optional) save ChatMessage rows, update session.last_activity_at, etc.
-        # If you want to keep last_activity_at fresh:
-        try:
-            if session_id:
-                db.query(ChatSession).filter(ChatSession.id == int(session_id)).update(
-                    {"last_activity_at": datetime.utcnow()}
-                )
-                db.commit()
-        except Exception:
-            db.rollback()
+        # 10) Save messages to DB (user + assistant)
+        now = datetime.utcnow()
+
+        db.add(ChatMessage(
+            session_id=session_id,
+            role="user",          # adjust if needed
+            content=user_message, # adjust if needed
+            created_at=now,
+        ))
+        db.add(ChatMessage(
+            session_id=session_id,
+            role="assistant",  # adjust if needed
+            content=text,      # adjust if needed
+            created_at=now,
+        ))
+
+        session.last_activity_at = now
+        db.add(session)
+        db.commit()
 
         return {
             "response": text,
             "session_id": session_id,
-            "thread_id": payload.thread_id,  # keep stable for now
+            "thread_id": payload.thread_id,
             "reply_to": payload.client_message_id,
             "suggestions": [],
         }
@@ -1134,6 +1249,7 @@ def property_chat(
         code = int(getattr(e, "status_code", 502) or 502)
         raise HTTPException(status_code=code, detail="AI service temporarily unavailable.")
     except Exception:
+        logger.exception("Unexpected property_chat error")
         raise HTTPException(status_code=500, detail="Unexpected server error.")
 
 
