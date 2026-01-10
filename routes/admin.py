@@ -1726,8 +1726,8 @@ def admin_analytics_chat_summary(
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365),
 ):
-    # Just call the existing implementation
     return admin_analytics_summary(request=request, db=db, days=days)
+
 
 
 @router.get("/admin/analytics/chat/top-properties")
@@ -1738,15 +1738,21 @@ def admin_analytics_chat_top_properties(
     limit: int = Query(10, ge=1, le=50),
     sort: str = Query("messages", pattern="^(messages|sessions|urgent_sessions|unhappy_sessions)$"),
 ):
-    return admin_analytics_top_properties(
-        request=request,
-        db=db,
-        days=days,
-        limit=limit,
-        sort=sort,
-    )
+    return admin_analytics_top_properties(request=request, db=db, days=days, limit=limit, sort=sort)
 
 
+@router.get("/admin/analytics/chat/timeseries")
+def admin_analytics_chat_timeseries(
+    request: Request,
+    db: Session = Depends(get_db),
+    days: int = Query(30, ge=1, le=365),
+):
+    # Safe placeholder so the UI doesn't crash if it expects this endpoint.
+    # Replace later with real daily counts.
+    return {
+        "window_days": int(days),
+        "series": [],   # e.g. [{"date":"2026-01-01","messages":12,"sessions":3}, ...]
+    }
 
 
 @router.get("/admin/analytics/summary")
