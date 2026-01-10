@@ -1775,17 +1775,31 @@ async function loadTopProperties({ from, to, pmcId, propertyId }) {
 
   const qs = new URLSearchParams({ from: String(from), to: String(to), limit: "10" });
   if (pmcId) qs.set("pmc_id", String(pmcId));
-  if (propertyId) qs.set("property_id", String(propertyId)); // ✅ add
-
+  if (propertyId) qs.set("property_id", String(propertyId));
 
   tbody.innerHTML = `<tr><td class="px-4 py-4 text-slate-500" colspan="6">Loading…</td></tr>`;
 
-  const res = await fetch(`/admin/analytics/chat/top-properties?${qs.toString()}`, {
-    credentials: "include",
-    headers: { Accept: "application/json" },
-  });
+  let res;
+  try {
+    res = await fetch(`/admin/analytics/chat/top-properties?${qs.toString()}`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+  } catch (e) {
+    console.error("top-properties fetch failed:", e);
+    tbody.innerHTML = `<tr><td class="px-4 py-4 text-rose-600" colspan="6">Network error loading Top Properties.</td></tr>`;
+    return;
+  }
 
   if (res.status === 401 || res.status === 403) return loginRedirect();
+
+  // ✅ handle 500/other non-OK cleanly
+  if (!res.ok) {
+    const preview = await res.text().catch(() => "");
+    console.error("top-properties HTTP error:", res.status, preview.slice(0, 500));
+    tbody.innerHTML = `<tr><td class="px-4 py-4 text-rose-600" colspan="6">Top Properties failed to load (HTTP ${res.status}).</td></tr>`;
+    return;
+  }
 
   const data = await res.json().catch(() => ({}));
   const rows = data.rows || [];
@@ -1813,6 +1827,7 @@ async function loadTopProperties({ from, to, pmcId, propertyId }) {
     `;
   }).join("");
 }
+
 
 async function loadChatAnalytics(daysOverride = null) {
   try {
