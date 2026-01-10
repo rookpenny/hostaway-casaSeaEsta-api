@@ -63,12 +63,6 @@ from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
 
-@app.on_event("startup")
-def init_openai():
-    key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not key:
-        raise RuntimeError("OPENAI_API_KEY is missing. Set it in your environment.")
-    app.state.openai = OpenAI(api_key=key)
 
 # --- Init ---
 
@@ -142,6 +136,12 @@ async def _start_cleanup_task():
     asyncio.create_task(cleanup_tmp_upgrades_forever())
 
 
+@app.on_event("startup")
+def init_openai():
+    key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY is missing. Set it in your environment.")
+    app.state.openai = OpenAI(api_key=key)
 
 
 @app.on_event("startup")
