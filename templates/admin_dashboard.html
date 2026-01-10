@@ -973,6 +973,19 @@ function setInlineDetailOpen(open) {
   if (open) inline.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
+function parseTs(x) {
+  if (x === null || x === undefined) return null;
+
+  let v = Number(x);
+  if (Number.isNaN(v)) return null;
+
+  // If it looks like milliseconds, convert to seconds
+  if (v > 10_000_000_000) {
+    v = Math.floor(v / 1000);
+  }
+
+  return v;
+}
 
 function pushChatUrl(sessionId) {
   const url = new URL(window.location.href);
