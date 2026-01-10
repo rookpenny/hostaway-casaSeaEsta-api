@@ -1,94 +1,80 @@
 # ---- imports ----
 import os
 import json
-import time
 import logging
-import requests
-import uvicorn
 import re
-import stripe
 import asyncio
 import time as pytime
 import unicodedata
 
-from routes.analytics import router as analytics_router
-
-from routes.admin_analytics_ui import router as admin_analytics_ui_router
-from routes.admin_analytics import router as admin_analytics_api_router
-from routes.admin_analytics import router as admin_analytics_router
-
+import stripe
+import uvicorn
 from pathlib import Path as FSPath
-from typing import Optional, Any, List, Dict
-from datetime import datetime, timedelta, date, time as dt_time
+from typing import Optional, Any, Dict
+from datetime import datetime, timedelta, time as dt_time
 
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from fastapi import (
-    FastAPI, Request, Query, HTTPException, Header, Form,
-    APIRouter, Depends, status
-)
-from fastapi import Path as FPath
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
+from fastapi import FastAPI, Request, HTTPException, Depends, status
+from fastapi.responses import JSONResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
 from pydantic import BaseModel
+
+from apscheduler.schedulers.background import BackgroundScheduler
+from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
+
+from database import engine, get_db
+from models import Property, ChatSession, ChatMessage, PMC, PMCIntegration, Upgrade, Reservation, Guide
+
+from routes.analytics import router as analytics_router
+from routes.admin_analytics_ui import router as admin_analytics_ui_router
+from routes.admin_analytics import router as admin_analytics_api_router
+from routes.admin_analytics import router as admin_analytics_router
+
+from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 from seed_guides_route import router as seed_guides_router
 from seed_upgrades_route import router as seed_upgrades_router
 
 from starlette.middleware.sessions import SessionMiddleware
-from database import SessionLocal, engine, get_db
-from models import Property, ChatSession, ChatMessage, PMC, PMCIntegration, Upgrade, Reservation, Guide
 
-from utils.message_helpers import classify_category, smart_response, detect_log_types
-from utils.pms_sync import sync_properties, sync_all_integrations
+from utils.message_helpers import classify_category, detect_log_types
+from utils.pms_sync import sync_all_integrations
 from utils.pms_access import get_pms_access_info, ensure_pms_data
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from utils.github_sync import ensure_repo
 
-from apscheduler.schedulers.background import BackgroundScheduler
-from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
-from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
-
-
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
 
-
-# --- Init ---
-
 app = FastAPI()
 
+# --- Routers ---
 app.include_router(analytics_router)
 app.include_router(admin_analytics_router)
 app.include_router(admin_analytics_ui_router)
 app.include_router(admin_analytics_api_router)
 
-# --- Routers ---
 app.include_router(admin.router)
 app.include_router(pmc_auth.router)
 app.include_router(prearrival_router)
 app.include_router(prearrival_debug_router)
 app.include_router(seed_guides_router)
+app.include_router(seed_upgrades_router)
 app.include_router(pmc_signup.router)
 app.include_router(stripe_webhook.router)
 app.include_router(pmc_onboarding.router)
+
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
-# --- Seed upgrade  ---
-
-app.include_router(seed_upgrades_router)
-
-
-# Middleware
-
+# --- Middleware ---
 ALLOWED_ORIGINS = [
     "https://hostaway-casaseaesta-api.onrender.com",
 ]
@@ -108,29 +94,107 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Static + Templates
 templates = Jinja2Templates(directory="templates")
 
 TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
 TMP_DIR = FSPath("static/uploads/upgrades/tmp")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
-from openai import OpenAI, AuthenticationError
-import os
-import logging
+# ----------------------------
+# Link normalization utilities
+# ----------------------------
+# Matches any URL-ish string (includes goo.gl, maps links, etc.)
+_URL_RE = re.compile(r'(https?://[^\s\)\]"\']+|www\.[^\s\)\]"\']+)', re.IGNORECASE)
+# Matches markdown links: [text](url)
+_MD_LINK_RE = re.compile(r'\[([^\]]+)\]\((.*?)\)', re.DOTALL)
 
-logger = logging.getLogger("uvicorn.error")
+def _normalize_url(url: str) -> str:
+    if not url:
+        return ""
+    u = url.strip()
 
-def init_openai_client(app):
+    # Trim common trailing punctuation that gets stuck to URLs
+    while u and u[-1] in ".,);:!?]":
+        u = u[:-1]
+
+    if u.lower().startswith("www."):
+        u = "https://" + u
+    return u
+
+def _extract_first_url(s: str) -> str:
+    if not s:
+        return ""
+    m = _URL_RE.search(s)
+    if not m:
+        return ""
+    return _normalize_url(m.group(1))
+
+def enforce_click_here_links(text: str) -> str:
+    """
+    Normalizes any link-ish output into ONE consistent markdown format:
+
+      [Click here for directions](URL)
+
+    Rules:
+    - Remove any HTML (<a>, etc.)
+    - Convert ANY markdown link label -> "Click here for directions"
+    - Hide ANY raw URL behind the same markdown anchor
+    - Avoid nested links
+    """
+    if not text:
+        return text
+
+    out = text
+
+    # Convert HTML anchors -> markdown (and strip any other tags)
+    def _html_anchor_repl(m: re.Match) -> str:
+        url = _normalize_url(m.group(1) or "")
+        return f"[Click here for directions]({url})" if url else "Click here for directions"
+
+    out = re.sub(
+        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>.*?</a>',
+        _html_anchor_repl,
+        out,
+        flags=re.IGNORECASE | re.DOTALL,
+    )
+    out = re.sub(r"<[^>]+>", "", out)
+
+    # Normalize ALL markdown links -> strict anchor
+    def _md_link_repl(m: re.Match) -> str:
+        raw_target = (m.group(2) or "").strip()
+        url = _extract_first_url(raw_target)
+        return f"[Click here for directions]({url})" if url else (m.group(1) or "")
+
+    out = _MD_LINK_RE.sub(_md_link_repl, out)
+
+    # Replace any remaining raw URLs -> strict anchor
+    def _raw_url_repl(m: re.Match) -> str:
+        url = _normalize_url(m.group(1) or "")
+        return f"[Click here for directions]({url})" if url else ""
+
+    out = _URL_RE.sub(_raw_url_repl, out)
+
+    # Collapse repeated identical anchors
+    out = re.sub(
+        r'(\[Click here for directions\]\([^)]+\))(\s+\1)+',
+        r'\1',
+        out,
+        flags=re.IGNORECASE,
+    )
+
+    return out
+
+
+# --- OpenAI bootstrap (single source of truth) ---
+def init_openai_client(app: FastAPI) -> None:
     api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
-
     if not api_key:
         raise RuntimeError("OPENAI_API_KEY is missing or empty")
 
     try:
         client = OpenAI(api_key=api_key)
 
-        # 🔥 HARD validation: forces auth header to be tested at boot
+        # HARD validation: forces auth header to be tested at boot
         client.models.list()
 
     except AuthenticationError as e:
@@ -145,17 +209,25 @@ def init_openai_client(app):
     logger.info("✅ OpenAI client initialized and validated")
 
 
+def get_openai(req: Request) -> OpenAI:
+    client = getattr(req.app.state, "openai", None)
+    if client is None:
+        raise HTTPException(status_code=500, detail="OpenAI client not initialized")
+    return client
+
+
 @app.on_event("startup")
-def startup_openai():
+def startup_openai() -> None:
+    # initializes and validates the client
     init_openai_client(app)
+
 
 @app.get("/debug/openai")
 def debug_openai(request: Request):
-    return {
-        "openai_initialized": hasattr(request.app.state, "openai"),
-    }
+    return {"openai_initialized": hasattr(request.app.state, "openai")}
 
 
+# --- background cleanup task ---
 async def cleanup_tmp_upgrades_forever():
     while True:
         now = pytime.time()
@@ -167,40 +239,24 @@ async def cleanup_tmp_upgrades_forever():
                         p.unlink()
             except Exception:
                 pass
-        await asyncio.sleep(60 * 30)  # every 30 minutes
+        await asyncio.sleep(60 * 30)
+
 
 @app.on_event("startup")
 async def _start_cleanup_task():
     asyncio.create_task(cleanup_tmp_upgrades_forever())
 
 
-@app.on_event("startup")
-def init_openai():
-    key = (os.getenv("OPENAI_API_KEY") or "").strip()
-    if not key:
-        raise RuntimeError("OPENAI_API_KEY is missing. Set it in your environment.")
-    app.state.openai = OpenAI(api_key=key)
-
-
+# --- Boot jobs ---
 @app.on_event("startup")
 def ensure_data_repo_on_boot():
     try:
         ensure_repo()
     except Exception:
-        logging.getLogger("uvicorn.error").exception("ensure_repo failed (continuing)")
+        logger.exception("ensure_repo failed (continuing)")
 
 
-@app.exception_handler(RequestValidationError)
-async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    print("❌ Validation Error:")
-    print("➡️ Raw body:", await request.body())
-    print("➡️ Errors:", exc.errors())
-    return JSONResponse(
-        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-        content={"detail": exc.errors()}
-    )
-    
-# --- Startup Jobs ---
+# --- Scheduler ---
 def start_scheduler():
     scheduler = BackgroundScheduler()
     scheduler.add_job(sync_all_integrations, "interval", hours=24)
@@ -217,14 +273,23 @@ def _start_scheduler_once():
     _scheduler_started = True
 
 
+# --- Validation error handler (define ONCE) ---
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    logger.error("❌ Validation Error: %s", exc.errors())
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content={"detail": exc.errors()},
+    )
+
+
 # --- DB Connection Test ---
 try:
     with engine.connect() as conn:
         conn.execute(text("SELECT 1"))
-        print("✅ Database connected successfully.")
+        logger.info("✅ Database connected successfully.")
 except SQLAlchemyError as e:
-    print(f"❌ Database connection failed: {e}")
-
+    logger.error("❌ Database connection failed: %r", e)
 
 
 # --- Sync Trigger ---
@@ -242,7 +307,7 @@ def manual_sync(request: Request):
         return HTMLResponse(
             f"<h2>Sync failed: {str(e)}</h2>"
             "<a href='/admin/dashboard'>Back to Dashboard</a>",
-            status_code=500
+            status_code=500,
         )
 
 
@@ -252,11 +317,14 @@ def debug_session(request: Request):
         "has_session": True,
         "cookies_present": bool(request.headers.get("cookie")),
         "last_property": request.session.get("last_property"),
-        "verified_flags": {k: v for k, v in request.session.items() if str(k).startswith("guest_verified_")},
+        "verified_flags": {
+            k: v for k, v in request.session.items()
+            if str(k).startswith("guest_verified_")
+        },
     }
 
 
-# --- Root Health Check ---
+# --- Basic routes ---
 @app.get("/")
 def root():
     return {"message": "Welcome to the multi-property Sandy API (FastAPI edition)!"}
@@ -271,13 +339,10 @@ def head_root():
 def health_check():
     return {"status": "ok"}
 
+
 @app.get("/routes")
 def list_routes():
     return [{"path": route.path, "methods": list(route.methods)} for route in app.router.routes]
-
-# Additional routes (e.g., /properties, /guests, /guest-message, etc.)
-# are handled and correct as provided in your current file
-
 
 
 @app.get("/properties/{property_id}/guides")
@@ -285,12 +350,10 @@ def list_property_guides(
     property_id: int,
     db: Session = Depends(get_db),
 ):
-    # Make sure the property exists
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # Fetch active guides for this property
     guides = (
         db.query(Guide)
         .filter(
@@ -301,7 +364,6 @@ def list_property_guides(
         .all()
     )
 
-    # Shape response to match front-end expectations
     payload = []
     for g in guides:
         payload.append(
@@ -328,14 +390,7 @@ class ChatRequest(BaseModel):
 
 @app.post("/chat")
 def chat(payload: ChatRequest, req: Request):
-    """
-    Minimal chat endpoint using the shared OpenAI client stored on app.state.
-    Requires startup init to set: app.state.openai
-    """
-    client = getattr(req.app.state, "openai", None)
-    if client is None:
-        # If this happens, your startup init didn't run or failed.
-        raise HTTPException(status_code=500, detail="OpenAI client not initialized")
+    client = get_openai(req)
 
     user_message = (payload.message or "").strip()
     if not user_message:
@@ -352,40 +407,23 @@ def chat(payload: ChatRequest, req: Request):
                 {"role": "user", "content": user_message},
             ],
         )
-
-        text = (resp.choices[0].message.content or "").strip()
-        return {"response": text}
+        return {"response": (resp.choices[0].message.content or "").strip()}
 
     except RateLimitError:
         logger.exception("OpenAI rate limit error")
-        return JSONResponse(
-            status_code=429,
-            content={"error": "Rate limit reached. Please try again shortly."},
-        )
-
+        raise HTTPException(status_code=429, detail="Rate limit reached. Please try again shortly.")
     except AuthenticationError:
-        # This is the big one that often shows up as “missing bearer auth header”
-        logger.exception("OpenAI authentication error (check OPENAI_API_KEY)")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "AI configuration error. Please contact support."},
-        )
-
+        logger.exception("OpenAI authentication error")
+        raise HTTPException(status_code=500, detail="AI configuration error.")
     except APIStatusError as e:
-        # Covers 5xx from OpenAI, transient failures, etc.
         logger.exception("OpenAI API status error")
-        code = getattr(e, "status_code", 502) or 502
-        return JSONResponse(
-            status_code=int(code),
-            content={"error": "AI service is temporarily unavailable. Please try again."},
-        )
-
+        code = int(getattr(e, "status_code", 502) or 502)
+        raise HTTPException(status_code=code, detail="AI service temporarily unavailable.")
     except Exception:
         logger.exception("Unexpected /chat error")
-        return JSONResponse(
-            status_code=500,
-            content={"error": "Unexpected server error."},
-        )
+        raise HTTPException(status_code=500, detail="Unexpected server error.")
+
+
 @app.get("/debug/properties")
 def debug_properties(db: Session = Depends(get_db)):
     props = db.query(Property).all()
@@ -408,13 +446,17 @@ def get_integration_for_property(db: Session, prop: Property) -> PMCIntegration:
 
     integ = (
         db.query(PMCIntegration)
-        .filter(PMCIntegration.id == int(integration_id), PMCIntegration.pmc_id == int(prop.pmc_id))
+        .filter(
+            PMCIntegration.id == int(integration_id),
+            PMCIntegration.pmc_id == int(prop.pmc_id),
+        )
         .first()
     )
     if not integ:
         raise HTTPException(status_code=400, detail="Integration not found for property")
 
     return integ
+
 
 def hour_to_ampm(hour):
     if hour is None:
@@ -433,17 +475,15 @@ def hour_to_ampm(hour):
     return f"{hour12}:00 {suffix}"
 
 
-
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
-    # store the property ID so logout can redirect correctly
     request.session["last_property"] = property_id
 
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # ✅ HARD GATE: property must have sandy_enabled
+    # HARD GATE: property must have sandy_enabled
     if not bool(getattr(prop, "sandy_enabled", False)):
         return HTMLResponse(
             """
@@ -468,35 +508,28 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
     pmc = getattr(prop, "pmc", None)
 
-    # ✅ define these BEFORE you use them
-    prop_provider = (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "").strip().lower()
-    pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
+    prop_provider = (
+        (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "")
+        .strip()
+        .lower()
+    )
+    _pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
 
-    
-    
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
-
-    # ---- Load config/manual from disk ----
+    # Load config/manual from disk
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
     wifi = cfg.get("wifi") or {}
-    
-    # ✅ NEW: assistant/personality config (always a dict)
-    assistant_config = cfg.get("assistant") if isinstance(cfg.get("assistant"), dict) else {}
 
+    assistant_config = cfg.get("assistant") if isinstance(cfg.get("assistant"), dict) else {}
 
     address = cfg.get("address")
     city_name = cfg.get("city_name")
     hero_image_url = cfg.get("hero_image_url")
     experiences_hero_url = cfg.get("experiences_hero_url")
 
-    # ---- Hostaway overrides (if configured) ----
-    # Conditions:
-    # - PMC provider is hostaway
-    # - Property provider is hostaway
-    # - Property has pms_property_id
-    # - PMC has pms_api_key + pms_api_secret (Hostaway auth)
+    # Hostaway overrides (if configured)
     if pmc and prop_provider == "hostaway" and getattr(prop, "pms_property_id", None):
         try:
             integ = get_integration_for_property(db, prop)
@@ -506,33 +539,30 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 api_secret = (integ.api_secret or "").strip()
                 if not account_id or not api_secret:
                     raise Exception("Missing Hostaway creds on integration")
-    
+
                 hero, ha_address, ha_city = get_listing_overview(
                     listing_id=str(prop.pms_property_id),
-                    client_id=account_id,         # Hostaway: account_id
-                    client_secret=api_secret,     # Hostaway: api_secret
+                    client_id=account_id,
+                    client_secret=api_secret,
                 )
-    
+
                 if hero and not hero_image_url:
                     hero_image_url = hero
                     if not experiences_hero_url:
                         experiences_hero_url = hero
-    
+
                 if ha_address and not address:
                     address = ha_address
-    
+
                 if ha_city and not city_name:
                     city_name = ha_city
-    
+
         except Exception as e:
-            print("[Hostaway] Failed to fetch listing overview:", e)
+            logger.warning("[Hostaway] Failed to fetch listing overview: %r", e)
 
-
-    # If no separate experiences hero, reuse main hero
     if not experiences_hero_url and hero_image_url:
         experiences_hero_url = hero_image_url
 
-    # ---- Latest chat session (for basic name/dates) ----
     latest_session = (
         db.query(ChatSession)
         .filter(ChatSession.property_id == prop.id)
@@ -544,11 +574,11 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     arrival_date_db = latest_session.arrival_date if latest_session and latest_session.arrival_date else None
     departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
 
-    # ---- Today's in-house reservation (for turnover logic) ----
-    today_res = get_today_reservation(db, prop.id)  # may be None
+    # Today's in-house reservation (for turnover logic)
+    today_res = get_today_reservation(db, prop.id)
     same_day_turnover = compute_same_day_turnover(db, prop.id, today_res)
 
-    # ---- Load upgrades from DB ----
+    # Load upgrades
     upgrades = (
         db.query(Upgrade)
         .filter(
@@ -559,24 +589,20 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         .all()
     )
 
-    # ---- Filter & shape upgrades for template ----
     visible_upgrades = []
     for up in upgrades:
         slug = (up.slug or "").lower()
         title_lower = (up.title or "").lower() if up.title else ""
 
-        # early/late "time flexibility" upgrade?
         is_time_flex = (
             slug in {"early-check-in", "late-checkout", "late-check-out"}
             or "early check" in title_lower
             or "late check" in title_lower
         )
 
-        # On same-day turnover, hide early check-in / late checkout
         if same_day_turnover and is_time_flex:
             continue
 
-        # Format price for display
         price_display = None
         if up.price_cents is not None:
             currency = (up.currency or "usd").lower()
@@ -602,7 +628,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             }
         )
 
-    # ---- Google Maps link ----
     from urllib.parse import quote_plus
 
     google_maps_link = None
@@ -611,12 +636,10 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
     checkin_time_display = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
-    #checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkOutTime"))
-    checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd"))
+    checkout_time_display = hour_to_ampm(
+        cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd")
+    )
 
-
-
-    # ---- Render template ----
     return templates.TemplateResponse(
         "guest_app.html",
         {
@@ -629,31 +652,20 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "wifi_password": wifi.get("password"),
             "checkin_time": checkin_time_display,
             "checkout_time": checkout_time_display,
-
-            # PMS dates override config if present
             "arrival_date": arrival_date_db or cfg.get("arrival_date"),
             "departure_date": departure_date_db or cfg.get("departure_date"),
-
             "feature_image_url": cfg.get("feature_image_url"),
             "family_image_url": cfg.get("family_image_url"),
             "foodie_image_url": cfg.get("foodie_image_url"),
-
             "city_name": city_name,
             "hero_image_url": hero_image_url,
             "experiences_hero_url": experiences_hero_url,
             "google_maps_link": google_maps_link,
-            
             "is_live": is_live,
             "sandy_enabled": bool(getattr(prop, "sandy_enabled", False)),
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
-
-            # ✅ NEW: assistant/personality config for guest_app.html
             "assistant_config": assistant_config,
-
-            # ✅ add this
             "initial_session_id": request.session.get(f"guest_session_{property_id}", None),
-
-            # Upgrades + turnover flags for the template
             "upgrades": visible_upgrades,
             "same_day_turnover": same_day_turnover,
             "hide_time_flex": same_day_turnover,
@@ -661,13 +673,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     )
 
 
-
-
 def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
-    """
-    Returns True if there is ANOTHER reservation arriving on the same day
-    this reservation checks out.
-    """
     if not reservation or not reservation.departure_date:
         return False
 
@@ -682,21 +688,15 @@ def compute_same_day_turnover(db: Session, property_id: int, reservation: Reserv
         )
         .first()
     )
-
     return next_guest is not None
 
 
 def should_hide_upgrade_for_turnover(upgrade: Upgrade, same_day_turnover: bool) -> bool:
-    """
-    If it's a same-day turnover AND this upgrade is early check-in / late checkout,
-    we hide it.
-    """
     if not same_day_turnover:
         return False
 
     title = (upgrade.title or "").lower()
 
-    # tweak these matches to match your real upgrade titles
     early_phrases = [
         "early check-in",
         "early check in",
@@ -709,115 +709,8 @@ def should_hide_upgrade_for_turnover(upgrade: Upgrade, same_day_turnover: bool) 
         "late departure",
     ]
 
-    if any(p in title for p in early_phrases + late_phrases):
-        return True
+    return any(p in title for p in early_phrases + late_phrases)
 
-    return False
-
-'''
-@app.get("/guest/{property_id}", name="guest_app")
-async def guest_app(
-    property_id: int,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    """
-    Render the guest web app (guest_app.html).
-    This is where we:
-      - load property + reservation
-      - compute same_day_turnover
-      - filter upgrades based on same_day_turnover
-    """
-
-    # --- Load property ---
-    property_obj = (
-        db.query(Property)
-        .filter(Property.id == property_id)
-        .first()
-    )
-    if not property_obj:
-        raise HTTPException(status_code=404, detail="Property not found")
-
-    # --- Load current reservation for this guest ---
-    # 👉 Replace this with your real logic (e.g. using a code, session, cookie, etc.)
-    reservation: Reservation | None = (
-        db.query(Reservation)
-        .filter(
-            Reservation.property_id == property_id,
-            # put your real "current guest" conditions here
-        )
-        .first()
-    )
-
-    # --- Compute same-day turnover flag ---
-    same_day_turnover = compute_same_day_turnover(
-        db=db,
-        property_id=property_id,
-        reservation=reservation,
-    )
-
-    # --- Load upgrades for this property ---
-    # Adjust this query to match your schema
-    upgrades = (
-        db.query(Upgrade)
-        .filter(Upgrade.property_id == property_id)
-        .order_by(Upgrade.sort_order.asc())
-        .all()
-    )
-
-    # --- Filter upgrades for same-day turnover (hide early/late) ---
-    visible_upgrades = [
-        up for up in upgrades
-        if not should_hide_upgrade_for_turnover(up, same_day_turnover)
-    ]
-
-    # --- Compute template fields you already use in guest_app.html ---
-    reservation_name = reservation.guest_name if reservation else None
-    arrival_date = reservation.arrival_date if reservation else None
-    departure_date = reservation.departure_date if reservation else None
-
-    # You probably already compute these somewhere — keep your versions
-    wifi_ssid = property_obj.wifi_ssid if hasattr(property_obj, "wifi_ssid") else None
-    wifi_password = property_obj.wifi_password if hasattr(property_obj, "wifi_password") else None
-    checkin_time = getattr(property_obj, "checkin_time", None)
-    checkout_time = getattr(property_obj, "checkout_time", None)
-
-    hero_image_url = getattr(property_obj, "hero_image_url", None)
-    default_image_url = "/static/img/default-hero.jpg"
-
-    experiences_hero_url = getattr(property_obj, "experiences_hero_url", hero_image_url)
-    feature_image_url = getattr(property_obj, "feature_image_url", None)
-    family_image_url = getattr(property_obj, "family_image_url", None)
-    foodie_image_url = getattr(property_obj, "foodie_image_url", None)
-
-    context = {
-        "request": request,
-        "property_id": property_obj.id,
-        "property_name": property_obj.name,
-        "property_address": property_obj.address,
-        "reservation_name": reservation_name,
-        "arrival_date": arrival_date,
-        "departure_date": departure_date,
-        "wifi_ssid": wifi_ssid,
-        "wifi_password": wifi_password,
-        "checkin_time": checkin_time,
-        "checkout_time": checkout_time,
-        "hero_image_url": hero_image_url,
-        "default_image_url": default_image_url,
-        "experiences_hero_url": experiences_hero_url,
-        "feature_image_url": feature_image_url,
-        "family_image_url": family_image_url,
-        "foodie_image_url": foodie_image_url,
-
-        # 👇 IMPORTANT: pass filtered upgrades + turnover flag
-        "upgrades": visible_upgrades,
-        "same_day_turnover": same_day_turnover,
-    }
-
-    return templates.TemplateResponse("guest_app.html", context)
-
-
-'''
 
 class VerifyRequest(BaseModel):
     code: str
@@ -863,7 +756,6 @@ def _format_time_display(value: Any, default: str = "") -> str:
     return s
 
 
-
 @app.post("/guest/{property_id}/verify-json")
 def verify_json(
     property_id: int,
@@ -873,14 +765,12 @@ def verify_json(
 ):
     code = (payload.code or "").strip()
 
-    # 1) format check
     if not code.isdigit() or len(code) != 4:
         return JSONResponse(
             {"success": False, "error": "Please enter exactly 4 digits."},
             status_code=400,
         )
 
-    # 2) load property + pmc
     prop = db.query(Property).filter(Property.id == int(property_id)).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -892,7 +782,6 @@ def verify_json(
             status_code=400,
         )
 
-    # 3) test override (still creates a session)
     test_code = (os.getenv("TEST_UNLOCK_CODE") or "").strip()
     if test_code and code == test_code:
         request.session[f"guest_verified_{property_id}"] = True
@@ -901,7 +790,6 @@ def verify_json(
         arrival = today.strftime("%Y-%m-%d")
         departure = (today + timedelta(days=3)).strftime("%Y-%m-%d")
 
-        # ✅ create a real ChatSession now (so analytics has a session_id)
         now = datetime.utcnow()
         session = ChatSession(
             property_id=property_id,
@@ -911,7 +799,6 @@ def verify_json(
             last_activity_at=now,
         )
 
-        # best-effort attach fields if your model has them
         if hasattr(session, "guest_name"):
             session.guest_name = "Test Guest"
         if hasattr(session, "arrival_date"):
@@ -937,7 +824,6 @@ def verify_json(
             "checkout_time": "10:00 AM",
         }
 
-    # 4) integration/provider resolution (safe)
     integ = None
     try:
         integ = get_integration_for_property(db, prop)
@@ -948,7 +834,6 @@ def verify_json(
     integ_provider = (getattr(integ, "provider", None) or "").strip().lower()
     provider = prop_provider or integ_provider
 
-    # 5) fetch last4 + guest info
     try:
         if provider == "hostaway" and getattr(prop, "pms_property_id", None):
             account_id = (getattr(integ, "account_id", None) or "").strip()
@@ -959,7 +844,7 @@ def verify_json(
 
             (
                 phone_last4,
-                _door_code,       # unused
+                _door_code,
                 reservation_id,
                 guest_name,
                 arrival_date,
@@ -972,7 +857,7 @@ def verify_json(
         else:
             (
                 phone_last4,
-                _door_code,       # unused
+                _door_code,
                 reservation_id,
                 guest_name,
                 arrival_date,
@@ -980,13 +865,12 @@ def verify_json(
             ) = get_pms_access_info(pmc, prop)
 
     except Exception as e:
-        print("[VERIFY PMS ERROR]", repr(e))
+        logger.warning("[VERIFY PMS ERROR] %r", e)
         return JSONResponse(
             {"success": False, "error": "Could not verify your reservation. Please try again."},
             status_code=500,
         )
 
-    # 6) 30-day arrival window
     WINDOW_DAYS = 30
     today = datetime.utcnow().date()
     arrival_obj = _parse_ymd(arrival_date)
@@ -997,7 +881,6 @@ def verify_json(
             status_code=400,
         )
 
-    # 7) require reservation + phone
     if not phone_last4 or not reservation_id:
         return JSONResponse(
             {"success": False, "error": "No upcoming reservation found for this property."},
@@ -1011,15 +894,12 @@ def verify_json(
             status_code=403,
         )
 
-    # 8) compute display times safely
     checkin_time_display = _format_time_display(getattr(prop, "checkin_time", None), default="4:00 PM")
     checkout_time_display = _format_time_display(getattr(prop, "checkout_time", None), default="10:00 AM")
 
-    # 9) success + ✅ create ChatSession NOW
     request.session[f"guest_verified_{property_id}"] = True
 
     now = datetime.utcnow()
-
     session = ChatSession(
         property_id=property_id,
         source="guest_web",
@@ -1028,7 +908,6 @@ def verify_json(
         last_activity_at=now,
     )
 
-    # best-effort attach fields if your model has them
     if hasattr(session, "guest_name"):
         session.guest_name = (guest_name or "Guest").strip()
     if hasattr(session, "arrival_date"):
@@ -1058,13 +937,11 @@ def verify_json(
     }
 
 
-
+# --- property chat request (kept as-is for your frontend payload shape) ---
 class PropertyChatRequest(BaseModel):
     message: str
     session_id: Optional[int] = None
     language: Optional[str] = None
-
-    # optional (frontend may send these)
     thread_id: Optional[str] = None
     client_message_id: Optional[str] = None
     parent_id: Optional[str] = None
@@ -1099,7 +976,6 @@ def create_upgrade_checkout(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    # Enforce that the guest has unlocked this stay
     verified_flag = request.session.get(f"guest_verified_{property_id}", False)
     if not verified_flag:
         raise HTTPException(
@@ -1129,23 +1005,13 @@ def create_upgrade_checkout(
             detail="This upgrade is not yet configured for payment.",
         )
 
-    # Where Stripe sends the guest after payment
-    success_url = str(
-        request.url_for("guest_app_ui", property_id=property_id)
-    ) + "?upgrade=success"
-    cancel_url = str(
-        request.url_for("guest_app_ui", property_id=property_id)
-    ) + f"?upgrade={upgrade.slug}"
+    success_url = str(request.url_for("guest_app_ui", property_id=property_id)) + "?upgrade=success"
+    cancel_url = str(request.url_for("guest_app_ui", property_id=property_id)) + f"?upgrade={upgrade.slug}"
 
     try:
         checkout_session = stripe.checkout.Session.create(
             mode="payment",
-            line_items=[
-                {
-                    "price": upgrade.stripe_price_id,
-                    "quantity": 1,
-                }
-            ],
+            line_items=[{"price": upgrade.stripe_price_id, "quantity": 1}],
             success_url=success_url,
             cancel_url=cancel_url,
             metadata={
@@ -1155,390 +1021,14 @@ def create_upgrade_checkout(
             },
             customer_email=payload.guest_email,
         )
-    except Exception as e:
-        logging.exception("Stripe checkout creation failed")
+    except Exception:
+        logger.exception("Stripe checkout creation failed")
         raise HTTPException(
             status_code=500,
             detail="Unable to start checkout for this upgrade.",
         )
 
     return {"checkout_url": checkout_session.url}
-
-    
-# Use uvicorn logger (shows in Render runtime logs more reliably than print)
-logger = logging.getLogger("uvicorn.error")
-
-
-# ----------------------------
-# Link normalization utilities
-# ----------------------------
-_URL_RE = re.compile(r'(https?://[^\s\)\]"\']+|www\.[^\s\)\]"\']+)', re.IGNORECASE)
-_MD_LINK_RE = re.compile(r'\[([^\]]+)\]\((.*?)\)', re.DOTALL)
-
-def _normalize_url(url: str) -> str:
-    if not url:
-        return ""
-    u = url.strip()
-
-    # Trim common trailing punctuation that gets stuck to URLs
-    while u and u[-1] in ".,);:!?]":
-        u = u[:-1]
-
-    if u.lower().startswith("www."):
-        u = "https://" + u
-    return u
-
-def _extract_first_url(s: str) -> str:
-    if not s:
-        return ""
-    m = _URL_RE.search(s)
-    if not m:
-        return ""
-    return _normalize_url(m.group(1))
-
-def enforce_click_here_links(text: str) -> str:
-    """
-    Normalizes any link-ish output into ONE consistent markdown format:
-
-      [Click here for directions](URL)
-
-    Rules:
-    - Remove any HTML (<a>, etc.)
-    - Convert ANY markdown link label -> "Click here for directions"
-    - Hide ANY raw URL behind the same markdown anchor
-    - Avoid nested links
-    """
-    if not text:
-        return text
-
-    out = text
-
-    # 1) Convert HTML anchors -> markdown (and strip any other tags)
-    def _html_anchor_repl(m: re.Match) -> str:
-        url = _normalize_url(m.group(1) or "")
-        return f"[Click here for directions]({url})" if url else "Click here for directions"
-
-    out = re.sub(
-        r'<a\s+[^>]*href=["\']([^"\']+)["\'][^>]*>.*?</a>',
-        _html_anchor_repl,
-        out,
-        flags=re.IGNORECASE | re.DOTALL,
-    )
-    out = re.sub(r"<[^>]+>", "", out)
-
-    # 2) Normalize ALL markdown links -> strict anchor, extract first URL inside ()
-    def _md_link_repl(m: re.Match) -> str:
-        raw_target = (m.group(2) or "").strip()
-        url = _extract_first_url(raw_target)
-        return f"[Click here for directions]({url})" if url else (m.group(1) or "")
-
-    out = _MD_LINK_RE.sub(_md_link_repl, out)
-
-    # 3) Replace any remaining raw URLs -> strict anchor
-    def _raw_url_repl(m: re.Match) -> str:
-        url = _normalize_url(m.group(1) or "")
-        return f"[Click here for directions]({url})" if url else ""
-
-    out = _URL_RE.sub(_raw_url_repl, out)
-
-    # 4) Collapse repeated identical anchors (optional cleanup)
-    out = re.sub(
-        r'(\[Click here for directions\]\([^)]+\))(\s+\1)+',
-        r'\1',
-        out,
-        flags=re.IGNORECASE,
-    )
-
-    return out
-
-
-@app.post("/properties/{property_id}/chat")
-async def property_chat(
-    request: Request,
-    property_id: int,
-    payload: PropertyChatRequest,
-    db: Session = Depends(get_db),
-):
-    now = datetime.utcnow()
-
-    # enable streaming with ?stream=1
-    stream_mode = request.query_params.get("stream") == "1"
-
-    # 0) TEMP / SAFE DEBUG MODE (no logs required)
-    debug_mode = request.query_params.get("debug") == "1"
-
-    verified_key = f"guest_verified_{property_id}"
-    verified_flag = bool(request.session.get(verified_key, False))
-
-    if debug_mode:
-        return {
-            "debug": {
-                "cookie_header_present": bool(request.headers.get("cookie")),
-                "cookie_header": request.headers.get("cookie"),
-                "session_keys": list(request.session.keys()),
-                "verified_key": verified_key,
-                "verified_value": verified_flag,
-            },
-            "response": "debug mode",
-        }
-
-    # 1) Enforce unlock before allowing chat
-    if not verified_flag:
-        return {
-            "response": (
-                "For security, please unlock your stay first with the last 4 digits "
-                "of the phone number on your reservation, then try again. 🔐"
-            )
-        }
-
-    # 2) Validate message
-    user_message = (payload.message or "").strip()
-    if not user_message:
-        raise HTTPException(status_code=400, detail="Message is required")
-
-    lowered = user_message.lower()
-
-    # 3) Look up property + PMC and enforce Sandy enabled
-    prop = db.query(Property).filter(Property.id == property_id).first()
-    if not prop:
-        raise HTTPException(status_code=404, detail="Property not found")
-
-    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
-    sandy_enabled = bool(getattr(prop, "sandy_enabled", False))
-    pmc_active = bool(pmc and getattr(pmc, "active", False))
-
-    if not sandy_enabled or not pmc_active:
-        return {
-            "response": (
-                "Sandy is currently offline for this property 🌙\n\n"
-                "Please contact your host directly for assistance."
-            )
-        }
-
-    # 4) Create or reuse a ChatSession
-    session: Optional[ChatSession] = None
-
-    # ✅ prefer explicit payload.session_id, else server-stored guest session id
-    effective_session_id = payload.session_id or request.session.get(f"guest_session_{property_id}")
-    
-    if effective_session_id:
-        session = (
-            db.query(ChatSession)
-            .filter(ChatSession.id == int(effective_session_id), ChatSession.property_id == property_id)
-            .first()
-        )
-
-
-    if not session:
-        recent_cutoff = now - timedelta(hours=4)
-        session = (
-            db.query(ChatSession)
-            .filter(
-                ChatSession.property_id == property_id,
-                ChatSession.last_activity_at >= recent_cutoff,
-            )
-            .order_by(ChatSession.last_activity_at.desc())
-            .first()
-        )
-
-    if not session:
-        session = ChatSession(
-            property_id=property_id,
-            source="guest_web",
-            is_verified=False,
-            created_at=now,
-            last_activity_at=now,
-        )
-        db.add(session)
-        db.commit()
-        db.refresh(session)
-
-    # 5) Attach PMS data
-    try:
-        ensure_pms_data(db, session)
-    except Exception:
-        logger.exception("ensure_pms_data failed (continuing)")
-
-    # 6) Log guest message
-    category = classify_category(user_message)
-    log_type = detect_log_types(user_message)
-    sentiment = simple_sentiment(user_message)
-
-    db.add(ChatMessage(
-        session_id=session.id,
-        sender="guest",
-        content=user_message,
-        category=category,
-        log_type=log_type,
-        sentiment=sentiment,
-        created_at=now,
-    ))
-    session.last_activity_at = now
-
-    # Save preferred language
-    if getattr(payload, "language", None) and payload.language != "auto":
-        session.language = payload.language
-
-    db.commit()
-    db.refresh(session)
-
-    # 7) Door code branch (keep your logic)
-    code_keywords = ["door code", "access code", "entry code", "pin", "key code", "lock code"]
-    is_code_request = any(k in lowered for k in code_keywords)
-
-    code_match = re.search(r"\b(\d{4})\b", user_message)
-    provided_last4 = code_match.group(1) if code_match else None
-    pms_last4 = getattr(session, "phone_last4", None)
-
-    if is_code_request:
-        if pms_last4 and provided_last4 and provided_last4 == str(pms_last4).strip():
-            door_code = str(pms_last4).strip()
-            reply_text = (
-                f"**Your door code** 🔐\n\n"
-                f"- Entry code: **{door_code}**\n"
-                f"- This matches the last 4 digits of the phone number on your reservation.\n\n"
-                "If the lock gives any trouble, try the code slowly and firmly, "
-                "and contact your host if it still doesn’t work."
-            )
-        elif pms_last4 and not provided_last4:
-            reply_text = (
-                "I can help with your door code 🔐\n\n"
-                "For security, please reply with the **last 4 digits of the phone number** "
-                "on your reservation, and I’ll confirm your entry code."
-            )
-        else:
-            reply_text = (
-                "I’m not seeing an active reservation linked to this chat yet, "
-                "so I can’t safely share an access code. 😕\n\n"
-                "Please double-check that you’re using the phone number on the booking, "
-                "or contact your host directly for access help."
-            )
-
-        db.add(ChatMessage(
-            session_id=session.id,
-            sender="assistant",
-            content=reply_text,
-            created_at=datetime.utcnow(),
-        ))
-        db.commit()
-
-        # Door-code can stay non-streaming (simple + instant)
-        return {"response": reply_text, "session_id": session.id}
-
-    # 8) Build system prompt + history
-    context = load_property_context(prop, db)
-    system_prompt = build_system_prompt(
-        prop=prop,
-        pmc=pmc,
-        context=context,
-        session_language=session.language,
-        session=session,
-    )
-
-    history = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session.id)
-        .order_by(ChatMessage.created_at.asc())
-        .all()
-    )
-
-    messages = [{"role": "system", "content": system_prompt}]
-    for m in history:
-        role = "assistant" if m.sender == "assistant" else "user"
-        messages.append({"role": role, "content": m.content})
-
-    # --------------------------
-    # STREAMING MODE (?stream=1)
-    # --------------------------
-    if stream_mode:
-
-        async def ndjson_stream():
-            full_parts: list[str] = []
-
-            try:
-                stream = client.chat.completions.create(
-                    model="gpt-4o-mini",
-                    temperature=0.7,
-                    messages=messages,
-                    stream=True,
-                )
-
-                for chunk in stream:
-                    delta = chunk.choices[0].delta.content or ""
-                    if not delta:
-                        continue
-                    full_parts.append(delta)
-                    yield (json.dumps({"delta": delta}) + "\n").encode("utf-8")
-
-            except Exception as e:
-                yield (json.dumps({"error": str(e)}) + "\n").encode("utf-8")
-                return
-
-            reply_text = "".join(full_parts).strip()
-            reply_text = enforce_click_here_links(reply_text)
-
-            db.add(ChatMessage(
-                session_id=session.id,
-                sender="assistant",
-                content=reply_text,
-                created_at=datetime.utcnow(),
-            ))
-            db.commit()
-
-            yield (json.dumps({"done": True, "session_id": session.id}) + "\n").encode("utf-8")
-
-        return StreamingResponse(
-            ndjson_stream(),
-            media_type="application/x-ndjson",
-            headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
-        )
-
-    # --------------------------
-    # NON-STREAM MODE (default)
-    # --------------------------
-    try:
-        ai_response = client.chat.completions.create(
-            model="gpt-4o-mini",
-            temperature=0.7,
-            messages=messages,
-        )
-        reply_text = ai_response.choices[0].message.content or ""
-        reply_text = enforce_click_here_links(reply_text)
-    except RateLimitError:
-        logger.exception("OpenAI rate/quota limit")
-        reply_text = (
-            "I’m temporarily unavailable because we hit our AI usage limit. 🐚\n\n"
-            "Please try again in a little bit, or contact your host if it’s urgent."
-        )
-    except AuthenticationError:
-        logger.exception("OpenAI auth error")
-        reply_text = (
-            "I’m temporarily unavailable due to a configuration issue. 🐚\n\n"
-            "Please contact your host for urgent help."
-        )
-    except APIStatusError:
-        logger.exception("OpenAI API status error")
-        reply_text = (
-            "I’m having trouble connecting right now. 🐚\n\n"
-            "Please try again in a moment."
-        )
-    except Exception:
-        logger.exception("OpenAI unknown error")
-        reply_text = (
-            "Oops, I ran into a technical issue while answering just now. 🐚\n\n"
-            "Please try again in a moment, or contact your host directly if it’s urgent."
-        )
-
-    db.add(ChatMessage(
-        session_id=session.id,
-        sender="assistant",
-        content=reply_text,
-        created_at=datetime.utcnow(),
-    ))
-    db.commit()
-
-    return {"response": reply_text, "session_id": session.id}
-
 
 
 @app.get("/debug/property-context/{property_id}")
@@ -1555,7 +1045,6 @@ def debug_property_context(property_id: int, db: Session = Depends(get_db)):
     }
 
 
-
 def simple_sentiment(message: str) -> str:
     text = message.lower()
     negative_markers = ["terrible", "awful", "angry", "bad", "disappointed", "upset"]
@@ -1569,14 +1058,8 @@ def simple_sentiment(message: str) -> str:
 
 
 def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
-    """
-    Return the *current* reservation if today falls between arrival_date and
-    departure_date (inclusive). If there is no current stay, fall back to the
-    *next upcoming* reservation for this property.
-    """
     today = datetime.utcnow().date()
 
-    # 1) Try in-house (today within the stay)
     current = (
         db.query(Reservation)
         .filter(
@@ -1590,7 +1073,6 @@ def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
     if current:
         return current
 
-    # 2) Fallback: next upcoming reservation
     upcoming = (
         db.query(Reservation)
         .filter(
@@ -1601,16 +1083,6 @@ def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
         .first()
     )
     return upcoming
-
-
-
-# Matches any URL-ish string (including goo.gl, maps links, etc.)
-_URL_RE = re.compile(r'(https?://[^\s\)"]+|www\.[^\s\)"]+)', re.IGNORECASE)
-
-# Matches markdown links: [text](url)
-_MD_LINK_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')
-
-
 
 
 def load_property_context(prop: "Property", db) -> dict:
@@ -1655,33 +1127,23 @@ def load_property_context(prop: "Property", db) -> dict:
         return value[:max_length]
 
     def _abs_in_repo(path: str) -> str:
-        """
-        If given a repo-relative path like 'data/hostaway_63652/hostaway_256853',
-        convert to absolute inside DATA_REPO_DIR.
-        """
         p = (path or "").strip()
         if not p:
             return ""
         if os.path.isabs(p):
             return p
         if not DATA_REPO_DIR:
-            return p  # can't resolve; return as-is
+            return p
         return os.path.join(DATA_REPO_DIR, p)
 
     used_default_cfg = False
     used_default_manual = False
     resolved_from = "none"
 
-    # -------------------------
-    # 1) explicit override
-    # -------------------------
     base_dir = _abs_in_repo(getattr(prop, "data_folder_path", None) or "")
     if base_dir:
         resolved_from = "prop.data_folder_path"
 
-    # -------------------------
-    # 2) computed from provider+account_id+pms_property_id
-    # -------------------------
     if (not base_dir) and DATA_REPO_DIR:
         provider = (getattr(prop, "provider", None) or "").strip().lower()
         pms_property_id = getattr(prop, "pms_property_id", None)
@@ -1699,10 +1161,6 @@ def load_property_context(prop: "Property", db) -> dict:
             )
 
         if provider and account_id and pms_property_id:
-            acct_dir = f"{provider}_{_slugify(account_id)}"
-            prop_dir = f"{provider}_{_slugify(pms_property_id)}"
-
-            #base_dir = os.path.join(DATA_REPO_DIR, "data", acct_dir, prop_dir)
             base_dir = os.path.join(
                 DATA_REPO_DIR,
                 "data",
@@ -1714,9 +1172,6 @@ def load_property_context(prop: "Property", db) -> dict:
     config: Dict[str, Any] = {}
     manual_text: str = ""
 
-    # -------------------------
-    # Read property-specific files
-    # -------------------------
     if base_dir:
         cfg_path = os.path.join(base_dir, "config.json")
         man_path = os.path.join(base_dir, "manual.txt")
@@ -1726,9 +1181,6 @@ def load_property_context(prop: "Property", db) -> dict:
         if os.path.exists(man_path):
             manual_text = _read_text(man_path)
 
-    # -------------------------
-    # 3) defaults fallback
-    # -------------------------
     if DATA_REPO_DIR:
         defaults_dir = os.path.join(DATA_REPO_DIR, "defaults")
         fallback_cfg = os.path.join(defaults_dir, "config.json")
@@ -1764,16 +1216,9 @@ def build_system_prompt(
     session_language: str | None = None,
     session: ChatSession | None = None,
 ) -> str:
-    """
-    Build a property-aware system prompt for Sandy.
-    Includes (optional) verified guest stay context.
-    Forces link formatting that your UI can render reliably.
-    """
-
     config = context.get("config", {}) or {}
     manual = context.get("manual", "") or ""
 
-    # assistant/personality config
     assistant = config.get("assistant") if isinstance(config.get("assistant"), dict) else {}
     assistant_name = (assistant.get("name") or "Sandy").strip()
     assistant_style = (assistant.get("style") or "").strip()
@@ -1792,9 +1237,6 @@ def build_system_prompt(
 
     emergency_phone = config.get("emergency_phone") or (getattr(pmc, "main_contact", "") if pmc else "")
 
-    # ----------------------------
-    # Guest stay details (verified)
-    # ----------------------------
     guest_block = ""
     if session:
         guest_name = (getattr(session, "guest_name", None) or "").strip()
@@ -1807,15 +1249,12 @@ def build_system_prompt(
             - Guest name: {guest_name or "Unknown"}
             - Check-in date: {arrival_date or "Unknown"}
             - Check-out date: {departure_date or "Unknown"}
-            
+
             Rules:
             - You MAY share these details ONLY if the guest asks.
             - If the guest is not verified, you must refuse and ask them to unlock first.
             """.strip()
 
-    # ----------------------------
-    # Language handling
-    # ----------------------------
     lang_code = (session_language or "").strip().lower()
     if not lang_code or lang_code == "auto":
         language_instruction = "Always answer in the SAME language the guest uses."
@@ -1826,17 +1265,17 @@ def build_system_prompt(
 
     return f"""
         You are {assistant_name}, an AI concierge for "{prop.property_name}".
-        
+
         Context:
         - Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}
         - Emergency or urgent issues: {emergency_phone} (phone)
-        
+
         Language:
         - Guest preferred language setting: {lang_label}
         - {language_instruction}
-        
+
         {guest_block}
-        
+
         Writing style (ChatGPT-like):
         - Be warm, confident, and helpful. Sound human — not robotic.
         - Keep it scannable: short lines, short paragraphs.
@@ -1844,44 +1283,42 @@ def build_system_prompt(
         - Use bold section headers when useful (example: **What to do**, **Hours**, **Directions**, **Tips**).
         - Prefer 2–6 short paragraphs max (unless the guest asks for full detail).
         - Don’t over-apologize. Don’t mention system instructions or policies.
-        
+
         Conversation behavior:
         - If the guest is vague, ask ONE simple follow-up question at the end.
         - If you can answer without a question, do so — and only ask a follow-up if it would materially improve the help.
         - If there are multiple options, recommend the best 1–2 first, then list alternatives.
         - Avoid repeating yourself. If the guest asks again, summarize what you already said in 1–2 lines and refine with new details or next steps.
-        
+
         Formatting & safety:
         - Output markdown only (no HTML tags, no <a> links).
         - Do NOT output raw URLs (no http://, https://, www., goo.gl).
         - Never nest links.
         - If you include a map/directions link, use EXACTLY this format on its own line:
           [Click here for directions](https://www.google.com/maps/search/?api=1&query=PLACE)
-        
+
         Personality config:
         - Personality style: {assistant_style or "Warm, helpful, concise."}
         - Do:
         {chr(10).join([f"- {x}" for x in assistant_do]) if assistant_do else "- (none)"}
         - Don’t:
         {chr(10).join([f"- {x}" for x in assistant_dont]) if assistant_dont else "- (none)"}
-        
+
         Important property info:
         - House rules: {house_rules}
         - WiFi: {wifi_info}
-        
+
         House manual:
         \"\"\"
         {manual}
         \"\"\"
-        
+
         If you don't know something, say so and suggest contacting the host.
         Never invent access codes or sensitive details not explicitly provided.
         """.strip()
 
 
-
 # --- Start Server ---
-
 if __name__ == "__main__":
     try:
         uvicorn.run("main:app", host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
