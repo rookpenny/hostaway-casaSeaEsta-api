@@ -69,8 +69,6 @@ from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 # --- Init ---
 
 app = FastAPI()
