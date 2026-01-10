@@ -1544,27 +1544,60 @@ def set_internal_note(session_id: int, request: Request, payload: dict = Body(..
 
 
 @router.post("/admin/chats/{session_id}/summarize")
-async def summarize_chat(session_id: int, request: Request, db: Session = Depends(get_db)):
+async def summarize_chat(
+    session_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     session = require_session_in_scope(request, db, session_id)
 
-    messages = (
+    # Pull the most recent 40 messages, then re-order oldest -> newest
+    msgs = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == session.id)
-        .order_by(ChatMessage.created_at.desc())
+        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
         .limit(40)
         .all()
     )
-    messages = list(reversed(messages))
-    convo = "\n".join([f"{m.sender.upper()}: {m.content}" for m in messages])
+    msgs.reverse()
 
-    system = (
+    if not msgs:
+        # Still store an empty-ish summary so the UI doesn't break
+        session.ai_summary = "**What the guest wants**\n- (No messages yet)\n"
+        session.ai_summary_updated_at = datetime.utcnow()
+        db.add(session)
+        db.commit()
+        return {
+            "ok": True,
+            "summary": session.ai_summary,
+            "updated_at": session.ai_summary_updated_at.isoformat(),
+        }
+
+    convo = "\n".join(
+        f"{(m.sender or '').upper()}: {(m.content or '').strip()}"
+        for m in msgs
+        if (m.content or "").strip()
+    ).strip()
+
+    if not convo:
+        session.ai_summary = "**What the guest wants**\n- (No message content)\n"
+        session.ai_summary_updated_at = datetime.utcnow()
+        db.add(session)
+        db.commit()
+        return {
+            "ok": True,
+            "summary": session.ai_summary,
+            "updated_at": session.ai_summary_updated_at.isoformat(),
+        }
+
+    system_prompt = (
         "You are an operations assistant for a short-term rental host. "
-        "Summarize the conversation for an admin dashboard. "
-        "Output markdown with these sections:\n"
+        "Summarize the conversation for an admin dashboard.\n\n"
+        "Return **markdown** with these sections:\n"
         "1) **What the guest wants**\n"
         "2) **Key facts** (dates, unit details, constraints)\n"
         "3) **Risks / sentiment** (urgent/unhappy signals)\n"
-        "4) **Recommended next action** (clear steps)\n"
+        "4) **Recommended next action** (clear steps)\n\n"
         "Keep it short and scannable."
     )
 
@@ -1573,20 +1606,31 @@ async def summarize_chat(session_id: int, request: Request, db: Session = Depend
             model=SUMMARY_MODEL,
             temperature=0.2,
             messages=[
-                {"role": "system", "content": system},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": convo},
             ],
         )
-        summary = resp.choices[0].message.content.strip()
+        summary = (resp.choices[0].message.content or "").strip()
+        if not summary:
+            summary = "**What the guest wants**\n- (No summary generated)\n"
     except Exception as e:
-        return JSONResponse(status_code=500, content={"ok": False, "error": str(e)})
+        return JSONResponse(
+            status_code=500,
+            content={"ok": False, "error": f"Summarization failed: {str(e)}"},
+        )
 
     session.ai_summary = summary
     session.ai_summary_updated_at = datetime.utcnow()
+    session.updated_at = datetime.utcnow() if hasattr(session, "updated_at") else None
+
     db.add(session)
     db.commit()
 
-    return {"ok": True, "summary": summary, "updated_at": session.ai_summary_updated_at.isoformat()}
+    return {
+        "ok": True,
+        "summary": summary,
+        "updated_at": session.ai_summary_updated_at.isoformat(),
+    }
 
 
 # ✅ FIXED: scoped analytics by role
