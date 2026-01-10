@@ -2870,7 +2870,7 @@ function renderMessage(text, sender, opts = {}) {
 
     if (!res.ok) {
       await commitBotMessage(
-        data?.error || voiceCfg.error_message || "Something went wrong. Please try again.",
+        data?.error || data?.detail || voiceCfg.error_message || "Something went wrong. Please try again.",
         "normal",
         userEntry.id
       );
