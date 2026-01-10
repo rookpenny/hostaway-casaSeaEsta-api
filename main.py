@@ -78,8 +78,6 @@ app.include_router(admin_analytics_router)
 app.include_router(admin_analytics_ui_router)
 app.include_router(admin_analytics_api_router)
 
-, name="static")
-
 # --- Routers ---
 app.include_router(admin.router)
 app.include_router(pmc_auth.router)
