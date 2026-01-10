@@ -517,77 +517,82 @@ def top_properties(
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-    stmt = text("""
-        with base as (
-          select
-            ae.*,
+stmt = _with_upgrade_array_binds("""
+    with base as (
+      select
+        ae.*,
 
-            -- robust property_id extraction (column first, then JSON fallbacks)
-            coalesce(
-              ae.property_id,
-              case when (ae.data->>'property_id') ~ '^[0-9]+$' then (ae.data->>'property_id')::bigint end,
-              case when (ae.data->>'propertyId')  ~ '^[0-9]+$' then (ae.data->>'propertyId')::bigint end,
-              case when (ae.data->'property'->>'id') ~ '^[0-9]+$' then (ae.data->'property'->>'id')::bigint end
-            ) as prop_id,
+        coalesce(
+          ae.property_id,
+          case when (ae.data->>'property_id') ~ '^[0-9]+$' then (ae.data->>'property_id')::bigint end,
+          case when (ae.data->>'propertyId')  ~ '^[0-9]+$' then (ae.data->>'propertyId')::bigint end,
+          case when (ae.data->'property'->>'id') ~ '^[0-9]+$' then (ae.data->'property'->>'id')::bigint end
+        ) as prop_id,
 
-            -- robust pmc_id extraction (column first, then JSON fallbacks)
-            coalesce(
-              ae.pmc_id,
-              case when (ae.data->>'pmc_id') ~ '^[0-9]+$' then (ae.data->>'pmc_id')::bigint end,
-              case when (ae.data->>'pmcId')  ~ '^[0-9]+$' then (ae.data->>'pmcId')::bigint end
-            ) as pmc_id_eff
+        coalesce(
+          ae.pmc_id,
+          case when (ae.data->>'pmc_id') ~ '^[0-9]+$' then (ae.data->>'pmc_id')::bigint end,
+          case when (ae.data->>'pmcId')  ~ '^[0-9]+$' then (ae.data->>'pmcId')::bigint end
+        ) as pmc_id_eff
 
-          from analytics_events ae
-          where ae.ts >= :start and ae.ts < :end
-        ),
-        scoped as (
-          select *
-          from base
-          where (:pmc_id::bigint is null or pmc_id_eff = :pmc_id::bigint)
-            and prop_id is not null
-        ),
-        agg as (
-          select
-            prop_id as property_id,
+      from analytics_events ae
+      where ae.ts >= :start and ae.ts < :end
+    ),
+    scoped as (
+      select *
+      from base
+      where (:pmc_id is null or pmc_id_eff = :pmc_id)
+        and prop_id is not null
+    ),
+    agg as (
+      select
+        prop_id as property_id,
 
-            count(*) filter (where event_name = 'chat_session_created') as sessions,
-            count(*) filter (where event_name = 'message_sent') as messages,
+        count(*) filter (where event_name = 'chat_session_created') as sessions,
+        count(*) filter (where event_name = 'message_sent') as messages,
 
-            count(*) filter (where event_name = :followups_shown_event) as followups_shown,
-            count(*) filter (where event_name = :followup_click_event) as followup_clicks,
+        count(*) filter (where event_name = :followups_shown_event) as followups_shown,
+        count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
-            count(*) filter (where event_name = ANY(:upgrade_start_events::text[])) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events::text[])) as upgrade_purchases,
+        count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
+        count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
 
-            count(*) filter (where event_name = :chat_error_event) as chat_errors,
-            count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
+        count(*) filter (where event_name = :chat_error_event) as chat_errors,
+        count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
 
-          from scoped
-          group by 1
-        )
-        select
-          a.property_id,
-          p.property_name,
+      from scoped
+      group by 1
+    )
+    select
+      a.property_id,
+      p.property_name,
 
-          a.sessions,
-          a.messages,
+      a.sessions,
+      a.messages,
 
-          a.followups_shown,
-          a.followup_clicks,
-          (a.followup_clicks::float / nullif(a.followups_shown::float, 0)) as followup_conversion_rate,
+      a.followups_shown,
+      a.followup_clicks,
+      (a.followup_clicks::float / nullif(a.followups_shown::float, 0)) as followup_conversion_rate,
 
-          a.upgrade_checkouts_started,
-          a.upgrade_purchases,
-          (a.upgrade_purchases::float / nullif(a.upgrade_checkouts_started::float, 0)) as upgrade_conversion_rate,
+      a.upgrade_checkouts_started,
+      a.upgrade_purchases,
+      (a.upgrade_purchases::float / nullif(a.upgrade_checkouts_started::float, 0)) as upgrade_conversion_rate,
 
-          a.chat_errors,
-          a.contact_host_clicks
+      a.chat_errors,
+      a.contact_host_clicks
 
-        from agg a
-        left join properties p on p.id = a.property_id
-        order by a.sessions desc, a.messages desc
-        limit :limit;
-    """)
+    from agg a
+    left join properties p on p.id = a.property_id
+    order by a.sessions desc, a.messages desc
+    limit :limit;
+""").bindparams(
+    bindparam("limit"),
+    bindparam("followups_shown_event", type_=PG_TEXT),
+    bindparam("followup_click_event", type_=PG_TEXT),
+    bindparam("chat_error_event", type_=PG_TEXT),
+    bindparam("contact_host_click_event", type_=PG_TEXT),
+)
+
 
     try:
         rows = db.execute(
