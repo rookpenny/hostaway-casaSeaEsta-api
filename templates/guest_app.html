@@ -2907,7 +2907,7 @@ function renderMessage(text, sender, opts = {}) {
     lastBotIntent = detectIntent(`${text}\n${rawBotText}`);
 
     let finalBotText = rawBotText;
-    finalBotText = applyMemoryTofinalBotText(finalBotText, lastBotIntent);
+    finalBotText = applyMemoryToFinalBotText(finalBotText, lastBotIntent);
     finalBotText = withAcknowledgement(finalBotText, lastBotIntent);
 
     // ✅ bot response parented to user msg
