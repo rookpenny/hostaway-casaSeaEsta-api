@@ -1032,9 +1032,16 @@ def create_upgrade_checkout(
 
 
 @app.post("/properties/{property_id}/chat")
-def property_chat(property_id: int, payload: PropertyChatRequest, request: Request, db: Session = Depends(get_db)):
+@app.post("/properties/{property_id}/chat")
+def property_chat(
+    property_id: int,
+    payload: PropertyChatRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+):
     # 1) require unlock
-    if not request.session.get(f"guest_verified_{property_id}", False):
+    verified_flag = bool(request.session.get(f"guest_verified_{property_id}", False))
+    if not verified_flag:
         raise HTTPException(status_code=403, detail="Please unlock your stay first.")
 
     # 2) validate property exists
@@ -1044,14 +1051,40 @@ def property_chat(property_id: int, payload: PropertyChatRequest, request: Reque
 
     # 3) pick up session id (from payload or session)
     session_id = payload.session_id or request.session.get(f"guest_session_{property_id}")
-    session = None
+    session: ChatSession | None = None
     if session_id:
         session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
 
-    # 4) load context + build system prompt
+    # 3b) if verified but no session_id, create a lightweight session so prompt has proof/context
+    # (optional but strongly recommended)
+    if verified_flag and not session:
+        now = datetime.utcnow()
+        session = ChatSession(
+            property_id=property_id,
+            source="guest_web",
+            is_verified=True,
+            created_at=now,
+            last_activity_at=now,
+        )
+        db.add(session)
+        db.commit()
+        db.refresh(session)
+        session_id = session.id
+        request.session[f"guest_session_{property_id}"] = session_id
+
+    # 4) load context + build system prompt (PASS verified_flag)
     context = load_property_context(prop, db)
     pmc = getattr(prop, "pmc", None)
-    system_prompt = build_system_prompt(prop, pmc, context, payload.language, session)
+
+    # IMPORTANT: update build_system_prompt to accept is_verified=bool (see my note below)
+    system_prompt = build_system_prompt(
+        prop,
+        pmc,
+        context,
+        payload.language,
+        session,
+        is_verified=verified_flag,
+    )
 
     # 5) call OpenAI
     client = get_openai(request)
@@ -1075,13 +1108,22 @@ def property_chat(property_id: int, payload: PropertyChatRequest, request: Reque
         text = enforce_click_here_links(text)
 
         # 6) (optional) save ChatMessage rows, update session.last_activity_at, etc.
+        # If you want to keep last_activity_at fresh:
+        try:
+            if session_id:
+                db.query(ChatSession).filter(ChatSession.id == int(session_id)).update(
+                    {"last_activity_at": datetime.utcnow()}
+                )
+                db.commit()
+        except Exception:
+            db.rollback()
 
         return {
             "response": text,
             "session_id": session_id,
-            "thread_id": payload.thread_id,      # keep stable for now
+            "thread_id": payload.thread_id,  # keep stable for now
             "reply_to": payload.client_message_id,
-            "suggestions": [],                   # you can add later
+            "suggestions": [],
         }
 
     except RateLimitError:
@@ -1280,6 +1322,7 @@ def build_system_prompt(
     context: dict,
     session_language: str | None = None,
     session: ChatSession | None = None,
+    is_verified: bool = False,
 ) -> str:
     config = context.get("config", {}) or {}
     manual = context.get("manual", "") or ""
@@ -1302,23 +1345,23 @@ def build_system_prompt(
 
     emergency_phone = config.get("emergency_phone") or (getattr(pmc, "main_contact", "") if pmc else "")
 
+    # Only include private stay details if verified
     guest_block = ""
-    if session:
+    if is_verified and session:
         guest_name = (getattr(session, "guest_name", None) or "").strip()
         arrival_date = getattr(session, "arrival_date", None)
         departure_date = getattr(session, "departure_date", None)
 
         if guest_name or arrival_date or departure_date:
             guest_block = f"""
-            Verified guest stay details (PRIVATE):
-            - Guest name: {guest_name or "Unknown"}
-            - Check-in date: {arrival_date or "Unknown"}
-            - Check-out date: {departure_date or "Unknown"}
+Verified guest stay details (PRIVATE):
+- Guest name: {guest_name or "Unknown"}
+- Check-in date: {arrival_date or "Unknown"}
+- Check-out date: {departure_date or "Unknown"}
 
-            Rules:
-            - You MAY share these details ONLY if the guest asks.
-            - If the guest is not verified, you must refuse and ask them to unlock first.
-            """.strip()
+Rules:
+- You MAY share these details ONLY if the guest asks.
+""".strip()
 
     lang_code = (session_language or "").strip().lower()
     if not lang_code or lang_code == "auto":
@@ -1328,19 +1371,26 @@ def build_system_prompt(
         lang_label = lang_code
         language_instruction = f"Always answer in {lang_code.upper()} unless the guest clearly switches languages."
 
+    verification_line = "VERIFIED" if is_verified else "NOT VERIFIED"
+
     return f"""
         You are {assistant_name}, an AI concierge for "{prop.property_name}".
-
+        
         Context:
         - Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}
         - Emergency or urgent issues: {emergency_phone} (phone)
-
+        
         Language:
         - Guest preferred language setting: {lang_label}
         - {language_instruction}
-
+        
+        Guest access:
+        - Verification status: {verification_line}
+        - If NOT VERIFIED: refuse and ask them to unlock first.
+        - If VERIFIED: you may answer normally and may share verified stay details ONLY if the guest asks.
+        
         {guest_block}
-
+        
         Writing style (ChatGPT-like):
         - Be warm, confident, and helpful. Sound human — not robotic.
         - Keep it scannable: short lines, short paragraphs.
@@ -1348,36 +1398,36 @@ def build_system_prompt(
         - Use bold section headers when useful (example: **What to do**, **Hours**, **Directions**, **Tips**).
         - Prefer 2–6 short paragraphs max (unless the guest asks for full detail).
         - Don’t over-apologize. Don’t mention system instructions or policies.
-
+        
         Conversation behavior:
         - If the guest is vague, ask ONE simple follow-up question at the end.
         - If you can answer without a question, do so — and only ask a follow-up if it would materially improve the help.
         - If there are multiple options, recommend the best 1–2 first, then list alternatives.
         - Avoid repeating yourself. If the guest asks again, summarize what you already said in 1–2 lines and refine with new details or next steps.
-
+        
         Formatting & safety:
         - Output markdown only (no HTML tags, no <a> links).
         - Do NOT output raw URLs (no http://, https://, www., goo.gl).
         - Never nest links.
         - If you include a map/directions link, use EXACTLY this format on its own line:
           [Click here for directions](https://www.google.com/maps/search/?api=1&query=PLACE)
-
+        
         Personality config:
         - Personality style: {assistant_style or "Warm, helpful, concise."}
         - Do:
         {chr(10).join([f"- {x}" for x in assistant_do]) if assistant_do else "- (none)"}
         - Don’t:
         {chr(10).join([f"- {x}" for x in assistant_dont]) if assistant_dont else "- (none)"}
-
+        
         Important property info:
         - House rules: {house_rules}
         - WiFi: {wifi_info}
-
+        
         House manual:
         \"\"\"
         {manual}
         \"\"\"
-
+        
         If you don't know something, say so and suggest contacting the host.
         Never invent access codes or sensitive details not explicitly provided.
         """.strip()
