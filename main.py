@@ -1138,6 +1138,8 @@ def _new_chat_message(session_id: int, role: str, content: str) -> ChatMessage:
 
     return ChatMessage(**data)
 
+
+
 @app.post("/properties/{property_id}/chat")
 def property_chat(
     property_id: int,
@@ -1146,8 +1148,7 @@ def property_chat(
     db: Session = Depends(get_db),
 ):
     # 1) require unlock
-    is_verified = bool(request.session.get(f"guest_verified_{property_id}", False))
-    if not is_verified:
+    if not request.session.get(f"guest_verified_{property_id}", False):
         raise HTTPException(status_code=403, detail="Please unlock your stay first.")
 
     # 2) validate property exists
@@ -1155,14 +1156,18 @@ def property_chat(
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # 3) get or create chat session
+    # 3) session id (payload OR cookie session)
     session_id = payload.session_id or request.session.get(f"guest_session_{property_id}")
     session = None
+
+    now = datetime.utcnow()
+
+    # 3a) ensure ChatSession exists
     if session_id:
         session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
 
-    if session is None:
-        now = datetime.utcnow()
+    if not session:
+        # Create a new one if missing (prevents tone resets + keeps state)
         session = ChatSession(
             property_id=property_id,
             source="guest_web",
@@ -1179,60 +1184,86 @@ def property_chat(
     # 4) load context + build system prompt
     context = load_property_context(prop, db)
     pmc = getattr(prop, "pmc", None)
+
     system_prompt = build_system_prompt(
         prop,
         pmc,
         context,
         payload.language,
         session,
-        is_verified=is_verified,
+        is_verified=True,  # since we already gated above
     )
 
-    # 5) validate user message
+    # 5) user message
     user_message = (payload.message or "").strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
-    # 6) load recent history for context (so "yes" works)
-    HISTORY_LIMIT = 18
+    # 6) Pull recent history to prevent "tone reset"
+    # Adjust limit as desired (10–20 is a good range)
+    HISTORY_LIMIT = 12
+
     history_rows = (
         db.query(ChatMessage)
-        # support either session_id or chat_session_id
-        .filter(
-            (getattr(ChatMessage, "session_id", None) == int(session_id))
-            if hasattr(ChatMessage, "session_id")
-            else (getattr(ChatMessage, "chat_session_id") == int(session_id))
-        )
-        .order_by(ChatMessage.id.asc())
-        .limit(HISTORY_LIMIT)
+        .filter(ChatMessage.session_id == session_id)
+        .order_by(ChatMessage.created_at.asc())  # assuming created_at exists
         .all()
     )
 
-    messages = [{"role": "system", "content": system_prompt}]
-    for m in history_rows:
-        r = _msg_get_role(m)
-        c = _msg_get_content(m)
-        if c:
-            messages.append({"role": r, "content": c})
+    # Keep only the last N messages
+    if len(history_rows) > HISTORY_LIMIT:
+        history_rows = history_rows[-HISTORY_LIMIT:]
 
+    # Build OpenAI messages list
+    messages = [{"role": "system", "content": system_prompt}]
+
+    # ---- IMPORTANT ----
+    # Replace ChatMessage.sender/content field names below if yours differ.
+    # Expect sender values like "user" / "assistant" (or similar).
+    for m in history_rows:
+        sender = (getattr(m, "sender", "") or "").lower().strip()
+        content = (getattr(m, "content", "") or "").strip()
+        if not content:
+            continue
+
+        if sender in ("assistant", "ai", "bot"):
+            messages.append({"role": "assistant", "content": content})
+        else:
+            messages.append({"role": "user", "content": content})
+
+    # Add the current user message last
     messages.append({"role": "user", "content": user_message})
 
-    # 7) OpenAI call
+    # 7) Call OpenAI
     client = get_openai(request)
     model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
 
     try:
         resp = client.chat.completions.create(
             model=model,
-            temperature=0.5,  # less generic than 0.7
+            temperature=0.5,  # slightly lower = more consistent tone
             messages=messages,
         )
+
         text = (resp.choices[0].message.content or "").strip()
         text = enforce_click_here_links(text)
 
-        # 8) save user + assistant messages (schema-safe)
-        db.add(_new_chat_message(int(session_id), "user", user_message))
-        db.add(_new_chat_message(int(session_id), "assistant", text))
+        # 8) Save user + assistant messages (schema-safe)
+        # ---- IMPORTANT ----
+        # Replace field names below if your ChatMessage model differs.
+        db.add(ChatMessage(
+            session_id=session_id,
+            sender="user",
+            content=user_message,
+            created_at=now,
+        ))
+
+        db.add(ChatMessage(
+            session_id=session_id,
+            sender="assistant",
+            content=text,
+            created_at=datetime.utcnow(),
+        ))
 
         session.last_activity_at = datetime.utcnow()
         db.add(session)
@@ -1525,6 +1556,7 @@ Rules:
         - If you can answer without a question, do so — and only ask a follow-up if it would materially improve the help.
         - If there are multiple options, recommend the best 1–2 first, then list alternatives.
         - Avoid repeating yourself. If the guest asks again, summarize what you already said in 1–2 lines and refine with new details or next steps.
+        - Do NOT greet the guest with “Hello”, “Hi”, or “How can I help?” unless this is the FIRST message of the conversation. Continue naturally from the existing context.
         
         Formatting & safety:
         - Output markdown only (no HTML tags, no <a> links).
