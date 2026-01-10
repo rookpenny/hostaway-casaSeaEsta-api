@@ -36,10 +36,10 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
+
 from pydantic import BaseModel
 from seed_guides_route import router as seed_guides_router
-
-
+from seed_upgrades_route import router as seed_upgrades_router
 
 from starlette.middleware.sessions import SessionMiddleware
 from database import SessionLocal, engine, get_db
@@ -54,9 +54,7 @@ from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from utils.github_sync import ensure_repo
 
 from apscheduler.schedulers.background import BackgroundScheduler
-
 from openai import OpenAI, RateLimitError, AuthenticationError, APIStatusError
-
 from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 
 
@@ -85,7 +83,7 @@ app.include_router(pmc_onboarding.router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Seed upgrade  ---
-from seed_upgrades_route import router as seed_upgrades_router
+
 app.include_router(seed_upgrades_router)
 
 
@@ -116,6 +114,46 @@ templates = Jinja2Templates(directory="templates")
 TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
 TMP_DIR = FSPath("static/uploads/upgrades/tmp")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+from openai import OpenAI, AuthenticationError
+import os
+import logging
+
+logger = logging.getLogger("uvicorn.error")
+
+def init_openai_client(app):
+    api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
+
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is missing or empty")
+
+    try:
+        client = OpenAI(api_key=api_key)
+
+        # 🔥 HARD validation: forces auth header to be tested at boot
+        client.models.list()
+
+    except AuthenticationError as e:
+        logger.error("❌ OpenAI authentication failed at startup")
+        raise RuntimeError("Invalid OPENAI_API_KEY") from e
+
+    except Exception as e:
+        logger.exception("❌ OpenAI initialization failed")
+        raise RuntimeError("Failed to initialize OpenAI client") from e
+
+    app.state.openai = client
+    logger.info("✅ OpenAI client initialized and validated")
+
+
+@app.on_event("startup")
+def startup_openai():
+    init_openai_client(app)
+
+@app.get("/debug/openai")
+def debug_openai(request: Request):
+    return {
+        "openai_initialized": hasattr(request.app.state, "openai"),
+    }
 
 
 async def cleanup_tmp_upgrades_forever():
@@ -287,37 +325,67 @@ def list_property_guides(
 class ChatRequest(BaseModel):
     message: str
 
-from fastapi import Request, HTTPException
 
 @app.post("/chat")
 def chat(payload: ChatRequest, req: Request):
     """
     Minimal chat endpoint using the shared OpenAI client stored on app.state.
-    Requires init_openai() to set: req.app.state.openai
+    Requires startup init to set: app.state.openai
     """
     client = getattr(req.app.state, "openai", None)
     if client is None:
-        # Fail loudly (this should be set in startup)
+        # If this happens, your startup init didn't run or failed.
         raise HTTPException(status_code=500, detail="OpenAI client not initialized")
 
     user_message = (payload.message or "").strip()
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
+    model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
+
     try:
         resp = client.chat.completions.create(
-            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+            model=model,
             temperature=0.7,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
                 {"role": "user", "content": user_message},
             ],
         )
-        return {"response": (resp.choices[0].message.content or "").strip()}
-    except Exception as e:
-        # Keep it simple; optionally log `e` with your uvicorn logger
-        raise HTTPException(status_code=500, detail=str(e))
 
+        text = (resp.choices[0].message.content or "").strip()
+        return {"response": text}
+
+    except RateLimitError:
+        logger.exception("OpenAI rate limit error")
+        return JSONResponse(
+            status_code=429,
+            content={"error": "Rate limit reached. Please try again shortly."},
+        )
+
+    except AuthenticationError:
+        # This is the big one that often shows up as “missing bearer auth header”
+        logger.exception("OpenAI authentication error (check OPENAI_API_KEY)")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "AI configuration error. Please contact support."},
+        )
+
+    except APIStatusError as e:
+        # Covers 5xx from OpenAI, transient failures, etc.
+        logger.exception("OpenAI API status error")
+        code = getattr(e, "status_code", 502) or 502
+        return JSONResponse(
+            status_code=int(code),
+            content={"error": "AI service is temporarily unavailable. Please try again."},
+        )
+
+    except Exception:
+        logger.exception("Unexpected /chat error")
+        return JSONResponse(
+            status_code=500,
+            content={"error": "Unexpected server error."},
+        )
 @app.get("/debug/properties")
 def debug_properties(db: Session = Depends(get_db)):
     props = db.query(Property).all()
