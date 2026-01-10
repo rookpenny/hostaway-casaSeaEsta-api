@@ -17,13 +17,7 @@ from routes.admin_analytics_ui import router as admin_analytics_ui_router
 from routes.admin_analytics import router as admin_analytics_api_router
 from routes.admin_analytics import router as admin_analytics_router
 
-
-
-
-from fastapi.staticfiles import StaticFiles
-
 from pathlib import Path as FSPath
-
 from typing import Optional, Any, List, Dict
 from datetime import datetime, timedelta, date, time as dt_time
 
@@ -36,7 +30,7 @@ from fastapi import (
     APIRouter, Depends, status
 )
 from fastapi import Path as FPath
-
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse, FileResponse, HTMLResponse, RedirectResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
@@ -68,6 +62,13 @@ from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
+
+@app.on_event("startup")
+def init_openai():
+    key = (os.getenv("OPENAI_API_KEY") or "").strip()
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY is missing. Set it in your environment.")
+    app.state.openai = OpenAI(api_key=key)
 
 # --- Init ---
 
@@ -284,29 +285,40 @@ def list_property_guides(
     return {"guides": payload}
 
 
-
-
-
-
-
-
 # --- Chat Endpoint ---
 class ChatRequest(BaseModel):
     message: str
 
+from fastapi import Request, HTTPException
+
 @app.post("/chat")
-def chat(request: ChatRequest):
+def chat(payload: ChatRequest, req: Request):
+    """
+    Minimal chat endpoint using the shared OpenAI client stored on app.state.
+    Requires init_openai() to set: req.app.state.openai
+    """
+    client = getattr(req.app.state, "openai", None)
+    if client is None:
+        # Fail loudly (this should be set in startup)
+        raise HTTPException(status_code=500, detail="OpenAI client not initialized")
+
+    user_message = (payload.message or "").strip()
+    if not user_message:
+        raise HTTPException(status_code=400, detail="Message is required")
+
     try:
-        response = client.chat.completions.create(
-            model="gpt-4",
+        resp = client.chat.completions.create(
+            model=os.getenv("OPENAI_CHAT_MODEL", "gpt-4o-mini"),
+            temperature=0.7,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant."},
-                {"role": "user", "content": request.message}
-            ]
+                {"role": "user", "content": user_message},
+            ],
         )
-        return {"response": response.choices[0].message.content}
+        return {"response": (resp.choices[0].message.content or "").strip()}
     except Exception as e:
-        return {"error": str(e)}
+        # Keep it simple; optionally log `e` with your uvicorn logger
+        raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/debug/properties")
 def debug_properties(db: Session = Depends(get_db)):
