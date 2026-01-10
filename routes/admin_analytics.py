@@ -1,6 +1,5 @@
 from datetime import datetime, timezone
 from typing import Optional, Literal
-
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import text, bindparam
@@ -14,6 +13,7 @@ router = APIRouter(prefix="/admin/analytics/chat")
 # --------------------------------------------------
 # EVENT NAME CONFIG (edit to match what you emit)
 # --------------------------------------------------
+
 FOLLOWUPS_SHOWN_EVENT = "followups_shown"
 FOLLOWUP_CLICK_EVENT = "followup_click"
 
@@ -43,12 +43,8 @@ def ms_to_dt(ms: int) -> datetime:
     return datetime.fromtimestamp(ms / 1000.0, tz=timezone.utc)
 
 
-def _is_super(role: Optional[str]) -> bool:
-    r = (role or "").strip().lower()
-    return r in ("super", "superuser")
 
 
-from fastapi import HTTPException, Request
 
 def _enforce_scope(request: Request, pmc_id: int | None) -> int | None:
     role = (request.session.get("role") or "").lower()
@@ -509,90 +505,96 @@ def top_properties(
     from_ms: int = Query(..., alias="from"),
     to_ms: int = Query(..., alias="to"),
     pmc_id: Optional[int] = None,
+    property_id: Optional[int] = None,   # ✅ add (frontend sends it)
     limit: int = 10,
     db: Session = Depends(get_db),
 ):
-
     pmc_id = _enforce_scope(request, pmc_id)
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
 
-stmt = _with_upgrade_array_binds("""
-    with base as (
-      select
-        ae.*,
+    # If PMC-scoped and property filter provided, enforce property belongs to PMC
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-        coalesce(
-          ae.property_id,
-          case when (ae.data->>'property_id') ~ '^[0-9]+$' then (ae.data->>'property_id')::bigint end,
-          case when (ae.data->>'propertyId')  ~ '^[0-9]+$' then (ae.data->>'propertyId')::bigint end,
-          case when (ae.data->'property'->>'id') ~ '^[0-9]+$' then (ae.data->'property'->>'id')::bigint end
-        ) as prop_id,
+    stmt = _with_upgrade_array_binds("""
+        with base as (
+          select
+            ae.*,
 
-        coalesce(
-          ae.pmc_id,
-          case when (ae.data->>'pmc_id') ~ '^[0-9]+$' then (ae.data->>'pmc_id')::bigint end,
-          case when (ae.data->>'pmcId')  ~ '^[0-9]+$' then (ae.data->>'pmcId')::bigint end
-        ) as pmc_id_eff
+            -- robust property_id extraction (column first, then JSON fallbacks)
+            coalesce(
+              ae.property_id,
+              case when (ae.data->>'property_id') ~ '^[0-9]+$' then (ae.data->>'property_id')::bigint end,
+              case when (ae.data->>'propertyId')  ~ '^[0-9]+$' then (ae.data->>'propertyId')::bigint end,
+              case when (ae.data->'property'->>'id') ~ '^[0-9]+$' then (ae.data->'property'->>'id')::bigint end
+            ) as prop_id,
 
-      from analytics_events ae
-      where ae.ts >= :start and ae.ts < :end
-    ),
-    scoped as (
-      select *
-      from base
-      where (:pmc_id is null or pmc_id_eff = :pmc_id)
-        and prop_id is not null
-    ),
-    agg as (
-      select
-        prop_id as property_id,
+            -- robust pmc_id extraction (column first, then JSON fallbacks)
+            coalesce(
+              ae.pmc_id,
+              case when (ae.data->>'pmc_id') ~ '^[0-9]+$' then (ae.data->>'pmc_id')::bigint end,
+              case when (ae.data->>'pmcId')  ~ '^[0-9]+$' then (ae.data->>'pmcId')::bigint end
+            ) as pmc_id_eff
 
-        count(*) filter (where event_name = 'chat_session_created') as sessions,
-        count(*) filter (where event_name = 'message_sent') as messages,
+          from analytics_events ae
+          where ae.ts >= :start and ae.ts < :end
+        ),
+        scoped as (
+          select *
+          from base
+          where (:pmc_id is null or pmc_id_eff = :pmc_id)
+            and (:property_id is null or prop_id = :property_id)   -- ✅ add
+            and prop_id is not null
+        ),
+        agg as (
+          select
+            prop_id as property_id,
 
-        count(*) filter (where event_name = :followups_shown_event) as followups_shown,
-        count(*) filter (where event_name = :followup_click_event) as followup_clicks,
+            count(*) filter (where event_name = 'chat_session_created') as sessions,
+            count(*) filter (where event_name = 'message_sent') as messages,
 
-        count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-        count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+            count(*) filter (where event_name = :followups_shown_event) as followups_shown,
+            count(*) filter (where event_name = :followup_click_event) as followup_clicks,
 
-        count(*) filter (where event_name = :chat_error_event) as chat_errors,
-        count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
+            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
+            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
 
-      from scoped
-      group by 1
+            count(*) filter (where event_name = :chat_error_event) as chat_errors,
+            count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
+
+          from scoped
+          group by 1
+        )
+        select
+          a.property_id,
+          p.property_name,
+
+          a.sessions,
+          a.messages,
+
+          a.followups_shown,
+          a.followup_clicks,
+          (a.followup_clicks::float / nullif(a.followups_shown::float, 0)) as followup_conversion_rate,
+
+          a.upgrade_checkouts_started,
+          a.upgrade_purchases,
+          (a.upgrade_purchases::float / nullif(a.upgrade_checkouts_started::float, 0)) as upgrade_conversion_rate,
+
+          a.chat_errors,
+          a.contact_host_clicks
+
+        from agg a
+        left join properties p on p.id = a.property_id
+        order by a.sessions desc, a.messages desc
+        limit :limit;
+    """).bindparams(
+        bindparam("limit", type_=BIGINT),
+        bindparam("followups_shown_event", type_=PG_TEXT),
+        bindparam("followup_click_event", type_=PG_TEXT),
+        bindparam("chat_error_event", type_=PG_TEXT),
+        bindparam("contact_host_click_event", type_=PG_TEXT),
     )
-    select
-      a.property_id,
-      p.property_name,
-
-      a.sessions,
-      a.messages,
-
-      a.followups_shown,
-      a.followup_clicks,
-      (a.followup_clicks::float / nullif(a.followups_shown::float, 0)) as followup_conversion_rate,
-
-      a.upgrade_checkouts_started,
-      a.upgrade_purchases,
-      (a.upgrade_purchases::float / nullif(a.upgrade_checkouts_started::float, 0)) as upgrade_conversion_rate,
-
-      a.chat_errors,
-      a.contact_host_clicks
-
-    from agg a
-    left join properties p on p.id = a.property_id
-    order by a.sessions desc, a.messages desc
-    limit :limit;
-""").bindparams(
-    bindparam("limit"),
-    bindparam("followups_shown_event", type_=PG_TEXT),
-    bindparam("followup_click_event", type_=PG_TEXT),
-    bindparam("chat_error_event", type_=PG_TEXT),
-    bindparam("contact_host_click_event", type_=PG_TEXT),
-)
-
 
     try:
         rows = db.execute(
@@ -601,6 +603,7 @@ stmt = _with_upgrade_array_binds("""
                 "start": start,
                 "end": end,
                 "pmc_id": pmc_id,
+                "property_id": property_id,  # ✅ pass through
                 "limit": int(limit),
                 "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
                 "followup_click_event": FOLLOWUP_CLICK_EVENT,
@@ -614,6 +617,7 @@ stmt = _with_upgrade_array_binds("""
         raise HTTPException(status_code=500, detail=f"top-properties query failed: {e}")
 
     return {"rows": [dict(r) for r in rows]}
+
 
 
 
@@ -924,7 +928,7 @@ def assistant_performance(
         order by assistant_messages desc, response_samples desc
         limit :limit;
     """).bindparams(
-        bindparam("limit"),
+        bindparam("limit", type_=BIGINT),
         bindparam("followups_shown_event", type_=PG_TEXT),
         bindparam("followup_click_event", type_=PG_TEXT),
         bindparam("chat_error_event", type_=PG_TEXT),
