@@ -48,8 +48,6 @@ router = APIRouter()
 templates = Jinja2Templates(directory="templates")
 logging.basicConfig(level=logging.INFO)
 
-client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-
 ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
 SUMMARY_MODEL = os.getenv("OPENAI_SUMMARY_MODEL", "gpt-4o-mini")
 ADMIN_IDENTITY_SESSION_KEY = os.getenv("ADMIN_IDENTITY_SESSION_KEY", "admin_email")
