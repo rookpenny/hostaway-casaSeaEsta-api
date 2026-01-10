@@ -508,13 +508,6 @@ def top_properties(
     db: Session = Depends(get_db),
 ):
 
-    # 🔥 HARD DIAGNOSTIC (TEMP)
-    print("🔥 HARD DIAGNOSTIC: top_properties HIT")
-    print("🔥 role:", request.session.get("role"))
-    print("🔥 pmc_id (session):", request.session.get("pmc_id"))
-    print("🔥 pmc_id (query):", pmc_id)
-    print("🔥 from_ms:", from_ms, "to_ms:", to_ms)
-    
     pmc_id = _enforce_scope(request, pmc_id)
     start = ms_to_dt(from_ms)
     end = ms_to_dt(to_ms)
