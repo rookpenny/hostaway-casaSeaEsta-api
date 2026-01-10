@@ -1031,6 +1031,71 @@ def create_upgrade_checkout(
     return {"checkout_url": checkout_session.url}
 
 
+@app.post("/properties/{property_id}/chat")
+def property_chat(property_id: int, payload: PropertyChatRequest, request: Request, db: Session = Depends(get_db)):
+    # 1) require unlock
+    if not request.session.get(f"guest_verified_{property_id}", False):
+        raise HTTPException(status_code=403, detail="Please unlock your stay first.")
+
+    # 2) validate property exists
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    # 3) pick up session id (from payload or session)
+    session_id = payload.session_id or request.session.get(f"guest_session_{property_id}")
+    session = None
+    if session_id:
+        session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
+
+    # 4) load context + build system prompt
+    context = load_property_context(prop, db)
+    pmc = getattr(prop, "pmc", None)
+    system_prompt = build_system_prompt(prop, pmc, context, payload.language, session)
+
+    # 5) call OpenAI
+    client = get_openai(request)
+    model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
+    user_message = (payload.message or "").strip()
+    if not user_message:
+        raise HTTPException(status_code=400, detail="Message is required")
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            temperature=0.7,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+        text = (resp.choices[0].message.content or "").strip()
+
+        # optional: your link normalizer
+        text = enforce_click_here_links(text)
+
+        # 6) (optional) save ChatMessage rows, update session.last_activity_at, etc.
+
+        return {
+            "response": text,
+            "session_id": session_id,
+            "thread_id": payload.thread_id,      # keep stable for now
+            "reply_to": payload.client_message_id,
+            "suggestions": [],                   # you can add later
+        }
+
+    except RateLimitError:
+        raise HTTPException(status_code=429, detail="Rate limit reached. Please try again shortly.")
+    except AuthenticationError:
+        raise HTTPException(status_code=500, detail="AI configuration error.")
+    except APIStatusError as e:
+        code = int(getattr(e, "status_code", 502) or 502)
+        raise HTTPException(status_code=code, detail="AI service temporarily unavailable.")
+    except Exception:
+        raise HTTPException(status_code=500, detail="Unexpected server error.")
+
+
+
 @app.get("/debug/property-context/{property_id}")
 def debug_property_context(property_id: int, db: Session = Depends(get_db)):
     prop = db.query(Property).filter(Property.id == property_id).first()
