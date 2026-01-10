@@ -1715,6 +1715,40 @@ def _apply_scope_to_session_query(q, user_role: str, pmc_obj: Optional[PMC]):
     return q
 
 
+# -------------------------------------------------------------------
+# Aliases to match admin dashboard frontend endpoint expectations
+# (keeps your existing routes working too)
+# -------------------------------------------------------------------
+
+@router.get("/admin/analytics/chat/summary")
+def admin_analytics_chat_summary(
+    request: Request,
+    db: Session = Depends(get_db),
+    days: int = Query(30, ge=1, le=365),
+):
+    # Just call the existing implementation
+    return admin_analytics_summary(request=request, db=db, days=days)
+
+
+@router.get("/admin/analytics/chat/top-properties")
+def admin_analytics_chat_top_properties(
+    request: Request,
+    db: Session = Depends(get_db),
+    days: int = Query(7, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50),
+    sort: str = Query("messages", pattern="^(messages|sessions|urgent_sessions|unhappy_sessions)$"),
+):
+    return admin_analytics_top_properties(
+        request=request,
+        db=db,
+        days=days,
+        limit=limit,
+        sort=sort,
+    )
+
+
+
+
 @router.get("/admin/analytics/summary")
 def admin_analytics_summary(
     request: Request,
