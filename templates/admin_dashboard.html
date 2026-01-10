@@ -1742,11 +1742,12 @@ const CONTENT_LOCKED = IS_LOCKED;
 // ----------------------------
 window.chatAnalyticsChart = window.chatAnalyticsChart || null;
 
-function rangeToUnixSeconds(days) {
-  const to = Math.floor(Date.now() / 1000);
-  const from = to - (Number(days) * 24 * 60 * 60);
+function rangeToUnixMs(days) {
+  const to = Date.now(); // ms
+  const from = to - (Number(days) * 24 * 60 * 60 * 1000);
   return { from, to };
 }
+
 
 
 function fmtPct(x) {
@@ -1834,7 +1835,7 @@ async function loadChatAnalytics(daysOverride = null) {
     const { days, propertyId, pmcId } = getAnalyticsFilters();
     const daysToUse = daysOverride != null ? daysOverride : days;
 
-    const { from, to } = rangeToUnixSeconds(daysToUse);
+    const { from, to } = rangeToUnixMs(daysToUse);
     const qs = buildAnalyticsQS({ from, to, propertyId, pmcId });
 
     // Summary KPIs
