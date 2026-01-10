@@ -1731,15 +1731,11 @@ window.openChatDetail = openChatDetail;
 
  <script>
   // -------- Paywall flag (server-rendered) --------
-  const IS_LOCKED = {{ 'true' if (user_role == 'pmc' and needs_payment) else 'false' }};
-  const CONTENT_LOCKED = IS_LOCKED;
+const IS_LOCKED = {{ (user_role == 'pmc' and needs_payment) | tojson }};
+const CONTENT_LOCKED = IS_LOCKED;
 
 
  // let chatAnalyticsChart = null;
-
-// ----------------------------
-// Analytics (clean + single load function)
-// ----------------------------
 
 // ----------------------------
 // Analytics (single definition)
