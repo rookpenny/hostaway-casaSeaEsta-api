@@ -1952,15 +1952,7 @@ document.addEventListener("change", (e) => {
 });
 
 
- def parse_ts(x: str | int | None) -> int | None:
-    if x is None:
-        return None
-    v = int(x)
-    # if it looks like milliseconds, convert to seconds
-    if v > 10_000_000_000:  # ~2286-11-20 in seconds; anything bigger is ms in practice
-        v = v // 1000
-    return v
-  
+
 
   // ----------------------------
   // Small UI helpers
