@@ -1111,6 +1111,28 @@ def escalation_rank(level: Optional[str]) -> int:
     order = {None: 0, "": 0, "low": 1, "medium": 2, "high": 3}
     return order.get((level or "").lower(), 0)
 
+def derive_signals(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int, status_val: str) -> list[str]:
+    signals: list[str] = []
+    if has_urgent:
+        signals.append("panicked")
+    if has_negative:
+        signals.append("upset")
+    if has_negative and cnt24 >= 3:
+        signals.append("angry")
+    if (not has_urgent) and (not has_negative) and (cnt7 >= 3 or cnt24 >= 2):
+        signals.append("confused")
+    if status_val == "active" and (has_urgent or has_negative):
+        signals.append("stressed")
+    if not signals:
+        signals.append("calm")
+
+    out, seen = [], set()
+    for s in signals:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out[:2]
+
 
 # ----------------------------
 # Chats list + actions
