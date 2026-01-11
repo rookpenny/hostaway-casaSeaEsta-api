@@ -51,7 +51,6 @@ from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from utils.github_sync import ensure_repo
-from utils.ai_summary import generate_and_store_summary
 from utils.ai_summary import maybe_autosummarize_on_new_guest_message
 
 logger = logging.getLogger("uvicorn.error")
@@ -441,7 +440,7 @@ def debug_properties(db: Session = Depends(get_db)):
         for p in props
     ]
 
-
+'''
 def maybe_autosummarize_on_new_guest_message(db: Session, session_id: int) -> None:
     """
     Re-run summary when new guest messages arrive, but throttle to avoid spam/cost.
@@ -466,7 +465,7 @@ def maybe_autosummarize_on_new_guest_message(db: Session, session_id: int) -> No
 
     except Exception:
         logger.exception("Auto-summary failed (non-fatal)")
-
+'''
 
 def get_integration_for_property(db: Session, prop: Property) -> PMCIntegration:
     integration_id = getattr(prop, "integration_id", None)
@@ -1298,16 +1297,11 @@ def property_chat(
         db.add(session)
         db.commit()
 
-        # ✅ Auto re-summarize (throttled) after new messages
-        # force=False means: only runs if there are new messages AND throttle allows it
+        # ✅ Auto re-summarize (throttled) after new guest message
         try:
-            generate_and_store_summary(db=db, session_id=int(session_id), force=False)
+            maybe_autosummarize_on_new_guest_message(db, session_id=int(session_id))
         except Exception:
             logger.exception("Auto-summary failed (non-fatal)")
-        
-
-        # ✅ Auto re-summarize (throttled) after new guest message
-        maybe_autosummarize_on_new_guest_message(db, session_id=session_id)
 
         return {
             "response": text,
