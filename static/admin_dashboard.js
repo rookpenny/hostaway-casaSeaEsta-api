@@ -1,3 +1,19 @@
+function readBootstrap() {
+  const el = document.getElementById("dashboard-bootstrap");
+  if (!el) return {};
+  try {
+    return JSON.parse(el.textContent || "{}");
+  } catch (e) {
+    console.error("Invalid dashboard bootstrap JSON", e);
+    return {};
+  }
+}
+
+const BOOT = readBootstrap();
+const IS_LOCKED = !!BOOT.is_locked;
+window.CONTENT_LOCKED = IS_LOCKED; // if you want global
+
+
 /// ----- START OF SECTION
 
     // ----------------------------
@@ -543,7 +559,7 @@ function setAssignedBadge(container, assignedTo) {
   container.innerHTML = `<span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">${escapeHtml(v)}</span>`;
 }
 
-function renderSentimentBadge(container, sentiment) {
+/*function renderSentimentBadge(container, sentiment) {
   if (!container) return;
 
   const s = String(sentiment || "").toLowerCase().trim();
@@ -565,7 +581,7 @@ function renderSentimentBadge(container, sentiment) {
   } else {
     container.innerHTML = `<span class="text-slate-400">—</span>`;
   }
-}
+}*/
 
 // small safety helper
 function escapeHtml(str) {
@@ -618,7 +634,7 @@ function classifySentiment(raw) {
   return "custom";
 }
 
-function renderSentimentBadge(el, raw) {
+/*function renderSentimentBadge(el, raw) {
   if (!el) return;
 
   const s = String(raw || "").toLowerCase().trim();
@@ -673,8 +689,95 @@ function renderSentimentBadge(el, raw) {
   el.classList.add("bg-slate-100", "text-slate-700");
 }
 
-
+*/
     
+/**
+ * Render a sentiment pill into a container.
+ *
+ * Works with BOTH patterns:
+ *  1) container is a wrapper (<span data-sentiment-badge>...</span>)
+ *     -> we replace its innerHTML with a pill
+ *  2) container itself is the pill element
+ *     -> we set className/textContent directly
+ *
+ * If the container already has a pill inside (firstElementChild),
+ * we update that pill; otherwise we treat container as the target.
+ */
+function renderSentimentBadge(container, rawSentiment) {
+  if (!container) return;
+
+  const s = String(rawSentiment || "").toLowerCase().trim();
+
+  // If you have a wrapper that contains an inner pill span, update the pill.
+  // Otherwise, update the container itself.
+  const target =
+    container.firstElementChild && container.firstElementChild.tagName.toLowerCase() === "span"
+      ? container.firstElementChild
+      : container;
+
+  // Helper: apply pill styling
+  function setPill(text, classes) {
+    // Ensure target is a pill span
+    if (target !== container && target.tagName.toLowerCase() === "span") {
+      // ok
+    } else if (target === container) {
+      // if container is not a span, just replace its HTML with a span pill
+      if (container.tagName.toLowerCase() !== "span") {
+        container.innerHTML = `<span class="${classes}">${escapeHtml(text)}</span>`;
+        return;
+      }
+    }
+
+    target.className = classes;
+    target.textContent = text;
+  }
+
+  // Empty / unknown
+  if (!s) {
+    // If wrapper, keep it simple
+    if (target !== container) {
+      container.innerHTML = `<span class="text-slate-400">—</span>`;
+      return;
+    }
+    container.className = "text-slate-400";
+    container.textContent = "—";
+    return;
+  }
+
+  // Buckets
+  if (["angry", "mad", "furious", "hostile", "irate"].some(k => s.includes(k))) {
+    setPill("😡 Angry", "px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold");
+    return;
+  }
+
+  if (["upset", "frustrated", "annoyed", "unhappy", "negative"].some(k => s.includes(k))) {
+    setPill("😣 Upset", "px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold");
+    return;
+  }
+
+  if (["worried", "anxious", "nervous", "stressed", "stress"].some(k => s.includes(k))) {
+    setPill("😰 Worried", "px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold");
+    return;
+  }
+
+  if (["concern", "concerned", "issue", "problem", "confused", "unclear"].some(k => s.includes(k))) {
+    setPill("😟 Concerned", "px-2 py-1 rounded-full bg-indigo-100 text-indigo-800 font-semibold");
+    return;
+  }
+
+  if (["happy", "positive", "pleased", "delighted", "great", "good", "love"].some(k => s.includes(k))) {
+    setPill("😊 Happy", "px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold");
+    return;
+  }
+
+  if (["neutral", "ok"].includes(s)) {
+    setPill("😐 Neutral", "px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold");
+    return;
+  }
+
+  // Fallback: show raw label safely
+  setPill(s, "px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold");
+}
 
     
 /**
@@ -810,7 +913,7 @@ window.openChatDetail = openChatDetail;
 
 
   // -------- Paywall flag (server-rendered) --------
-const IS_LOCKED = {{ (user_role == 'pmc' and needs_payment) | tojson }};
+//const IS_LOCKED = {{ (user_role == 'pmc' and needs_payment) | tojson }};
 const CONTENT_LOCKED = IS_LOCKED;
 
 
@@ -2401,16 +2504,16 @@ function initRouting() {
   const views = Array.from(document.querySelectorAll(".view"));
 
   const subtitles = {
-    overview: "{{ 'System health & activity' if user_role == 'super' else 'Your portfolio at a glance' }}",
-    properties: "Search and manage your portfolio",
-    chats: "Lifecycle, priority, escalations",
-    pmcs: "Partners, integrations, access",
-    guides: "Guest-facing guides per property",
-    upgrades: "Paid add-ons per property",
-    files: "Configs & manuals",
-    analytics: "{{ 'Trends & performance' if user_role == 'super' else 'Your chat trends & performance' }}",
-    settings: "Account and system settings",
-  };
+  overview: BOOT.user_role === "super" ? "System health & activity" : "Your portfolio at a glance",
+  properties: "Search and manage your portfolio",
+  chats: "Lifecycle, priority, escalations",
+  pmcs: "Partners, integrations, access",
+  guides: "Guest-facing guides per property",
+  upgrades: "Paid add-ons per property",
+  files: "Configs & manuals",
+  analytics: BOOT.user_role === "super" ? "Trends & performance" : "Your chat trends & performance",
+  settings: "Account and system settings",
+};
 
   async function showView(key) {
     key = (key || "overview").toLowerCase();
@@ -2525,7 +2628,7 @@ document.addEventListener("DOMContentLoaded", () => {
       type: "bar",
       data: {
         labels: ["LIVE", "OFFLINE"],
-        datasets: [{ label: "Properties", data: [{{ live_props }}, {{ offline_props }}] }],
+       datasets: [{ label: "Properties", data: [Number(BOOT.live_props || 0), Number(BOOT.offline_props || 0)] }],
       },
       options: {
         responsive: true,
