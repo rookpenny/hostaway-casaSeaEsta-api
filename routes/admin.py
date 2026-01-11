@@ -70,6 +70,16 @@ TMP_DIR.mkdir(parents=True, exist_ok=True)
 
 
 # ----------------------------
+# OpenAI client (used by summarize + admin chat)
+# ----------------------------
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "").strip()
+if not OPENAI_API_KEY:
+    logging.warning("OPENAI_API_KEY is not set. /admin/chats/{id}/summarize will fail.")
+
+client = OpenAI(api_key=OPENAI_API_KEY)
+
+
+# ----------------------------
 # DB dependency
 # ----------------------------
 #def get_db():
@@ -1617,10 +1627,17 @@ async def summarize_chat(
         if not summary:
             summary = "**What the guest wants**\n- (No summary generated)\n"
     except Exception as e:
+        logging.exception("Summarization failed")
         return JSONResponse(
             status_code=500,
-            content={"ok": False, "error": f"Summarization failed: {str(e)}"},
+            content={
+                "ok": False,
+                "error": "Summarization failed",
+                "detail": str(e),
+                "model": SUMMARY_MODEL,
+            },
         )
+
 
     session.ai_summary = summary
     session.ai_summary_updated_at = datetime.utcnow()
