@@ -39,6 +39,8 @@ def _format_date(d) -> str:
     except Exception:
         return _safe_str(d)
 
+def maybe_autosummarize_on_new_guest_message(db: Session, session_id: int) -> None:
+    generate_and_store_summary(db=db, session_id=session_id, force=False)
 
 def _build_system_prompt(session: ChatSession, prop: Optional[Property]) -> str:
     # Booking context (as available)
