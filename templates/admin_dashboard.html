@@ -1466,22 +1466,15 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
   $("#escalation-select")?.addEventListener("change", async (e) => {
-  const newLevel = e.target.value;
+  const level = e.target.value || "";
+  await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level });
 
-  await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level: newLevel });
-
-  // ✅ Update the chat list row immediately (no hard refresh)
-  updateChatListEscalation(sessionId, newLevel);
-
-  // Optional: also update the pill inside detail instantly (then reload detail)
-  const pill = panelEl.querySelector("#escalation-pill");
-  if (pill) {
-    // keep this simple; reloadChatDetail will fully re-render anyway
-    pill.textContent = newLevel ? `🚨 Escalation: ${newLevel[0].toUpperCase() + newLevel.slice(1)}` : "No escalation";
-  }
+  // optional instant UI update in list immediately
+  updateChatListRow(sessionId, { escalation_level: level || null });
 
   await loadChatDetail(sessionId);
 });
+
 
 
 
