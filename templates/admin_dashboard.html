@@ -18,11 +18,7 @@
   <link href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
-
-  
-
 </head>
-
 <body class="bg-slate-50 text-slate-900">
   <div class="min-h-screen flex">
 {% set initial_view = request.query_params.get('view') or ('chats' if request.query_params.get('session_id') else 'overview') %}
@@ -3248,64 +3244,6 @@ async openEditor(id) {
     .replace(/-+/g, "-");
 });
 
-
-   // Upgrade image upload (delegated — works for AJAX-loaded form)
-/*document.addEventListener("change", async (e) => {
-  const input = e.target;
-  if (!(input instanceof HTMLInputElement)) return;
-  if (!input.matches("[data-upgrade-image-file]")) return;
-
-  if (IS_LOCKED) {
-    toast("Complete payment to unlock Upgrades.");
-    input.value = "";
-    return;
-  }
-
-  const file = input.files?.[0];
-  if (!file) return;
-
-  const editor = input.closest("#upgrades-editor-body") || document;
-  const hiddenUrl = editor.querySelector("[data-upgrade-image-url]");
-  const preview = editor.querySelector("[data-upgrade-image-preview]");
-  const upgradeId = editor.querySelector('input[name="id"]')?.value || "";
-
-  try {
-    toast("Uploading image…");
-
-    const fd = new FormData();
-    fd.append("file", file);
-    if (upgradeId) fd.append("upgrade_id", upgradeId);
-
-    const res = await fetch("/admin/upgrades/ajax/upload-image", {
-      method: "POST",
-      credentials: "include",
-      body: fd,
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok || !data.url) {
-      toast(data.error || "Upload failed.");
-      return;
-    }
-
-    // Persist for Save Upgrade
-    if (hiddenUrl) hiddenUrl.value = data.url;
-
-    // Preview
-    if (preview) {
-      preview.src = data.url;
-      preview.classList.remove("hidden");
-    }
-
-    toast("Image uploaded ✓");
-  } catch (err) {
-    console.error(err);
-    toast("Upload failed.");
-  } finally {
-    // allow re-uploading same file
-    input.value = "";
-  }
-});*/
 
 // Upload image (delegated) — works after partial loads
 document.addEventListener("click", async (e) => {
