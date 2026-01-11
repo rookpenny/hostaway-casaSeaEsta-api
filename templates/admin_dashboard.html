@@ -859,8 +859,11 @@
               <th class="px-4 py-3 text-left">Assigned</th>
               <th class="px-4 py-3 text-left">Stage</th>
               <th class="px-4 py-3 text-left">Priority</th>
+              <th class="px-4 py-3 text-left">Escalation</th>
+              <th class="px-4 py-3 text-left">Status</th>
+              <th class="px-4 py-3 text-left">Sentiment</th>
               <th class="px-4 py-3 text-left">Last</th>
-              <th class="px-4 py-3 text-left">Snippet</th>
+
             </tr>
           </thead>
 
@@ -870,33 +873,18 @@
                 class="border-t hover:bg-slate-50 cursor-pointer"
                 onclick="openChatDetail({{ s.id }})"
               >
+                <!-- Property -->
                 <td class="px-4 py-3">
                   <div class="font-semibold">{{ s.property_name or "Unknown property" }}</div>
                   <div class="text-xs text-slate-500">ID: {{ s.property_id }}</div>
-
-                  {% if s.escalation_level %}
-                    <div class="mt-1 text-[11px]">
-                      {% if s.escalation_level == "high" %}
-                        <span class="px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 font-semibold">🔴 Escalation</span>
-                      {% elif s.escalation_level == "medium" %}
-                        <span class="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-semibold">🟡 Escalation</span>
-                      {% else %}
-                        <span class="px-2 py-0.5 rounded-full bg-blue-100 text-blue-800 font-semibold">🟢 Escalation</span>
-                      {% endif %}
-                    </div>
-                  {% endif %}
-
-                  {% if s.is_resolved %}
-                    <div class="mt-1 text-[11px]">
-                      <span class="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 font-semibold">✅ Resolved</span>
-                    </div>
-                  {% endif %}
                 </td>
-
+              
+                <!-- Guest -->
                 <td class="px-4 py-3">
                   <div class="font-medium">{{ s.guest_name or "—" }}</div>
                 </td>
-
+              
+                <!-- Assigned -->
                 <td class="px-4 py-3 text-xs">
                   {% if s.assigned_to %}
                     <span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">
@@ -906,11 +894,12 @@
                     <span class="text-slate-400">—</span>
                   {% endif %}
                 </td>
-
+              
+                <!-- Stage -->
                 <td class="px-4 py-3 text-xs">
                   {# Normalize status #}
                   {% set st = (s.reservation_status or "")|lower %}
-                
+              
                   {# Heuristics: treat as post-booking if we have booking identifiers but not active/post_stay #}
                   {% set has_booking = (
                       s.reservation_id
@@ -919,26 +908,24 @@
                       or s.pms_reservation_id
                       or s.reservation_confirmed
                   ) %}
-                
+              
                   {% if st == "active" %}
                     <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🏖 Active</span>
-                
+              
                   {% elif st in ["post_booking", "booked", "confirmed"] %}
                     <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
-                
+              
                   {% elif st == "post_stay" %}
                     <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">📬 Post-stay</span>
-                
+              
                   {% elif st == "pre_booking" %}
-                    {# If backend says pre_booking but booking signals exist, show post-booking #}
                     {% if has_booking %}
                       <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
                     {% else %}
                       <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold">💬 Pre-booking</span>
                     {% endif %}
-                
+              
                   {% else %}
-                    {# Unknown status: still show post-booking if booking signals exist #}
                     {% if has_booking %}
                       <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
                     {% else %}
@@ -946,18 +933,74 @@
                     {% endif %}
                   {% endif %}
                 </td>
-
-
+              
+                <!-- Priority -->
                 <td class="px-4 py-3 text-xs">
-                  {% if s.escalation_level == "critical" %}
-                    <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔥 Critical</span>
-                  {% elif s.escalation_level == "attention" %}
-                    <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">⚠️ Attention</span>
+                  {% set pri = (s.priority or "")|lower %}
+                  {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "")|lower %}
+                  {% set esc = (s.escalation_level or "")|lower %}
+                
+                  {# Prefer explicit backend booleans if present #}
+                  {% set is_urgent = (s.is_urgent if s.is_urgent is not none else (pri == "urgent" or esc in ["critical","high"])) %}
+                  {% set is_unhappy = (s.is_unhappy if s.is_unhappy is not none else (pri == "unhappy" or sent in ["negative","unhappy","bad"])) %}
+                
+                  <div class="flex flex-wrap gap-1">
+                    {% if is_urgent %}
+                      <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔥 Urgent</span>
+                    {% endif %}
+                    {% if is_unhappy %}
+                      <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😟 Unhappy</span>
+                    {% endif %}
+                
+                    {% if not is_urgent and not is_unhappy %}
+                      <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">🕰 Routine</span>
+                    {% endif %}
+                  </div>
+                </td>
+
+              
+                <!-- Escalation -->
+                <td class="px-4 py-3 text-xs">
+                  {% set esc = (s.escalation_level or "")|lower %}
+                  {% if esc in ["critical", "high"] %}
+                    <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔴 High</span>
+                  {% elif esc in ["attention", "medium"] %}
+                    <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🟡 Medium</span>
+                  {% elif esc %}
+                    <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold">🟢 Low</span>
                   {% else %}
-                    <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">🕰 Routine</span>
+                    <span class="text-slate-400">—</span>
+                  {% endif %}
+                </td>
+                
+                <!-- Open/Closed -->
+                <td class="px-4 py-3 text-xs">
+                  {% if s.is_resolved %}
+                    <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>
+                  {% else %}
+                    <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>
+                  {% endif %}
+                </td>
+                
+                <!-- Sentiment -->
+                <td class="px-4 py-3 text-xs">
+                  {# use whichever field your backend provides; this supports both common names #}
+                  {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "")|lower %}
+                  {% if sent in ["negative", "unhappy", "bad"] %}
+                    <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😟 Negative</span>
+                  {% elif sent in ["positive", "happy", "good"] %}
+                    <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">😊 Positive</span>
+                  {% elif sent in ["neutral", "ok"] %}
+                    <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">😐 Neutral</span>
+                  {% elif sent %}
+                    <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">{{ sent }}</span>
+                  {% else %}
+                    <span class="text-slate-400">—</span>
                   {% endif %}
                 </td>
 
+              
+                <!-- Last -->
                 <td class="px-4 py-3 text-xs text-slate-600">
                   {% if s.last_activity_at %}
                     <span class="js-rel-time" data-ts="{{ s.last_activity_at.isoformat() }}">
@@ -967,14 +1010,8 @@
                     —
                   {% endif %}
                 </td>
-
-                <td class="px-4 py-3 text-xs text-slate-600">
-                  {% set snip = "" %}
-                  <div class="line-clamp-2" title="{{ snip }}">
-                    {{ snip[:140] }}{% if snip|length > 140 %}…{% endif %}
-                  </div>
-                </td>
               </tr>
+
             {% endfor %}
           </tbody>
         </table>
