@@ -1006,39 +1006,64 @@
                 </td>
 
                 
-                <!-- Sentiment (from signals, like admin_chats.html) -->
+                <!-- Sentiment / Signals -->
                 <td class="px-4 py-3 text-xs">
-                  {# Defensive: allow s.signals to be missing/null #}
                   {% set sig = (s.signals or []) | map('lower') | list %}
+                  {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "") | lower %}
                 
-                  {# Store signals for JS rerender (optional but recommended) #}
-                  <span data-signals-badge data-signals="{{ sig|tojson|e }}">
-                    {% if "panicked" in sig %}
-                      <span class="inline-block px-2 py-1 rounded-full bg-rose-100 text-rose-700 font-semibold mr-1">😰 Panicked</span>
+                  {# If backend didn't supply signals, derive a minimal set from sentiment #}
+                  {% if sig|length == 0 and sent %}
+                    {% if "angry" in sent or "mad" in sent or "furious" in sent %}
+                      {% set _ = sig.append("angry") %}
                     {% endif %}
+                    {% if "upset" in sent or "frustrat" in sent or "annoy" in sent or "unhappy" in sent %}
+                      {% set _ = sig.append("upset") %}
+                    {% endif %}
+                    {% if "panic" in sent or "terrified" in sent %}
+                      {% set _ = sig.append("panicked") %}
+                    {% endif %}
+                    {% if "worr" in sent or "concern" in sent or "anx" in sent or "stress" in sent or "scared" in sent %}
+                      {% set _ = sig.append("worried") %}
+                    {% endif %}
+                    {% if "confus" in sent or "unclear" in sent %}
+                      {% set _ = sig.append("confused") %}
+                    {% endif %}
+                  {% endif %}
                 
-                    {% if "angry" in sig %}
-                      <span class="inline-block px-2 py-1 rounded-full bg-rose-200 text-rose-900 font-semibold mr-1">😡 Angry</span>
-                    {% endif %}
+                  {# Now render pills #}
+                  {% if "panicked" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-rose-100 text-rose-700 font-semibold mr-1">😰 Panicked</span>
+                  {% endif %}
                 
-                    {% if "upset" in sig %}
-                      <span class="inline-block px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold mr-1">😟 Upset</span>
-                    {% endif %}
+                  {% if "angry" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-rose-200 text-rose-900 font-semibold mr-1">😡 Angry</span>
+                  {% endif %}
                 
-                    {% if "confused" in sig %}
-                      <span class="inline-block px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold mr-1">😕 Confused</span>
-                    {% endif %}
+                  {% if "upset" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold mr-1">😟 Upset</span>
+                  {% endif %}
                 
-                    {% if "worried" in sig %}
-                      <span class="inline-block px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold mr-1">🥺 Worried</span>
-                    {% endif %}
+                  {% if "confused" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold mr-1">😕 Confused</span>
+                  {% endif %}
                 
-                    {% if sig|length == 0 or (sig|length == 1 and "calm" in sig) %}
-                      <span class="inline-block px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🙂 Calm</span>
-                    {% endif %}
-                  </span>
-                </td>
+                  {% if "worried" in sig %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold mr-1">🥺 Worried</span>
+                  {% endif %}
+                
+                  {# Only show Calm if we truly have no negative signal AND no sentiment #}
+                  {% if sig|length == 0 %}
+                    <span class="inline-block px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🙂 Calm</span>
+                  {% endif %}
 
+                  <!-- ✅ TEMP DEBUG (remove after) -->
+  <pre class="mt-2 text-[10px] text-slate-400 whitespace-pre-wrap">
+signals={{ s.signals }}
+sentiment={{ s.sentiment }}
+sentiment_label={{ s.sentiment_label }}
+sentiment_status={{ s.sentiment_status }}
+  </pre>
+                </td>
 
 
               
