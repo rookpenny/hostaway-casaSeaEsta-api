@@ -1257,7 +1257,7 @@ function initChatDetailToggles(panelEl, sessionId) {
   const summaryToggle = panelEl.querySelector("#summary-toggle");
   if (noteToggle) noteToggle.setAttribute("aria-expanded", getChatDetailSectionOpen(sessionId, "note") ? "true" : "false");
   if (summaryToggle) summaryToggle.setAttribute("aria-expanded", getChatDetailSectionOpen(sessionId, "summary") ? "true" : "false");
-}*/
+}
 
 // Delegated click handler (works after injection)
 document.addEventListener("click", (e) => {
@@ -1274,7 +1274,6 @@ document.addEventListener("click", (e) => {
   const isOpen = btn.getAttribute("aria-expanded") === "true";
   setChatDetailSectionOpen(panel, sessionId, which, !isOpen, true);
 });
-
 // Keyboard shortcuts (global)
 document.addEventListener("keydown", (e) => {
   if (e.metaKey || e.ctrlKey || e.altKey) return;
@@ -1295,7 +1294,8 @@ document.addEventListener("keydown", (e) => {
   const toggle = panel.querySelector(`#${which}-toggle`);
   const isOpen = toggle?.getAttribute("aria-expanded") === "true";
   setChatDetailSectionOpen(panel, sessionId, which, !isOpen, true);
-});
+});*/
+
 
 
 
@@ -1444,9 +1444,6 @@ async function loadChatDetail(sessionId) {
     
     /*initChatDetailToggles(panel, String(sessionId));*/
 
-
-    // IMPORTANT: bind handlers after injection
-    initChatDetailHandlers(sessionId, panel);
   } catch (err) {
     // Abort is expected when switching chats quickly
     if (err?.name === "AbortError") return;
