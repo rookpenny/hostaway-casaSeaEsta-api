@@ -1581,7 +1581,14 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
- 
+ <script id="dashboard-bootstrap" type="application/json">
+{
+  "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
+  "live_props": {{ live_props | tojson }},
+  "offline_props": {{ offline_props | tojson }},
+  "user_role": {{ user_role | tojson }}
+}
+</script>
 
 </body>
 </html>
