@@ -1011,15 +1011,26 @@
                 
                 <!-- Sentiment -->
                 <td class="px-4 py-3 text-xs">
-                  {% set sent_raw = (s.sentiment or s.sentiment_label or s.sentiment_status or '') %}
-                  <span
-                    data-sentiment-badge
-                    data-sentiment="{{ sent_raw|e }}"
-                    class="px-2 py-1 rounded-full font-semibold text-slate-600 bg-slate-100"
-                  >
-                    —
+                  <span data-sentiment-badge>
+                    {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "")|lower %}
+                    {% if sent in ["angry","mad","furious","hostile"] %}
+                      <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😡 Angry</span>
+                    {% elif sent in ["upset","frustrated","annoyed"] %}
+                      <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😣 Upset</span>
+                    {% elif sent in ["worried","concerned","concern","anxious","stress","stressed"] %}
+                      <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-800 font-semibold">😟 Concerned</span>
+                    {% elif sent in ["happy","pleased","delighted","positive"] %}
+                      <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">😊 Happy</span>
+                    {% elif sent in ["neutral","ok"] %}
+                      <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">😐 Neutral</span>
+                    {% elif sent %}
+                      <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">{{ sent }}</span>
+                    {% else %}
+                      <span class="text-slate-400">—</span>
+                    {% endif %}
                   </span>
                 </td>
+
 
 
               
@@ -1561,63 +1572,75 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
-function setEscalationBadge(el, levelRaw) {
-  if (!el) return;
-  const level = String(levelRaw || "").toLowerCase().trim();
+function setEscalationBadge(container, level) {
+  if (!container) return;
+  const esc = String(level || "").toLowerCase();
 
-  // reset baseline class
-  el.className = "px-2 py-1 rounded-full font-semibold";
-
-  if (level === "critical" || level === "high") {
-    el.textContent = "🔴 High";
-    el.classList.add("bg-rose-100", "text-rose-800");
-  } else if (level === "attention" || level === "medium") {
-    el.textContent = "🟡 Medium";
-    el.classList.add("bg-amber-100", "text-amber-800");
-  } else if (level) {
-    el.textContent = "🟢 Low";
-    el.classList.add("bg-blue-100", "text-blue-800");
+  if (esc === "high" || esc === "critical") {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔴 High</span>`;
+  } else if (esc === "medium" || esc === "attention") {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🟡 Medium</span>`;
+  } else if (esc === "low") {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold">🟢 Low</span>`;
   } else {
-    el.textContent = "—";
-    el.classList.add("text-slate-400");
+    container.innerHTML = `<span class="text-slate-400">—</span>`;
   }
-
-  el.setAttribute("data-escalation-level", level);
 }
 
-function setStatusBadge(wrapperEl, isResolved) {
-  if (!wrapperEl) return;
-
-  const resolved = !!isResolved;
-  wrapperEl.setAttribute("data-is-resolved", resolved ? "true" : "false");
-
-  wrapperEl.innerHTML = resolved
-    ? `<span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>`
-    : `<span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>`;
+function setStatusBadge(container, isResolved) {
+  if (!container) return;
+  if (isResolved) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>`;
+  } else {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>`;
+  }
 }
 
-function setAssignedBadge(wrapperEl, assignedToRaw) {
-  if (!wrapperEl) return;
-
-  const assignedTo = String(assignedToRaw || "").trim();
-  wrapperEl.setAttribute("data-assigned-to", assignedTo);
-
-  wrapperEl.innerHTML = assignedTo
-    ? `<span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">${escapeHtml(
-        assignedTo
-      )}</span>`
-    : `<span class="text-slate-400">—</span>`;
+function setAssignedBadge(container, assignedTo) {
+  if (!container) return;
+  const v = String(assignedTo || "").trim();
+  if (!v) {
+    container.innerHTML = `<span class="text-slate-400">—</span>`;
+    return;
+  }
+  container.innerHTML = `<span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">${escapeHtml(v)}</span>`;
 }
 
-// small safe HTML escape for assigned_to
+function renderSentimentBadge(container, sentiment) {
+  if (!container) return;
+
+  const s = String(sentiment || "").toLowerCase().trim();
+
+  const inSet = (val, arr) => arr.includes(val);
+
+  if (inSet(s, ["angry","mad","furious","hostile"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😡 Angry</span>`;
+  } else if (inSet(s, ["upset","frustrated","annoyed"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😣 Upset</span>`;
+  } else if (inSet(s, ["worried","concerned","concern","anxious","stress","stressed"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-800 font-semibold">😟 Concerned</span>`;
+  } else if (inSet(s, ["happy","pleased","delighted","positive"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">😊 Happy</span>`;
+  } else if (inSet(s, ["neutral","ok"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">😐 Neutral</span>`;
+  } else if (s) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">${escapeHtml(s)}</span>`;
+  } else {
+    container.innerHTML = `<span class="text-slate-400">—</span>`;
+  }
+}
+
+// small safety helper
 function escapeHtml(str) {
-  return String(str)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return String(str).replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[m]));
 }
+
 
 
 function normalizeSentiment(raw) {
