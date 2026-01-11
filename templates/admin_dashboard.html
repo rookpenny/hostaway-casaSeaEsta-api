@@ -1011,20 +1011,16 @@
                 
                 <!-- Sentiment -->
                 <td class="px-4 py-3 text-xs">
-                  {# use whichever field your backend provides; this supports both common names #}
-                  {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "")|lower %}
-                  {% if sent in ["negative", "unhappy", "bad"] %}
-                    <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😟 Negative</span>
-                  {% elif sent in ["positive", "happy", "good"] %}
-                    <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">😊 Positive</span>
-                  {% elif sent in ["neutral", "ok"] %}
-                    <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">😐 Neutral</span>
-                  {% elif sent %}
-                    <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">{{ sent }}</span>
-                  {% else %}
-                    <span class="text-slate-400">—</span>
-                  {% endif %}
+                  {% set sent_raw = (s.sentiment or s.sentiment_label or s.sentiment_status or '') %}
+                  <span
+                    data-sentiment-badge
+                    data-sentiment="{{ sent_raw|e }}"
+                    class="px-2 py-1 rounded-full font-semibold text-slate-600 bg-slate-100"
+                  >
+                    —
+                  </span>
                 </td>
+
 
               
                 <!-- Last -->
@@ -1455,20 +1451,26 @@ document.addEventListener("DOMContentLoaded", () => {
     updateChatListRow(sessionId, { is_resolved: false });
   
     await loadChatDetail(sessionId);
-  });
+  }); 
 
 
   $("#escalation-select")?.addEventListener("change", async (e) => {
-    const newLevel = e.target.value;
-  
-    await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level: newLevel });
-  
-    // ✅ instant update in list
-    updateChatListRow(sessionId, { escalation_level: newLevel });
-  
-    // keep detail synced (pill + select state)
-    await loadChatDetail(sessionId);
-  });
+  const newLevel = e.target.value;
+
+  await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level: newLevel });
+
+  // ✅ Update the chat list row immediately (no hard refresh)
+  updateChatListEscalation(sessionId, newLevel);
+
+  // Optional: also update the pill inside detail instantly (then reload detail)
+  const pill = panelEl.querySelector("#escalation-pill");
+  if (pill) {
+    // keep this simple; reloadChatDetail will fully re-render anyway
+    pill.textContent = newLevel ? `🚨 Escalation: ${newLevel[0].toUpperCase() + newLevel.slice(1)}` : "No escalation";
+  }
+
+  await loadChatDetail(sessionId);
+});
 
 
 
@@ -1529,10 +1531,25 @@ document.addEventListener("DOMContentLoaded", () => {
 
     panel.innerHTML = await res.text();
     panel.setAttribute("data-session-id", String(sessionId));
+
     window.restoreAdminChatPanelState?.(panel);
     initChatDetailHandlers(sessionId, panel);
-    
-    /*initChatDetailToggles(panel, String(sessionId));*/
+
+    // ✅ NEW: Update the list row immediately with the latest values from the injected panel
+    const chatRoot = panel.querySelector(`[data-chat-panel="${sessionId}"]`) || panel.querySelector("[data-chat-panel]");
+    if (chatRoot) {
+      const payload = {
+        escalation_level: (chatRoot.getAttribute("data-escalation-level") || "").trim() || null,
+        is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
+        assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
+        sentiment: (chatRoot.getAttribute("data-sentiment") || "").trim() || "",
+      };
+
+      // Only call if the helper exists
+      if (typeof updateChatListRow === "function") {
+        updateChatListRow(sessionId, payload);
+      }
+    }
 
   } catch (err) {
     // Abort is expected when switching chats quickly
@@ -1541,6 +1558,7 @@ document.addEventListener("DOMContentLoaded", () => {
     panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
   }
 }
+
 
 
 function setEscalationBadge(el, levelRaw) {
@@ -1601,6 +1619,104 @@ function escapeHtml(str) {
     .replaceAll("'", "&#039;");
 }
 
+
+function normalizeSentiment(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+
+  // map synonyms -> your UI buckets
+  if (["angry", "mad", "furious", "irate"].includes(s)) return "angry";
+  if (["happy", "positive", "pleased", "great"].includes(s)) return "happy";
+  if (["upset", "negative", "unhappy", "frustrated"].includes(s)) return "upset";
+  if (["concern", "concerned"].includes(s)) return "concerned";
+  if (["worried", "anxious", "nervous"].includes(s)) return "worried";
+  if (["neutral", "ok"].includes(s)) return "neutral";
+
+  return s; // fallback (shows whatever backend sends)
+}
+
+
+/**
+ * Map any raw sentiment label into a richer “human” label.
+ * You can expand this over time without touching templates.
+ */
+function classifySentiment(raw) {
+  const s = normalizeSentiment(raw);
+
+  // direct matches
+  if (["angry", "mad", "furious", "rage"].some(k => s.includes(k))) return "angry";
+  if (["happy", "great", "good", "excellent", "pleased", "love"].some(k => s.includes(k))) return "happy";
+  if (["upset", "frustrated", "annoyed", "irritated"].some(k => s.includes(k))) return "upset";
+  if (["worried", "anxious", "nervous", "stressed"].some(k => s.includes(k))) return "worried";
+  if (["concern", "concerned", "issue", "problem", "confused", "unclear"].some(k => s.includes(k))) return "concerned";
+
+  // fallback for common “simple” backends
+  if (["negative", "unhappy", "bad"].includes(s)) return "upset";
+  if (["positive", "good"].includes(s)) return "happy";
+  if (["neutral", "ok"].includes(s)) return "neutral";
+
+  // If backend returns something else (e.g. "needs_attention"), show it safely
+  return "custom";
+}
+
+function renderSentimentBadge(el, raw) {
+  if (!el) return;
+
+  const s = String(raw || "").toLowerCase().trim();
+
+  // reset
+  el.className = "px-2 py-1 rounded-full font-semibold";
+
+  if (!s) {
+    el.textContent = "—";
+    el.classList.add("text-slate-400");
+    return;
+  }
+
+  if (["angry", "mad", "furious", "irate"].some(k => s.includes(k))) {
+    el.textContent = "😡 Angry";
+    el.classList.add("bg-rose-100", "text-rose-800");
+    return;
+  }
+
+  if (["upset", "frustrated", "annoyed", "unhappy"].some(k => s.includes(k))) {
+    el.textContent = "😟 Upset";
+    el.classList.add("bg-amber-100", "text-amber-800");
+    return;
+  }
+
+  if (["worried", "anxious", "nervous", "stressed"].some(k => s.includes(k))) {
+    el.textContent = "😰 Worried";
+    el.classList.add("bg-amber-100", "text-amber-800");
+    return;
+  }
+
+  if (["concern", "concerned", "issue", "problem"].some(k => s.includes(k))) {
+    el.textContent = "🫤 Concerned";
+    el.classList.add("bg-blue-100", "text-blue-800");
+    return;
+  }
+
+  if (["happy", "positive", "pleased", "great", "good"].some(k => s.includes(k))) {
+    el.textContent = "😊 Happy";
+    el.classList.add("bg-emerald-100", "text-emerald-700");
+    return;
+  }
+
+  if (["neutral", "ok"].includes(s)) {
+    el.textContent = "😐 Neutral";
+    el.classList.add("bg-slate-100", "text-slate-700");
+    return;
+  }
+
+  // fallback: show raw backend label
+  el.textContent = s;
+  el.classList.add("bg-slate-100", "text-slate-700");
+}
+
+
+    
+
+    
 /**
  * Update the row in the main chat list WITHOUT hard refresh.
  *
@@ -1627,17 +1743,21 @@ function updateChatListRow(sessionId, payload = {}) {
     const asgEl = row.querySelector("[data-assigned-badge]");
     setAssignedBadge(asgEl, payload.assigned_to);
   }
+
+  // ✅ NEW: sentiment
+  if (Object.prototype.hasOwnProperty.call(payload, "sentiment")) {
+    const sentEl = row.querySelector("[data-sentiment-badge]");
+    renderSentimentBadge(sentEl, payload.sentiment);
+  }
 }
 
 
-
-
-    
 function applyEscalationBadge(badgeEl, levelRaw) {
   if (!badgeEl) return;
 
   const level = String(levelRaw || "").toLowerCase().trim();
 
+  // Reset classes (keep your pill shape)
   badgeEl.className = "px-2 py-1 rounded-full font-semibold";
 
   if (level === "critical" || level === "high") {
@@ -1659,11 +1779,12 @@ function applyEscalationBadge(badgeEl, levelRaw) {
 
 function updateChatListEscalation(sessionId, level) {
   const row = document.querySelector(`[data-session-row="${sessionId}"]`);
-  if (!row) return;
+  if (!row) return; // row might not be in DOM (filtered/paged out)
 
   const badge = row.querySelector("[data-escalation-badge]");
   applyEscalationBadge(badge, level);
 }
+
 
    async function openChatDetail(sessionId) {
   setInlineDetailOpen(true);
@@ -4030,6 +4151,12 @@ document.addEventListener("DOMContentLoaded", () => {
       },
     });
   }
+
+document.querySelectorAll("[data-sentiment-badge]").forEach((el) => {
+  renderSentimentBadge(el, el.getAttribute("data-sentiment"));
+});
+
+
 
   updateOverviewUI();
 });
