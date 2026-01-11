@@ -973,19 +973,7 @@ function setInlineDetailOpen(open) {
   if (open) inline.scrollIntoView({ behavior: "smooth", block: "start" });
 }
 
-function parseTs(x) {
-  if (x === null || x === undefined) return null;
 
-  let v = Number(x);
-  if (Number.isNaN(v)) return null;
-
-  // If it looks like milliseconds, convert to seconds
-  if (v > 10_000_000_000) {
-    v = Math.floor(v / 1000);
-  }
-
-  return v;
-}
 
 function pushChatUrl(sessionId) {
   const url = new URL(window.location.href);
@@ -1035,17 +1023,26 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-    async function chatPostJSON(url, body) {
-      const res = await fetch(url, {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.ok === false) throw new Error(data.error || "Request failed");
-      return data;
-    }
+   async function chatPostJSON(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (res.status === 401 || res.status === 403) return loginRedirect();
+
+  const parsed = await safeReadJson(res);
+  if (!parsed.ok) {
+    console.error("chatPostJSON failed:", parsed.status, parsed.text.slice(0, 500));
+    throw new Error(`HTTP ${parsed.status}`);
+  }
+
+  if (parsed.json?.ok === false) throw new Error(parsed.json.error || "Request failed");
+  return parsed.json;
+}
+
 
     function initChatDetailHandlers(sessionId, panelEl) {
   const $ = (sel) => panelEl.querySelector(sel);
@@ -1054,23 +1051,37 @@ document.addEventListener("DOMContentLoaded", () => {
   const summaryBox = $("#summary-box");
 
   summaryBtn?.addEventListener("click", async () => {
-    summaryBtn.disabled = true;
-    summaryBtn.textContent = "Generating…";
-    try {
-      const res = await fetch(`/admin/chats/${sessionId}/summarize`, {
-        method: "POST",
-        credentials: "include",
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.ok === false) throw new Error(data.error || "Failed");
-      if (summaryBox) summaryBox.textContent = data.summary || "";
-    } catch (e) {
-      if (summaryBox) summaryBox.textContent = `Summary error: ${e.message}`;
-    } finally {
-      summaryBtn.disabled = false;
-      summaryBtn.textContent = "Generate / Refresh";
+  summaryBtn.disabled = true;
+  summaryBtn.textContent = "Generating…";
+
+  try {
+    const res = await fetch(`/admin/chats/${sessionId}/summarize`, {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    if (res.status === 401 || res.status === 403) return loginRedirect();
+
+    const parsed = await safeReadJson(res);
+
+    if (!parsed.ok) {
+      console.error("summarize failed:", parsed.status, parsed.text.slice(0, 500));
+      throw new Error(`Summary failed (HTTP ${parsed.status})`);
     }
-  });
+
+    const data = parsed.json || {};
+    if (data.ok === false) throw new Error(data.error || "Failed");
+
+    if (summaryBox) summaryBox.textContent = data.summary || "";
+  } catch (e) {
+    if (summaryBox) summaryBox.textContent = `Summary error: ${e.message}`;
+  } finally {
+    summaryBtn.disabled = false;
+    summaryBtn.textContent = "Generate / Refresh";
+  }
+});
+
 
   $("#resolve-btn")?.addEventListener("click", async () => {
     await chatPostJSON(`/admin/chats/${sessionId}/resolve`);
@@ -1803,7 +1814,16 @@ async function loadTopProperties({ from, to, pmcId, propertyId }) {
     return;
   }
 
-  const data = await res.json().catch(() => ({}));
+    const parsed = await safeReadJson(res);
+  if (!parsed.ok) {
+    console.error("top-properties failed:", parsed.status, parsed.text.slice(0, 500));
+    tbody.innerHTML = `<tr><td class="px-4 py-4 text-rose-600" colspan="6">Top Properties failed to load (HTTP ${parsed.status}).</td></tr>`;
+    return;
+  }
+
+  const rows = parsed.json?.rows || [];
+
+
   const rows = data.rows || [];
 
   if (!rows.length) {
@@ -1843,20 +1863,16 @@ async function loadChatAnalytics(daysOverride = null) {
     // Summary KPIs
     // Summary KPIs (robust)
     const summaryRes = await fetch(`/admin/analytics/chat/summary?${qs}`, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
+  credentials: "include",
+  headers: { Accept: "application/json" },
     });
     if (summaryRes.status === 401 || summaryRes.status === 403) return loginRedirect();
     
-    let summary = {};
-    try {
-      if (!summaryRes.ok) throw new Error(`summary HTTP ${summaryRes.status}`);
-      summary = await summaryRes.json();
-    } catch (e) {
-      const preview = await summaryRes.text().catch(() => "");
-      console.error("summary parse/fetch failed:", e, preview.slice(0, 500));
-      summary = {};
+    const summaryParsed = await safeReadJson(summaryRes);
+    if (!summaryParsed.ok) {
+      console.error("summary failed:", summaryParsed.status, summaryParsed.text.slice(0, 500));
     }
+    const summary = summaryParsed.json || {};
 
 
     document.querySelectorAll("[data-kpi]").forEach((el) => {
@@ -1865,26 +1881,24 @@ async function loadChatAnalytics(daysOverride = null) {
 
       if (k === "response_rate") val = fmtPct(val);
 
-      el.textContent = (val != null && val !== "") ? String(val) : "0";
+      el.textContent = (val != null && val !== "") ? String(val) : "—";
+
     });
 
     // Timeseries
 // Timeseries
-// Timeseries (robust chart init/update)
 const tsRes = await fetch(`/admin/analytics/chat/timeseries?bucket=day&${qs}`, {
   credentials: "include",
   headers: { Accept: "application/json" },
 });
 if (tsRes.status === 401 || tsRes.status === 403) return loginRedirect();
 
-let ts = {};
-try {
-  if (!tsRes.ok) throw new Error(`timeseries HTTP ${tsRes.status}`);
-  ts = await tsRes.json();
-} catch (e) {
-  console.error("timeseries parse/fetch failed:", e);
-  ts = { labels: [], series: {} };
+const tsParsed = await safeReadJson(tsRes);
+if (!tsParsed.ok) {
+  console.error("timeseries failed:", tsParsed.status, tsParsed.text.slice(0, 500));
 }
+const ts = tsParsed.json || { labels: [], series: {} };
+
 
 const canvas = document.getElementById("chatAnalyticsChart");
 if (!canvas || typeof canvas.getContext !== "function" || !window.Chart) {
@@ -2010,6 +2024,20 @@ document.addEventListener("change", (e) => {
     );
     window.location.href = `/auth/login/google?next=${next}`;
   }
+
+  async function safeReadJson(res) {
+    const text = await res.text().catch(() => "");
+    if (!res.ok) {
+      return { ok: false, status: res.status, text, json: null };
+    }
+    try {
+      const json = text ? JSON.parse(text) : {};
+      return { ok: true, status: res.status, text, json };
+    } catch (e) {
+      return { ok: false, status: res.status, text, json: null, parseError: e };
+    }
+}
+
 
   async function apiJson(url, opts = {}) {
   const res = await fetch(url, {
@@ -2317,22 +2345,39 @@ document.addEventListener("change", (e) => {
   }
 });
 
-   window.Chats = {
+ window.Chats = {
   async refreshSummary(sessionId) {
     const box = document.getElementById("summary-box");
     if (!box) return;
 
     try {
       box.textContent = "Generating…";
-      const res = await fetch(`/admin/chats/${sessionId}/summarize`, { method: "POST", credentials: "include" });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.ok === false) throw new Error(data.error || "Failed");
+
+      const res = await fetch(`/admin/chats/${sessionId}/summarize`, {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+
+      const parsed = await safeReadJson(res);
+
+      if (!parsed.ok) {
+        console.error("summarize failed:", parsed.status, parsed.text.slice(0, 500));
+        throw new Error(`Summary failed (HTTP ${parsed.status})`);
+      }
+
+      const data = parsed.json || {};
+      if (data.ok === false) throw new Error(data.error || "Failed");
+
       box.textContent = data.summary || "";
     } catch (e) {
       box.textContent = `Summary error: ${e.message}`;
     }
   }
 };
+
 
    function initQuillEditor({ editorId, inputId, placeholder = "" }) {
   const editorEl = document.getElementById(editorId);
