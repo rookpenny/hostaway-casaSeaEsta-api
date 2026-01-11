@@ -871,8 +871,10 @@
             {% for s in sessions %}
               <tr
                 class="border-t hover:bg-slate-50 cursor-pointer"
+                data-session-row="{{ s.id }}"
                 onclick="openChatDetail({{ s.id }})"
               >
+
                 <!-- Property -->
                 <td class="px-4 py-3">
                   <div class="font-semibold">{{ s.property_name or "Unknown property" }}</div>
@@ -886,14 +888,18 @@
               
                 <!-- Assigned -->
                 <td class="px-4 py-3 text-xs">
-                  {% if s.assigned_to %}
-                    <span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">
-                      {{ s.assigned_to }}
-                    </span>
-                  {% else %}
-                    <span class="text-slate-400">—</span>
-                  {% endif %}
+                  {% set asg = (s.assigned_to or '') %}
+                  <span data-assigned-badge data-assigned-to="{{ asg|e }}">
+                    {% if s.assigned_to %}
+                      <span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">
+                        {{ s.assigned_to }}
+                      </span>
+                    {% else %}
+                      <span class="text-slate-400">—</span>
+                    {% endif %}
+                  </span>
                 </td>
+
               
                 <!-- Stage -->
                 <td class="px-4 py-3 text-xs">
@@ -961,26 +967,47 @@
               
                 <!-- Escalation -->
                 <td class="px-4 py-3 text-xs">
-                  {% set esc = (s.escalation_level or "")|lower %}
-                  {% if esc in ["critical", "high"] %}
-                    <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔴 High</span>
-                  {% elif esc in ["attention", "medium"] %}
-                    <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🟡 Medium</span>
+                {% set esc = (s.escalation_level or "")|lower %}
+                <span
+                  data-escalation-badge
+                  data-escalation-level="{{ esc }}"
+                  class="px-2 py-1 rounded-full font-semibold
+                    {% if esc in ['critical','high'] %}
+                      bg-rose-100 text-rose-800
+                    {% elif esc in ['attention','medium'] %}
+                      bg-amber-100 text-amber-800
+                    {% elif esc %}
+                      bg-blue-100 text-blue-800
+                    {% else %}
+                      text-slate-400
+                    {% endif %}
+                  "
+                >
+                  {% if esc in ['critical','high'] %}
+                    🔴 High
+                  {% elif esc in ['attention','medium'] %}
+                    🟡 Medium
                   {% elif esc %}
-                    <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold">🟢 Low</span>
+                    🟢 Low
                   {% else %}
-                    <span class="text-slate-400">—</span>
+                    —
                   {% endif %}
-                </td>
+                </span>
+              </td>
+
+
                 
                 <!-- Open/Closed -->
                 <td class="px-4 py-3 text-xs">
-                  {% if s.is_resolved %}
-                    <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>
-                  {% else %}
-                    <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>
-                  {% endif %}
+                  <span data-status-badge data-is-resolved="{{ 'true' if s.is_resolved else 'false' }}">
+                    {% if s.is_resolved %}
+                      <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>
+                    {% else %}
+                      <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>
+                    {% endif %}
+                  </span>
                 </td>
+
                 
                 <!-- Sentiment -->
                 <td class="px-4 py-3 text-xs">
@@ -1413,24 +1440,49 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("#resolve-btn")?.addEventListener("click", async () => {
     await chatPostJSON(`/admin/chats/${sessionId}/resolve`);
+  
+    // ✅ instant update in list
+    updateChatListRow(sessionId, { is_resolved: true });
+  
     await loadChatDetail(sessionId);
   });
+
 
   $("#unresolve-btn")?.addEventListener("click", async () => {
     await chatPostJSON(`/admin/chats/${sessionId}/unresolve`);
+  
+    // ✅ instant update in list
+    updateChatListRow(sessionId, { is_resolved: false });
+  
     await loadChatDetail(sessionId);
   });
 
+
   $("#escalation-select")?.addEventListener("change", async (e) => {
-    await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level: e.target.value });
+    const newLevel = e.target.value;
+  
+    await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level: newLevel });
+  
+    // ✅ instant update in list
+    updateChatListRow(sessionId, { escalation_level: newLevel });
+  
+    // keep detail synced (pill + select state)
     await loadChatDetail(sessionId);
   });
+
+
 
   $("#assign-btn")?.addEventListener("click", async () => {
     const v = $("#assigned-input")?.value || "";
+  
     await chatPostJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
+  
+    // ✅ instant update in list
+    updateChatListRow(sessionId, { assigned_to: v });
+  
     await loadChatDetail(sessionId);
   });
+
 
   $("#save-note-btn")?.addEventListener("click", async () => {
     const note = $("#note-input")?.value || "";
@@ -1444,10 +1496,11 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 }
 
+        let chatDetailAbort = null;
 
-    let chatDetailAbort = null;
 
-async function loadChatDetail(sessionId) {
+
+  async function loadChatDetail(sessionId) {
   const panel = document.getElementById("chat-detail-panel");
   if (!panel) return;
 
@@ -1489,6 +1542,128 @@ async function loadChatDetail(sessionId) {
   }
 }
 
+
+function setEscalationBadge(el, levelRaw) {
+  if (!el) return;
+  const level = String(levelRaw || "").toLowerCase().trim();
+
+  // reset baseline class
+  el.className = "px-2 py-1 rounded-full font-semibold";
+
+  if (level === "critical" || level === "high") {
+    el.textContent = "🔴 High";
+    el.classList.add("bg-rose-100", "text-rose-800");
+  } else if (level === "attention" || level === "medium") {
+    el.textContent = "🟡 Medium";
+    el.classList.add("bg-amber-100", "text-amber-800");
+  } else if (level) {
+    el.textContent = "🟢 Low";
+    el.classList.add("bg-blue-100", "text-blue-800");
+  } else {
+    el.textContent = "—";
+    el.classList.add("text-slate-400");
+  }
+
+  el.setAttribute("data-escalation-level", level);
+}
+
+function setStatusBadge(wrapperEl, isResolved) {
+  if (!wrapperEl) return;
+
+  const resolved = !!isResolved;
+  wrapperEl.setAttribute("data-is-resolved", resolved ? "true" : "false");
+
+  wrapperEl.innerHTML = resolved
+    ? `<span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>`
+    : `<span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>`;
+}
+
+function setAssignedBadge(wrapperEl, assignedToRaw) {
+  if (!wrapperEl) return;
+
+  const assignedTo = String(assignedToRaw || "").trim();
+  wrapperEl.setAttribute("data-assigned-to", assignedTo);
+
+  wrapperEl.innerHTML = assignedTo
+    ? `<span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">${escapeHtml(
+        assignedTo
+      )}</span>`
+    : `<span class="text-slate-400">—</span>`;
+}
+
+// small safe HTML escape for assigned_to
+function escapeHtml(str) {
+  return String(str)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+/**
+ * Update the row in the main chat list WITHOUT hard refresh.
+ *
+ * payload supports:
+ *  - escalation_level: "low" | "medium" | "high" | "" | null
+ *  - is_resolved: boolean
+ *  - assigned_to: string | null
+ */
+function updateChatListRow(sessionId, payload = {}) {
+  const row = document.querySelector(`[data-session-row="${sessionId}"]`);
+  if (!row) return;
+
+  if (Object.prototype.hasOwnProperty.call(payload, "escalation_level")) {
+    const escEl = row.querySelector("[data-escalation-badge]");
+    setEscalationBadge(escEl, payload.escalation_level);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "is_resolved")) {
+    const stEl = row.querySelector("[data-status-badge]");
+    setStatusBadge(stEl, payload.is_resolved);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "assigned_to")) {
+    const asgEl = row.querySelector("[data-assigned-badge]");
+    setAssignedBadge(asgEl, payload.assigned_to);
+  }
+}
+
+
+
+
+    
+function applyEscalationBadge(badgeEl, levelRaw) {
+  if (!badgeEl) return;
+
+  const level = String(levelRaw || "").toLowerCase().trim();
+
+  badgeEl.className = "px-2 py-1 rounded-full font-semibold";
+
+  if (level === "critical" || level === "high") {
+    badgeEl.textContent = "🔴 High";
+    badgeEl.classList.add("bg-rose-100", "text-rose-800");
+  } else if (level === "attention" || level === "medium") {
+    badgeEl.textContent = "🟡 Medium";
+    badgeEl.classList.add("bg-amber-100", "text-amber-800");
+  } else if (level) {
+    badgeEl.textContent = "🟢 Low";
+    badgeEl.classList.add("bg-blue-100", "text-blue-800");
+  } else {
+    badgeEl.textContent = "—";
+    badgeEl.classList.add("text-slate-400");
+  }
+
+  badgeEl.setAttribute("data-escalation-level", level);
+}
+
+function updateChatListEscalation(sessionId, level) {
+  const row = document.querySelector(`[data-session-row="${sessionId}"]`);
+  if (!row) return;
+
+  const badge = row.querySelector("[data-escalation-badge]");
+  applyEscalationBadge(badge, level);
+}
 
    async function openChatDetail(sessionId) {
   setInlineDetailOpen(true);
