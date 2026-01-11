@@ -51,6 +51,7 @@ from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from utils.github_sync import ensure_repo
+from utils.ai_summary import generate_and_store_summary
 
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
@@ -438,6 +439,32 @@ def debug_properties(db: Session = Depends(get_db)):
         }
         for p in props
     ]
+
+
+def maybe_autosummarize_on_new_guest_message(db: Session, session_id: int) -> None:
+    """
+    Re-run summary when new guest messages arrive, but throttle to avoid spam/cost.
+    Skips resolved chats.
+    """
+    try:
+        s = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
+        if not s:
+            return
+
+        if bool(getattr(s, "is_resolved", False)):
+            return
+
+        throttle_minutes = int(os.getenv("SUMMARY_THROTTLE_MINUTES", "10"))
+        last = getattr(s, "ai_summary_updated_at", None)
+
+        if last and (datetime.utcnow() - last) <= timedelta(minutes=throttle_minutes):
+            return
+
+        # force=False should respect your timestamp logic inside utils.ai_summary
+        generate_and_store_summary(db=db, session_id=int(session_id), force=False)
+
+    except Exception:
+        logger.exception("Auto-summary failed (non-fatal)")
 
 
 def get_integration_for_property(db: Session, prop: Property) -> PMCIntegration:
@@ -1226,11 +1253,12 @@ def property_chat(
         if not content:
             continue
 
-        if sender in ("assistant", "ai", "bot"):
+        if sender == "assistant":
             messages.append({"role": "assistant", "content": content})
         else:
+            # treat guest/system/etc as user for the model
             messages.append({"role": "user", "content": content})
-
+            
     # Add the current user message last
     messages.append({"role": "user", "content": user_message})
 
@@ -1253,7 +1281,7 @@ def property_chat(
         # Replace field names below if your ChatMessage model differs.
         db.add(ChatMessage(
             session_id=session_id,
-            sender="user",
+            sender="guest",
             content=user_message,
             created_at=now,
         ))
@@ -1268,6 +1296,9 @@ def property_chat(
         session.last_activity_at = datetime.utcnow()
         db.add(session)
         db.commit()
+
+        # ✅ Auto re-summarize (throttled) after new guest message
+        maybe_autosummarize_on_new_guest_message(db, session_id=session_id)
 
         return {
             "response": text,
