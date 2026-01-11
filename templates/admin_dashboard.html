@@ -1008,15 +1008,15 @@
                 
                 <!-- Signals -->
                 <td class="px-4 py-3 text-xs">
-                  {# Backend-derived signals (source of truth). JS renders pills. #}
                   {% set sig = (s.signals or []) %}
+                  {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "") | lower %}
                 
                   <span
                     data-signals-badge
                     data-signals='{{ sig | tojson }}'
+                    data-sentiment="{{ sent|e }}"
                   ></span>
                 </td>
-
 
 
               
