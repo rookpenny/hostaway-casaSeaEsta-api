@@ -1,4 +1,4 @@
-{# chat_detail_panel.html (COPY/PASTE CLEAN) #}
+{# chat_detail_panel.html (CLEAN + FUTURE-PROOF) #}
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
 
 <div class="space-y-4" data-chat-panel="{{ session.id }}">
@@ -7,7 +7,6 @@
   <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-200">
     <div class="p-4 space-y-3">
 
-      <!-- 2-column header -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
 
         <!-- LEFT: Chat meta -->
@@ -61,6 +60,7 @@
                 No escalation
               {% endif %}
             </span>
+
             <br>
 
             <span class="text-[14px] text-slate-500">
@@ -133,27 +133,26 @@
       <div class="flex items-center justify-between gap-2">
         <div class="text-sm font-semibold text-slate-800">Internal note</div>
 
-        <!-- Toggle (note) -->
         <button
-            type="button"
-            class="js-toggle inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
-            data-toggle-target="note"
-            data-chat-id="{{ session.id }}"
-            aria-expanded="false"
-            title="Toggle notes (N)"
-          >
-            <span class="text-xs font-semibold">Hide/Show (N)</span>
-            <svg class="js-chevron w-5 h-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-              <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
-            </svg>
-          </button>
-        <div class="js-toggle-body mt-3 hidden"
-     data-toggle-body="note"
-     data-chat-id="{{ session.id }}">
-      
+          type="button"
+          class="js-toggle inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
+          data-toggle-target="note"
+          data-chat-id="{{ session.id }}"
+          aria-expanded="false"
+          title="Toggle notes (N)"
+        >
+          <span class="text-xs font-semibold">Hide/Show (N)</span>
+          <svg class="js-chevron w-5 h-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
+          </svg>
+        </button>
+      </div>
 
-      <!-- NOTE BODY (hidden by default) -->
-      <div id="note-body" class="mt-3 hidden">
+      <div
+        class="js-toggle-body mt-3 hidden"
+        data-toggle-body="note"
+        data-chat-id="{{ session.id }}"
+      >
         <textarea
           id="note-input"
           class="w-full border border-slate-200 rounded-xl p-2 text-sm bg-white"
@@ -173,7 +172,6 @@
         </div>
       </div>
     </div>
-        </div>
 
     <!-- AI Summary -->
     <div class="rounded-2xl border border-slate-200 p-3 bg-white">
@@ -190,7 +188,6 @@
         </div>
 
         <div class="flex items-center gap-2">
-          <!-- Toggle (summary) -->
           <button
             type="button"
             class="js-toggle inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
@@ -204,14 +201,6 @@
               <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
             </svg>
           </button>
-          
-          <div class="js-toggle-body mt-3 hidden"
-     data-toggle-body="summary"
-     data-chat-id="{{ session.id }}">
-  <div id="summary-box" class="text-sm text-slate-800 whitespace-pre-wrap">
-            ...
-          
-
 
           <button
             type="button"
@@ -223,8 +212,11 @@
         </div>
       </div>
 
-      <!-- SUMMARY BODY (hidden by default) -->
-      <div id="summary-body" class="mt-3 hidden">
+      <div
+        class="js-toggle-body mt-3 hidden"
+        data-toggle-body="summary"
+        data-chat-id="{{ session.id }}"
+      >
         <div id="summary-box" class="text-sm text-slate-800 whitespace-pre-wrap">
           {% if session.ai_summary %}
             {{ session.ai_summary }}
@@ -234,10 +226,8 @@
         </div>
       </div>
     </div>
-        </div>
-    </div>
 
-    <!-- Messages (speech bubbles, unchanged) -->
+    <!-- Messages -->
     <div class="rounded-2xl border border-slate-200 p-3 bg-white">
       <div class="text-sm font-semibold">Messages</div>
 
