@@ -798,6 +798,7 @@
       <select name="status" class="border rounded-xl px-2 py-2 text-sm">
         <option value="">All statuses</option>
         <option value="pre_booking" {% if filters.status=="pre_booking" %}selected{% endif %}>Pre-booking</option>
+        <option value="post_booking" {% if filters.status=="post_booking" %}selected{% endif %}>Post-booking</option>
         <option value="active" {% if filters.status=="active" %}selected{% endif %}>Active</option>
         <option value="post_stay" {% if filters.status=="post_stay" %}selected{% endif %}>Post-stay</option>
       </select>
@@ -907,16 +908,45 @@
                 </td>
 
                 <td class="px-4 py-3 text-xs">
-                  {% if s.reservation_status == "active" %}
+                  {# Normalize status #}
+                  {% set st = (s.reservation_status or "")|lower %}
+                
+                  {# Heuristics: treat as post-booking if we have booking identifiers but not active/post_stay #}
+                  {% set has_booking = (
+                      s.reservation_id
+                      or s.booking_id
+                      or s.confirmation_code
+                      or s.pms_reservation_id
+                      or s.reservation_confirmed
+                  ) %}
+                
+                  {% if st == "active" %}
                     <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🏖 Active</span>
-                  {% elif s.reservation_status == "pre_booking" %}
-                    <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold">💬 Pre-booking</span>
-                  {% elif s.reservation_status == "post_stay" %}
+                
+                  {% elif st in ["post_booking", "booked", "confirmed"] %}
+                    <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
+                
+                  {% elif st == "post_stay" %}
                     <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">📬 Post-stay</span>
+                
+                  {% elif st == "pre_booking" %}
+                    {# If backend says pre_booking but booking signals exist, show post-booking #}
+                    {% if has_booking %}
+                      <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
+                    {% else %}
+                      <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold">💬 Pre-booking</span>
+                    {% endif %}
+                
                   {% else %}
-                    <span class="text-slate-400">Unknown</span>
+                    {# Unknown status: still show post-booking if booking signals exist #}
+                    {% if has_booking %}
+                      <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
+                    {% else %}
+                      <span class="text-slate-400">Unknown</span>
+                    {% endif %}
                   {% endif %}
                 </td>
+
 
                 <td class="px-4 py-3 text-xs">
                   {% if s.escalation_level == "critical" %}
