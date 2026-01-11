@@ -52,6 +52,7 @@ from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from utils.github_sync import ensure_repo
 from utils.ai_summary import generate_and_store_summary
+from utils.ai_summary import maybe_autosummarize_on_new_guest_message
 
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
@@ -1296,6 +1297,14 @@ def property_chat(
         session.last_activity_at = datetime.utcnow()
         db.add(session)
         db.commit()
+
+        # ✅ Auto re-summarize (throttled) after new messages
+        # force=False means: only runs if there are new messages AND throttle allows it
+        try:
+            generate_and_store_summary(db=db, session_id=int(session_id), force=False)
+        except Exception:
+            logger.exception("Auto-summary failed (non-fatal)")
+        
 
         # ✅ Auto re-summarize (throttled) after new guest message
         maybe_autosummarize_on_new_guest_message(db, session_id=session_id)
