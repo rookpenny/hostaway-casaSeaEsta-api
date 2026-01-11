@@ -1050,7 +1050,168 @@ window.addEventListener("popstate", () => {
 // - Keyboard: N = notes, S = summary (when not typing)
 // =====================================================
 
-function chatDetailStorageKey(sessionId, which) {
+(function initAdminChatPanelGlobal() {
+  if (window.__ADMIN_CHAT_PANEL_GLOBAL_INIT__) return;
+  window.__ADMIN_CHAT_PANEL_GLOBAL_INIT__ = true;
+
+  function storageKey(chatId, which) {
+    return `admin_chat_${chatId}_${which}_open`;
+  }
+
+  function isTypingTarget(el) {
+    if (!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || el.isContentEditable;
+  }
+
+  function setOpen(chatId, which, open, root = document) {
+    const body = root.querySelector(
+      `.js-toggle-body[data-toggle-body="${which}"][data-chat-id="${chatId}"]`
+    );
+    const btn = root.querySelector(
+      `.js-toggle[data-toggle-target="${which}"][data-chat-id="${chatId}"]`
+    );
+    if (!body || !btn) return;
+
+    body.classList.toggle("hidden", !open);
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+
+    const chev = btn.querySelector(".js-chevron");
+    if (chev) chev.classList.toggle("rotate-180", open);
+
+    try {
+      localStorage.setItem(storageKey(chatId, which), open ? "1" : "0");
+    } catch {}
+  }
+
+  function restore(panelRoot) {
+    const panel = panelRoot?.closest?.("[data-chat-panel]") || panelRoot;
+    if (!panel) return;
+    const chatId = panel.getAttribute("data-chat-panel");
+    if (!chatId) return;
+
+    ["note", "summary"].forEach((which) => {
+      let open = false; // default CLOSED
+      try {
+        open = localStorage.getItem(storageKey(chatId, which)) === "1";
+      } catch {}
+      setOpen(chatId, which, open, panel);
+    });
+  }
+
+  function formatNowStamp() {
+    // lightweight “just now” UX; you can replace with locale string if preferred
+    return "Updated: just now";
+  }
+
+  // Delegated click handling for toggles + actions
+  document.addEventListener("click", async (e) => {
+    // toggle open/close
+    const toggleBtn = e.target.closest(".js-toggle");
+    if (toggleBtn) {
+      e.preventDefault();
+      const which = toggleBtn.getAttribute("data-toggle-target");
+      const chatId = toggleBtn.getAttribute("data-chat-id");
+      if (!which || !chatId) return;
+
+      const isOpen = toggleBtn.getAttribute("aria-expanded") === "true";
+      const panel = toggleBtn.closest("[data-chat-panel]") || document;
+      setOpen(chatId, which, !isOpen, panel);
+      return;
+    }
+
+    const actionBtn = e.target.closest("[data-action]");
+    if (!actionBtn) return;
+
+    const panel = actionBtn.closest("[data-chat-panel]");
+    const chatId = panel?.getAttribute("data-chat-panel");
+    if (!chatId) return;
+
+    const action = actionBtn.getAttribute("data-action");
+    if (!action) return;
+
+    // SUMMARY
+    if (action === "summary") {
+      const summaryBox = panel.querySelector("[data-summary-box]");
+      const updatedLabel = panel.querySelector("[data-summary-updated]"); // add this attr in the partial (see below)
+      const btn = actionBtn;
+
+      btn.disabled = true;
+      const prev = btn.textContent;
+      btn.textContent = "Generating…";
+
+      try {
+        const res = await fetch(`/admin/chats/${chatId}/summarize`, {
+          method: "POST",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
+        if (res.status === 401 || res.status === 403) return loginRedirect();
+
+        const parsed = await safeReadJson(res);
+        if (!parsed.ok) throw new Error(`Summary failed (HTTP ${parsed.status})`);
+
+        const data = parsed.json || {};
+        if (data.ok === false) throw new Error(data.error || "Failed");
+
+        if (summaryBox) summaryBox.textContent = data.summary || "";
+
+        // ✅ live update timestamp
+        if (updatedLabel) {
+          // If your API returns updated_at, prefer it:
+          // updatedLabel.textContent = `Updated: ${data.updated_at}`;
+          updatedLabel.textContent = formatNowStamp();
+        }
+
+        // Auto-open on success
+        setOpen(chatId, "summary", true, panel);
+      } catch (err) {
+        if (summaryBox) summaryBox.textContent = `Summary error: ${err.message}`;
+        setOpen(chatId, "summary", true, panel);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prev || "Generate / Refresh";
+      }
+
+      return;
+    }
+  });
+
+  // Keyboard shortcuts: N / S (toggle current open detail panel if present)
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isTypingTarget(document.activeElement)) return;
+
+    const k = (e.key || "").toLowerCase();
+    if (k !== "n" && k !== "s") return;
+
+    const detailPanelContainer = document.getElementById("chat-detail-panel");
+    if (!detailPanelContainer) return;
+
+    // Find the injected panel root
+    const firstPanel = detailPanelContainer.querySelector("[data-chat-panel]");
+    const chatId = firstPanel?.getAttribute("data-chat-panel");
+    if (!chatId) return;
+
+    e.preventDefault();
+    const which = k === "n" ? "note" : "summary";
+
+    const toggle = firstPanel.querySelector(
+      `.js-toggle[data-toggle-target="${which}"][data-chat-id="${chatId}"]`
+    );
+    const isOpen = toggle?.getAttribute("aria-expanded") === "true";
+    setOpen(chatId, which, !isOpen, firstPanel);
+  });
+
+  // expose restore hook so loadChatDetail can call it after injection
+  window.restoreAdminChatPanelState = function (container) {
+    const root = container || document;
+    root.querySelectorAll?.("[data-chat-panel]")?.forEach((p) => restore(p));
+  };
+})();
+
+    
+/*function chatDetailStorageKey(sessionId, which) {
   return `admin_chat_${sessionId}_${which}_open`;
 }
 
@@ -1096,7 +1257,7 @@ function initChatDetailToggles(panelEl, sessionId) {
   const summaryToggle = panelEl.querySelector("#summary-toggle");
   if (noteToggle) noteToggle.setAttribute("aria-expanded", getChatDetailSectionOpen(sessionId, "note") ? "true" : "false");
   if (summaryToggle) summaryToggle.setAttribute("aria-expanded", getChatDetailSectionOpen(sessionId, "summary") ? "true" : "false");
-}
+}*/
 
 // Delegated click handler (works after injection)
 document.addEventListener("click", (e) => {
@@ -1277,9 +1438,11 @@ async function loadChatDetail(sessionId) {
     }
 
     panel.innerHTML = await res.text();
-
     panel.setAttribute("data-session-id", String(sessionId));
-    initChatDetailToggles(panel, String(sessionId));
+    window.restoreAdminChatPanelState?.(panel);
+    initChatDetailHandlers(sessionId, panel);
+    
+    /*initChatDetailToggles(panel, String(sessionId));*/
 
 
     // IMPORTANT: bind handlers after injection
@@ -2962,66 +3125,6 @@ document.addEventListener("click", async (e) => {
 });
 
 
-/*
-   // Upgrade image upload (delegated)
-document.addEventListener("change", async (e) => {
-  const input = e.target;
-  if (!(input instanceof HTMLInputElement)) return;
-  if (!input.matches("[data-upgrade-image-file]")) return;
-
-  if (IS_LOCKED) {
-    toast("Complete payment to unlock Upgrades.");
-    input.value = "";
-    return;
-  }
-
-  const file = input.files?.[0];
-  if (!file) return;
-
-  const editor = input.closest("#upgrades-editor-body") || document;
-  const hiddenUrl = editor.querySelector("[data-upgrade-image-url]");
-  const preview = editor.querySelector("[data-upgrade-image-preview]");
-  const upgradeId = editor.querySelector('input[name="id"]')?.value || "";
-
-  try {
-    toast("Uploading image…");
-
-    const fd = new FormData();
-    fd.append("file", file);
-    if (upgradeId) fd.append("upgrade_id", upgradeId);
-
-    const res = await fetch("/admin/upgrades/ajax/upload-image", {
-      method: "POST",
-      credentials: "include",
-      body: fd,
-    });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok || !data.url) {
-      toast(data.error || "Upload failed.");
-      return;
-    }
-
-    if (hiddenUrl) hiddenUrl.value = data.url;
-
-    if (preview) {
-      preview.src = data.url;
-      preview.classList.remove("hidden");
-    }
-
-    toast("Image uploaded ✓");
-  } catch (err) {
-    console.error(err);
-    toast("Upload failed.");
-  } finally {
-    input.value = "";
-  }
-});
-*/
-
-
-
-   
 
   document.addEventListener("change", async (e) => {
     const el = e.target;
