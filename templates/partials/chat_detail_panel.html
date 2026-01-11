@@ -1,7 +1,14 @@
 {# chat_detail_panel.html (CLEAN + FUTURE-PROOF) #}
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
 
-<div class="space-y-4" data-chat-panel="{{ session.id }}">
+<div
+  class="space-y-4"
+  data-chat-panel="{{ session.id }}"
+  data-escalation-level="{{ session.escalation_level or '' }}"
+  data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
+  data-assigned-to="{{ session.assigned_to or '' }}"
+  data-sentiment="{{ session.sentiment or session.sentiment_label or session.sentiment_status or '' }}"
+>
 
   <!-- Sticky Header -->
   <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-200">
