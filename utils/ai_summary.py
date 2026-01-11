@@ -96,30 +96,41 @@ def should_refresh_summary(
     force: bool = False,
 ) -> bool:
     """
-    Refresh logic:
-    - If force=True -> always refresh
-    - If no last_msg_at -> no refresh needed
-    - If no ai_summary_updated_at -> refresh
-    - If last message is newer than summary AND throttle window passed -> refresh
+    True if we should call the model again.
+    - force=True overrides all checks (manual button)
+    - only runs if there are new messages since last summary
+    - throttles re-runs
+    - skips resolved chats (unless forced)
     """
     if force:
         return True
 
+    # If chat is resolved, don't keep re-summarizing it automatically
+    if bool(getattr(session, "is_resolved", False)):
+        return False
+
+    # No messages => nothing to do
     if not last_msg_at:
         return False
 
     last_sum_at = getattr(session, "ai_summary_updated_at", None)
+
+    # Never summarized before -> run once
     if not last_sum_at:
         return True
 
-    # Only refresh if there were new messages since last summary
+    # If no new messages since last summary -> no-op
+    # (This is your "avoid unnecessary calls")
     if last_msg_at <= last_sum_at:
         return False
 
-    # Throttle
-    now = datetime.utcnow()
-    min_next = last_sum_at + timedelta(seconds=SUMMARY_THROTTLE_SECONDS)
-    return now >= min_next
+    # Throttle: only allow a refresh every N minutes
+    throttle_minutes = int(os.getenv("SUMMARY_THROTTLE_MINUTES", "10"))
+    if (datetime.utcnow() - last_sum_at) < timedelta(minutes=throttle_minutes):
+        return False
+
+    return True
+
 
 
 def generate_and_store_summary(
