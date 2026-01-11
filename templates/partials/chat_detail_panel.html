@@ -1,70 +1,74 @@
-{# chat_detail_panel.html (COPY/PASTE) #}
+{# chat_detail_panel.html (COPY/PASTE CLEAN) #}
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
 
-<div class="space-y-4" data-chat-panel="{{ session.id }}">
+<div class="space-y-4">
+
   <!-- Sticky Header -->
   <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-200">
     <div class="p-4 space-y-3">
+
       <!-- 2-column header -->
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+
         <!-- LEFT: Chat meta -->
         <div class="min-w-0 space-y-1">
           <div class="text-[14px] font-semibold truncate">
             Chat #{{ session.id }}
-            <br />{{ prop_name or "Unknown property" }} • Property ID: {{ session.property_id }}
+            <br>{{ prop_name or "Unknown property" }} • Property ID: {{ session.property_id }}
           </div>
 
-          <div class="space-y-1">
-            <div class="flex flex-wrap items-center gap-2">
-              {% if session.reservation_status == "active" %}
-                <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">🏖 Active</span>
-              {% elif session.reservation_status == "pre_booking" %}
-                <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">💬 Pre-booking</span>
-              {% elif session.reservation_status == "post_stay" %}
-                <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">📬 Post-stay</span>
-              {% else %}
-                <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">Unknown</span>
-              {% endif %}
+          <div>
+            {% if session.reservation_status == "active" %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">🏖 Active</span>
+            {% elif session.reservation_status == "pre_booking" %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">💬 Pre-booking</span>
+            {% elif session.reservation_status == "post_stay" %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">📬 Post-stay</span>
+            {% else %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">Unknown</span>
+            {% endif %}
 
-              <span
-                class="inline-flex items-center px-2 py-1 rounded-full text-[14px] font-semibold
-                  {% if session.is_resolved %}
-                    bg-emerald-100 text-emerald-800
-                  {% else %}
-                    bg-slate-200 text-slate-700
-                  {% endif %}
-                "
-              >
-                {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
-              </span>
-
-              <span
-                class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                  {% if session.escalation_level == 'high' %}
-                    bg-rose-100 text-rose-800
-                  {% elif session.escalation_level == 'medium' %}
-                    bg-amber-100 text-amber-800
-                  {% elif session.escalation_level == 'low' %}
-                    bg-blue-100 text-blue-800
-                  {% else %}
-                    bg-slate-100 text-slate-500
-                  {% endif %}
-                "
-              >
-                {% if session.escalation_level %}
-                  🚨 Escalation: {{ session.escalation_level|capitalize }}
+            <span
+              id="resolved-pill"
+              class="inline-flex items-center px-2 py-1 rounded-full text-[14px] font-semibold
+                {% if session.is_resolved %}
+                  bg-emerald-100 text-emerald-800
                 {% else %}
-                  No escalation
+                  bg-slate-200 text-slate-700
                 {% endif %}
-              </span>
-            </div>
+              "
+            >
+              {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
+            </span>
 
-            <div class="text-[14px] text-slate-500">
+            <span
+              id="escalation-pill"
+              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+                {% if session.escalation_level == 'high' %}
+                  bg-rose-100 text-rose-800
+                {% elif session.escalation_level == 'medium' %}
+                  bg-amber-100 text-amber-800
+                {% elif session.escalation_level == 'low' %}
+                  bg-blue-100 text-blue-800
+                {% else %}
+                  bg-slate-100 text-slate-500
+                {% endif %}
+              "
+            >
+              {% if session.escalation_level %}
+                🚨 Escalation: {{ session.escalation_level|capitalize }}
+              {% else %}
+                No escalation
+              {% endif %}
+            </span>
+            <br>
+
+            <span class="text-[14px] text-slate-500">
               Assigned:
-              <span class="font-semibold text-slate-700" data-assigned-label>
+              <span id="assigned-label" class="font-semibold text-slate-700">
                 {{ session.assigned_to or "—" }}
               </span>
-            </div>
+            </span>
           </div>
         </div>
 
@@ -72,9 +76,8 @@
         <div class="flex flex-wrap items-center gap-2 justify-start md:justify-end">
           <div class="flex flex-wrap items-center gap-2">
             <select
-              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white"
-              data-escalation-select
-            >
+              id="escalation-select"
+              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white">
               <option value="" {% if not session.escalation_level %}selected{% endif %}>No escalation</option>
               <option value="low" {% if session.escalation_level=='low' %}selected{% endif %}>Low</option>
               <option value="medium" {% if session.escalation_level=='medium' %}selected{% endif %}>Medium</option>
@@ -83,17 +86,17 @@
 
             {% if session.is_resolved %}
               <button
+                id="unresolve-btn"
                 class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
                 type="button"
-                data-action="unresolve"
               >
                 Reopen
               </button>
             {% else %}
               <button
+                id="resolve-btn"
                 class="h-10 px-4 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
                 type="button"
-                data-action="resolve"
               >
                 Mark Resolved
               </button>
@@ -102,27 +105,29 @@
 
           <div class="flex flex-wrap items-center gap-2">
             <input
+              id="assigned-input"
               value="{{ session.assigned_to or '' }}"
               class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white w-full sm:w-[320px]"
               placeholder="Assign to (name/email)"
-              data-assigned-input
             />
 
             <button
+              id="assign-btn"
               class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
               type="button"
-              data-action="assign"
             >
               Assign
             </button>
           </div>
         </div>
+
       </div>
     </div>
   </div>
 
   <!-- Body -->
   <div class="p-4 space-y-4">
+
     <!-- Internal note -->
     <div class="rounded-2xl border border-slate-200 p-3 bg-white">
       <div class="flex items-center justify-between gap-2">
@@ -130,38 +135,37 @@
 
         <!-- Toggle (note) -->
         <button
+          id="note-toggle"
           type="button"
-          class="js-toggle inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
-          data-toggle-target="note"
-          data-chat-id="{{ session.id }}"
+          class="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
           aria-expanded="false"
           title="Toggle notes (N)"
         >
           <span class="text-xs font-semibold">N</span>
-          <svg class="js-chevron w-5 h-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+          <svg id="note-chevron" class="w-5 h-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
             <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
           </svg>
         </button>
       </div>
 
       <!-- NOTE BODY (hidden by default) -->
-      <div class="js-toggle-body mt-3 hidden" data-toggle-body="note" data-chat-id="{{ session.id }}">
+      <div id="note-body" class="mt-3 hidden">
         <textarea
+          id="note-input"
           class="w-full border border-slate-200 rounded-xl p-2 text-sm bg-white"
           rows="3"
           placeholder="Add an internal note (not visible to guests)"
-          data-note-input
         >{{ session.internal_note or "" }}</textarea>
 
         <div class="mt-2 flex items-center gap-2">
           <button
+            id="save-note-btn"
             class="px-3 py-1 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800"
             type="button"
-            data-action="save-note"
           >
             Save note
           </button>
-          <span class="text-xs text-slate-500" data-note-status></span>
+          <span id="note-status" class="text-xs text-slate-500"></span>
         </div>
       </div>
     </div>
@@ -183,23 +187,22 @@
         <div class="flex items-center gap-2">
           <!-- Toggle (summary) -->
           <button
+            id="summary-toggle"
             type="button"
-            class="js-toggle inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
-            data-toggle-target="summary"
-            data-chat-id="{{ session.id }}"
+            class="inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
             aria-expanded="false"
             title="Toggle summary (S)"
           >
             <span class="text-xs font-semibold">S</span>
-            <svg class="js-chevron w-5 h-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <svg id="summary-chevron" class="w-5 h-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
             </svg>
           </button>
 
           <button
+            id="summary-btn"
             class="bg-slate-900 text-white rounded-xl px-3 py-1 text-sm hover:bg-slate-800"
             type="button"
-            data-action="summary"
           >
             Generate / Refresh
           </button>
@@ -207,8 +210,8 @@
       </div>
 
       <!-- SUMMARY BODY (hidden by default) -->
-      <div class="js-toggle-body mt-3 hidden" data-toggle-body="summary" data-chat-id="{{ session.id }}">
-        <div class="text-sm text-slate-800 whitespace-pre-wrap" data-summary-box>
+      <div id="summary-body" class="mt-3 hidden">
+        <div id="summary-box" class="text-sm text-slate-800 whitespace-pre-wrap">
           {% if session.ai_summary %}
             {{ session.ai_summary }}
           {% else %}
@@ -253,203 +256,6 @@
         {% endfor %}
       </div>
     </div>
+
   </div>
 </div>
-
-<script>
-  // This panel may be included/inserted multiple times.
-  // Guard global listeners so they only bind once.
-  (function initAdminChatPanel() {
-    if (window.__ADMIN_CHAT_PANEL_INIT__) return;
-    window.__ADMIN_CHAT_PANEL_INIT__ = true;
-
-    function key(chatId, name) {
-      return `admin_chat_${chatId}_${name}`;
-    }
-
-    function setOpen(chatId, which, open) {
-      const body = document.querySelector(
-        `.js-toggle-body[data-toggle-body="${which}"][data-chat-id="${chatId}"]`
-      );
-      const btn = document.querySelector(
-        `.js-toggle[data-toggle-target="${which}"][data-chat-id="${chatId}"]`
-      );
-      if (!body || !btn) return;
-
-      body.classList.toggle("hidden", !open);
-      btn.setAttribute("aria-expanded", open ? "true" : "false");
-
-      const chev = btn.querySelector(".js-chevron");
-      if (chev) chev.classList.toggle("rotate-180", open);
-
-      try { localStorage.setItem(key(chatId, `${which}_open`), open ? "1" : "0"); } catch (e) {}
-    }
-
-    function restore(panelRoot) {
-      const panel = panelRoot?.closest?.("[data-chat-panel]") || panelRoot;
-      if (!panel) return;
-      const chatId = panel.getAttribute("data-chat-panel");
-      if (!chatId) return;
-
-      ["note", "summary"].forEach((which) => {
-        let open = false; // default CLOSED
-        try {
-          const v = localStorage.getItem(key(chatId, `${which}_open`));
-          open = (v === "1");
-        } catch (e) {}
-        setOpen(chatId, which, open);
-      });
-    }
-
-    function isTypingTarget(el) {
-      if (!el) return false;
-      const tag = (el.tagName || "").toLowerCase();
-      return tag === "input" || tag === "textarea" || el.isContentEditable;
-    }
-
-    async function postJSON(url, body) {
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: body ? JSON.stringify(body) : undefined,
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || data.ok === false) throw new Error(data.error || "Request failed");
-      return data;
-    }
-
-    // Delegated click handler (works even if panel is injected later)
-    document.addEventListener("click", async (e) => {
-      const toggleBtn = e.target.closest(".js-toggle");
-      if (toggleBtn) {
-        e.preventDefault();
-        const which = toggleBtn.getAttribute("data-toggle-target");
-        const chatId = toggleBtn.getAttribute("data-chat-id");
-        if (!which || !chatId) return;
-
-        const isOpen = toggleBtn.getAttribute("aria-expanded") === "true";
-        setOpen(chatId, which, !isOpen);
-        return;
-      }
-
-      const actionBtn = e.target.closest("[data-action]");
-      if (!actionBtn) return;
-
-      const panel = actionBtn.closest("[data-chat-panel]");
-      const chatId = panel?.getAttribute("data-chat-panel");
-      if (!chatId) return;
-
-      const action = actionBtn.getAttribute("data-action");
-      if (!action) return;
-
-      try {
-        if (action === "resolve") {
-          await postJSON(`/admin/chats/${chatId}/resolve`);
-          location.reload();
-          return;
-        }
-        if (action === "unresolve") {
-          await postJSON(`/admin/chats/${chatId}/unresolve`);
-          location.reload();
-          return;
-        }
-        if (action === "assign") {
-          const assigned = panel.querySelector("[data-assigned-input]")?.value || "";
-          await postJSON(`/admin/chats/${chatId}/assign`, { assigned_to: assigned });
-          location.reload();
-          return;
-        }
-        if (action === "save-note") {
-          const note = panel.querySelector("[data-note-input]")?.value || "";
-          const status = panel.querySelector("[data-note-status]");
-          if (status) status.textContent = "Saving…";
-          await postJSON(`/admin/chats/${chatId}/note`, { note });
-          if (status) {
-            status.textContent = "Saved ✅";
-            setTimeout(() => (status.textContent = ""), 1500);
-          }
-          // Optional: auto-open notes after save
-          setOpen(chatId, "note", true);
-          return;
-        }
-        if (action === "summary") {
-          const summaryBox = panel.querySelector("[data-summary-box]");
-          const btn = actionBtn;
-          btn.disabled = true;
-          const prev = btn.textContent;
-          btn.textContent = "Generating…";
-          summaryBox?.classList?.remove("text-red-600");
-
-          try {
-            const res = await fetch(`/admin/chats/${chatId}/summarize`, { method: "POST" });
-            const data = await res.json();
-            if (!data.ok) throw new Error(data.error || "Failed");
-
-            if (summaryBox) summaryBox.textContent = data.summary || "";
-            // Auto-open on success
-            setOpen(chatId, "summary", true);
-          } catch (err) {
-            if (summaryBox) {
-              summaryBox.classList.add("text-red-600");
-              summaryBox.textContent = `Summary error: ${err.message}`;
-            }
-            setOpen(chatId, "summary", true);
-          } finally {
-            btn.disabled = false;
-            btn.textContent = prev || "Generate / Refresh";
-          }
-          return;
-        }
-      } catch (err) {
-        alert(err.message || "Action failed");
-      }
-    });
-
-    // Escalation change (delegated)
-    document.addEventListener("change", async (e) => {
-      const sel = e.target.closest("[data-escalation-select]");
-      if (!sel) return;
-
-      const panel = sel.closest("[data-chat-panel]");
-      const chatId = panel?.getAttribute("data-chat-panel");
-      if (!chatId) return;
-
-      try {
-        await postJSON(`/admin/chats/${chatId}/escalate`, { level: sel.value });
-        location.reload();
-      } catch (err) {
-        alert(err.message || "Escalation update failed");
-      }
-    });
-
-    // Keyboard shortcuts: N / S (toggle first visible panel)
-    document.addEventListener("keydown", (e) => {
-      if (e.metaKey || e.ctrlKey || e.altKey) return;
-      if (isTypingTarget(document.activeElement)) return;
-
-      const k = (e.key || "").toLowerCase();
-      if (k !== "n" && k !== "s") return;
-
-      const firstPanel = document.querySelector("[data-chat-panel]");
-      const chatId = firstPanel?.getAttribute("data-chat-panel");
-      if (!chatId) return;
-
-      e.preventDefault();
-      setOpen(chatId, k === "n" ? "note" : "summary",
-        !(document.querySelector(`.js-toggle[data-toggle-target="${k === "n" ? "note" : "summary"}"][data-chat-id="${chatId}"]`)?.getAttribute("aria-expanded") === "true")
-      );
-    });
-
-    // Restore default hidden state (and any saved open state) on load
-    document.addEventListener("DOMContentLoaded", () => {
-      document.querySelectorAll("[data-chat-panel]").forEach((panel) => restore(panel));
-    });
-
-    // If your dashboard injects this panel dynamically, call:
-    // window.restoreAdminChatPanelState?.(container)
-    window.restoreAdminChatPanelState = function(container) {
-      const root = container || document;
-      root.querySelectorAll?.("[data-chat-panel]")?.forEach((panel) => restore(panel));
-    };
-  })();
-</script>
