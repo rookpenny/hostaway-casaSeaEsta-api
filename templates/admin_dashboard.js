@@ -1,3 +1,813 @@
+/// ----- START OF SECTION
+
+    // ----------------------------
+// Inline detail helpers
+// ----------------------------
+function setInlineDetailOpen(open) {
+  const inline = document.getElementById("chat-detail-inline");
+  const list = document.getElementById("chat-list-wrap");
+  const analytics = document.getElementById("chat-analytics-strip"); // ✅ add
+  if (!inline || !list) return;
+
+  inline.classList.toggle("hidden", !open);
+  list.classList.toggle("hidden", open);
+
+  // ✅ hide analytics while detail is open
+  if (analytics) analytics.classList.toggle("hidden", open);
+
+  if (open) inline.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+
+
+function pushChatUrl(sessionId) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", "chats");
+  url.searchParams.set("session_id", String(sessionId));
+  url.hash = "#chats";
+  history.pushState({ session_id: String(sessionId) }, "", url.toString());
+}
+
+function clearChatUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", "chats");
+  url.searchParams.delete("session_id");
+  url.hash = "#chats";
+  history.pushState({}, "", url.toString());
+}
+
+// Back button
+document.addEventListener("click", (e) => {
+  if (e.target && e.target.closest("#chat-detail-back")) {
+    closeChatDetail();
+  }
+});
+
+/*// Back/forward support
+window.addEventListener("popstate", () => {
+  const params = new URLSearchParams(window.location.search);
+  const sid = params.get("session_id");
+  if (sid) {
+    setInlineDetailOpen(true);
+    loadChatDetail(sid);
+  } else {
+    closeChatDetail();
+  }
+});*/
+
+
+// =====================================================
+// Chat Detail: Notes + Summary collapse (GLOBAL)
+// Works even when chat_detail_panel.html is injected.
+// - Remembers state per chat in localStorage
+// - Default = collapsed (hidden)
+// - Chevron rotates
+// - Keyboard: N = notes, S = summary (when not typing)
+// =====================================================
+
+(function initAdminChatPanelGlobal() {
+  if (window.__ADMIN_CHAT_PANEL_GLOBAL_INIT__) return;
+  window.__ADMIN_CHAT_PANEL_GLOBAL_INIT__ = true;
+
+  function storageKey(chatId, which) {
+    return `admin_chat_${chatId}_${which}_open`;
+  }
+
+  function isTypingTarget(el) {
+    if (!el) return false;
+    const tag = (el.tagName || "").toLowerCase();
+    return tag === "input" || tag === "textarea" || el.isContentEditable;
+  }
+
+  function setOpen(chatId, which, open, root = document) {
+    const body = root.querySelector(
+      `.js-toggle-body[data-toggle-body="${which}"][data-chat-id="${chatId}"]`
+    );
+    const btn = root.querySelector(
+      `.js-toggle[data-toggle-target="${which}"][data-chat-id="${chatId}"]`
+    );
+    if (!body || !btn) return;
+
+    body.classList.toggle("hidden", !open);
+    btn.setAttribute("aria-expanded", open ? "true" : "false");
+
+    const chev = btn.querySelector(".js-chevron");
+    if (chev) chev.classList.toggle("rotate-180", open);
+
+    try {
+      localStorage.setItem(storageKey(chatId, which), open ? "1" : "0");
+    } catch {}
+  }
+
+  function restore(panelRoot) {
+    const panel = panelRoot?.closest?.("[data-chat-panel]") || panelRoot;
+    if (!panel) return;
+    const chatId = panel.getAttribute("data-chat-panel");
+    if (!chatId) return;
+
+    ["note", "summary"].forEach((which) => {
+      let open = false; // default CLOSED
+      try {
+        open = localStorage.getItem(storageKey(chatId, which)) === "1";
+      } catch {}
+      setOpen(chatId, which, open, panel);
+    });
+  }
+
+  function formatNowStamp() {
+    // lightweight “just now” UX; you can replace with locale string if preferred
+    return "Updated: just now";
+  }
+
+  // Delegated click handling for toggles + actions
+  document.addEventListener("click", async (e) => {
+    // toggle open/close
+    const toggleBtn = e.target.closest(".js-toggle");
+    if (toggleBtn) {
+      e.preventDefault();
+      const which = toggleBtn.getAttribute("data-toggle-target");
+      const chatId = toggleBtn.getAttribute("data-chat-id");
+      if (!which || !chatId) return;
+
+      const isOpen = toggleBtn.getAttribute("aria-expanded") === "true";
+      const panel = toggleBtn.closest("[data-chat-panel]") || document;
+      setOpen(chatId, which, !isOpen, panel);
+      return;
+    }
+
+    const actionBtn = e.target.closest("[data-action]");
+    if (!actionBtn) return;
+
+    const panel = actionBtn.closest("[data-chat-panel]");
+    const chatId = panel?.getAttribute("data-chat-panel");
+    if (!chatId) return;
+
+    const action = actionBtn.getAttribute("data-action");
+    if (!action) return;
+
+    // SUMMARY
+    if (action === "summary") {
+      const summaryBox = panel.querySelector("[data-summary-box]");
+      const updatedLabel = panel.querySelector("[data-summary-updated]"); // add this attr in the partial (see below)
+      const btn = actionBtn;
+
+      btn.disabled = true;
+      const prev = btn.textContent;
+      btn.textContent = "Generating…";
+
+      try {
+        const res = await fetch(`/admin/chats/${chatId}/summarize`, {
+          method: "POST",
+          credentials: "include",
+          headers: { Accept: "application/json" },
+        });
+        if (res.status === 401 || res.status === 403) return loginRedirect();
+
+        const parsed = await safeReadJson(res);
+        if (!parsed.ok) throw new Error(`Summary failed (HTTP ${parsed.status})`);
+
+        const data = parsed.json || {};
+        if (data.ok === false) throw new Error(data.error || "Failed");
+
+        if (summaryBox) summaryBox.textContent = data.summary || "";
+
+        // ✅ live update timestamp
+        if (updatedLabel) {
+          // If your API returns updated_at, prefer it:
+          // updatedLabel.textContent = `Updated: ${data.updated_at}`;
+          updatedLabel.textContent = formatNowStamp();
+        }
+
+        // Auto-open on success
+        setOpen(chatId, "summary", true, panel);
+      } catch (err) {
+        if (summaryBox) summaryBox.textContent = `Summary error: ${err.message}`;
+        setOpen(chatId, "summary", true, panel);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = prev || "Generate / Refresh";
+      }
+
+      return;
+    }
+  });
+
+  // Keyboard shortcuts: N / S (toggle current open detail panel if present)
+  document.addEventListener("keydown", (e) => {
+    if (e.metaKey || e.ctrlKey || e.altKey) return;
+    if (isTypingTarget(document.activeElement)) return;
+
+    const k = (e.key || "").toLowerCase();
+    if (k !== "n" && k !== "s") return;
+
+    const detailPanelContainer = document.getElementById("chat-detail-panel");
+    if (!detailPanelContainer) return;
+
+    // Find the injected panel root
+    const firstPanel = detailPanelContainer.querySelector("[data-chat-panel]");
+    const chatId = firstPanel?.getAttribute("data-chat-panel");
+    if (!chatId) return;
+
+    e.preventDefault();
+    const which = k === "n" ? "note" : "summary";
+
+    const toggle = firstPanel.querySelector(
+      `.js-toggle[data-toggle-target="${which}"][data-chat-id="${chatId}"]`
+    );
+    const isOpen = toggle?.getAttribute("aria-expanded") === "true";
+    setOpen(chatId, which, !isOpen, firstPanel);
+  });
+
+  // expose restore hook so loadChatDetail can call it after injection
+  window.restoreAdminChatPanelState = function (container) {
+    const root = container || document;
+    root.querySelectorAll?.("[data-chat-panel]")?.forEach((p) => restore(p));
+  };
+})();
+
+    
+/*function chatDetailStorageKey(sessionId, which) {
+  return `admin_chat_${sessionId}_${which}_open`;
+}
+
+function isTypingTarget(el) {
+  if (!el) return false;
+  const tag = (el.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || el.isContentEditable;
+}
+
+function setChatDetailSectionOpen(panelEl, sessionId, which, open, persist = true) {
+  if (!panelEl || !sessionId) return;
+
+  const body = panelEl.querySelector(`#${which}-body`);
+  const toggle = panelEl.querySelector(`#${which}-toggle`);
+  const chevron = panelEl.querySelector(`#${which}-chevron`);
+
+  if (!body || !toggle || !chevron) return;
+
+  body.classList.toggle("hidden", !open);
+  toggle.setAttribute("aria-expanded", open ? "true" : "false");
+  chevron.classList.toggle("rotate-180", open);
+
+  if (persist) {
+    localStorage.setItem(chatDetailStorageKey(sessionId, which), open ? "1" : "0");
+  }
+}
+
+function getChatDetailSectionOpen(sessionId, which) {
+  const v = localStorage.getItem(chatDetailStorageKey(sessionId, which));
+  // default collapsed (hidden)
+  return v === "1";
+}
+
+function initChatDetailToggles(panelEl, sessionId) {
+  if (!panelEl || !sessionId) return;
+
+  // Restore saved state (default hidden)
+  setChatDetailSectionOpen(panelEl, sessionId, "note", getChatDetailSectionOpen(sessionId, "note"), false);
+  setChatDetailSectionOpen(panelEl, sessionId, "summary", getChatDetailSectionOpen(sessionId, "summary"), false);
+
+  // Ensure aria-expanded reflects actual
+  const noteToggle = panelEl.querySelector("#note-toggle");
+  const summaryToggle = panelEl.querySelector("#summary-toggle");
+  if (noteToggle) noteToggle.setAttribute("aria-expanded", getChatDetailSectionOpen(sessionId, "note") ? "true" : "false");
+  if (summaryToggle) summaryToggle.setAttribute("aria-expanded", getChatDetailSectionOpen(sessionId, "summary") ? "true" : "false");
+}
+
+// Delegated click handler (works after injection)
+document.addEventListener("click", (e) => {
+  const btn = e.target?.closest?.("#note-toggle, #summary-toggle");
+  if (!btn) return;
+
+  const panel = document.getElementById("chat-detail-panel");
+  if (!panel) return;
+
+  const sessionId = String(panel.getAttribute("data-session-id") || "").trim();
+  if (!sessionId) return;
+
+  const which = btn.id === "note-toggle" ? "note" : "summary";
+  const isOpen = btn.getAttribute("aria-expanded") === "true";
+  setChatDetailSectionOpen(panel, sessionId, which, !isOpen, true);
+});
+// Keyboard shortcuts (global)
+document.addEventListener("keydown", (e) => {
+  if (e.metaKey || e.ctrlKey || e.altKey) return;
+  if (isTypingTarget(document.activeElement)) return;
+
+  const panel = document.getElementById("chat-detail-panel");
+  if (!panel) return;
+
+  // Only when detail is open + session id is known
+  const sessionId = String(panel.getAttribute("data-session-id") || "").trim();
+  if (!sessionId) return;
+
+  const k = (e.key || "").toLowerCase();
+  if (k !== "n" && k !== "s") return;
+
+  e.preventDefault();
+  const which = k === "n" ? "note" : "summary";
+  const toggle = panel.querySelector(`#${which}-toggle`);
+  const isOpen = toggle?.getAttribute("aria-expanded") === "true";
+  setChatDetailSectionOpen(panel, sessionId, which, !isOpen, true);
+});*/
+
+
+
+
+
+    
+// Load on entry if session_id exists
+document.addEventListener("DOMContentLoaded", () => {
+  const params = new URLSearchParams(window.location.search);
+  const sid = params.get("session_id");
+  if (sid) {
+    setInlineDetailOpen(true);
+    loadChatDetail(sid);
+  } else {
+    setInlineDetailOpen(false);
+  }
+});
+
+
+   async function chatPostJSON(url, body) {
+  const res = await fetch(url, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (res.status === 401 || res.status === 403) return loginRedirect();
+
+  const parsed = await safeReadJson(res);
+  if (!parsed.ok) {
+    console.error("chatPostJSON failed:", parsed.status, parsed.text.slice(0, 500));
+    throw new Error(`HTTP ${parsed.status}`);
+  }
+
+  if (parsed.json?.ok === false) throw new Error(parsed.json.error || "Request failed");
+  return parsed.json;
+}
+
+
+    function initChatDetailHandlers(sessionId, panelEl) {
+  const $ = (sel) => panelEl.querySelector(sel);
+
+  const summaryBtn = $("#summary-btn");
+  const summaryBox = $("#summary-box");
+
+  summaryBtn?.addEventListener("click", async () => {
+  summaryBtn.disabled = true;
+  summaryBtn.textContent = "Generating…";
+
+  try {
+    const res = await fetch(`/admin/chats/${sessionId}/summarize`, {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    if (res.status === 401 || res.status === 403) return loginRedirect();
+
+    const parsed = await safeReadJson(res);
+
+    if (!parsed.ok) {
+      console.error("summarize failed:", parsed.status, parsed.text.slice(0, 500));
+      throw new Error(`Summary failed (HTTP ${parsed.status})`);
+    }
+
+    const data = parsed.json || {};
+    if (data.ok === false) throw new Error(data.error || "Failed");
+
+    if (summaryBox) summaryBox.textContent = data.summary || "";
+  } catch (e) {
+    if (summaryBox) summaryBox.textContent = `Summary error: ${e.message}`;
+  } finally {
+    summaryBtn.disabled = false;
+    summaryBtn.textContent = "Generate / Refresh";
+  }
+});
+
+
+  $("#resolve-btn")?.addEventListener("click", async () => {
+    await chatPostJSON(`/admin/chats/${sessionId}/resolve`);
+  
+    // ✅ instant update in list
+    updateChatListRow(sessionId, { is_resolved: true });
+  
+    await loadChatDetail(sessionId);
+  });
+
+
+  $("#unresolve-btn")?.addEventListener("click", async () => {
+    await chatPostJSON(`/admin/chats/${sessionId}/unresolve`);
+  
+    // ✅ instant update in list
+    updateChatListRow(sessionId, { is_resolved: false });
+  
+    await loadChatDetail(sessionId);
+  }); 
+
+
+  $("#escalation-select")?.addEventListener("change", async (e) => {
+  const level = e.target.value || "";
+  await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level });
+
+  // optional instant UI update in list immediately
+  updateChatListRow(sessionId, { escalation_level: level || null });
+
+  await loadChatDetail(sessionId);
+});
+
+
+
+
+  $("#assign-btn")?.addEventListener("click", async () => {
+    const v = $("#assigned-input")?.value || "";
+  
+    await chatPostJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
+  
+    // ✅ instant update in list
+    updateChatListRow(sessionId, { assigned_to: v });
+  
+    await loadChatDetail(sessionId);
+  });
+
+
+  $("#save-note-btn")?.addEventListener("click", async () => {
+    const note = $("#note-input")?.value || "";
+    await chatPostJSON(`/admin/chats/${sessionId}/note`, { note });
+
+    const s = $("#note-status");
+    if (s) {
+      s.textContent = "Saved ✅";
+      setTimeout(() => (s.textContent = ""), 1200);
+    }
+  });
+}
+
+        let chatDetailAbort = null;
+
+
+
+  async function loadChatDetail(sessionId) {
+  const panel = document.getElementById("chat-detail-panel");
+  if (!panel) return;
+
+  // Cancel any in-flight request so we don't render stale content
+  if (chatDetailAbort) chatDetailAbort.abort();
+  chatDetailAbort = new AbortController();
+
+  panel.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+
+  try {
+    const res = await fetch(
+      `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`,
+      {
+        credentials: "include",
+        headers: { "X-Requested-With": "fetch" },
+        signal: chatDetailAbort.signal,
+      }
+    );
+
+    if (res.status === 401 || res.status === 403) return loginRedirect?.();
+
+    if (!res.ok) {
+      panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
+      return;
+    }
+
+    panel.innerHTML = await res.text();
+    panel.setAttribute("data-session-id", String(sessionId));
+
+    window.restoreAdminChatPanelState?.(panel);
+    initChatDetailHandlers(sessionId, panel);
+
+    // ✅ NEW: Update the list row immediately with the latest values from the injected panel
+    const chatRoot = panel.querySelector(`[data-chat-panel="${sessionId}"]`) || panel.querySelector("[data-chat-panel]");
+    if (chatRoot) {
+      const payload = {
+        escalation_level: (chatRoot.getAttribute("data-escalation-level") || "").trim() || null,
+        is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
+        assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
+        sentiment: (chatRoot.getAttribute("data-sentiment") || "").trim() || "",
+      };
+
+      // Only call if the helper exists
+      if (typeof updateChatListRow === "function") {
+        updateChatListRow(sessionId, payload);
+      }
+    }
+
+  } catch (err) {
+    // Abort is expected when switching chats quickly
+    if (err?.name === "AbortError") return;
+    console.error("loadChatDetail error:", err);
+    panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
+  }
+}
+
+
+
+function setEscalationBadge(container, level) {
+  if (!container) return;
+  const esc = String(level || "").toLowerCase();
+
+  if (esc === "high" || esc === "critical") {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔴 High</span>`;
+  } else if (esc === "medium" || esc === "attention") {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🟡 Medium</span>`;
+  } else if (esc === "low") {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold">🟢 Low</span>`;
+  } else {
+    container.innerHTML = `<span class="text-slate-400">—</span>`;
+  }
+}
+
+function setStatusBadge(container, isResolved) {
+  if (!container) return;
+  if (isResolved) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>`;
+  } else {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>`;
+  }
+}
+
+function setAssignedBadge(container, assignedTo) {
+  if (!container) return;
+  const v = String(assignedTo || "").trim();
+  if (!v) {
+    container.innerHTML = `<span class="text-slate-400">—</span>`;
+    return;
+  }
+  container.innerHTML = `<span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">${escapeHtml(v)}</span>`;
+}
+
+function renderSentimentBadge(container, sentiment) {
+  if (!container) return;
+
+  const s = String(sentiment || "").toLowerCase().trim();
+
+  const inSet = (val, arr) => arr.includes(val);
+
+  if (inSet(s, ["angry","mad","furious","hostile"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😡 Angry</span>`;
+  } else if (inSet(s, ["upset","frustrated","annoyed"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😣 Upset</span>`;
+  } else if (inSet(s, ["worried","concerned","concern","anxious","stress","stressed"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-800 font-semibold">😟 Concerned</span>`;
+  } else if (inSet(s, ["happy","pleased","delighted","positive"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">😊 Happy</span>`;
+  } else if (inSet(s, ["neutral","ok"])) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">😐 Neutral</span>`;
+  } else if (s) {
+    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">${escapeHtml(s)}</span>`;
+  } else {
+    container.innerHTML = `<span class="text-slate-400">—</span>`;
+  }
+}
+
+// small safety helper
+function escapeHtml(str) {
+  return String(str).replace(/[&<>"']/g, (m) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;"
+  }[m]));
+}
+
+
+
+function normalizeSentiment(raw) {
+  const s = String(raw || "").trim().toLowerCase();
+
+  // map synonyms -> your UI buckets
+  if (["angry", "mad", "furious", "irate"].includes(s)) return "angry";
+  if (["happy", "positive", "pleased", "great"].includes(s)) return "happy";
+  if (["upset", "negative", "unhappy", "frustrated"].includes(s)) return "upset";
+  if (["concern", "concerned"].includes(s)) return "concerned";
+  if (["worried", "anxious", "nervous"].includes(s)) return "worried";
+  if (["neutral", "ok"].includes(s)) return "neutral";
+
+  return s; // fallback (shows whatever backend sends)
+}
+
+
+/**
+ * Map any raw sentiment label into a richer “human” label.
+ * You can expand this over time without touching templates.
+ */
+function classifySentiment(raw) {
+  const s = normalizeSentiment(raw);
+
+  // direct matches
+  if (["angry", "mad", "furious", "rage"].some(k => s.includes(k))) return "angry";
+  if (["happy", "great", "good", "excellent", "pleased", "love"].some(k => s.includes(k))) return "happy";
+  if (["upset", "frustrated", "annoyed", "irritated"].some(k => s.includes(k))) return "upset";
+  if (["worried", "anxious", "nervous", "stressed"].some(k => s.includes(k))) return "worried";
+  if (["concern", "concerned", "issue", "problem", "confused", "unclear"].some(k => s.includes(k))) return "concerned";
+
+  // fallback for common “simple” backends
+  if (["negative", "unhappy", "bad"].includes(s)) return "upset";
+  if (["positive", "good"].includes(s)) return "happy";
+  if (["neutral", "ok"].includes(s)) return "neutral";
+
+  // If backend returns something else (e.g. "needs_attention"), show it safely
+  return "custom";
+}
+
+function renderSentimentBadge(el, raw) {
+  if (!el) return;
+
+  const s = String(raw || "").toLowerCase().trim();
+
+  // reset
+  el.className = "px-2 py-1 rounded-full font-semibold";
+
+  if (!s) {
+    el.textContent = "—";
+    el.classList.add("text-slate-400");
+    return;
+  }
+
+  if (["angry", "mad", "furious", "irate"].some(k => s.includes(k))) {
+    el.textContent = "😡 Angry";
+    el.classList.add("bg-rose-100", "text-rose-800");
+    return;
+  }
+
+  if (["upset", "frustrated", "annoyed", "unhappy"].some(k => s.includes(k))) {
+    el.textContent = "😟 Upset";
+    el.classList.add("bg-amber-100", "text-amber-800");
+    return;
+  }
+
+  if (["worried", "anxious", "nervous", "stressed"].some(k => s.includes(k))) {
+    el.textContent = "😰 Worried";
+    el.classList.add("bg-amber-100", "text-amber-800");
+    return;
+  }
+
+  if (["concern", "concerned", "issue", "problem"].some(k => s.includes(k))) {
+    el.textContent = "🫤 Concerned";
+    el.classList.add("bg-blue-100", "text-blue-800");
+    return;
+  }
+
+  if (["happy", "positive", "pleased", "great", "good"].some(k => s.includes(k))) {
+    el.textContent = "😊 Happy";
+    el.classList.add("bg-emerald-100", "text-emerald-700");
+    return;
+  }
+
+  if (["neutral", "ok"].includes(s)) {
+    el.textContent = "😐 Neutral";
+    el.classList.add("bg-slate-100", "text-slate-700");
+    return;
+  }
+
+  // fallback: show raw backend label
+  el.textContent = s;
+  el.classList.add("bg-slate-100", "text-slate-700");
+}
+
+
+    
+
+    
+/**
+ * Update the row in the main chat list WITHOUT hard refresh.
+ *
+ * payload supports:
+ *  - escalation_level: "low" | "medium" | "high" | "" | null
+ *  - is_resolved: boolean
+ *  - assigned_to: string | null
+ */
+function updateChatListRow(sessionId, payload = {}) {
+  const row = document.querySelector(`[data-session-row="${sessionId}"]`);
+  if (!row) return;
+
+  if (Object.prototype.hasOwnProperty.call(payload, "escalation_level")) {
+    const escEl = row.querySelector("[data-escalation-badge]");
+    setEscalationBadge(escEl, payload.escalation_level);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "is_resolved")) {
+    const stEl = row.querySelector("[data-status-badge]");
+    setStatusBadge(stEl, payload.is_resolved);
+  }
+
+  if (Object.prototype.hasOwnProperty.call(payload, "assigned_to")) {
+    const asgEl = row.querySelector("[data-assigned-badge]");
+    setAssignedBadge(asgEl, payload.assigned_to);
+  }
+
+  // ✅ NEW: sentiment
+  if (Object.prototype.hasOwnProperty.call(payload, "sentiment")) {
+    const sentEl = row.querySelector("[data-sentiment-badge]");
+    renderSentimentBadge(sentEl, payload.sentiment);
+  }
+}
+
+
+function applyEscalationBadge(badgeEl, levelRaw) {
+  if (!badgeEl) return;
+
+  const level = String(levelRaw || "").toLowerCase().trim();
+
+  // Reset classes (keep your pill shape)
+  badgeEl.className = "px-2 py-1 rounded-full font-semibold";
+
+  if (level === "critical" || level === "high") {
+    badgeEl.textContent = "🔴 High";
+    badgeEl.classList.add("bg-rose-100", "text-rose-800");
+  } else if (level === "attention" || level === "medium") {
+    badgeEl.textContent = "🟡 Medium";
+    badgeEl.classList.add("bg-amber-100", "text-amber-800");
+  } else if (level) {
+    badgeEl.textContent = "🟢 Low";
+    badgeEl.classList.add("bg-blue-100", "text-blue-800");
+  } else {
+    badgeEl.textContent = "—";
+    badgeEl.classList.add("text-slate-400");
+  }
+
+  badgeEl.setAttribute("data-escalation-level", level);
+}
+
+function updateChatListEscalation(sessionId, level) {
+  const row = document.querySelector(`[data-session-row="${sessionId}"]`);
+  if (!row) return; // row might not be in DOM (filtered/paged out)
+
+  const badge = row.querySelector("[data-escalation-badge]");
+  applyEscalationBadge(badge, level);
+}
+
+    
+
+   async function openChatDetail(sessionId) {
+  setInlineDetailOpen(true);
+  pushChatUrl(sessionId);
+  await loadChatDetail(String(sessionId));
+}
+
+function closeChatDetail() {
+  setInlineDetailOpen(false);
+  clearChatUrl();
+  const panel = document.getElementById("chat-detail-panel");
+  if (panel) panel.innerHTML = "";
+}
+
+window.openChatDetail = openChatDetail;
+
+    // ----------------------------
+    // Relative time updater
+    // ----------------------------
+    function parseTimestamp(ts) {
+      if (!ts) return null;
+      const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
+      const d = new Date(normalized);
+      return isNaN(d.getTime()) ? null : d;
+    }
+
+    function formatRelative(fromDate, now = new Date()) {
+      const diffMs = now - fromDate;
+      if (diffMs < 0) return "just now";
+      const sec = Math.floor(diffMs / 1000);
+      if (sec < 10) return "just now";
+      if (sec < 60) return `${sec}s ago`;
+      const min = Math.floor(sec / 60);
+      if (min < 60) return `${min}m ago`;
+      const hr = Math.floor(min / 60);
+      if (hr < 24) return `${hr}h ago`;
+      const day = Math.floor(hr / 24);
+      if (day < 14) return `${day}d ago`;
+      const wk = Math.floor(day / 7);
+      if (wk < 8) return `${wk}w ago`;
+      const mo = Math.floor(day / 30);
+      if (mo < 12) return `${mo}mo ago`;
+      const yr = Math.floor(day / 365);
+      return `${yr}y ago`;
+    }
+
+    function updateRelativeTimes() {
+      const now = new Date();
+      document.querySelectorAll(".js-rel-time").forEach(el => {
+        const ts = el.getAttribute("data-ts");
+        const d = parseTimestamp(ts);
+        if (!d) return;
+        el.textContent = formatRelative(d, now);
+      });
+    }
+
+    updateRelativeTimes();
+    setInterval(updateRelativeTimes, 60 * 1000);
+
+
+///----- END OF SECTION
+
 
   // -------- Paywall flag (server-rendered) --------
 const IS_LOCKED = {{ (user_role == 'pmc' and needs_payment) | tojson }};
