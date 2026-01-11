@@ -1201,8 +1201,9 @@ def admin_chats(
             raise HTTPException(status_code=403, detail="Forbidden property")
         base_q = base_q.filter(ChatSession.property_id == property_id_int)
 
-    if status in {"pre_booking", "active", "post_stay"}:
+    if status in {"pre_booking", "post_booking", "active", "post_stay"}:
         base_q = base_q.filter(ChatSession.reservation_status == status)
+
 
     effective_assignee: Optional[str] = (assigned_to or "").strip() or None
     if mine:
@@ -1406,11 +1407,13 @@ def admin_chats(
 
     analytics = {
         "pre_booking": int(by_status.get("pre_booking", 0)),
+        "post_booking": int(by_status.get("post_booking", 0)),
         "active": int(by_status.get("active", 0)),
         "post_stay": int(by_status.get("post_stay", 0)),
         "urgent_sessions": int(urgent_sessions),
         "unhappy_sessions": int(unhappy_sessions),
     }
+
 
     return templates.TemplateResponse(
         "admin_chats.html",
@@ -2634,11 +2637,13 @@ def admin_dashboard(
     sessions: list[dict] = []
     analytics = {
         "pre_booking": 0,
+        "post_booking": 0,
         "active": 0,
         "post_stay": 0,
         "urgent_sessions": 0,
         "unhappy_sessions": 0,
     }
+
 
     selected_session = None
     selected_property = None
@@ -2710,13 +2715,16 @@ def admin_dashboard(
         stage_counts = (
             base_q.with_entities(
                 func.sum(case((ChatSession.reservation_status == "pre_booking", 1), else_=0)).label("pre_booking"),
+                func.sum(case((ChatSession.reservation_status == "post_booking", 1), else_=0)).label("post_booking"),
                 func.sum(case((ChatSession.reservation_status == "active", 1), else_=0)).label("active"),
                 func.sum(case((ChatSession.reservation_status == "post_stay", 1), else_=0)).label("post_stay"),
             )
             .first()
         )
+
         if stage_counts:
             analytics["pre_booking"] = int(stage_counts.pre_booking or 0)
+            analytics["post_booking"] = int(stage_counts.post_booking or 0)
             analytics["active"] = int(stage_counts.active or 0)
             analytics["post_stay"] = int(stage_counts.post_stay or 0)
 
@@ -2904,13 +2912,18 @@ def refresh_session_status(request: Request, db: Session = Depends(get_db)):
         d = to_date(getattr(s, "departure_date", None))
 
         if not a or not d:
+            # no stay dates => true pre-booking/inquiry
             new_status = "pre_booking"
+        elif today < a:
+            # booked but not yet arrived
+            new_status = "post_booking"
         elif a <= today <= d:
             new_status = "active"
         elif today > d:
             new_status = "post_stay"
         else:
             new_status = "pre_booking"
+
 
         if getattr(s, "reservation_status", "pre_booking") != new_status:
             s.reservation_status = new_status
