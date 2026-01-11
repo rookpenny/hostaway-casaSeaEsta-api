@@ -1824,8 +1824,6 @@ async function loadTopProperties({ from, to, pmcId, propertyId }) {
   const rows = parsed.json?.rows || [];
 
 
-  const rows = data.rows || [];
-
   if (!rows.length) {
     tbody.innerHTML = `<tr><td class="px-4 py-4 text-slate-500" colspan="6">No data yet.</td></tr>`;
     return;
