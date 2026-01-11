@@ -40,6 +40,7 @@ from utils.github_sync import ensure_repo, sync_files_to_github
 from utils.pms_sync import sync_properties, sync_all_integrations
 from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
+from utils.ai_summary import generate_and_store_summary
 from zoneinfo import ZoneInfo  # Python 3.9+
 
 
@@ -1562,95 +1563,38 @@ async def summarize_chat(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    # Keep your existing access control
     session = require_session_in_scope(request, db, session_id)
 
-    # Pull the most recent 40 messages, then re-order oldest -> newest
-    msgs = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session.id)
-        .order_by(ChatMessage.created_at.desc(), ChatMessage.id.desc())
-        .limit(40)
-        .all()
-    )
-    msgs.reverse()
-
-    if not msgs:
-        # Still store an empty-ish summary so the UI doesn't break
-        session.ai_summary = "**What the guest wants**\n- (No messages yet)\n"
-        session.ai_summary_updated_at = datetime.utcnow()
-        db.add(session)
-        db.commit()
-        return {
-            "ok": True,
-            "summary": session.ai_summary,
-            "updated_at": session.ai_summary_updated_at.isoformat(),
-        }
-
-    convo = "\n".join(
-        f"{(m.sender or '').upper()}: {(m.content or '').strip()}"
-        for m in msgs
-        if (m.content or "").strip()
-    ).strip()
-
-    if not convo:
-        session.ai_summary = "**What the guest wants**\n- (No message content)\n"
-        session.ai_summary_updated_at = datetime.utcnow()
-        db.add(session)
-        db.commit()
-        return {
-            "ok": True,
-            "summary": session.ai_summary,
-            "updated_at": session.ai_summary_updated_at.isoformat(),
-        }
-
-    system_prompt = (
-        "You are an operations assistant for a short-term rental host. "
-        "Summarize the conversation for an admin dashboard.\n\n"
-        "Return **markdown** with these sections:\n"
-        "1) **What the guest wants**\n"
-        "2) **Key facts** (dates, unit details, constraints)\n"
-        "3) **Risks / sentiment** (urgent/unhappy signals)\n"
-        "4) **Recommended next action** (clear steps)\n\n"
-        "Keep it short and scannable."
+    # Manual click should always refresh (ignore throttling)
+    did_run, summary, err = generate_and_store_summary(
+        db=db,
+        session_id=int(session.id),
+        force=True,
     )
 
-    try:
-        resp = client.chat.completions.create(
-            model=SUMMARY_MODEL,
-            temperature=0.2,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": convo},
-            ],
-        )
-        summary = (resp.choices[0].message.content or "").strip()
-        if not summary:
-            summary = "**What the guest wants**\n- (No summary generated)\n"
-    except Exception as e:
+    if err:
         logging.exception("Summarization failed")
         return JSONResponse(
             status_code=500,
             content={
                 "ok": False,
                 "error": "Summarization failed",
-                "detail": str(e),
-                "model": SUMMARY_MODEL,
+                "detail": err,
+                "model": os.getenv("OPENAI_SUMMARY_MODEL", "gpt-4o-mini"),
             },
         )
 
-
-    session.ai_summary = summary
-    session.ai_summary_updated_at = datetime.utcnow()
-    session.updated_at = datetime.utcnow() if hasattr(session, "updated_at") else None
-
-    db.add(session)
-    db.commit()
+    # refresh so timestamps are current in the response
+    db.refresh(session)
 
     return {
         "ok": True,
         "summary": summary,
-        "updated_at": session.ai_summary_updated_at.isoformat(),
+        "updated_at": (session.ai_summary_updated_at.isoformat() if session.ai_summary_updated_at else None),
+        "did_run": bool(did_run),
     }
+
 
 
 # ✅ FIXED: scoped analytics by role
