@@ -1570,45 +1570,94 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
- <script id="dashboard-bootstrap" type="application/json">
+ <script id="dashboard-bootstrap" type="application/json"></script>
+<script>
 {
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
   "live_props": {{ live_props | tojson }},
   "offline_props": {{ offline_props | tojson }},
   "user_role": {{ user_role | tojson }}
 }
-</script>
 
-            <script>
-  // Render the same "Signals" pills as admin_chats.html, driven by data-signals='["angry","worried"]'
+  // Render "Signals" pills.
+  // Source of truth = data-signals (backend).
+  // Fallback = derive from data-sentiment when signals is empty/missing.
   (function () {
-    function esc(s) {
-      return String(s || "").replace(/[&<>"']/g, (m) => ({
-        "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
-      }[m]));
-    }
-
     function pill(text, cls) {
       return `<span class="inline-block px-2 py-1 rounded-full font-semibold mr-1 ${cls}">${text}</span>`;
     }
 
-    window.renderSignalsBadges = function renderSignalsBadges(el, signals) {
+    function normalizeSignals(signalsRaw) {
+      // signalsRaw may be:
+      // - an Array (ideal)
+      // - a JSON string like '["angry"]'
+      // - a comma-separated string like 'angry,worried'
+      // - null/undefined
+      if (Array.isArray(signalsRaw)) {
+        return signalsRaw
+          .map(s => String(s || "").toLowerCase().trim())
+          .filter(Boolean);
+      }
+
+      const s = String(signalsRaw || "").trim();
+      if (!s) return [];
+
+      // Try JSON parse first
+      try {
+        const parsed = JSON.parse(s);
+        if (Array.isArray(parsed)) {
+          return parsed
+            .map(x => String(x || "").toLowerCase().trim())
+            .filter(Boolean);
+        }
+      } catch (_) {}
+
+      // Fallback: comma-separated
+      return s
+        .split(",")
+        .map(x => x.trim().toLowerCase())
+        .filter(Boolean);
+    }
+
+    function deriveSignalsFromSentiment(sent) {
+      const s = String(sent || "").toLowerCase();
+
+      const derived = [];
+      const add = (v) => { if (!derived.includes(v)) derived.push(v); };
+
+      if (!s) return derived;
+
+      // Strong signals
+      if (s.includes("panic") || s.includes("terrified") || s.includes("scared to") || s.includes("freak")) add("panicked");
+      if (s.includes("furious") || s.includes("angry") || s.includes("mad") || s.includes("pissed")) add("angry");
+      if (s.includes("upset") || s.includes("unhappy") || s.includes("frustrat") || s.includes("annoy")) add("upset");
+      if (s.includes("confus") || s.includes("unclear") || s.includes("not sure") || s.includes("dont understand") || s.includes("don't understand")) add("confused");
+      if (s.includes("worr") || s.includes("concern") || s.includes("anx") || s.includes("stress") || s.includes("nervous")) add("worried");
+
+      // If your model returns labels like "negative"/"positive" without keywords:
+      // treat "negative" as at least "upset" unless you prefer a different mapping.
+      if (derived.length === 0 && (s === "negative" || s.includes("negative"))) add("upset");
+
+      return derived;
+    }
+
+    window.renderSignalsBadges = function renderSignalsBadges(el, signals, sentiment) {
       if (!el) return;
 
-      const sig = Array.isArray(signals)
-        ? signals.map(s => String(s || "").toLowerCase().trim()).filter(Boolean)
-        : [];
+      const sig = normalizeSignals(signals);
+      const sent = String(sentiment || "").trim();
+      const finalSig = (sig.length ? sig : deriveSignalsFromSentiment(sent));
 
       let html = "";
 
-      if (sig.includes("panicked")) html += pill("😰 Panicked", "bg-rose-100 text-rose-700");
-      if (sig.includes("angry"))    html += pill("😡 Angry",    "bg-rose-200 text-rose-900");
-      if (sig.includes("upset"))    html += pill("😟 Upset",    "bg-amber-100 text-amber-800");
-      if (sig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
-      if (sig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
+      if (finalSig.includes("panicked")) html += pill("😰 Panicked", "bg-rose-100 text-rose-700");
+      if (finalSig.includes("angry"))    html += pill("😡 Angry",    "bg-rose-200 text-rose-900");
+      if (finalSig.includes("upset"))    html += pill("😟 Upset",    "bg-amber-100 text-amber-800");
+      if (finalSig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
+      if (finalSig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
 
-      // Calm rule: empty or only "calm"
-      if (sig.length === 0 || (sig.length === 1 && sig[0] === "calm")) {
+      // Calm rule: empty OR only "calm"
+      if (finalSig.length === 0 || (finalSig.length === 1 && finalSig[0] === "calm")) {
         html += pill("🙂 Calm", "bg-emerald-100 text-emerald-700");
       }
 
@@ -1617,21 +1666,27 @@
 
     function rerenderAllSignalsBadges() {
       document.querySelectorAll("[data-signals-badge]").forEach((el) => {
-        let signals = [];
+        const rawSignalsAttr = el.getAttribute("data-signals") || "[]";
+        const sentimentAttr = el.getAttribute("data-sentiment") || "";
+
+        // data-signals is a JSON string in an HTML attribute
+        // (we still normalize it in case it isn't valid JSON)
+        let parsedSignals = [];
         try {
-          signals = JSON.parse(el.getAttribute("data-signals") || "[]");
-        } catch (e) {
-          signals = [];
+          parsedSignals = JSON.parse(rawSignalsAttr);
+        } catch (_) {
+          parsedSignals = rawSignalsAttr; // normalizeSignals can handle it
         }
-        window.renderSignalsBadges(el, signals);
+
+        window.renderSignalsBadges(el, parsedSignals, sentimentAttr);
       });
     }
 
-    // Run now + on DOM ready (safe either way)
     rerenderAllSignalsBadges();
     document.addEventListener("DOMContentLoaded", rerenderAllSignalsBadges);
   })();
 </script>
+
 
 
 </body>
