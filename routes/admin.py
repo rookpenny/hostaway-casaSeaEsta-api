@@ -9,6 +9,7 @@ import sqlalchemy as sa
 import secrets
 import shutil, uuid
 import json
+import asyncio
 from copy import deepcopy
 
 from pathlib import Path
@@ -17,7 +18,7 @@ from database import get_db  # <- update import path
 from models import Upgrade  # <- update import path
 
 from fastapi import APIRouter, Depends, Request, Form, Body, Query, HTTPException, UploadFile, File
-from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
+from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
@@ -656,6 +657,78 @@ def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
             return file_path
 
     raise HTTPException(status_code=403, detail="Forbidden file")
+
+
+# ----------------------------
+# Raw file read/write for Quill HTML manuals
+# ----------------------------
+
+_file_locks: dict[str, asyncio.Lock] = {}
+
+def _lock_for(path: str) -> asyncio.Lock:
+    if path not in _file_locks:
+        _file_locks[path] = asyncio.Lock()
+    return _file_locks[path]
+
+
+class SaveFilePayload(BaseModel):
+    file: str
+    content: str
+
+
+@router.get("/admin/file-raw", response_class=PlainTextResponse)
+async def admin_file_raw(
+    request: Request,
+    file: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    # ✅ scope gate (prevents PMC reading others, blocks .. traversal, allows defaults/)
+    file = require_file_in_scope(request, db, file)
+
+    # Read from local repo clone (fast, no GitHub API)
+    try:
+        text = _read_repo_file_text(file)
+    except HTTPException as e:
+        # If file doesn't exist yet, just return empty (nice UX for first save)
+        if e.status_code == 404:
+            return PlainTextResponse("", media_type="text/plain")
+        raise
+
+    # Return exactly what's in the file (likely HTML string)
+    return PlainTextResponse(text or "", media_type="text/plain")
+
+
+@router.post("/admin/file-save")
+async def admin_file_save(
+    request: Request,
+    payload: SaveFilePayload,
+    db: Session = Depends(get_db),
+):
+    file_path = (payload.file or "").strip()
+    if not file_path:
+        raise HTTPException(status_code=400, detail="Missing file")
+
+    # ✅ scope gate
+    file_path = require_file_in_scope(request, db, file_path)
+
+    # Optional: lock down which files can be edited by this endpoint
+    # (recommended if this is only for manuals)
+    # if Path(file_path).name != "manual.txt":
+    #     raise HTTPException(status_code=403, detail="Only manual.txt is allowed")
+
+    content = payload.content or ""
+
+    lock = _lock_for(file_path)
+    async with lock:
+        _write_repo_file_text_via_git(
+            rel_path=file_path,
+            text=content,
+            commit_msg=f"Update file via editor: {file_path}",
+        )
+
+    return {"ok": True}
+
+
 
 
 # ----------------------------
