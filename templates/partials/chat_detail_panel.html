@@ -4,11 +4,12 @@
 <div
   class="space-y-4"
   data-chat-panel="{{ session.id }}"
-  data-signals='{{ session.signals | tojson }}'
+  data-signals='{{ (session.signals or []) | tojson }}'
   data-escalation-level="{{ session.escalation_level or '' }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
-  data-assigned-to="{{ session.assigned_to or '' }}"
-  data-sentiment="{{ (session.sentiment or session.sentiment_label or session.sentiment_status or '') | e }}"
+  data-assigned-to="{{ (session.assigned_to or '') | e }}"
+  data-escalation-level="{{ (session.escalation_level or '') | e }}"
+
 >
 
   <!-- Sticky Header -->
@@ -62,10 +63,11 @@
               {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
             </span>
 
+            {% set esc = (session.escalation_level or '')|lower %}
+
             <span
               id="escalation-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% set esc = (session.escalation_level or '')|lower %}
                 {% if esc in ['critical','high'] %}
                   bg-rose-100 text-rose-800
                 {% elif esc in ['attention','medium'] %}
@@ -75,15 +77,15 @@
                 {% else %}
                   bg-slate-100 text-slate-500
                 {% endif %}
-
               "
             >
-              {% if session.escalation_level %}
-                🚨 Escalation: {{ session.escalation_level|capitalize }}
+              {% if esc %}
+                🚨 Escalation: {{ esc|capitalize }}
               {% else %}
                 No escalation
               {% endif %}
             </span>
+
 
             <br>
 
