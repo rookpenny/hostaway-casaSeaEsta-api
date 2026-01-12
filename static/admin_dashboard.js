@@ -1122,6 +1122,54 @@ document.addEventListener("change", (e) => {
     }
   }
 
+
+// ----------------------------
+  // Properties Signal
+  // ----------------------------
+
+function getSelectedSignalsFilter() {
+  const sel = document.getElementById("signalsFilter");
+  return sel ? String(sel.value || "").toLowerCase().trim() : "";
+}
+
+function getRowSignals(row) {
+  // Prefer row-level signals if present
+  const rowRaw = row.getAttribute("data-signals");
+
+  // Fallback to badge
+  const badgeRaw =
+    row.querySelector("[data-signals-badge]")?.getAttribute("data-signals");
+
+  const raw = rowRaw ?? badgeRaw ?? "[]";
+
+  try {
+    return Array.isArray(JSON.parse(raw))
+      ? JSON.parse(raw).map(s => String(s).toLowerCase())
+      : [];
+  } catch {
+    return String(raw)
+      .split(",")
+      .map(s => s.toLowerCase().trim())
+      .filter(Boolean);
+  }
+}
+
+function applyChatsFilters() {
+  const selectedSignal = getSelectedSignalsFilter();
+  const rows = document.querySelectorAll("[data-session-row]");
+
+  rows.forEach(row => {
+    if (!selectedSignal) {
+      row.style.display = "";
+      return;
+    }
+
+    const signals = getRowSignals(row);
+    row.style.display = signals.includes(selectedSignal) ? "" : "none";
+  });
+}
+
+
   // ----------------------------
   // Sidebar collapse/expand
   // ----------------------------
