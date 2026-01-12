@@ -494,7 +494,8 @@ document.addEventListener("DOMContentLoaded", () => {
       }
     );
 
-    if (res.status === 401 || res.status === 403) return loginRedirect?.();
+    if (res.status === 401 || res.status === 403) { loginRedirect(); return; }
+
 
     if (!res.ok) {
       panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
