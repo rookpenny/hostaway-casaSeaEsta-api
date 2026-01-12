@@ -52,7 +52,10 @@
               data-signals-badge
               data-signals='{{ (session.signals or []) | tojson }}'
               class="inline-flex"
-            ></span>
+            >
+              <span class="text-slate-400">—</span>
+            </span>
+
 
             {# Resolved/Open pill #}
             <span
