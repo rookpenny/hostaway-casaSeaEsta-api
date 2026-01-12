@@ -841,7 +841,6 @@
                       <th class="px-4 py-3 text-left">Stage</th>
                       <th class="px-4 py-3 text-left">Priority</th>
                       <th class="px-4 py-3 text-left">Escalation</th>
-                      <th class="px-3 py-2 text-left">Sentiment</th>
                       <th class="px-4 py-3 text-left">Status</th>
                       <th class="px-4 py-3 text-left">Signals</th>
                       <th class="px-4 py-3 text-left">Last</th>
@@ -965,14 +964,7 @@
                           </span>
                         </td>
 
-                        <!-- Sentiment column -->
-                        <td class="px-3 py-2">
-                          <span
-                            data-sentiment-badge
-                            data-sentiment="{{ (s.sentiment or s.last_sentiment or '') | e }}"
-                          ></span>
-                        </td>
-
+                       
                         <!-- Open/Closed -->
                         <td class="px-4 py-3 text-xs">
                           <span data-status-badge data-is-resolved="{{ 'true' if s.is_resolved else 'false' }}">
