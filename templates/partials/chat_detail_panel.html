@@ -1,58 +1,63 @@
 {# chat_detail_panel.html (CLEAN + FUTURE-PROOF) #}
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
+{% set rs = (session.reservation_status or '')|lower %}
+{% set esc = (session.escalation_level or '')|lower %}
+{% set assigned = (session.assigned_to or '') %}
 
 <div
   class="space-y-4"
   data-chat-panel="{{ session.id }}"
   data-signals='{{ (session.signals or []) | tojson }}'
-  data-escalation-level="{{ session.escalation_level or '' }}"
+  data-escalation-level="{{ esc | e }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
-  data-assigned-to="{{ (session.assigned_to or '') | e }}"
-  data-escalation-level="{{ (session.escalation_level or '') | e }}"
-
+  data-assigned-to="{{ assigned | e }}"
 >
 
   <!-- Sticky Header -->
   <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-200">
     <div class="p-4 space-y-3">
-
       <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
 
         <!-- LEFT: Chat meta -->
-        <div class="min-w-0 space-y-1">
+        <div class="min-w-0 space-y-2">
           <div class="text-[14px] font-semibold truncate">
             Chat #{{ session.id }}
             <br>{{ prop_name or "Unknown property" }} • Property ID: {{ session.property_id }}
           </div>
 
-          <div>
-            {% set rs = (session.reservation_status or '') | lower %}
+          <!-- Pills row -->
+          <div class="flex flex-wrap items-center gap-1">
 
-{% if rs == "active" %}
-  <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">
-    🏖 Active
-  </span>
+            {# Reservation status pill #}
+            {% if rs == "active" %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">
+                🏖 Active
+              </span>
+            {% elif rs == "pre_booking" %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
+                💬 Pre-booking
+              </span>
+            {% elif rs == "post_stay" %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">
+                📬 Post-stay
+              </span>
+            {% else %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">
+                Unknown
+              </span>
+            {% endif %}
 
-{% elif rs == "pre_booking" %}
-  <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
-    💬 Pre-booking
-  </span>
+            {# Signals badge (rendered by your JS) #}
+            <span
+              data-signals-badge
+              data-signals='{{ (session.signals or []) | tojson }}'
+              class="inline-flex"
+            ></span>
 
-{% elif rs == "post_stay" %}
-  <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">
-    📬 Post-stay
-  </span>
-
-{% else %}
-  <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">
-    Unknown
-  </span>
-{% endif %}
-
-
+            {# Resolved/Open pill #}
             <span
               id="resolved-pill"
-              class="inline-flex items-center px-2 py-1 rounded-full text-[14px] font-semibold
+              class="inline-flex items-center px-2 py-1 rounded-full text-[13px] font-semibold
                 {% if session.is_resolved %}
                   bg-emerald-100 text-emerald-800
                 {% else %}
@@ -63,8 +68,7 @@
               {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
             </span>
 
-            {% set esc = (session.escalation_level or '')|lower %}
-
+            {# Escalation pill #}
             <span
               id="escalation-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
@@ -85,36 +89,29 @@
                 No escalation
               {% endif %}
             </span>
+          </div>
 
-
-            <br>
-
-            <span class="text-[14px] text-slate-500">
-              Assigned:
-              <span id="assigned-label" class="font-semibold text-slate-700">
-                {{ session.assigned_to or "—" }}
-              </span>
+          <!-- Assigned -->
+          <div class="text-[14px] text-slate-500">
+            Assigned:
+            <span id="assigned-label" class="font-semibold text-slate-700">
+              {{ assigned or "—" }}
             </span>
           </div>
         </div>
-<div class="flex flex-wrap gap-1 mt-1">
-  <span
-    data-signals-badge
-    data-signals='{{ (session.signals or []) | tojson }}'
-    class="inline-flex"
-  ></span>
-</div>
 
         <!-- RIGHT: Status + actions -->
         <div class="flex flex-wrap items-center gap-2 justify-start md:justify-end">
+
           <div class="flex flex-wrap items-center gap-2">
             <select
               id="escalation-select"
-              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white">
-              <option value="" {% if not session.escalation_level %}selected{% endif %}>No escalation</option>
-              <option value="low" {% if session.escalation_level=='low' %}selected{% endif %}>Low</option>
-              <option value="medium" {% if session.escalation_level=='medium' %}selected{% endif %}>Medium</option>
-              <option value="high" {% if session.escalation_level=='high' %}selected{% endif %}>High</option>
+              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white"
+            >
+              <option value="" {% if not esc %}selected{% endif %}>No escalation</option>
+              <option value="low" {% if esc == 'low' %}selected{% endif %}>Low</option>
+              <option value="medium" {% if esc == 'medium' %}selected{% endif %}>Medium</option>
+              <option value="high" {% if esc == 'high' %}selected{% endif %}>High</option>
             </select>
 
             {% if session.is_resolved %}
@@ -139,11 +136,10 @@
           <div class="flex flex-wrap items-center gap-2">
             <input
               id="assigned-input"
-              value="{{ session.assigned_to or '' }}"
+              value="{{ assigned | e }}"
               class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white w-full sm:w-[320px]"
               placeholder="Assign to (name/email)"
             />
-
             <button
               id="assign-btn"
               class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
@@ -181,11 +177,7 @@
         </button>
       </div>
 
-      <div
-        class="js-toggle-body mt-3 hidden"
-        data-toggle-body="note"
-        data-chat-id="{{ session.id }}"
-      >
+      <div class="js-toggle-body mt-3 hidden" data-toggle-body="note" data-chat-id="{{ session.id }}">
         <textarea
           id="note-input"
           class="w-full border border-slate-200 rounded-xl p-2 text-sm bg-white"
@@ -245,11 +237,7 @@
         </div>
       </div>
 
-      <div
-        class="js-toggle-body mt-3 hidden"
-        data-toggle-body="summary"
-        data-chat-id="{{ session.id }}"
-      >
+      <div class="js-toggle-body mt-3 hidden" data-toggle-body="summary" data-chat-id="{{ session.id }}">
         <div id="summary-box" data-summary-box class="text-sm text-slate-800 whitespace-pre-wrap">
           {% if session.ai_summary %}
             {{ session.ai_summary }}
