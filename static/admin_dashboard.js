@@ -2547,7 +2547,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 /*document.querySelectorAll("[data-sentiment-badge]").forEach((el) => {
   renderSentimentBadge(el, el.getAttribute("data-sentiment"));
-}*/);
+});*/
 
 
 
