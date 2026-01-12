@@ -20,6 +20,7 @@
   <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
 </head>
+
 <body class="bg-slate-50 text-slate-900">
   <div class="min-h-screen flex">
 {% set initial_view = request.query_params.get('view') or ('chats' if request.query_params.get('session_id') else 'overview') %}
@@ -54,153 +55,151 @@
       </div>
 
       <!-- Nav -->
-<nav class="p-3 space-y-1">
+      <nav class="p-3 space-y-1">
 
-  <!-- Overview -->
-  <button data-view="overview"
-    class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    aria-current="{{ 'page' if initial_view == 'overview' else 'false' }}"
-    type="button">
-    <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-      <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-        <path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-18v6h8V3h-8z"
-          stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-      </svg>
-    </span>
-    <span class="sidebar-label font-medium">Overview</span>
-  </button>
+        <!-- Overview -->
+        <button data-view="overview"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'overview' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-18v6h8V3h-8z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Overview</span>
+        </button>
 
-  <!-- Chats (PMC + Super) -->
+        <!-- Chats -->
+        <button data-view="chats"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Chats</span>
+        </button>
 
-    <button data-view="chats"
-    class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}"
-      type="button">
-    <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-      <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-        <path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7"/>
-      </svg>
-    </span>
-    <span class="sidebar-label font-medium">Chats</span>
-  </button>
+        {% if user_role == "super" %}
+          <!-- PMCs (Super only) -->
+          <button data-view="pmcs"
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+            aria-current="{{ 'page' if initial_view == 'pmcs' else 'false' }}"
+            type="button">
+            <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+              <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+                <path d="M4 21V3h10v18M14 9h6v12M8 7h2M8 11h2M8 15h2M18 13h2M18 17h2"
+                  stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="sidebar-label font-medium">PMCs</span>
+          </button>
 
-  {% if user_role == "super" %}
-    <!-- PMCs (Super only) -->
-    <button data-view="pmcs"
-      class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-      aria-current="{{ 'page' if initial_view == 'pmcs' else 'false' }}"
-      type="button">
-      <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-        <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-          <path d="M4 21V3h10v18M14 9h6v12M8 7h2M8 11h2M8 15h2M18 13h2M18 17h2"
-            stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-      </span>
-      <span class="sidebar-label font-medium">PMCs</span>
-    </button>
+          <!-- Files (Super only) -->
+          <button data-view="files"
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+            aria-current="{{ 'page' if initial_view == 'files' else 'false' }}"
+            type="button">
+            <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+              <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+                  stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="sidebar-label font-medium">Configs & Manuals</span>
+          </button>
+        {% endif %}
 
-    <!-- Files (Super only) -->
-    <button data-view="files"
-      class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-      aria-current="{{ 'page' if initial_view == 'files' else 'false' }}"
-      type="button">
-      <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-        <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
-            stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-          <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-        </svg>
-      </span>
-      <span class="sidebar-label font-medium">Configs & Manuals</span>
-    </button>
-  {% endif %}
+        <!-- Analytics -->
+        <button data-view="analytics"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'analytics' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5M4 19h16M8 15v-6M12 19V9M16 13v-4M20 19V7"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Analytics</span>
+        </button>
 
-    <!-- Analytics (Super + PMC) -->
-    <button data-view="analytics"
-      class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-      aria-current="{{ 'page' if initial_view == 'analytics' else 'false' }}"
-      type="button">
-      <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-        <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-          <path d="M4 19V5M4 19h16M8 15v-6M12 19V9M16 13v-4M20 19V7"
-            stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-        </svg>
-      </span>
-      <span class="sidebar-label font-medium">Analytics</span>
-    </button>
+        <!-- Properties -->
+        <button data-view="properties"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'properties' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10.5z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Properties</span>
+        </button>
 
+        <!-- Guides -->
+        <button data-view="guides"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'guides' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Guides</span>
+        </button>
 
-  <!-- Properties -->
-  <button data-view="properties"
-    class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    aria-current="{{ 'page' if initial_view == 'properties' else 'false' }}"
-    type="button">
-    <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-      <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-        <path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10.5z"
-          stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
-      </svg>
-    </span>
-    <span class="sidebar-label font-medium">Properties</span>
-  </button>
+        <!-- Upgrades -->
+        <button data-view="upgrades"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'upgrades' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M7 7h10M7 11h10M7 15h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+                stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Upgrades</span>
+        </button>
 
-  <!-- Guides -->
-  <button data-view="guides"
-    class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    aria-current="{{ 'page' if initial_view == 'guides' else 'false' }}"
-    type="button">
-    <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-      <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-        <path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7"/>
-      </svg>
-    </span>
-    <span class="sidebar-label font-medium">Guides</span>
-  </button>
+        <!-- Settings -->
+        <button data-view="settings"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'settings' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M19.4 15a7.8 7.8 0 0 0 .1-2l2-1.3-2-3.4-2.3.6a8 8 0 0 0-1.7-1L15 3h-6l-.5 2.9a8 8 0 0 0-1.7 1L4.5 6.3l-2 3.4 2 1.3a7.8 7.8 0 0 0 0 2l-2 1.3 2 3.4 2.3-.6a8 8 0 0 0 1.7 1L9 21h6l.5-2.9a8 8 0 0 0 1.7-1l2.3.6 2-3.4-2-1.3z"
+                stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Settings</span>
+        </button>
 
-  <!-- Upgrades -->
-  <button data-view="upgrades"
-    class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    aria-current="{{ 'page' if initial_view == 'upgrades' else 'false' }}"
-    type="button">
-    <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-      <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-        <path d="M7 7h10M7 11h10M7 15h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-        <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
-          stroke="currentColor" stroke-width="1.2"/>
-      </svg>
-    </span>
-    <span class="sidebar-label font-medium">Upgrades</span>
-  </button>
+        <!-- Logout -->
+        <a href="/auth/logout"
+           class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-slate-700">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M10 17l-1 0a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4h1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              <path d="M14 7l5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 12H10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium text-rose-700">Logout</span>
+        </a>
 
-  <!-- Settings -->
-  <button data-view="settings"
-    class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
-    aria-current="{{ 'page' if initial_view == 'settings' else 'false' }}"
-    type="button">
-    <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-      <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-        <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.7"/>
-        <path d="M19.4 15a7.8 7.8 0 0 0 .1-2l2-1.3-2-3.4-2.3.6a8 8 0 0 0-1.7-1L15 3h-6l-.5 2.9a8 8 0 0 0-1.7 1L4.5 6.3l-2 3.4 2 1.3a7.8 7.8 0 0 0 0 2l-2 1.3 2 3.4 2.3-.6a8 8 0 0 0 1.7 1L9 21h6l.5-2.9a8 8 0 0 0 1.7-1l2.3.6 2-3.4-2-1.3z"
-          stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
-      </svg>
-    </span>
-    <span class="sidebar-label font-medium">Settings</span>
-  </button>
-
-  <!-- Logout -->
-  <a href="/auth/logout"
-     class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-slate-700">
-    <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
-      <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
-        <path d="M10 17l-1 0a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4h1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-        <path d="M14 7l5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M19 12H10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
-      </svg>
-    </span>
-    <span class="sidebar-label font-medium text-rose-700">Logout</span>
-  </a>
-</nav>
-
+      </nav>
 
       <!-- Footer -->
       <div class="mt-auto p-3 border-t border-slate-200">
@@ -222,6 +221,7 @@
 
     <!-- Main -->
     <main class="flex-1 min-w-0">
+
       <!-- Topbar -->
       <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200 hairline">
         <div class="h-16 px-6 flex items-center gap-4">
@@ -293,298 +293,293 @@
         </div>
         {% endif %}
 
- <!-- OVERVIEW -->
-<section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
+        <!-- OVERVIEW -->
+        <section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
+          {% set total_props = properties|length %}
 
-  {% set total_props = properties|length %}
-
-  {% if is_locked %}
-    {% set live_props = 0 %}
-    {% set offline_props = total_props %}
-  {% else %}
-    {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
-    {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
-  {% endif %}
-
-  <div class="grid grid-cols-12 gap-4">
-    <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-      <div class="text-xs text-slate-500">Properties</div>
-      <div class="mt-2 text-3xl font-semibold" id="stat-total">{{ total_props }}</div>
-      <div class="mt-2 text-xs text-slate-500">Portfolio size</div>
-    </div>
-
-    <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-      <div class="text-xs text-slate-500">Live</div>
-      <div class="mt-2 text-3xl font-semibold" id="stat-live">{{ live_props }}</div>
-      <div class="mt-2 text-xs text-emerald-600">Sandy enabled</div>
-    </div>
-
-    <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-      <div class="text-xs text-slate-500">Offline</div>
-      <div class="mt-2 text-3xl font-semibold" id="stat-offline">{{ offline_props }}</div>
-      <div class="mt-2 text-xs text-rose-600">Needs attention</div>
-    </div>
-
-    <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-      <div class="text-xs text-slate-500">Last Sync</div>
-      <div class="mt-2 text-lg font-semibold">
-        {% if properties and properties[0].last_synced %}
-          {% set seconds = (now - properties[0].last_synced).total_seconds() %}
-          {% if seconds < 60 %} just now
-          {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
-          {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
-          {% else %} {{ (seconds // 86400)|int }} days ago
-          {% endif %}
-        {% else %}
-          —
-        {% endif %}
-      </div>
-      <div class="mt-2 text-xs text-slate-500">Most recent property record</div>
-    </div>
-  </div>
-
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-    <div class="flex items-center justify-between">
-      <div>
-        <div class="text-sm font-semibold">Status Overview</div>
-        <div class="text-xs text-slate-500">LIVE vs OFFLINE</div>
-      </div>
-      <div class="text-xs text-slate-500">Auto-updates with your data</div>
-    </div>
-    <div class="mt-4">
-      <canvas id="statusChart" height="90"></canvas>
-    </div>
-  </div>
-
-  {% if user_role == "super" %}
-  <div class="grid grid-cols-12 gap-4">
-    <div class="col-span-12 xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
-      <div class="text-sm font-semibold">Chat Volume</div>
-      <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
-        Chart placeholder
-      </div>
-    </div>
-    <div class="col-span-12 xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
-      <div class="text-sm font-semibold">Priority Inbox</div>
-      <div class="mt-2 text-xs text-slate-500">Escalations & time-sensitive issues</div>
-      <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
-        Queue placeholder
-      </div>
-    </div>
-  </div>
-  {% endif %}
-</section>
-
-<!-- PROPERTIES -->
-<section id="view-properties" class="view hidden space-y-4">
-
-  <!-- Filters / header (we hide this when config is open) -->
-  <div id="propertiesHeaderCard" class="bg-white border border-slate-200 rounded-2xl p-4 card">
-    <div class="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
-      <div>
-        <div class="text-sm font-semibold">Properties</div>
-        <div class="text-xs text-slate-500">Search and manage your portfolio</div>
-      </div>
-
-      <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-        <input
-          type="text"
-          id="searchInput"
-          placeholder="Search properties…"
-          class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72"
-        />
-        <select
-          id="statusFilter"
-          class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-48"
-        >
-          <option value="all">All statuses</option>
-          <option value="live">LIVE</option>
-          <option value="offline">OFFLINE</option>
-        </select>
-      </div>
-    </div>
-  </div>
-
-  <!-- Inline Assistant Config Panel -->
-  <div id="configPanelWrap" class="hidden">
-    <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-      <div class="flex items-center justify-between gap-3">
-        <div>
-          <div class="text-sm font-semibold">Assistant Config</div>
-          <div class="text-xs text-slate-500" id="configScopeLabel">Editing…</div>
-        </div>
-
-        <button
-          type="button"
-          class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
-          onclick="closeInlineConfig()"
-        >
-          Close
-        </button>
-      </div>
-
-      <div class="mt-4">
-        <iframe
-          id="configIframe"
-          class="w-full rounded-xl border border-slate-200 bg-white"
-          style="height: calc(100vh - 240px); min-height: 720px;"
-          src="about:blank"
-        ></iframe>
-      </div>
-    </div>
-  </div>
-
-  <!-- Property cards (we hide this when config is open) -->
-  <div id="propertiesGridWrap" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-    {% for prop in properties %}
-    <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
-         data-property-card
-         data-name="{{ prop.property_name }}"
-         data-live="{{ 'true' if prop.sandy_enabled else 'false' }}">
-
-      <div class="flex items-start justify-between gap-3">
-        <div class="min-w-0">
-          <div class="text-lg font-semibold truncate">{{ prop.property_name }}</div>
-          <div class="mt-1 text-xs text-slate-500">
-            ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %}
-          </div>
-        </div>
-
-        {% if is_locked %}
-          <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
-            LOCKED
-          </span>
-        {% else %}
-          {% if prop.sandy_enabled %}
-            <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold">
-              LIVE
-            </span>
+          {% if is_locked %}
+            {% set live_props = 0 %}
+            {% set offline_props = total_props %}
           {% else %}
-            <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
-              OFFLINE
-            </span>
+            {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
+            {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
           {% endif %}
-        {% endif %}
-      </div>
 
-      <div class="mt-3 text-xs text-slate-500">
-        <span class="font-semibold text-slate-700">Last synced:</span>
-        {% if prop.last_synced %}
-          {% set seconds = (now - prop.last_synced).total_seconds() %}
-          {% if seconds < 60 %} just now
-          {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
-          {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
-          {% else %} {{ (seconds // 86400)|int }} days ago
+          <div class="grid grid-cols-12 gap-4">
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Properties</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-total">{{ total_props }}</div>
+              <div class="mt-2 text-xs text-slate-500">Portfolio size</div>
+            </div>
+
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Live</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-live">{{ live_props }}</div>
+              <div class="mt-2 text-xs text-emerald-600">Sandy enabled</div>
+            </div>
+
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Offline</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-offline">{{ offline_props }}</div>
+              <div class="mt-2 text-xs text-rose-600">Needs attention</div>
+            </div>
+
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Last Sync</div>
+              <div class="mt-2 text-lg font-semibold">
+                {% if properties and properties[0].last_synced %}
+                  {% set seconds = (now - properties[0].last_synced).total_seconds() %}
+                  {% if seconds < 60 %} just now
+                  {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+                  {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+                  {% else %} {{ (seconds // 86400)|int }} days ago
+                  {% endif %}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+              <div class="mt-2 text-xs text-slate-500">Most recent property record</div>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold">Status Overview</div>
+                <div class="text-xs text-slate-500">LIVE vs OFFLINE</div>
+              </div>
+              <div class="text-xs text-slate-500">Auto-updates with your data</div>
+            </div>
+            <div class="mt-4">
+              <canvas id="statusChart" height="90"></canvas>
+            </div>
+          </div>
+
+          {% if user_role == "super" %}
+          <div class="grid grid-cols-12 gap-4">
+            <div class="col-span-12 xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-sm font-semibold">Chat Volume</div>
+              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
+                Chart placeholder
+              </div>
+            </div>
+            <div class="col-span-12 xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-sm font-semibold">Priority Inbox</div>
+              <div class="mt-2 text-xs text-slate-500">Escalations & time-sensitive issues</div>
+              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
+                Queue placeholder
+              </div>
+            </div>
+          </div>
           {% endif %}
-        {% else %}
-          —
-        {% endif %}
-      </div>
+        </section>
 
-      <div class="mt-4 flex gap-2 flex-wrap items-center">
-        {% if prop.data_folder_path %}
-          <a
-            href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
-            onclick="return openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
-            class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-            {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-          >
-            Assistant Config
-          </a>
+        <!-- PROPERTIES -->
+        <section id="view-properties" class="view hidden space-y-4">
 
-          <a
-            href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-            class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-            {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-          >
-            House Manual
-          </a>
-        {% endif %}
+          <div id="propertiesHeaderCard" class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+              <div>
+                <div class="text-sm font-semibold">Properties</div>
+                <div class="text-xs text-slate-500">Search and manage your portfolio</div>
+              </div>
 
-        <button
-          onclick="syncProperty({{ prop.id }}, this)"
-          class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-          type="button"
-          {% if is_locked %}disabled{% endif %}
-        >
-          Sync
-        </button>
+              <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                <input
+                  type="text"
+                  id="searchInput"
+                  placeholder="Search properties…"
+                  class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72"
+                />
+                <select
+                  id="statusFilter"
+                  class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-48"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="live">LIVE</option>
+                  <option value="offline">OFFLINE</option>
+                </select>
+              </div>
+            </div>
+          </div>
 
-        <button
-          onclick="toggleProperty({{ prop.id }}, this)"
-          class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-          type="button"
-          {% if is_locked %}disabled{% endif %}
-        >
-          {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
-        </button>
+          <!-- Inline Assistant Config Panel -->
+          <div id="configPanelWrap" class="hidden">
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <div class="text-sm font-semibold">Assistant Config</div>
+                  <div class="text-xs text-slate-500" id="configScopeLabel">Editing…</div>
+                </div>
 
-        {% if is_locked %}
-          <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
-            Unlock →
-          </a>
-        {% endif %}
-      </div>
+                <button
+                  type="button"
+                  class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+                  onclick="closeInlineConfig()"
+                >
+                  Close
+                </button>
+              </div>
 
-    </div>
-    {% endfor %}
-  </div>
+              <div class="mt-4">
+                <iframe
+                  id="configIframe"
+                  class="w-full rounded-xl border border-slate-200 bg-white"
+                  style="height: calc(100vh - 240px); min-height: 720px;"
+                  src="about:blank"
+                ></iframe>
+              </div>
+            </div>
+          </div>
 
-</section>
+          <!-- Property cards -->
+          <div id="propertiesGridWrap" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+            {% for prop in properties %}
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
+                 data-property-card
+                 data-name="{{ prop.property_name }}"
+                 data-live="{{ 'true' if prop.sandy_enabled else 'false' }}">
 
-<script>
-  // Opens the full Config UI in an iframe (keeps its CSS intact),
-  // and hides the properties list until Close is pressed.
-  window.openInlineConfig = function (filePath, propertyName) {
-    const wrap = document.getElementById("configPanelWrap");
-    const iframe = document.getElementById("configIframe");
-    const label = document.getElementById("configScopeLabel");
+              <div class="flex items-start justify-between gap-3">
+                <div class="min-w-0">
+                  <div class="text-lg font-semibold truncate">{{ prop.property_name }}</div>
+                  <div class="mt-1 text-xs text-slate-500">
+                    ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %}
+                  </div>
+                </div>
 
-    const grid = document.getElementById("propertiesGridWrap");
-    const header = document.getElementById("propertiesHeaderCard");
+                {% if is_locked %}
+                  <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                    LOCKED
+                  </span>
+                {% else %}
+                  {% if prop.sandy_enabled %}
+                    <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold">
+                      LIVE
+                    </span>
+                  {% else %}
+                    <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
+                      OFFLINE
+                    </span>
+                  {% endif %}
+                {% endif %}
+              </div>
 
-    if (!wrap || !iframe) return false;
+              <div class="mt-3 text-xs text-slate-500">
+                <span class="font-semibold text-slate-700">Last synced:</span>
+                {% if prop.last_synced %}
+                  {% set seconds = (now - prop.last_synced).total_seconds() %}
+                  {% if seconds < 60 %} just now
+                  {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+                  {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+                  {% else %} {{ (seconds // 86400)|int }} days ago
+                  {% endif %}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
 
-    if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
+              <div class="mt-4 flex gap-2 flex-wrap items-center">
+                {% if prop.data_folder_path %}
+                  <a
+                    href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
+                    onclick="return openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
+                    class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                    {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                  >
+                    Assistant Config
+                  </a>
 
-    const url = `/admin/config-ui?file=${encodeURIComponent(filePath)}`;
-    iframe.src = url;
+                  <a
+                    href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+                    class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                    {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                  >
+                    House Manual
+                  </a>
+                {% endif %}
 
-    // show config
-    wrap.classList.remove("hidden");
+                <button
+                  onclick="syncProperty({{ prop.id }}, this)"
+                  class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  type="button"
+                  {% if is_locked %}disabled{% endif %}
+                >
+                  Sync
+                </button>
 
-    // hide list + filters
-    if (grid) grid.classList.add("hidden");
-    if (header) header.classList.add("hidden");
+                <button
+                  onclick="toggleProperty({{ prop.id }}, this)"
+                  class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                  type="button"
+                  {% if is_locked %}disabled{% endif %}
+                >
+                  {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
+                </button>
 
-    // scroll into view
-    wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+                {% if is_locked %}
+                  <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
+                    Unlock →
+                  </a>
+                {% endif %}
+              </div>
 
-    // prevent navigation
-    return false;
-  };
+            </div>
+            {% endfor %}
+          </div>
 
-  window.closeInlineConfig = function () {
-    const wrap = document.getElementById("configPanelWrap");
-    const iframe = document.getElementById("configIframe");
-    const label = document.getElementById("configScopeLabel");
+        </section>
 
-    const grid = document.getElementById("propertiesGridWrap");
-    const header = document.getElementById("propertiesHeaderCard");
+        <script>
+          // Opens the full Config UI in an iframe (keeps its CSS intact),
+          // and hides the properties list until Close is pressed.
+          window.openInlineConfig = function (filePath, propertyName) {
+            const wrap = document.getElementById("configPanelWrap");
+            const iframe = document.getElementById("configIframe");
+            const label = document.getElementById("configScopeLabel");
 
-    if (iframe) iframe.src = "about:blank";
-    if (label) label.textContent = "Select a property to edit its config.";
+            const grid = document.getElementById("propertiesGridWrap");
+            const header = document.getElementById("propertiesHeaderCard");
 
-    if (wrap) wrap.classList.add("hidden");
-    if (grid) grid.classList.remove("hidden");
-    if (header) header.classList.remove("hidden");
+            if (!wrap || !iframe) return false;
 
-    header?.scrollIntoView({ behavior: "smooth", block: "start" });
-  };
-</script>
+            if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
 
+            const url = `/admin/config-ui?file=${encodeURIComponent(filePath)}`;
+            iframe.src = url;
 
+            // show config
+            wrap.classList.remove("hidden");
 
+            // hide list + filters
+            if (grid) grid.classList.add("hidden");
+            if (header) header.classList.add("hidden");
+
+            // scroll into view
+            wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+
+            // prevent navigation
+            return false;
+          };
+
+          window.closeInlineConfig = function () {
+            const wrap = document.getElementById("configPanelWrap");
+            const iframe = document.getElementById("configIframe");
+            const label = document.getElementById("configScopeLabel");
+
+            const grid = document.getElementById("propertiesGridWrap");
+            const header = document.getElementById("propertiesHeaderCard");
+
+            if (iframe) iframe.src = "about:blank";
+            if (label) label.textContent = "Select a property to edit its config.";
+
+            if (wrap) wrap.classList.add("hidden");
+            if (grid) grid.classList.remove("hidden");
+            if (header) header.classList.remove("hidden");
+
+            header?.scrollIntoView({ behavior: "smooth", block: "start" });
+          };
+        </script>
 
         <section id="view-guides" class="view hidden space-y-4">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
@@ -608,22 +603,21 @@
               >
                 New Guide
               </button>
-
             </div>
-        
+
             {% if is_locked %}
               <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 Content editing is locked until payment is complete.
               </div>
             {% endif %}
-        
+
             <div id="guides-flash" class="mt-3"></div>
-        
+
             <div class="mt-4 grid grid-cols-12 gap-4">
               <div class="col-span-12 xl:col-span-7">
                 <div id="guides-list" class="text-sm text-slate-500">Loading…</div>
               </div>
-        
+
               <div class="col-span-12 xl:col-span-5">
                 <div id="guides-editor" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-4">
                   <div class="flex items-center justify-between">
@@ -637,7 +631,6 @@
             </div>
           </div>
         </section>
-
 
         <section id="view-upgrades" class="view hidden space-y-4">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
@@ -654,34 +647,33 @@
                 {% endfor %}
               </select>
               <button
-              type="button"
-              onclick="Upgrades.openNew()"
-              class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold
-                     {% if is_locked %}
-                       opacity-50 cursor-not-allowed
-                     {% else %}
-                       hover:bg-slate-800
-                     {% endif %}"
-              {% if is_locked %}disabled{% endif %}
-            >
-              New Upgrade
-            </button>
-              
+                type="button"
+                onclick="Upgrades.openNew()"
+                class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold
+                       {% if is_locked %}
+                         opacity-50 cursor-not-allowed
+                       {% else %}
+                         hover:bg-slate-800
+                       {% endif %}"
+                {% if is_locked %}disabled{% endif %}
+              >
+                New Upgrade
+              </button>
             </div>
-        
+
             {% if is_locked %}
               <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 Content editing is locked until payment is complete.
               </div>
             {% endif %}
-        
+
             <div id="upgrades-flash" class="mt-3"></div>
-        
+
             <div class="mt-4 grid grid-cols-12 gap-4">
               <div class="col-span-12 xl:col-span-7">
                 <div id="upgrades-list" class="text-sm text-slate-500">Loading…</div>
               </div>
-        
+
               <div class="col-span-12 xl:col-span-5">
                 <div id="upgrades-editor" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-4">
                   <div class="flex items-center justify-between">
@@ -696,363 +688,328 @@
           </div>
         </section>
 
-
-
-        
         <section id="view-chats" class="view space-y-4 {% if initial_view != 'chats' %}hidden{% endif %}">
 
-  <!-- Inline chat detail (replaces modal) -->
-<div id="chat-detail-inline" class="hidden bg-white border border-slate-200 rounded-2xl card">
-  <div class="flex items-center justify-between p-3 border-b border-slate-200">
-    <div class="text-sm font-semibold text-slate-800">Chat Detail</div>
-    <button type="button"
-            id="chat-detail-back"
-            class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm">
-      ← Back to chats
-    </button>
-  </div>
+          <!-- Inline chat detail -->
+          <div id="chat-detail-inline" class="hidden bg-white border border-slate-200 rounded-2xl card">
+            <div class="flex items-center justify-between p-3 border-b border-slate-200">
+              <div class="text-sm font-semibold text-slate-800">Chat Detail</div>
+              <button type="button"
+                      id="chat-detail-back"
+                      class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm">
+                ← Back to chats
+              </button>
+            </div>
 
-  <div id="chat-detail-panel" class="p-4">
-    <!-- injected partial goes here -->
-  </div>
-</div>
+            <div id="chat-detail-panel" class="p-4"></div>
+          </div>
 
+          <!-- Top strip -->
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold">Chats</div>
+                <div class="text-xs text-slate-500">
+                  {% if user_role == "super" %}
+                    Monitor all PMCs and properties.
+                  {% else %}
+                    Monitor chats across your properties.
+                  {% endif %}
+                </div>
+              </div>
 
-  <!-- Top strip -->
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-    <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
-      <div>
-        <div class="text-sm font-semibold">Chats</div>
-        <div class="text-xs text-slate-500">
-          {% if user_role == "super" %}
-            Monitor all PMCs and properties.
-          {% else %}
-            Monitor chats across your properties.
+              <div class="text-xs text-slate-500">
+                Tip: click a row to open the conversation.
+              </div>
+            </div>
+          </div>
+
+          <!-- Analytics strip -->
+          {% if not selected_session %}
+          <div id="chat-analytics-strip" class="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
+              <div class="text-xs text-slate-500">Pre-booking</div>
+              <div class="text-xl font-semibold">{{ analytics.pre_booking }}</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
+              <div class="text-xs text-slate-500">Active</div>
+              <div class="text-xl font-semibold">{{ analytics.active }}</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
+              <div class="text-xs text-slate-500">Post-stay</div>
+              <div class="text-xl font-semibold">{{ analytics.post_stay }}</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
+              <div class="text-xs text-slate-500">Urgent sessions</div>
+              <div class="text-xl font-semibold">{{ analytics.urgent_sessions }}</div>
+            </div>
+            <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
+              <div class="text-xs text-slate-500">Unhappy sessions</div>
+              <div class="text-xl font-semibold">{{ analytics.unhappy_sessions }}</div>
+            </div>
+          </div>
           {% endif %}
-        </div>
-      </div>
 
-      <div class="text-xs text-slate-500">
-        Tip: click a row to open the conversation.
-      </div>
-    </div>
-  </div>
+          <div id="chat-list-wrap" class="space-y-3">
 
-  <!-- Analytics strip-->
-  {% if not selected_session %}
-  <div id="chat-analytics-strip" class="grid grid-cols-2 md:grid-cols-5 gap-2">
-    <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
-      <div class="text-xs text-slate-500">Pre-booking</div>
-      <div class="text-xl font-semibold">{{ analytics.pre_booking }}</div>
-    </div>
-    <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
-      <div class="text-xs text-slate-500">Active</div>
-      <div class="text-xl font-semibold">{{ analytics.active }}</div>
-    </div>
-    <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
-      <div class="text-xs text-slate-500">Post-stay</div>
-      <div class="text-xl font-semibold">{{ analytics.post_stay }}</div>
-    </div>
-    <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
-      <div class="text-xs text-slate-500">Urgent sessions</div>
-      <div class="text-xl font-semibold">{{ analytics.urgent_sessions }}</div>
-    </div>
-    <div class="bg-white rounded-2xl border border-slate-200 p-3 card">
-      <div class="text-xs text-slate-500">Unhappy sessions</div>
-      <div class="text-xl font-semibold">{{ analytics.unhappy_sessions }}</div>
-    </div>
-        </div>
- {% endif %}
+            <!-- Filters -->
+            <form id="chatFilters"
+                  class="bg-white rounded-2xl border border-slate-200 p-3 card flex flex-wrap gap-2 items-center"
+                  method="get">
+              <input type="hidden" name="view" value="chats" />
 
-  <!-- FULL-WIDTH LIST -->
-  <div id="chat-list-wrap" class="space-y-3">
-    <!-- Filters -->
-    <form id="chatFilters"
-          class="bg-white rounded-2xl border border-slate-200 p-3 card flex flex-wrap gap-2 items-center"
-          method="get">
-      <input type="hidden" name="view" value="chats" />
+              {% if user_role == "super" %}
+                <select name="pmc_id" class="border rounded-xl px-2 py-2 text-sm">
+                  <option value="">All PMCs</option>
+                  {% for p in pmcs %}
+                    <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
+                      {{ p.pmc_name }}
+                    </option>
+                  {% endfor %}
+                </select>
+              {% endif %}
 
-      {% if user_role == "super" %}
-        <select name="pmc_id" class="border rounded-xl px-2 py-2 text-sm">
-          <option value="">All PMCs</option>
-          {% for p in pmcs %}
-            <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
-              {{ p.pmc_name }}
-            </option>
-          {% endfor %}
-        </select>
-      {% endif %}
+              <select name="property_id" class="border rounded-xl px-2 py-2 text-sm">
+                <option value="">All Properties</option>
+                {% for pr in properties %}
+                  <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+                    {{ pr.property_name }}
+                  </option>
+                {% endfor %}
+              </select>
 
-      <select name="property_id" class="border rounded-xl px-2 py-2 text-sm">
-        <option value="">All Properties</option>
-        {% for pr in properties %}
-          <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
-            {{ pr.property_name }}
-          </option>
-        {% endfor %}
-      </select>
+              <select name="status" class="border rounded-xl px-2 py-2 text-sm">
+                <option value="">All statuses</option>
+                <option value="pre_booking" {% if filters.status=="pre_booking" %}selected{% endif %}>Pre-booking</option>
+                <option value="post_booking" {% if filters.status=="post_booking" %}selected{% endif %}>Post-booking</option>
+                <option value="active" {% if filters.status=="active" %}selected{% endif %}>Active</option>
+                <option value="post_stay" {% if filters.status=="post_stay" %}selected{% endif %}>Post-stay</option>
+              </select>
 
-      <select name="status" class="border rounded-xl px-2 py-2 text-sm">
-        <option value="">All statuses</option>
-        <option value="pre_booking" {% if filters.status=="pre_booking" %}selected{% endif %}>Pre-booking</option>
-        <option value="post_booking" {% if filters.status=="post_booking" %}selected{% endif %}>Post-booking</option>
-        <option value="active" {% if filters.status=="active" %}selected{% endif %}>Active</option>
-        <option value="post_stay" {% if filters.status=="post_stay" %}selected{% endif %}>Post-stay</option>
-      </select>
+              <select name="priority" class="border rounded-xl px-2 py-2 text-sm">
+                <option value="">All priorities</option>
+                <option value="urgent" {% if filters.priority=="urgent" %}selected{% endif %}>🔥 Urgent only</option>
+                <option value="unhappy" {% if filters.priority=="unhappy" %}selected{% endif %}>😟 Unhappy only</option>
+              </select>
 
-      <select name="priority" class="border rounded-xl px-2 py-2 text-sm">
-        <option value="">All priorities</option>
-        <option value="urgent" {% if filters.priority=="urgent" %}selected{% endif %}>🔥 Urgent only</option>
-        <option value="unhappy" {% if filters.priority=="unhappy" %}selected{% endif %}>😟 Unhappy only</option>
-      </select>
+              <label class="flex items-center gap-2 text-sm text-slate-700 px-2">
+                <input type="checkbox" name="mine" value="1" {% if filters.mine %}checked{% endif %} />
+                Mine
+              </label>
 
-      <label class="flex items-center gap-2 text-sm text-slate-700 px-2">
-        <input type="checkbox" name="mine" value="1" {% if filters.mine %}checked{% endif %} />
-        Mine
-      </label>
+              <input
+                name="assigned_to"
+                value="{{ filters.assigned_to or '' }}"
+                class="border rounded-xl px-3 py-2 text-sm w-[180px]"
+                placeholder="Assigned to…"
+              />
 
-      <input
-        name="assigned_to"
-        value="{{ filters.assigned_to or '' }}"
-        class="border rounded-xl px-3 py-2 text-sm w-[180px]"
-        placeholder="Assigned to…"
-      />
+              <input
+                name="q"
+                value="{{ filters.q or '' }}"
+                class="border rounded-xl px-3 py-2 text-sm flex-1 min-w-[220px]"
+                placeholder="Search guest, property, message…"
+              />
 
-      <input
-        name="q"
-        value="{{ filters.q or '' }}"
-        class="border rounded-xl px-3 py-2 text-sm flex-1 min-w-[220px]"
-        placeholder="Search guest, property, message…"
-      />
+              <button class="bg-slate-900 text-white rounded-xl px-4 py-2 text-sm font-semibold">Filter</button>
+              <a href="/admin/dashboard?view=chats" class="text-sm text-slate-600 hover:underline ml-auto">Reset</a>
+            </form>
 
-      <button class="bg-slate-900 text-white rounded-xl px-4 py-2 text-sm font-semibold">Filter</button>
-      <a href="/admin/dashboard?view=chats" class="text-sm text-slate-600 hover:underline ml-auto">Reset</a>
-    </form>
+            <script>
+              document.getElementById("chatFilters")?.addEventListener("submit", (e) => {
+                const form = e.currentTarget;
+                const url = new URL(form.action || window.location.pathname, window.location.origin);
+                const fd = new FormData(form);
 
-    <script>
-      document.getElementById("chatFilters")?.addEventListener("submit", (e) => {
-        const form = e.currentTarget;
-        const url = new URL(form.action || window.location.pathname, window.location.origin);
-        const fd = new FormData(form);
+                for (const [k, v] of fd.entries()) {
+                  if (String(v).trim() !== "") url.searchParams.set(k, String(v));
+                }
 
-        // Build query string, skipping empty values
-        for (const [k, v] of fd.entries()) {
-          if (String(v).trim() !== "") url.searchParams.set(k, String(v));
-        }
+                e.preventDefault();
+                window.location.href = url.toString();
+              });
+            </script>
 
-        e.preventDefault();
-        window.location.href = url.toString();
-      });
-    </script>
+            <!-- Table -->
+            <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden card">
+              {% if sessions %}
+                <table class="min-w-full text-sm">
+                  <thead class="bg-slate-50">
+                    <tr>
+                      <th class="px-4 py-3 text-left">Property</th>
+                      <th class="px-4 py-3 text-left">Guest</th>
+                      <th class="px-4 py-3 text-left">Assigned</th>
+                      <th class="px-4 py-3 text-left">Stage</th>
+                      <th class="px-4 py-3 text-left">Priority</th>
+                      <th class="px-4 py-3 text-left">Escalation</th>
+                      <th class="px-4 py-3 text-left">Status</th>
+                      <th class="px-4 py-3 text-left">Signals</th>
+                      <th class="px-4 py-3 text-left">Last</th>
+                    </tr>
+                  </thead>
 
-    <!-- Table -->
-    <div class="bg-white rounded-2xl border border-slate-200 overflow-hidden card">
-      {% if sessions %}
-        <table class="min-w-full text-sm">
-          <thead class="bg-slate-50">
-            <tr>
-              <th class="px-4 py-3 text-left">Property</th>
-              <th class="px-4 py-3 text-left">Guest</th>
-              <th class="px-4 py-3 text-left">Assigned</th>
-              <th class="px-4 py-3 text-left">Stage</th>
-              <th class="px-4 py-3 text-left">Priority</th>
-              <th class="px-4 py-3 text-left">Escalation</th>
-              <th class="px-4 py-3 text-left">Status</th>
-              <th class="px-4 py-3 text-left">Signals</th>
-              <th class="px-4 py-3 text-left">Last</th>
+                  <tbody>
+                    {% for s in sessions %}
+                      <tr
+                        class="border-t hover:bg-slate-50 cursor-pointer"
+                        data-session-row="{{ s.id }}"
+                        onclick="openChatDetail({{ s.id }})"
+                      >
 
-            </tr>
-          </thead>
+                        <!-- Property -->
+                        <td class="px-4 py-3">
+                          <div class="font-semibold">{{ s.property_name or "Unknown property" }}</div>
+                          <div class="text-xs text-slate-500">ID: {{ s.property_id }}</div>
+                        </td>
 
-          <tbody>
-            {% for s in sessions %}
-              <tr
-                class="border-t hover:bg-slate-50 cursor-pointer"
-                data-session-row="{{ s.id }}"
-                onclick="openChatDetail({{ s.id }})"
-              >
+                        <!-- Guest -->
+                        <td class="px-4 py-3">
+                          <div class="font-medium">{{ s.guest_name or "—" }}</div>
+                        </td>
 
-                <!-- Property -->
-                <td class="px-4 py-3">
-                  <div class="font-semibold">{{ s.property_name or "Unknown property" }}</div>
-                  <div class="text-xs text-slate-500">ID: {{ s.property_id }}</div>
-                </td>
-              
-                <!-- Guest -->
-                <td class="px-4 py-3">
-                  <div class="font-medium">{{ s.guest_name or "—" }}</div>
-                </td>
-              
-                <!-- Assigned -->
-                <td class="px-4 py-3 text-xs">
-                  {% set asg = (s.assigned_to or '') %}
-                  <span data-assigned-badge data-assigned-to="{{ asg|e }}">
-                    {% if s.assigned_to %}
-                      <span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">
-                        {{ s.assigned_to }}
-                      </span>
-                    {% else %}
-                      <span class="text-slate-400">—</span>
-                    {% endif %}
-                  </span>
-                </td>
+                        <!-- Assigned -->
+                        <td class="px-4 py-3 text-xs">
+                          {% set asg = (s.assigned_to or '') %}
+                          <span data-assigned-badge data-assigned-to="{{ asg|e }}">
+                            {% if s.assigned_to %}
+                              <span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">
+                                {{ s.assigned_to }}
+                              </span>
+                            {% else %}
+                              <span class="text-slate-400">—</span>
+                            {% endif %}
+                          </span>
+                        </td>
 
-              
-                <!-- Stage -->
-                <td class="px-4 py-3 text-xs">
-                  {# Normalize status #}
-                  {% set st = (s.reservation_status or "")|lower %}
-              
-                  {# Heuristics: treat as post-booking if we have booking identifiers but not active/post_stay #}
-                  {% set has_booking = (
-                      s.reservation_id
-                      or s.booking_id
-                      or s.confirmation_code
-                      or s.pms_reservation_id
-                      or s.reservation_confirmed
-                  ) %}
-              
-                  {% if st == "active" %}
-                    <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🏖 Active</span>
-              
-                  {% elif st in ["post_booking", "booked", "confirmed"] %}
-                    <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
-              
-                  {% elif st == "post_stay" %}
-                    <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">📬 Post-stay</span>
-              
-                  {% elif st == "pre_booking" %}
-                    {% if has_booking %}
-                      <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
-                    {% else %}
-                      <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold">💬 Pre-booking</span>
-                    {% endif %}
-              
-                  {% else %}
-                    {% if has_booking %}
-                      <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
-                    {% else %}
-                      <span class="text-slate-400">Unknown</span>
-                    {% endif %}
-                  {% endif %}
-                </td>
-              
-                <!-- Priority -->
-                <td class="px-4 py-3 text-xs">
-                  {% set pri = (s.priority or "")|lower %}
-                  {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "")|lower %}
-                  {% set esc = (s.escalation_level or "")|lower %}
-                
-                  {# Prefer explicit backend booleans if present #}
-                  {% set is_urgent = (s.is_urgent if s.is_urgent is not none else (pri == "urgent" or esc in ["critical","high"])) %}
-                  {% set is_unhappy = (s.is_unhappy if s.is_unhappy is not none else (pri == "unhappy" or sent in ["negative","unhappy","bad"])) %}
-                
-                  <div class="flex flex-wrap gap-1">
-                    {% if is_urgent %}
-                      <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔥 Urgent</span>
-                    {% endif %}
-                    {% if is_unhappy %}
-                      <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😟 Unhappy</span>
-                    {% endif %}
-                
-                    {% if not is_urgent and not is_unhappy %}
-                      <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">🕰 Routine</span>
-                    {% endif %}
-                  </div>
-                </td>
+                        <!-- Stage -->
+                        <td class="px-4 py-3 text-xs">
+                          {% set st = (s.reservation_status or "")|lower %}
+                          {% set has_booking = (
+                              s.reservation_id
+                              or s.booking_id
+                              or s.confirmation_code
+                              or s.pms_reservation_id
+                              or s.reservation_confirmed
+                          ) %}
 
-              
-                <!-- Escalation -->
-                <td class="px-4 py-3 text-xs">
-                {% set esc = (s.escalation_level or "")|lower %}
-                <span
-                  data-escalation-badge
-                  data-escalation-level="{{ esc }}"
-                  class="px-2 py-1 rounded-full font-semibold
-                    {% if esc in ['critical','high'] %}
-                      bg-rose-100 text-rose-800
-                    {% elif esc in ['attention','medium'] %}
-                      bg-amber-100 text-amber-800
-                    {% elif esc %}
-                      bg-blue-100 text-blue-800
-                    {% else %}
-                      text-slate-400
-                    {% endif %}
-                  "
-                >
-                  {% if esc in ['critical','high'] %}
-                    🔴 High
-                  {% elif esc in ['attention','medium'] %}
-                    🟡 Medium
-                  {% elif esc %}
-                    🟢 Low
-                  {% else %}
-                    —
-                  {% endif %}
-                </span>
-              </td>
+                          {% if st == "active" %}
+                            <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🏖 Active</span>
+                          {% elif st in ["post_booking", "booked", "confirmed"] %}
+                            <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
+                          {% elif st == "post_stay" %}
+                            <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">📬 Post-stay</span>
+                          {% elif st == "pre_booking" %}
+                            {% if has_booking %}
+                              <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
+                            {% else %}
+                              <span class="px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold">💬 Pre-booking</span>
+                            {% endif %}
+                          {% else %}
+                            {% if has_booking %}
+                              <span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold">✅ Post-booking</span>
+                            {% else %}
+                              <span class="text-slate-400">Unknown</span>
+                            {% endif %}
+                          {% endif %}
+                        </td>
 
+                        <!-- Priority -->
+                        <td class="px-4 py-3 text-xs">
+                          {% set pri = (s.priority or "")|lower %}
+                          {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "")|lower %}
+                          {% set esc = (s.escalation_level or "")|lower %}
 
-                
-                <!-- Open/Closed -->
-                <td class="px-4 py-3 text-xs">
-                  <span data-status-badge data-is-resolved="{{ 'true' if s.is_resolved else 'false' }}">
-                    {% if s.is_resolved %}
-                      <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>
-                    {% else %}
-                      <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>
-                    {% endif %}
-                  </span>
-                </td>
+                          {% set is_urgent = (s.is_urgent if s.is_urgent is not none else (pri == "urgent" or esc in ["critical","high"])) %}
+                          {% set is_unhappy = (s.is_unhappy if s.is_unhappy is not none else (pri == "unhappy" or sent in ["negative","unhappy","bad"])) %}
 
-                
-                <!-- Signals -->
-                <td class="px-4 py-3 text-xs">
-                  {% set sig = (s.signals or []) %}
-                  {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "") | lower %}
-                
-                  <span
-                  data-signals-badge
-                  data-signals='{{ s.signals | tojson }}'
-                  data-sentiment='{{ (s.last_sentiment or "") | e }}'
-                ></span>
+                          <div class="flex flex-wrap gap-1">
+                            {% if is_urgent %}
+                              <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔥 Urgent</span>
+                            {% endif %}
+                            {% if is_unhappy %}
+                              <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😟 Unhappy</span>
+                            {% endif %}
+                            {% if not is_urgent and not is_unhappy %}
+                              <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">🕰 Routine</span>
+                            {% endif %}
+                          </div>
+                        </td>
 
-                </td>
+                        <!-- Escalation -->
+                        <td class="px-4 py-3 text-xs">
+                          {% set esc = (s.escalation_level or "")|lower %}
+                          <span
+                            data-escalation-badge
+                            data-escalation-level="{{ esc }}"
+                            class="px-2 py-1 rounded-full font-semibold
+                              {% if esc in ['critical','high'] %}
+                                bg-rose-100 text-rose-800
+                              {% elif esc in ['attention','medium'] %}
+                                bg-amber-100 text-amber-800
+                              {% elif esc %}
+                                bg-blue-100 text-blue-800
+                              {% else %}
+                                text-slate-400
+                              {% endif %}
+                            "
+                          >
+                            {% if esc in ['critical','high'] %}
+                              🔴 High
+                            {% elif esc in ['attention','medium'] %}
+                              🟡 Medium
+                            {% elif esc %}
+                              🟢 Low
+                            {% else %}
+                              —
+                            {% endif %}
+                          </span>
+                        </td>
 
+                        <!-- Open/Closed -->
+                        <td class="px-4 py-3 text-xs">
+                          <span data-status-badge data-is-resolved="{{ 'true' if s.is_resolved else 'false' }}">
+                            {% if s.is_resolved %}
+                              <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>
+                            {% else %}
+                              <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>
+                            {% endif %}
+                          </span>
+                        </td>
 
-              
-                <!-- Last -->
-                <td class="px-4 py-3 text-xs text-slate-600">
-                  {% if s.last_activity_at %}
-                    <span class="js-rel-time" data-ts="{{ s.last_activity_at.isoformat() }}">
-                      {{ s.last_activity_at.strftime("%b %d · %I:%M %p") }}
-                    </span>
-                  {% else %}
-                    —
-                  {% endif %}
-                </td>
-              </tr>
+                        <!-- Signals -->
+                        <td class="px-4 py-3 text-xs">
+                          <span
+                            data-signals-badge
+                            data-signals='{{ s.signals | tojson }}'
+                            data-sentiment='{{ (s.last_sentiment or "") | e }}'
+                          ></span>
+                        </td>
 
-            {% endfor %}
-          </tbody>
-        </table>
-      {% else %}
-        <div class="p-6 text-slate-500 text-sm">No chat sessions yet.</div>
-      {% endif %}
-    </div>
-  </div>
+                        <!-- Last -->
+                        <td class="px-4 py-3 text-xs text-slate-600">
+                          {% if s.last_activity_at %}
+                            <span class="js-rel-time" data-ts="{{ s.last_activity_at.isoformat() }}">
+                              {{ s.last_activity_at.strftime("%b %d · %I:%M %p") }}
+                            </span>
+                          {% else %}
+                            —
+                          {% endif %}
+                        </td>
+                      </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
+              {% else %}
+                <div class="p-6 text-slate-500 text-sm">No chat sessions yet.</div>
+              {% endif %}
+            </div>
+          </div>
 
-  <script>
-    // ----------------------------
-// Inline detail helpers
-// ----------------------------
+          <script>
+            // Inline detail helpers placeholder
+          </script>
 
-  </script>
-
-</section>
-
-
-
+        </section>
 
         <section id="view-pmcs" class="view hidden">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
@@ -1069,544 +1026,499 @@
         </section>
 
         <section id="view-analytics" class="view hidden space-y-4">
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-      <div>
-        <div class="text-sm font-semibold">Chat Analytics</div>
-        <div class="text-xs text-slate-500">Trends & performance</div>
-      </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold">Chat Analytics</div>
+                <div class="text-xs text-slate-500">Trends & performance</div>
+              </div>
 
-      <div class="flex flex-col sm:flex-row gap-2">
-        <!-- Range -->
-        <select id="analyticsRange" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
-          <option value="7">Last 7 days</option>
-          <option value="30" selected>Last 30 days</option>
-          <option value="90">Last 90 days</option>
-        </select>
+              <div class="flex flex-col sm:flex-row gap-2">
+                <select id="analyticsRange" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+                  <option value="7">Last 7 days</option>
+                  <option value="30" selected>Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                </select>
 
-        <!-- Super: PMC filter -->
-        {% if user_role == "super" %}
-          <select id="analyticsPmcFilter" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
-            <option value="">All PMCs</option>
-            {% for p in pmcs %}
-              <option value="{{ p.id }}">{{ p.pmc_name }}</option>
-            {% endfor %}
-          </select>
-        {% endif %}
+                {% if user_role == "super" %}
+                  <select id="analyticsPmcFilter" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+                    <option value="">All PMCs</option>
+                    {% for p in pmcs %}
+                      <option value="{{ p.id }}">{{ p.pmc_name }}</option>
+                    {% endfor %}
+                  </select>
+                {% endif %}
 
-        <!-- Everyone: Property filter -->
-        <select id="analyticsPropertyFilter" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
-          <option value="">All Properties</option>
-          {% for pr in properties %}
-            <option value="{{ pr.id }}">{{ pr.property_name }}</option>
-          {% endfor %}
-        </select>
-      </div>
-    </div>
+                <select id="analyticsPropertyFilter" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+                  <option value="">All Properties</option>
+                  {% for pr in properties %}
+                    <option value="{{ pr.id }}">{{ pr.property_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
 
-    <!-- KPI cards -->
-    <div class="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2" id="analyticsCards">
-      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">Sessions</div>
-        <div class="text-xl font-semibold" data-kpi="sessions_total">—</div>
-      </div>
-      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">User msgs</div>
-        <div class="text-xl font-semibold" data-kpi="user_messages">—</div>
-      </div>
-      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">Assistant msgs</div>
-        <div class="text-xl font-semibold" data-kpi="assistant_messages">—</div>
-      </div>
-      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">Response rate</div>
-        <div class="text-xl font-semibold" data-kpi="response_rate">—</div>
-      </div>
-      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">Followup clicks</div>
-        <div class="text-xl font-semibold" data-kpi="followup_clicks">—</div>
-      </div>
-      <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">Errors</div>
-        <div class="text-xl font-semibold" data-kpi="chat_errors">—</div>
-      </div>
-    </div>
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2" id="analyticsCards">
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Sessions</div>
+                <div class="text-xl font-semibold" data-kpi="sessions_total">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">User msgs</div>
+                <div class="text-xl font-semibold" data-kpi="user_messages">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Assistant msgs</div>
+                <div class="text-xl font-semibold" data-kpi="assistant_messages">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Response rate</div>
+                <div class="text-xl font-semibold" data-kpi="response_rate">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Followup clicks</div>
+                <div class="text-xl font-semibold" data-kpi="followup_clicks">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Errors</div>
+                <div class="text-xl font-semibold" data-kpi="chat_errors">—</div>
+              </div>
+            </div>
 
-    <div class="mt-4">
-      <canvas id="chatAnalyticsChart" height="100"></canvas>
-    </div>
-  </div>
+            <div class="mt-4">
+              <canvas id="chatAnalyticsChart" height="100"></canvas>
+            </div>
+          </div>
 
-  <!-- Top Properties table -->
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-    <div class="flex items-center justify-between">
-      <div>
-        <div class="text-sm font-semibold">Top Properties</div>
-        <div class="text-xs text-slate-500">Most active in selected range</div>
-      </div>
-      <div class="text-xs text-slate-500">Sorted by sessions</div>
-    </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold">Top Properties</div>
+                <div class="text-xs text-slate-500">Most active in selected range</div>
+              </div>
+              <div class="text-xs text-slate-500">Sorted by sessions</div>
+            </div>
 
-    <div class="mt-3 overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead class="bg-slate-50">
-          <tr>
-            <th class="px-4 py-3 text-left">Property</th>
-            <th class="px-4 py-3 text-left">Sessions</th>
-            <th class="px-4 py-3 text-left">Messages</th>
-            <th class="px-4 py-3 text-left">Followup CTR</th>
-            <th class="px-4 py-3 text-left">Errors</th>
-            <th class="px-4 py-3 text-left">Escalations</th>
-          </tr>
-        </thead>
-        <tbody id="analyticsTopPropsBody">
-          <tr><td class="px-4 py-4 text-slate-500" colspan="6">Loading…</td></tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
-</section>
-
-
-       
+            <div class="mt-3 overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left">Property</th>
+                    <th class="px-4 py-3 text-left">Sessions</th>
+                    <th class="px-4 py-3 text-left">Messages</th>
+                    <th class="px-4 py-3 text-left">Followup CTR</th>
+                    <th class="px-4 py-3 text-left">Errors</th>
+                    <th class="px-4 py-3 text-left">Escalations</th>
+                  </tr>
+                </thead>
+                <tbody id="analyticsTopPropsBody">
+                  <tr><td class="px-4 py-4 text-slate-500" colspan="6">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
 
         <section id="view-settings" class="view hidden space-y-4">
 
-  <!-- Header card -->
-  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-    <div class="flex items-start justify-between gap-4">
-      <div>
-        <div class="text-sm font-semibold">Settings</div>
-        <div class="mt-1 text-sm text-slate-500">
-          {% if user_role == "super" %}
-            Manage your profile, PMCs, roles, and platform notifications.
-          {% else %}
-            Manage your profile, team, and notifications for your PMC.
-          {% endif %}
-        </div>
-      </div>
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="text-sm font-semibold">Settings</div>
+                <div class="mt-1 text-sm text-slate-500">
+                  {% if user_role == "super" %}
+                    Manage your profile, PMCs, roles, and platform notifications.
+                  {% else %}
+                    Manage your profile, team, and notifications for your PMC.
+                  {% endif %}
+                </div>
+              </div>
 
-      <div class="text-xs text-slate-500">
-        Signed in as <span class="font-semibold text-slate-700">{{ user_email }}</span>
-      </div>
-    </div>
-  </div>
-
-  <!-- Settings layout -->
-  <div class="grid grid-cols-12 gap-4">
-
-    <!-- Settings sub-nav -->
-    <aside class="col-span-12 lg:col-span-3">
-      <div class="bg-white border border-slate-200 rounded-2xl p-2 card">
-        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
-                data-settings="profile" type="button">
-          Profile
-        </button>
-
-        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
-                data-settings="team" type="button">
-          Team
-        </button>
-
-        {% if user_role == "super" %}
-        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
-                data-settings="roles" type="button">
-          Roles & Permissions
-        </button>
-
-        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
-                data-settings="pmcs" type="button">
-          PMCs
-        </button>
-        {% endif %}
-
-        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
-                data-settings="notifications" type="button">
-          Notifications
-        </button>
-
-        <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
-                data-settings="integrations" type="button">
-          Integrations
-        </button>
-      </div>
-    </aside>
-
-    <!-- Settings panels -->
-    <div class="col-span-12 lg:col-span-9 space-y-4">
-
-      <!-- Profile -->
-      <div id="settings-profile" class="settings-panel bg-white border border-slate-200 rounded-2xl p-4 card">
-        <div class="text-sm font-semibold">Profile</div>
-        <div class="mt-1 text-sm text-slate-500">Update your personal preferences.</div>
-
-        <form id="profileForm" class="mt-4 grid grid-cols-12 gap-3">
-          <div class="col-span-12 md:col-span-6">
-            <label class="text-xs font-semibold text-slate-600">Full name</label>
-            <input name="full_name" value="{{ user_full_name or '' }}"
-                   class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm" />
+              <div class="text-xs text-slate-500">
+                Signed in as <span class="font-semibold text-slate-700">{{ user_email }}</span>
+              </div>
+            </div>
           </div>
 
-          <div class="col-span-12 md:col-span-6">
-            <label class="text-xs font-semibold text-slate-600">Email</label>
-            <input value="{{ user_email }}" disabled
-                   class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-500" />
-            <div class="mt-1 text-xs text-slate-500">Managed by Google OAuth.</div>
-          </div>
+          <div class="grid grid-cols-12 gap-4">
 
-          <!-- NOTE: This is safe to keep even if you haven't added a DB column yet;
-               your backend can ignore it until you're ready. -->
-          <div class="col-span-12 md:col-span-6">
-            <label class="text-xs font-semibold text-slate-600">Timezone</label>
-            <select name="timezone" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
-              <option value="">Select…</option>
-              {% for tz in ["America/Los_Angeles","America/Denver","America/Chicago","America/New_York"] %}
-                <option value="{{ tz }}" {% if user_timezone == tz %}selected{% endif %}>{{ tz }}</option>
-              {% endfor %}
-            </select>
-            <div class="mt-1 text-xs text-slate-500">We’ll use this for scheduling + notifications.</div>
-          </div>
+            <aside class="col-span-12 lg:col-span-3">
+              <div class="bg-white border border-slate-200 rounded-2xl p-2 card">
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="profile" type="button">
+                  Profile
+                </button>
 
-          <div class="col-span-12 md:col-span-6 flex items-end justify-end">
-            <button type="submit"
-              class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
-              Save Profile
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="team" type="button">
+                  Team
+                </button>
+
+                {% if user_role == "super" %}
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="roles" type="button">
+                  Roles & Permissions
+                </button>
+
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="pmcs" type="button">
+                  PMCs
+                </button>
+                {% endif %}
+
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="notifications" type="button">
+                  Notifications
+                </button>
+
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="integrations" type="button">
+                  Integrations
+                </button>
+              </div>
+            </aside>
+
+            <div class="col-span-12 lg:col-span-9 space-y-4">
+
+              <div id="settings-profile" class="settings-panel bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">Profile</div>
+                <div class="mt-1 text-sm text-slate-500">Update your personal preferences.</div>
+
+                <form id="profileForm" class="mt-4 grid grid-cols-12 gap-3">
+                  <div class="col-span-12 md:col-span-6">
+                    <label class="text-xs font-semibold text-slate-600">Full name</label>
+                    <input name="full_name" value="{{ user_full_name or '' }}"
+                           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm" />
+                  </div>
+
+                  <div class="col-span-12 md:col-span-6">
+                    <label class="text-xs font-semibold text-slate-600">Email</label>
+                    <input value="{{ user_email }}" disabled
+                           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-500" />
+                    <div class="mt-1 text-xs text-slate-500">Managed by Google OAuth.</div>
+                  </div>
+
+                  <div class="col-span-12 md:col-span-6">
+                    <label class="text-xs font-semibold text-slate-600">Timezone</label>
+                    <select name="timezone" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
+                      <option value="">Select…</option>
+                      {% for tz in ["America/Los_Angeles","America/Denver","America/Chicago","America/New_York"] %}
+                        <option value="{{ tz }}" {% if user_timezone == tz %}selected{% endif %}>{{ tz }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="mt-1 text-xs text-slate-500">We’ll use this for scheduling + notifications.</div>
+                  </div>
+
+                  <div class="col-span-12 md:col-span-6 flex items-end justify-end">
+                    <button type="submit"
+                      class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                      Save Profile
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Team -->
+              <div id="settings-team" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold">Team</div>
+                    <div class="mt-1 text-sm text-slate-500">
+                      Invite cleaners, maintenance, and internal staff. Owners/Admins can edit roles and enable/disable users.
+                    </div>
+                  </div>
+
+                  <button id="openInvite"
+                    class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                    Invite Member
+                  </button>
+                </div>
+
+                <div class="mt-4 overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead class="text-xs text-slate-500">
+                      <tr class="border-b border-slate-200">
+                        <th class="text-left py-2">Name</th>
+                        <th class="text-left py-2">Email</th>
+                        <th class="text-left py-2">Role</th>
+                        <th class="text-left py-2">Status</th>
+                        <th class="text-right py-2">Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {% for m in team_members %}
+                      <tr class="border-b border-slate-100" data-member-row="{{ m.id }}">
+                        <td class="py-2 font-medium">{{ m.full_name or "—" }}</td>
+
+                        <td class="py-2 text-slate-600">
+                          <div class="flex items-center gap-2">
+                            <span>{{ m.email }}</span>
+                            {% if not m.last_login_at %}
+                              <span class="text-[11px] px-2 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-semibold">
+                                Invite pending
+                              </span>
+                            {% endif %}
+                          </div>
+                        </td>
+
+                        <td class="py-2">
+                          <div class="flex items-center gap-2">
+                            <select
+                              class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm"
+                              data-member-role
+                              data-member-id="{{ m.id }}"
+                              data-original-role="{{ m.role or 'staff' }}"
+                              {% if m.email == user_email %}disabled title="You can't change your own role here."{% endif %}
+                            >
+                              {% for r in ["owner","admin","staff","ops_manager","maintenance","cleaner","read_only"] %}
+                                <option value="{{ r }}" {% if (m.role or '') == r %}selected{% endif %}>{{ r }}</option>
+                              {% endfor %}
+                            </select>
+
+                            {% if m.email != user_email %}
+                            <button
+                              class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold"
+                              data-member-save-role
+                              data-member-id="{{ m.id }}"
+                              type="button"
+                              title="Save role change"
+                            >
+                              Save
+                            </button>
+                            {% else %}
+                            <span class="text-xs text-slate-400">—</span>
+                            {% endif %}
+                          </div>
+                        </td>
+
+                        <td class="py-2">
+                          {% if m.is_active %}
+                            <span class="text-xs font-semibold text-emerald-700" data-member-status>Active</span>
+                          {% else %}
+                            <span class="text-xs font-semibold text-rose-700" data-member-status>Disabled</span>
+                          {% endif %}
+                        </td>
+
+                        <td class="py-2 text-right">
+                          {% if m.email != user_email %}
+                          <div class="flex items-center justify-end gap-3">
+                            <button
+                              class="text-xs font-semibold hover:underline"
+                              data-member-toggle
+                              data-member-id="{{ m.id }}"
+                              data-next-active="{{ 'false' if m.is_active else 'true' }}"
+                              type="button"
+                            >
+                              {% if m.is_active %}Disable{% else %}Enable{% endif %}
+                            </button>
+
+                            <button
+                              class="text-xs font-semibold hover:underline text-rose-700"
+                              data-member-delete
+                              data-member-id="{{ m.id }}"
+                              data-delete-label="{% if not m.last_login_at %}Delete invite{% else %}Remove{% endif %}"
+                              type="button"
+                            >
+                              {% if not m.last_login_at %}Delete invite{% else %}Remove{% endif %}
+                            </button>
+                          </div>
+                          {% else %}
+                            <span class="text-xs text-slate-400">—</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+
+                      {% if not team_members %}
+                      <tr>
+                        <td colspan="5" class="py-6 text-center text-slate-500">No team members yet.</td>
+                      </tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Invite modal -->
+                <div id="inviteModal" class="hidden fixed inset-0 z-[9999] bg-black/30 p-4">
+                  <div class="max-w-lg mx-auto mt-24 bg-white rounded-2xl border border-slate-200 p-4 card">
+                    <div class="flex items-center justify-between">
+                      <div class="text-sm font-semibold">Invite team member</div>
+                      <button id="closeInvite" class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50" type="button">✕</button>
+                    </div>
+
+                    <div class="mt-2 text-xs text-slate-500">
+                      We use Google OAuth. Invited users will be able to sign in with this email.
+                    </div>
+
+                    <form id="inviteForm" class="mt-4 space-y-3">
+                      <div>
+                        <label class="text-xs font-semibold text-slate-600">Email</label>
+                        <input name="email" type="email" required
+                               class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm" />
+                      </div>
+
+                      <div>
+                        <label class="text-xs font-semibold text-slate-600">Role</label>
+                        <select name="role" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
+                          <option value="staff">Staff</option>
+                          <option value="ops_manager">Ops Manager</option>
+                          <option value="maintenance">Maintenance</option>
+                          <option value="cleaner">Cleaner</option>
+                          <option value="read_only">Read-only</option>
+                          <option value="admin">Admin</option>
+                          <option value="owner">Owner</option>
+                        </select>
+                      </div>
+
+                      <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="cancelInvite"
+                                class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold">
+                          Cancel
+                        </button>
+                        <button type="submit"
+                                class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                          Send Invite
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+
+              {% if user_role == "super" %}
+              <div id="settings-roles" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">Roles & Permissions</div>
+                <div class="mt-1 text-sm text-slate-500">
+                  Define roles (cleaner, maintenance, staff) and what they can access.
+                </div>
+
+                <div class="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
+                  MVP suggestion: start with fixed roles + hardcoded permissions, then move to DB-driven roles.
+                </div>
+              </div>
+
+              <div id="settings-pmcs" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">PMCs</div>
+                <div class="mt-1 text-sm text-slate-500">Activate/deactivate PMCs, billing status, support tools.</div>
+              </div>
+              {% endif %}
+
+              <div id="settings-notifications" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">Notifications</div>
+                <div class="mt-1 text-sm text-slate-500">
+                  Choose what you get notified about. Slack settings will live here later.
+                </div>
+
+                {% set prefs = notif_prefs or {} %}
+
+                <form id="notifForm" class="mt-4 space-y-3">
+
+                  <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <div class="text-sm font-semibold">Guest messages</div>
+                      <div class="text-xs text-slate-500">Notify when a new guest message arrives.</div>
+                    </div>
+                    <input name="guest_messages" type="checkbox" class="h-5 w-5"
+                           {% if prefs.get("guest_messages") %}checked{% endif %} />
+                  </label>
+
+                  <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <div class="text-sm font-semibold">Maintenance assigned</div>
+                      <div class="text-xs text-slate-500">Notify when a maintenance request is assigned.</div>
+                    </div>
+                    <input name="maintenance_assigned" type="checkbox" class="h-5 w-5"
+                           {% if prefs.get("maintenance_assigned") %}checked{% endif %} />
+                  </label>
+
+                  <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <div class="text-sm font-semibold">Turnover due soon</div>
+                      <div class="text-xs text-slate-500">Notify when a cleaner task is due soon.</div>
+                    </div>
+                    <input name="turnover_due" type="checkbox" class="h-5 w-5"
+                           {% if prefs.get("turnover_due") %}checked{% endif %} />
+                  </label>
+
+                  <div class="flex justify-end pt-2">
+                    <button type="submit"
+                      class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                      Save Notifications
+                    </button>
+                  </div>
+                </form>
+
+                <div class="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
+                  Slack (coming soon): connect workspace, pick channel per event, and map properties → channels.
+                </div>
+              </div>
+
+              <div id="settings-integrations" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">Integrations</div>
+                <div class="mt-1 text-sm text-slate-500">PMS, Slack, and other connections.</div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Assistant Config Drawer -->
+      <div id="configDrawer" class="fixed inset-0 z-[9999] hidden">
+        <div class="absolute inset-0 bg-black/30" onclick="closeAssistantConfig()" aria-hidden="true"></div>
+
+        <div class="absolute right-0 top-0 h-full w-full sm:max-w-[720px] bg-white border-l border-slate-200 shadow-2xl flex flex-col">
+          <div class="h-16 px-5 flex items-center justify-between border-b border-slate-200">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold">Assistant Config</div>
+              <div id="configDrawerLabel" class="text-xs text-slate-500 truncate">Select a property</div>
+            </div>
+
+            <button
+              type="button"
+              class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+              onclick="closeAssistantConfig()"
+            >
+              Close
             </button>
           </div>
-        </form>
-      </div>
 
-      <!-- Team -->
-<div id="settings-team" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
-  <div class="flex items-start justify-between gap-3">
-    <div>
-      <div class="text-sm font-semibold">Team</div>
-      <div class="mt-1 text-sm text-slate-500">
-        Invite cleaners, maintenance, and internal staff. Owners/Admins can edit roles and enable/disable users.
-      </div>
-    </div>
-
-    <button id="openInvite"
-      class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
-      Invite Member
-    </button>
-  </div>
-
-  <div class="mt-4 overflow-x-auto">
-    <table class="w-full text-sm">
-      <thead class="text-xs text-slate-500">
-        <tr class="border-b border-slate-200">
-          <th class="text-left py-2">Name</th>
-          <th class="text-left py-2">Email</th>
-          <th class="text-left py-2">Role</th>
-          <th class="text-left py-2">Status</th>
-          <th class="text-right py-2">Actions</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {% for m in team_members %}
-        <tr class="border-b border-slate-100" data-member-row="{{ m.id }}">
-          <td class="py-2 font-medium">{{ m.full_name or "—" }}</td>
-
-          <td class="py-2 text-slate-600">
-            <div class="flex items-center gap-2">
-              <span>{{ m.email }}</span>
-              {% if not m.last_login_at %}
-                <span class="text-[11px] px-2 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-semibold">
-                  Invite pending
-                </span>
-              {% endif %}
-            </div>
-          </td>
-
-          <!-- Role -->
-          <td class="py-2">
-            <div class="flex items-center gap-2">
-              <select
-                class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm"
-                data-member-role
-                data-member-id="{{ m.id }}"
-                data-original-role="{{ m.role or 'staff' }}"
-                {% if m.email == user_email %}disabled title="You can't change your own role here."{% endif %}
-              >
-                {% for r in ["owner","admin","staff","ops_manager","maintenance","cleaner","read_only"] %}
-                  <option value="{{ r }}" {% if (m.role or '') == r %}selected{% endif %}>{{ r }}</option>
-                {% endfor %}
-              </select>
-
-              {% if m.email != user_email %}
-              <button
-                class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold"
-                data-member-save-role
-                data-member-id="{{ m.id }}"
-                type="button"
-                title="Save role change"
-              >
-                Save
-              </button>
-              {% else %}
-              <span class="text-xs text-slate-400">—</span>
-              {% endif %}
-            </div>
-          </td>
-
-          <!-- Status -->
-          <td class="py-2">
-            {% if m.is_active %}
-              <span class="text-xs font-semibold text-emerald-700" data-member-status>Active</span>
-            {% else %}
-              <span class="text-xs font-semibold text-rose-700" data-member-status>Disabled</span>
-            {% endif %}
-          </td>
-
-          <!-- Actions -->
-          <td class="py-2 text-right">
-            {% if m.email != user_email %}
-            <div class="flex items-center justify-end gap-3">
-              <button
-                class="text-xs font-semibold hover:underline"
-                data-member-toggle
-                data-member-id="{{ m.id }}"
-                data-next-active="{{ 'false' if m.is_active else 'true' }}"
-                type="button"
-              >
-                {% if m.is_active %}Disable{% else %}Enable{% endif %}
-              </button>
-
-              <button
-                class="text-xs font-semibold hover:underline text-rose-700"
-                data-member-delete
-                data-member-id="{{ m.id }}"
-                data-delete-label="{% if not m.last_login_at %}Delete invite{% else %}Remove{% endif %}"
-                type="button"
-              >
-                {% if not m.last_login_at %}Delete invite{% else %}Remove{% endif %}
-              </button>
-            </div>
-            {% else %}
-              <span class="text-xs text-slate-400">—</span>
-            {% endif %}
-          </td>
-        </tr>
-        {% endfor %}
-
-        {% if not team_members %}
-        <tr>
-          <td colspan="5" class="py-6 text-center text-slate-500">No team members yet.</td>
-        </tr>
-        {% endif %}
-      </tbody>
-    </table>
-  </div>
-
-  <!-- Invite modal -->
-  <div id="inviteModal" class="hidden fixed inset-0 z-[9999] bg-black/30 p-4">
-    <div class="max-w-lg mx-auto mt-24 bg-white rounded-2xl border border-slate-200 p-4 card">
-      <div class="flex items-center justify-between">
-        <div class="text-sm font-semibold">Invite team member</div>
-        <button id="closeInvite" class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50" type="button">✕</button>
-      </div>
-
-      <div class="mt-2 text-xs text-slate-500">
-        We use Google OAuth. Invited users will be able to sign in with this email.
-      </div>
-
-      <form id="inviteForm" class="mt-4 space-y-3">
-        <div>
-          <label class="text-xs font-semibold text-slate-600">Email</label>
-          <input name="email" type="email" required
-                 class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm" />
-        </div>
-
-        <div>
-          <label class="text-xs font-semibold text-slate-600">Role</label>
-          <select name="role" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
-            <option value="staff">Staff</option>
-            <option value="ops_manager">Ops Manager</option>
-            <option value="maintenance">Maintenance</option>
-            <option value="cleaner">Cleaner</option>
-            <option value="read_only">Read-only</option>
-            <option value="admin">Admin</option>
-            <option value="owner">Owner</option>
-          </select>
-        </div>
-
-        <div class="flex justify-end gap-2 pt-2">
-          <button type="button" id="cancelInvite"
-                  class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold">
-            Cancel
-          </button>
-          <button type="submit"
-                  class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
-            Send Invite
-          </button>
-        </div>
-      </form>
-    </div>
-  </div>
-</div>
-
-
-      {% if user_role == "super" %}
-      <!-- Roles & Permissions (superusers) -->
-      <div id="settings-roles" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
-        <div class="text-sm font-semibold">Roles & Permissions</div>
-        <div class="mt-1 text-sm text-slate-500">
-          Define roles (cleaner, maintenance, staff) and what they can access.
-        </div>
-
-        <div class="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
-          MVP suggestion: start with fixed roles + hardcoded permissions, then move to DB-driven roles.
-        </div>
-      </div>
-
-      <!-- PMCs (superusers) -->
-      <div id="settings-pmcs" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
-        <div class="text-sm font-semibold">PMCs</div>
-        <div class="mt-1 text-sm text-slate-500">Activate/deactivate PMCs, billing status, support tools.</div>
-      </div>
-      {% endif %}
-
-      <!-- Notifications -->
-      <div id="settings-notifications" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
-        <div class="text-sm font-semibold">Notifications</div>
-        <div class="mt-1 text-sm text-slate-500">
-          Choose what you get notified about. Slack settings will live here later.
-        </div>
-
-        {% set prefs = notif_prefs or {} %}
-
-        <form id="notifForm" class="mt-4 space-y-3">
-
-          <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
-            <div>
-              <div class="text-sm font-semibold">Guest messages</div>
-              <div class="text-xs text-slate-500">Notify when a new guest message arrives.</div>
-            </div>
-            <input name="guest_messages" type="checkbox" class="h-5 w-5"
-                   {% if prefs.get("guest_messages") %}checked{% endif %} />
-          </label>
-
-          <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
-            <div>
-              <div class="text-sm font-semibold">Maintenance assigned</div>
-              <div class="text-xs text-slate-500">Notify when a maintenance request is assigned.</div>
-            </div>
-            <input name="maintenance_assigned" type="checkbox" class="h-5 w-5"
-                   {% if prefs.get("maintenance_assigned") %}checked{% endif %} />
-          </label>
-
-          <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
-            <div>
-              <div class="text-sm font-semibold">Turnover due soon</div>
-              <div class="text-xs text-slate-500">Notify when a cleaner task is due soon.</div>
-            </div>
-            <input name="turnover_due" type="checkbox" class="h-5 w-5"
-                   {% if prefs.get("turnover_due") %}checked{% endif %} />
-          </label>
-
-          <div class="flex justify-end pt-2">
-            <button type="submit"
-              class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
-              Save Notifications
-            </button>
+          <div id="configDrawerBody" class="flex-1 overflow-auto p-4 bg-slate-50">
+            <div class="text-sm text-slate-500">Select a property to edit its config.</div>
           </div>
-        </form>
-
-        <div class="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
-          Slack (coming soon): connect workspace, pick channel per event, and map properties → channels.
         </div>
       </div>
-
-      <!-- Integrations -->
-      <div id="settings-integrations" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
-        <div class="text-sm font-semibold">Integrations</div>
-        <div class="mt-1 text-sm text-slate-500">PMS, Slack, and other connections.</div>
-      </div>
-
-    </div>
-  </div>
-</section>
-
-
-
-      </div>
-
-                    <!-- Assistant Config Drawer -->
-<div id="configDrawer" class="fixed inset-0 z-[9999] hidden">
-  <!-- Backdrop -->
-  <div
-    class="absolute inset-0 bg-black/30"
-    onclick="closeAssistantConfig()"
-    aria-hidden="true"
-  ></div>
-
-  <!-- Panel -->
-  <div class="absolute right-0 top-0 h-full w-full sm:max-w-[720px] bg-white border-l border-slate-200 shadow-2xl flex flex-col">
-    <div class="h-16 px-5 flex items-center justify-between border-b border-slate-200">
-      <div class="min-w-0">
-        <div class="text-sm font-semibold">Assistant Config</div>
-        <div id="configDrawerLabel" class="text-xs text-slate-500 truncate">Select a property</div>
-      </div>
-
-      <button
-        type="button"
-        class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
-        onclick="closeAssistantConfig()"
-      >
-        Close
-      </button>
-    </div>
-
-    <div id="configDrawerBody" class="flex-1 overflow-auto p-4 bg-slate-50">
-      <div class="text-sm text-slate-500">Select a property to edit its config.</div>
-    </div>
-  </div>
-</div>
 
     </main>
   </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
-<script id="dashboard-bootstrap" type="application/json">
+  <script id="dashboard-bootstrap" type="application/json">
 {
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
   "live_props": {{ live_props | tojson }},
   "offline_props": {{ offline_props | tojson }},
   "user_role": {{ user_role | tojson }}
 }
-</script>
+  </script>
 
-<script>
-  // Safe bootstrap parse (won't crash the page)
-  window.DASHBOARD_BOOTSTRAP = (() => {
-    try {
-      const el = document.getElementById("dashboard-bootstrap");
-      if (!el) return {};
-      return JSON.parse(el.textContent || "{}");
-    } catch (e) {
-      console.warn("dashboard bootstrap parse failed", e);
-      return {};
-    }
-  })();
-
-
-  // Optional: read bootstrap data if you need it
-  const BOOTSTRAP = (() => {
-    const el = document.getElementById("dashboard-bootstrap");
-    if (!el) return {};
-    try { return JSON.parse(el.textContent || "{}"); }
-    catch (e) { console.warn("Bad dashboard-bootstrap JSON", e); return {}; }
-  })();
-
-
-
-</script>
-
-
+  <script>
+    // Safe bootstrap parse (won't crash the page)
+    window.DASHBOARD_BOOTSTRAP = (() => {
+      try {
+        const el = document.getElementById("dashboard-bootstrap");
+        if (!el) return {};
+        return JSON.parse(el.textContent || "{}");
+      } catch (e) {
+        console.warn("dashboard bootstrap parse failed", e);
+        return {};
+      }
+    })();
+  </script>
 
 </body>
 </html>
