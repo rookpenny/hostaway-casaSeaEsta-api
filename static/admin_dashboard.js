@@ -112,8 +112,7 @@ window.getSignalsForEl = function getSignalsForEl(el) {
       window.renderSignalsBadges(el, parsed);
     });
   }
-
-  document.addEventListener("DOMContentLoaded", () => rerenderAllSignalsBadges());
+  window.rerenderAllSignalsBadges = rerenderAllSignalsBadges;
 })();
 
 
@@ -426,7 +425,6 @@ window.addEventListener("popstate", () => {
   const panel = document.getElementById("chat-detail-panel");
   if (!panel) return;
 
-  // Cancel any in-flight request so we don't render stale content
   if (chatDetailAbort) chatDetailAbort.abort();
   chatDetailAbort = new AbortController();
 
@@ -444,7 +442,6 @@ window.addEventListener("popstate", () => {
 
     if (res.status === 401 || res.status === 403) { loginRedirect(); return; }
 
-
     if (!res.ok) {
       panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
       return;
@@ -456,26 +453,32 @@ window.addEventListener("popstate", () => {
     window.restoreAdminChatPanelState?.(panel);
     initChatDetailHandlers(sessionId, panel);
 
-    // ✅ NEW: Update the list row immediately with the latest values from the injected panel
-const chatRoot =
-  panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
-  panel.querySelector("[data-chat-panel]");
+    const chatRoot =
+      panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
+      panel.querySelector("[data-chat-panel]");
 
-if (chatRoot) {
-  const payload = {
-    escalation_level: (chatRoot.getAttribute("data-escalation-level") || "").trim() || null,
-    is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
-    assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
-    signals: (() => {
-      const raw = chatRoot.getAttribute("data-signals") || "[]";
-      try { return JSON.parse(raw); } catch { return raw; }
-    })(),
-  };
+    if (chatRoot) {
+      const payload = {
+        escalation_level: (chatRoot.getAttribute("data-escalation-level") || "").trim() || null,
+        is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
+        assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
+        signals: (() => {
+          const raw = chatRoot.getAttribute("data-signals") || "[]";
+          try { return JSON.parse(raw); } catch { return raw; }
+        })(),
+      };
 
-  if (typeof updateChatListRow === "function") {
-    updateChatListRow(sessionId, payload);
+      if (typeof updateChatListRow === "function") {
+        updateChatListRow(sessionId, payload);
+      }
+    }
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    console.error("loadChatDetail error:", err);
+    panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
   }
 }
+
 
 
 
@@ -587,7 +590,7 @@ function updateChatListRow(sessionId, payload = {}) {
   const sigEl = row.querySelector("[data-signals-badge]");
   window.setSignalsBadge?.(sigEl, payload.signals || []);
 }
-
+}
 
 function applyEscalationBadge(badgeEl, levelRaw) {
   if (!badgeEl) return;
@@ -679,8 +682,10 @@ window.openChatDetail = openChatDetail;
       });
     }
 
-    updateRelativeTimes();
-    setInterval(updateRelativeTimes, 60 * 1000);
+    document.addEventListener("DOMContentLoaded", () => {
+  updateRelativeTimes();
+  setInterval(updateRelativeTimes, 60 * 1000);
+});
 
 
 ///----- END OF SECTION
@@ -2385,6 +2390,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   // 1) Core shell
   initSidebar();
   initRouting();
+
+  window.rerenderAllSignalsBadges?.();
 
   // 2) Property filters
   document.getElementById("searchInput")?.addEventListener("input", filterProperties);
