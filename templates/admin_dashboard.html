@@ -491,6 +491,7 @@
 
                   <a
                     href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+                    onclick="return openInlineManual('{{ prop.data_folder_path }}/manual.txt', '{{ prop.property_name|e }}');"
                     class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
                     {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
                   >
