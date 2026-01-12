@@ -7,7 +7,7 @@
 
   <!-- Quill -->
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css">
-``<script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js" defer></script>
 
   <!-- HTMX (optional) -->
   <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
@@ -15,8 +15,6 @@
   <!-- Must be present before admin_dashboard.js runs -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
-  
-
 
   <!-- Your dashboard JS LAST -->
   <script src="/static/admin_dashboard.js" defer></script>
@@ -493,7 +491,6 @@
 
                   <a
                     href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                    onclick="return openInlineManual('{{ prop.data_folder_path }}/manual.txt', '{{ prop.property_name|e }}');"
                     class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
                     {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
                   >
@@ -581,26 +578,7 @@
 
             header?.scrollIntoView({ behavior: "smooth", block: "start" });
           };
-        
-
-              // ===== Existing Assistant Config logic =====
-              window.openInlineConfig = function (...) { ... }
-              window.closeInlineConfig = function () { ... }
-            </script>
-            
-            <script>
-              // ===== House Manual (Quill) logic =====
-              // THIS IS WHERE "3) Frontend behavior" goes
-
-              // Load
-              const res = await fetch(`/admin/file-raw?...`);
-              quill.root.innerHTML = html;
-              
-              // Save
-              await fetch("/admin/file-save", {...});
-
-            </script>
-
+        </script>
 
         <section id="view-guides" class="view hidden space-y-4">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
