@@ -21,13 +21,9 @@ window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 window.getSignalsForEl = function getSignalsForEl(el) {
   if (!el) return [];
   const raw = el.getAttribute("data-signals") || "[]";
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed.map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
-  } catch {
-    return String(raw).split(",").map(s => s.toLowerCase().trim()).filter(Boolean);
-  }
+  return normalizeSignals(raw);
 };
+
 
 
 
@@ -39,33 +35,55 @@ window.getSignalsForEl = function getSignalsForEl(el) {
 // =====================================================
 
 (function SignalsOnly() {
-  function normalizeSignals(signalsRaw) {
-    // Already an array
-    if (Array.isArray(signalsRaw)) {
-      return signalsRaw
-        .map(s => String(s || "").toLowerCase().trim())
+ function normalizeSignals(signalsRaw) {
+  // Already an array
+  if (Array.isArray(signalsRaw)) {
+    return signalsRaw
+      .map(s => String(s || "").toLowerCase().trim())
+      .filter(Boolean);
+  }
+
+  let s = String(signalsRaw ?? "").trim();
+  if (!s) return [];
+
+  // Guard common "empty" strings
+  const lower = s.toLowerCase();
+  if (lower === "none" || lower === "null" || lower === "undefined") return [];
+
+  // JSON string?
+  try {
+    const parsed = JSON.parse(s);
+    if (Array.isArray(parsed)) {
+      return parsed
+        .map(x => String(x || "").toLowerCase().trim())
         .filter(Boolean);
     }
+    // if backend sends a single string via JSON: "confused"
+    if (typeof parsed === "string") {
+      s = parsed.trim();
+    }
+  } catch (_) {}
 
-    const s = String(signalsRaw || "").trim();
-    if (!s) return [];
-
-    // JSON string?
+  // Python-ish list string?  ['a', 'b']  ->  ["a","b"]
+  if (s.startsWith("[") && s.endsWith("]") && s.includes("'")) {
     try {
-      const parsed = JSON.parse(s);
-      if (Array.isArray(parsed)) {
-        return parsed
+      const coerced = s.replace(/'/g, '"');
+      const parsed2 = JSON.parse(coerced);
+      if (Array.isArray(parsed2)) {
+        return parsed2
           .map(x => String(x || "").toLowerCase().trim())
           .filter(Boolean);
       }
     } catch (_) {}
-
-    // comma-separated string fallback
-    return s
-      .split(",")
-      .map(x => x.trim().toLowerCase())
-      .filter(Boolean);
   }
+
+  // comma-separated fallback (also handles plain single value)
+  return s
+    .split(",")
+    .map(x => x.trim().toLowerCase())
+    .filter(Boolean);
+}
+
 
   function pill(text, cls) {
     return `<span class="inline-block px-2 py-1 rounded-full font-semibold mr-1 ${cls}">${text}</span>`;
@@ -428,7 +446,7 @@ window.addEventListener("popstate", () => {
 
 
 
-  async function loadChatDetail(sessionId) {
+async function loadChatDetail(sessionId) {
   const panel = document.getElementById("chat-detail-panel");
   if (!panel) return;
 
@@ -447,7 +465,10 @@ window.addEventListener("popstate", () => {
       }
     );
 
-    if (res.status === 401 || res.status === 403) { loginRedirect(); return; }
+    if (res.status === 401 || res.status === 403) {
+      loginRedirect();
+      return;
+    }
 
     if (!res.ok) {
       panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
@@ -457,29 +478,39 @@ window.addEventListener("popstate", () => {
     panel.innerHTML = await res.text();
     panel.setAttribute("data-session-id", String(sessionId));
 
-    window.restoreAdminChatPanelState?.(panel);
-    window.rerenderAllSignalsBadges?.(panel); // ✅ render signals in injected HTML
+    // --- Signals: render ONCE after injection ---
+    const badgeCount = panel.querySelectorAll("[data-signals-badge]").length;
+    console.log("Injected chat detail. signals badge count =", badgeCount);
+
+    // Optional: log the first badge raw payload (super useful for debugging)
+    const firstBadge = panel.querySelector("[data-signals-badge]");
+    console.log("detail badge data-signals =", firstBadge?.getAttribute("data-signals"));
+
+    window.rerenderAllSignalsBadges?.(panel);
+
+    // Bind buttons etc
     initChatDetailHandlers(sessionId, panel);
 
-
+    // --- Sync row state back into the table ---
     const chatRoot =
       panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
       panel.querySelector("[data-chat-panel]");
 
-    if (chatRoot) {
-      const payload = {
-        escalation_level: (chatRoot.getAttribute("data-escalation-level") || "").trim() || null,
-        is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
-        assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
-        signals: (() => {
-          const raw = chatRoot.getAttribute("data-signals") || "[]";
-          try { return JSON.parse(raw); } catch { return raw; }
-        })(),
-      };
+    if (chatRoot && typeof updateChatListRow === "function") {
+      const esc = (chatRoot.getAttribute("data-escalation-level") || "").trim();
+      const assigned = (chatRoot.getAttribute("data-assigned-to") || "").trim();
+      const isResolved = (chatRoot.getAttribute("data-is-resolved") || "0") === "1";
 
-      if (typeof updateChatListRow === "function") {
-        updateChatListRow(sessionId, payload);
-      }
+      const rawSignals = chatRoot.getAttribute("data-signals") || "[]";
+      let signalsParsed;
+      try { signalsParsed = JSON.parse(rawSignals); } catch { signalsParsed = rawSignals; }
+
+      updateChatListRow(sessionId, {
+        escalation_level: esc || null,
+        is_resolved: isResolved,
+        assigned_to: assigned,
+        signals: signalsParsed, // ok: your normalizeSignals can handle array or string
+      });
     }
   } catch (err) {
     if (err?.name === "AbortError") return;
@@ -487,6 +518,7 @@ window.addEventListener("popstate", () => {
     panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
   }
 }
+
 
 
 
