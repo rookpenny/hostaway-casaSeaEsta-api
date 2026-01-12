@@ -2757,17 +2757,105 @@ def admin_dashboard(
             .limit(200)
             .all()
         )
-
+        
         def priority_level_from_heat(heat: int) -> str:
             if heat >= 80:
                 return "critical"
             if heat >= 50:
                 return "attention"
             return "routine"
-
+        
+        # ----------------------------
+        # ✅ Build signal inputs like /admin/chats does
+        # ----------------------------
+        session_ids = [int(sess.id) for (sess, _, _) in rows]
+        
+        now = datetime.utcnow()
+        since_24h = now - timedelta(hours=24)
+        since_7d = now - timedelta(days=7)
+        
+        counts_24h: Dict[int, int] = {}
+        counts_7d: Dict[int, int] = {}
+        urgent_ids: set[int] = set()
+        negative_ids: set[int] = set()
+        last_msg_by_session: Dict[int, ChatMessage] = {}
+        
+        if session_ids:
+            # latest message per session (so we can read last sentiment if desired)
+            latest_msgs = (
+                db.query(ChatMessage)
+                .filter(ChatMessage.session_id.in_(session_ids))
+                .order_by(
+                    ChatMessage.session_id.asc(),
+                    ChatMessage.created_at.desc(),
+                    ChatMessage.id.desc(),
+                )
+                .distinct(ChatMessage.session_id)  # DISTINCT ON (Postgres)
+                .all()
+            )
+            last_msg_by_session = {int(m.session_id): m for m in latest_msgs}
+        
+            urgent_ids = set(
+                int(sid) for (sid,) in (
+                    db.query(ChatMessage.session_id)
+                    .filter(
+                        ChatMessage.session_id.in_(session_ids),
+                        ChatMessage.sender == "guest",
+                        ChatMessage.category == "urgent",
+                    )
+                    .distinct()
+                    .all()
+                )
+            )
+        
+            negative_ids = set(
+                int(sid) for (sid,) in (
+                    db.query(ChatMessage.session_id)
+                    .filter(
+                        ChatMessage.session_id.in_(session_ids),
+                        ChatMessage.sender == "guest",
+                        func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
+                    )
+                    .distinct()
+                    .all()
+                )
+            )
+        
+            for sid, cnt in (
+                db.query(ChatMessage.session_id, func.count(ChatMessage.id))
+                .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_24h)
+                .group_by(ChatMessage.session_id)
+                .all()
+            ):
+                counts_24h[int(sid)] = int(cnt)
+        
+            for sid, cnt in (
+                db.query(ChatMessage.session_id, func.count(ChatMessage.id))
+                .filter(ChatMessage.session_id.in_(session_ids), ChatMessage.created_at >= since_7d)
+                .group_by(ChatMessage.session_id)
+                .all()
+            ):
+                counts_7d[int(sid)] = int(cnt)
+        
+        # ----------------------------
+        # ✅ Sessions list (now includes real signals)
+        # ----------------------------
         sessions = []
         for sess, prop_name, last_snip in rows:
+            sid = int(sess.id)
             heat = int(sess.heat_score or 0)
+        
+            has_urgent = sid in urgent_ids
+            has_negative = sid in negative_ids
+            cnt24 = counts_24h.get(sid, 0)
+            cnt7 = counts_7d.get(sid, 0)
+        
+            status_val = getattr(sess, "reservation_status", "pre_booking")
+            signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
+        
+            last_msg = last_msg_by_session.get(sid)
+            last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
+        
             sessions.append({
                 "id": sess.id,
                 "property_id": sess.property_id,
@@ -2779,18 +2867,28 @@ def admin_dashboard(
                 "last_activity_at": sess.last_activity_at,
                 "last_snippet": (last_snip or ""),
                 "next_action": None,
+        
+                # attention + resolution
                 "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
                 "is_resolved": bool(sess.is_resolved),
                 "escalation_level": sess.escalation_level,
-                "signals": [],
+        
+                # ✅ FIX: real signals + flags
+                "signals": signals,
+                "has_urgent": has_urgent,
+                "has_negative": has_negative,
+                "last_sentiment": last_sentiment,
+        
+                # counts
+                "msg_24h": cnt24,
+                "msg_7d": cnt7,
+        
+                # heat
                 "priority_level": priority_level_from_heat(heat),
                 "heat_raw": heat,
                 "heat_boosted": heat,
-                "msg_24h": None,
-                "msg_7d": None,
-                "has_urgent": heat >= 80,
-                "has_negative": None,
             })
+
 
         # ----------------------------
         # Selected session detail
