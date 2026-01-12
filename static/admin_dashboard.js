@@ -491,7 +491,7 @@ async function loadChatDetail(sessionId) {
     // Bind buttons etc
     initChatDetailHandlers(sessionId, panel);
 
-    // --- Sync row state back into the table ---
+       // --- Sync row state back into the table ---
     const chatRoot =
       panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
       panel.querySelector("[data-chat-panel]");
@@ -501,23 +501,36 @@ async function loadChatDetail(sessionId) {
       const assigned = (chatRoot.getAttribute("data-assigned-to") || "").trim();
       const isResolved = (chatRoot.getAttribute("data-is-resolved") || "0") === "1";
 
-      const rawSignals = chatRoot.getAttribute("data-signals") || "[]";
+      // ✅ IMPORTANT: Only update signals if the attribute actually exists on the detail payload.
+      // If the detail partial doesn't include data-signals, DO NOT overwrite the list row.
+      const hasSignalsAttr = chatRoot.hasAttribute("data-signals");
       let signalsParsed;
-      try { signalsParsed = JSON.parse(rawSignals); } catch { signalsParsed = rawSignals; }
 
-      updateChatListRow(sessionId, {
+      if (hasSignalsAttr) {
+        const rawSignals = (chatRoot.getAttribute("data-signals") || "").trim();
+
+        // Treat empty string as "no update" (prevents wiping list row)
+        if (rawSignals) {
+          try { signalsParsed = JSON.parse(rawSignals); } catch { signalsParsed = rawSignals; }
+        } else {
+          // If explicitly provided but empty, interpret as empty signals
+          signalsParsed = [];
+        }
+      }
+
+      const payload = {
         escalation_level: esc || null,
         is_resolved: isResolved,
         assigned_to: assigned,
-        signals: signalsParsed, // ok: your normalizeSignals can handle array or string
-      });
+      };
+
+      // Only include signals if we actually got them from the detail partial
+      if (hasSignalsAttr && typeof signalsParsed !== "undefined") {
+        payload.signals = signalsParsed;
+      }
+
+      updateChatListRow(sessionId, payload);
     }
-  } catch (err) {
-    if (err?.name === "AbortError") return;
-    console.error("loadChatDetail error:", err);
-    panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
-  }
-}
 
 
 
