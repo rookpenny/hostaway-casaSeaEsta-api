@@ -4,6 +4,7 @@
 <div
   class="space-y-4"
   data-chat-panel="{{ session.id }}"
+  data-signals='{{ session.signals | tojson }}'
   data-escalation-level="{{ session.escalation_level or '' }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
   data-assigned-to="{{ session.assigned_to or '' }}"
