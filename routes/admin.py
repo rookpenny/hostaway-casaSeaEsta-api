@@ -1371,6 +1371,13 @@ def admin_chats(
 
         signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
 
+        allowed_signals = {"panicked", "angry", "upset", "confused", "worried", "calm", "stressed"}
+        sig = (signals or "").strip().lower()
+        if sig and sig in allowed_signals:
+            if sig not in signals:
+                continue
+
+
         is_resolved = bool(getattr(s, "is_resolved", False))
         current_level = (getattr(s, "escalation_level", None) or "").lower() or None
         desired_level = desired_escalation_level(heat)
@@ -2612,6 +2619,7 @@ def admin_dashboard(
         "property_id": property_id,
         "status": status,
         "priority": priority,
+        "signals": signals, 
         "mine": bool(mine),
         "assigned_to": assigned_to,
         "q": q,
