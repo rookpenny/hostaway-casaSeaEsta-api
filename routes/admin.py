@@ -1148,6 +1148,9 @@ def admin_chats(
     property_id: Optional[str] = Query(None),
     mine: Optional[int] = Query(None),
     assigned_to: Optional[str] = Query(None),
+
+    # ✅ NEW: signals filter
+    signals_filter: Optional[str] = Query(None),
 ):
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     if user_role == "pmc" and not pmc_obj:
@@ -1219,6 +1222,7 @@ def admin_chats(
             .order_by(Property.property_name.asc())
             .all()
         )
+
     allowed_property_ids = {p.id for p in properties} if user_role == "pmc" else None
 
     base_q = db.query(ChatSession)
@@ -1230,13 +1234,12 @@ def admin_chats(
             base_q = base_q.join(Property, ChatSession.property_id == Property.id).filter(Property.pmc_id == pmc_id_int)
 
     if property_id_int is not None:
-        if user_role == "pmc" and property_id_int not in allowed_property_ids:
+        if user_role == "pmc" and allowed_property_ids is not None and property_id_int not in allowed_property_ids:
             raise HTTPException(status_code=403, detail="Forbidden property")
         base_q = base_q.filter(ChatSession.property_id == property_id_int)
 
     if status in {"pre_booking", "post_booking", "active", "post_stay"}:
         base_q = base_q.filter(ChatSession.reservation_status == status)
-
 
     effective_assignee: Optional[str] = (assigned_to or "").strip() or None
     if mine:
@@ -1293,7 +1296,7 @@ def admin_chats(
                 .filter(
                     ChatMessage.session_id.in_(session_ids),
                     ChatMessage.sender == "guest",
-                    ChatMessage.sentiment == "negative",
+                    func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
                 )
                 .distinct()
                 .all()
@@ -1320,10 +1323,16 @@ def admin_chats(
     q_lower = (q or "").strip().lower()
     auto_escalation_updates = 0
 
+    # ✅ normalize filter once
+    allowed_signals = {"panicked", "angry", "upset", "confused", "worried", "calm", "stressed"}
+    sig = (signals_filter or "").strip().lower()
+    if sig and sig not in allowed_signals:
+        sig = ""  # ignore unknown values
+
     for s in sessions:
         sid = int(s.id)
 
-        prop = s.property
+        prop = getattr(s, "property", None)
         property_name = prop.property_name if prop else "Unknown property"
         guest_name = (getattr(s, "guest_name", None) or "").strip()
 
@@ -1336,11 +1345,13 @@ def admin_chats(
         has_urgent = sid in urgent_ids
         has_negative = sid in negative_ids
 
+        # existing priority filter
         if priority == "urgent" and not has_urgent:
             continue
         if priority == "unhappy" and not has_negative:
             continue
 
+        # existing q filter
         if q_lower:
             hay = f"{property_name} {guest_name} {snippet}".lower()
             if q_lower not in hay:
@@ -1369,17 +1380,12 @@ def admin_chats(
         next_action = extract_next_action(getattr(s, "ai_summary", None))
         activity_label = activity_bucket(cnt24, cnt7)
 
-       signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
-
-        allowed_signals = {"panicked", "angry", "upset", "confused", "worried", "calm", "stressed"}
-        sig = (signals_filter or "").strip().lower()
-        
-        if sig and sig in allowed_signals:
-            signals_l = [(s or "").strip().lower() for s in (signals or [])]
+        # ✅ signals + signals filter
+        signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
+        if sig:
+            signals_l = [(x or "").strip().lower() for x in (signals or [])]
             if sig not in signals_l:
                 continue
-
-
 
         is_resolved = bool(getattr(s, "is_resolved", False))
         current_level = (getattr(s, "escalation_level", None) or "").lower() or None
@@ -1446,7 +1452,7 @@ def admin_chats(
         unhappy_q = unhappy_q.join(Property, ChatSession.property_id == Property.id).filter(Property.pmc_id == pmc_obj.id)
 
     urgent_sessions = urgent_q.filter(ChatMessage.sender == "guest", ChatMessage.category == "urgent").distinct().count()
-    unhappy_sessions = unhappy_q.filter(ChatMessage.sender == "guest", ChatMessage.sentiment == "negative").distinct().count()
+    unhappy_sessions = unhappy_q.filter(ChatMessage.sender == "guest", func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative").distinct().count()
 
     analytics = {
         "pre_booking": int(by_status.get("pre_booking", 0)),
@@ -1456,7 +1462,6 @@ def admin_chats(
         "urgent_sessions": int(urgent_sessions),
         "unhappy_sessions": int(unhappy_sessions),
     }
-
 
     return templates.TemplateResponse(
         "admin_chats.html",
@@ -1471,6 +1476,7 @@ def admin_chats(
                 "property_id": property_id or "",
                 "mine": bool(mine),
                 "assigned_to": effective_assignee or "",
+                "signals_filter": signals_filter or "",  # ✅ ADD
             },
             "analytics": analytics,
             "pmcs": pmcs,
@@ -1478,6 +1484,7 @@ def admin_chats(
             "user_role": user_role,
         }
     )
+
 
 
 @router.post("/admin/chats/{session_id}/resolve")
