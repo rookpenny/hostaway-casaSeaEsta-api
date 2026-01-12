@@ -442,9 +442,7 @@ window.addEventListener("popstate", () => {
   // Your global delegated handler for [data-action="summary"] already covers it.
 }
 
-        let chatDetailAbort = null;
-
-
+let chatDetailAbort = null;
 
 async function loadChatDetail(sessionId) {
   const panel = document.getElementById("chat-detail-panel");
@@ -475,61 +473,73 @@ async function loadChatDetail(sessionId) {
       return;
     }
 
+    // Inject HTML
     panel.innerHTML = await res.text();
     panel.setAttribute("data-session-id", String(sessionId));
 
-    // --- Signals: render ONCE after injection ---
+    // Find injected chatRoot (panel wrapper)
+    const chatRoot =
+      panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
+      panel.querySelector("[data-chat-panel]");
+
+    // --- Signals: hydrate detail signals from list row (source of truth) ---
+    // Read signals from the LIST row badge (it’s correct before click)
+    const listSigEl = document.querySelector(
+      `[data-session-row="${sessionId}"] [data-signals-badge]`
+    );
+    const listRawSignals = (listSigEl?.getAttribute("data-signals") || "").trim();
+
+    // Detail badge element (inside injected partial)
+    const detailSigEl = panel.querySelector("[data-signals-badge]");
+
+    const isEmptySignalsAttr = (raw) => {
+      const s = String(raw || "").trim();
+      if (!s) return true;
+      const lower = s.toLowerCase();
+      if (lower === "null" || lower === "none" || lower === "undefined") return true;
+      if (s === "[]") return true;
+      return false;
+    };
+
+    // If detail badge exists but has empty/missing signals, copy from list
+    if (detailSigEl && listRawSignals) {
+      const current = detailSigEl.getAttribute("data-signals");
+      if (isEmptySignalsAttr(current)) {
+        detailSigEl.setAttribute("data-signals", listRawSignals);
+      }
+    }
+
+    // Also ensure chatRoot carries signals if it’s empty (helps other logic)
+    if (chatRoot && listRawSignals) {
+      const rootSignals = chatRoot.getAttribute("data-signals");
+      if (isEmptySignalsAttr(rootSignals)) {
+        chatRoot.setAttribute("data-signals", listRawSignals);
+      }
+    }
+
+    // Debug (optional)
     const badgeCount = panel.querySelectorAll("[data-signals-badge]").length;
     console.log("Injected chat detail. signals badge count =", badgeCount);
+    console.log("detail badge data-signals =", detailSigEl?.getAttribute("data-signals"));
 
-    // Optional: log the first badge raw payload (super useful for debugging)
-    const firstBadge = panel.querySelector("[data-signals-badge]");
-    console.log("detail badge data-signals =", firstBadge?.getAttribute("data-signals"));
-
+    // Render signals badges after hydration
     window.rerenderAllSignalsBadges?.(panel);
 
     // Bind buttons etc
     initChatDetailHandlers(sessionId, panel);
 
-       // --- Sync row state back into the table ---
-    const chatRoot =
-      panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
-      panel.querySelector("[data-chat-panel]");
-
+    // --- Sync row state back into the table (DO NOT sync signals from detail) ---
     if (chatRoot && typeof updateChatListRow === "function") {
       const esc = (chatRoot.getAttribute("data-escalation-level") || "").trim();
       const assigned = (chatRoot.getAttribute("data-assigned-to") || "").trim();
       const isResolved = (chatRoot.getAttribute("data-is-resolved") || "0") === "1";
 
-      // ✅ IMPORTANT: Only update signals if the attribute actually exists on the detail payload.
-      // If the detail partial doesn't include data-signals, DO NOT overwrite the list row.
-      const hasSignalsAttr = chatRoot.hasAttribute("data-signals");
-      let signalsParsed;
-
-      if (hasSignalsAttr) {
-        const rawSignals = (chatRoot.getAttribute("data-signals") || "").trim();
-
-        // Treat empty string as "no update" (prevents wiping list row)
-        if (rawSignals) {
-          try { signalsParsed = JSON.parse(rawSignals); } catch { signalsParsed = rawSignals; }
-        } else {
-          // If explicitly provided but empty, interpret as empty signals
-          signalsParsed = [];
-        }
-      }
-
-      const payload = {
+      updateChatListRow(sessionId, {
         escalation_level: esc || null,
         is_resolved: isResolved,
-        assigned_to: assigned,
-      };
-
-      // Only include signals if we actually got them from the detail partial
-      if (hasSignalsAttr && typeof signalsParsed !== "undefined") {
-        payload.signals = signalsParsed;
-      }
-
-      updateChatListRow(sessionId, payload);
+        assigned_to: assigned || null,
+        // 🚫 intentionally NOT syncing signals from detail
+      });
     }
   } catch (err) {
     if (err?.name === "AbortError") return;
@@ -537,6 +547,7 @@ async function loadChatDetail(sessionId) {
     panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
   }
 }
+
 
 
 
