@@ -374,90 +374,40 @@ document.addEventListener("DOMContentLoaded", () => {
 }
 
 
-    function initChatDetailHandlers(sessionId, panelEl) {
+  function initChatDetailHandlers(sessionId, panelEl) {
   const $ = (sel) => panelEl.querySelector(sel);
 
-  //const summaryBtn = $("#summary-btn");
-  const summaryBox = $("#summary-box");
-
-  /*summaryBtn?.addEventListener("click", async () => {
-  summaryBtn.disabled = true;
-  summaryBtn.textContent = "Generating…";
-
-  try {
-    const res = await fetch(`/admin/chats/${sessionId}/summarize`, {
-      method: "POST",
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });*/
-
-    if (res.status === 401 || res.status === 403) return loginRedirect();
-
-    const parsed = await safeReadJson(res);
-
-    if (!parsed.ok) {
-      console.error("summarize failed:", parsed.status, parsed.text.slice(0, 500));
-      throw new Error(`Summary failed (HTTP ${parsed.status})`);
-    }
-
-    const data = parsed.json || {};
-    if (data.ok === false) throw new Error(data.error || "Failed");
-
-    if (summaryBox) summaryBox.textContent = data.summary || "";
-  } catch (e) {
-    if (summaryBox) summaryBox.textContent = `Summary error: ${e.message}`;
-  } finally {
-    summaryBtn.disabled = false;
-    summaryBtn.textContent = "Generate / Refresh";
-  }
-});
-
-
+  // Resolve
   $("#resolve-btn")?.addEventListener("click", async () => {
     await chatPostJSON(`/admin/chats/${sessionId}/resolve`);
-  
-    // ✅ instant update in list
     updateChatListRow(sessionId, { is_resolved: true });
-  
     await loadChatDetail(sessionId);
   });
 
-
+  // Unresolve
   $("#unresolve-btn")?.addEventListener("click", async () => {
     await chatPostJSON(`/admin/chats/${sessionId}/unresolve`);
-  
-    // ✅ instant update in list
     updateChatListRow(sessionId, { is_resolved: false });
-  
-    await loadChatDetail(sessionId);
-  }); 
-
-
-  $("#escalation-select")?.addEventListener("change", async (e) => {
-  const level = e.target.value || "";
-  await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level });
-
-  // optional instant UI update in list immediately
-  updateChatListRow(sessionId, { escalation_level: level || null });
-
-  await loadChatDetail(sessionId);
-});
-
-
-
-
-  $("#assign-btn")?.addEventListener("click", async () => {
-    const v = $("#assigned-input")?.value || "";
-  
-    await chatPostJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
-  
-    // ✅ instant update in list
-    updateChatListRow(sessionId, { assigned_to: v });
-  
     await loadChatDetail(sessionId);
   });
 
+  // Escalation
+  $("#escalation-select")?.addEventListener("change", async (e) => {
+    const level = e.target.value || "";
+    await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level });
+    updateChatListRow(sessionId, { escalation_level: level || null });
+    await loadChatDetail(sessionId);
+  });
 
+  // Assign
+  $("#assign-btn")?.addEventListener("click", async () => {
+    const v = $("#assigned-input")?.value || "";
+    await chatPostJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
+    updateChatListRow(sessionId, { assigned_to: v });
+    await loadChatDetail(sessionId);
+  });
+
+  // Save note
   $("#save-note-btn")?.addEventListener("click", async () => {
     const note = $("#note-input")?.value || "";
     await chatPostJSON(`/admin/chats/${sessionId}/note`, { note });
@@ -468,6 +418,10 @@ document.addEventListener("DOMContentLoaded", () => {
       setTimeout(() => (s.textContent = ""), 1200);
     }
   });
+
+  // IMPORTANT:
+  // Do NOT add summary handler here.
+  // Your global delegated handler for [data-action="summary"] already covers it.
 }
 
         let chatDetailAbort = null;
@@ -866,7 +820,7 @@ window.openChatDetail = openChatDetail;
 
   // -------- Paywall flag (server-rendered) --------
 //const IS_LOCKED = {{ (user_role == 'pmc' and needs_payment) | tojson }};
-const CONTENT_LOCKED = IS_LOCKED;
+//const CONTENT_LOCKED = IS_LOCKED;
 
 
  // let chatAnalyticsChart = null;
@@ -2003,7 +1957,7 @@ document.addEventListener("click", async (e) => {
     },
 
     async openForm(url, title) {
-      if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+      if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
       document.getElementById("guides-editor-title").textContent = title || "Editor";
       await loadHtmlInto(url, "guides-editor-body");
       document.getElementById("guides-editor")?.classList.remove("hidden");
@@ -2016,7 +1970,7 @@ document.addEventListener("click", async (e) => {
     },
 
     async submit(formEl) {
-      if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+      if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
       const r = await fetch("/admin/guides/ajax/save", {
         method: "POST",
         credentials: "include",
@@ -2031,7 +1985,7 @@ document.addEventListener("click", async (e) => {
     },
 
     async remove(id) {
-      if (CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+      if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
       if (!confirm("Delete this guide?")) return;
       const r = await fetch(`/admin/guides/ajax/delete?id=${encodeURIComponent(id)}`, {
         method: "POST",
