@@ -19,6 +19,102 @@ window.CONTENT_LOCKED = IS_LOCKED; // if you want global
     // ----------------------------
 // Inline detail helpers
 // ----------------------------
+
+
+
+// Render "Signals" pills.
+// Source of truth = data-signals (backend).
+// Fallback = derive from data-sentiment when signals is empty/missing.
+(function () {
+  function pill(text, cls) {
+    return `<span class="inline-block px-2 py-1 rounded-full font-semibold mr-1 ${cls}">${text}</span>`;
+  }
+
+  function normalizeSignals(signalsRaw) {
+    if (Array.isArray(signalsRaw)) {
+      return signalsRaw
+        .map(s => String(s || "").toLowerCase().trim())
+        .filter(Boolean);
+    }
+
+    const s = String(signalsRaw || "").trim();
+    if (!s) return [];
+
+    try {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(x => String(x || "").toLowerCase().trim())
+          .filter(Boolean);
+      }
+    } catch (_) {}
+
+    return s
+      .split(",")
+      .map(x => x.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
+  function deriveSignalsFromSentiment(sent) {
+    const s = String(sent || "").toLowerCase();
+    const derived = [];
+    const add = (v) => { if (!derived.includes(v)) derived.push(v); };
+
+    if (!s) return derived;
+
+    if (s.includes("panic") || s.includes("terrified") || s.includes("scared") || s.includes("freak")) add("panicked");
+    if (s.includes("furious") || s.includes("angry") || s.includes("mad") || s.includes("pissed")) add("angry");
+    if (s.includes("upset") || s.includes("unhappy") || s.includes("frustrat") || s.includes("annoy")) add("upset");
+    if (s.includes("confus") || s.includes("unclear") || s.includes("not sure") || s.includes("dont understand") || s.includes("don't understand")) add("confused");
+    if (s.includes("worr") || s.includes("concern") || s.includes("anx") || s.includes("stress") || s.includes("nervous")) add("worried");
+
+    if (derived.length === 0 && (s === "negative" || s.includes("negative"))) add("upset");
+    return derived;
+  }
+
+  window.renderSignalsBadges = function renderSignalsBadges(el, signals, sentiment) {
+    if (!el) return;
+
+    const sig = normalizeSignals(signals);
+    const sent = String(sentiment || "").trim();
+    const finalSig = (sig.length ? sig : deriveSignalsFromSentiment(sent));
+
+    let html = "";
+
+    if (finalSig.includes("panicked")) html += pill("😰 Panicked", "bg-rose-100 text-rose-700");
+    if (finalSig.includes("angry"))    html += pill("😡 Angry",    "bg-rose-200 text-rose-900");
+    if (finalSig.includes("upset"))    html += pill("😟 Upset",    "bg-amber-100 text-amber-800");
+    if (finalSig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
+    if (finalSig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
+
+    if (finalSig.length === 0 || (finalSig.length === 1 && finalSig[0] === "calm")) {
+      html += pill("🙂 Calm", "bg-emerald-100 text-emerald-700");
+    }
+
+    el.innerHTML = html || `<span class="text-slate-400">—</span>`;
+  };
+
+  function rerenderAllSignalsBadges() {
+    document.querySelectorAll("[data-signals-badge]").forEach((el) => {
+      const rawSignalsAttr = el.getAttribute("data-signals") || "[]";
+      const sentimentAttr = el.getAttribute("data-sentiment") || "";
+
+      let parsedSignals = [];
+      try {
+        parsedSignals = JSON.parse(rawSignalsAttr);
+      } catch (_) {
+        parsedSignals = rawSignalsAttr;
+      }
+
+      window.renderSignalsBadges(el, parsedSignals, sentimentAttr);
+    });
+  }
+
+  // Run now + after DOM is ready
+  rerenderAllSignalsBadges();
+  document.addEventListener("DOMContentLoaded", rerenderAllSignalsBadges);
+})();
+
 function setInlineDetailOpen(open) {
   const inline = document.getElementById("chat-detail-inline");
   const list = document.getElementById("chat-list-wrap");
