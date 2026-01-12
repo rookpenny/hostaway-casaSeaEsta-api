@@ -458,7 +458,9 @@ window.addEventListener("popstate", () => {
     panel.setAttribute("data-session-id", String(sessionId));
 
     window.restoreAdminChatPanelState?.(panel);
+    window.rerenderAllSignalsBadges?.(panel); // ✅ render signals in injected HTML
     initChatDetailHandlers(sessionId, panel);
+
 
     const chatRoot =
       panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
