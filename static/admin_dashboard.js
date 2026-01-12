@@ -531,6 +531,12 @@ async function loadChatDetail(sessionId) {
 
       updateChatListRow(sessionId, payload);
     }
+  } catch (err) {
+    if (err?.name === "AbortError") return;
+    console.error("loadChatDetail error:", err);
+    panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
+  }
+}
 
 
 
