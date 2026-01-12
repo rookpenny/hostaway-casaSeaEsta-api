@@ -14,6 +14,29 @@ const IS_LOCKED = !!BOOT.is_locked;
 window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 
 
+
+
+// ✅ Expose helpers for other parts of the dashboard (filters / live updates)
+window.getSignalsForEl = function getSignalsForEl(el) {
+  if (!el) return [];
+  const rawSignalsAttr = el.getAttribute("data-signals") || "[]";
+  const sentimentAttr = el.getAttribute("data-sentiment") || "";
+
+  let parsedSignals = [];
+  try {
+    parsedSignals = JSON.parse(rawSignalsAttr);
+  } catch (_) {
+    parsedSignals = rawSignalsAttr;
+  }
+
+  const sig = normalizeSignals(parsedSignals);
+  if (sig.length) return sig;
+
+  return deriveSignalsFromSentiment(sentimentAttr);
+};
+
+
+
 /// ----- START OF SECTION
 
     // ----------------------------
@@ -78,6 +101,7 @@ window.CONTENT_LOCKED = IS_LOCKED; // if you want global
     const sig = normalizeSignals(signals);
     const sent = String(sentiment || "").trim();
    const finalSig = (sig.length ? sig : deriveSignalsFromSentiment(sent));
+
     //const finalSig = sig;
     
     let html = "";
@@ -471,6 +495,10 @@ document.addEventListener("DOMContentLoaded", () => {
         is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
         assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
         sentiment: (chatRoot.getAttribute("data-sentiment") || "").trim() || "",
+        signals: (() => {
+  const raw = chatRoot.getAttribute("data-signals") || "[]";
+  try { return JSON.parse(raw); } catch { return raw; }
+})(),
       };
 
       // Only call if the helper exists
@@ -719,6 +747,27 @@ function updateChatListRow(sessionId, payload = {}) {
     const sentEl = row.querySelector("[data-sentiment-badge]");
     renderSentimentBadge(sentEl, payload.sentiment);
   }*/
+
+  // ✅ NEW: signals live update
+if (
+  Object.prototype.hasOwnProperty.call(payload, "signals") ||
+  Object.prototype.hasOwnProperty.call(payload, "sentiment")
+) {
+  const sigEl = row.querySelector("[data-signals-badge]");
+  if (sigEl && typeof window.renderSignalsBadges === "function") {
+    // keep DOM attrs as source-of-truth
+    if (Object.prototype.hasOwnProperty.call(payload, "signals")) {
+      sigEl.setAttribute("data-signals", JSON.stringify(payload.signals || []));
+    }
+    if (Object.prototype.hasOwnProperty.call(payload, "sentiment")) {
+      sigEl.setAttribute("data-sentiment", payload.sentiment || "");
+    }
+
+    const computed = window.getSignalsForEl ? window.getSignalsForEl(sigEl) : [];
+    window.renderSignalsBadges(sigEl, computed, sigEl.getAttribute("data-sentiment") || "");
+  }
+}
+
 }
 
 
