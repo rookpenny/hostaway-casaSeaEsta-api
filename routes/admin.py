@@ -1369,13 +1369,16 @@ def admin_chats(
         next_action = extract_next_action(getattr(s, "ai_summary", None))
         activity_label = activity_bucket(cnt24, cnt7)
 
-        signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
+       signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
 
         allowed_signals = {"panicked", "angry", "upset", "confused", "worried", "calm", "stressed"}
-        sig = (signals or "").strip().lower()
+        sig = (signals_filter or "").strip().lower()
+        
         if sig and sig in allowed_signals:
-            if sig not in signals:
+            signals_l = [(s or "").strip().lower() for s in (signals or [])]
+            if sig not in signals_l:
                 continue
+
 
 
         is_resolved = bool(getattr(s, "is_resolved", False))
@@ -2619,7 +2622,7 @@ def admin_dashboard(
         "property_id": property_id,
         "status": status,
         "priority": priority,
-        "signals": signals, 
+        "signals": signals_filter,  # ✅
         "mine": bool(mine),
         "assigned_to": assigned_to,
         "q": q,
