@@ -83,10 +83,17 @@ window.getSignalsForEl = function getSignalsForEl(el) {
     if (sig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
     if (sig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
 
-    // Calm if nothing else (or explicit calm only)
-    if (sig.length === 0 || (sig.length === 1 && sig[0] === "calm")) {
+    // Show Calm ONLY if explicitly present
+    if (sig.includes("calm")) {
       html += pill("🙂 Calm", "bg-emerald-100 text-emerald-700");
     }
+    
+    // If nothing to show, render dash
+    if (!html) {
+      el.innerHTML = `<span class="text-slate-400">—</span>`;
+      return;
+    }
+
 
     el.innerHTML = html || `<span class="text-slate-400">—</span>`;
   };
