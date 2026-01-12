@@ -14,180 +14,109 @@ const IS_LOCKED = !!BOOT.is_locked;
 window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 
 
-function setSignalsBadge(container, signals, sentiment) {
-  if (!container) return;
 
-  // Keep attributes in sync so filters can read them later
-  try {
-    container.setAttribute("data-signals", JSON.stringify(signals || []));
-  } catch {
-    container.setAttribute("data-signals", String(signals || ""));
-  }
-  if (sentiment != null) container.setAttribute("data-sentiment", String(sentiment || ""));
-
-  // Render pills
-  window.renderSignalsBadges?.(container, signals || [], sentiment || "");
-}
 
 
 // ✅ Expose helpers for other parts of the dashboard (filters / live updates)
 window.getSignalsForEl = function getSignalsForEl(el) {
   if (!el) return [];
-  const rawSignalsAttr = el.getAttribute("data-signals") || "[]";
-  const sentimentAttr = el.getAttribute("data-sentiment") || "";
-
-  let parsedSignals = [];
+  const raw = el.getAttribute("data-signals") || "[]";
   try {
-    parsedSignals = JSON.parse(rawSignalsAttr);
-  } catch (_) {
-    parsedSignals = rawSignalsAttr;
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.map(s => String(s).toLowerCase().trim()).filter(Boolean) : [];
+  } catch {
+    return String(raw).split(",").map(s => s.toLowerCase().trim()).filter(Boolean);
   }
-
-  const sig = normalizeSignals(parsedSignals);
-  if (sig.length) return sig;
-
-  return deriveSignalsFromSentiment(sentimentAttr);
 };
 
 
 
-// Render "Signals" pills.
-// Source of truth = data-signals (backend).
-// Fallback = derive from data-sentiment when signals is empty/missing.
-(function () {
+
+// =====================================================
+// SIGNALS (backend-only)
+// - Source of truth: data-signals (JSON array or comma string)
+// - No sentiment, no derivation
+// =====================================================
+
+(function SignalsOnly() {
+  function normalizeSignals(signalsRaw) {
+    // Already an array
+    if (Array.isArray(signalsRaw)) {
+      return signalsRaw
+        .map(s => String(s || "").toLowerCase().trim())
+        .filter(Boolean);
+    }
+
+    const s = String(signalsRaw || "").trim();
+    if (!s) return [];
+
+    // JSON string?
+    try {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) {
+        return parsed
+          .map(x => String(x || "").toLowerCase().trim())
+          .filter(Boolean);
+      }
+    } catch (_) {}
+
+    // comma-separated string fallback
+    return s
+      .split(",")
+      .map(x => x.trim().toLowerCase())
+      .filter(Boolean);
+  }
+
   function pill(text, cls) {
     return `<span class="inline-block px-2 py-1 rounded-full font-semibold mr-1 ${cls}">${text}</span>`;
   }
 
-  // =====================================================
-// SIGNALS (single clean module)
-// - Renders pills from data-signals (preferred)
-// - Falls back to deriving from data-sentiment if signals missing/empty
-// - Supports live updates (updateChatListRow) + filtering
-// =====================================================
+  window.renderSignalsBadges = function renderSignalsBadges(el, signals) {
+    if (!el) return;
 
-// ---- normalize / derive (GLOBAL, so everyone can use them)
-function normalizeSignals(signalsRaw) {
-  if (Array.isArray(signalsRaw)) {
-    return signalsRaw
-      .map((s) => String(s || "").toLowerCase().trim())
-      .filter(Boolean);
-  }
+    const sig = normalizeSignals(signals);
+    let html = "";
 
-  const s = String(signalsRaw || "").trim();
-  if (!s) return [];
+    if (sig.includes("panicked")) html += pill("😰 Panicked", "bg-rose-100 text-rose-700");
+    if (sig.includes("angry"))    html += pill("😡 Angry",    "bg-rose-200 text-rose-900");
+    if (sig.includes("upset"))    html += pill("😟 Upset",    "bg-amber-100 text-amber-800");
+    if (sig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
+    if (sig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
 
-  // try JSON string
-  try {
-    const parsed = JSON.parse(s);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map((x) => String(x || "").toLowerCase().trim())
-        .filter(Boolean);
+    // Calm if nothing else (or explicit calm only)
+    if (sig.length === 0 || (sig.length === 1 && sig[0] === "calm")) {
+      html += pill("🙂 Calm", "bg-emerald-100 text-emerald-700");
     }
-  } catch (_) {}
 
-  // comma-separated string
-  return s
-    .split(",")
-    .map((x) => x.trim().toLowerCase())
-    .filter(Boolean);
-}
+    el.innerHTML = html || `<span class="text-slate-400">—</span>`;
+  };
 
-function deriveSignalsFromSentiment(sent) {
-  const s = String(sent || "").toLowerCase();
-  const derived = [];
-  const add = (v) => { if (!derived.includes(v)) derived.push(v); };
+  // Helper for row updates (live updates)
+  window.setSignalsBadge = function setSignalsBadge(container, signals) {
+    if (!container) return;
 
-  if (!s) return derived;
+    try {
+      container.setAttribute("data-signals", JSON.stringify(signals || []));
+    } catch {
+      container.setAttribute("data-signals", String(signals || ""));
+    }
 
-  if (s.includes("panic") || s.includes("terrified") || s.includes("scared") || s.includes("freak")) add("panicked");
-  if (s.includes("furious") || s.includes("angry") || s.includes("mad") || s.includes("pissed")) add("angry");
-  if (s.includes("upset") || s.includes("unhappy") || s.includes("frustrat") || s.includes("annoy")) add("upset");
-  if (s.includes("confus") || s.includes("unclear") || s.includes("not sure") || s.includes("dont understand") || s.includes("don't understand")) add("confused");
-  if (s.includes("worr") || s.includes("concern") || s.includes("anx") || s.includes("stress") || s.includes("nervous")) add("worried");
+    window.renderSignalsBadges(container, signals || []);
+  };
 
-  if (derived.length === 0 && (s === "negative" || s.includes("negative"))) add("upset");
-  return derived;
-}
-
-// ---- renderer
-function _signalsPill(text, cls) {
-  return `<span class="inline-block px-2 py-1 rounded-full font-semibold mr-1 ${cls}">${text}</span>`;
-}
-
-window.renderSignalsBadges = function renderSignalsBadges(el, signals, sentiment) {
-  if (!el) return;
-
-  const sig = normalizeSignals(signals);
-  const sent = String(sentiment || "").trim();
-
-  // Source of truth = signals array if present, else derive from sentiment
-  const finalSig = sig.length ? sig : deriveSignalsFromSentiment(sent);
-
-  let html = "";
-  if (finalSig.includes("panicked")) html += _signalsPill("😰 Panicked", "bg-rose-100 text-rose-700");
-  if (finalSig.includes("angry"))    html += _signalsPill("😡 Angry",    "bg-rose-200 text-rose-900");
-  if (finalSig.includes("upset"))    html += _signalsPill("😟 Upset",    "bg-amber-100 text-amber-800");
-  if (finalSig.includes("confused")) html += _signalsPill("😕 Confused", "bg-blue-100 text-blue-700");
-  if (finalSig.includes("worried"))  html += _signalsPill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
-
-  if (finalSig.length === 0 || (finalSig.length === 1 && finalSig[0] === "calm")) {
-    html += _signalsPill("🙂 Calm", "bg-emerald-100 text-emerald-700");
+  function rerenderAllSignalsBadges(root = document) {
+    root.querySelectorAll("[data-signals-badge]").forEach((el) => {
+      const raw = el.getAttribute("data-signals") || "[]";
+      let parsed = [];
+      try { parsed = JSON.parse(raw); } catch { parsed = raw; }
+      window.renderSignalsBadges(el, parsed);
+    });
   }
 
-  el.innerHTML = html || `<span class="text-slate-400">—</span>`;
-};
+  document.addEventListener("DOMContentLoaded", () => rerenderAllSignalsBadges());
+})();
 
-// ---- helper to set + render (used by updateChatListRow)
-function setSignalsBadge(container, signals, sentiment) {
-  if (!container) return;
 
-  // keep DOM attrs in sync (so filtering works)
-  try {
-    container.setAttribute("data-signals", JSON.stringify(signals || []));
-  } catch {
-    container.setAttribute("data-signals", String(signals || ""));
-  }
-  container.setAttribute("data-sentiment", String(sentiment || ""));
-
-  window.renderSignalsBadges(container, signals || [], sentiment || "");
-}
-
-// ---- utility for filters
-window.getSignalsForEl = function getSignalsForEl(el) {
-  if (!el) return [];
-
-  const rawSignalsAttr = el.getAttribute("data-signals") || "[]";
-  const sentimentAttr = el.getAttribute("data-sentiment") || "";
-
-  let parsedSignals = [];
-  try { parsedSignals = JSON.parse(rawSignalsAttr); }
-  catch { parsedSignals = rawSignalsAttr; }
-
-  const sig = normalizeSignals(parsedSignals);
-  return sig.length ? sig : deriveSignalsFromSentiment(sentimentAttr);
-};
-
-// ---- initial render pass (safe for head OR body scripts)
-function rerenderAllSignalsBadges() {
-  document.querySelectorAll("[data-signals-badge]").forEach((el) => {
-    const rawSignalsAttr = el.getAttribute("data-signals") || "[]";
-    const sentimentAttr = el.getAttribute("data-sentiment") || "";
-
-    let parsedSignals = [];
-    try { parsedSignals = JSON.parse(rawSignalsAttr); }
-    catch { parsedSignals = rawSignalsAttr; }
-
-    window.renderSignalsBadges(el, parsedSignals, sentimentAttr);
-  });
-}
-
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", rerenderAllSignalsBadges);
-} else {
-  rerenderAllSignalsBadges();
-}
 
 
 function setInlineDetailOpen(open) {
@@ -415,17 +344,7 @@ window.addEventListener("popstate", () => {
 
 
     
-// Load on entry if session_id exists
-document.addEventListener("DOMContentLoaded", () => {
-  const params = new URLSearchParams(window.location.search);
-  const sid = params.get("session_id");
-  if (sid) {
-    setInlineDetailOpen(true);
-    loadChatDetail(sid);
-  } else {
-    setInlineDetailOpen(false);
-  }
-});
+
 
 
    async function chatPostJSON(url, body) {
@@ -538,43 +457,23 @@ document.addEventListener("DOMContentLoaded", () => {
     initChatDetailHandlers(sessionId, panel);
 
     // ✅ NEW: Update the list row immediately with the latest values from the injected panel
-    const chatRoot = panel.querySelector(`[data-chat-panel="${sessionId}"]`) || panel.querySelector("[data-chat-panel]");
-    if (chatRoot) {
-      const payload = {
-        escalation_level: (chatRoot.getAttribute("data-escalation-level") || "").trim() || null,
-        is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
-        assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
-        sentiment: (chatRoot.getAttribute("data-sentiment") || "").trim() || "",
-        let signals = [];
-try {
-  signals = JSON.parse(chatRoot.getAttribute("data-signals") || "[]");
-} catch {
-  signals = [];
-}
+const chatRoot =
+  panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
+  panel.querySelector("[data-chat-panel]");
 
-const payload = {
-  escalation_level: (chatRoot.getAttribute("data-escalation-level") || "").trim() || null,
-  is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
-  assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
-  sentiment: (chatRoot.getAttribute("data-sentiment") || "").trim() || "",
-  signals,
-};
+if (chatRoot) {
+  const payload = {
+    escalation_level: (chatRoot.getAttribute("data-escalation-level") || "").trim() || null,
+    is_resolved: (chatRoot.getAttribute("data-is-resolved") || "0") === "1",
+    assigned_to: (chatRoot.getAttribute("data-assigned-to") || "").trim() || "",
+    signals: (() => {
+      const raw = chatRoot.getAttribute("data-signals") || "[]";
+      try { return JSON.parse(raw); } catch { return raw; }
+    })(),
+  };
 
-updateChatListRow(sessionId, payload);
-
-      };
-
-      // Only call if the helper exists
-      if (typeof updateChatListRow === "function") {
-        updateChatListRow(sessionId, payload);
-      }
-    }
-
-  } catch (err) {
-    // Abort is expected when switching chats quickly
-    if (err?.name === "AbortError") return;
-    console.error("loadChatDetail error:", err);
-    panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
+  if (typeof updateChatListRow === "function") {
+    updateChatListRow(sessionId, payload);
   }
 }
 
@@ -651,131 +550,11 @@ function escapeHtml(str) {
 
 
 
-function normalizeSentiment(raw) {
-  const s = String(raw || "").trim().toLowerCase();
-
-  // map synonyms -> your UI buckets
-  if (["angry", "mad", "furious", "irate"].includes(s)) return "angry";
-  if (["happy", "positive", "pleased", "great"].includes(s)) return "happy";
-  if (["upset", "negative", "unhappy", "frustrated"].includes(s)) return "upset";
-  if (["concern", "concerned"].includes(s)) return "concerned";
-  if (["worried", "anxious", "nervous"].includes(s)) return "worried";
-  if (["neutral", "ok"].includes(s)) return "neutral";
-
-  return s; // fallback (shows whatever backend sends)
-}
 
 
-/**
- * Map any raw sentiment label into a richer “human” label.
- * You can expand this over time without touching templates.
- */
-function classifySentiment(raw) {
-  const s = normalizeSentiment(raw);
 
-  // direct matches
-  if (["angry", "mad", "furious", "rage"].some(k => s.includes(k))) return "angry";
-  if (["happy", "great", "good", "excellent", "pleased", "love"].some(k => s.includes(k))) return "happy";
-  if (["upset", "frustrated", "annoyed", "irritated"].some(k => s.includes(k))) return "upset";
-  if (["worried", "anxious", "nervous", "stressed"].some(k => s.includes(k))) return "worried";
-  if (["concern", "concerned", "issue", "problem", "confused", "unclear"].some(k => s.includes(k))) return "concerned";
 
-  // fallback for common “simple” backends
-  if (["negative", "unhappy", "bad"].includes(s)) return "upset";
-  if (["positive", "good"].includes(s)) return "happy";
-  if (["neutral", "ok"].includes(s)) return "neutral";
 
-  // If backend returns something else (e.g. "needs_attention"), show it safely
-  return "custom";
-}
-
-/**
- * Render a sentiment pill into a container.
- *
- * Works with BOTH patterns:
- *  1) container is a wrapper (<span data-sentiment-badge>...</span>)
- *     -> we replace its innerHTML with a pill
- *  2) container itself is the pill element
- *     -> we set className/textContent directly
- *
- * If the container already has a pill inside (firstElementChild),
- * we update that pill; otherwise we treat container as the target.
- */
-function renderSentimentBadge(container, rawSentiment) {
-  if (!container) return;
-
-  const s = String(rawSentiment || "").toLowerCase().trim();
-
-  // If you have a wrapper that contains an inner pill span, update the pill.
-  // Otherwise, update the container itself.
-  const target =
-    container.firstElementChild && container.firstElementChild.tagName.toLowerCase() === "span"
-      ? container.firstElementChild
-      : container;
-
-  // Helper: apply pill styling
-  function setPill(text, classes) {
-    // Ensure target is a pill span
-    if (target !== container && target.tagName.toLowerCase() === "span") {
-      // ok
-    } else if (target === container) {
-      // if container is not a span, just replace its HTML with a span pill
-      if (container.tagName.toLowerCase() !== "span") {
-        container.innerHTML = `<span class="${classes}">${escapeHtml(text)}</span>`;
-        return;
-      }
-    }
-
-    target.className = classes;
-    target.textContent = text;
-  }
-
-  // Empty / unknown
-  if (!s) {
-    // If wrapper, keep it simple
-    if (target !== container) {
-      container.innerHTML = `<span class="text-slate-400">—</span>`;
-      return;
-    }
-    container.className = "text-slate-400";
-    container.textContent = "—";
-    return;
-  }
-
-  // Buckets
-  if (["angry", "mad", "furious", "hostile", "irate"].some(k => s.includes(k))) {
-    setPill("😡 Angry", "px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold");
-    return;
-  }
-
-  if (["upset", "frustrated", "annoyed", "unhappy", "negative"].some(k => s.includes(k))) {
-    setPill("😣 Upset", "px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold");
-    return;
-  }
-
-  if (["worried", "anxious", "nervous", "stressed", "stress"].some(k => s.includes(k))) {
-    setPill("😰 Worried", "px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold");
-    return;
-  }
-
-  if (["concern", "concerned", "issue", "problem", "confused", "unclear"].some(k => s.includes(k))) {
-    setPill("😟 Concerned", "px-2 py-1 rounded-full bg-indigo-100 text-indigo-800 font-semibold");
-    return;
-  }
-
-  if (["happy", "positive", "pleased", "delighted", "great", "good", "love"].some(k => s.includes(k))) {
-    setPill("😊 Happy", "px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold");
-    return;
-  }
-
-  if (["neutral", "ok"].includes(s)) {
-    setPill("😐 Neutral", "px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold");
-    return;
-  }
-
-  // Fallback: show raw label safely
-  setPill(s, "px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold");
-}
 
     
 /**
@@ -804,27 +583,9 @@ function updateChatListRow(sessionId, payload = {}) {
     const asgEl = row.querySelector("[data-assigned-badge]");
     setAssignedBadge(asgEl, payload.assigned_to);
   }
-  
-  // ✅ NEW: signals live update
-if (
-  Object.prototype.hasOwnProperty.call(payload, "signals") ||
-  Object.prototype.hasOwnProperty.call(payload, "sentiment")
-) {
+  if (Object.prototype.hasOwnProperty.call(payload, "signals")) {
   const sigEl = row.querySelector("[data-signals-badge]");
-  if (sigEl && typeof window.renderSignalsBadges === "function") {
-    // keep DOM attrs as source-of-truth
-    if (Object.prototype.hasOwnProperty.call(payload, "signals")) {
-      sigEl.setAttribute("data-signals", JSON.stringify(payload.signals || []));
-    }
-    if (Object.prototype.hasOwnProperty.call(payload, "sentiment")) {
-      sigEl.setAttribute("data-sentiment", payload.sentiment || "");
-    }
-
-    const computed = window.getSignalsForEl ? window.getSignalsForEl(sigEl) : [];
-    window.renderSignalsBadges(sigEl, computed, sigEl.getAttribute("data-sentiment") || "");
-  }
-}
-
+  window.setSignalsBadge?.(sigEl, payload.signals || []);
 }
 
 
@@ -2619,29 +2380,36 @@ function initRouting() {
   // ----------------------------
 // DOM ready (single, clean)
 // ----------------------------
-document.addEventListener("DOMContentLoaded", () => {
+
+document.addEventListener("DOMContentLoaded", async () => {
+  // 1) Core shell
   initSidebar();
   initRouting();
 
-  // Hook property filters
+  // 2) Property filters
   document.getElementById("searchInput")?.addEventListener("input", filterProperties);
   document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
 
-  // Guides / Upgrades dropdowns
+  // 3) Guides / Upgrades dropdowns
   document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
   document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
     Upgrades.closeEditor();
     Upgrades.refresh();
   });
 
-  // Chart init (run after DOM is ready)
-  const ctx = document.getElementById("statusChart");
-  if (ctx && window.Chart) {
-    statusChartInstance = new Chart(ctx, {
+  // 4) Overview chart init (after DOM exists)
+  const statusCanvas = document.getElementById("statusChart");
+  if (statusCanvas && window.Chart) {
+    statusChartInstance = new Chart(statusCanvas, {
       type: "bar",
       data: {
         labels: ["LIVE", "OFFLINE"],
-       datasets: [{ label: "Properties", data: [Number(BOOT.live_props || 0), Number(BOOT.offline_props || 0)] }],
+        datasets: [
+          {
+            label: "Properties",
+            data: [Number(BOOT.live_props || 0), Number(BOOT.offline_props || 0)],
+          },
+        ],
       },
       options: {
         responsive: true,
@@ -2651,11 +2419,23 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-/*document.querySelectorAll("[data-sentiment-badge]").forEach((el) => {
-  renderSentimentBadge(el, el.getAttribute("data-sentiment"));
-});*/
-
-
-
+  // 5) Render overview counters immediately
   updateOverviewUI();
+
+  // 6) If URL has session_id, open inline chat detail
+  const params = new URLSearchParams(window.location.search);
+  const sid = params.get("session_id");
+  if (sid) {
+    setInlineDetailOpen(true);
+    await loadChatDetail(sid);
+  } else {
+    setInlineDetailOpen(false);
+  }
+
+  // 7) (Optional) If analytics view is currently visible on load, render it once
+  if (typeof isAnalyticsVisible === "function" && isAnalyticsVisible()) {
+    const days = document.getElementById("analyticsRange")?.value || 30;
+    loadChatAnalytics(days);
+    resizeChatAnalyticsChartSoon();
+  }
 });
