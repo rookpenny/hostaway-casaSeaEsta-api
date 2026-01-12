@@ -97,6 +97,13 @@
             </span>
           </div>
         </div>
+<div class="flex flex-wrap gap-1 mt-1">
+  <span
+    data-signals-badge
+    data-signals='{{ (session.signals or []) | tojson }}'
+    class="inline-flex"
+  ></span>
+</div>
 
         <!-- RIGHT: Status + actions -->
         <div class="flex flex-wrap items-center gap-2 justify-start md:justify-end">
