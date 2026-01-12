@@ -1567,17 +1567,26 @@
     </main>
   </div>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
 
- <script id="dashboard-bootstrap" type="application/json"></script>
-<script>
+<script id="dashboard-bootstrap" type="application/json">
 {
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
   "live_props": {{ live_props | tojson }},
   "offline_props": {{ offline_props | tojson }},
   "user_role": {{ user_role | tojson }}
 }
+</script>
+
+<script>
+  // Optional: read bootstrap data if you need it
+  const BOOTSTRAP = (() => {
+    const el = document.getElementById("dashboard-bootstrap");
+    if (!el) return {};
+    try { return JSON.parse(el.textContent || "{}"); }
+    catch (e) { console.warn("Bad dashboard-bootstrap JSON", e); return {}; }
+  })();
 
   // Render "Signals" pills.
   // Source of truth = data-signals (backend).
@@ -1588,11 +1597,6 @@
     }
 
     function normalizeSignals(signalsRaw) {
-      // signalsRaw may be:
-      // - an Array (ideal)
-      // - a JSON string like '["angry"]'
-      // - a comma-separated string like 'angry,worried'
-      // - null/undefined
       if (Array.isArray(signalsRaw)) {
         return signalsRaw
           .map(s => String(s || "").toLowerCase().trim())
@@ -1602,7 +1606,6 @@
       const s = String(signalsRaw || "").trim();
       if (!s) return [];
 
-      // Try JSON parse first
       try {
         const parsed = JSON.parse(s);
         if (Array.isArray(parsed)) {
@@ -1612,7 +1615,6 @@
         }
       } catch (_) {}
 
-      // Fallback: comma-separated
       return s
         .split(",")
         .map(x => x.trim().toLowerCase())
@@ -1621,21 +1623,16 @@
 
     function deriveSignalsFromSentiment(sent) {
       const s = String(sent || "").toLowerCase();
-
       const derived = [];
       const add = (v) => { if (!derived.includes(v)) derived.push(v); };
-
       if (!s) return derived;
 
-      // Strong signals
       if (s.includes("panic") || s.includes("terrified") || s.includes("scared to") || s.includes("freak")) add("panicked");
       if (s.includes("furious") || s.includes("angry") || s.includes("mad") || s.includes("pissed")) add("angry");
       if (s.includes("upset") || s.includes("unhappy") || s.includes("frustrat") || s.includes("annoy")) add("upset");
       if (s.includes("confus") || s.includes("unclear") || s.includes("not sure") || s.includes("dont understand") || s.includes("don't understand")) add("confused");
       if (s.includes("worr") || s.includes("concern") || s.includes("anx") || s.includes("stress") || s.includes("nervous")) add("worried");
 
-      // If your model returns labels like "negative"/"positive" without keywords:
-      // treat "negative" as at least "upset" unless you prefer a different mapping.
       if (derived.length === 0 && (s === "negative" || s.includes("negative"))) add("upset");
 
       return derived;
@@ -1656,7 +1653,6 @@
       if (finalSig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
       if (finalSig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
 
-      // Calm rule: empty OR only "calm"
       if (finalSig.length === 0 || (finalSig.length === 1 && finalSig[0] === "calm")) {
         html += pill("🙂 Calm", "bg-emerald-100 text-emerald-700");
       }
@@ -1669,13 +1665,11 @@
         const rawSignalsAttr = el.getAttribute("data-signals") || "[]";
         const sentimentAttr = el.getAttribute("data-sentiment") || "";
 
-        // data-signals is a JSON string in an HTML attribute
-        // (we still normalize it in case it isn't valid JSON)
         let parsedSignals = [];
         try {
           parsedSignals = JSON.parse(rawSignalsAttr);
         } catch (_) {
-          parsedSignals = rawSignalsAttr; // normalizeSignals can handle it
+          parsedSignals = rawSignalsAttr;
         }
 
         window.renderSignalsBadges(el, parsedSignals, sentimentAttr);
