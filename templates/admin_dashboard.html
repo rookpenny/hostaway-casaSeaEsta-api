@@ -981,7 +981,7 @@
                           <span
                             data-signals-badge
                             data-signals='{{ s.signals | tojson }}'
-                            data-sentiment='{{ (s.last_sentiment or "") | e }}'
+                            data-sentiment='{{ (s.sentiment or s.last_sentiment or s.sentiment_label or "") | e }}'
                           ></span>
                         </td>
 
