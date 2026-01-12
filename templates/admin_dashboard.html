@@ -1013,8 +1013,8 @@
                 
                   <span
                     data-signals-badge
-                    data-signals='{{ sig | tojson }}'
-                    data-sentiment="{{ sent|e }}"
+                    data-signals='{{ (s.signals or []) | tojson }}'
+                    data-sentiment='{{ (s.sentiment or s.sentiment_label or s.sentiment_status or "") | e }}'
                   ></span>
                 </td>
 
