@@ -377,10 +377,10 @@ document.addEventListener("DOMContentLoaded", () => {
     function initChatDetailHandlers(sessionId, panelEl) {
   const $ = (sel) => panelEl.querySelector(sel);
 
-  const summaryBtn = $("#summary-btn");
+  //const summaryBtn = $("#summary-btn");
   const summaryBox = $("#summary-box");
 
-  summaryBtn?.addEventListener("click", async () => {
+  /*summaryBtn?.addEventListener("click", async () => {
   summaryBtn.disabled = true;
   summaryBtn.textContent = "Generating…";
 
@@ -389,7 +389,7 @@ document.addEventListener("DOMContentLoaded", () => {
       method: "POST",
       credentials: "include",
       headers: { Accept: "application/json" },
-    });
+    });*/
 
     if (res.status === 401 || res.status === 403) return loginRedirect();
 
