@@ -787,21 +787,25 @@
                 <option value="post_stay" {% if filters.status=="post_stay" %}selected{% endif %}>Post-stay</option>
               </select>
 
-              <select name="priority" class="border rounded-xl px-2 py-2 text-sm">
-                <option value="">All priorities</option>
-                <option></option>
-                <option></option>
-            </select>
+              <!-- ✅ Priorities filter -->
+              <select name="action_priority" class="border rounded-xl px-2 py-2 text-sm">
+                <option value="">All action priorities</option>
+                <option value="urgent" {% if filters.action_priority=="urgent" %}selected{% endif %}>Urgent</option>
+                <option value="high" {% if filters.action_priority=="high" %}selected{% endif %}>High</option>
+                <option value="normal" {% if filters.action_priority=="normal" %}selected{% endif %}>Normal</option>
+                <option value="low" {% if filters.action_priority=="low" %}selected{% endif %}>Low</option>
+              </select>
+
 
               <!-- ✅ Signals filter -->
-              <select id="signalsFilter" name="signals_filter" class="border rounded-xl px-2 py-2 text-sm">
-                <option value="" {% if not filters.signals_filter %}selected{% endif %}>All signals</option>
-                <option value="panicked" {% if filters.signals_filter=="panicked" %}selected{% endif %}>😰 Panicked</option>
-                <option value="angry" {% if filters.signals_filter=="angry" %}selected{% endif %}>😡 Angry</option>
-                <option value="upset" {% if filters.signals_filter=="upset" %}selected{% endif %}>😟 Upset</option>
-                <option value="confused" {% if filters.signals_filter=="confused" %}selected{% endif %}>😕 Confused</option>
-                <option value="worried" {% if filters.signals_filter=="worried" %}selected{% endif %}>🥺 Worried</option>
-                <option value="calm" {% if filters.signals_filter=="calm" %}selected{% endif %}>🙂 Calm</option>
+              <select id="moodFilter" name="emotional_signals_filter" class="border rounded-xl px-2 py-2 text-sm">
+                <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>All guest moods</option>
+                <option value="panicked" {% if filters.emotional_signals_filter=="panicked" %}selected{% endif %}>😰 Panicked</option>
+                <option value="angry" {% if filters.emotional_signals_filter=="angry" %}selected{% endif %}>😡 Angry</option>
+                <option value="upset" {% if filters.emotional_signals_filter=="upset" %}selected{% endif %}>😟 Upset</option>
+                <option value="confused" {% if filters.emotional_signals_filter=="confused" %}selected{% endif %}>😕 Confused</option>
+                <option value="worried" {% if filters.emotional_signals_filter=="worried" %}selected{% endif %}>🥺 Worried</option>
+                <option value="calm" {% if filters.emotional_signals_filter=="calm" %}selected{% endif %}>🙂 Calm</option>
               </select>
 
 
@@ -849,14 +853,14 @@
                 <table class="min-w-full text-sm">
                   <thead class="bg-slate-50">
                     <tr>
+                      <th class="px-4 py-3 text-left">Team Escalation</th>
+                      <th class="px-4 py-3 text-left">Action Priority</th>
+                      <th class="px-4 py-3 text-left">Guest Mood</th>
                       <th class="px-4 py-3 text-left">Property</th>
                       <th class="px-4 py-3 text-left">Guest</th>
                       <th class="px-4 py-3 text-left">Assigned</th>
                       <th class="px-4 py-3 text-left">Stage</th>
-                      <th class="px-4 py-3 text-left">Priority</th>
-                      <th class="px-4 py-3 text-left">Escalation</th>
                       <th class="px-4 py-3 text-left">Status</th>
-                      <th class="px-4 py-3 text-left">Signals</th>
                       <th class="px-4 py-3 text-left">Last</th>
                     </tr>
                   </thead>
@@ -928,55 +932,43 @@
 
                         <!-- Priority -->
                         <td class="px-4 py-3 text-xs">
-                          {% set pri = (s.priority or "")|lower %}
-                          {% set sent = (s.sentiment or s.sentiment_label or s.sentiment_status or "")|lower %}
-                          {% set esc = (s.escalation_level or "")|lower %}
-
-                          {% set is_urgent = (s.is_urgent if s.is_urgent is not none else (pri == "urgent" or esc in ["critical","high"])) %}
-                          {% set is_unhappy = (s.is_unhappy if s.is_unhappy is not none else (pri == "unhappy" or sent in ["negative","unhappy","bad"])) %}
-
-                          <div class="flex flex-wrap gap-1">
-                            {% if is_urgent %}
-                              <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔥 Urgent</span>
-                            {% endif %}
-                            {% if is_unhappy %}
-                              <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😟 Unhappy</span>
-                            {% endif %}
-                            {% if not is_urgent and not is_unhappy %}
-                              <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">🕰 Routine</span>
-                            {% endif %}
-                          </div>
+                          {% set ap = (s.action_priority or "")|lower %}
+                          <span class="px-2 py-1 rounded-full font-semibold
+                            {% if ap == 'urgent' %}bg-rose-100 text-rose-800
+                            {% elif ap == 'high' %}bg-orange-100 text-orange-800
+                            {% elif ap == 'normal' %}bg-blue-100 text-blue-800
+                            {% elif ap == 'low' %}bg-slate-100 text-slate-700
+                            {% else %}text-slate-400{% endif %}">
+                            {% if ap == 'urgent' %}🔴 Urgent
+                            {% elif ap == 'high' %}🟠 High
+                            {% elif ap == 'normal' %}🔵 Normal
+                            {% elif ap == 'low' %}⚪ Low
+                            {% else %}—{% endif %}
+                          </span>
                         </td>
+
 
                         <!-- Escalation -->
                         <td class="px-4 py-3 text-xs">
-                          {% set esc = (s.escalation_level or "")|lower %}
-                          <span
-                            data-escalation-badge
-                            data-escalation-level="{{ esc }}"
-                            class="px-2 py-1 rounded-full font-semibold
-                              {% if esc in ['critical','high'] %}
-                                bg-rose-100 text-rose-800
-                              {% elif esc in ['attention','medium'] %}
-                                bg-amber-100 text-amber-800
-                              {% elif esc %}
-                                bg-blue-100 text-blue-800
-                              {% else %}
-                                text-slate-400
-                              {% endif %}
-                            "
-                          >
-                            {% if esc in ['critical','high'] %}
-                              🔴 High
-                            {% elif esc in ['attention','medium'] %}
-                              🟡 Medium
-                            {% elif esc %}
-                              🟢 Low
-                            {% else %}
-                              —
-                            {% endif %}
-                          </span>
-                        </td>
+                            {% set esc_raw = (s.escalation_level or "")|lower %}
+                            {% set esc = "high" if esc_raw in ["critical","high"] else ("medium" if esc_raw in ["attention","medium"] else ("low" if esc_raw in ["low"] else "")) %}
+                          
+                            <span
+                              data-escalation-badge
+                              data-escalation-level="{{ esc }}"
+                              class="px-2 py-1 rounded-full font-semibold
+                                {% if esc == 'high' %}bg-rose-100 text-rose-800
+                                {% elif esc == 'medium' %}bg-amber-100 text-amber-800
+                                {% elif esc == 'low' %}bg-slate-100 text-slate-700
+                                {% else %}text-slate-400{% endif %}"
+                            >
+                              {% if esc == 'high' %}🔴 High
+                              {% elif esc == 'medium' %}🟡 Medium
+                              {% elif esc == 'low' %}⚪ Low
+                              {% else %}—{% endif %}
+                            </span>
+                          </td>
+
 
                        
                         <!-- Open/Closed -->
@@ -993,12 +985,11 @@
                         <!-- Signals -->
                         <td class="px-4 py-3 text-xs">
                           <span
-                            data-signals-badge
-                            data-signals='{{ (s.signals or []) | tojson }}'
+                            data-mood-badge
+                            data-emotional-signals='{{ (s.emotional_signals or []) | tojson }}'
                           >
                             <span class="text-slate-400">—</span>
                           </span>
-
                         </td>
 
                         <!-- Last -->
