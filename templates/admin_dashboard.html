@@ -991,8 +991,7 @@
                         <td class="px-4 py-3 text-xs">
                           <span
                             data-signals-badge
-                            data-signals='{{ s.signals | tojson }}'
-                            data-sentiment='{{ (s.sentiment or s.last_sentiment or s.sentiment_label or "") | e }}'
+                            data-signals='{{ (s.signals or []) | tojson }}'
                           ></span>
                         </td>
 
