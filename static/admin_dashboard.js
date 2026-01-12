@@ -16,13 +16,13 @@ window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 
 
 
-
-// ✅ Expose helpers for other parts of the dashboard (filters / live updates)
-window.getSignalsForEl = function getSignalsForEl(el) {
+// ✅ Expose helpers (Guest Mood / emotional_signals)
+window.getMoodForEl = function getMoodForEl(el) {
   if (!el) return [];
-  const raw = el.getAttribute("data-signals") || "[]";
-  return normalizeSignals(raw);
+  const raw = el.getAttribute("data-emotional-signals") || "[]";
+  return window.normalizeEmotionalSignals?.(raw) || [];
 };
+
 
 
 
@@ -34,65 +34,57 @@ window.getSignalsForEl = function getSignalsForEl(el) {
 // - No sentiment, no derivation
 // =====================================================
 
-(function SignalsOnly() {
- function normalizeSignals(signalsRaw) {
-  // Already an array
-  if (Array.isArray(signalsRaw)) {
-    return signalsRaw
-      .map(s => String(s || "").toLowerCase().trim())
-      .filter(Boolean);
-  }
-
-  let s = String(signalsRaw ?? "").trim();
-  if (!s) return [];
-
-  // Guard common "empty" strings
-  const lower = s.toLowerCase();
-  if (lower === "none" || lower === "null" || lower === "undefined") return [];
-
-  // JSON string?
-  try {
-    const parsed = JSON.parse(s);
-    if (Array.isArray(parsed)) {
-      return parsed
-        .map(x => String(x || "").toLowerCase().trim())
-        .filter(Boolean);
+// =====================================================
+// GUEST MOOD (emotional_signals) — backend-derived only
+// Source of truth: data-emotional-signals (JSON array or comma string)
+// =====================================================
+(function GuestMoodOnly() {
+  function normalizeEmotionalSignals(signalsRaw) {
+    if (Array.isArray(signalsRaw)) {
+      return signalsRaw.map(s => String(s || "").toLowerCase().trim()).filter(Boolean);
     }
-    // if backend sends a single string via JSON: "confused"
-    if (typeof parsed === "string") {
-      s = parsed.trim();
-    }
-  } catch (_) {}
 
-  // Python-ish list string?  ['a', 'b']  ->  ["a","b"]
-  if (s.startsWith("[") && s.endsWith("]") && s.includes("'")) {
+    let s = String(signalsRaw ?? "").trim();
+    if (!s) return [];
+
+    const lower = s.toLowerCase();
+    if (lower === "none" || lower === "null" || lower === "undefined") return [];
+
+    // JSON string?
     try {
-      const coerced = s.replace(/'/g, '"');
-      const parsed2 = JSON.parse(coerced);
-      if (Array.isArray(parsed2)) {
-        return parsed2
-          .map(x => String(x || "").toLowerCase().trim())
-          .filter(Boolean);
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed)) {
+        return parsed.map(x => String(x || "").toLowerCase().trim()).filter(Boolean);
       }
+      if (typeof parsed === "string") s = parsed.trim();
     } catch (_) {}
+
+    // Python-ish list string?
+    if (s.startsWith("[") && s.endsWith("]") && s.includes("'")) {
+      try {
+        const coerced = s.replace(/'/g, '"');
+        const parsed2 = JSON.parse(coerced);
+        if (Array.isArray(parsed2)) {
+          return parsed2.map(x => String(x || "").toLowerCase().trim()).filter(Boolean);
+        }
+      } catch (_) {}
+    }
+
+    // comma-separated fallback
+    return s.split(",").map(x => x.trim().toLowerCase()).filter(Boolean);
   }
 
-  // comma-separated fallback (also handles plain single value)
-  return s
-    .split(",")
-    .map(x => x.trim().toLowerCase())
-    .filter(Boolean);
-}
-
+  // Expose normalizer for other modules
+  window.normalizeEmotionalSignals = normalizeEmotionalSignals;
 
   function pill(text, cls) {
     return `<span class="inline-block px-2 py-1 rounded-full font-semibold mr-1 ${cls}">${text}</span>`;
   }
 
-  window.renderSignalsBadges = function renderSignalsBadges(el, signals) {
+  window.renderMoodBadges = function renderMoodBadges(el, emotionalSignals) {
     if (!el) return;
 
-    const sig = normalizeSignals(signals);
+    const sig = normalizeEmotionalSignals(emotionalSignals);
     let html = "";
 
     if (sig.includes("panicked")) html += pill("😰 Panicked", "bg-rose-100 text-rose-700");
@@ -101,44 +93,38 @@ window.getSignalsForEl = function getSignalsForEl(el) {
     if (sig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
     if (sig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
 
-    // Show Calm ONLY if explicitly present
+    // Calm only if explicitly present
     if (sig.includes("calm")) {
       html += pill("🙂 Calm", "bg-emerald-100 text-emerald-700");
     }
-    
-    // If nothing to show, render dash
-    if (!html) {
-      el.innerHTML = `<span class="text-slate-400">—</span>`;
-      return;
-    }
-
 
     el.innerHTML = html || `<span class="text-slate-400">—</span>`;
   };
 
-  // Helper for row updates (live updates)
-  window.setSignalsBadge = function setSignalsBadge(container, signals) {
+  window.setMoodBadge = function setMoodBadge(container, emotionalSignals) {
     if (!container) return;
 
     try {
-      container.setAttribute("data-signals", JSON.stringify(signals || []));
+      container.setAttribute("data-emotional-signals", JSON.stringify(emotionalSignals || []));
     } catch {
-      container.setAttribute("data-signals", String(signals || ""));
+      container.setAttribute("data-emotional-signals", String(emotionalSignals || ""));
     }
 
-    window.renderSignalsBadges(container, signals || []);
+    window.renderMoodBadges(container, emotionalSignals || []);
   };
 
-  function rerenderAllSignalsBadges(root = document) {
-    root.querySelectorAll("[data-signals-badge]").forEach((el) => {
-      const raw = el.getAttribute("data-signals") || "[]";
+  function rerenderAllMoodBadges(root = document) {
+    root.querySelectorAll("[data-mood-badge]").forEach((el) => {
+      const raw = el.getAttribute("data-emotional-signals") || "[]";
       let parsed = [];
       try { parsed = JSON.parse(raw); } catch { parsed = raw; }
-      window.renderSignalsBadges(el, parsed);
+      window.renderMoodBadges(el, parsed);
     });
   }
-  window.rerenderAllSignalsBadges = rerenderAllSignalsBadges;
+
+  window.rerenderAllMoodBadges = rerenderAllMoodBadges;
 })();
+
 
 
 
@@ -482,17 +468,16 @@ async function loadChatDetail(sessionId) {
       panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
       panel.querySelector("[data-chat-panel]");
 
-    // --- Signals: hydrate detail signals from list row (source of truth) ---
-    // Read signals from the LIST row badge (it’s correct before click)
-    const listSigEl = document.querySelector(
-      `[data-session-row="${sessionId}"] [data-signals-badge]`
+    // --- Guest Mood: hydrate detail mood from list row (source of truth) ---
+    const listMoodEl = document.querySelector(
+      `[data-session-row="${sessionId}"] [data-mood-badge]`
     );
-    const listRawSignals = (listSigEl?.getAttribute("data-signals") || "").trim();
-
+    const listRawMood = (listMoodEl?.getAttribute("data-emotional-signals") || "").trim();
+    
     // Detail badge element (inside injected partial)
-    const detailSigEl = panel.querySelector("[data-signals-badge]");
-
-    const isEmptySignalsAttr = (raw) => {
+    const detailMoodEl = panel.querySelector("[data-mood-badge]");
+    
+    const isEmptyAttr = (raw) => {
       const s = String(raw || "").trim();
       if (!s) return true;
       const lower = s.toLowerCase();
@@ -500,30 +485,26 @@ async function loadChatDetail(sessionId) {
       if (s === "[]") return true;
       return false;
     };
-
-    // If detail badge exists but has empty/missing signals, copy from list
-    if (detailSigEl && listRawSignals) {
-      const current = detailSigEl.getAttribute("data-signals");
-      if (isEmptySignalsAttr(current)) {
-        detailSigEl.setAttribute("data-signals", listRawSignals);
+    
+    // If detail badge exists but has empty/missing mood, copy from list
+    if (detailMoodEl && listRawMood) {
+      const current = detailMoodEl.getAttribute("data-emotional-signals");
+      if (isEmptyAttr(current)) {
+        detailMoodEl.setAttribute("data-emotional-signals", listRawMood);
       }
     }
-
-    // Also ensure chatRoot carries signals if it’s empty (helps other logic)
-    if (chatRoot && listRawSignals) {
-      const rootSignals = chatRoot.getAttribute("data-signals");
-      if (isEmptySignalsAttr(rootSignals)) {
-        chatRoot.setAttribute("data-signals", listRawSignals);
+    
+    // Also ensure chatRoot carries mood if empty (helps other logic)
+    if (chatRoot && listRawMood) {
+      const rootMood = chatRoot.getAttribute("data-emotional-signals");
+      if (isEmptyAttr(rootMood)) {
+        chatRoot.setAttribute("data-emotional-signals", listRawMood);
       }
     }
+    
+    // Render mood badges after hydration
+    window.rerenderAllMoodBadges?.(panel);
 
-    // Debug (optional)
-    const badgeCount = panel.querySelectorAll("[data-signals-badge]").length;
-    console.log("Injected chat detail. signals badge count =", badgeCount);
-    console.log("detail badge data-signals =", detailSigEl?.getAttribute("data-signals"));
-
-    // Render signals badges after hydration
-    window.rerenderAllSignalsBadges?.(panel);
 
     // Bind buttons etc
     initChatDetailHandlers(sessionId, panel);
@@ -657,10 +638,11 @@ function updateChatListRow(sessionId, payload = {}) {
     const asgEl = row.querySelector("[data-assigned-badge]");
     setAssignedBadge(asgEl, payload.assigned_to);
   }
-  if (Object.prototype.hasOwnProperty.call(payload, "signals")) {
-  const sigEl = row.querySelector("[data-signals-badge]");
-  window.setSignalsBadge?.(sigEl, payload.signals || []);
+  if (Object.prototype.hasOwnProperty.call(payload, "emotional_signals")) {
+  const moodEl = row.querySelector("[data-mood-badge]");
+  window.setMoodBadge?.(moodEl, payload.emotional_signals || []);
 }
+
 }
 
 function applyEscalationBadge(badgeEl, levelRaw) {
@@ -1127,24 +1109,22 @@ document.addEventListener("change", (e) => {
   // Properties Signal
   // ----------------------------
 
-function getSelectedSignalsFilter() {
-  const sel = document.getElementById("signalsFilter");
+function getSelectedMoodFilter() {
+  const sel = document.getElementById("moodFilter");
   return sel ? String(sel.value || "").toLowerCase().trim() : "";
 }
 
-function getRowSignals(row) {
-  // Prefer row-level signals if present
-  const rowRaw = row.getAttribute("data-signals");
-
-  // Fallback to badge
+function getRowMood(row) {
+  const rowRaw = row.getAttribute("data-emotional-signals");
   const badgeRaw =
-    row.querySelector("[data-signals-badge]")?.getAttribute("data-signals");
+    row.querySelector("[data-mood-badge]")?.getAttribute("data-emotional-signals");
 
   const raw = rowRaw ?? badgeRaw ?? "[]";
 
   try {
-    return Array.isArray(JSON.parse(raw))
-      ? JSON.parse(raw).map(s => String(s).toLowerCase())
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed)
+      ? parsed.map(s => String(s).toLowerCase())
       : [];
   } catch {
     return String(raw)
@@ -1155,19 +1135,23 @@ function getRowSignals(row) {
 }
 
 function applyChatsFilters() {
-  const selectedSignal = getSelectedSignalsFilter();
+  const selected = getSelectedMoodFilter();
   const rows = document.querySelectorAll("[data-session-row]");
 
   rows.forEach(row => {
-    if (!selectedSignal) {
+    if (!selected) {
       row.style.display = "";
       return;
     }
-
-    const signals = getRowSignals(row);
-    row.style.display = signals.includes(selectedSignal) ? "" : "none";
+    const mood = getRowMood(row);
+    row.style.display = mood.includes(selected) ? "" : "none";
   });
 }
+
+// Optional: instant filtering on change
+document.addEventListener("change", (e) => {
+  if (e.target?.id === "moodFilter") applyChatsFilters();
+});
 
 
   // ----------------------------
@@ -2510,7 +2494,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSidebar();
   initRouting();
 
-  window.rerenderAllSignalsBadges?.();
+  window.rerenderAllMoodBadges?.();
 
   // 2) Property filters
   document.getElementById("searchInput")?.addEventListener("input", filterProperties);
