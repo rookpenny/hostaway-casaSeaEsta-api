@@ -21,8 +21,9 @@ window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 window.getSignalsForEl = function getSignalsForEl(el) {
   if (!el) return [];
   const raw = el.getAttribute("data-signals") || "[]";
-  return (window.normalizeSignals ? window.normalizeSignals(raw) : []);
+  return normalizeSignals(raw);
 };
+
 
 
 
