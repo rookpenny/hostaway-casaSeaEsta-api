@@ -25,15 +25,29 @@
           </div>
 
           <div>
-            {% if session.reservation_status == "active" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">🏖 Active</span>
-            {% elif session.reservation_status == "pre_booking" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">💬 Pre-booking</span>
-            {% elif session.reservation_status == "post_stay" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">📬 Post-stay</span>
-            {% else %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">Unknown</span>
-            {% endif %}
+            {% set rs = (session.reservation_status or '') | lower %}
+
+{% if rs == "active" %}
+  <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">
+    🏖 Active
+  </span>
+
+{% elif rs == "pre_booking" %}
+  <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
+    💬 Pre-booking
+  </span>
+
+{% elif rs == "post_stay" %}
+  <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">
+    📬 Post-stay
+  </span>
+
+{% else %}
+  <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">
+    Unknown
+  </span>
+{% endif %}
+
 
             <span
               id="resolved-pill"
@@ -51,15 +65,17 @@
             <span
               id="escalation-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if session.escalation_level == 'high' %}
+                {% set esc = (session.escalation_level or '')|lower %}
+                {% if esc in ['critical','high'] %}
                   bg-rose-100 text-rose-800
-                {% elif session.escalation_level == 'medium' %}
+                {% elif esc in ['attention','medium'] %}
                   bg-amber-100 text-amber-800
-                {% elif session.escalation_level == 'low' %}
+                {% elif esc == 'low' %}
                   bg-blue-100 text-blue-800
                 {% else %}
                   bg-slate-100 text-slate-500
                 {% endif %}
+
               "
             >
               {% if session.escalation_level %}
@@ -225,7 +241,7 @@
         data-toggle-body="summary"
         data-chat-id="{{ session.id }}"
       >
-        <div id="summary-box" class="text-sm text-slate-800 whitespace-pre-wrap">
+        <div id="summary-box" data-summary-box class="text-sm text-slate-800 whitespace-pre-wrap">
           {% if session.ai_summary %}
             {{ session.ai_summary }}
           {% else %}
