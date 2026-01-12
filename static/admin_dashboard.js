@@ -77,8 +77,8 @@ window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 
     const sig = normalizeSignals(signals);
     const sent = String(sentiment || "").trim();
-    //const finalSig = (sig.length ? sig : deriveSignalsFromSentiment(sent));
-    const finalSig = sig;
+   const finalSig = (sig.length ? sig : deriveSignalsFromSentiment(sent));
+    //const finalSig = sig;
     
     let html = "";
 
