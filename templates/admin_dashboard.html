@@ -791,16 +791,17 @@
                 <option value="unhappy" {% if filters.priority=="unhappy" %}selected{% endif %}>😟 Unhappy only</option>
               </select>
 
-              <!-- ✅ ADDED: Signals filter -->
-              <select id="signalsFilter" name="signals" class="border rounded-xl px-2 py-2 text-sm">
-                <option value="" {% if not filters.signals %}selected{% endif %}>All signals</option>
-                <option value="panicked" {% if filters.signals=="panicked" %}selected{% endif %}>😰 Panicked</option>
-                <option value="angry" {% if filters.signals=="angry" %}selected{% endif %}>😡 Angry</option>
-                <option value="upset" {% if filters.signals=="upset" %}selected{% endif %}>😟 Upset</option>
-                <option value="confused" {% if filters.signals=="confused" %}selected{% endif %}>😕 Confused</option>
-                <option value="worried" {% if filters.signals=="worried" %}selected{% endif %}>🥺 Worried</option>
-                <option value="calm" {% if filters.signals=="calm" %}selected{% endif %}>🙂 Calm</option>
+              <!-- ✅ Signals filter -->
+              <select id="signalsFilter" name="signals_filter" class="border rounded-xl px-2 py-2 text-sm">
+                <option value="" {% if not filters.signals_filter %}selected{% endif %}>All signals</option>
+                <option value="panicked" {% if filters.signals_filter=="panicked" %}selected{% endif %}>😰 Panicked</option>
+                <option value="angry" {% if filters.signals_filter=="angry" %}selected{% endif %}>😡 Angry</option>
+                <option value="upset" {% if filters.signals_filter=="upset" %}selected{% endif %}>😟 Upset</option>
+                <option value="confused" {% if filters.signals_filter=="confused" %}selected{% endif %}>😕 Confused</option>
+                <option value="worried" {% if filters.signals_filter=="worried" %}selected{% endif %}>🥺 Worried</option>
+                <option value="calm" {% if filters.signals_filter=="calm" %}selected{% endif %}>🙂 Calm</option>
               </select>
+
 
               <label class="flex items-center gap-2 text-sm text-slate-700 px-2">
                 <input type="checkbox" name="mine" value="1" {% if filters.mine %}checked{% endif %} />
