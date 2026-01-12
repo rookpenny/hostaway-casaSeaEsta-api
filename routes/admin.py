@@ -53,6 +53,10 @@ ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
 SUMMARY_MODEL = os.getenv("OPENAI_SUMMARY_MODEL", "gpt-4o-mini")
 ADMIN_IDENTITY_SESSION_KEY = os.getenv("ADMIN_IDENTITY_SESSION_KEY", "admin_email")
 
+ESCALATE_LOW_HEAT = int(os.getenv("ESCALATE_LOW_HEAT", "35"))
+ESCALATE_MEDIUM_HEAT = int(os.getenv("ESCALATE_MEDIUM_HEAT", "60"))
+ESCALATE_HIGH_HEAT = int(os.getenv("ESCALATE_HIGH_HEAT", "85"))
+
 UPLOAD_DIR = Path("static/uploads/upgrades")       # permanent
 TMP_DIR = Path("static/uploads/upgrades/tmp")      # temp
 TMP_URL_PREFIX = "/static/uploads/upgrades/tmp"
@@ -65,152 +69,6 @@ MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8MB
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
-ACTION_PRIORITY_LEVELS = {"low", "medium", "high"}
-ESCALATION_LEVELS = {"low", "medium", "high"}
-
-# Operational keywords that imply something must happen at the property.
-# (keep this list small + high-signal; expand later)
-_ACTION_PRIORITY_KEYWORDS = {
-    # access / lockouts
-    "locked out", "lockout", "can’t get in", "cant get in", "can't get in",
-    "door code", "keypad", "key code", "key fob", "key", "lock",
-
-    # water / safety
-    "water leak", "leak", "flood", "burst", "dripping", "overflow",
-    "gas", "smoke", "fire", "broken glass", "glass", "blood",
-
-    # utilities / critical systems
-    "no hot water", "no water", "no power", "power outage", "electric",
-    "wifi not working", "wi-fi not working", "internet down",
-    "hvac", "ac not working", "air conditioning", "heater not working",
-
-    # quick fixes / supplies
-    "batteries", "battery", "smoke detector", "remote not working",
-    "toilet", "clog", "stuck", "won't flush", "wont flush",
-}
-
-_NEGATIVE_EMOTION_KEYWORDS = {
-    "angry", "furious", "upset", "disappointed", "unacceptable", "terrible",
-    "worst", "refund", "complaint", "this is ridiculous",
-}
-
-_URGENT_LANGUAGE = {
-    "urgent", "asap", "immediately", "right now", "now", "help", "emergency",
-}
-
-def _norm_text(s: str | None) -> str:
-    return (s or "").strip().lower()
-
-def derive_emotional_signals(
-    *,
-    has_urgent_category: bool,
-    has_negative_sentiment: bool,
-    last_guest_text: str | None,
-    cnt24: int,
-    status_val: str,
-) -> list[str]:
-    """
-    Emotional signals are a *window* into guest mood.
-    Fluid, can change quickly. Keep to max 2.
-    """
-    text = _norm_text(last_guest_text)
-
-    signals: list[str] = []
-
-    if has_urgent_category or any(k in text for k in _URGENT_LANGUAGE):
-        signals.append("panicked")
-
-    if has_negative_sentiment or any(k in text for k in _NEGATIVE_EMOTION_KEYWORDS):
-        signals.append("upset")
-
-    # "angry" requires stronger evidence (negative + repeated contact or strong language)
-    if (has_negative_sentiment and cnt24 >= 3) or ("refund" in text) or ("unacceptable" in text):
-        signals.append("angry")
-
-    # Active stay + negative/urgent = stressed (important but not the same as action priority)
-    if status_val == "active" and (has_urgent_category or has_negative_sentiment):
-        signals.append("stressed")
-
-    if not signals:
-        signals.append("calm")
-
-    # unique, max 2
-    out, seen = [], set()
-    for s in signals:
-        if s not in seen:
-            seen.add(s)
-            out.append(s)
-    return out[:2]
-
-def derive_action_priority(
-    *,
-    has_urgent_category: bool,
-    last_guest_text: str | None,
-) -> str:
-    """
-    Action priority = "does something need to happen with the guest or at the property?"
-    No emotion here. Pure operational urgency.
-    """
-    text = _norm_text(last_guest_text)
-
-    # High: urgent category OR obvious operational emergency keywords
-    if has_urgent_category:
-        return "high"
-
-    if any(k in text for k in _ACTION_PRIORITY_KEYWORDS):
-        # Many of these are operational; treat as high by default for now.
-        return "high"
-
-    # Medium: guest asks for help / troubleshooting (but not clearly urgent)
-    if any(k in text for k in {"not working", "isn't working", "isnt working", "broken", "issue", "problem", "help"}):
-        return "medium"
-
-    return "low"
-
-def escalation_rank(level: str | None) -> int:
-    order = {None: 0, "": 0, "low": 1, "medium": 2, "high": 3}
-    return order.get((level or "").lower(), 0)
-
-def compute_escalation_suggestion(
-    *,
-    action_priority: str,
-    emotional_signals: list[str],
-    reservation_status: str,
-    is_resolved: bool,
-    current_level: str | None,
-) -> str | None:
-    """
-    Suggest escalation (do NOT auto-apply).
-    - Based on urgency + progress context.
-    - Admins still decide.
-    """
-    if is_resolved:
-        return None
-
-    status_val = (reservation_status or "").strip().lower()
-
-    # Only suggest during an active stay by default (tune later)
-    if status_val != "active":
-        return None
-
-    desired: str | None = None
-
-    # Operational urgency drives escalation
-    if action_priority == "high":
-        desired = "high"
-    elif action_priority == "medium":
-        desired = "medium"
-
-    # Emotional override: angry/panicked during active stay should elevate attention
-    sigs = {(s or "").lower() for s in (emotional_signals or [])}
-    if "panicked" in sigs and desired != "high":
-        desired = "high"
-    elif "angry" in sigs and desired is None:
-        desired = "medium"
-
-    if escalation_rank(desired) > escalation_rank(current_level):
-        return desired
-    return None
 
 # ----------------------------
 # OpenAI client (used by summarize + admin chat)
@@ -1189,6 +1047,26 @@ def save_notification_prefs(
 
 
 
+# ----------------------------
+# Heat / escalation helpers
+# ----------------------------
+def decay_heat(heat_value: int, last_activity_at: Optional[datetime]) -> int:
+    if not last_activity_at:
+        return heat_value
+
+    try:
+        now = datetime.utcnow()
+        if getattr(last_activity_at, "tzinfo", None) is not None:
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
+
+        delta = now - last_activity_at
+        days = max(0, int(delta.total_seconds() // 86400))
+        penalty = min(50, days * 10)
+        return max(0, int(heat_value) - penalty)
+    except Exception:
+        return heat_value
+
 
 def extract_next_action(ai_summary: Optional[str]) -> Optional[str]:
     if not ai_summary:
@@ -1229,40 +1107,56 @@ def desired_escalation_level(heat: int) -> Optional[str]:
     return None
 
 
+def escalation_rank(level: Optional[str]) -> int:
+    order = {None: 0, "": 0, "low": 1, "medium": 2, "high": 3}
+    return order.get((level or "").lower(), 0)
+
+def derive_signals(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int, status_val: str) -> list[str]:
+    signals: list[str] = []
+    if has_urgent:
+        signals.append("panicked")
+    if has_negative:
+        signals.append("upset")
+    if has_negative and cnt24 >= 3:
+        signals.append("angry")
+    if (not has_urgent) and (not has_negative) and (cnt7 >= 3 or cnt24 >= 2):
+        signals.append("confused")
+    if status_val == "active" and (has_urgent or has_negative):
+        signals.append("stressed")
+    if not signals:
+        signals.append("calm")
+
+    out, seen = [], set()
+    for s in signals:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out[:2]
 
 
 # ----------------------------
 # Chats list + actions
 # ----------------------------
-
+from typing import Optional, Dict
+from fastapi import Query, HTTPException
+from datetime import datetime, timedelta
+from sqlalchemy import func, case, or_
+from fastapi.responses import HTMLResponse
+from sqlalchemy.orm import Session
 
 @router.get("/admin/chats", response_class=HTMLResponse)
 def admin_chats(
     request: Request,
     db: Session = Depends(get_db),
     status: Optional[str] = Query(None),
-    priority: Optional[str] = Query(None),      # "urgent" | "unhappy" (back-compat)
+    priority: Optional[str] = Query(None),      # "urgent" | "unhappy"
     q: Optional[str] = Query(None),
     pmc_id: Optional[str] = Query(None),
     property_id: Optional[str] = Query(None),
     mine: Optional[int] = Query(None),
     assigned_to: Optional[str] = Query(None),
-    signals_filter: Optional[str] = Query(None),
+    signals_filter: Optional[str] = Query(None),  # ✅ NEW
 ):
-    """
-    Chats list page.
-
-    Concepts:
-      - emotional_signals: guest mood window (fluid)
-      - action_priority: operational "something needs to happen" (low|medium|high)
-      - escalation_level: admin-set (low|medium|high|None)
-      - escalation_suggestion: system recommends a higher escalation level (does NOT auto-apply)
-
-    Back-compat:
-      - query param priority=urgent filters action_priority==high
-      - query param priority=unhappy filters emotional_signals include upset/angry
-      - template can still read: signals (mapped to emotional_signals) and priority_level (mapped to action_priority)
-    """
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     if user_role == "pmc" and not pmc_obj:
         raise HTTPException(status_code=403, detail="PMC account not linked")
@@ -1279,6 +1173,44 @@ def admin_chats(
         if cnt7 > 0:
             return "Cooling"
         return "Quiet"
+
+    def derive_signals(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int, status_val: str) -> list[str]:
+        signals: list[str] = []
+        if has_urgent:
+            signals.append("panicked")
+        if has_negative:
+            signals.append("upset")
+        if has_negative and cnt24 >= 3:
+            signals.append("angry")
+        if (not has_urgent) and (not has_negative) and (cnt7 >= 3 or cnt24 >= 2):
+            signals.append("confused")
+        if status_val == "active" and (has_urgent or has_negative):
+            signals.append("stressed")
+        if not signals:
+            signals.append("calm")
+
+        out: list[str] = []
+        seen = set()
+        for s in signals:
+            if s not in seen:
+                seen.add(s)
+                out.append(s)
+        return out[:2]
+
+    def heat_score(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int) -> int:
+        score = 0
+        score += 50 if has_urgent else 0
+        score += 25 if has_negative else 0
+        score += min(25, cnt24 * 5)
+        score += min(10, cnt7)
+        return min(100, score)
+
+    def priority_bucket(heat: int) -> str:
+        if heat >= 85:
+            return "critical"
+        if heat >= 60:
+            return "attention"
+        return "routine"
 
     pmc_id_int = to_int_or_none(pmc_id)
     property_id_int = to_int_or_none(property_id)
@@ -1297,7 +1229,6 @@ def admin_chats(
         )
     allowed_property_ids = {p.id for p in properties} if user_role == "pmc" else None
 
-    # base query
     base_q = db.query(ChatSession)
 
     if user_role == "pmc":
@@ -1313,14 +1244,13 @@ def admin_chats(
             )
 
     if property_id_int is not None:
-        if user_role == "pmc" and property_id_int not in (allowed_property_ids or set()):
+        if user_role == "pmc" and property_id_int not in allowed_property_ids:
             raise HTTPException(status_code=403, detail="Forbidden property")
         base_q = base_q.filter(ChatSession.property_id == property_id_int)
 
     if status in {"pre_booking", "post_booking", "active", "post_stay"}:
         base_q = base_q.filter(ChatSession.reservation_status == status)
 
-    # assignee filters
     effective_assignee: Optional[str] = (assigned_to or "").strip() or None
     if mine:
         me = get_current_admin_identity(request)
@@ -1343,16 +1273,13 @@ def admin_chats(
     negative_ids: set[int] = set()
 
     if session_ids:
-        # Latest message per session (Postgres DISTINCT ON)
         latest_msgs = (
             db.query(ChatMessage)
             .filter(ChatMessage.session_id.in_(session_ids))
-            .order_by(
-                ChatMessage.session_id.asc(),
-                ChatMessage.created_at.desc(),
-                ChatMessage.id.desc(),
-            )
-            .distinct(ChatMessage.session_id)
+            .order_by(ChatMessage.session_id.asc(),
+                      ChatMessage.created_at.desc(),
+                      ChatMessage.id.desc())
+            .distinct(ChatMessage.session_id)  # Postgres DISTINCT ON
             .all()
         )
         last_msg_map = {int(m.session_id): m for m in latest_msgs}
@@ -1360,11 +1287,9 @@ def admin_chats(
         urgent_ids = set(
             int(sid) for (sid,) in (
                 db.query(ChatMessage.session_id)
-                .filter(
-                    ChatMessage.session_id.in_(session_ids),
-                    ChatMessage.sender == "guest",
-                    ChatMessage.category == "urgent",
-                )
+                .filter(ChatMessage.session_id.in_(session_ids),
+                        ChatMessage.sender == "guest",
+                        ChatMessage.category == "urgent")
                 .distinct()
                 .all()
             )
@@ -1373,11 +1298,9 @@ def admin_chats(
         negative_ids = set(
             int(sid) for (sid,) in (
                 db.query(ChatMessage.session_id)
-                .filter(
-                    ChatMessage.session_id.in_(session_ids),
-                    ChatMessage.sender == "guest",
-                    func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
-                )
+                .filter(ChatMessage.session_id.in_(session_ids),
+                        ChatMessage.sender == "guest",
+                        func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative")
                 .distinct()
                 .all()
             )
@@ -1399,14 +1322,14 @@ def admin_chats(
         ):
             counts_7d[int(sid)] = int(cnt)
 
-    # signals dropdown validation
     allowed_signals = {"panicked", "angry", "upset", "confused", "calm", "stressed", "worried"}
     sig = (signals_filter or "").strip().lower()
     if sig and sig not in allowed_signals:
-        sig = ""
+        sig = ""  # ignore invalid values
 
-    items: list[dict] = []
+    items = []
     q_lower = (q or "").strip().lower()
+    auto_escalation_updates = 0
 
     for s in sessions:
         sid = int(s.id)
@@ -1424,73 +1347,56 @@ def admin_chats(
         has_urgent = sid in urgent_ids
         has_negative = sid in negative_ids
 
-        # Search filter
+        if priority == "urgent" and not has_urgent:
+            continue
+        if priority == "unhappy" and not has_negative:
+            continue
+
         if q_lower:
             hay = f"{property_name} {guest_name} {snippet}".lower()
             if q_lower not in hay:
                 continue
 
         status_val = getattr(s, "reservation_status", "pre_booking")
+        needs_attention = (status_val == "active" and (has_urgent or has_negative))
 
         cnt24 = counts_24h.get(sid, 0)
         cnt7 = counts_7d.get(sid, 0)
 
-        # Prefer last *guest* message text (if last msg is host/system, leave None)
-        last_guest_text = None
-        if last_msg and getattr(last_msg, "sender", None) == "guest":
-            last_guest_text = getattr(last_msg, "content", None)
+        raw_heat = heat_score(has_urgent, has_negative, cnt24, cnt7)
 
-        emotional_signals = derive_emotional_signals(
-            has_urgent_category=has_urgent,
-            has_negative_sentiment=has_negative,
-            last_guest_text=last_guest_text,
-            cnt24=cnt24,
-            status_val=status_val,
-        )
+        multiplier = 1.0
+        if has_urgent:
+            multiplier += 0.30
+        if has_negative:
+            multiplier += 0.15
+        if status_val == "active":
+            multiplier += 0.10
 
-        # Back-compat: templates already expect "signals"
-        signals = emotional_signals
-
-        action_priority = derive_action_priority(
-            has_urgent_category=has_urgent,
-            last_guest_text=last_guest_text,
-        )
-
-        # Back-compat: templates expect "priority_level"
-        priority_level = action_priority  # low|medium|high
-
-        # Back-compat query param filters
-        if priority == "urgent" and action_priority != "high":
-            continue
-        if priority == "unhappy":
-            sigs = {(x or "").lower() for x in signals}
-            if not (("upset" in sigs) or ("angry" in sigs)):
-                continue
-
-        # Signals dropdown filter
-        if sig:
-            sigs_l = {(x or "").strip().lower() for x in (signals or [])}
-            if sig not in sigs_l:
-                continue
+        heat_boosted = int(min(100, round(raw_heat * multiplier)))
+        heat = decay_heat(heat_boosted, getattr(s, "last_activity_at", None))
+        priority_level = priority_bucket(heat)
 
         next_action = extract_next_action(getattr(s, "ai_summary", None))
         activity_label = activity_bucket(cnt24, cnt7)
 
+        signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
+
+        # ✅ Signal filter (correct list membership logic)
+        if sig:
+            signals_l = [(x or "").strip().lower() for x in (signals or [])]
+            if sig not in signals_l:
+                continue
+
         is_resolved = bool(getattr(s, "is_resolved", False))
         current_level = (getattr(s, "escalation_level", None) or "").lower() or None
+        desired_level = desired_escalation_level(heat)
 
-        escalation_suggestion = compute_escalation_suggestion(
-            action_priority=action_priority,
-            emotional_signals=emotional_signals,
-            reservation_status=status_val,
-            is_resolved=is_resolved,
-            current_level=current_level,
-        )
-
-        # "needs_attention" should be true when either:
-        # - current escalation is high and not resolved, OR
-        # - the system is recommending an escalation increase
-        needs_attention = (current_level == "high" and not is_resolved) or bool(escalation_suggestion)
+        if (not is_resolved) and escalation_rank(desired_level) > escalation_rank(current_level):
+            s.escalation_level = desired_level
+            s.updated_at = datetime.utcnow()
+            db.add(s)
+            auto_escalation_updates += 1
 
         items.append({
             "id": s.id,
@@ -1502,15 +1408,7 @@ def admin_chats(
             "source": getattr(s, "source", None),
             "last_snippet": snippet,
 
-            # New semantic fields
-            "emotional_signals": emotional_signals,
-            "action_priority": action_priority,
-            "escalation_suggestion": escalation_suggestion,
-
-            # Back-compat fields for templates
             "signals": signals,
-            "priority_level": priority_level,
-
             "has_urgent": has_urgent,
             "has_negative": has_negative,
             "needs_attention": needs_attention,
@@ -1519,6 +1417,11 @@ def admin_chats(
             "msg_7d": cnt7,
             "activity_label": activity_label,
 
+            "heat_raw": raw_heat,
+            "heat_boosted": heat_boosted,
+            "heat": heat,
+            "priority_level": priority_level,
+
             "next_action": next_action,
 
             "assigned_to": getattr(s, "assigned_to", None),
@@ -1526,12 +1429,10 @@ def admin_chats(
             "is_resolved": is_resolved,
         })
 
-    # Sort: action_priority desc, then last activity desc
-    _priority_sort = {"high": 3, "medium": 2, "low": 1}
-    items.sort(
-        key=lambda x: (_priority_sort.get(x.get("action_priority"), 0), x.get("last_activity_at") or datetime.min),
-        reverse=True,
-    )
+    if auto_escalation_updates:
+        db.commit()
+
+    items.sort(key=lambda x: (x["heat"], x["last_activity_at"] or datetime.min), reverse=True)
 
     return templates.TemplateResponse(
         "admin_chats.html",
@@ -1546,14 +1447,13 @@ def admin_chats(
                 "property_id": property_id or "",
                 "mine": bool(mine),
                 "assigned_to": effective_assignee or "",
-                "signals_filter": signals_filter or "",
+                "signals_filter": signals_filter or "",  # ✅ keep selection
             },
             "pmcs": pmcs,
             "properties": properties,
             "user_role": user_role,
         }
     )
-
 
 
 @router.post("/admin/chats/{session_id}/resolve")
@@ -2008,12 +1908,7 @@ def admin_analytics_top_properties(
             "unhappy_sessions": int(unhappy_sessions_counts.get(pid, 0) or 0),
         })
 
-    _priority_sort = {"high": 3, "medium": 2, "low": 1}
-    items.sort(
-        key=lambda x: (_priority_sort.get(x.get("action_priority"), 0), x["last_activity_at"] or datetime.min),
-        reverse=True,
-    )
-
+    items.sort(key=lambda x: (x.get(sort, 0), x["messages"], x["sessions"]), reverse=True)
 
     return {
         "window_days": int(days),
@@ -2582,6 +2477,7 @@ def _parse_optional_int(v) -> int | None:
 
 
 @router.get("/admin/dashboard", response_class=HTMLResponse)
+@router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
     db: Session = Depends(get_db),
@@ -2784,26 +2680,10 @@ def admin_dashboard(
                 )
             )
 
-                if priority == "urgent":
-                urgent_exists = (
-                    db.query(ChatMessage.id)
-                    .filter(ChatMessage.session_id == ChatSession.id)
-                    .filter(ChatMessage.sender == "guest")
-                    .filter(ChatMessage.category == "urgent")
-                    .exists()
-                )
-                base_q = base_q.filter(urgent_exists)
-
+        if priority == "urgent":
+            base_q = base_q.filter(ChatSession.heat_score >= 80)
         elif priority == "unhappy":
-            unhappy_exists = (
-                db.query(ChatMessage.id)
-                .filter(ChatMessage.session_id == ChatSession.id)
-                .filter(ChatMessage.sender == "guest")
-                .filter(func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative")
-                .exists()
-            )
-            base_q = base_q.filter(unhappy_exists)
-
+            base_q = base_q.filter(ChatSession.heat_score >= 50)
 
         # ----------------------------
         # Analytics
@@ -2955,62 +2835,25 @@ def admin_dashboard(
         sessions = []
         for sess, prop_name, last_snip in rows:
             sid = int(sess.id)
-        
+            heat = int(sess.heat_score or 0)
+
             has_urgent = sid in urgent_ids
             has_negative = sid in negative_ids
             cnt24 = counts_24h.get(sid, 0)
             cnt7 = counts_7d.get(sid, 0)
-        
+
             status_val = getattr(sess, "reservation_status", "pre_booking")
-        
-            last_msg = last_msg_by_session.get(sid)
-            last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-        
-            # Prefer last *guest* text for parsing urgency / action cues
-            last_guest_text = None
-            if last_msg and getattr(last_msg, "sender", None) == "guest":
-                last_guest_text = getattr(last_msg, "content", None)
-        
-            # --- New semantics ---
-            emotional_signals = derive_emotional_signals(
-                has_urgent_category=has_urgent,
-                has_negative_sentiment=has_negative,
-                last_guest_text=last_guest_text,
-                cnt24=cnt24,
-                status_val=status_val,
-            )
-        
-            action_priority = derive_action_priority(
-                has_urgent_category=has_urgent,
-                last_guest_text=last_guest_text,
-            )
-        
-            # Keep template compatibility: "signals" + "priority_level"
-            signals = emotional_signals
-            priority_level = action_priority  # low|medium|high
-        
+            signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
+
             # ✅ apply signals dropdown filter
             if sig:
                 signals_l = [(x or "").strip().lower() for x in (signals or [])]
                 if sig not in signals_l:
                     continue
-        
-            current_level = (getattr(sess, "escalation_level", None) or "").strip().lower() or None
-            is_resolved = bool(getattr(sess, "is_resolved", False))
-        
-            escalation_suggestion = compute_escalation_suggestion(
-                action_priority=action_priority,
-                emotional_signals=emotional_signals,
-                reservation_status=status_val,
-                is_resolved=is_resolved,
-                current_level=current_level,
-            )
-        
-            needs_attention = (current_level == "high" and not is_resolved) or bool(escalation_suggestion)
-        
-            # If you still want to show "heat" in UI, keep it; otherwise you can drop these.
-            heat = int(getattr(sess, "heat_score", 0) or 0)
-        
+
+            last_msg = last_msg_by_session.get(sid)
+            last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
+
             sessions.append({
                 "id": sess.id,
                 "property_id": sess.property_id,
@@ -3022,94 +2865,85 @@ def admin_dashboard(
                 "last_activity_at": sess.last_activity_at,
                 "last_snippet": (last_snip or ""),
                 "next_action": None,
-        
-                "needs_attention": needs_attention,
-                "is_resolved": is_resolved,
-                "escalation_level": current_level,
-        
-                # New fields (use these in templates going forward)
-                "emotional_signals": emotional_signals,
-                "action_priority": action_priority,
-                "escalation_suggestion": escalation_suggestion,
-        
-                # Back-compat fields (existing templates)
+
+                "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
+                "is_resolved": bool(sess.is_resolved),
+                "escalation_level": sess.escalation_level,
+
                 "signals": signals,
-                "priority_level": priority_level,
-        
                 "has_urgent": has_urgent,
                 "has_negative": has_negative,
                 "last_sentiment": last_sentiment,
-        
+
                 "msg_24h": cnt24,
                 "msg_7d": cnt7,
-        
-                # Optional legacy/debug fields
+
+                "priority_level": priority_level_from_heat(heat),
                 "heat_raw": heat,
                 "heat_boosted": heat,
             })
-        
-        
-                # ----------------------------
-                # Selected session detail
-                # ----------------------------
-                if session_id is not None:
-                    sel_q = db.query(ChatSession).filter(ChatSession.id == session_id)
-                    if allowed_property_ids is not None:
-                        sel_q = sel_q.filter(ChatSession.property_id.in_(allowed_property_ids))
-                    if user_role == "super" and pmc_id_int:
-                        sel_q = (
-                            sel_q.join(Property, Property.id == ChatSession.property_id)
-                            .filter(Property.pmc_id == pmc_id_int)
-                        )
-        
-                    selected_session = sel_q.first()
-                    if not selected_session:
-                        raise HTTPException(status_code=404, detail="Chat not found")
-        
-                    selected_property = db.query(Property).filter(Property.id == selected_session.property_id).first()
-                    selected_messages = (
-                        db.query(ChatMessage)
-                        .filter(ChatMessage.session_id == selected_session.id)
-                        .order_by(ChatMessage.created_at.asc())
-                        .all()
-                    )
-        
-            return templates.TemplateResponse(
-                "admin_dashboard.html",
-                {
-                    "request": request,
-                    "user_role": user_role,
-                    "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
-                    "properties": properties,
-                    "property_name_by_id": property_name_by_id,
-                    "now": datetime.utcnow(),
-        
-                    "pmcs": pmc_list,
-        
-                    "billing_status": billing_status,
-                    "is_paid": is_paid,
-                    "needs_payment": needs_payment,
-                    "billing_banner_title": billing_banner_title,
-                    "billing_banner_body": billing_banner_body,
-        
-                    "user_timezone": (pmc_user.timezone if pmc_user else None),
-                    "pmc_user_role": (pmc_user.role if pmc_user else None),
-        
-                    "user_email": me_email,
-                    "user_full_name": (me_user.full_name if me_user else None),
-                    "team_members": team_members,
-                    "notif_prefs": notif_prefs,
-        
-                    "sessions": sessions,
-                    "analytics": analytics,
-                    "filters": filters,
-                    "selected_session": selected_session,
-                    "selected_property": selected_property,
-                    "selected_messages": selected_messages,
-        
-                    "pmc_id": (pmc_obj.id if pmc_obj else None),
-                },
+
+        # ----------------------------
+        # Selected session detail
+        # ----------------------------
+        if session_id is not None:
+            sel_q = db.query(ChatSession).filter(ChatSession.id == session_id)
+            if allowed_property_ids is not None:
+                sel_q = sel_q.filter(ChatSession.property_id.in_(allowed_property_ids))
+            if user_role == "super" and pmc_id_int:
+                sel_q = (
+                    sel_q.join(Property, Property.id == ChatSession.property_id)
+                    .filter(Property.pmc_id == pmc_id_int)
+                )
+
+            selected_session = sel_q.first()
+            if not selected_session:
+                raise HTTPException(status_code=404, detail="Chat not found")
+
+            selected_property = db.query(Property).filter(Property.id == selected_session.property_id).first()
+            selected_messages = (
+                db.query(ChatMessage)
+                .filter(ChatMessage.session_id == selected_session.id)
+                .order_by(ChatMessage.created_at.asc())
+                .all()
             )
+
+    return templates.TemplateResponse(
+        "admin_dashboard.html",
+        {
+            "request": request,
+            "user_role": user_role,
+            "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
+            "properties": properties,
+            "property_name_by_id": property_name_by_id,
+            "now": datetime.utcnow(),
+
+            "pmcs": pmc_list,
+
+            "billing_status": billing_status,
+            "is_paid": is_paid,
+            "needs_payment": needs_payment,
+            "billing_banner_title": billing_banner_title,
+            "billing_banner_body": billing_banner_body,
+
+            "user_timezone": (pmc_user.timezone if pmc_user else None),
+            "pmc_user_role": (pmc_user.role if pmc_user else None),
+
+            "user_email": me_email,
+            "user_full_name": (me_user.full_name if me_user else None),
+            "team_members": team_members,
+            "notif_prefs": notif_prefs,
+
+            "sessions": sessions,
+            "analytics": analytics,
+            "filters": filters,
+            "selected_session": selected_session,
+            "selected_property": selected_property,
+            "selected_messages": selected_messages,
+
+            "pmc_id": (pmc_obj.id if pmc_obj else None),
+        },
+    )
 
 
 
