@@ -77,8 +77,9 @@ window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 
     const sig = normalizeSignals(signals);
     const sent = String(sentiment || "").trim();
-    const finalSig = (sig.length ? sig : deriveSignalsFromSentiment(sent));
-
+    //const finalSig = (sig.length ? sig : deriveSignalsFromSentiment(sent));
+    const finalSig = sig;
+    
     let html = "";
 
     if (finalSig.includes("panicked")) html += pill("😰 Panicked", "bg-rose-100 text-rose-700");
@@ -712,12 +713,12 @@ function updateChatListRow(sessionId, payload = {}) {
     const asgEl = row.querySelector("[data-assigned-badge]");
     setAssignedBadge(asgEl, payload.assigned_to);
   }
-
+/*
   // ✅ NEW: sentiment
   if (Object.prototype.hasOwnProperty.call(payload, "sentiment")) {
     const sentEl = row.querySelector("[data-sentiment-badge]");
     renderSentimentBadge(sentEl, payload.sentiment);
-  }
+  }*/
 }
 
 
@@ -2544,9 +2545,9 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
-document.querySelectorAll("[data-sentiment-badge]").forEach((el) => {
+/*document.querySelectorAll("[data-sentiment-badge]").forEach((el) => {
   renderSentimentBadge(el, el.getAttribute("data-sentiment"));
-});
+}*/);
 
 
 
