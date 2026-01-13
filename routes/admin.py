@@ -42,8 +42,7 @@ from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
 from utils.ai_summary import generate_and_store_summary
 from zoneinfo import ZoneInfo  # Python 3.9+
-from django.contrib import admin
-from django.db.models import Q
+
 
 
 router = APIRouter()
@@ -71,73 +70,23 @@ MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8MB
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
-# If your backend stores moods in emotional_signals like:
-# ["panicked", "angry", "worried"] (JSONField/ArrayField)
-MOOD_CHOICES = [
+# Guest moods (UI dropdown)
+GUEST_MOOD_CHOICES = [
+    ("", "All guest moods"),
     ("panicked", "😰 Panicked"),
     ("angry", "😡 Angry"),
     ("upset", "😟 Upset"),
     ("confused", "😕 Confused"),
     ("worried", "🥺 Worried"),
+    ("stressed", "😮‍💨 Stressed"),
     ("calm", "🙂 Calm"),
 ]
 
-class GuestMoodFilter(admin.SimpleListFilter):
-    title = "Guest mood"
-    parameter_name = "guest_mood"
+ALLOWED_GUEST_MOODS = {k for (k, _) in GUEST_MOOD_CHOICES if k}
 
-    def lookups(self, request, model_admin):
-        return MOOD_CHOICES
-
-    def queryset(self, request, queryset):
-        mood = self.value()
-        if not mood:
-            return queryset
-
-        # ✅ JSONField list (Postgres) typical: emotional_signals__contains=["worried"]
-        # ✅ ArrayField typical: emotional_signals__contains=["worried"]
-        # If yours is stored as a comma string, you’ll need icontains fallback (see below).
-        try:
-            return queryset.filter(emotional_signals__contains=[mood])
-        except Exception:
-            # Fallback if field is TextField storing "worried,angry" etc.
-            return queryset.filter(Q(emotional_signals__icontains=mood))
-
-
-@admin.register(ChatSession)
-class ChatSessionAdmin(admin.ModelAdmin):
-    # --- List page columns ---
-    list_display = (
-        "id",
-        "property_name",
-        "guest_name",
-        "guest_mood",
-        "assigned_to",
-        "stage",
-        "status_badge",
-        "team_escalation",
-        "action_priority",
-        "updated_at",
-    )
-
-    # --- Filters (right sidebar in Django admin) ---
-    list_filter = (
-        "property",
-        "is_resolved",          # or "status" if you have it
-        "action_priority",      # if you have it
-        GuestMoodFilter,        # ✅ new
-        "assigned_to",          # if FK to User
-    )
-
-    # --- Search box ---
-    search_fields = (
-        "id",
-        "guest__name",          # adjust
-        "property__name",       # adjust
-        "last_message_text",    # adjust
-    )
-
-    ordering = ("-updated_at",)
+def normalize_guest_mood(v: str | None) -> str:
+    v = (v or "").strip().lower()
+    return v if v in ALLOWED_GUEST_MOODS else ""
 
     # ---------- Column renderers ----------
     @admin.display(description="Property", ordering="property__name")
@@ -1257,14 +1206,20 @@ def admin_chats(
     request: Request,
     db: Session = Depends(get_db),
     status: Optional[str] = Query(None),
-    priority: Optional[str] = Query(None),      # "urgent" | "unhappy"
+    priority: Optional[str] = Query(None),
     q: Optional[str] = Query(None),
     pmc_id: Optional[str] = Query(None),
     property_id: Optional[str] = Query(None),
     mine: Optional[int] = Query(None),
     assigned_to: Optional[str] = Query(None),
-    signals_filter: Optional[str] = Query(None),  # ✅ NEW
+
+    # ✅ NEW
+    guest_mood: Optional[str] = Query(None),
+
+    # (optional) keep old param name so existing links don’t break
+    signals_filter: Optional[str] = Query(None),
 ):
+
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     if user_role == "pmc" and not pmc_obj:
         raise HTTPException(status_code=403, detail="PMC account not linked")
@@ -1431,9 +1386,15 @@ def admin_chats(
             counts_7d[int(sid)] = int(cnt)
 
     allowed_signals = {"panicked", "angry", "upset", "confused", "calm", "stressed", "worried"}
-    sig = (signals_filter or "").strip().lower()
-    if sig and sig not in allowed_signals:
-        sig = ""  # ignore invalid values
+    # Backward compat: if guest_mood not provided, fall back to signals_filter
+    mood = normalize_guest_mood(guest_mood or signals_filter)
+
+   # ✅ Guest mood filter: list membership
+    if mood:
+        signals_l = [(x or "").strip().lower() for x in (signals or [])]
+        if mood not in signals_l:
+            continue
+
 
     items = []
     q_lower = (q or "").strip().lower()
@@ -1543,25 +1504,29 @@ def admin_chats(
     items.sort(key=lambda x: (x["heat"], x["last_activity_at"] or datetime.min), reverse=True)
 
     return templates.TemplateResponse(
-        "admin_chats.html",
-        {
-            "request": request,
-            "sessions": items,
-            "filters": {
-                "status": status,
-                "priority": priority,
-                "q": q,
-                "pmc_id": (str(pmc_obj.id) if user_role == "pmc" else (pmc_id or "")),
-                "property_id": property_id or "",
-                "mine": bool(mine),
-                "assigned_to": effective_assignee or "",
-                "signals_filter": signals_filter or "",  # ✅ keep selection
-            },
-            "pmcs": pmcs,
-            "properties": properties,
-            "user_role": user_role,
-        }
-    )
+    "admin_chats.html",
+    {
+        "request": request,
+        "sessions": items,
+        "filters": {
+            "status": status,
+            "priority": priority,
+            "q": q,
+            "pmc_id": (str(pmc_obj.id) if user_role == "pmc" else (pmc_id or "")),
+            "property_id": property_id or "",
+            "mine": bool(mine),
+            "assigned_to": effective_assignee or "",
+
+            # ✅ use one canonical key in your template
+            "guest_mood": mood,
+        },
+        "guest_mood_choices": GUEST_MOOD_CHOICES,  # ✅ for rendering dropdown
+        "pmcs": pmcs,
+        "properties": properties,
+        "user_role": user_role,
+    }
+)
+
 
 
 @router.post("/admin/chats/{session_id}/resolve")
@@ -2585,7 +2550,6 @@ def _parse_optional_int(v) -> int | None:
 
 
 @router.get("/admin/dashboard", response_class=HTMLResponse)
-@router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
     db: Session = Depends(get_db),
@@ -2603,11 +2567,17 @@ def admin_dashboard(
     assigned_to: str | None = Query(default=None),
     q: str | None = Query(default=None),
 
-    # ✅ NEW: signals filter
+    # ✅ NEW: guest mood filter (canonical)
+    guest_mood: str | None = Query(default=None),
+
+    # ✅ Optional: keep old param name so existing links don’t break
     signals_filter: str | None = Query(default=None),
 ):
     pmc_id_int = _parse_optional_int(pmc_id)
     prop_id_int = _parse_optional_int(property_id)
+
+    # ✅ Normalize mood once (supports old param too)
+    mood = normalize_guest_mood(guest_mood or signals_filter)
 
     # ✅ If not logged in, show login page at THIS SAME URL
     user = request.session.get("user")
@@ -2701,14 +2671,6 @@ def admin_dashboard(
         )
 
     # ----------------------------
-    # ✅ signals filter normalization
-    # ----------------------------
-    allowed_signals = {"panicked", "angry", "upset", "confused", "calm", "stressed", "worried"}
-    sig = (signals_filter or "").strip().lower()
-    if sig and sig not in allowed_signals:
-        sig = ""  # ignore invalid
-
-    # ----------------------------
     # Chats: filters + data
     # ----------------------------
     filters = {
@@ -2716,7 +2678,7 @@ def admin_dashboard(
         "property_id": property_id or "",
         "status": status or "",
         "priority": priority or "",
-        "signals_filter": signals_filter or "",   # ✅ consistent key
+        "guest_mood": mood,  # ✅ canonical key for templates
         "mine": bool(mine),
         "assigned_to": assigned_to or "",
         "q": q or "",
@@ -2938,7 +2900,7 @@ def admin_dashboard(
                 counts_7d[int(sid)] = int(cnt)
 
         # ----------------------------
-        # Sessions list (includes signals + optional signal filtering)
+        # Sessions list (includes signals + optional mood filtering)
         # ----------------------------
         sessions = []
         for sess, prop_name, last_snip in rows:
@@ -2953,10 +2915,10 @@ def admin_dashboard(
             status_val = getattr(sess, "reservation_status", "pre_booking")
             signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
 
-            # ✅ apply signals dropdown filter
-            if sig:
+            # ✅ apply guest mood dropdown filter
+            if mood:
                 signals_l = [(x or "").strip().lower() for x in (signals or [])]
-                if sig not in signals_l:
+                if mood not in signals_l:
                     continue
 
             last_msg = last_msg_by_session.get(sid)
@@ -3050,8 +3012,12 @@ def admin_dashboard(
             "selected_messages": selected_messages,
 
             "pmc_id": (pmc_obj.id if pmc_obj else None),
+
+            # ✅ optional: pass choices if your template renders the dropdown from backend
+            # "guest_mood_choices": GUEST_MOOD_CHOICES,
         },
     )
+
 
 
 
