@@ -505,7 +505,7 @@ def top_properties(
     from_ms: int = Query(..., alias="from"),
     to_ms: int = Query(..., alias="to"),
     pmc_id: Optional[int] = None,
-    property_id: Optional[int] = None,   # ✅ add (frontend sends it)
+    property_id: Optional[int] = None,   # frontend sends it
     limit: int = 10,
     db: Session = Depends(get_db),
 ):
@@ -540,13 +540,15 @@ def top_properties(
           from analytics_events ae
           where ae.ts >= :start and ae.ts < :end
         ),
+
         scoped as (
           select *
           from base
           where (:pmc_id is null or pmc_id_eff = :pmc_id)
-            and (:property_id is null or prop_id = :property_id)   -- ✅ add
+            and (:property_id is null or prop_id = :property_id)
             and prop_id is not null
         ),
+
         agg as (
           select
             prop_id as property_id,
@@ -565,7 +567,49 @@ def top_properties(
 
           from scoped
           group by 1
+        ),
+
+        -- ---------------------------------------------------------
+        -- Reactionary mood: latest guest message per session -> mood
+        -- ---------------------------------------------------------
+        scoped_sessions as (
+          select
+            cs.id as session_id,
+            cs.property_id
+          from chat_sessions cs
+          join properties p on p.id = cs.property_id
+          where (:pmc_id is null or p.pmc_id = :pmc_id)
+            and (:property_id is null or cs.property_id = :property_id)
+        ),
+
+        latest_guest_per_session as (
+          select
+            ss.property_id,
+            cm.session_id,
+            coalesce(cm.sentiment_data->>'mood', 'calm') as mood,
+            row_number() over (
+              partition by cm.session_id
+              order by cm.created_at desc
+            ) as rn
+          from chat_messages cm
+          join scoped_sessions ss on ss.session_id = cm.session_id
+          where cm.sender in ('guest','user')
+        ),
+
+        latest_guest as (
+          select property_id, mood
+          from latest_guest_per_session
+          where rn = 1
+        ),
+
+        mood_agg as (
+          select
+            property_id,
+            mode() within group (order by mood) as current_mood
+          from latest_guest
+          group by 1
         )
+
         select
           a.property_id,
           p.property_name,
@@ -582,10 +626,13 @@ def top_properties(
           (a.upgrade_purchases::float / nullif(a.upgrade_checkouts_started::float, 0)) as upgrade_conversion_rate,
 
           a.chat_errors,
-          a.contact_host_clicks
+          a.contact_host_clicks,
+
+          coalesce(ma.current_mood, 'calm') as current_mood
 
         from agg a
         left join properties p on p.id = a.property_id
+        left join mood_agg ma on ma.property_id = a.property_id
         order by a.sessions desc, a.messages desc
         limit :limit;
     """).bindparams(
@@ -603,7 +650,7 @@ def top_properties(
                 "start": start,
                 "end": end,
                 "pmc_id": pmc_id,
-                "property_id": property_id,  # ✅ pass through
+                "property_id": property_id,
                 "limit": int(limit),
                 "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
                 "followup_click_event": FOLLOWUP_CLICK_EVENT,
@@ -617,7 +664,6 @@ def top_properties(
         raise HTTPException(status_code=500, detail=f"top-properties query failed: {e}")
 
     return {"rows": [dict(r) for r in rows]}
-
 
 
 
@@ -956,3 +1002,73 @@ def assistant_performance(
         raise HTTPException(status_code=500, detail=f"assistant-performance query failed: {e}")
 
     return {"rows": [dict(r) for r in rows]}
+
+
+@router.get("/mood-current")
+def mood_current(
+    request: Request,
+    from_ms: int = Query(..., alias="from"),
+    to_ms: int = Query(..., alias="to"),
+    property_id: Optional[int] = None,
+    pmc_id: Optional[int] = None,
+    db: Session = Depends(get_db),
+):
+    pmc_id = _enforce_scope(request, pmc_id)
+    start = ms_to_dt(from_ms)
+    end = ms_to_dt(to_ms)
+
+    if property_id is not None and pmc_id is not None:
+        _assert_property_in_pmc(db, int(property_id), int(pmc_id))
+
+    # "Current mood" = latest GUEST message per session, within time window
+    stmt = text("""
+        with scoped_sessions as (
+            select cs.id as session_id, cs.property_id
+            from chat_sessions cs
+            join properties p on p.id = cs.property_id
+            where (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
+        ),
+        guest_msgs as (
+            select
+                cm.session_id,
+                ss.property_id,
+                cm.created_at,
+                coalesce(cm.sentiment, 'neutral') as sentiment,
+                coalesce(cm.sentiment_data->>'mood', 'calm') as mood,
+                row_number() over (
+                    partition by cm.session_id
+                    order by cm.created_at desc
+                ) as rn
+            from chat_messages cm
+            join scoped_sessions ss on ss.session_id = cm.session_id
+            where cm.sender in ('guest', 'user')
+              and cm.created_at >= :start
+              and cm.created_at < :end
+        ),
+        latest as (
+            select *
+            from guest_msgs
+            where rn = 1
+        )
+        select
+            mood,
+            count(*) as sessions
+        from latest
+        group by 1
+        order by sessions desc;
+    """).bindparams(
+        bindparam("pmc_id", type_=BIGINT),
+        bindparam("property_id", type_=BIGINT),
+    )
+
+    try:
+        rows = db.execute(
+            stmt,
+            {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
+        ).mappings().all()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"mood-current query failed: {e}")
+
+    return {"rows": [dict(r) for r in rows]}
+
