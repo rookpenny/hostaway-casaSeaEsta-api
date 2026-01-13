@@ -867,10 +867,19 @@
 
                   <tbody>
                     {% for s in sessions %}
-                      <tr
-                        class="border-t hover:bg-slate-50 cursor-pointer"
-                        data-session-row="{{ s.id }}"
-                      >
+                    {% set row_signals = s.emotional_signals %}
+                    {% if row_signals is string %}
+                    {% set row_signals = [] %}
+                    {% endif %}
+                    {% set row_signals = (row_signals or s.signals or []) %}
+
+                    
+                    <tr
+                      class="border-t hover:bg-slate-50 cursor-pointer"
+                      data-session-row="{{ s.id }}"
+                      data-emotional-signals='{{ (row_signals or []) | tojson }}'
+                    >
+
 
                   
                         <!-- Team Escalation -->
@@ -914,43 +923,23 @@
                         </td>
 
                   
-                        <!-- Guest Mood (prefers latest guest message sentiment_data.mood) -->
+                        <!-- Guest Mood (rendered by JS from emotional_signals; NOT hard-coded) -->
                         <td class="px-4 py-3 text-xs">
+                          {% set signals = (s.emotional_signals or s.signals or []) %}
                           {% set mood = (s.guest_mood or "")|lower %}
                           {% set conf = (s.guest_mood_confidence or 0) %}
                         
-                          {# fallback to old signals if mood missing #}
-                          {% if not mood %}
-                            {% set signals = (s.emotional_signals or s.signals or []) %}
-                            {% set mood = (signals[0] if signals and (signals|length) > 0 else "")|lower %}
+                          {# If backend didn't give a list, fall back to a single mood as a list #}
+                          {% if (not signals or (signals|length) == 0) and mood %}
+                            {% set signals = [mood] %}
                           {% endif %}
                         
                           <span
                             data-mood-badge
-                            data-guest-mood="{{ mood }}"
+                            data-emotional-signals='{{ (signals or []) | tojson }}'
                             data-guest-mood-confidence="{{ conf }}"
-                            class="inline-block"
-                          >
-                            {% if mood == "panicked" %}
-                              <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😰 Panicked</span>
-                            {% elif mood == "angry" %}
-                              <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😡 Angry</span>
-                            {% elif mood == "upset" %}
-                              <span class="px-2 py-1 rounded-full bg-orange-100 text-orange-800 font-semibold">😟 Upset</span>
-                            {% elif mood in ["worried","anxious"] %}
-                              <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🥺 Anxious</span>
-                            {% elif mood == "confused" %}
-                              <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😕 Confused</span>
-                            {% elif mood == "happy" %}
-                              <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">😊 Happy</span>
-                            {% elif mood == "calm" %}
-                              <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🙂 Calm</span>
-                            {% else %}
-                              <span class="text-slate-400">—</span>
-                            {% endif %}
-                          </span>
+                          ></span>
                         </td>
-
 
                   
                         <!-- Property -->
