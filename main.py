@@ -1350,15 +1350,24 @@ def debug_property_context(property_id: int, db: Session = Depends(get_db)):
 
 
 def simple_sentiment(message: str) -> str:
-    text = message.lower()
-    negative_markers = ["terrible", "awful", "angry", "bad", "disappointed", "upset"]
-    positive_markers = ["great", "amazing", "awesome", "love", "fantastic", "perfect"]
+    text = (message or "").lower()
+
+    negative_markers = [
+        "terrible", "awful", "angry", "mad", "furious", "pissed",
+        "bad", "disappointed", "upset", "frustrated", "annoyed",
+        "unacceptable", "worst",
+    ]
+    positive_markers = [
+        "great", "amazing", "awesome", "love", "fantastic",
+        "perfect", "thank you", "thanks", "appreciate",
+    ]
 
     if any(w in text for w in negative_markers):
         return "negative"
     if any(w in text for w in positive_markers):
         return "positive"
     return "neutral"
+
 
 
 def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
