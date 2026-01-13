@@ -25,21 +25,22 @@ window.getMoodForEl = function getMoodForEl(el) {
 
 
 
-function moodConfidenceHints(){
-  const nodes = document.querySelectorAll("[data-mood-badge]");
+function moodConfidenceHints(root = document) {
+  const nodes = root.querySelectorAll("[data-mood-badge]");
   for (const el of nodes) {
     const conf = parseInt(el.getAttribute("data-guest-mood-confidence") || "0", 10);
     if (!conf) continue;
+
     if (conf < 60) {
-      const badge = el.querySelector("span");
-      if (badge) {window.rerenderAllMoodBadges?.();
+      // after rerender, the pills are spans inside el
+      el.querySelectorAll("span").forEach((badge) => {
         badge.classList.add("opacity-70");
         badge.title = `Low confidence mood (${conf}%)`;
-      }
+      });
     }
   }
 }
-)();
+
 
 
 
