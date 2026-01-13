@@ -914,33 +914,43 @@
                         </td>
 
                   
-                        <!-- Guest Mood (server-side fallback + keeps data-emotional-signals for JS) -->
+                        <!-- Guest Mood (prefers latest guest message sentiment_data.mood) -->
                         <td class="px-4 py-3 text-xs">
-                          {% set signals = (s.emotional_signals or s.signals or []) %}
-                          {% set primary = (signals[0] if signals and (signals|length) > 0 else "")|lower %}
+                          {% set mood = (s.guest_mood or "")|lower %}
+                          {% set conf = (s.guest_mood_confidence or 0) %}
+                        
+                          {# fallback to old signals if mood missing #}
+                          {% if not mood %}
+                            {% set signals = (s.emotional_signals or s.signals or []) %}
+                            {% set mood = (signals[0] if signals and (signals|length) > 0 else "")|lower %}
+                          {% endif %}
                         
                           <span
                             data-mood-badge
-                            data-emotional-signals='{{ signals | tojson }}'
+                            data-guest-mood="{{ mood }}"
+                            data-guest-mood-confidence="{{ conf }}"
                             class="inline-block"
                           >
-                            {% if primary == "panicked" %}
+                            {% if mood == "panicked" %}
                               <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😰 Panicked</span>
-                            {% elif primary == "angry" %}
+                            {% elif mood == "angry" %}
                               <span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😡 Angry</span>
-                            {% elif primary == "upset" %}
+                            {% elif mood == "upset" %}
                               <span class="px-2 py-1 rounded-full bg-orange-100 text-orange-800 font-semibold">😟 Upset</span>
-                            {% elif primary == "confused" %}
+                            {% elif mood in ["worried","anxious"] %}
+                              <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🥺 Anxious</span>
+                            {% elif mood == "confused" %}
                               <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😕 Confused</span>
-                            {% elif primary == "worried" %}
-                              <span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🥺 Worried</span>
-                            {% elif primary == "calm" %}
+                            {% elif mood == "happy" %}
+                              <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">😊 Happy</span>
+                            {% elif mood == "calm" %}
                               <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🙂 Calm</span>
                             {% else %}
                               <span class="text-slate-400">—</span>
                             {% endif %}
                           </span>
                         </td>
+
 
                   
                         <!-- Property -->
