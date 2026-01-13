@@ -2941,7 +2941,6 @@ def admin_dashboard(
         negative_ids: set[int] = set()
         last_msg_by_session: dict[int, ChatMessage] = {}
 
-        from sqlalchemy.sql import func
 
         if session_ids:
             latest_msg_sq = (
