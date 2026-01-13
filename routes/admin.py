@@ -129,46 +129,6 @@ def _write_repo_file_text_via_git(rel_path: str, text: str, commit_msg: str) -> 
 # Chat Stats
 # ----------------------------
 
-def effective_stage(s):
-    st = (s.reservation_status or "").lower()
-
-    has_booking = bool(
-        s.reservation_id or s.booking_id or s.confirmation_code or
-        s.pms_reservation_id or s.reservation_confirmed
-    )
-
-    if st in ("post_booking", "booked", "confirmed"):
-        return "post_booking"
-    if st == "pre_booking" and has_booking:
-        return "post_booking"
-    return st or "unknown"
-
-counts = {"pre_booking":0, "active":0, "post_stay":0}
-for s in sessions_for_analytics:  # from SAME base query (not paginated)
-    stage = effective_stage(s)
-    if stage in counts:
-        counts[stage] += 1
-
-def norm_priority(s):
-    raw = (s.action_priority or s.priority_level or s.priority or "").lower()
-    if raw in ("urgent","critical"): return "urgent"
-    if raw in ("high","attention"):  return "high"
-    if raw in ("normal","medium"):   return "normal"
-    if raw == "low":                return "low"
-    return ""
-
-
-urgent_sessions = sum(1 for s in sessions_for_analytics if norm_priority(s) == "urgent")
-
-
-UNHAPPY = {"panicked","angry","upset"}
-
-def norm_signals(s):
-    sig = s.emotional_signals or s.signals or []
-    return {str(x).lower().strip() for x in sig if x}
-
-unhappy_sessions = sum(1 for s in sessions_for_analytics if norm_signals(s) & UNHAPPY)
-
 
 def _effective_stage_from_dict(d: dict) -> str:
     st = (d.get("reservation_status") or "").strip().lower()
@@ -187,27 +147,6 @@ def _effective_stage_from_dict(d: dict) -> str:
         return "post_booking"
     return st or "unknown"
 
-
-# reset analytics to zero
-analytics["pre_booking"] = 0
-analytics["post_booking"] = 0
-analytics["active"] = 0
-analytics["post_stay"] = 0
-analytics["urgent_sessions"] = 0
-analytics["unhappy_sessions"] = 0
-
-for row in sessions:
-    stage = _effective_stage_from_dict(row)
-    if stage in ("pre_booking", "post_booking", "active", "post_stay"):
-        analytics[stage] += 1
-
-    # ✅ match your “urgent sessions” intent to message-derived urgency
-    if row.get("has_urgent"):
-        analytics["urgent_sessions"] += 1
-
-    # ✅ match “unhappy sessions” to negative sentiment detection you already computed
-    if row.get("has_negative"):
-        analytics["unhappy_sessions"] += 1
 
 
 # ----------------------------
@@ -2835,9 +2774,14 @@ def admin_dashboard(
         "unhappy_sessions": 0,
     }
 
+
+    
+
     selected_session = None
     selected_property = None
     selected_messages: list[ChatMessage] = []
+
+    
 
     # ✅ Always preload chats
     should_load_chats = True
