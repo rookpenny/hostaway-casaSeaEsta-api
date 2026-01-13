@@ -1275,6 +1275,8 @@ def property_chat(
 
         text = (resp.choices[0].message.content or "").strip()
         text = enforce_click_here_links(text)
+        guest_sentiment = simple_sentiment(user_message)
+
 
         # 8) Save user + assistant messages (schema-safe)
         # ---- IMPORTANT ----
@@ -1283,8 +1285,10 @@ def property_chat(
             session_id=session_id,
             sender="guest",
             content=user_message,
+            sentiment=guest_sentiment,  # ✅ Option C
             created_at=now,
         ))
+
 
         db.add(ChatMessage(
             session_id=session_id,
