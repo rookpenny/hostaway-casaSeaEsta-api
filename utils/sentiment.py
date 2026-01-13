@@ -1,194 +1,169 @@
-# utils/sentiment.py
 import os
 import json
 import re
 from typing import Any, Dict, List, Tuple
 
-# -----------------------------
-# Patterns (fast deterministic)
-# -----------------------------
+# ----------------------------
+# Pattern helpers
+# ----------------------------
 
-# Explicit "reset" / de-escalation phrases
-_RESET_RE = re.compile(
-    r"\b(jk|j/k|just kidding|kidding|i was joking|only joking|never mind|nevermind|all good|no worries|we're good|we are good)\b",
+# Strong explicit reset patterns
+_JOKE_RESET_RE = re.compile(
+    r"\b(jk|j/k|just kidding|kidding|i was joking|only joking|never mind|nevermind)\b",
     re.I,
 )
 
-# Laugh / playful markers that often mean the guest is NOT upset
+# Playful / teasing markers (covers "lol", "lmao", emojis, "bro", "😂", etc.)
 _PLAYFUL_RE = re.compile(
-    r"(\b(lol|lmao|rofl|haha|hehe)\b|😂|🤣|😅|😉|😜|😆)",
+    r"(\blol\b|\blmao\b|\brofl\b|\bhaha\b|\bhehe\b|😂|🤣|😅|😉|😜|😆|😁|😄|😭|"
+    r"\bjust playing\b|\bplaying\b|\bteasing\b|\bi'm kidding\b|\bim kidding\b|\bdead\b|\bbro\b)",
     re.I,
 )
 
-# Strong negative escalation markers
-_ESCALATE_RE = re.compile(
-    r"\b(refund|chargeback|lawsuit|report you|unsafe|dangerous|mold|infestation|bed ?bugs|police|fraud|scam)\b",
+# Sarcasm cues
+_SARCASM_RE = re.compile(
+    r"(\byeah right\b|\bsure\b.*\bnot\b|\bas if\b|\bokay then\b|\bnice\b\W*$|\bgreat\b\W*$)",
     re.I,
 )
 
-# Quick keyword lists for fallback
-NEGATIVE_WORDS = [
-    "terrible", "awful", "angry", "bad", "disappointed", "upset", "mad", "furious",
-    "annoyed", "frustrated", "confused", "ridiculous", "unacceptable", "worst",
-]
-POSITIVE_WORDS = [
-    "great", "amazing", "awesome", "love", "fantastic", "perfect", "thank you", "thanks",
-    "appreciate", "wonderful",
-]
+# Strong negative cues
+_NEG_STRONG_RE = re.compile(r"\b(furious|livid|unacceptable|ruined|scam|worst)\b", re.I)
 
-MOODS = {"happy", "calm", "confused", "upset", "angry", "anxious", "playful"}
+# Mild negative cues
+_NEG_MILD_RE = re.compile(r"\b(upset|mad|angry|annoyed|disappointed|bad|terrible|awful)\b", re.I)
+
+# Positive cues
+_POS_RE = re.compile(r"\b(thanks|thank you|great|amazing|awesome|love|fantastic|perfect)\b", re.I)
 
 
-# -----------------------------
-# Helpers
-# -----------------------------
-def _clip_int(x: Any, lo: int = 0, hi: int = 100, default: int = 60) -> int:
-    try:
-        v = int(x)
-    except Exception:
-        return default
-    return max(lo, min(hi, v))
-
-
-def _safe_str(x: Any) -> str:
-    return (str(x) if x is not None else "").strip()
-
-
-def _extract_json_object(text: str) -> Dict[str, Any]:
+def sentiment_fallback_rule(text: str) -> Tuple[str, str, int, Dict[str, Any]]:
     """
-    Robust JSON extractor:
-    - If the model returns extra text, grab the first {...} block.
+    Deterministic fallback.
+    Returns: (sentiment, mood, confidence, flags)
     """
     t = (text or "").strip()
-    if not t:
-        raise ValueError("empty model output")
+    tl = t.lower()
 
-    # direct parse first
-    try:
-        return json.loads(t)
-    except Exception:
-        pass
+    # hard reset
+    if _JOKE_RESET_RE.search(tl):
+        return ("neutral", "calm", 95, {"reset": True})
 
-    # try to find first JSON object
-    m = re.search(r"\{.*\}", t, flags=re.DOTALL)
-    if not m:
-        raise ValueError("no json object found")
-    return json.loads(m.group(0))
+    # playful override (prevents "confused/upset" on jokes)
+    if _PLAYFUL_RE.search(tl) and not _NEG_STRONG_RE.search(tl):
+        return ("neutral", "happy", 80, {"playful": True})
 
+    # sarcasm: usually negative *tone*, but not always "upset"
+    if _SARCASM_RE.search(tl) and _NEG_MILD_RE.search(tl):
+        return ("negative", "annoyed" if "annoyed" in {"annoyed"} else "upset", 70, {"sarcasm": True})
 
-def build_sentiment_context(history_rows: List[Any], max_turns: int = 12) -> str:
-    """
-    Build a compact transcript for mood interpretation.
-    Includes both guest + assistant; last turns only.
-    """
-    rows = history_rows[-max_turns:] if len(history_rows) > max_turns else history_rows
-    lines: List[str] = []
-    for m in rows:
-        sender = (_safe_str(getattr(m, "sender", "guest")).lower() or "guest")
-        role = "assistant" if sender == "assistant" else "guest"
-        content = _safe_str(getattr(m, "content", ""))
+    if _NEG_STRONG_RE.search(tl):
+        return ("negative", "angry", 85, {"strong_negative": True})
 
-        if not content:
-            continue
-
-        # cap per line to avoid huge prompts
-        content = content.replace("\n", " ").strip()[:280]
-        lines.append(f"{role}: {content}")
-
-    return "\n".join(lines)
-
-
-def sentiment_fallback_rule(current_text: str) -> Tuple[str, str, int, Dict[str, Any]]:
-    """
-    Deterministic fallback when OpenAI fails.
-    """
-    t = (current_text or "").lower()
-
-    # hard reset / de-escalate
-    if _RESET_RE.search(t) or _PLAYFUL_RE.search(t):
-        return ("neutral", "calm", 90, {"reset": True})
-
-    if _ESCALATE_RE.search(t):
-        return ("negative", "angry", 85, {"escalation": True})
-
-    if any(w in t for w in NEGATIVE_WORDS):
-        # confusion should map to "confused" rather than "upset" sometimes
-        if "confus" in t or "doesn't make sense" in t or "what do you mean" in t:
-            return ("negative", "confused", 70, {})
+    if _NEG_MILD_RE.search(tl):
         return ("negative", "upset", 70, {})
 
-    if any(w in t for w in POSITIVE_WORDS):
+    if _POS_RE.search(tl):
         return ("positive", "happy", 70, {})
 
     return ("neutral", "calm", 60, {})
 
 
-# -----------------------------
-# Main classifier (OpenAI first)
-# -----------------------------
-def classify_guest_sentiment(client, history_rows: List[Any], current_text: str) -> Dict[str, Any]:
-    """
-    Returns:
-      {
-        "sentiment": "positive|neutral|negative",
-        "mood": "...",
-        "confidence": 0-100,
-        "source": "openai|override|fallback",
-        "flags": {...}
-      }
+def build_sentiment_context(history_rows, max_turns: int = 10) -> str:
+    rows = history_rows[-max_turns:] if len(history_rows) > max_turns else history_rows
+    lines = []
+    for m in rows:
+        sender = (getattr(m, "sender", "") or "guest").strip().lower()
+        role = "assistant" if sender == "assistant" else "guest"
+        content = (getattr(m, "content", "") or "").strip()
+        if not content:
+            continue
+        lines.append(f"{role}: {content[:300]}")
+    return "\n".join(lines)
 
-    IMPORTANT:
-      - Save ONLY the string to ChatMessage.sentiment (your DB column is String).
-      - Keep the rest for UI / analytics until you add JSONB storage.
-    """
-    cur = _safe_str(current_text)
 
-    # 0) Fast deterministic overrides (super important for jokes)
-    if _RESET_RE.search(cur) or _PLAYFUL_RE.search(cur):
+def _recent_guest_mood(history_rows, max_turns: int = 6) -> str | None:
+    """
+    If you store sentiment only as a string today, we can't read mood from DB.
+    But we can still infer a simple prior mood signal from prior guest text.
+    """
+    rows = history_rows[-max_turns:] if len(history_rows) > max_turns else history_rows
+    for m in reversed(rows):
+        sender = (getattr(m, "sender", "") or "").lower().strip()
+        if sender not in {"guest", "user"}:
+            continue
+        content = (getattr(m, "content", "") or "").strip()
+        if not content:
+            continue
+        # quick heuristic: if prior message looked playful, remember that
+        if _PLAYFUL_RE.search(content.lower()):
+            return "playful"
+        if _NEG_STRONG_RE.search(content.lower()) or _NEG_MILD_RE.search(content.lower()):
+            return "negative"
+        if _POS_RE.search(content.lower()):
+            return "positive"
+    return None
+
+
+def _clamp01(x: int) -> int:
+    return max(0, min(100, int(x)))
+
+
+def classify_guest_sentiment(client, history_rows, current_text: str) -> Dict[str, Any]:
+    """
+    OpenAI-first sentiment + mood classification using conversation context,
+    with deterministic overrides and deterministic fallback.
+    """
+    current_text = (current_text or "").strip()
+
+    # 1) deterministic override: explicit "jk"/reset
+    if _JOKE_RESET_RE.search(current_text.lower()):
         return {
             "sentiment": "neutral",
-            "mood": "playful" if _PLAYFUL_RE.search(cur) else "calm",
-            "confidence": 92,
+            "mood": "calm",
+            "confidence": 95,
             "source": "override",
-            "flags": {"reset": True, "playful": bool(_PLAYFUL_RE.search(cur))},
+            "flags": {"reset": True},
         }
 
-    if _ESCALATE_RE.search(cur):
+    # 2) deterministic override: playful markers (unless strong negative)
+    if _PLAYFUL_RE.search(current_text.lower()) and not _NEG_STRONG_RE.search(current_text.lower()):
         return {
-            "sentiment": "negative",
-            "mood": "angry",
-            "confidence": 88,
+            "sentiment": "neutral",
+            "mood": "happy",
+            "confidence": 85,
             "source": "override",
-            "flags": {"escalation": True},
+            "flags": {"playful": True},
         }
 
-    # 1) Build context
-    ctx = build_sentiment_context(history_rows, max_turns=12)
+    ctx = build_sentiment_context(history_rows, max_turns=10)
+    prior_signal = _recent_guest_mood(history_rows, max_turns=6)
 
-    # 2) OpenAI prompt (context-aware, “current message” focus)
+    # 3) OpenAI classification (context-aware)
     prompt = f"""
 You are labeling the GUEST'S CURRENT message in a hospitality chat.
 
-Use the context ONLY to interpret the CURRENT message.
-If the guest is joking, teasing, or clearly playful, do NOT label them upset/angry.
+Rules:
+- Use the context ONLY to interpret the CURRENT message.
+- If the guest is joking / teasing / playful / sarcastic, do NOT label them as upset/confused unless it's clearly genuine frustration.
+- Prefer "calm" or "happy" for playful banter.
+- Only use "confused" if the guest is truly asking "what does that mean" / "I don't understand" etc.
+- Only use "upset/angry/anxious" when the message shows real distress, complaint, threat, or urgency.
 
 Return ONLY valid JSON:
 {{
-  "sentiment": "positive" | "neutral" | "negative",
-  "mood": "happy" | "calm" | "playful" | "confused" | "upset" | "angry" | "anxious",
+  "sentiment": "positive"|"neutral"|"negative",
+  "mood": "happy"|"calm"|"confused"|"upset"|"angry"|"anxious",
   "confidence": 0-100,
-  "flags": {{
-    "joking": true|false,
-    "resolved": true|false,
-    "escalation": true|false
-  }}
+  "playful": true|false
 }}
 
-Context (recent turns):
+Context transcript:
 {ctx}
 
+Prior guest signal (heuristic): {prior_signal or "none"}
+
 Guest CURRENT message:
-{cur}
+{current_text}
 """.strip()
 
     model = (os.getenv("OPENAI_SENTIMENT_MODEL") or os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
@@ -203,37 +178,31 @@ Guest CURRENT message:
             ],
         )
 
-        raw = _safe_str(resp.choices[0].message.content)
-        data = _extract_json_object(raw)
+        raw = (resp.choices[0].message.content or "").strip()
+        data = json.loads(raw)
 
-        sentiment = _safe_str(data.get("sentiment")).lower() or "neutral"
-        mood = _safe_str(data.get("mood")).lower() or "calm"
-        confidence = _clip_int(data.get("confidence"), default=60)
-
-        flags = data.get("flags") if isinstance(data.get("flags"), dict) else {}
-        flags = {k: bool(v) for k, v in flags.items()}
+        sentiment = str(data.get("sentiment") or "neutral").lower().strip()
+        mood = str(data.get("mood") or "calm").lower().strip()
+        confidence = _clamp01(data.get("confidence") or 60)
+        playful = bool(data.get("playful") or False)
 
         if sentiment not in {"positive", "neutral", "negative"}:
             sentiment = "neutral"
-        if mood not in MOODS:
+        if mood not in {"happy", "calm", "confused", "upset", "angry", "anxious"}:
             mood = "calm"
 
-        # 3) Post-adjustments (reactionary improvements)
-        # If the guest is flagged joking OR contains playful markers, do not keep "upset/angry"
-        if flags.get("joking") or _PLAYFUL_RE.search(cur):
-            if sentiment == "negative" and confidence < 90:
-                sentiment = "neutral"
-            if mood in {"upset", "angry", "anxious"}:
-                mood = "playful" if _PLAYFUL_RE.search(cur) else "calm"
-            flags["playful_override"] = True
+        # 4) Light smoothing: if model says upset/confused but message is playful-ish, soften it
+        if (mood in {"confused", "upset", "angry"} or sentiment == "negative") and _PLAYFUL_RE.search(current_text.lower()):
+            mood = "happy"
+            sentiment = "neutral"
+            confidence = max(confidence - 10, 55)
+            playful = True
 
-        # If the guest seems to be resolving after a negative context
-        if flags.get("resolved") or _RESET_RE.search(cur):
-            if sentiment == "negative" and confidence < 95:
-                sentiment = "neutral"
-            if mood in {"upset", "angry"}:
-                mood = "calm"
-            flags["resolved_override"] = True
+        flags: Dict[str, Any] = {}
+        if playful:
+            flags["playful"] = True
+        if prior_signal:
+            flags["prior_signal"] = prior_signal
 
         return {
             "sentiment": sentiment,
@@ -244,7 +213,7 @@ Guest CURRENT message:
         }
 
     except Exception:
-        s, m, c, flags = sentiment_fallback_rule(cur)
+        s, m, c, flags = sentiment_fallback_rule(current_text)
         return {
             "sentiment": s,
             "mood": m,
