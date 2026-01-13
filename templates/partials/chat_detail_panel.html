@@ -1,14 +1,16 @@
 {# chat_detail_panel.html (CLEAN + FUTURE-PROOF) #}
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
 {% set rs = (session.reservation_status or '')|lower %}
-{% set esc = (session.escalation_level or '')|lower %}
+{% set esc_raw = (session.escalation_level or '')|lower %}
+{% set esc = 'high' if esc_raw in ['critical','high'] else ('medium' if esc_raw in ['attention','medium'] else ('low' if esc_raw == 'low' else '')) %}
+{% set ap = (session.action_priority or '')|lower %}
 {% set assigned = (session.assigned_to or '') %}
 
 <div
   class="space-y-4"
   data-chat-panel="{{ session.id }}"
   data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
-  data-action-priority='{{ (session.action_priority or "") | lower | e }}'
+  data-action-priority="{{ ap | e }}"
   data-escalation-level="{{ esc | e }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
   data-assigned-to="{{ assigned | e }}"
@@ -31,74 +33,40 @@
 
             {# Reservation status pill #}
             {% if rs == "active" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">
-                🏖 Active
-              </span>
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">🏖 Active</span>
             {% elif rs == "pre_booking" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
-                💬 Pre-booking
-              </span>
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">💬 Pre-booking</span>
             {% elif rs == "post_stay" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">
-                📬 Post-stay
-              </span>
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">📬 Post-stay</span>
             {% else %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">
-                Unknown
-              </span>
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">Unknown</span>
             {% endif %}
 
+            {# Action priority pill #}
+            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+              {% if ap == 'urgent' %}bg-rose-100 text-rose-800
+              {% elif ap == 'high' %}bg-amber-100 text-amber-800
+              {% elif ap == 'normal' %}bg-slate-100 text-slate-700
+              {% elif ap == 'low' %}bg-blue-100 text-blue-800
+              {% else %}bg-slate-100 text-slate-500{% endif %}">
+              {% if ap == 'urgent' %}🔥 Action: Urgent
+              {% elif ap == 'high' %}⚠️ Action: High
+              {% elif ap == 'normal' %}🛠️ Action: Normal
+              {% elif ap == 'low' %}🕰️ Action: Low
+              {% else %}Action: —{% endif %}
+            </span>
 
-            {% set ap = (session.action_priority or "")|lower %}
-
-              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if ap == 'urgent' %}
-                  bg-rose-100 text-rose-800
-                {% elif ap == 'high' %}
-                  bg-amber-100 text-amber-800
-                {% elif ap == 'normal' %}
-                  bg-slate-100 text-slate-700
-                {% elif ap == 'low' %}
-                  bg-blue-100 text-blue-800
-                {% else %}
-                  bg-slate-100 text-slate-500
-                {% endif %}
-              ">
-                {% if ap == 'urgent' %}
-                  🔥 Action: Urgent
-                {% elif ap == 'high' %}
-                  ⚠️ Action: High
-                {% elif ap == 'normal' %}
-                  🛠️ Action: Normal
-                {% elif ap == 'low' %}
-                  🕰️ Action: Low
-                {% else %}
-                  Action: —
-                {% endif %}
-              </span>
-
-
-
-            
             {# Guest Mood (rendered by JS from emotional_signals) #}
             <span
               data-mood-badge
               data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
             ></span>
 
-
-
             {# Resolved/Open pill #}
             <span
               id="resolved-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-[13px] font-semibold
-                {% if session.is_resolved %}
-                  bg-emerald-100 text-emerald-800
-                {% else %}
-                  bg-slate-200 text-slate-700
-                {% endif %}
-              "
-            >
+                {% if session.is_resolved %}bg-emerald-100 text-emerald-800{% else %}bg-slate-200 text-slate-700{% endif %}">
               {% if session.is_resolved %}✅ Resolved{% else %}🕒 Open{% endif %}
             </span>
 
@@ -106,23 +74,13 @@
             <span
               id="escalation-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if esc in ['critical','high'] %}
-                  bg-rose-100 text-rose-800
-                {% elif esc in ['attention','medium'] %}
-                  bg-amber-100 text-amber-800
-                {% elif esc == 'low' %}
-                  bg-blue-100 text-blue-800
-                {% else %}
-                  bg-slate-100 text-slate-500
-                {% endif %}
-              "
-            >
-              {% if esc %}
-                🚨 Team Escalation: {{ esc|capitalize }}
-              {% else %}
-                No escalation
-              {% endif %}
+                {% if esc == 'high' %}bg-rose-100 text-rose-800
+                {% elif esc == 'medium' %}bg-amber-100 text-amber-800
+                {% elif esc == 'low' %}bg-blue-100 text-blue-800
+                {% else %}bg-slate-100 text-slate-500{% endif %}">
+              {% if esc %}🚨 Team Escalation: {{ esc|capitalize }}{% else %}No escalation{% endif %}
             </span>
+
           </div>
 
           <!-- Assigned -->
