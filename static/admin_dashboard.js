@@ -95,6 +95,21 @@ window.getMoodForEl = function getMoodForEl(el) {
   // Expose normalizer for other modules
   window.normalizeEmotionalSignals = normalizeEmotionalSignals;
 
+  function hydrateMoodAttr(root = document) {
+      root.querySelectorAll("[data-mood-badge]").forEach((el) => {
+        const hasSignals = el.hasAttribute("data-emotional-signals");
+        if (hasSignals) return;
+    
+        const gm = (el.getAttribute("data-guest-mood") || "").trim().toLowerCase();
+        if (!gm || gm === "null" || gm === "none" || gm === "undefined") return;
+    
+        // Map guest mood -> emotional_signals list (your renderer expects a list)
+        el.setAttribute("data-emotional-signals", JSON.stringify([gm]));
+      });
+    }
+    window.hydrateMoodAttr = hydrateMoodAttr;
+
+
   function pill(text, cls) {
     return `<span class="inline-block px-2 py-1 rounded-full font-semibold mr-1 ${cls}">${text}</span>`;
   }
@@ -132,21 +147,16 @@ window.getMoodForEl = function getMoodForEl(el) {
   };
 
 function rerenderAllMoodBadges(root = document) {
+  hydrateMoodAttr(root);
+
   root.querySelectorAll("[data-mood-badge]").forEach((el) => {
-    // Prefer badge attr, fallback to session row attr
-    let raw =
-      el.getAttribute("data-emotional-signals") ||
-      el.closest("[data-session-row]")?.getAttribute("data-emotional-signals") ||
-      "[]";
-
-    raw = String(raw || "").trim();
-
+    const raw = el.getAttribute("data-emotional-signals") || "[]";
     let parsed = [];
     try { parsed = JSON.parse(raw); } catch { parsed = raw; }
-
     window.renderMoodBadges(el, parsed);
   });
 }
+
 window.rerenderAllMoodBadges = rerenderAllMoodBadges;
 
 })();
@@ -517,7 +527,10 @@ async function loadChatDetail(sessionId) {
     const listMoodEl = document.querySelector(
       `[data-session-row="${sessionId}"] [data-mood-badge]`
     );
-    const listRawMood = (listMoodEl?.getAttribute("data-emotional-signals") || "").trim();
+    const listRawMood =
+      (listMoodEl?.getAttribute("data-emotional-signals") || "").trim() ||
+      JSON.stringify([ (listMoodEl?.getAttribute("data-guest-mood") || "").trim().toLowerCase() ].filter(Boolean));
+
     
     // Detail badge element (inside injected partial)
     const detailMoodEl = panel.querySelector("[data-mood-badge]");
