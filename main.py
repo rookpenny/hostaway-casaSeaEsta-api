@@ -56,6 +56,7 @@ from utils.ai_summary import maybe_autosummarize_on_new_guest_message
 from utils.sentiment import classify_sentiment_rule
 from utils.sentiment import classify_guest_sentiment
 
+
 from typing import Optional, Literal, TypedDict
 
 logger = logging.getLogger("uvicorn.error")
@@ -1285,6 +1286,8 @@ def _new_chat_message(session_id: int, role: str, content: str) -> ChatMessage:
 
 
 
+
+
 @app.post("/properties/{property_id}/chat")
 def property_chat(
     property_id: int,
@@ -1306,7 +1309,6 @@ def property_chat(
     session = None
     now = datetime.utcnow()
 
-    # 3a) ensure ChatSession exists
     if session_id:
         session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
 
@@ -1353,32 +1355,23 @@ def property_chat(
     if len(history_rows) > HISTORY_LIMIT:
         history_rows = history_rows[-HISTORY_LIMIT:]
 
-    # 6b) Sentiment classification (OpenAI-first + override + fallback)
-    client = get_openai(request)
-    sent = classify_guest_sentiment(client, history_rows, user_message)
-
-    # OPTIONAL: make assistant more “reactionary” by giving it the detected mood
-    # (keeps tone aligned, especially for playful/joking)
-    mood_line = f"\nGuest tone right now: {sent.get('mood','calm')} (confidence {sent.get('confidence',60)}).\n"
-    system_prompt = system_prompt + mood_line
-
-    # 7) Build OpenAI messages list
+    # Build OpenAI messages list
     messages = [{"role": "system", "content": system_prompt}]
-
     for m in history_rows:
         sender = (getattr(m, "sender", "") or "").lower().strip()
         content = (getattr(m, "content", "") or "").strip()
         if not content:
             continue
-
-        if sender == "assistant":
-            messages.append({"role": "assistant", "content": content})
-        else:
-            messages.append({"role": "user", "content": content})
+        messages.append(
+            {"role": "assistant", "content": content}
+            if sender == "assistant"
+            else {"role": "user", "content": content}
+        )
 
     messages.append({"role": "user", "content": user_message})
 
-    # 8) Call OpenAI (chat response)
+    # 7) Call OpenAI (assistant response)
+    client = get_openai(request)
     model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
 
     try:
@@ -1391,14 +1384,30 @@ def property_chat(
         assistant_text = (resp.choices[0].message.content or "").strip()
         assistant_text = enforce_click_here_links(assistant_text)
 
-        # 9) Save guest message (sentiment string only)
+        # 8) Sentiment tagging (OpenAI-first + fallback) using conversation context
+        sent = classify_guest_sentiment(client, history_rows, user_message)
+
+        sentiment_label = (sent.get("sentiment") or "neutral").lower().strip()
+        if sentiment_label not in {"positive", "neutral", "negative"}:
+            sentiment_label = "neutral"
+
+        # keep sentiment_data JSON-serializable
+        sentiment_data = {
+            "mood": sent.get("mood"),
+            "confidence": sent.get("confidence"),
+            "source": sent.get("source"),
+            "flags": sent.get("flags", {}),
+        }
+
+        # 9) Save guest message WITH sentiment + sentiment_data
         db.add(
             ChatMessage(
                 session_id=session_id,
                 sender="guest",
                 content=user_message,
-                sentiment=sent.get("sentiment") or "neutral",
                 created_at=now,
+                sentiment=sentiment_label,     # ✅ string only
+                sentiment_data=sentiment_data, # ✅ JSONB
             )
         )
 
@@ -1417,26 +1426,18 @@ def property_chat(
         db.add(session)
         db.commit()
 
-        # Auto summarize (throttled)
+        # Auto summary (non-fatal)
         try:
             maybe_autosummarize_on_new_guest_message(db, session_id=int(session_id))
         except Exception:
             logger.exception("Auto-summary failed (non-fatal)")
 
-        # Return sentiment meta for UI (no DB migration needed)
         return {
             "response": assistant_text,
             "session_id": session_id,
             "thread_id": payload.thread_id,
             "reply_to": payload.client_message_id,
             "suggestions": [],
-            "sentiment": {
-                "sentiment": sent.get("sentiment"),
-                "mood": sent.get("mood"),
-                "confidence": sent.get("confidence"),
-                "source": sent.get("source"),
-                "flags": sent.get("flags", {}),
-            },
         }
 
     except RateLimitError:
