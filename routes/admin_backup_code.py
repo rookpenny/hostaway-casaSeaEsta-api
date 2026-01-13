@@ -1,6 +1,7 @@
 # ----------------------------
 # renders sections + dropdowns + lists CONFIG.JSON
 # ----------------------------
+'''
 CONFIG_FORM = [
     {
         "section": "Assistant",
@@ -114,3 +115,4 @@ CONFIG_FORM = [
     }
 ]
 
+'''
