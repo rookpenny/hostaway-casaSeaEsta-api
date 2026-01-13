@@ -1342,20 +1342,27 @@ def property_chat(
     if not user_message:
         raise HTTPException(status_code=400, detail="Message is required")
 
-    # 6) Pull recent history to prevent "tone reset"
+    # 6) Pull recent history
     HISTORY_LIMIT = 12
-
     history_rows = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == session_id)
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
-
     if len(history_rows) > HISTORY_LIMIT:
         history_rows = history_rows[-HISTORY_LIMIT:]
 
-    # Build OpenAI messages list
+    # 6b) Sentiment classification (OpenAI-first + override + fallback)
+    client = get_openai(request)
+    sent = classify_guest_sentiment(client, history_rows, user_message)
+
+    # OPTIONAL: make assistant more “reactionary” by giving it the detected mood
+    # (keeps tone aligned, especially for playful/joking)
+    mood_line = f"\nGuest tone right now: {sent.get('mood','calm')} (confidence {sent.get('confidence',60)}).\n"
+    system_prompt = system_prompt + mood_line
+
+    # 7) Build OpenAI messages list
     messages = [{"role": "system", "content": system_prompt}]
 
     for m in history_rows:
@@ -1367,14 +1374,11 @@ def property_chat(
         if sender == "assistant":
             messages.append({"role": "assistant", "content": content})
         else:
-            # treat guest/system/etc as user for the model
             messages.append({"role": "user", "content": content})
 
-    # Add current user message last
     messages.append({"role": "user", "content": user_message})
 
-    # 7) Call OpenAI (chat response)
-    client = get_openai(request)
+    # 8) Call OpenAI (chat response)
     model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
 
     try:
@@ -1387,29 +1391,16 @@ def property_chat(
         assistant_text = (resp.choices[0].message.content or "").strip()
         assistant_text = enforce_click_here_links(assistant_text)
 
-        # ✅ Option C: sentiment tagging at ingestion (OpenAI-first + fallback)
-        #raw_sentiment = classify_sentiment_with_fallback(client, user_message)  # OpenAI-first + fallback
-        #guest_sentiment = normalize_sentiment_label(raw_sentiment)
-
-        sent = classify_guest_sentiment(client, history_rows, user_message)
-        guest_sentiment = sent["sentiment"]
-        sentiment_data = {
-            "mood": sent.get("mood"),
-            "confidence": sent.get("confidence"),
-            "source": sent.get("source"),
-            "flags": sent.get("flags", {}),
-        }
-
-
-        # 8) Save guest message (with sentiment)
-        db.add(ChatMessage(
-            session_id=session_id,
-            sender="guest",
-            content=user_message,
-            sentiment=guest_sentiment,        # ✅ string
-            sentiment_data=sentiment_data,    # ✅ JSONB
-            created_at=now,
-        ))
+        # 9) Save guest message (sentiment string only)
+        db.add(
+            ChatMessage(
+                session_id=session_id,
+                sender="guest",
+                content=user_message,
+                sentiment=sent.get("sentiment") or "neutral",
+                created_at=now,
+            )
+        )
 
         # Save assistant message
         db.add(
@@ -1426,18 +1417,26 @@ def property_chat(
         db.add(session)
         db.commit()
 
-        # ✅ Auto re-summarize (throttled) after new guest message
+        # Auto summarize (throttled)
         try:
             maybe_autosummarize_on_new_guest_message(db, session_id=int(session_id))
         except Exception:
             logger.exception("Auto-summary failed (non-fatal)")
 
+        # Return sentiment meta for UI (no DB migration needed)
         return {
             "response": assistant_text,
             "session_id": session_id,
             "thread_id": payload.thread_id,
             "reply_to": payload.client_message_id,
             "suggestions": [],
+            "sentiment": {
+                "sentiment": sent.get("sentiment"),
+                "mood": sent.get("mood"),
+                "confidence": sent.get("confidence"),
+                "source": sent.get("source"),
+                "flags": sent.get("flags", {}),
+            },
         }
 
     except RateLimitError:
