@@ -54,6 +54,7 @@ from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from utils.github_sync import ensure_repo
 from utils.ai_summary import maybe_autosummarize_on_new_guest_message
 from utils.sentiment import classify_sentiment_rule
+from utils.sentiment import classify_guest_sentiment
 
 from typing import Optional, Literal, TypedDict
 
@@ -1387,8 +1388,17 @@ def property_chat(
         assistant_text = enforce_click_here_links(assistant_text)
 
         # ✅ Option C: sentiment tagging at ingestion (OpenAI-first + fallback)
-        raw_sentiment = classify_sentiment_with_fallback(client, user_message)  # OpenAI-first + fallback
-        guest_sentiment = normalize_sentiment_label(raw_sentiment)
+        #raw_sentiment = classify_sentiment_with_fallback(client, user_message)  # OpenAI-first + fallback
+        #guest_sentiment = normalize_sentiment_label(raw_sentiment)
+
+        sent = classify_guest_sentiment(client, history_rows, user_message)
+        guest_sentiment = sent["sentiment"]
+        sentiment_data = {
+            "mood": sent.get("mood"),
+            "confidence": sent.get("confidence"),
+            "source": sent.get("source"),
+            "flags": sent.get("flags", {}),
+        }
 
 
         # 8) Save guest message (with sentiment)
@@ -1396,7 +1406,8 @@ def property_chat(
             session_id=session_id,
             sender="guest",
             content=user_message,
-            sentiment=guest_sentiment,
+            sentiment=guest_sentiment,        # ✅ string
+            sentiment_data=sentiment_data,    # ✅ JSONB
             created_at=now,
         ))
 
