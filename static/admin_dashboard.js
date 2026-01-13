@@ -25,22 +25,21 @@ window.getMoodForEl = function getMoodForEl(el) {
 
 
 
-(function moodConfidenceHints(){
+function moodConfidenceHints(){
   const nodes = document.querySelectorAll("[data-mood-badge]");
   for (const el of nodes) {
     const conf = parseInt(el.getAttribute("data-guest-mood-confidence") || "0", 10);
     if (!conf) continue;
-
-    // If confidence is low, visually soften it
     if (conf < 60) {
       const badge = el.querySelector("span");
-      if (badge) {
+      if (badge) {window.rerenderAllMoodBadges?.();
         badge.classList.add("opacity-70");
         badge.title = `Low confidence mood (${conf}%)`;
       }
     }
   }
-})();
+}
+)();
 
 
 
@@ -2549,6 +2548,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   initRouting();
 
   window.rerenderAllMoodBadges?.();
+  moodConfidenceHints?.();
+
 
   // 2) Property filters
   document.getElementById("searchInput")?.addEventListener("input", filterProperties);
