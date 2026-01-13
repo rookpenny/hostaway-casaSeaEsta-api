@@ -55,6 +55,8 @@ from utils.github_sync import ensure_repo
 from utils.ai_summary import maybe_autosummarize_on_new_guest_message
 from utils.sentiment import classify_sentiment_rule
 
+from typing import Optional, Literal, TypedDict
+
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
 
@@ -103,6 +105,98 @@ templates = Jinja2Templates(directory="templates")
 TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
 TMP_DIR = FSPath("static/uploads/upgrades/tmp")
 TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+
+# ----------------------------
+# Giving OPENAI full sentiment/ mood control
+# ----------------------------
+
+Sentiment = Literal["negative", "neutral", "positive"]
+Mood = Literal["angry", "confused", "worried", "upset", "panicked", "stressed", "calm", "other"]
+
+class SentimentResult(TypedDict, total=False):
+    sentiment: Sentiment
+    mood: Mood
+    confidence: int  # 0-100
+
+
+def classify_sentiment_openai(
+    client: OpenAI,
+    text: str,
+    model: str = "gpt-4o-mini",
+) -> Optional[SentimentResult]:
+    """
+    OpenAI-first classifier.
+    Returns dict with sentiment/mood/confidence or None on failure.
+    """
+    msg = (text or "").strip()
+    if not msg:
+        return None
+
+    try:
+        resp = client.chat.completions.create(
+            model=model,
+            temperature=0,
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a strict text classifier.\n"
+                        "Return ONLY valid JSON.\n"
+                        "Schema:\n"
+                        '{ "sentiment": "negative|neutral|positive", '
+                        '"mood": "angry|confused|worried|upset|panicked|stressed|calm|other", '
+                        '"confidence": 0-100 }\n'
+                        "Rules:\n"
+                        "- sentiment is overall valence.\n"
+                        "- mood is the dominant emotion.\n"
+                        "- confidence is your confidence.\n"
+                        "- No extra keys. No markdown. No explanation."
+                    ),
+                },
+                {"role": "user", "content": msg},
+            ],
+            # If your OpenAI SDK/model supports it, this helps force JSON.
+            response_format={"type": "json_object"},
+        )
+
+        raw = (resp.choices[0].message.content or "").strip()
+        data = json.loads(raw)
+
+        sentiment = (data.get("sentiment") or "").strip().lower()
+        mood = (data.get("mood") or "").strip().lower()
+        confidence = data.get("confidence")
+
+        if sentiment not in {"negative", "neutral", "positive"}:
+            return None
+        if mood not in {"angry","confused","worried","upset","panicked","stressed","calm","other"}:
+            mood = "other"
+
+        try:
+            confidence = int(confidence)
+        except Exception:
+            confidence = 0
+        confidence = max(0, min(100, confidence))
+
+        return {"sentiment": sentiment, "mood": mood, "confidence": confidence}
+
+    except Exception:
+        return None
+
+
+def classify_sentiment_with_fallback(client: OpenAI, text: str) -> SentimentResult:
+    """
+    Always returns something usable.
+    """
+    r = classify_sentiment_openai(client, text)
+    if r and r.get("sentiment"):
+        return r
+
+    # fallback: your deterministic rules
+    s = simple_sentiment(text)  # returns negative/neutral/positive
+    return {"sentiment": s, "mood": "other", "confidence": 0}
+
+
 
 # ----------------------------
 # Link normalization utilities
@@ -1188,7 +1282,6 @@ def property_chat(
     # 3) session id (payload OR cookie session)
     session_id = payload.session_id or request.session.get(f"guest_session_{property_id}")
     session = None
-
     now = datetime.utcnow()
 
     # 3a) ensure ChatSession exists
@@ -1196,7 +1289,6 @@ def property_chat(
         session = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
 
     if not session:
-        # Create a new one if missing (prevents tone resets + keeps state)
         session = ChatSession(
             property_id=property_id,
             source="guest_web",
@@ -1220,7 +1312,7 @@ def property_chat(
         context,
         payload.language,
         session,
-        is_verified=True,  # since we already gated above
+        is_verified=True,
     )
 
     # 5) user message
@@ -1229,26 +1321,21 @@ def property_chat(
         raise HTTPException(status_code=400, detail="Message is required")
 
     # 6) Pull recent history to prevent "tone reset"
-    # Adjust limit as desired (10–20 is a good range)
     HISTORY_LIMIT = 12
 
     history_rows = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == session_id)
-        .order_by(ChatMessage.created_at.asc())  # assuming created_at exists
+        .order_by(ChatMessage.created_at.asc())
         .all()
     )
 
-    # Keep only the last N messages
     if len(history_rows) > HISTORY_LIMIT:
         history_rows = history_rows[-HISTORY_LIMIT:]
 
     # Build OpenAI messages list
     messages = [{"role": "system", "content": system_prompt}]
 
-    # ---- IMPORTANT ----
-    # Replace ChatMessage.sender/content field names below if yours differ.
-    # Expect sender values like "user" / "assistant" (or similar).
     for m in history_rows:
         sender = (getattr(m, "sender", "") or "").lower().strip()
         content = (getattr(m, "content", "") or "").strip()
@@ -1260,45 +1347,49 @@ def property_chat(
         else:
             # treat guest/system/etc as user for the model
             messages.append({"role": "user", "content": content})
-            
-    # Add the current user message last
+
+    # Add current user message last
     messages.append({"role": "user", "content": user_message})
 
-    # 7) Call OpenAI
+    # 7) Call OpenAI (chat response)
     client = get_openai(request)
     model = (os.getenv("OPENAI_CHAT_MODEL") or "gpt-4o-mini").strip()
 
     try:
         resp = client.chat.completions.create(
             model=model,
-            temperature=0.5,  # slightly lower = more consistent tone
+            temperature=0.5,
             messages=messages,
         )
 
-        text = (resp.choices[0].message.content or "").strip()
-        text = enforce_click_here_links(text)
-        guest_sentiment = simple_sentiment(user_message)
+        assistant_text = (resp.choices[0].message.content or "").strip()
+        assistant_text = enforce_click_here_links(assistant_text)
 
+        # ✅ Option C: sentiment tagging at ingestion (OpenAI-first + fallback)
+        guest_sentiment = classify_sentiment_with_fallback(client, user_message)
 
-        # 8) Save user + assistant messages (schema-safe)
-        # ---- IMPORTANT ----
-        # Replace field names below if your ChatMessage model differs.
-        db.add(ChatMessage(
-            session_id=session_id,
-            sender="guest",
-            content=user_message,
-            sentiment=guest_sentiment,  # ✅ Option C
-            created_at=now,
-        ))
+        # 8) Save guest message (with sentiment)
+        db.add(
+            ChatMessage(
+                session_id=session_id,
+                sender="guest",
+                content=user_message,
+                sentiment=guest_sentiment,
+                created_at=now,
+            )
+        )
 
+        # Save assistant message
+        db.add(
+            ChatMessage(
+                session_id=session_id,
+                sender="assistant",
+                content=assistant_text,
+                created_at=datetime.utcnow(),
+            )
+        )
 
-        db.add(ChatMessage(
-            session_id=session_id,
-            sender="assistant",
-            content=text,
-            created_at=datetime.utcnow(),
-        ))
-
+        # Update session activity
         session.last_activity_at = datetime.utcnow()
         db.add(session)
         db.commit()
@@ -1310,7 +1401,7 @@ def property_chat(
             logger.exception("Auto-summary failed (non-fatal)")
 
         return {
-            "response": text,
+            "response": assistant_text,
             "session_id": session_id,
             "thread_id": payload.thread_id,
             "reply_to": payload.client_message_id,
@@ -1327,6 +1418,7 @@ def property_chat(
     except Exception:
         logger.exception("Unexpected property_chat error")
         raise HTTPException(status_code=500, detail="Unexpected server error.")
+
 
 def parse_ts(x: str | int | None) -> int | None:
     if x is None:
