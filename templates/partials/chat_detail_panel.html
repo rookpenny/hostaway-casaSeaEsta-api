@@ -72,11 +72,23 @@
                 Unknown
               </span>
             {% endif %}
-
-            {# Action priority pill #}
-            {% set ap_raw = (s.action_priority or s.priority_level or s.priority or "")|lower %}
-                          {% set ap = "urgent" if ap_raw in ["urgent","critical"] else ("high" if ap_raw in ["high","attention"] else ("normal" if ap_raw in ["normal","medium"] else ("low" if ap_raw in ["low"] else ""))) %}
-                        
+            {# Action priority pill (detail view uses `session`, not `s`) #}
+            {% set ap_raw = (session.action_priority or session.priority_level or session.priority or "")|lower %}
+            
+            {# Optional: if backend didn't provide action_priority, derive from heat #}
+            {% if not ap_raw %}
+              {% set heat = (session.heat_raw or session.heat_score or 0) %}
+              {% if heat >= 80 %}
+                {% set ap_raw = "urgent" %}
+              {% elif heat >= 50 %}
+                {% set ap_raw = "high" %}
+              {% else %}
+                {% set ap_raw = "normal" %}
+              {% endif %}
+            {% endif %}
+            
+            {% set ap = "urgent" if ap_raw in ["urgent","critical"] else ("high" if ap_raw in ["high","attention"] else ("normal" if ap_raw in ["normal","medium"] else ("low" if ap_raw in ["low"] else ""))) %}
+           
             <span
               id="action-priority-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
