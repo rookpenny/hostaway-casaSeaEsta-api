@@ -2877,7 +2877,7 @@ def admin_dashboard(
                 "last_snippet": (last_snip or ""),
                 "next_action": None,
                 "guest_mood": guest_mood_val,
-                "action_priority": action_priority_val
+                "action_priority": action_priority_val,
 
                 "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
                 "is_resolved": bool(sess.is_resolved),
