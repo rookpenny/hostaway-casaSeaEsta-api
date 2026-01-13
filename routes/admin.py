@@ -125,6 +125,50 @@ def _write_repo_file_text_via_git(rel_path: str, text: str, commit_msg: str) -> 
         updated_files={rel_path: str(tmp_file)},
         commit_hint=commit_msg,
     )
+# ----------------------------
+# Chat Stats
+# ----------------------------
+
+def effective_stage(s):
+    st = (s.reservation_status or "").lower()
+
+    has_booking = bool(
+        s.reservation_id or s.booking_id or s.confirmation_code or
+        s.pms_reservation_id or s.reservation_confirmed
+    )
+
+    if st in ("post_booking", "booked", "confirmed"):
+        return "post_booking"
+    if st == "pre_booking" and has_booking:
+        return "post_booking"
+    return st or "unknown"
+
+counts = {"pre_booking":0, "active":0, "post_stay":0}
+for s in sessions_for_analytics:  # from SAME base query (not paginated)
+    stage = effective_stage(s)
+    if stage in counts:
+        counts[stage] += 1
+
+def norm_priority(s):
+    raw = (s.action_priority or s.priority_level or s.priority or "").lower()
+    if raw in ("urgent","critical"): return "urgent"
+    if raw in ("high","attention"):  return "high"
+    if raw in ("normal","medium"):   return "normal"
+    if raw == "low":                return "low"
+    return ""
+
+
+urgent_sessions = sum(1 for s in sessions_for_analytics if norm_priority(s) == "urgent")
+
+
+UNHAPPY = {"panicked","angry","upset"}
+
+def norm_signals(s):
+    sig = s.emotional_signals or s.signals or []
+    return {str(x).lower().strip() for x in sig if x}
+
+unhappy_sessions = sum(1 for s in sessions_for_analytics if norm_signals(s) & UNHAPPY)
+
 
 # ----------------------------
 # The 3 FastAPI routes to use your templates/admin_config_ui.html
