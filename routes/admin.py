@@ -420,36 +420,38 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
         cs.is_resolved,
         cs.reservation_status,
         cs.escalation_level,
-        cs.action_priority,
         cs.assigned_to,
         cs.heat_score,
-
         p.property_name,
         p.pmc_id
-
       FROM chat_sessions cs
       JOIN properties p ON p.id = cs.property_id
       WHERE 1=1
         AND (:pmc_id IS NULL OR p.pmc_id = :pmc_id)
         AND (:property_id IS NULL OR cs.property_id = :property_id)
         AND (:status IS NULL OR cs.reservation_status = :status)
-        AND (:action_priority IS NULL OR cs.action_priority = :action_priority)
+
+        -- ✅ action_priority filter implemented via heat_score tiers
+        AND (
+          :action_priority IS NULL
+          OR (
+            (:action_priority = 'urgent' AND cs.heat_score >= 90)
+            OR (:action_priority = 'high' AND cs.heat_score >= 80 AND cs.heat_score < 90)
+            OR (:action_priority = 'normal' AND cs.heat_score >= 50 AND cs.heat_score < 80)
+            OR (:action_priority = 'low' AND (cs.heat_score < 50 OR cs.heat_score IS NULL))
+          )
+        )
     )
     SELECT
       b.*,
-
       lg.guest_mood,
       lg.guest_mood_confidence,
       lg.guest_sentiment,
       lg.guest_sentiment_data,
-
-      -- optional: a tiny snippet to help search / preview
       lm.last_message,
       lm.last_sender
-
     FROM base b
 
-    -- ✅ latest guest message sentiment payload per session
     LEFT JOIN LATERAL (
       SELECT
         cm.sentiment_data->>'mood' AS guest_mood,
@@ -463,7 +465,6 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
       LIMIT 1
     ) lg ON TRUE
 
-    -- optional: latest message (guest or assistant) for searching/preview
     LEFT JOIN LATERAL (
       SELECT
         cm2.content AS last_message,
@@ -475,13 +476,10 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
     ) lm ON TRUE
 
     WHERE 1=1
-      -- ✅ mood filter, now driven by sentiment_data.mood
       AND (
         :emotional_signals_filter IS NULL
         OR lower(coalesce(lg.guest_mood, '')) = lower(:emotional_signals_filter)
       )
-
-      -- ✅ basic search (property + last msg)
       AND (
         :q IS NULL
         OR b.property_name ILIKE '%' || :q || '%'
@@ -496,13 +494,14 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
         "pmc_id": pmc_id,
         "property_id": property_id,
         "status": status,
-        "action_priority": action_priority,
-        "emotional_signals_filter": emotional_signals_filter,
+        "action_priority": (action_priority or None),
+        "emotional_signals_filter": (emotional_signals_filter or None),
         "q": q,
         "limit": int(limit),
     }
 
     return db.execute(sql, params).mappings().all()
+
 
 
 # ----------------------------
