@@ -631,12 +631,12 @@ function updateChatListRow(sessionId, payload = {}) {
     setAssignedBadge(asgEl, payload.assigned_to);
   }
 
-  // Only update mood when explicitly provided (never infer it from detail)
   if (Object.prototype.hasOwnProperty.call(payload, "emotional_signals")) {
     const moodEl = row.querySelector("[data-mood-badge]");
     window.setMoodBadge?.(moodEl, payload.emotional_signals || []);
   }
 }
+
 
 
 function applyEscalationBadge(badgeEl, levelRaw) {
@@ -1134,9 +1134,10 @@ function getRowMood(row) {
 
   const raw = rowRaw ?? badgeRaw ?? "[]";
 
-  // Use the single source of truth normalizer
+  // Single source of truth
   return window.normalizeEmotionalSignals?.(raw) || [];
 }
+
 
 
 function applyChatsFilters() {
