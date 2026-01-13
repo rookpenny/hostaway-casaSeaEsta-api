@@ -18,6 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 
 
+
 # -------------------------------------------------------------------
 # Integrations
 # -------------------------------------------------------------------
@@ -369,6 +370,13 @@ class ChatMessage(Base):
     category = Column(String, nullable=True)
     log_type = Column(String, nullable=True)
     sentiment = Column(String, nullable=True)
+
+     # ✅ NEW: rich structured sentiment payload
+    sentiment_data = Column(
+        JSONB,
+        nullable=False,
+        server_default=sa.text("'{}'::jsonb")
+    )
 
     session = relationship("ChatSession", back_populates="messages")
 
