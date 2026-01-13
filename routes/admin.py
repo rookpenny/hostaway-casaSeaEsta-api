@@ -1427,19 +1427,30 @@ def admin_chats(
         .distinct()
         .all()
     }
-
+    
+    latest_msg_sq = (
+        db.query(
+            ChatMessage.id.label("id"),
+            ChatMessage.session_id.label("session_id"),
+            func.row_number()
+            .over(
+                partition_by=ChatMessage.session_id,
+                order_by=(ChatMessage.created_at.desc(), ChatMessage.id.desc()),
+            )
+            .label("rn"),
+        )
+        .filter(ChatMessage.session_id.in_(session_ids))
+    ).subquery()
+    
     latest_msgs = (
         db.query(ChatMessage)
-        .filter(ChatMessage.session_id.in_(session_ids))
-        .order_by(
-            ChatMessage.session_id.asc(),
-            ChatMessage.created_at.desc(),
-            ChatMessage.id.desc(),
-        )
-        .distinct(ChatMessage.session_id)
+        .join(latest_msg_sq, ChatMessage.id == latest_msg_sq.c.id)
+        .filter(latest_msg_sq.c.rn == 1)
         .all()
     )
+    
     last_msg_map = {int(m.session_id): m for m in latest_msgs}
+
 
     # --------------------------------------------------
     # Build rows
@@ -1753,15 +1764,21 @@ def chats_analytics(request: Request, db: Session = Depends(get_db)):
     )
 
     urgent_sessions = (
-        base_urgent.filter(ChatMessage.sender == "guest", ChatMessage.category == "urgent")
-        .distinct()
-        .count()
+        base_urgent
+        .filter(ChatMessage.sender == "guest", ChatMessage.category == "urgent")
+        .with_entities(func.count(func.distinct(ChatSession.id)))
+        .scalar()
+        or 0
     )
+    
     unhappy_sessions = (
-        base_unhappy.filter(ChatMessage.sender == "guest", ChatMessage.sentiment == "negative")
-        .distinct()
-        .count()
+        base_unhappy
+        .filter(ChatMessage.sender == "guest", ChatMessage.sentiment == "negative")
+        .with_entities(func.count(func.distinct(ChatSession.id)))
+        .scalar()
+        or 0
     )
+
 
     total_sessions = base_sessions.with_entities(func.count(ChatSession.id)).scalar() or 0
 
@@ -2810,8 +2827,9 @@ def admin_dashboard(
             base_q = base_q.filter(ChatSession.reservation_status == status)
 
         # mine filter
-        if mine and me_email:
-            base_q = base_q.filter(func.lower(ChatSession.assigned_to) == me_email.lower())
+        base_q = base_q.filter(
+            func.lower(func.coalesce(ChatSession.assigned_to, "")) == me_email.lower()
+        )
 
         # assigned_to filter
         if assigned_to:
@@ -2923,18 +2941,30 @@ def admin_dashboard(
         negative_ids: set[int] = set()
         last_msg_by_session: dict[int, ChatMessage] = {}
 
+        from sqlalchemy.sql import func
+
         if session_ids:
+            latest_msg_sq = (
+                db.query(
+                    ChatMessage.id.label("id"),
+                    ChatMessage.session_id.label("session_id"),
+                    func.row_number()
+                    .over(
+                        partition_by=ChatMessage.session_id,
+                        order_by=(ChatMessage.created_at.desc(), ChatMessage.id.desc()),
+                    )
+                    .label("rn"),
+                )
+                .filter(ChatMessage.session_id.in_(session_ids))
+            ).subquery()
+        
             latest_msgs = (
                 db.query(ChatMessage)
-                .filter(ChatMessage.session_id.in_(session_ids))
-                .order_by(
-                    ChatMessage.session_id.asc(),
-                    ChatMessage.created_at.desc(),
-                    ChatMessage.id.desc(),
-                )
-                .distinct(ChatMessage.session_id)
+                .join(latest_msg_sq, ChatMessage.id == latest_msg_sq.c.id)
+                .filter(latest_msg_sq.c.rn == 1)
                 .all()
             )
+        
             last_msg_by_session = {int(m.session_id): m for m in latest_msgs}
 
             urgent_ids = set(
@@ -3400,7 +3430,7 @@ def new_pmc_form(request: Request):
 
 
 def get_next_account_id(db: Session) -> str:
-    last = db.query(PMC).order_by(PMC.pms_account_id.desc()).first()
+    last = db.query(PMC).order_by(sa.cast(PMC.pms_account_id, sa.Integer).desc()).first()
     if not last or not (last.pms_account_id or "").isdigit():
         return "10000"
     return str(int(last.pms_account_id) + 1)
