@@ -23,7 +23,8 @@ from fastapi.exceptions import RequestValidationError
 from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy import func, case, and_, or_
+from sqlalchemy import func, case, and_, or_, text
+
 
 from pydantic import BaseModel
 from typing import Optional, Dict
@@ -404,6 +405,103 @@ def delete_local_upgrade_image(image_url: str) -> None:
     rel = image_url.lstrip("/")  # static/uploads/...
     p = Path(rel)
     _safe_unlink(p)
+
+
+
+def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=None,
+                                 action_priority=None, emotional_signals_filter=None,
+                                 q=None, limit=200):
+    sql = text("""
+    WITH base AS (
+      SELECT
+        cs.id,
+        cs.property_id,
+        cs.last_activity_at,
+        cs.is_resolved,
+        cs.reservation_status,
+        cs.escalation_level,
+        cs.action_priority,
+        cs.assigned_to,
+
+        p.property_name,
+        p.pmc_id
+
+      FROM chat_sessions cs
+      JOIN properties p ON p.id = cs.property_id
+      WHERE 1=1
+        AND (:pmc_id IS NULL OR p.pmc_id = :pmc_id)
+        AND (:property_id IS NULL OR cs.property_id = :property_id)
+        AND (:status IS NULL OR cs.reservation_status = :status)
+        AND (:action_priority IS NULL OR cs.action_priority = :action_priority)
+    )
+    SELECT
+      b.*,
+
+      lg.guest_mood,
+      lg.guest_mood_confidence,
+      lg.guest_sentiment,
+      lg.guest_sentiment_data,
+
+      -- optional: a tiny snippet to help search / preview
+      lm.last_message,
+      lm.last_sender
+
+    FROM base b
+
+    -- ✅ latest guest message sentiment payload per session
+    LEFT JOIN LATERAL (
+      SELECT
+        cm.sentiment_data->>'mood' AS guest_mood,
+        NULLIF(cm.sentiment_data->>'confidence','')::int AS guest_mood_confidence,
+        cm.sentiment AS guest_sentiment,
+        cm.sentiment_data AS guest_sentiment_data
+      FROM chat_messages cm
+      WHERE cm.session_id = b.id
+        AND cm.sender IN ('guest','user')
+      ORDER BY cm.created_at DESC
+      LIMIT 1
+    ) lg ON TRUE
+
+    -- optional: latest message (guest or assistant) for searching/preview
+    LEFT JOIN LATERAL (
+      SELECT
+        cm2.content AS last_message,
+        cm2.sender  AS last_sender
+      FROM chat_messages cm2
+      WHERE cm2.session_id = b.id
+      ORDER BY cm2.created_at DESC
+      LIMIT 1
+    ) lm ON TRUE
+
+    WHERE 1=1
+      -- ✅ mood filter, now driven by sentiment_data.mood
+      AND (
+        :emotional_signals_filter IS NULL
+        OR lower(coalesce(lg.guest_mood, '')) = lower(:emotional_signals_filter)
+      )
+
+      -- ✅ basic search (property + last msg)
+      AND (
+        :q IS NULL
+        OR b.property_name ILIKE '%' || :q || '%'
+        OR coalesce(lm.last_message,'') ILIKE '%' || :q || '%'
+      )
+
+    ORDER BY b.last_activity_at DESC NULLS LAST
+    LIMIT :limit
+    """)
+
+    params = {
+        "pmc_id": pmc_id,
+        "property_id": property_id,
+        "status": status,
+        "action_priority": action_priority,
+        "emotional_signals_filter": emotional_signals_filter,
+        "q": q,
+        "limit": int(limit),
+    }
+
+    return db.execute(sql, params).mappings().all()
 
 
 # ----------------------------
