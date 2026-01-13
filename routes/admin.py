@@ -2500,24 +2500,75 @@ def admin_dashboard(
     pmc_id: str | None = Query(default=None),
     property_id: str | None = Query(default=None),
     status: str | None = Query(default=None),
-    priority: str | None = Query(default=None),  # "urgent" | "unhappy"
+
+    # ✅ CANONICAL (matches admin_dashboard.html)
+    action_priority: str | None = Query(default=None),          # urgent|high|normal|low
+    emotional_signals_filter: str | None = Query(default=None), # guest mood dropdown
+
     mine: int | None = Query(default=None),
     assigned_to: str | None = Query(default=None),
     q: str | None = Query(default=None),
 
-    # ✅ NEW: guest mood filter (canonical)
-    guest_mood: str | None = Query(default=None),
-
-    # ✅ Optional: keep old param name so existing links don’t break
-    signals_filter: str | None = Query(default=None),
+    # ✅ BACKWARD COMPAT (keep old links working)
+    priority: str | None = Query(default=None),       # legacy: "urgent" | "unhappy"
+    guest_mood: str | None = Query(default=None),     # legacy alias for mood
+    signals_filter: str | None = Query(default=None), # legacy alias for mood
 ):
+    # ----------------------------
+    # Helpers
+    # ----------------------------
+    def _clean_str(x: str | None) -> str | None:
+        if x is None:
+            return None
+        s = str(x).strip()
+        return s if s else None
+
+    def action_priority_from_heat(heat: int) -> str:
+        """
+        Canonical labels for UI: urgent/high/normal/low
+        Tune thresholds however you want; these are sane defaults.
+        """
+        if heat >= 90:
+            return "urgent"
+        if heat >= 80:
+            return "high"
+        if heat >= 50:
+            return "normal"
+        return "low"
+
+    def apply_action_priority_filter(qry, ap: str):
+        ap = (ap or "").strip().lower()
+        if not ap:
+            return qry
+        if ap == "urgent":
+            return qry.filter(ChatSession.heat_score >= 90)
+        if ap == "high":
+            return qry.filter(ChatSession.heat_score >= 80, ChatSession.heat_score < 90)
+        if ap == "normal":
+            return qry.filter(ChatSession.heat_score >= 50, ChatSession.heat_score < 80)
+        if ap == "low":
+            return qry.filter(or_(ChatSession.heat_score < 50, ChatSession.heat_score.is_(None)))
+        return qry
+
+    # ----------------------------
+    # Parse + normalize inputs
+    # ----------------------------
     pmc_id_int = _parse_optional_int(pmc_id)
     prop_id_int = _parse_optional_int(property_id)
 
-    # ✅ Normalize mood once (supports old param too)
-    mood = normalize_guest_mood(guest_mood or signals_filter)
+    # ✅ mood: canonical param is emotional_signals_filter
+    raw_mood = _clean_str(emotional_signals_filter) or _clean_str(guest_mood) or _clean_str(signals_filter)
+    mood = normalize_guest_mood(raw_mood)
 
-    # ✅ If not logged in, show login page at THIS SAME URL
+    # ✅ action priority: canonical param is action_priority
+    ap_filter = _clean_str(action_priority)
+
+    # ✅ legacy "priority" (urgent/unhappy) still supported
+    legacy_priority = _clean_str(priority)
+
+    # ----------------------------
+    # Auth
+    # ----------------------------
     user = request.session.get("user")
     if not user:
         request.session["post_login_redirect"] = "/admin/dashboard"
@@ -2526,10 +2577,8 @@ def admin_dashboard(
             {"request": request, "next": "/admin/dashboard"},
         )
 
-    # ✅ Resolve role + scope
     user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
 
-    # Logged in but not authorized for PMC scope
     if user_role == "pmc" and not pmc_obj:
         return templates.TemplateResponse(
             "admin_login.html",
@@ -2609,17 +2658,24 @@ def admin_dashboard(
         )
 
     # ----------------------------
-    # Chats: filters + data
+    # Filters dict (✅ matches template names)
     # ----------------------------
     filters = {
         "pmc_id": pmc_id or "",
         "property_id": property_id or "",
         "status": status or "",
-        "priority": priority or "",
-        "guest_mood": mood,  # ✅ canonical key for templates
+
+        # ✅ template expects these exact keys
+        "action_priority": ap_filter or "",
+        "emotional_signals_filter": mood or "",
+
         "mine": bool(mine),
         "assigned_to": assigned_to or "",
         "q": q or "",
+
+        # legacy (optional)
+        "priority": legacy_priority or "",
+        "guest_mood": mood or "",
     }
 
     sessions: list[dict] = []
@@ -2636,18 +2692,15 @@ def admin_dashboard(
     selected_property = None
     selected_messages: list[ChatMessage] = []
 
-    # ✅ Always preload chats so "Chats" button shows instantly
+    # ✅ Always preload chats
     should_load_chats = True
 
     if should_load_chats:
-        # ✅ PMCs cannot use pmc filter
+        # PMCs cannot use pmc filter
         if user_role != "super":
             pmc_id_int = None
 
-        base_q = (
-            db.query(ChatSession)
-            .join(Property, Property.id == ChatSession.property_id)
-        )
+        base_q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
 
         # Scope: PMCs only see their properties
         if allowed_property_ids is not None:
@@ -2661,17 +2714,21 @@ def admin_dashboard(
         if prop_id_int:
             base_q = base_q.filter(ChatSession.property_id == prop_id_int)
 
+        # status filter
         if status:
             base_q = base_q.filter(ChatSession.reservation_status == status)
 
+        # mine filter
         if mine and me_email:
             base_q = base_q.filter(func.lower(ChatSession.assigned_to) == me_email.lower())
 
+        # assigned_to filter
         if assigned_to:
             base_q = base_q.filter(
                 func.lower(func.coalesce(ChatSession.assigned_to, "")).contains(assigned_to.lower())
             )
 
+        # search filter (guest name, property name, message content)
         if q:
             ql = q.lower()
             msg_exists = (
@@ -2688,9 +2745,14 @@ def admin_dashboard(
                 )
             )
 
-        if priority == "urgent":
+        # ✅ action_priority filter (canonical)
+        if ap_filter:
+            base_q = apply_action_priority_filter(base_q, ap_filter)
+
+        # ✅ legacy "priority" filter (urgent/unhappy)
+        if legacy_priority == "urgent":
             base_q = base_q.filter(ChatSession.heat_score >= 80)
-        elif priority == "unhappy":
+        elif legacy_priority == "unhappy":
             base_q = base_q.filter(ChatSession.heat_score >= 50)
 
         # ----------------------------
@@ -2705,7 +2767,6 @@ def admin_dashboard(
             )
             .first()
         )
-
         if stage_counts:
             analytics["pre_booking"] = int(stage_counts.pre_booking or 0)
             analytics["post_booking"] = int(stage_counts.post_booking or 0)
@@ -2759,27 +2820,17 @@ def admin_dashboard(
             .all()
         )
 
-        def priority_level_from_heat(heat: int) -> str:
-            if heat >= 80:
-                return "critical"
-            if heat >= 50:
-                return "attention"
-            return "routine"
-
-        # ----------------------------
-        # Build signal inputs
-        # ----------------------------
         session_ids = [int(sess.id) for (sess, _, _) in rows]
 
         now = datetime.utcnow()
         since_24h = now - timedelta(hours=24)
         since_7d = now - timedelta(days=7)
 
-        counts_24h: Dict[int, int] = {}
-        counts_7d: Dict[int, int] = {}
+        counts_24h: dict[int, int] = {}
+        counts_7d: dict[int, int] = {}
         urgent_ids: set[int] = set()
         negative_ids: set[int] = set()
-        last_msg_by_session: Dict[int, ChatMessage] = {}
+        last_msg_by_session: dict[int, ChatMessage] = {}
 
         if session_ids:
             latest_msgs = (
@@ -2838,7 +2889,7 @@ def admin_dashboard(
                 counts_7d[int(sid)] = int(cnt)
 
         # ----------------------------
-        # Sessions list (includes signals + optional mood filtering)
+        # Sessions dicts (+ mood filtering)
         # ----------------------------
         sessions = []
         for sess, prop_name, last_snip in rows:
@@ -2852,9 +2903,11 @@ def admin_dashboard(
 
             status_val = getattr(sess, "reservation_status", "pre_booking")
             signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
+
+            # guest mood = first signal (your existing convention)
             guest_mood_val = (signals[0] if signals else None)
 
-            # ✅ apply guest mood dropdown filter
+            # ✅ apply mood filter from dropdown
             if mood:
                 signals_l = [(x or "").strip().lower() for x in (signals or [])]
                 if mood not in signals_l:
@@ -2862,8 +2915,8 @@ def admin_dashboard(
 
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-            action_priority_val = priority_level_from_heat(heat)
-            
+
+            action_priority_val = action_priority_from_heat(heat)
 
             sessions.append({
                 "id": sess.id,
@@ -2876,14 +2929,19 @@ def admin_dashboard(
                 "last_activity_at": sess.last_activity_at,
                 "last_snippet": (last_snip or ""),
                 "next_action": None,
+
+                # ✅ what the template expects
                 "guest_mood": guest_mood_val,
                 "action_priority": action_priority_val,
+
+                # ✅ add BOTH so either template style works
+                "signals": signals,
+                "emotional_signals": signals,
 
                 "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
                 "is_resolved": bool(sess.is_resolved),
                 "escalation_level": sess.escalation_level,
 
-                "signals": signals,
                 "has_urgent": has_urgent,
                 "has_negative": has_negative,
                 "last_sentiment": last_sentiment,
@@ -2891,7 +2949,7 @@ def admin_dashboard(
                 "msg_24h": cnt24,
                 "msg_7d": cnt7,
 
-                "priority_level": priority_level_from_heat(heat),
+                # keep heat for debugging/analytics
                 "heat_raw": heat,
                 "heat_boosted": heat,
             })
@@ -2955,11 +3013,9 @@ def admin_dashboard(
             "selected_messages": selected_messages,
 
             "pmc_id": (pmc_obj.id if pmc_obj else None),
-
-            # ✅ optional: pass choices if your template renders the dropdown from backend
-            # "guest_mood_choices": GUEST_MOOD_CHOICES,
         },
     )
+
 
 
 
