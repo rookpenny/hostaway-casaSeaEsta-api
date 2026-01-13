@@ -42,6 +42,8 @@ from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
 from utils.ai_summary import generate_and_store_summary
 from zoneinfo import ZoneInfo  # Python 3.9+
+from django.contrib import admin
+from django.db.models import Q
 
 
 router = APIRouter()
@@ -69,7 +71,113 @@ MAX_UPLOAD_BYTES = 8 * 1024 * 1024  # 8MB
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 TMP_DIR.mkdir(parents=True, exist_ok=True)
 
+# If your backend stores moods in emotional_signals like:
+# ["panicked", "angry", "worried"] (JSONField/ArrayField)
+MOOD_CHOICES = [
+    ("panicked", "😰 Panicked"),
+    ("angry", "😡 Angry"),
+    ("upset", "😟 Upset"),
+    ("confused", "😕 Confused"),
+    ("worried", "🥺 Worried"),
+    ("calm", "🙂 Calm"),
+]
 
+class GuestMoodFilter(admin.SimpleListFilter):
+    title = "Guest mood"
+    parameter_name = "guest_mood"
+
+    def lookups(self, request, model_admin):
+        return MOOD_CHOICES
+
+    def queryset(self, request, queryset):
+        mood = self.value()
+        if not mood:
+            return queryset
+
+        # ✅ JSONField list (Postgres) typical: emotional_signals__contains=["worried"]
+        # ✅ ArrayField typical: emotional_signals__contains=["worried"]
+        # If yours is stored as a comma string, you’ll need icontains fallback (see below).
+        try:
+            return queryset.filter(emotional_signals__contains=[mood])
+        except Exception:
+            # Fallback if field is TextField storing "worried,angry" etc.
+            return queryset.filter(Q(emotional_signals__icontains=mood))
+
+
+@admin.register(ChatSession)
+class ChatSessionAdmin(admin.ModelAdmin):
+    # --- List page columns ---
+    list_display = (
+        "id",
+        "property_name",
+        "guest_name",
+        "guest_mood",
+        "assigned_to",
+        "stage",
+        "status_badge",
+        "team_escalation",
+        "action_priority",
+        "updated_at",
+    )
+
+    # --- Filters (right sidebar in Django admin) ---
+    list_filter = (
+        "property",
+        "is_resolved",          # or "status" if you have it
+        "action_priority",      # if you have it
+        GuestMoodFilter,        # ✅ new
+        "assigned_to",          # if FK to User
+    )
+
+    # --- Search box ---
+    search_fields = (
+        "id",
+        "guest__name",          # adjust
+        "property__name",       # adjust
+        "last_message_text",    # adjust
+    )
+
+    ordering = ("-updated_at",)
+
+    # ---------- Column renderers ----------
+    @admin.display(description="Property", ordering="property__name")
+    def property_name(self, obj):
+        return getattr(getattr(obj, "property", None), "name", "") or "—"
+
+    @admin.display(description="Guest")
+    def guest_name(self, obj):
+        # adjust to your model
+        if hasattr(obj, "guest") and obj.guest:
+            return getattr(obj.guest, "name", "") or str(obj.guest)
+        return getattr(obj, "guest_name", "") or "—"
+
+    @admin.display(description="Guest mood")
+    def guest_mood(self, obj):
+        """
+        ✅ Backend-only: just read emotional_signals and render compactly.
+        No sentiment inference here.
+        """
+        raw = getattr(obj, "emotional_signals", None) or []
+        if isinstance(raw, str):
+            # tolerate comma strings just in case
+            parts = [p.strip().lower() for p in raw.split(",") if p.strip()]
+        else:
+            parts = [str(x).strip().lower() for x in (raw or []) if str(x).strip()]
+
+        if not parts:
+            return "—"
+
+        # map to emoji labels where possible
+        label_map = dict(MOOD_CHOICES)
+        rendered = [label_map.get(p, p) for p in parts]
+        return ", ".join(rendered)
+
+    @admin.display(description="Status")
+    def status_badge(self, obj):
+        # adjust to your fields
+        is_resolved = getattr(obj, "is_resolved", False)
+        return "✅ Closed" if is_resolved else "🟢 Open"
+        
 # ----------------------------
 # OpenAI client (used by summarize + admin chat)
 # ----------------------------
