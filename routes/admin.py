@@ -2826,10 +2826,12 @@ def admin_dashboard(
         if status:
             base_q = base_q.filter(ChatSession.reservation_status == status)
 
-        # mine filter
-        base_q = base_q.filter(
-            func.lower(func.coalesce(ChatSession.assigned_to, "")) == me_email.lower()
-        )
+        # mine filter (ONLY when mine is checked)
+        if mine and me_email:
+            base_q = base_q.filter(
+                func.lower(func.coalesce(ChatSession.assigned_to, "")) == me_email.lower()
+            )
+
 
         # assigned_to filter
         if assigned_to:
