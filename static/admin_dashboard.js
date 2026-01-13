@@ -156,11 +156,27 @@ function pushChatUrl(sessionId) {
 
 function clearChatUrl() {
   const url = new URL(window.location.href);
-  url.searchParams.set("view", "chats");
+
+  // Remove selection but keep whatever view/hash the user is on
   url.searchParams.delete("session_id");
-  url.hash = "#chats";
+
+  // If you previously forced #chats, don't do that here:
+  // let routing decide based on hash/view.
   history.pushState({}, "", url.toString());
 }
+
+// Open chat detail from list (delegated)
+// Add data-open-chat="123" to clickable elements (or row)
+document.addEventListener("click", (e) => {
+  const trigger = e.target.closest("[data-open-chat]");
+  if (!trigger) return;
+
+  const sid = (trigger.getAttribute("data-open-chat") || "").trim();
+  if (!sid) return;
+
+  openChatDetail(sid);
+});
+
 
 // Back button
 document.addEventListener("click", (e) => {
@@ -568,29 +584,6 @@ function setAssignedBadge(container, assignedTo) {
   container.innerHTML = `<span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">${escapeHtml(v)}</span>`;
 }
 
-/*function renderSentimentBadge(container, sentiment) {
-  if (!container) return;
-
-  const s = String(sentiment || "").toLowerCase().trim();
-
-  const inSet = (val, arr) => arr.includes(val);
-
-  if (inSet(s, ["angry","mad","furious","hostile"])) {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">😡 Angry</span>`;
-  } else if (inSet(s, ["upset","frustrated","annoyed"])) {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">😣 Upset</span>`;
-  } else if (inSet(s, ["worried","concerned","concern","anxious","stress","stressed"])) {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-indigo-100 text-indigo-800 font-semibold">😟 Concerned</span>`;
-  } else if (inSet(s, ["happy","pleased","delighted","positive"])) {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">😊 Happy</span>`;
-  } else if (inSet(s, ["neutral","ok"])) {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">😐 Neutral</span>`;
-  } else if (s) {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">${escapeHtml(s)}</span>`;
-  } else {
-    container.innerHTML = `<span class="text-slate-400">—</span>`;
-  }
-}*/
 
 // small safety helper
 function escapeHtml(str) {
@@ -638,12 +631,14 @@ function updateChatListRow(sessionId, payload = {}) {
     const asgEl = row.querySelector("[data-assigned-badge]");
     setAssignedBadge(asgEl, payload.assigned_to);
   }
+
+  // Only update mood when explicitly provided (never infer it from detail)
   if (Object.prototype.hasOwnProperty.call(payload, "emotional_signals")) {
-  const moodEl = row.querySelector("[data-mood-badge]");
-  window.setMoodBadge?.(moodEl, payload.emotional_signals || []);
+    const moodEl = row.querySelector("[data-mood-badge]");
+    window.setMoodBadge?.(moodEl, payload.emotional_signals || []);
+  }
 }
 
-}
 
 function applyEscalationBadge(badgeEl, levelRaw) {
   if (!badgeEl) return;
@@ -1121,18 +1116,10 @@ function getRowMood(row) {
 
   const raw = rowRaw ?? badgeRaw ?? "[]";
 
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed)
-      ? parsed.map(s => String(s).toLowerCase())
-      : [];
-  } catch {
-    return String(raw)
-      .split(",")
-      .map(s => s.toLowerCase().trim())
-      .filter(Boolean);
-  }
+  // Use the single source of truth normalizer
+  return window.normalizeEmotionalSignals?.(raw) || [];
 }
+
 
 function applyChatsFilters() {
   const selected = getSelectedMoodFilter();
@@ -1398,8 +1385,14 @@ document.addEventListener("change", (e) => {
 
  window.Chats = {
   async refreshSummary(sessionId) {
-    const box = document.getElementById("summary-box");
+    const panel = document.querySelector(`[data-chat-panel="${sessionId}"]`) ||
+                  document.querySelector("[data-chat-panel]");
+    if (!panel) return;
+
+    const box = panel.querySelector("[data-summary-box]");
     if (!box) return;
+
+    const updatedLabel = panel.querySelector("[data-summary-updated]");
 
     try {
       box.textContent = "Generating…";
@@ -1413,21 +1406,19 @@ document.addEventListener("change", (e) => {
       if (res.status === 401 || res.status === 403) return loginRedirect();
 
       const parsed = await safeReadJson(res);
-
-      if (!parsed.ok) {
-        console.error("summarize failed:", parsed.status, parsed.text.slice(0, 500));
-        throw new Error(`Summary failed (HTTP ${parsed.status})`);
-      }
+      if (!parsed.ok) throw new Error(`Summary failed (HTTP ${parsed.status})`);
 
       const data = parsed.json || {};
       if (data.ok === false) throw new Error(data.error || "Failed");
 
       box.textContent = data.summary || "";
+      if (updatedLabel) updatedLabel.textContent = "Updated: just now";
     } catch (e) {
       box.textContent = `Summary error: ${e.message}`;
     }
   }
 };
+
 
 
    function initQuillEditor({ editorId, inputId, placeholder = "" }) {
