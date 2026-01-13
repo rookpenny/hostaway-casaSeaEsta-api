@@ -74,20 +74,25 @@
             {% endif %}
 
             {# Action priority pill #}
+            {% set ap_raw = (s.action_priority or s.priority_level or s.priority or "")|lower %}
+                          {% set ap = "urgent" if ap_raw in ["urgent","critical"] else ("high" if ap_raw in ["high","attention"] else ("normal" if ap_raw in ["normal","medium"] else ("low" if ap_raw in ["low"] else ""))) %}
+                        
             <span
               id="action-priority-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if ap == 'urgent' %}bg-rose-100 text-rose-800
-                {% elif ap == 'high' %}bg-amber-100 text-amber-800
-                {% elif ap == 'normal' %}bg-blue-100 text-blue-800
-                {% elif ap == 'low' %}bg-slate-100 text-slate-700
-                {% else %}bg-slate-100 text-slate-500{% endif %}">
-              {% if ap == 'urgent' %}🔥 Action: Urgent
-              {% elif ap == 'high' %}⚠️ Action: High
-              {% elif ap == 'normal' %}🛠️ Action: Normal
-              {% elif ap == 'low' %}🕰️ Action: Low
-              {% else %}Action: —{% endif %}
-            </span>
+                            {% if ap == 'urgent' %}bg-rose-100 text-rose-800
+                            {% elif ap == 'high' %}bg-orange-100 text-orange-800
+                            {% elif ap == 'normal' %}bg-blue-100 text-blue-800
+                            {% elif ap == 'low' %}bg-slate-100 text-slate-700
+                            {% else %}text-slate-400{% endif %}">
+                            {% if ap == 'urgent' %}🔴 Urgent
+                            {% elif ap == 'high' %}🟠 High
+                            {% elif ap == 'normal' %}🔵 Normal
+                            {% elif ap == 'low' %}⚪ Low
+                            {% else %}—{% endif %}
+                          </span>
+
+            
 
             {# Guest Mood (rendered by JS from emotional_signals) #}
             <span data-mood-badge data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'></span>
