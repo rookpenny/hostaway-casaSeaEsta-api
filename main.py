@@ -53,7 +53,6 @@ from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from utils.github_sync import ensure_repo
 from utils.ai_summary import maybe_autosummarize_on_new_guest_message
-from utils.sentiment import classify_sentiment_rule
 from utils.sentiment import classify_guest_sentiment
 
 
