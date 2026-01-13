@@ -382,6 +382,135 @@ def delete_local_upgrade_image(image_url: str) -> None:
     p = Path(rel)
     _safe_unlink(p)
 
+
+# ----------------------------
+# Action priority + guest mood helpers (MODULE-LEVEL)
+# Used by /admin/dashboard + /admin/chats + partials
+# ----------------------------
+
+def normalize_action_priority(value: str | None) -> str | None:
+    """
+    Normalizes different priority label sets into the canonical:
+    urgent | high | normal | low
+    """
+    if not value:
+        return None
+    v = value.strip().lower()
+    mapping = {
+        # legacy/alternate labels
+        "critical": "urgent",
+        "urgent": "urgent",
+
+        "attention": "high",
+        "high": "high",
+
+        "medium": "normal",
+        "normal": "normal",
+
+        "routine": "low",
+        "low": "low",
+    }
+    return mapping.get(v, v)
+
+
+def action_priority_from_heat(heat: int) -> str:
+    # Canonical output: urgent/high/normal/low
+    if heat >= 80:
+        return "urgent"
+    if heat >= 60:
+        return "high"
+    if heat >= 40:
+        return "normal"
+    return "low"
+
+
+def bump_priority(base: str, bump_to: str) -> str:
+    rank = {"low": 0, "normal": 1, "high": 2, "urgent": 3}
+    return bump_to if rank.get(bump_to, 0) > rank.get(base, 0) else base
+
+
+def derive_guest_mood(
+    has_urgent: bool,
+    has_negative: bool,
+    cnt24: int,
+    cnt7: int,
+    status_val: str | None,
+) -> list[str]:
+    """
+    Returns a list of emotional signals, ordered most important first.
+    Output values are lowercase to match your filters.
+    """
+    signals: list[str] = []
+    status = (status_val or "").strip().lower()
+
+    if has_urgent:
+        signals.append("panicked")
+    if has_negative and "panicked" not in signals:
+        signals.append("upset")
+
+    # High volume can imply confusion/worry
+    if cnt24 >= 8 and "panicked" not in signals:
+        signals.append("confused")
+    elif cnt7 >= 25 and "panicked" not in signals:
+        signals.append("worried")
+
+    # Optional status-based signal
+    if status == "active" and (has_urgent or has_negative):
+        signals.append("stressed")
+
+    if not signals:
+        signals.append("calm")
+
+    # de-dupe, keep order, cap to 2
+    out: list[str] = []
+    seen = set()
+    for s in signals:
+        if s not in seen:
+            seen.add(s)
+            out.append(s)
+    return out[:2]
+
+
+def compute_action_priority(
+    heat: int,
+    signals: list[str],
+    has_urgent: bool,
+    has_negative: bool,
+) -> str:
+    """
+    Canonical output: urgent/high/normal/low
+    Max of heat priority and signal priority.
+    """
+    ap = action_priority_from_heat(int(heat or 0))
+
+    if has_urgent or ("panicked" in (signals or [])):
+        ap = bump_priority(ap, "urgent")
+    elif has_negative or ("angry" in (signals or [])) or ("upset" in (signals or [])):
+        ap = bump_priority(ap, "high")
+
+    return ap
+
+
+def apply_action_priority_filter(qry, ap: str):
+    """
+    Applies dashboard priority filter tiers based on heat_score.
+    This is your existing behavior, just moved to module level.
+    """
+    ap = (ap or "").strip().lower()
+    if not ap:
+        return qry
+    if ap == "urgent":
+        return qry.filter(ChatSession.heat_score >= 90)
+    if ap == "high":
+        return qry.filter(ChatSession.heat_score >= 80, ChatSession.heat_score < 90)
+    if ap == "normal":
+        return qry.filter(ChatSession.heat_score >= 50, ChatSession.heat_score < 80)
+    if ap == "low":
+        return qry.filter(or_(ChatSession.heat_score < 50, ChatSession.heat_score.is_(None)))
+    return qry
+
+
+
 # ----------------------------
 # Flask-ish example
 # ----------------------------
@@ -1347,13 +1476,9 @@ def admin_chats(
             boosted = int(boosted * 1.1)
 
         heat = decay_heat(min(100, boosted), sess.last_activity_at)
-        priority_level = (
-            "critical" if heat >= 85 else
-            "attention" if heat >= 60 else
-            "routine"
-        )
-
-        action_priority_val = priority_level
+        action_priority_val = action_priority_from_heat(heat)  # urgent/high/normal/low
+        priority_level = action_priority_val  # optional if you still use priority_level elsewhere
+    
 
         # auto escalation
         desired = desired_escalation_level(heat)
@@ -2454,6 +2579,7 @@ def _parse_optional_int(v) -> int | None:
         return None
 
 
+
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
@@ -2490,95 +2616,6 @@ def admin_dashboard(
         s = str(x).strip()
         return s if s else None
 
-  def normalize_action_priority(value: str | None) -> str | None:
-    if not value:
-        return None
-    v = value.strip().lower()
-    mapping = {
-        "critical": "urgent",
-        "urgent": "urgent",
-        "attention": "high",
-        "high": "high",
-        "medium": "normal",
-        "normal": "normal",
-        "routine": "low",
-        "low": "low",
-    }
-    return mapping.get(v, v)
-
-
-    def action_priority_from_heat(heat: int) -> str:
-        # Canonical output: urgent/high/normal/low
-        if heat >= 80:
-            return "urgent"
-        if heat >= 60:
-            return "high"
-        if heat >= 40:
-            return "normal"
-        return "low"
-    
-    
-    def bump_priority(base: str, bump_to: str) -> str:
-        rank = {"low": 0, "normal": 1, "high": 2, "urgent": 3}
-        return bump_to if rank.get(bump_to, 0) > rank.get(base, 0) else base
-    
-    
-    def derive_guest_mood(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int, status_val: str | None) -> list[str]:
-        """
-        Return a list of emotional_signals, ordered most important first.
-        Keep values lowercase since your filters compare lowercase.
-        """
-        signals: list[str] = []
-        status = (status_val or "").strip().lower()
-    
-        # Example rules — keep them deterministic and explainable
-        if has_urgent:
-            signals.append("panicked")
-        if has_negative and "panicked" not in signals:
-            signals.append("upset")
-    
-        # High volume can indicate confusion/anxiety
-        if cnt24 >= 8 and "panicked" not in signals:
-            signals.append("confused")
-        elif cnt7 >= 25 and "panicked" not in signals:
-            signals.append("worried")
-    
-        # If nothing flagged, pick calm
-        if not signals:
-            signals.append("calm")
-    
-        return signals
-    
-    
-    def compute_action_priority(heat: int, signals: list[str], has_urgent: bool, has_negative: bool) -> str:
-        """
-        Canonical output: urgent/high/normal/low
-        Make it the max of heat priority and signal priority.
-        """
-        ap = action_priority_from_heat(heat)
-    
-        if has_urgent or ("panicked" in signals):
-            ap = bump_priority(ap, "urgent")
-        elif has_negative or ("angry" in signals) or ("upset" in signals):
-            ap = bump_priority(ap, "high")
-    
-        return ap
-
-
-    def apply_action_priority_filter(qry, ap: str):
-        ap = (ap or "").strip().lower()
-        if not ap:
-            return qry
-        if ap == "urgent":
-            return qry.filter(ChatSession.heat_score >= 90)
-        if ap == "high":
-            return qry.filter(ChatSession.heat_score >= 80, ChatSession.heat_score < 90)
-        if ap == "normal":
-            return qry.filter(ChatSession.heat_score >= 50, ChatSession.heat_score < 80)
-        if ap == "low":
-            return qry.filter(or_(ChatSession.heat_score < 50, ChatSession.heat_score.is_(None)))
-        return qry
-
     # ----------------------------
     # Parse + normalize inputs
     # ----------------------------
@@ -2598,6 +2635,7 @@ def admin_dashboard(
     # ----------------------------
     # Auth
     # ----------------------------
+
     user = request.session.get("user")
     if not user:
         request.session["post_login_redirect"] = "/admin/dashboard"
@@ -2690,23 +2728,13 @@ def admin_dashboard(
 # ----------------------------
 # Chats: filters + data
 # ----------------------------
-
-    # Canonical params (support legacy too)
-    action_priority = normalize_action_priority(
-        request.query_params.get("action_priority")
-        or request.query_params.get("priority")  # legacy
-    )
-    
-    guest_mood = (request.query_params.get("guest_mood") or "").strip().lower()
-    legacy_mood = (request.query_params.get("signals_filter") or request.query_params.get("emotional_signals_filter") or "").strip().lower()
-    guest_mood = guest_mood or legacy_mood or None
     
     filters = {
         "pmc_id": pmc_id or "",
         "property_id": property_id or "",
         "status": status or "",
-        "action_priority": action_priority or "",
-        "guest_mood": guest_mood or "",
+        "action_priority": ap_filter or "",
+        "guest_mood": mood or "",
         "mine": bool(mine),
         "assigned_to": assigned_to or "",
         "q": q or "",
@@ -2949,14 +2977,14 @@ def admin_dashboard(
             )
         
             # Apply filters (canonical)
-            if guest_mood:
-                if guest_mood not in [x.lower() for x in emotional_signals]:
+            if mood:
+                if mood not in [x.lower() for x in emotional_signals]:
                     continue
-        
-            if action_priority:
-                # filter by canonical priority tiers
-                if normalize_action_priority(action_priority_val) != action_priority:
+            
+            if ap_filter:
+                if normalize_action_priority(action_priority_val) != normalize_action_priority(ap_filter):
                     continue
+
         
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
