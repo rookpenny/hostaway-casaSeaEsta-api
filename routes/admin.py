@@ -422,6 +422,7 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
         cs.escalation_level,
         cs.action_priority,
         cs.assigned_to,
+        cs.heat_score,
 
         p.property_name,
         p.pmc_id
@@ -3006,30 +3007,29 @@ def admin_dashboard(
 
         analytics["unhappy_sessions"] = int(unhappy_q.scalar() or 0)
 
+
         # ----------------------------
-        # Sessions list with last snippet + property_name
+        # Sessions list (LATERAL: last msg + guest mood from sentiment_data)
         # ----------------------------
-        last_msg_sq = (
-            db.query(ChatMessage.content)
-            .filter(ChatMessage.session_id == ChatSession.id)
-            .order_by(ChatMessage.created_at.desc())
-            .limit(1)
-            .correlate(ChatSession)
-            .scalar_subquery()
+        effective_assignee = None
+        if mine and me_email:
+            effective_assignee = me_email
+        elif assigned_to:
+            effective_assignee = assigned_to
+        
+        rows = fetch_dashboard_chat_sessions(
+            db,
+            pmc_id=(pmc_id_int if user_role == "super" else None),
+            property_id=prop_id_int,
+            status=status,
+            action_priority=ap_filter,                 # uses DB column cs.action_priority
+            emotional_signals_filter=mood,             # uses sentiment_data->>'mood'
+            q=q,
+            limit=200,
         )
 
-        rows = (
-            base_q.with_entities(
-                ChatSession,
-                Property.property_name.label("property_name"),
-                last_msg_sq.label("last_snippet"),
-            )
-            .order_by(ChatSession.last_activity_at.desc(), ChatSession.id.desc())
-            .limit(200)
-            .all()
-        )
 
-        session_ids = [int(sess.id) for (sess, _, _) in rows]
+        session_ids = [int(r["id"]) for r in rows]
 
         now = datetime.utcnow()
         since_24h = now - timedelta(hours=24)
@@ -3108,17 +3108,15 @@ def admin_dashboard(
             ):
                 counts_7d[int(sid)] = int(cnt)
 
+
         # ----------------------------
         # Sessions dicts (+ mood filtering)
         # ----------------------------
 
-                # ----------------------------
-        # Sessions dicts (+ mood filtering)
-        # ----------------------------
         sessions = []
-        for sess, prop_name, last_snip in rows:
-            sid = int(sess.id)
-            heat = int(sess.heat_score or 0)
+        for r in rows:
+            sid = int(r["id"])
+            heat = int(r.get("heat_score") or 0)  # if you need heat and it's in ChatSession table
 
             has_urgent = sid in urgent_ids
             has_negative = sid in negative_ids
