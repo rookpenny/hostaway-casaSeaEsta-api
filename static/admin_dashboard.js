@@ -131,16 +131,24 @@ window.getMoodForEl = function getMoodForEl(el) {
     window.renderMoodBadges(container, emotionalSignals || []);
   };
 
-  function rerenderAllMoodBadges(root = document) {
-    root.querySelectorAll("[data-mood-badge]").forEach((el) => {
-      const raw = el.getAttribute("data-emotional-signals") || "[]";
-      let parsed = [];
-      try { parsed = JSON.parse(raw); } catch { parsed = raw; }
-      window.renderMoodBadges(el, parsed);
-    });
-  }
+function rerenderAllMoodBadges(root = document) {
+  root.querySelectorAll("[data-mood-badge]").forEach((el) => {
+    // Prefer badge attr, fallback to session row attr
+    let raw =
+      el.getAttribute("data-emotional-signals") ||
+      el.closest("[data-session-row]")?.getAttribute("data-emotional-signals") ||
+      "[]";
 
-  window.rerenderAllMoodBadges = rerenderAllMoodBadges;
+    raw = String(raw || "").trim();
+
+    let parsed = [];
+    try { parsed = JSON.parse(raw); } catch { parsed = raw; }
+
+    window.renderMoodBadges(el, parsed);
+  });
+}
+window.rerenderAllMoodBadges = rerenderAllMoodBadges;
+
 })();
 
 
@@ -2580,4 +2588,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadChatAnalytics(days);
     resizeChatAnalyticsChartSoon();
   }
+  applyChatsFilters();
 });
