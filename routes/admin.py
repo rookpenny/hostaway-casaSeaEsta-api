@@ -422,6 +422,11 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
         cs.escalation_level,
         cs.assigned_to,
         cs.heat_score,
+        cs.guest_name,
+        cs.source,
+        cs.pms_reservation_id,
+        cs.arrival_date,
+        cs.departure_date,
         p.property_name,
         p.pmc_id
       FROM chat_sessions cs
@@ -3021,7 +3026,7 @@ def admin_dashboard(
             pmc_id=(pmc_id_int if user_role == "super" else None),
             property_id=prop_id_int,
             status=status,
-            action_priority=ap_filter,                 # uses DB column cs.action_priority
+            action_priority=ap_filter,                 # uses heat_score tiers (computed)
             emotional_signals_filter=mood,             # uses sentiment_data->>'mood'
             q=q,
             limit=200,
@@ -3109,23 +3114,32 @@ def admin_dashboard(
 
 
         # ----------------------------
-        # Sessions dicts (+ mood filtering)
+        # Sessions dicts (+ mood + priority filtering)
         # ----------------------------
 
         sessions = []
         for r in rows:
             sid = int(r["id"])
-            heat = int(r.get("heat_score") or 0)  # if you need heat and it's in ChatSession table
+            heat = int(r.get("heat_score") or 0)
 
             has_urgent = sid in urgent_ids
             has_negative = sid in negative_ids
-            cnt24 = counts_24h.get(sid, 0)
-            cnt7 = counts_7d.get(sid, 0)
+            cnt24 = int(counts_24h.get(sid, 0) or 0)
+            cnt7 = int(counts_7d.get(sid, 0) or 0)
 
-            status_val = getattr(sess, "reservation_status", None)
-            emotional_signals = derive_guest_mood(has_urgent, has_negative, cnt24, cnt7, status_val)
+            # IMPORTANT: r is a dict row (not ORM)
+            status_val = (r.get("reservation_status") or "").strip() or None
+
+            emotional_signals = derive_guest_mood(
+                has_urgent=has_urgent,
+                has_negative=has_negative,
+                cnt24=cnt24,
+                cnt7=cnt7,
+                status_val=status_val,
+            )
             guest_mood_val = (emotional_signals[0] if emotional_signals else None)
 
+            # Canonical priority should be COMPUTED (heat + signals)
             action_priority_val = compute_action_priority(
                 heat=heat,
                 signals=emotional_signals,
@@ -3145,23 +3159,29 @@ def admin_dashboard(
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
 
+            # Snippet: prefer SQL lateral (r["last_message"]), fallback to loaded ChatMessage
+            last_snip = (r.get("last_message") or "")
+            if not last_snip and last_msg and last_msg.content:
+                last_snip = last_msg.content
+            last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
+
             sessions.append({
-                "id": sess.id,
-                "property_id": sess.property_id,
-                "property_name": (prop_name or property_name_by_id.get(sess.property_id) or "Unknown property"),
-                "guest_name": sess.guest_name,
-                "assigned_to": sess.assigned_to,
-                "reservation_status": sess.reservation_status,
-                "source": sess.source,
-                "last_activity_at": sess.last_activity_at,
-                "last_snippet": (last_snip or ""),
+                "id": sid,
+                "property_id": int(r.get("property_id") or 0) or None,
+                "property_name": (r.get("property_name") or property_name_by_id.get(int(r.get("property_id") or 0), "") or "Unknown property"),
+                "guest_name": r.get("guest_name"),
+                "assigned_to": r.get("assigned_to"),
+                "reservation_status": status_val or "pre_booking",
+                "source": r.get("source"),  # may be None if not selected in SQL (ok)
+                "last_activity_at": r.get("last_activity_at"),
+                "last_snippet": last_snip,
 
                 "action_priority": action_priority_val,
                 "guest_mood": guest_mood_val,
                 "emotional_signals": emotional_signals,
 
-                "is_resolved": bool(sess.is_resolved),
-                "escalation_level": sess.escalation_level,
+                "is_resolved": bool(r.get("is_resolved")),
+                "escalation_level": r.get("escalation_level"),
 
                 "has_urgent": has_urgent,
                 "has_negative": has_negative,
@@ -3171,12 +3191,14 @@ def admin_dashboard(
 
                 "heat_raw": heat,
 
-                "reservation_id": getattr(sess, "reservation_id", None),
-                "booking_id": getattr(sess, "booking_id", None),
-                "confirmation_code": getattr(sess, "confirmation_code", None),
-                "pms_reservation_id": getattr(sess, "pms_reservation_id", None),
-                "reservation_confirmed": getattr(sess, "reservation_confirmed", None),
+                # booking fields (only if present in table/row; safe as None)
+                "reservation_id": r.get("reservation_id"),
+                "booking_id": r.get("booking_id"),
+                "confirmation_code": r.get("confirmation_code"),
+                "pms_reservation_id": r.get("pms_reservation_id"),
+                "reservation_confirmed": r.get("reservation_confirmed"),
             })
+
 
         # ----------------------------
         # Chat Stats (from final rendered sessions list)
