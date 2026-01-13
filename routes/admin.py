@@ -402,37 +402,92 @@ def chat_detail_partial(
     session_id: int,
     db: Session = Depends(get_db),
 ):
-    # Auth check (reuse your existing logic if needed)
     user = request.session.get("user")
     if not user:
         raise HTTPException(status_code=401)
 
-    session = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not session:
+    sess = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not sess:
         raise HTTPException(status_code=404, detail="Chat not found")
 
-    property_obj = (
-        db.query(Property)
-        .filter(Property.id == session.property_id)
-        .first()
-    )
-
+    property_obj = db.query(Property).filter(Property.id == sess.property_id).first()
     messages = (
         db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session_id)
+        .filter(ChatMessage.session_id == sess.id)
         .order_by(ChatMessage.created_at.asc())
         .all()
     )
+
+    # derive signals for this one session
+    heat = int(sess.heat_score or 0)
+
+    has_urgent = db.query(ChatMessage.id).filter(
+        ChatMessage.session_id == sess.id,
+        ChatMessage.sender == "guest",
+        ChatMessage.category == "urgent",
+    ).first() is not None
+
+    cutoff = datetime.utcnow() - timedelta(days=7)
+    has_negative = db.query(ChatMessage.id).filter(
+        ChatMessage.session_id == sess.id,
+        ChatMessage.sender == "guest",
+        ChatMessage.created_at >= cutoff,
+        func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
+    ).first() is not None
+
+    since_24h = datetime.utcnow() - timedelta(hours=24)
+    cnt24 = int(db.query(func.count(ChatMessage.id)).filter(
+        ChatMessage.session_id == sess.id,
+        ChatMessage.created_at >= since_24h,
+    ).scalar() or 0)
+
+    since_7d = datetime.utcnow() - timedelta(days=7)
+    cnt7 = int(db.query(func.count(ChatMessage.id)).filter(
+        ChatMessage.session_id == sess.id,
+        ChatMessage.created_at >= since_7d,
+    ).scalar() or 0)
+
+    emotional_signals = derive_guest_mood(has_urgent, has_negative, cnt24, cnt7, getattr(sess, "reservation_status", None))
+    action_priority_val = compute_action_priority(heat, emotional_signals, has_urgent, has_negative)
+
+    session_vm = {
+        "id": sess.id,
+        "property_id": sess.property_id,
+        "guest_name": sess.guest_name,
+        "assigned_to": sess.assigned_to,
+        "reservation_status": sess.reservation_status,
+        "escalation_level": sess.escalation_level,
+        "is_resolved": bool(sess.is_resolved),
+
+        # ✅ keys template expects
+        "action_priority": action_priority_val,
+        "emotional_signals": emotional_signals,
+
+        # optional extras used by template
+        "internal_note": getattr(sess, "internal_note", None),
+        "ai_summary": getattr(sess, "ai_summary", None),
+        "ai_summary_updated_at": getattr(sess, "ai_summary_updated_at", None),
+
+        # booking fields used by rs_effective logic
+        "reservation_id": getattr(sess, "reservation_id", None),
+        "booking_id": getattr(sess, "booking_id", None),
+        "confirmation_code": getattr(sess, "confirmation_code", None),
+        "pms_reservation_id": getattr(sess, "pms_reservation_id", None),
+        "reservation_confirmed": getattr(sess, "reservation_confirmed", None),
+    }
 
     return templates.TemplateResponse(
         "partials/chat_detail_panel.html",
         {
             "request": request,
-            "session": session,
+            "session": session_vm,
             "property": property_obj,
             "messages": messages,
+            # if you use this in the template:
+            "property_name_by_id": {property_obj.id: property_obj.property_name} if property_obj else {},
         },
     )
+
 
 
 # ----------------------------
@@ -746,60 +801,7 @@ def admin_sync_properties(pmc_id: int, request: Request, db: Session = Depends(g
         return JSONResponse({"success": False, "error": str(e)}, status_code=500)
 
 
-# ----------------------------
-# Chats list route (god view)
-# ----------------------------
-'''
-@router.get("/admin/chats", response_class=HTMLResponse)
-def chats_dashboard(
-    request: Request,
-    db: Session = Depends(get_db),
-    pmc_id: Optional[int] = Query(None),
-    property_id: Optional[int] = Query(None),
-    enabled_only: Optional[int] = Query(None),  # 1/0
-):
-    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
 
-    q = (
-        db.query(ChatSession, Property)
-        .join(Property, ChatSession.property_id == Property.id)
-    )
-
-    # Always scope by role
-    q = apply_chat_scope(q, user_role, pmc_obj)
-
-    # Super can filter pmc_id; PMC cannot override
-    if user_role == "super" and pmc_id is not None:
-        q = q.filter(Property.pmc_id == int(pmc_id))
-
-    if property_id is not None:
-        q = q.filter(ChatSession.property_id == int(property_id))
-
-    # Default behavior:
-    # - PMC: enabled-only unless explicitly enabled_only=0
-    # - Super: show all by default
-    if user_role == "pmc":
-        if enabled_only is None or int(enabled_only) == 1:
-            q = q.filter(Property.chat_enabled.is_(True))
-    else:
-        if enabled_only is not None and int(enabled_only) == 1:
-            q = q.filter(Property.chat_enabled.is_(True))
-
-    sessions = q.order_by(ChatSession.last_activity_at.desc()).limit(200).all()
-
-    # Build filter dropdown lists based on scope
-    props_q = db.query(Property)
-    props_q = apply_property_scope(props_q, user_role, pmc_obj)  # if you already have this helper
-    properties = props_q.order_by(Property.property_name.asc()).all()
-
-    return templates.TemplateResponse("admin/chats.html", {
-        "request": request,
-        "sessions": [...],
-        "properties": properties,
-        "filters": {...},
-        "user_role": user_role,
-    })
-'''
 
 # ----------------------------
 # Reusable “scope filter” helper
@@ -2523,18 +2525,80 @@ def admin_dashboard(
         s = str(x).strip()
         return s if s else None
 
-    def action_priority_from_heat(heat: int) -> str:
-        """
-        Canonical labels for UI: urgent/high/normal/low
-        Tune thresholds however you want; these are sane defaults.
-        """
-        if heat >= 90:
-            return "urgent"
-        if heat >= 80:
-            return "high"
-        if heat >= 50:
-            return "normal"
-        return "low"
+  def normalize_action_priority(value: str | None) -> str | None:
+    if not value:
+        return None
+    v = value.strip().lower()
+    mapping = {
+        "critical": "urgent",
+        "urgent": "urgent",
+        "attention": "high",
+        "high": "high",
+        "medium": "normal",
+        "normal": "normal",
+        "routine": "low",
+        "low": "low",
+    }
+    return mapping.get(v, v)
+
+
+def action_priority_from_heat(heat: int) -> str:
+    # Canonical output: urgent/high/normal/low
+    if heat >= 80:
+        return "urgent"
+    if heat >= 60:
+        return "high"
+    if heat >= 40:
+        return "normal"
+    return "low"
+
+
+def bump_priority(base: str, bump_to: str) -> str:
+    rank = {"low": 0, "normal": 1, "high": 2, "urgent": 3}
+    return bump_to if rank.get(bump_to, 0) > rank.get(base, 0) else base
+
+
+def derive_guest_mood(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int, status_val: str | None) -> list[str]:
+    """
+    Return a list of emotional_signals, ordered most important first.
+    Keep values lowercase since your filters compare lowercase.
+    """
+    signals: list[str] = []
+    status = (status_val or "").strip().lower()
+
+    # Example rules — keep them deterministic and explainable
+    if has_urgent:
+        signals.append("panicked")
+    if has_negative and "panicked" not in signals:
+        signals.append("upset")
+
+    # High volume can indicate confusion/anxiety
+    if cnt24 >= 8 and "panicked" not in signals:
+        signals.append("confused")
+    elif cnt7 >= 25 and "panicked" not in signals:
+        signals.append("worried")
+
+    # If nothing flagged, pick calm
+    if not signals:
+        signals.append("calm")
+
+    return signals
+
+
+def compute_action_priority(heat: int, signals: list[str], has_urgent: bool, has_negative: bool) -> str:
+    """
+    Canonical output: urgent/high/normal/low
+    Make it the max of heat priority and signal priority.
+    """
+    ap = action_priority_from_heat(heat)
+
+    if has_urgent or ("panicked" in signals):
+        ap = bump_priority(ap, "urgent")
+    elif has_negative or ("angry" in signals) or ("upset" in signals):
+        ap = bump_priority(ap, "high")
+
+    return ap
+
 
     def apply_action_priority_filter(qry, ap: str):
         ap = (ap or "").strip().lower()
@@ -2660,23 +2724,31 @@ def admin_dashboard(
     # ----------------------------
     # Filters dict (✅ matches template names)
     # ----------------------------
+    # ----------------------------
+# Chats: filters + data
+# ----------------------------
+
+    # Canonical params (support legacy too)
+    action_priority = normalize_action_priority(
+        request.query_params.get("action_priority")
+        or request.query_params.get("priority")  # legacy
+    )
+    
+    guest_mood = (request.query_params.get("guest_mood") or "").strip().lower()
+    legacy_mood = (request.query_params.get("signals_filter") or request.query_params.get("emotional_signals_filter") or "").strip().lower()
+    guest_mood = guest_mood or legacy_mood or None
+    
     filters = {
         "pmc_id": pmc_id or "",
         "property_id": property_id or "",
         "status": status or "",
-
-        # ✅ template expects these exact keys
-        "action_priority": ap_filter or "",
-        "emotional_signals_filter": mood or "",
-
+        "action_priority": action_priority or "",
+        "guest_mood": guest_mood or "",
         "mine": bool(mine),
         "assigned_to": assigned_to or "",
         "q": q or "",
-
-        # legacy (optional)
-        "priority": legacy_priority or "",
-        "guest_mood": mood or "",
     }
+
 
     sessions: list[dict] = []
     analytics = {
@@ -2891,33 +2963,41 @@ def admin_dashboard(
         # ----------------------------
         # Sessions dicts (+ mood filtering)
         # ----------------------------
+
         sessions = []
         for sess, prop_name, last_snip in rows:
             sid = int(sess.id)
             heat = int(sess.heat_score or 0)
-
+        
             has_urgent = sid in urgent_ids
             has_negative = sid in negative_ids
             cnt24 = counts_24h.get(sid, 0)
             cnt7 = counts_7d.get(sid, 0)
-
-            status_val = getattr(sess, "reservation_status", "pre_booking")
-            signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
-
-            # guest mood = first signal (your existing convention)
-            guest_mood_val = (signals[0] if signals else None)
-
-            # ✅ apply mood filter from dropdown
-            if mood:
-                signals_l = [(x or "").strip().lower() for x in (signals or [])]
-                if mood not in signals_l:
+        
+            status_val = getattr(sess, "reservation_status", None)
+            emotional_signals = derive_guest_mood(has_urgent, has_negative, cnt24, cnt7, status_val)
+            guest_mood_val = (emotional_signals[0] if emotional_signals else None)
+        
+            action_priority_val = compute_action_priority(
+                heat=heat,
+                signals=emotional_signals,
+                has_urgent=has_urgent,
+                has_negative=has_negative,
+            )
+        
+            # Apply filters (canonical)
+            if guest_mood:
+                if guest_mood not in [x.lower() for x in emotional_signals]:
                     continue
-
+        
+            if action_priority:
+                # filter by canonical priority tiers
+                if normalize_action_priority(action_priority_val) != action_priority:
+                    continue
+        
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-
-            action_priority_val = action_priority_from_heat(heat)
-
+        
             sessions.append({
                 "id": sess.id,
                 "property_id": sess.property_id,
@@ -2928,31 +3008,24 @@ def admin_dashboard(
                 "source": sess.source,
                 "last_activity_at": sess.last_activity_at,
                 "last_snippet": (last_snip or ""),
-                "next_action": None,
-
-                # ✅ what the template expects
-                "guest_mood": guest_mood_val,
-                "action_priority": action_priority_val,
-
-                # ✅ add BOTH so either template style works
-                "signals": signals,
-                "emotional_signals": signals,
-
-                "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
+        
+                # ✅ Canonical, matches template:
+                "action_priority": action_priority_val,        # urgent/high/normal/low
+                "guest_mood": guest_mood_val,                  # e.g. panicked
+                "emotional_signals": emotional_signals,        # list for JS mood badge
+        
                 "is_resolved": bool(sess.is_resolved),
                 "escalation_level": sess.escalation_level,
-
+        
                 "has_urgent": has_urgent,
                 "has_negative": has_negative,
                 "last_sentiment": last_sentiment,
-
                 "msg_24h": cnt24,
                 "msg_7d": cnt7,
-
-                # keep heat for debugging/analytics
+        
                 "heat_raw": heat,
-                "heat_boosted": heat,
             })
+
 
         # ----------------------------
         # Selected session detail
