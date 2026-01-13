@@ -2983,40 +2983,42 @@ def admin_dashboard(
         # Sessions dicts (+ mood filtering)
         # ----------------------------
 
+                # ----------------------------
+        # Sessions dicts (+ mood filtering)
+        # ----------------------------
         sessions = []
         for sess, prop_name, last_snip in rows:
             sid = int(sess.id)
             heat = int(sess.heat_score or 0)
-        
+
             has_urgent = sid in urgent_ids
             has_negative = sid in negative_ids
             cnt24 = counts_24h.get(sid, 0)
             cnt7 = counts_7d.get(sid, 0)
-        
+
             status_val = getattr(sess, "reservation_status", None)
             emotional_signals = derive_guest_mood(has_urgent, has_negative, cnt24, cnt7, status_val)
             guest_mood_val = (emotional_signals[0] if emotional_signals else None)
-        
+
             action_priority_val = compute_action_priority(
                 heat=heat,
                 signals=emotional_signals,
                 has_urgent=has_urgent,
                 has_negative=has_negative,
             )
-        
+
             # Apply filters (canonical)
             if mood:
                 if mood not in [x.lower() for x in emotional_signals]:
                     continue
-            
+
             if ap_filter:
                 if normalize_action_priority(action_priority_val) != normalize_action_priority(ap_filter):
                     continue
 
-        
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-        
+
             sessions.append({
                 "id": sess.id,
                 "property_id": sess.property_id,
@@ -3027,31 +3029,50 @@ def admin_dashboard(
                 "source": sess.source,
                 "last_activity_at": sess.last_activity_at,
                 "last_snippet": (last_snip or ""),
-        
-                # ✅ Canonical, matches template:
-                "action_priority": action_priority_val,        # urgent/high/normal/low
-                "guest_mood": guest_mood_val,                  # e.g. panicked
-                "emotional_signals": emotional_signals,        # list for JS mood badge
-        
+
+                "action_priority": action_priority_val,
+                "guest_mood": guest_mood_val,
+                "emotional_signals": emotional_signals,
+
                 "is_resolved": bool(sess.is_resolved),
                 "escalation_level": sess.escalation_level,
-        
+
                 "has_urgent": has_urgent,
                 "has_negative": has_negative,
                 "last_sentiment": last_sentiment,
                 "msg_24h": cnt24,
                 "msg_7d": cnt7,
-        
+
                 "heat_raw": heat,
 
-                # inside the sessions.append({...}) in admin_dashboard, add:
                 "reservation_id": getattr(sess, "reservation_id", None),
                 "booking_id": getattr(sess, "booking_id", None),
                 "confirmation_code": getattr(sess, "confirmation_code", None),
                 "pms_reservation_id": getattr(sess, "pms_reservation_id", None),
                 "reservation_confirmed": getattr(sess, "reservation_confirmed", None),
-
             })
+
+        # ----------------------------
+        # Chat Stats (from final rendered sessions list)
+        # ----------------------------
+        analytics["pre_booking"] = 0
+        analytics["post_booking"] = 0
+        analytics["active"] = 0
+        analytics["post_stay"] = 0
+        analytics["urgent_sessions"] = 0
+        analytics["unhappy_sessions"] = 0
+
+        for row in sessions:
+            stage = _effective_stage_from_dict(row)
+            if stage in ("pre_booking", "post_booking", "active", "post_stay"):
+                analytics[stage] += 1
+
+            if row.get("has_urgent"):
+                analytics["urgent_sessions"] += 1
+
+            if row.get("has_negative"):
+                analytics["unhappy_sessions"] += 1
+
 
 
         # ----------------------------
