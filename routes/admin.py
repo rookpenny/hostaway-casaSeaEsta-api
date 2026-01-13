@@ -170,6 +170,46 @@ def norm_signals(s):
 unhappy_sessions = sum(1 for s in sessions_for_analytics if norm_signals(s) & UNHAPPY)
 
 
+def _effective_stage_from_dict(d: dict) -> str:
+    st = (d.get("reservation_status") or "").strip().lower()
+
+    has_booking = bool(
+        d.get("reservation_id")
+        or d.get("booking_id")
+        or d.get("confirmation_code")
+        or d.get("pms_reservation_id")
+        or d.get("reservation_confirmed")
+    )
+
+    if st in ("post_booking", "booked", "confirmed"):
+        return "post_booking"
+    if st == "pre_booking" and has_booking:
+        return "post_booking"
+    return st or "unknown"
+
+
+# reset analytics to zero
+analytics["pre_booking"] = 0
+analytics["post_booking"] = 0
+analytics["active"] = 0
+analytics["post_stay"] = 0
+analytics["urgent_sessions"] = 0
+analytics["unhappy_sessions"] = 0
+
+for row in sessions:
+    stage = _effective_stage_from_dict(row)
+    if stage in ("pre_booking", "post_booking", "active", "post_stay"):
+        analytics[stage] += 1
+
+    # ✅ match your “urgent sessions” intent to message-derived urgency
+    if row.get("has_urgent"):
+        analytics["urgent_sessions"] += 1
+
+    # ✅ match “unhappy sessions” to negative sentiment detection you already computed
+    if row.get("has_negative"):
+        analytics["unhappy_sessions"] += 1
+
+
 # ----------------------------
 # The 3 FastAPI routes to use your templates/admin_config_ui.html
 # ----------------------------
@@ -3059,6 +3099,14 @@ def admin_dashboard(
                 "msg_7d": cnt7,
         
                 "heat_raw": heat,
+
+                # inside the sessions.append({...}) in admin_dashboard, add:
+                "reservation_id": getattr(sess, "reservation_id", None),
+                "booking_id": getattr(sess, "booking_id", None),
+                "confirmation_code": getattr(sess, "confirmation_code", None),
+                "pms_reservation_id": getattr(sess, "pms_reservation_id", None),
+                "reservation_confirmed": getattr(sess, "reservation_confirmed", None),
+
             })
 
 
