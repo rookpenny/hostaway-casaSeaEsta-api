@@ -157,13 +157,12 @@ function pushChatUrl(sessionId) {
 function clearChatUrl() {
   const url = new URL(window.location.href);
 
-  // Remove selection but keep whatever view/hash the user is on
+  // Only clear the selected session; keep user's current view/hash.
   url.searchParams.delete("session_id");
 
-  // If you previously forced #chats, don't do that here:
-  // let routing decide based on hash/view.
   history.pushState({}, "", url.toString());
 }
+
 
 // Open chat detail from list (delegated)
 // Add data-open-chat="123" to clickable elements (or row)
@@ -1000,6 +999,25 @@ document.addEventListener("change", (e) => {
 });
 
 
+// Prevent row click from firing when interacting with controls
+document.addEventListener("click", (e) => {
+  const row = e.target.closest("[data-session-row]");
+  if (!row) return;
+
+  // If the click originated from an interactive element, do nothing.
+  if (e.target.closest("a, button, input, textarea, select, label")) return;
+
+  const sid = row.getAttribute("data-session-row");
+  if (!sid) return;
+
+  // Avoid double-open if you still have inline onclick on the <tr>
+  if (row.__opening) return;
+  row.__opening = true;
+
+  Promise.resolve(openChatDetail(sid)).finally(() => {
+    row.__opening = false;
+  });
+});
 
 
   // ----------------------------
