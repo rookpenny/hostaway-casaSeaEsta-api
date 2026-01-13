@@ -1357,6 +1357,9 @@ def admin_chats(
         status_val = sess.reservation_status or "pre_booking"
         signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
 
+        guest_mood_val = (signals[0] if signals else None)
+        
+
         if mood and mood not in {s.lower() for s in signals}:
             continue
 
@@ -1383,6 +1386,8 @@ def admin_chats(
             "routine"
         )
 
+        action_priority_val = priority_level
+
         # auto escalation
         desired = desired_escalation_level(heat)
         current = (sess.escalation_level or "").lower() or None
@@ -1393,6 +1398,8 @@ def admin_chats(
             db.add(sess)
             auto_escalated += 1
 
+        
+
         items.append({
             "id": sess.id,
             "property_id": sess.property_id,
@@ -1401,23 +1408,28 @@ def admin_chats(
             "reservation_status": status_val,
             "last_activity_at": sess.last_activity_at,
             "last_snippet": snippet,
-
+        
             "signals": signals,
+            "guest_mood": guest_mood_val,            # ✅ ADD
+        
             "has_urgent": has_urgent,
             "has_negative": has_negative,
-
+        
             "msg_24h": cnt24,
             "msg_7d": cnt7,
-
+        
             "heat": heat,
             "heat_raw": raw_heat,
+        
             "priority_level": priority_level,
-
+            "action_priority": action_priority_val,  # ✅ ADD
+        
             "assigned_to": sess.assigned_to,
             "escalation_level": sess.escalation_level,
             "is_resolved": bool(sess.is_resolved),
             "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
         })
+
 
     if auto_escalated:
         db.commit()
@@ -2849,6 +2861,8 @@ def admin_dashboard(
 
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
+            
+            
 
             sessions.append({
                 "id": sess.id,
