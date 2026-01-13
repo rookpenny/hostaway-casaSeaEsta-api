@@ -120,6 +120,27 @@ class SentimentResult(TypedDict, total=False):
     confidence: int  # 0-100
 
 
+def normalize_sentiment_label(value) -> str:
+    """
+    Accepts:
+      - "positive"/"neutral"/"negative"
+      - {"sentiment": "...", ...}
+      - {"label": "...", ...}
+    Returns a safe label string.
+    """
+    if value is None:
+        return "neutral"
+
+    # If OpenAI returns a dict/object
+    if isinstance(value, dict):
+        value = value.get("sentiment") or value.get("label") or value.get("value")
+
+    label = str(value).strip().lower()
+    if label not in {"positive", "neutral", "negative"}:
+        return "neutral"
+    return label
+
+
 def classify_sentiment_openai(
     client: OpenAI,
     text: str,
@@ -1366,18 +1387,18 @@ def property_chat(
         assistant_text = enforce_click_here_links(assistant_text)
 
         # ✅ Option C: sentiment tagging at ingestion (OpenAI-first + fallback)
-        guest_sentiment = classify_sentiment_with_fallback(client, user_message)
+        raw_sentiment = classify_sentiment_with_fallback(client, user_message)  # OpenAI-first + fallback
+        guest_sentiment = normalize_sentiment_label(raw_sentiment)
+
 
         # 8) Save guest message (with sentiment)
-        db.add(
-            ChatMessage(
-                session_id=session_id,
-                sender="guest",
-                content=user_message,
-                sentiment=guest_sentiment,
-                created_at=now,
-            )
-        )
+        db.add(ChatMessage(
+            session_id=session_id,
+            sender="guest",
+            content=user_message,
+            sentiment=guest_sentiment,
+            created_at=now,
+        ))
 
         # Save assistant message
         db.add(
