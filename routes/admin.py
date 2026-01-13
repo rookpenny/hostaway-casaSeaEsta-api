@@ -2852,6 +2852,7 @@ def admin_dashboard(
 
             status_val = getattr(sess, "reservation_status", "pre_booking")
             signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
+            guest_mood_val = (signals[0] if signals else None)
 
             # ✅ apply guest mood dropdown filter
             if mood:
@@ -2861,7 +2862,7 @@ def admin_dashboard(
 
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-            
+            action_priority_val = priority_level_from_heat(heat)
             
 
             sessions.append({
@@ -2875,6 +2876,8 @@ def admin_dashboard(
                 "last_activity_at": sess.last_activity_at,
                 "last_snippet": (last_snip or ""),
                 "next_action": None,
+                "guest_mood": guest_mood_val,
+                "action_priority": action_priority_val
 
                 "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
                 "is_resolved": bool(sess.is_resolved),
