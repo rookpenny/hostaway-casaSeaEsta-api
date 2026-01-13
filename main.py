@@ -42,6 +42,7 @@ from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 from seed_guides_route import router as seed_guides_router
 from seed_upgrades_route import router as seed_upgrades_router
 
+
 from starlette.middleware.sessions import SessionMiddleware
 
 from utils.message_helpers import classify_category, detect_log_types
@@ -52,6 +53,7 @@ from utils.prearrival_debug import prearrival_debug_router
 from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
 from utils.github_sync import ensure_repo
 from utils.ai_summary import maybe_autosummarize_on_new_guest_message
+from utils.sentiment import classify_sentiment_rule
 
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
