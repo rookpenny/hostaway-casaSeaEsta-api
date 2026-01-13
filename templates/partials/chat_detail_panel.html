@@ -7,7 +7,8 @@
 <div
   class="space-y-4"
   data-chat-panel="{{ session.id }}"
-  data-signals='{{ (session.signals or []) | tojson }}'
+  data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
+  data-action-priority='{{ (session.action_priority or "") | lower | e }}'
   data-escalation-level="{{ esc | e }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
   data-assigned-to="{{ assigned | e }}"
@@ -47,11 +48,44 @@
               </span>
             {% endif %}
 
-            {# Signals badge (rendered by your JS) #}
+
+            {% set ap = (session.action_priority or "")|lower %}
+
+              <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+                {% if ap == 'urgent' %}
+                  bg-rose-100 text-rose-800
+                {% elif ap == 'high' %}
+                  bg-amber-100 text-amber-800
+                {% elif ap == 'normal' %}
+                  bg-slate-100 text-slate-700
+                {% elif ap == 'low' %}
+                  bg-blue-100 text-blue-800
+                {% else %}
+                  bg-slate-100 text-slate-500
+                {% endif %}
+              ">
+                {% if ap == 'urgent' %}
+                  🔥 Action: Urgent
+                {% elif ap == 'high' %}
+                  ⚠️ Action: High
+                {% elif ap == 'normal' %}
+                  🛠️ Action: Normal
+                {% elif ap == 'low' %}
+                  🕰️ Action: Low
+                {% else %}
+                  Action: —
+                {% endif %}
+              </span>
+
+
+
+            
+            {# Guest Mood (rendered by JS from emotional_signals) #}
             <span
-              data-signals-badge
-              data-signals='{{ (session.signals or []) | tojson }}'
+              data-mood-badge
+              data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
             ></span>
+
 
 
             {# Resolved/Open pill #}
@@ -84,7 +118,7 @@
               "
             >
               {% if esc %}
-                🚨 Escalation: {{ esc|capitalize }}
+                🚨 Team Escalation: {{ esc|capitalize }}
               {% else %}
                 No escalation
               {% endif %}
