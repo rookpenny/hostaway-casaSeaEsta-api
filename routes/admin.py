@@ -2542,62 +2542,62 @@ def admin_dashboard(
     return mapping.get(v, v)
 
 
-def action_priority_from_heat(heat: int) -> str:
-    # Canonical output: urgent/high/normal/low
-    if heat >= 80:
-        return "urgent"
-    if heat >= 60:
-        return "high"
-    if heat >= 40:
-        return "normal"
-    return "low"
-
-
-def bump_priority(base: str, bump_to: str) -> str:
-    rank = {"low": 0, "normal": 1, "high": 2, "urgent": 3}
-    return bump_to if rank.get(bump_to, 0) > rank.get(base, 0) else base
-
-
-def derive_guest_mood(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int, status_val: str | None) -> list[str]:
-    """
-    Return a list of emotional_signals, ordered most important first.
-    Keep values lowercase since your filters compare lowercase.
-    """
-    signals: list[str] = []
-    status = (status_val or "").strip().lower()
-
-    # Example rules — keep them deterministic and explainable
-    if has_urgent:
-        signals.append("panicked")
-    if has_negative and "panicked" not in signals:
-        signals.append("upset")
-
-    # High volume can indicate confusion/anxiety
-    if cnt24 >= 8 and "panicked" not in signals:
-        signals.append("confused")
-    elif cnt7 >= 25 and "panicked" not in signals:
-        signals.append("worried")
-
-    # If nothing flagged, pick calm
-    if not signals:
-        signals.append("calm")
-
-    return signals
-
-
-def compute_action_priority(heat: int, signals: list[str], has_urgent: bool, has_negative: bool) -> str:
-    """
-    Canonical output: urgent/high/normal/low
-    Make it the max of heat priority and signal priority.
-    """
-    ap = action_priority_from_heat(heat)
-
-    if has_urgent or ("panicked" in signals):
-        ap = bump_priority(ap, "urgent")
-    elif has_negative or ("angry" in signals) or ("upset" in signals):
-        ap = bump_priority(ap, "high")
-
-    return ap
+    def action_priority_from_heat(heat: int) -> str:
+        # Canonical output: urgent/high/normal/low
+        if heat >= 80:
+            return "urgent"
+        if heat >= 60:
+            return "high"
+        if heat >= 40:
+            return "normal"
+        return "low"
+    
+    
+    def bump_priority(base: str, bump_to: str) -> str:
+        rank = {"low": 0, "normal": 1, "high": 2, "urgent": 3}
+        return bump_to if rank.get(bump_to, 0) > rank.get(base, 0) else base
+    
+    
+    def derive_guest_mood(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int, status_val: str | None) -> list[str]:
+        """
+        Return a list of emotional_signals, ordered most important first.
+        Keep values lowercase since your filters compare lowercase.
+        """
+        signals: list[str] = []
+        status = (status_val or "").strip().lower()
+    
+        # Example rules — keep them deterministic and explainable
+        if has_urgent:
+            signals.append("panicked")
+        if has_negative and "panicked" not in signals:
+            signals.append("upset")
+    
+        # High volume can indicate confusion/anxiety
+        if cnt24 >= 8 and "panicked" not in signals:
+            signals.append("confused")
+        elif cnt7 >= 25 and "panicked" not in signals:
+            signals.append("worried")
+    
+        # If nothing flagged, pick calm
+        if not signals:
+            signals.append("calm")
+    
+        return signals
+    
+    
+    def compute_action_priority(heat: int, signals: list[str], has_urgent: bool, has_negative: bool) -> str:
+        """
+        Canonical output: urgent/high/normal/low
+        Make it the max of heat priority and signal priority.
+        """
+        ap = action_priority_from_heat(heat)
+    
+        if has_urgent or ("panicked" in signals):
+            ap = bump_priority(ap, "urgent")
+        elif has_negative or ("angry" in signals) or ("upset" in signals):
+            ap = bump_priority(ap, "high")
+    
+        return ap
 
 
     def apply_action_priority_filter(qry, ap: str):
