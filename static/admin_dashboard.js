@@ -483,6 +483,10 @@ async function loadChatDetail(sessionId) {
       panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
       panel.querySelector("[data-chat-panel]");
 
+    // ✅ Restore per-chat note/summary open/closed state (localStorage)
+    window.restoreAdminChatPanelState?.(panel);
+
+
     // --- Guest Mood: hydrate detail mood from list row (source of truth) ---
     const listMoodEl = document.querySelector(
       `[data-session-row="${sessionId}"] [data-mood-badge]`
