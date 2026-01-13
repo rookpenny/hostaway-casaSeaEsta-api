@@ -125,6 +125,7 @@ window.getMoodForEl = function getMoodForEl(el) {
     if (sig.includes("upset"))    html += pill("😟 Upset",    "bg-amber-100 text-amber-800");
     if (sig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
     if (sig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
+    if (sig.includes("happy"))    html += pill("😊 Happy",    "bg-yellow-100 text-yellow-800");
 
     // Calm only if explicitly present
     if (sig.includes("calm")) {
