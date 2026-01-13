@@ -47,7 +47,7 @@
             <br>{{ prop_name or "Unknown property" }} • Property ID: {{ session.property_id }}
           </div>
 
-          <!-- Pills row -->
+                    <!-- Pills row -->
           <div class="flex flex-wrap items-center gap-1">
 
             {# Reservation status pill (consistent) #}
@@ -72,22 +72,27 @@
                 Unknown
               </span>
             {% endif %}
-            {# Action priority pill (detail view uses `session`, not `s`) #}
-            {% set ap_raw = (session.action_priority or session.priority_level or session.priority or "")|lower %}
-            
-            {# Optional: if backend didn't provide action_priority, derive from heat #}
-            {% if not ap_raw %}
-              {% set heat = (session.heat_raw or session.heat_score or 0) %}
-              {% if heat >= 80 %}
-                {% set ap_raw = "urgent" %}
-              {% elif heat >= 50 %}
-                {% set ap_raw = "high" %}
-              {% else %}
-                {% set ap_raw = "normal" %}
-              {% endif %}
-            {% endif %}
-            
-            {% set ap = "urgent" if ap_raw in ["urgent","critical"] else ("high" if ap_raw in ["high","attention"] else ("normal" if ap_raw in ["normal","medium"] else ("low" if ap_raw in ["low"] else ""))) %}
+
+            {# ✅ Action priority (canonical: urgent/high/normal/low) #}
+            {% set ap = (session.action_priority or '')|lower %}
+            <span
+              id="action-priority-pill"
+              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
+                {% if ap == 'urgent' %}bg-rose-100 text-rose-800
+                {% elif ap == 'high' %}bg-orange-100 text-orange-800
+                {% elif ap == 'normal' %}bg-blue-100 text-blue-800
+                {% elif ap == 'low' %}bg-slate-100 text-slate-700
+                {% else %}text-slate-400{% endif %}">
+              {% if ap == 'urgent' %}🔴 Urgent
+              {% elif ap == 'high' %}🟠 High
+              {% elif ap == 'normal' %}🔵 Normal
+              {% elif ap == 'low' %}⚪ Low
+              {% else %}—{% endif %}
+            </span>
+
+            {# Guest Mood (rendered by JS from emotional_signals) #}
+            <span data-mood-badge data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'></span>
+
            
             <span
               id="action-priority-pill"
