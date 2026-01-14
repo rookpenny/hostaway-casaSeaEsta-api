@@ -1552,7 +1552,6 @@ window.Chats.refreshSummary = async function refreshSummary(sessionId) {
     if (data.ok === false) throw new Error(data.error || "Summarize failed");
 
     box.textContent = data.summary || "";
-
     if (updatedLabel) {
       updatedLabel.textContent = data.updated_at
         ? `Updated: ${data.updated_at}`
@@ -1563,6 +1562,22 @@ window.Chats.refreshSummary = async function refreshSummary(sessionId) {
     console.error(e);
   }
 };
+
+// ✅ global alias so any old code calling refreshSummary(...) still works
+window.refreshSummary = (sessionId) => window.Chats.refreshSummary(sessionId);
+
+// ✅ click binding for your button
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest('[data-action="summary"]');
+  if (!btn) return;
+
+  const panel = btn.closest("[data-chat-panel]");
+  const sessionId = Number(panel?.dataset?.sessionId);
+  if (!sessionId) return console.error("Missing sessionId on panel", panel);
+
+  window.Chats.refreshSummary(sessionId);
+});
+
 
 
 
