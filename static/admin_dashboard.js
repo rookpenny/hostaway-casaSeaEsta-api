@@ -466,7 +466,8 @@ async function chatPostRoute(routeKey, params, body) {
   // Escalation
   q('[data-role="escalation-select"]')?.addEventListener("change", async (e) => {
     const escalation_level = e.target.value || "";
-    await chatPostRoute("chat_escalate", { session_id: sessionId }, { escalation_level });
+    //await chatPostRoute("chat_escalate", { session_id: sessionId }, { escalation_level });
+    await chatPostRoute("chat_escalate", { session_id: sessionId }, { level: escalation_level });
     updateChatListRow(sessionId, { escalation_level: escalation_level || null });
     await loadChatDetail(sessionId);
   });
@@ -613,7 +614,7 @@ async function loadChatDetail(sessionId) {
 
 
 
-function setEscalationBadge(container, level) {
+/*function setEscalationBadge(container, level) {
   if (!container) return;
   const esc = String(level || "").toLowerCase();
 
@@ -626,7 +627,7 @@ function setEscalationBadge(container, level) {
   } else {
     container.innerHTML = `<span class="text-slate-400">—</span>`;
   }
-}
+}*/
 
 function setStatusBadge(container, isResolved) {
   if (!container) return;
@@ -702,7 +703,7 @@ function updateChatListRow(sessionId, payload = {}) {
 }
 
 
-
+/*
 function applyEscalationBadge(badgeEl, levelRaw) {
   if (!badgeEl) return;
 
@@ -726,15 +727,16 @@ function applyEscalationBadge(badgeEl, levelRaw) {
   }
 
   badgeEl.setAttribute("data-escalation-level", level);
-}
+}*/
 
 function updateChatListEscalation(sessionId, level) {
   const row = document.querySelector(`[data-session-row="${sessionId}"]`);
-  if (!row) return; // row might not be in DOM (filtered/paged out)
+  if (!row) return;
 
   const badge = row.querySelector("[data-escalation-badge]");
-  applyEscalationBadge(badge, level);
+  setEscalationBadge(badge, level);
 }
+
 
     
 
@@ -2634,7 +2636,7 @@ document.addEventListener("change", (e) => {
 // Escalation dropdown (detail panel)
 // ==================================================
 
-document.addEventListener("change", async (e) => {
+/*document.addEventListener("change", async (e) => {
   const sel = e.target.closest('[data-role="escalation-select"]');
   if (!sel) return;
 
@@ -2705,7 +2707,7 @@ document.addEventListener("change", async (e) => {
     console.error("Escalation update failed", err);
   }
 });
-
+*/
 
 
   // ----------------------------
