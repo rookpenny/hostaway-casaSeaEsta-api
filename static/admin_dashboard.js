@@ -23,15 +23,18 @@ document.addEventListener("click", (e) => {
   if (!btn) return;
 
   const panel = btn.closest("[data-chat-panel]");
-  const sessionId = Number(panel?.dataset?.sessionId || panel?.getAttribute("data-session-id"));
+  if (!panel) return;
 
-  if (!sessionId) {
-    console.error("No sessionId found on panel", panel);
-    return;
-  }
+  const sessionId =
+    Number(panel.getAttribute("data-session-id")) ||
+    Number(panel.getAttribute("data-chat-panel")) ||
+    Number(panel.dataset.sessionId);
+
+  if (!sessionId) return console.error("Missing sessionId on panel", panel);
 
   window.Chats.refreshSummary(sessionId);
 });
+
 
 
 
@@ -355,7 +358,7 @@ window.addEventListener("popstate", () => {
       return;
     }
 
-    const actionBtn = e.target.closest("[data-action]");
+   /* const actionBtn = e.target.closest("[data-action]");
     if (!actionBtn) return;
 
     const panel = actionBtn.closest("[data-chat-panel]");
@@ -363,52 +366,9 @@ window.addEventListener("popstate", () => {
     if (!chatId) return;
 
     const action = actionBtn.getAttribute("data-action");
-    if (!action) return;
+    if (!action) return;*/
 
-    // SUMMARY
-    if (action === "summary") {
-      const summaryBox = panel.querySelector("[data-summary-box]");
-      const updatedLabel = panel.querySelector("[data-summary-updated]"); // add this attr in the partial (see below)
-      const btn = actionBtn;
-
-      btn.disabled = true;
-      const prev = btn.textContent;
-      btn.textContent = "Generating…";
-
-      try {
-        const url =
-          apiRoute("chat_summarize", { session_id: chatId }) ||
-          `/admin/chats/${chatId}/summarize`;
-
-        if (res.status === 401 || res.status === 403) return loginRedirect();
-
-        const parsed = await safeReadJson(res);
-        if (!parsed.ok) throw new Error(`Summary failed (HTTP ${parsed.status})`);
-
-        const data = parsed.json || {};
-        if (data.ok === false) throw new Error(data.error || "Failed");
-
-        if (summaryBox) summaryBox.textContent = data.summary || "";
-
-        // ✅ live update timestamp
-        if (updatedLabel) {
-          // If your API returns updated_at, prefer it:
-          // updatedLabel.textContent = `Updated: ${data.updated_at}`;
-          updatedLabel.textContent = formatNowStamp();
-        }
-
-        // Auto-open on success
-        setOpen(chatId, "summary", true, panel);
-      } catch (err) {
-        if (summaryBox) summaryBox.textContent = `Summary error: ${err.message}`;
-        setOpen(chatId, "summary", true, panel);
-      } finally {
-        btn.disabled = false;
-        btn.textContent = prev || "Generate / Refresh";
-      }
-
-      return;
-    }
+    
   });
 
   // Keyboard shortcuts: N / S (toggle current open detail panel if present)
@@ -479,54 +439,54 @@ async function chatPostRoute(routeKey, params, body) {
 
 
   function initChatDetailHandlers(sessionId, panelEl) {
-  const $ = (sel) => panelEl.querySelector(sel);
+  const q = (sel) => panelEl.querySelector(sel);
 
   // Resolve
-  $("#resolve-btn")?.addEventListener("click", async () => {
-    await chatPostRoute("chat_resolve", { session_id: sessionId });
+  q('[data-role="resolve-btn"]')?.addEventListener("click", async () => {
+    await chatPostRoute("chat_resolve", { session_id: sessionId }, {});
     updateChatListRow(sessionId, { is_resolved: true });
     await loadChatDetail(sessionId);
   });
 
   // Unresolve
-  $("#unresolve-btn")?.addEventListener("click", async () => {
-    await chatPostRoute("chat_unresolve", { session_id: sessionId });
+  q('[data-role="unresolve-btn"]')?.addEventListener("click", async () => {
+    await chatPostRoute("chat_unresolve", { session_id: sessionId }, {});
     updateChatListRow(sessionId, { is_resolved: false });
     await loadChatDetail(sessionId);
   });
 
   // Escalation
-  $("#escalation-select")?.addEventListener("change", async (e) => {
-    const level = e.target.value || "";
-    await chatPostRoute("chat_escalate", { session_id: sessionId }, { level });
-    updateChatListRow(sessionId, { escalation_level: level || null });
+  q('[data-role="escalation-select"]')?.addEventListener("change", async (e) => {
+    const escalation_level = e.target.value || "";
+    await chatPostRoute("chat_escalate", { session_id: sessionId }, { escalation_level });
+    updateChatListRow(sessionId, { escalation_level: escalation_level || null });
     await loadChatDetail(sessionId);
   });
 
   // Assign
-  $("#assign-btn")?.addEventListener("click", async () => {
-    const v = $("#assigned-input")?.value || "";
-    await chatPostRoute("chat_assign", { session_id: sessionId }, { assigned_to: v });
-    updateChatListRow(sessionId, { assigned_to: v });
+  q('[data-role="assign-btn"]')?.addEventListener("click", async () => {
+    const assigned_to = (q('[data-role="assigned-input"]')?.value || "").trim();
+    await chatPostRoute("chat_assign", { session_id: sessionId }, { assigned_to });
+    updateChatListRow(sessionId, { assigned_to });
     await loadChatDetail(sessionId);
   });
 
   // Save note
-  $("#save-note-btn")?.addEventListener("click", async () => {
-    const note = $("#note-input")?.value || "";
+  q('[data-role="save-note-btn"]')?.addEventListener("click", async () => {
+    const note = q('[data-role="note-input"]')?.value || "";
     await chatPostRoute("chat_note", { session_id: sessionId }, { note });
 
-    const s = $("#note-status");
+    const s = q('[data-role="note-status"]');
     if (s) {
       s.textContent = "Saved ✅";
       setTimeout(() => (s.textContent = ""), 1200);
     }
   });
 
-  // IMPORTANT:
-  // Do NOT add summary handler here.
-  // Your global delegated handler for [data-action="summary"] already covers it.
+  // Summary is handled globally by window.Chats.refreshSummary click binding
 }
+
+
 
 let chatDetailAbort = null;
 
@@ -849,7 +809,9 @@ window.chatAnalyticsChart = window.chatAnalyticsChart || null;
 function rangeToUnixMs(days) {
   const to = Date.now(); // ms
   const from = to - (Number(days) * 24 * 60 * 60 * 1000);
-  return { from: Math.floor(from), to: Math.floor(to) };
+  //return { from: Math.floor(from), to: Math.floor(to) };
+  return { from: Math.floor(from / 1000), to: Math.floor(to / 1000) };
+
 }
 
 
@@ -1136,23 +1098,23 @@ document.addEventListener("click", (e) => {
   }
 
 async function safeReadJson(res) {
+  const status = res?.status;
+
   try {
     const text = await res.text();
 
-    if (!text) {
-      return { ok: true, json: null, text: "" };
-    }
+    if (!text) return { ok: true, json: null, text: "", status };
 
     try {
-      return { ok: true, json: JSON.parse(text), text };
+      return { ok: true, json: JSON.parse(text), text, status };
     } catch {
-      // Not JSON (HTML, plain text, etc.)
-      return { ok: false, json: null, text, error: "Response was not valid JSON" };
+      return { ok: false, json: null, text, status, error: "Response was not valid JSON" };
     }
   } catch (e) {
-    return { ok: false, json: null, text: "", error: e?.message || String(e) };
+    return { ok: false, json: null, text: "", status, error: e?.message || String(e) };
   }
 }
+
 
 
 
@@ -1331,162 +1293,7 @@ document.addEventListener("change", (e) => {
   }
   window.filterProperties = filterProperties;
 
-  // ----------------------------
-  // NEW PANEL ACTIONS
-  // ----------------------------
-
-
-(function () {
-  function findPanel(el) {
-    return el.closest("[data-chat-panel][data-session-id]");
-  }
-
-  function panelSessionId(panel) {
-    return panel ? panel.getAttribute("data-session-id") : null;
-  }
-
-  async function postJSON(url, payload) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin", // IMPORTANT: send session cookie
-      body: JSON.stringify(payload || {}),
-    });
-
-    if (!res.ok) {
-      const txt = await res.text();
-      throw new Error(`HTTP ${res.status}: ${txt}`);
-    }
-    return await res.json();
-  }
-
-  // If you already have a "refresh detail panel" function, call it here instead.
-  async function refreshDetail(panel) {
-    const sid = panelSessionId(panel);
-    if (!sid) return;
-
-    // You likely have a container where you inject the detail HTML.
-    // Replace selector below with your actual detail container.
-    const container = panel.parentElement; // safest: replace the current panel in-place
-    const res = await fetch(`/admin/chats/partial/detail?session_id=${encodeURIComponent(sid)}`, {
-      credentials: "same-origin",
-    });
-    const html = await res.text();
-
-    // Replace the whole panel DOM so pills + disabled states update correctly
-    const tmp = document.createElement("div");
-    tmp.innerHTML = html;
-    const nextPanel = tmp.querySelector("[data-chat-panel]");
-    if (nextPanel && container) {
-      panel.replaceWith(nextPanel);
-    }
-  }
-
-  // CLICK HANDLERS
-  document.addEventListener("click", async (e) => {
-    const t = e.target;
-
-    // Save note
-    const saveBtn = t.closest('[data-role="save-note-btn"]');
-    if (saveBtn) {
-      const panel = findPanel(saveBtn);
-      const sid = panelSessionId(panel);
-      if (!sid) return;
-
-      const noteInput = panel.querySelector('[data-role="note-input"]');
-      const statusEl = panel.querySelector('[data-role="note-status"]');
-      const note = (noteInput?.value || "").trim();
-
-      try {
-        if (statusEl) statusEl.textContent = "Saving…";
-        await postJSON(`/admin/chats/${sid}/note`, { note });
-        if (statusEl) statusEl.textContent = "Saved";
-      } catch (err) {
-        console.error(err);
-        if (statusEl) statusEl.textContent = "Save failed";
-        alert(err.message || "Save note failed");
-      }
-      return;
-    }
-
-    // Resolve
-    const resolveBtn = t.closest('[data-role="resolve-btn"]');
-    if (resolveBtn) {
-      const panel = findPanel(resolveBtn);
-      const sid = panelSessionId(panel);
-      if (!sid) return;
-
-      try {
-        await postJSON(`/admin/chats/${sid}/resolve`, {});
-        await refreshDetail(panel);
-      } catch (err) {
-        console.error(err);
-        alert(err.message || "Resolve failed");
-      }
-      return;
-    }
-
-    // Unresolve
-    const unresolveBtn = t.closest('[data-role="unresolve-btn"]');
-    if (unresolveBtn) {
-      const panel = findPanel(unresolveBtn);
-      const sid = panelSessionId(panel);
-      if (!sid) return;
-
-      try {
-        await postJSON(`/admin/chats/${sid}/unresolve`, {});
-        await refreshDetail(panel);
-      } catch (err) {
-        console.error(err);
-        alert(err.message || "Reopen failed");
-      }
-      return;
-    }
-
-    // Assign
-    const assignBtn = t.closest('[data-role="assign-btn"]');
-    if (assignBtn) {
-      const panel = findPanel(assignBtn);
-      const sid = panelSessionId(panel);
-      if (!sid) return;
-
-      const input = panel.querySelector('[data-role="assigned-input"]');
-      const label = panel.querySelector('[data-role="assigned-label"]');
-      const assigned_to = (input?.value || "").trim();
-
-      try {
-        const out = await postJSON(`/admin/chats/${sid}/assign`, { assigned_to });
-        if (label) label.textContent = out.assigned_to || "—";
-      } catch (err) {
-        console.error(err);
-        alert(err.message || "Assign failed");
-      }
-      return;
-    }
-  });
-
-  // CHANGE HANDLERS
-  document.addEventListener("change", async (e) => {
-    const sel = e.target.closest('[data-role="escalation-select"]');
-    if (!sel) return;
-
-    const panel = findPanel(sel);
-    const sid = panelSessionId(panel);
-    if (!sid) return;
-
-    const level = (sel.value || "").trim();
-
-    try {
-      await postJSON(`/admin/chats/${sid}/escalate`, { level });
-      await refreshDetail(panel);
-    } catch (err) {
-      console.error(err);
-      alert(err.message || "Escalation failed");
-    }
-  });
-})();
-
-
+ 
 
   // ----------------------------
   // Property actions
@@ -1723,6 +1530,7 @@ window.Chats.refreshSummary = async function refreshSummary(sessionId) {
 // ✅ global alias so any old code calling refreshSummary(...) still works
 window.refreshSummary = (sessionId) => window.Chats.refreshSummary(sessionId);
 
+/*
 // ✅ click binding for your button
 document.addEventListener("click", (e) => {
   const btn = e.target.closest('[data-action="summary"]');
@@ -1734,7 +1542,7 @@ document.addEventListener("click", (e) => {
 
   window.Chats.refreshSummary(sessionId);
 });
-
+*/
 
 
 
