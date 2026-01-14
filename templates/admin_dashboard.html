@@ -938,10 +938,10 @@
                         <!-- Guest Mood (rendered by JS from emotional_signals; NOT hard-coded) -->
                         <td class="px-4 py-3 text-xs">
                           <span
-                            data-mood-badge
-                            data-emotional-signals='{{ (row_signals or []) | tojson }}'
-                            data-guest-mood-confidence="{{ s.guest_mood_confidence or 0 }}"
-                          ></span>
+                          data-mood-badge
+                          data-emotional-signals='{{ (row_signals or []) | tojson | e }}'
+                          data-guest-mood-confidence="{{ s.guest_mood_confidence or 0 }}"
+                        >—</span>
                         </td>
 
 
