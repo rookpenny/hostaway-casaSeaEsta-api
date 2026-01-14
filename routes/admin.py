@@ -3171,44 +3171,69 @@ def admin_dashboard(
         }
 
     # ----------------------------
-    # Build final sessions list (single source of truth)
+    # Build final sessions list (persisted-first, compute only if missing)
     # ----------------------------
     sessions: list[dict] = []
     dirty_any = False
-
+    
     for r in rows:
         sid = int(r["id"])
         prop_id = int(r.get("property_id") or 0) or None
-
+    
         status_val = (r.get("reservation_status") or "pre_booking").strip().lower() or "pre_booking"
         heat_score = int(r.get("heat_score") or 0)
-
-
+    
+        # message-derived inputs (for UI indicators only; not used for SQL filters)
         sdata = signals_by_sid.get(sid, {})
         has_urgent = bool(sdata.get("has_urgent", False))
         has_negative = bool(sdata.get("has_negative", False))
         cnt24 = int(sdata.get("cnt24", 0) or 0)
         cnt7 = int(sdata.get("cnt7", 0) or 0)
         last_guest_text = sdata.get("last_guest_text")
-
-        
-        guest_mood_val = emotional_signals[0] if emotional_signals else None
-        # persist computed triage fields (if columns exist)
-        sess_obj = sess_map.get(sid)
+    
+        # last message (snippet + sentiment badge)
+        last_msg = last_msg_by_session.get(sid)
         last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-
+    
+        # persisted triage
         emotional_signals = (r.get("emotional_signals") or [])
         guest_mood_val = (r.get("guest_mood") or (emotional_signals[0] if emotional_signals else None))
         action_priority_val = (r.get("action_priority") or None)
-        
-        if not guest_mood_val or not action_priority_val:
-            # compute once, persist, commit (rare)
-        
-        last_snip = (r.get("last_message") or "")
-        if not last_snip and last_msg and last_msg.content:
-            last_snip = last_msg.content
+    
+        # ✅ Compute+persist only if missing (rare)
+        if (not guest_mood_val) or (not action_priority_val) or (not emotional_signals):
+            emotional_signals = derive_guest_mood(
+                has_urgent=has_urgent,
+                has_negative=has_negative,
+                cnt24=cnt24,
+                cnt7=cnt7,
+                status_val=status_val,
+                last_guest_text=last_guest_text,
+            )
+            guest_mood_val = emotional_signals[0] if emotional_signals else None
+    
+            # if you want action_priority derived from heat_score only (fast):
+            action_priority_val = compute_action_priority(
+                heat=heat_score,
+                signals=emotional_signals,
+                has_urgent=has_urgent,
+                has_negative=has_negative,
+            )
+    
+            sess_obj = sess_map.get(sid)
+            if sess_obj:
+                dirty = persist_session_triage_fields(
+                    db,
+                    sess_obj,
+                    emotional_signals=emotional_signals,
+                    action_priority=action_priority_val,
+                    guest_mood=guest_mood_val,
+                )
+                dirty_any = dirty_any or dirty
+    
+        last_snip = (r.get("last_message") or "") or ((last_msg.content or "") if last_msg else "")
         last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
-
+    
         sessions.append({
             "id": sid,
             "property_id": prop_id,
@@ -3223,30 +3248,31 @@ def admin_dashboard(
             "source": r.get("source"),
             "last_activity_at": r.get("last_activity_at"),
             "last_snippet": last_snip,
-
+    
             "action_priority": action_priority_val,
             "guest_mood": guest_mood_val,
             "emotional_signals": emotional_signals,
-
+    
             "is_resolved": bool(r.get("is_resolved")),
             "escalation_level": r.get("escalation_level"),
-
+    
             "has_urgent": has_urgent,
             "has_negative": has_negative,
             "last_sentiment": last_sentiment,
             "msg_24h": cnt24,
             "msg_7d": cnt7,
-
+    
             "heat": heat_score,
             "heat_raw": heat_score,
-
+    
             "pms_reservation_id": r.get("pms_reservation_id"),
             "arrival_date": r.get("arrival_date"),
             "departure_date": r.get("departure_date"),
         })
-
+    
     if dirty_any:
         db.commit()
+
 
     
 
