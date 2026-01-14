@@ -886,8 +886,8 @@
 
                   <tbody>
                     {% for s in sessions %}
-                    {% set row_signals = s.emotional_signals %}
-                    {% set row_signals = s.emotional_signals if s.emotional_signals is not none else s.signals %}
+                    {% set row_signals = s.emotional_signals or [] %}
+                    <!--{% set row_signals = s.emotional_signals if s.emotional_signals is not none else s.signals %}-->
                     {% if row_signals is none %}{% set row_signals = [] %}{% endif %}
 
 
@@ -895,8 +895,9 @@
                     <tr
                       class="border-t hover:bg-slate-50 cursor-pointer"
                       data-session-row="{{ s.id }}"
-                      data-emotional-signals='{{ (row_signals or []) | tojson | e }}'
+                      data-emotional-signals='{{ row_signals | tojson | e }}'
                     >
+
 
 
                   
@@ -942,7 +943,7 @@
 
                   
                         <!-- Guest Mood (rendered by JS from emotional_signals; NOT hard-coded) -->
-                        <td class="px-4 py-3 text-xs">
+                        <!--td class="px-4 py-3 text-xs">
                           {% set signals = (s.emotional_signals or s.signals or []) %}
                           {% set mood = (s.guest_mood or "")|lower %}
                           {% set conf = (s.guest_mood_confidence or 0) %}
@@ -957,7 +958,16 @@
                             data-emotional-signals='{{ (signals or []) | tojson | e }}'
                             data-guest-mood-confidence="{{ conf }}"
                           ></span>
+                    </td-->
+
+                        <td class="px-4 py-3 text-xs">
+                          <span
+                            data-mood-badge
+                            data-emotional-signals='{{ row_signals | tojson }}'
+                            data-guest-mood-confidence="{{ s.guest_mood_confidence or 0 }}"
+                          ></span>
                         </td>
+
 
                   
                         <!-- Property -->
