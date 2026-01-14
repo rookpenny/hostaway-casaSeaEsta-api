@@ -327,6 +327,30 @@ class ChatSession(Base):
     source = Column(String, default="guest_web")  # guest_web, widget, admin_test
     reservation_status = Column(String, default="pre_booking")
 
+    # --- Admin routing / triage ---
+    # urgent | high | normal | low
+    action_priority = Column(String, nullable=True, index=True)
+
+    # --- Guest mood (UI expects these) ---
+    # primary mood label (optional)
+    guest_mood = Column(String, nullable=True)
+    # 0-100 confidence (optional)
+    guest_mood_confidence = Column(Integer, nullable=True)
+
+    # emotional_signals: array of mood strings (source of truth for UI)
+    emotional_signals = Column(
+        JSONB,
+        nullable=False,
+        server_default=sa.text("'[]'::jsonb"),
+    )
+
+    # signals: any non-mood structured flags you may track later
+    signals = Column(
+        JSONB,
+        nullable=False,
+        server_default=sa.text("'[]'::jsonb"),
+    )
+
     is_verified = Column(Boolean, default=False)
 
     phone_last4 = Column(String, nullable=True)
@@ -348,6 +372,23 @@ class ChatSession(Base):
     internal_note = Column(Text, nullable=True)
     updated_at = Column(DateTime, nullable=True)
     heat_score = Column(Integer, default=0)
+
+        __table_args__ = (
+        # fast list sorting + paging per property
+        sa.Index("ix_chat_sessions_property_last_activity", "property_id", "last_activity_at"),
+
+        # fast list filtering
+        sa.Index("ix_chat_sessions_action_priority", "action_priority"),
+        sa.Index("ix_chat_sessions_escalation_level", "escalation_level"),
+
+        # ✅ fast JSONB containment queries:
+        # WHERE emotional_signals @> '["worried"]'::jsonb
+        sa.Index(
+            "ix_chat_sessions_emotional_signals_gin",
+            "emotional_signals",
+            postgresql_using="gin",
+        ),
+    )
 
     property = relationship("Property", back_populates="chat_sessions")
     messages = relationship("ChatMessage", back_populates="session", cascade="all, delete-orphan")
