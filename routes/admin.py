@@ -3321,6 +3321,9 @@ def admin_dashboard(
                 .all()
             )
 
+    # if you changed any sessions in persist_session_triage_fields, commit once here
+    db.commit()
+
     return templates.TemplateResponse(
         "admin_dashboard.html",
         {
@@ -3356,9 +3359,6 @@ def admin_dashboard(
 
             "pmc_id": (pmc_obj.id if pmc_obj else None),
         },
-        # after building sessions list
-        db.commit()
-
     )
 
 
