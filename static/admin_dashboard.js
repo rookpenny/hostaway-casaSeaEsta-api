@@ -1114,18 +1114,25 @@ document.addEventListener("click", (e) => {
     window.location.href = `/auth/login/google?next=${next}`;
   }
 
-  async function safeReadJson(res) {
-  const text = await res.text().catch(() => "");
-  if (!res.ok) {
-    return { ok: false, status: res.status, text, json: null };
-  }
+async function safeReadJson(res) {
   try {
-    const json = text ? JSON.parse(text) : {};
-    return { ok: true, status: res.status, text, json };
+    const text = await res.text();
+
+    if (!text) {
+      return { ok: true, json: null, text: "" };
+    }
+
+    try {
+      return { ok: true, json: JSON.parse(text), text };
+    } catch {
+      // Not JSON (HTML, plain text, etc.)
+      return { ok: false, json: null, text, error: "Response was not valid JSON" };
+    }
   } catch (e) {
-    return { ok: false, status: res.status, text, json: null, parseError: e };
+    return { ok: false, json: null, text: "", error: e?.message || String(e) };
   }
 }
+
 
 
 
