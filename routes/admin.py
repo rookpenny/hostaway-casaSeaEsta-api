@@ -781,10 +781,6 @@ def derive_guest_mood(
     if is_positive and signals and signals[0] in {"confused", "worried"} and not (has_urgent or has_negative):
         signals = ["calm"]
 
-    if status == "active" and (has_urgent or has_negative):
-    if signals:
-        signals.append("stressed")
-
     if not signals:
         signals.append("calm")
 
