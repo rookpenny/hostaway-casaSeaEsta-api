@@ -3280,14 +3280,7 @@ def admin_dashboard(
             cnt24 = int(counts_24h.get(sid, 0) or 0)
             cnt7 = int(counts_7d.get(sid, 0) or 0)
         
-            # IMPORTANT: r is a dict row (not ORM)
             status_val = (r.get("reservation_status") or "").strip() or None
-        
-            # Pull last guest/user text so derive_guest_mood can avoid "confused" on positive chatter
-            last_msg = last_msg_by_session.get(sid)
-            last_guest_text = None
-            if last_msg and getattr(last_msg, "sender", None) in ("guest", "user"):
-                last_guest_text = (getattr(last_msg, "content", None) or "").strip() or None
         
             emotional_signals = derive_guest_mood(
                 has_urgent=has_urgent,
@@ -3295,11 +3288,9 @@ def admin_dashboard(
                 cnt24=cnt24,
                 cnt7=cnt7,
                 status_val=status_val,
-                last_guest_text=last_guest_text,  # ✅ new optional arg
             )
             guest_mood_val = emotional_signals[0] if emotional_signals else None
         
-            # Canonical priority computed from heat + signals
             action_priority_val = compute_action_priority(
                 heat=heat_score,
                 signals=emotional_signals,
@@ -3307,7 +3298,6 @@ def admin_dashboard(
                 has_negative=has_negative,
             )
         
-            # Persist computed triage fields (if columns exist)
             sess_obj = sess_map.get(sid)
             if sess_obj:
                 dirty_any |= persist_session_triage_fields(
@@ -3318,20 +3308,22 @@ def admin_dashboard(
                     guest_mood=guest_mood_val,
                 )
         
+            last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
         
-            # Snippet: prefer SQL lateral (r["last_message"]), fallback to loaded ChatMessage
             last_snip = (r.get("last_message") or "")
-            if not last_snip and last_msg and getattr(last_msg, "content", None):
+            if not last_snip and last_msg and last_msg.content:
                 last_snip = last_msg.content
             last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
         
+            prop_id = int(r.get("property_id") or 0) or None
+        
             sessions.append({
                 "id": sid,
-                "property_id": int(r.get("property_id") or 0) or None,
+                "property_id": prop_id,
                 "property_name": (
                     r.get("property_name")
-                    or property_name_by_id.get(int(r.get("property_id") or 0), "")
+                    or (property_name_by_id.get(prop_id) if prop_id else "")
                     or "Unknown property"
                 ),
                 "guest_name": r.get("guest_name"),
@@ -3354,11 +3346,9 @@ def admin_dashboard(
                 "msg_24h": cnt24,
                 "msg_7d": cnt7,
         
-                # keep both if you want; otherwise you can drop heat_raw
                 "heat": heat_score,
                 "heat_raw": heat_score,
         
-                # booking fields (safe as None)
                 "reservation_id": r.get("reservation_id"),
                 "booking_id": r.get("booking_id"),
                 "confirmation_code": r.get("confirmation_code"),
@@ -3368,6 +3358,7 @@ def admin_dashboard(
         
         if dirty_any:
             db.commit()
+
 
 
         
