@@ -373,7 +373,7 @@ class ChatSession(Base):
     updated_at = Column(DateTime, nullable=True)
     heat_score = Column(Integer, default=0)
 
-        __table_args__ = (
+    __table_args__ = (
         # fast list sorting + paging per property
         sa.Index("ix_chat_sessions_property_last_activity", "property_id", "last_activity_at"),
 
