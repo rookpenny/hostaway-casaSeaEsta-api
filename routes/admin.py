@@ -482,10 +482,6 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
 
     WHERE 1=1
       AND (
-        :emotional_signals_filter IS NULL
-        OR lower(coalesce(lg.guest_mood, '')) = lower(:emotional_signals_filter)
-      )
-      AND (
         :q IS NULL
         OR b.property_name ILIKE '%' || :q || '%'
         OR coalesce(lm.last_message,'') ILIKE '%' || :q || '%'
@@ -513,6 +509,54 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
 # Action priority + guest mood helpers (MODULE-LEVEL)
 # Used by /admin/dashboard + /admin/chats + partials
 # ----------------------------
+
+
+def persist_session_triage_fields(
+    db: Session,
+    sess: ChatSession,
+    *,
+    emotional_signals: list[str],
+    action_priority: str,
+    guest_mood: str | None = None,
+    guest_mood_confidence: int | None = None,
+) -> bool:
+    """
+    Persists computed fields to ChatSession if the columns exist.
+    Returns True if anything changed.
+    """
+    changed = False
+
+    # emotional_signals JSONB array
+    if hasattr(sess, "emotional_signals"):
+        new_val = emotional_signals or []
+        old_val = getattr(sess, "emotional_signals", None) or []
+        if old_val != new_val:
+            setattr(sess, "emotional_signals", new_val)
+            changed = True
+
+    # action_priority
+    if hasattr(sess, "action_priority"):
+        ap = normalize_action_priority(action_priority)
+        if getattr(sess, "action_priority", None) != ap:
+            setattr(sess, "action_priority", ap)
+            changed = True
+
+    # guest mood (optional)
+    if guest_mood is not None and hasattr(sess, "guest_mood"):
+        if getattr(sess, "guest_mood", None) != guest_mood:
+            setattr(sess, "guest_mood", guest_mood)
+            changed = True
+
+    if guest_mood_confidence is not None and hasattr(sess, "guest_mood_confidence"):
+        if getattr(sess, "guest_mood_confidence", None) != int(guest_mood_confidence):
+            setattr(sess, "guest_mood_confidence", int(guest_mood_confidence))
+            changed = True
+
+    if changed:
+        sess.updated_at = datetime.utcnow()
+        db.add(sess)
+
+    return changed
 
 def normalize_action_priority(value: str | None) -> str | None:
     """
@@ -668,14 +712,14 @@ def chat_detail_partial(
 
     has_urgent = db.query(ChatMessage.id).filter(
         ChatMessage.session_id == sess.id,
-        ChatMessage.sender == "guest",
+        ChatMessage.sender.in_(("guest", "user")),
         ChatMessage.category == "urgent",
     ).first() is not None
 
     cutoff = datetime.utcnow() - timedelta(days=7)
     has_negative = db.query(ChatMessage.id).filter(
         ChatMessage.session_id == sess.id,
-        ChatMessage.sender == "guest",
+        ChatMessage.sender.in_(("guest", "user")),
         ChatMessage.created_at >= cutoff,
         func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
     ).first() is not None
@@ -1588,10 +1632,23 @@ def admin_chats(
                 continue
 
         status_val = sess.reservation_status or "pre_booking"
-        signals = derive_signals(has_urgent, has_negative, cnt24, cnt7, status_val)
-
-        guest_mood_val = (signals[0] if signals else None)
         
+        emotional_signals = derive_guest_mood(
+            has_urgent=has_urgent,
+            has_negative=has_negative,
+            cnt24=cnt24,
+            cnt7=cnt7,
+            status_val=status_val,
+        )
+        guest_mood_val = emotional_signals[0] if emotional_signals else None
+        
+        action_priority_val = compute_action_priority(
+            heat=heat,
+            signals=emotional_signals,
+            has_urgent=has_urgent,
+            has_negative=has_negative,
+        )
+
 
         if mood and mood not in {s.lower() for s in signals}:
             continue
@@ -1613,7 +1670,6 @@ def admin_chats(
             boosted = int(boosted * 1.1)
 
         heat = decay_heat(min(100, boosted), sess.last_activity_at)
-        action_priority_val = action_priority_from_heat(heat)  # urgent/high/normal/low
         priority_level = action_priority_val  # optional if you still use priority_level elsewhere
     
 
@@ -1638,8 +1694,9 @@ def admin_chats(
             "last_activity_at": sess.last_activity_at,
             "last_snippet": snippet,
         
-            "signals": signals,
-            "guest_mood": guest_mood_val,            # ✅ ADD
+            "emotional_signals": emotional_signals,
+            "guest_mood": guest_mood_val,
+
         
             "has_urgent": has_urgent,
             "has_negative": has_negative,
@@ -3035,6 +3092,12 @@ def admin_dashboard(
 
         session_ids = [int(r["id"]) for r in rows]
 
+        sess_map = {
+            int(s.id): s
+            for s in db.query(ChatSession).filter(ChatSession.id.in_(session_ids)).all()
+        }
+
+
         now = datetime.utcnow()
         since_24h = now - timedelta(hours=24)
         since_7d = now - timedelta(days=7)
@@ -3147,14 +3210,24 @@ def admin_dashboard(
                 has_negative=has_negative,
             )
 
-            # Apply filters (canonical)
-            if mood:
-                if mood not in [x.lower() for x in emotional_signals]:
-                    continue
+            sess_obj = sess_map.get(sid)
+            if sess_obj:
+                persist_session_triage_fields(
+                    db,
+                    sess,
+                    emotional_signals=emotional_signals,
+                    action_priority=action_priority_val,
+                    guest_mood=guest_mood_val,
+                )
 
-            if ap_filter:
-                if normalize_action_priority(action_priority_val) != normalize_action_priority(ap_filter):
-                    continue
+
+            # Apply filters (canonical)
+            if mood and hasattr(ChatSession, "emotional_signals"):
+                # JSONB array contains mood
+                base_q = base_q.filter(ChatSession.emotional_signals.contains([mood]))
+
+            if ap_filter and hasattr(ChatSession, "action_priority"):
+                base_q = base_q.filter(ChatSession.action_priority == normalize_action_priority(ap_filter))
 
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
@@ -3283,6 +3356,9 @@ def admin_dashboard(
 
             "pmc_id": (pmc_obj.id if pmc_obj else None),
         },
+        # after building sessions list
+        db.commit()
+
     )
 
 
