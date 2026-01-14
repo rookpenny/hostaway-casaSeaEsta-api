@@ -795,6 +795,9 @@ def chat_detail_partial(
     # --------------------------------------------------
     # Heat computation (same logic as dashboard)
     # --------------------------------------------------
+    status_val = sess.reservation_status or "pre_booking"
+
+    # compute heat FIRST
     raw_heat = (
         (50 if has_urgent else 0)
         + (25 if has_negative else 0)
@@ -802,7 +805,7 @@ def chat_detail_partial(
         + min(10, cnt7)
     )
     raw_heat = min(100, raw_heat)
-
+    
     boosted = raw_heat
     if has_urgent:
         boosted = int(boosted * 1.3)
@@ -810,15 +813,35 @@ def chat_detail_partial(
         boosted = int(boosted * 1.15)
     if status_val == "active":
         boosted = int(boosted * 1.1)
-
+    
     heat = decay_heat(min(100, boosted), sess.last_activity_at)
-
+    
+    # get last guest message text for positivity check
+    last_guest_text = None
+    if last_msg and (last_msg.sender in ("guest", "user")) and last_msg.content:
+        last_guest_text = last_msg.content
+    
+    emotional_signals = derive_guest_mood(
+        has_urgent=has_urgent,
+        has_negative=has_negative,
+        cnt24=cnt24,
+        cnt7=cnt7,
+        status_val=status_val,
+        last_guest_text=last_guest_text,  # ✅ use the optional param you added
+    )
+    guest_mood_val = emotional_signals[0] if emotional_signals else None
+    
     action_priority_val = compute_action_priority(
-        heat=heat,
+        heat=heat,  # ✅ now defined
         signals=emotional_signals,
         has_urgent=has_urgent,
         has_negative=has_negative,
     )
+    
+    # mood filter (use emotional_signals, not undefined signals)
+    if mood and mood not in {s.lower() for s in emotional_signals}:
+        continue
+
 
     # --------------------------------------------------
     # View model
@@ -1721,13 +1744,20 @@ def admin_chats(
 
         status_val = sess.reservation_status or "pre_booking"
         
+        last_msg = last_msg_by_session.get(sid)
+        last_guest_text = None
+        if last_msg and (last_msg.sender in ("guest", "user")) and last_msg.content:
+            last_guest_text = last_msg.content
+        
         emotional_signals = derive_guest_mood(
             has_urgent=has_urgent,
             has_negative=has_negative,
             cnt24=cnt24,
             cnt7=cnt7,
             status_val=status_val,
+            last_guest_text=last_guest_text,
         )
+
         guest_mood_val = emotional_signals[0] if emotional_signals else None
         
         action_priority_val = compute_action_priority(
