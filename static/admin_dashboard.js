@@ -14,6 +14,27 @@ const IS_LOCKED = !!BOOT.is_locked;
 window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 
 
+// 1) Ensure your module exists
+window.Chats = window.Chats || {};
+
+// 2) Click handler for the "Generate / Refresh" button
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest('[data-action="summary"]');
+  if (!btn) return;
+
+  const panel = btn.closest("[data-chat-panel]");
+  const sessionId = Number(panel?.dataset?.sessionId || panel?.getAttribute("data-session-id"));
+
+  if (!sessionId) {
+    console.error("No sessionId found on panel", panel);
+    return;
+  }
+
+  window.Chats.refreshSummary(sessionId);
+});
+
+
+
 // ----------------------------
 // API route helper (from bootstrap)
 // ----------------------------
@@ -1485,65 +1506,64 @@ document.addEventListener("change", (e) => {
   }
 });
 
-window.Chats = {
-  async refreshSummary(sessionId) {
-    const panel =
-      document.querySelector(`[data-chat-panel="${sessionId}"]`) ||
-      document.querySelector("[data-chat-panel]");
-    if (!panel) return;
+window.Chats = window.Chats || {};
 
-    const box = panel.querySelector("[data-summary-box]");
-    if (!box) return;
+window.Chats.refreshSummary = async function refreshSummary(sessionId) {
+  const panel =
+    document.querySelector(`[data-chat-panel="${sessionId}"]`) ||
+    document.querySelector("[data-chat-panel]");
+  if (!panel) return;
 
-    const updatedLabel = panel.querySelector("[data-summary-updated]");
+  const box = panel.querySelector("[data-summary-box]");
+  if (!box) return;
 
-    try {
-      box.textContent = "Generating…";
+  const updatedLabel = panel.querySelector("[data-summary-updated]");
 
-      const url =
-        (typeof apiRoute === "function" &&
-          apiRoute("chat_summarize", { session_id: sessionId })) ||
-        `/admin/chats/${sessionId}/summarize`;
+  try {
+    box.textContent = "Generating…";
 
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "same-origin",
-        body: JSON.stringify({}),
-      });
+    const url =
+      (typeof apiRoute === "function" && apiRoute("chat_summarize", { session_id: sessionId })) ||
+      `/admin/chats/${sessionId}/summarize`;
 
-      if (res.status === 401 || res.status === 403) {
-        if (typeof loginRedirect === "function") return loginRedirect();
-        throw new Error("Not authenticated");
-      }
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: "{}",
+    });
 
-      const parsed = await safeReadJson(res); // expected: { ok, json, error? }
-      if (!res.ok) {
-        const msg =
-          (parsed && parsed.json && (parsed.json.error || parsed.json.detail)) ||
-          parsed?.error ||
-          `Request failed (HTTP ${res.status})`;
-        throw new Error(msg);
-      }
-
-      const data = parsed?.json || {};
-      if (data.ok === false) throw new Error(data.error || "Failed");
-
-      // If your summary contains markdown/html you may want innerHTML instead:
-      // box.innerHTML = data.summary || "";
-      box.textContent = data.summary || "";
-
-      if (updatedLabel) {
-        updatedLabel.textContent = data.updated_at
-          ? `Updated: ${data.updated_at}`
-          : "Updated: just now";
-      }
-    } catch (e) {
-      console.error("refreshSummary error:", e);
-      box.textContent = `Summary error: ${e?.message || e}\n${e?.stack || ""}`;
+    if (res.status === 401 || res.status === 403) {
+      if (typeof loginRedirect === "function") return loginRedirect();
+      throw new Error("Not authenticated");
     }
-  },
+
+    const parsed = await safeReadJson(res);
+    if (!res.ok) {
+      const msg =
+        parsed?.json?.error ||
+        parsed?.json?.detail ||
+        parsed?.error ||
+        `Request failed (HTTP ${res.status})`;
+      throw new Error(msg);
+    }
+
+    const data = parsed?.json || {};
+    if (data.ok === false) throw new Error(data.error || "Summarize failed");
+
+    box.textContent = data.summary || "";
+
+    if (updatedLabel) {
+      updatedLabel.textContent = data.updated_at
+        ? `Updated: ${data.updated_at}`
+        : "Updated: just now";
+    }
+  } catch (e) {
+    box.textContent = `Summary error: ${e?.message || e}`;
+    console.error(e);
+  }
 };
+
 
 
 
