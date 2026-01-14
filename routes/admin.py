@@ -599,18 +599,31 @@ def bump_priority(base: str, bump_to: str) -> str:
     return bump_to if rank.get(bump_to, 0) > rank.get(base, 0) else base
 
 
-POSITIVE_HINTS = {
+import re
+
+POSITIVE_WORDS = {
     "love", "like", "loved", "liked",
-    "haha", "lol", "lmao", "😂", "🤣",
+    "haha", "lol", "lmao",
     "amazing", "awesome", "great", "perfect",
-    "thank you", "thanks", "thx", "appreciate",
+    "thanks", "thx", "appreciate",
 }
+POSITIVE_PHRASES = {"thank you"}
+POSITIVE_EMOJIS = {"😂", "🤣"}
+
+_WORD_RE = re.compile(r"\b(" + "|".join(map(re.escape, POSITIVE_WORDS)) + r")\b", re.IGNORECASE)
 
 def _looks_positive(text: str | None) -> bool:
     t = (text or "").strip().lower()
     if not t:
         return False
-    return any(k in t for k in POSITIVE_HINTS)
+    if _WORD_RE.search(t):
+        return True
+    if any(p in t for p in POSITIVE_PHRASES):
+        return True
+    if any(e in t for e in POSITIVE_EMOJIS):
+        return True
+    return False
+
 
 
 def derive_guest_mood(
@@ -782,22 +795,34 @@ def chat_detail_partial(
         or 0
     )
 
-    status_val = (sess.reservation_status or "").strip() or None
+    status_val = (sess.reservation_status or "pre_booking").strip().lower() or "pre_booking"
 
+    # --------------------------------------------------
+    # Last guest text (for positive override)
+    # --------------------------------------------------
+    last_guest_text = None
+    for m in reversed(messages):
+        if m.sender in ("guest", "user") and (m.content or "").strip():
+            last_guest_text = m.content
+            break
+
+    # --------------------------------------------------
+    # Emotional signals (guest mood)
+    # --------------------------------------------------
     emotional_signals = derive_guest_mood(
         has_urgent=has_urgent,
         has_negative=has_negative,
         cnt24=cnt24,
         cnt7=cnt7,
         status_val=status_val,
+        last_guest_text=last_guest_text,  # ✅ positivity-aware
     )
+
+    guest_mood_val = emotional_signals[0] if emotional_signals else None
 
     # --------------------------------------------------
     # Heat computation (same logic as dashboard)
     # --------------------------------------------------
-    status_val = sess.reservation_status or "pre_booking"
-
-    # compute heat FIRST
     raw_heat = (
         (50 if has_urgent else 0)
         + (25 if has_negative else 0)
@@ -805,7 +830,7 @@ def chat_detail_partial(
         + min(10, cnt7)
     )
     raw_heat = min(100, raw_heat)
-    
+
     boosted = raw_heat
     if has_urgent:
         boosted = int(boosted * 1.3)
@@ -813,35 +838,18 @@ def chat_detail_partial(
         boosted = int(boosted * 1.15)
     if status_val == "active":
         boosted = int(boosted * 1.1)
-    
+
     heat = decay_heat(min(100, boosted), sess.last_activity_at)
-    
-    # get last guest message text for positivity check
-    last_guest_text = None
-    if last_msg and (last_msg.sender in ("guest", "user")) and last_msg.content:
-        last_guest_text = last_msg.content
-    
-    emotional_signals = derive_guest_mood(
-        has_urgent=has_urgent,
-        has_negative=has_negative,
-        cnt24=cnt24,
-        cnt7=cnt7,
-        status_val=status_val,
-        last_guest_text=last_guest_text,  # ✅ use the optional param you added
-    )
-    guest_mood_val = emotional_signals[0] if emotional_signals else None
-    
+
+    # --------------------------------------------------
+    # Action priority
+    # --------------------------------------------------
     action_priority_val = compute_action_priority(
-        heat=heat,  # ✅ now defined
+        heat=heat,
         signals=emotional_signals,
         has_urgent=has_urgent,
         has_negative=has_negative,
     )
-    
-    # mood filter (use emotional_signals, not undefined signals)
-    if mood and mood not in {s.lower() for s in emotional_signals}:
-        continue
-
 
     # --------------------------------------------------
     # View model
@@ -858,6 +866,7 @@ def chat_detail_partial(
         # ✅ keys template expects
         "action_priority": action_priority_val,
         "emotional_signals": emotional_signals,
+        "guest_mood": guest_mood_val,  # optional but handy
 
         # optional extras
         "internal_note": getattr(sess, "internal_note", None),
@@ -886,7 +895,6 @@ def chat_detail_partial(
             ),
         },
     )
-
 
 
 
@@ -3312,13 +3320,20 @@ def admin_dashboard(
         
             status_val = (r.get("reservation_status") or "").strip() or None
         
+            last_msg = last_msg_by_session.get(sid)
+            last_guest_text = None
+            if last_msg and last_msg.sender in ("guest", "user") and last_msg.content:
+                last_guest_text = last_msg.content
+            
             emotional_signals = derive_guest_mood(
                 has_urgent=has_urgent,
                 has_negative=has_negative,
                 cnt24=cnt24,
                 cnt7=cnt7,
                 status_val=status_val,
+                last_guest_text=last_guest_text,   # ✅ ADD THIS
             )
+
             guest_mood_val = emotional_signals[0] if emotional_signals else None
         
             action_priority_val = compute_action_priority(
