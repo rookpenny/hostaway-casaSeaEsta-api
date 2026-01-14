@@ -867,18 +867,30 @@
 
                   <tbody>
                     {% for s in sessions %}
-                    {% set row_signals = s.emotional_signals %}
-                    {% if row_signals is string %}
-                    {% set row_signals = [] %}
-                    {% endif %}
-                    {% set row_signals = (row_signals or s.signals or []) %}
 
-                    
+                    {# --- canonical values (match detail logic) --- #}
+                    {% set row_signals = (s.emotional_signals or s.signals or []) %}
+                    {% set row_mood = (s.guest_mood or "")|lower %}
+                    {% if (not row_signals or (row_signals|length) == 0) and row_mood %}
+                      {% set row_signals = [row_mood] %}
+                    {% endif %}
+                  
+                    {% set ap_raw = (s.action_priority or s.priority_level or s.priority or "")|lower %}
+                    {% set ap = "urgent" if ap_raw in ["urgent","critical"] else ("high" if ap_raw in ["high","attention"] else ("normal" if ap_raw in ["normal","medium"] else ("low" if ap_raw in ["low"] else ""))) %}
+                  
+                    {% set esc_raw = (s.escalation_level or "")|lower %}
+                    {% set esc = "high" if esc_raw in ["critical","high"] else ("medium" if esc_raw in ["attention","medium"] else ("low" if esc_raw in ["low"] else "")) %}
+                  
                     <tr
                       class="border-t hover:bg-slate-50 cursor-pointer"
                       data-session-row="{{ s.id }}"
                       data-emotional-signals='{{ (row_signals or []) | tojson }}'
+                      data-action-priority="{{ ap|e }}"
+                      data-escalation-level="{{ esc|e }}"
+                      data-is-resolved="{{ '1' if s.is_resolved else '0' }}"
+                      data-assigned-to="{{ (s.assigned_to or '')|e }}"
                     >
+
 
 
                   
@@ -925,21 +937,13 @@
                   
                         <!-- Guest Mood (rendered by JS from emotional_signals; NOT hard-coded) -->
                         <td class="px-4 py-3 text-xs">
-                          {% set signals = (s.emotional_signals or s.signals or []) %}
-                          {% set mood = (s.guest_mood or "")|lower %}
-                          {% set conf = (s.guest_mood_confidence or 0) %}
-                        
-                          {# If backend didn't give a list, fall back to a single mood as a list #}
-                          {% if (not signals or (signals|length) == 0) and mood %}
-                            {% set signals = [mood] %}
-                          {% endif %}
-                        
                           <span
                             data-mood-badge
-                            data-emotional-signals='{{ (signals or []) | tojson }}'
-                            data-guest-mood-confidence="{{ conf }}"
+                            data-emotional-signals='{{ (row_signals or []) | tojson }}'
+                            data-guest-mood-confidence="{{ s.guest_mood_confidence or 0 }}"
                           ></span>
                         </td>
+
 
                   
                         <!-- Property -->
