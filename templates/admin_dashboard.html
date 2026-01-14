@@ -887,16 +887,16 @@
                   <tbody>
                     {% for s in sessions %}
                     {% set row_signals = s.emotional_signals %}
-                    {% if row_signals is string %}
-                    {% set row_signals = [] %}
-                    {% endif %}
-                    {% set row_signals = (row_signals or s.signals or []) %}
+                    {% set row_signals = s.emotional_signals if s.emotional_signals is not none else s.signals %}
+                    {% if row_signals is none %}{% set row_signals = [] %}{% endif %}
+                    data-emotional-signals='{{ row_signals | tojson | e }}'
+
 
                     
                     <tr
                       class="border-t hover:bg-slate-50 cursor-pointer"
                       data-session-row="{{ s.id }}"
-                      data-emotional-signals='{{ (row_signals or []) | tojson }}'
+                      data-emotional-signals='{{ (row_signals or []) | tojson | e }}'
                     >
 
 
@@ -955,7 +955,7 @@
                         
                           <span
                             data-mood-badge
-                            data-emotional-signals='{{ (signals or []) | tojson }}'
+                            data-emotional-signals='{{ (signals or []) | tojson | e }}'
                             data-guest-mood-confidence="{{ conf }}"
                           ></span>
                         </td>
