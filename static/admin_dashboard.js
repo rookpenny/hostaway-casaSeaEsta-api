@@ -245,7 +245,7 @@ function clearChatUrl() {
   history.pushState({}, "", url.toString());
 }
 
-
+/*
 // Open chat detail from list (delegated)
 // Add data-open-chat="123" to clickable elements (or row)
 document.addEventListener("click", (e) => {
@@ -256,7 +256,7 @@ document.addEventListener("click", (e) => {
   if (!sid) return;
 
   openChatDetail(sid);
-});
+});*/
 
 
 // Back button
@@ -1205,7 +1205,7 @@ function getRowMood(row) {
 }
 
 
-
+/*
 function applyChatsFilters() {
   const selected = getSelectedMoodFilter();
   const rows = document.querySelectorAll("[data-session-row]");
@@ -1223,7 +1223,7 @@ function applyChatsFilters() {
 // Optional: instant filtering on change
 document.addEventListener("change", (e) => {
   if (e.target?.id === "moodFilter") applyChatsFilters();
-});
+});*/
 
 
   // ----------------------------
@@ -2607,6 +2607,21 @@ function initRouting() {
 }
 
 
+document.addEventListener("change", (e) => {
+  const form = document.getElementById("chatFilters");
+  if (!form) return;
+
+  // Only auto-submit changes that happen inside the filters form
+  if (!e.target.closest("#chatFilters")) return;
+
+  // Only auto-submit dropdowns (not checkboxes / inputs)
+  if (!(e.target instanceof HTMLSelectElement)) return;
+
+  form.requestSubmit ? form.requestSubmit() : form.submit();
+});
+
+
+
   // ----------------------------
 // DOM ready (single, clean)
 // ----------------------------
@@ -2671,5 +2686,5 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadChatAnalytics(days);
     resizeChatAnalyticsChartSoon();
   }
-  applyChatsFilters();
+ // applyChatsFilters();
 });
