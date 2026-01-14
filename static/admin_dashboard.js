@@ -1494,31 +1494,50 @@ window.Chats = {
       box.textContent = "Generating…";
 
       const url =
-        (typeof apiRoute === "function" && apiRoute("chat_summarize", { session_id: sessionId })) ||
+        (typeof apiRoute === "function" &&
+          apiRoute("chat_summarize", { session_id: sessionId })) ||
         `/admin/chats/${sessionId}/summarize`;
 
-      // ✅ THIS was missing (res was never defined)
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
+        body: JSON.stringify({}),
       });
 
-      if (res.status === 401 || res.status === 403) return loginRedirect();
+      if (res.status === 401 || res.status === 403) {
+        if (typeof loginRedirect === "function") return loginRedirect();
+        throw new Error("Not authenticated");
+      }
 
-      const parsed = await safeReadJson(res);
-      if (!parsed.ok) throw new Error(`Summary failed (HTTP ${parsed.status})`);
+      const parsed = await safeReadJson(res); // expected: { ok, json, error? }
+      if (!res.ok) {
+        const msg =
+          (parsed && parsed.json && (parsed.json.error || parsed.json.detail)) ||
+          parsed?.error ||
+          `Request failed (HTTP ${res.status})`;
+        throw new Error(msg);
+      }
 
-      const data = parsed.json || {};
+      const data = parsed?.json || {};
       if (data.ok === false) throw new Error(data.error || "Failed");
 
+      // If your summary contains markdown/html you may want innerHTML instead:
+      // box.innerHTML = data.summary || "";
       box.textContent = data.summary || "";
-      if (updatedLabel) updatedLabel.textContent = "Updated: just now";
+
+      if (updatedLabel) {
+        updatedLabel.textContent = data.updated_at
+          ? `Updated: ${data.updated_at}`
+          : "Updated: just now";
+      }
     } catch (e) {
-      box.textContent = `Summary error: ${e.message}`;
+      box.textContent = `Summary error: ${e?.message || e}`;
+      console.error(e);
     }
-  }
+  },
 };
+
 
 
 
