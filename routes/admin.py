@@ -510,16 +510,27 @@ def delete_local_upgrade_image(image_url: str) -> None:
 
 
 
+
 def fetch_dashboard_chat_sessions(
-    db,
+    db: Session,
     *,
-    pmc_id=None,
-    property_id=None,
-    status=None,
-    action_priority=None,
-    q=None,
-    limit=200,
+    pmc_id: int | None = None,
+    property_id: int | None = None,
+    status: str | None = None,
+    action_priority: str | None = None,           # urgent|high|normal|low
+    emotional_signals_filter: str | None = None,  # guest mood dropdown
+    assigned_to: str | None = None,               # optional (lets SQL handle assignee filter)
+    q: str | None = None,
+    limit: int = 200,
 ):
+    """
+    Dashboard list query (best setup):
+      - Filters on persisted chat_sessions fields ONLY:
+          cs.guest_mood, cs.action_priority
+      - Does NOT depend on chat_messages.sentiment_data for mood
+      - Pulls last_message/last_sender via LATERAL for snippets/search
+    """
+
     sql = text("""
     WITH base AS (
       SELECT
@@ -536,6 +547,13 @@ def fetch_dashboard_chat_sessions(
         cs.pms_reservation_id,
         cs.arrival_date,
         cs.departure_date,
+
+        -- ✅ persisted triage fields
+        cs.guest_mood,
+        cs.guest_mood_confidence,
+        cs.emotional_signals,
+        cs.action_priority,
+
         p.property_name,
         p.pmc_id
       FROM chat_sessions cs
@@ -545,38 +563,26 @@ def fetch_dashboard_chat_sessions(
         AND (:property_id IS NULL OR cs.property_id = :property_id)
         AND (:status IS NULL OR cs.reservation_status = :status)
 
+        -- ✅ action priority filter (persisted)
+        AND (:action_priority IS NULL OR cs.action_priority = :action_priority)
+
+        -- ✅ optional assignee filter (persisted)
         AND (
-          :action_priority IS NULL
-          OR (
-            (:action_priority = 'urgent' AND cs.heat_score >= 90)
-            OR (:action_priority = 'high' AND cs.heat_score >= 80 AND cs.heat_score < 90)
-            OR (:action_priority = 'normal' AND cs.heat_score >= 50 AND cs.heat_score < 80)
-            OR (:action_priority = 'low' AND (cs.heat_score < 50 OR cs.heat_score IS NULL))
-          )
+          :assigned_to IS NULL
+          OR lower(coalesce(cs.assigned_to, '')) = lower(:assigned_to)
+        )
+
+        -- ✅ mood filter (persisted)
+        AND (
+          :emotional_signals_filter IS NULL
+          OR lower(coalesce(cs.guest_mood, '')) = lower(:emotional_signals_filter)
         )
     )
     SELECT
       b.*,
-      lg.guest_mood,
-      lg.guest_mood_confidence,
-      lg.guest_sentiment,
-      lg.guest_sentiment_data,
       lm.last_message,
       lm.last_sender
     FROM base b
-
-    LEFT JOIN LATERAL (
-      SELECT
-        cm.sentiment_data->>'mood' AS guest_mood,
-        NULLIF(cm.sentiment_data->>'confidence','')::int AS guest_mood_confidence,
-        cm.sentiment AS guest_sentiment,
-        cm.sentiment_data AS guest_sentiment_data
-      FROM chat_messages cm
-      WHERE cm.session_id = b.id
-        AND cm.sender IN ('guest','user')
-      ORDER BY cm.created_at DESC
-      LIMIT 1
-    ) lg ON TRUE
 
     LEFT JOIN LATERAL (
       SELECT
@@ -584,7 +590,7 @@ def fetch_dashboard_chat_sessions(
         cm2.sender  AS last_sender
       FROM chat_messages cm2
       WHERE cm2.session_id = b.id
-      ORDER BY cm2.created_at DESC
+      ORDER BY cm2.created_at DESC, cm2.id DESC
       LIMIT 1
     ) lm ON TRUE
 
@@ -602,9 +608,11 @@ def fetch_dashboard_chat_sessions(
     params = {
         "pmc_id": pmc_id,
         "property_id": property_id,
-        "status": status,
+        "status": (status or None),
         "action_priority": (action_priority or None),
-        "q": q,
+        "emotional_signals_filter": (emotional_signals_filter or None),
+        "assigned_to": (assigned_to or None),
+        "q": (q or None),
         "limit": int(limit),
     }
 
@@ -801,25 +809,6 @@ def compute_action_priority(
         ap = bump_priority(ap, "high")
 
     return ap
-
-
-def apply_action_priority_filter(qry, ap: str):
-    """
-    Applies dashboard priority filter tiers based on heat_score.
-    This is your existing behavior, just moved to module level.
-    """
-    ap = (ap or "").strip().lower()
-    if not ap:
-        return qry
-    if ap == "urgent":
-        return qry.filter(ChatSession.heat_score >= 90)
-    if ap == "high":
-        return qry.filter(ChatSession.heat_score >= 80, ChatSession.heat_score < 90)
-    if ap == "normal":
-        return qry.filter(ChatSession.heat_score >= 50, ChatSession.heat_score < 80)
-    if ap == "low":
-        return qry.filter(or_(ChatSession.heat_score < 50, ChatSession.heat_score.is_(None)))
-    return qry
 
 
 
@@ -1801,10 +1790,7 @@ def admin_chats(
         last_guest_text = sdata.get("last_guest_text")
 
         # legacy priority filters
-        if priority == "urgent" and not has_urgent:
-            continue
-        if priority == "unhappy" and not has_negative:
-            continue
+        
 
         # latest message snippet
         last_msg = last_msg_map.get(sid)
@@ -2973,7 +2959,7 @@ def admin_dashboard(
     property_id: str | None = Query(default=None),
     status: str | None = Query(default=None),
 
-    # ✅ CANONICAL (matches admin_dashboard.html)
+    # ✅ CANONICAL
     action_priority: str | None = Query(default=None),          # urgent|high|normal|low
     emotional_signals_filter: str | None = Query(default=None), # guest mood dropdown
 
@@ -2981,7 +2967,7 @@ def admin_dashboard(
     assigned_to: str | None = Query(default=None),
     q: str | None = Query(default=None),
 
-    # ✅ BACKWARD COMPAT (keep old links working)
+    # ✅ BACKWARD COMPAT
     priority: str | None = Query(default=None),       # legacy: "urgent" | "unhappy"
     guest_mood: str | None = Query(default=None),     # legacy alias for mood
     signals_filter: str | None = Query(default=None), # legacy alias for mood
@@ -3005,7 +2991,7 @@ def admin_dashboard(
     mood = normalize_guest_mood(raw_mood)
 
     ap_filter = _clean_str(action_priority)
-    legacy_priority = _clean_str(priority)  # "urgent" | "unhappy" (legacy links)
+    legacy_priority = _clean_str(priority)
 
     # ----------------------------
     # Auth
@@ -3013,10 +2999,7 @@ def admin_dashboard(
     user = request.session.get("user")
     if not user:
         request.session["post_login_redirect"] = "/admin/dashboard"
-        return templates.TemplateResponse(
-            "admin_login.html",
-            {"request": request, "next": "/admin/dashboard"},
-        )
+        return templates.TemplateResponse("admin_login.html", {"request": request, "next": "/admin/dashboard"})
 
     user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
 
@@ -3050,7 +3033,7 @@ def admin_dashboard(
             )
 
     # ----------------------------
-    # Properties list (respect scope)
+    # Properties list (scope-aware)
     # ----------------------------
     if user_role == "super":
         properties = db.query(Property).order_by(Property.property_name.asc()).all()
@@ -3066,16 +3049,12 @@ def admin_dashboard(
 
     property_name_by_id = {p.id: (p.property_name or "") for p in (properties or [])}
 
-    # ----------------------------
     # Superuser-only PMC list
-    # ----------------------------
     pmc_list = []
     if user_role == "super":
         pmc_list = db.query(PMC).order_by(PMC.pmc_name.asc()).all()
 
-    # ----------------------------
     # Team + prefs
-    # ----------------------------
     me_email = get_current_admin_identity(request)
     me_user = None
     team_members = []
@@ -3099,7 +3078,7 @@ def admin_dashboard(
         )
 
     # ----------------------------
-    # Filters (echo back to template)
+    # Filters object for template
     # ----------------------------
     filters = {
         "pmc_id": pmc_id or "",
@@ -3112,7 +3091,175 @@ def admin_dashboard(
         "q": q or "",
     }
 
+    # ----------------------------
+    # Load sessions list from SQL
+    # ----------------------------
+    # PMCs cannot use pmc filter
+    if user_role != "super":
+        pmc_id_int = None
+
+    # property filter must respect PMC scope
+    if allowed_property_ids is not None and prop_id_int and prop_id_int not in set(allowed_property_ids):
+        raise HTTPException(status_code=403)
+
+    # mine -> effective assignee
+    effective_assignee = None
+    if mine and me_email:
+        effective_assignee = me_email
+    elif assigned_to:
+        effective_assignee = assigned_to
+
+    # NOTE: if you want assigned_to filtering at SQL level, add it into fetch_dashboard_chat_sessions.
+    rows = fetch_dashboard_chat_sessions(
+        db,
+        pmc_id=(pmc_id_int if user_role == "super" else None),
+        property_id=prop_id_int,
+        status=status,
+        action_priority=ap_filter,
+        emotional_signals_filter=mood,
+        assigned_to=(effective_assignee if effective_assignee else None),
+        q=q,
+        limit=200,
+    )
+
+
+    session_ids = [int(r["id"]) for r in rows]
+    signals_by_sid = batch_message_signals(db, session_ids) if session_ids else {}
+
+    # latest message overall for snippet/sentiment display
+    last_msg_by_session: dict[int, ChatMessage] = {}
+    if session_ids:
+        latest_msg_sq = (
+            db.query(
+                ChatMessage.id.label("id"),
+                ChatMessage.session_id.label("session_id"),
+                func.row_number()
+                .over(
+                    partition_by=ChatMessage.session_id,
+                    order_by=(ChatMessage.created_at.desc(), ChatMessage.id.desc()),
+                )
+                .label("rn"),
+            )
+            .filter(ChatMessage.session_id.in_(session_ids))
+        ).subquery()
+
+        latest_msgs = (
+            db.query(ChatMessage)
+            .join(latest_msg_sq, ChatMessage.id == latest_msg_sq.c.id)
+            .filter(latest_msg_sq.c.rn == 1)
+            .all()
+        )
+        last_msg_by_session = {int(m.session_id): m for m in latest_msgs}
+
+    # map ChatSession objects for persistence
+    sess_map = {}
+    if session_ids:
+        sess_map = {
+            int(s.id): s
+            for s in db.query(ChatSession).filter(ChatSession.id.in_(session_ids)).all()
+        }
+
+    # ----------------------------
+    # Build final sessions list (single source of truth)
+    # ----------------------------
     sessions: list[dict] = []
+    dirty_any = False
+
+    for r in rows:
+        sid = int(r["id"])
+        prop_id = int(r.get("property_id") or 0) or None
+
+        status_val = (r.get("reservation_status") or "pre_booking").strip().lower() or "pre_booking"
+        heat_score = int(r.get("heat_score") or 0)
+
+
+        sdata = signals_by_sid.get(sid, {})
+        has_urgent = bool(sdata.get("has_urgent", False))
+        has_negative = bool(sdata.get("has_negative", False))
+        cnt24 = int(sdata.get("cnt24", 0) or 0)
+        cnt7 = int(sdata.get("cnt7", 0) or 0)
+        last_guest_text = sdata.get("last_guest_text")
+
+        emotional_signals = derive_guest_mood(
+            has_urgent=has_urgent,
+            has_negative=has_negative,
+            cnt24=cnt24,
+            cnt7=cnt7,
+            status_val=status_val,
+            last_guest_text=last_guest_text,
+        )
+        guest_mood_val = emotional_signals[0] if emotional_signals else None
+
+        action_priority_val = compute_action_priority(
+            heat=heat_score,
+            signals=emotional_signals,
+            has_urgent=has_urgent,
+            has_negative=has_negative,
+        )
+
+        # persist computed triage fields (if columns exist)
+        sess_obj = sess_map.get(sid)
+        if sess_obj:
+            dirty_any |= persist_session_triage_fields(
+                db,
+                sess_obj,
+                emotional_signals=emotional_signals,
+                action_priority=action_priority_val,
+                guest_mood=guest_mood_val,
+            )
+
+        last_msg = last_msg_by_session.get(sid)
+        last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
+
+        last_snip = (r.get("last_message") or "")
+        if not last_snip and last_msg and last_msg.content:
+            last_snip = last_msg.content
+        last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
+
+        sessions.append({
+            "id": sid,
+            "property_id": prop_id,
+            "property_name": (
+                r.get("property_name")
+                or (property_name_by_id.get(prop_id) if prop_id else "")
+                or "Unknown property"
+            ),
+            "guest_name": r.get("guest_name"),
+            "assigned_to": r.get("assigned_to"),
+            "reservation_status": status_val,
+            "source": r.get("source"),
+            "last_activity_at": r.get("last_activity_at"),
+            "last_snippet": last_snip,
+
+            "action_priority": action_priority_val,
+            "guest_mood": guest_mood_val,
+            "emotional_signals": emotional_signals,
+
+            "is_resolved": bool(r.get("is_resolved")),
+            "escalation_level": r.get("escalation_level"),
+
+            "has_urgent": has_urgent,
+            "has_negative": has_negative,
+            "last_sentiment": last_sentiment,
+            "msg_24h": cnt24,
+            "msg_7d": cnt7,
+
+            "heat": heat_score,
+            "heat_raw": heat_score,
+
+            "pms_reservation_id": r.get("pms_reservation_id"),
+            "arrival_date": r.get("arrival_date"),
+            "departure_date": r.get("departure_date"),
+        })
+
+    if dirty_any:
+        db.commit()
+
+    
+
+    # ----------------------------
+    # Analytics from the final rendered list (no mismatches)
+    # ----------------------------
     analytics = {
         "pre_booking": 0,
         "post_booking": 0,
@@ -3122,237 +3269,43 @@ def admin_dashboard(
         "unhappy_sessions": 0,
     }
 
+    for row in sessions:
+        stage = _effective_stage_from_dict(row)
+        if stage in ("pre_booking", "post_booking", "active", "post_stay"):
+            analytics[stage] += 1
+        if row.get("has_urgent"):
+            analytics["urgent_sessions"] += 1
+        if row.get("has_negative"):
+            analytics["unhappy_sessions"] += 1
+
+    # ----------------------------
+    # Selected session detail (unchanged behavior)
+    # ----------------------------
     selected_session = None
     selected_property = None
     selected_messages: list[ChatMessage] = []
 
-    # ✅ Always preload chats
-    should_load_chats = True
+    if session_id is not None:
+        sel_q = db.query(ChatSession).filter(ChatSession.id == int(session_id))
+        if allowed_property_ids is not None:
+            sel_q = sel_q.filter(ChatSession.property_id.in_(allowed_property_ids))
+        if user_role == "super" and pmc_id_int:
+            sel_q = (
+                sel_q.join(Property, Property.id == ChatSession.property_id)
+                .filter(Property.pmc_id == pmc_id_int)
+            )
 
-    if should_load_chats:
-        # Superusers can filter by pmc_id; PMCs cannot
-        if user_role != "super":
-            pmc_id_int = None
+        selected_session = sel_q.first()
+        if not selected_session:
+            raise HTTPException(status_code=404, detail="Chat not found")
 
-        # Effective assignee
-        effective_assignee = None
-        if mine and me_email:
-            effective_assignee = me_email
-        elif assigned_to:
-            effective_assignee = assigned_to
-
-        # ----------------------------
-        # Fetch rows (NO mood filtering in SQL; mood is derived in Python)
-        # NOTE: update fetch_dashboard_chat_sessions() to NOT accept emotional_signals_filter
-        # ----------------------------
-        rows = fetch_dashboard_chat_sessions(
-            db,
-            pmc_id=(pmc_id_int if user_role == "super" else None),
-            property_id=prop_id_int,
-            status=status,
-            action_priority=ap_filter,
-            q=q,
-            limit=200,
+        selected_property = db.query(Property).filter(Property.id == selected_session.property_id).first()
+        selected_messages = (
+            db.query(ChatMessage)
+            .filter(ChatMessage.session_id == selected_session.id)
+            .order_by(ChatMessage.created_at.asc())
+            .all()
         )
-
-        # Legacy priority filter (urgent/unhappy) applied here as a secondary filter
-        # (keeps old links working without complicating SQL)
-        if legacy_priority in {"urgent", "unhappy"}:
-            filtered = []
-            for r in rows:
-                heat_score = int(r.get("heat_score") or 0)
-                if legacy_priority == "urgent" and heat_score < 80:
-                    continue
-                if legacy_priority == "unhappy" and heat_score < 50:
-                    continue
-                filtered.append(r)
-            rows = filtered
-
-        session_ids = [int(r["id"]) for r in rows]
-        signals_by_sid = batch_message_signals(db, session_ids) if session_ids else {}
-
-        # latest message overall for snippets (all senders)
-        last_msg_by_session: dict[int, ChatMessage] = {}
-        if session_ids:
-            latest_msg_sq = (
-                db.query(
-                    ChatMessage.id.label("id"),
-                    ChatMessage.session_id.label("session_id"),
-                    func.row_number()
-                    .over(
-                        partition_by=ChatMessage.session_id,
-                        order_by=(ChatMessage.created_at.desc(), ChatMessage.id.desc()),
-                    )
-                    .label("rn"),
-                )
-                .filter(ChatMessage.session_id.in_(session_ids))
-            ).subquery()
-
-            latest_msgs = (
-                db.query(ChatMessage)
-                .join(latest_msg_sq, ChatMessage.id == latest_msg_sq.c.id)
-                .filter(latest_msg_sq.c.rn == 1)
-                .all()
-            )
-            last_msg_by_session = {int(m.session_id): m for m in latest_msgs}
-
-        # Load session ORM objects for persistence (optional)
-        sess_map: dict[int, ChatSession] = {}
-        if session_ids:
-            sess_map = {
-                int(s.id): s
-                for s in db.query(ChatSession).filter(ChatSession.id.in_(session_ids)).all()
-            }
-
-        # ----------------------------
-        # Build sessions list
-        # ----------------------------
-        dirty_any = False
-        sessions = []
-
-        for r in rows:
-            sid = int(r["id"])
-            status_val = (r.get("reservation_status") or "pre_booking").strip().lower() or "pre_booking"
-            heat_score = int(r.get("heat_score") or 0)
-
-            sdata = signals_by_sid.get(sid, {})
-            has_urgent = bool(sdata.get("has_urgent", False))
-            has_negative = bool(sdata.get("has_negative", False))
-            cnt24 = int(sdata.get("cnt24", 0) or 0)
-            cnt7 = int(sdata.get("cnt7", 0) or 0)
-            last_guest_text = sdata.get("last_guest_text")
-
-            emotional_signals = derive_guest_mood(
-                has_urgent=has_urgent,
-                has_negative=has_negative,
-                cnt24=cnt24,
-                cnt7=cnt7,
-                status_val=status_val,
-                last_guest_text=last_guest_text,
-            )
-            guest_mood_val = emotional_signals[0] if emotional_signals else None
-
-            # ✅ mood filter uses DERIVED mood
-            if mood and mood not in {s.lower() for s in (emotional_signals or [])}:
-                continue
-
-            action_priority_val = compute_action_priority(
-                heat=heat_score,
-                signals=emotional_signals,
-                has_urgent=has_urgent,
-                has_negative=has_negative,
-            )
-
-            # persist triage fields if columns exist
-            sess_obj = sess_map.get(sid)
-            if sess_obj:
-                dirty_any |= persist_session_triage_fields(
-                    db,
-                    sess_obj,
-                    emotional_signals=emotional_signals,
-                    action_priority=action_priority_val,
-                    guest_mood=guest_mood_val,
-                )
-
-            last_msg = last_msg_by_session.get(sid)
-            last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-
-            last_snip = (r.get("last_message") or "")
-            if not last_snip and last_msg and last_msg.content:
-                last_snip = last_msg.content
-            last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
-
-            prop_id = int(r.get("property_id") or 0) or None
-
-            sessions.append({
-                "id": sid,
-                "property_id": prop_id,
-                "property_name": (
-                    r.get("property_name")
-                    or (property_name_by_id.get(prop_id) if prop_id else "")
-                    or "Unknown property"
-                ),
-                "guest_name": r.get("guest_name"),
-                "assigned_to": r.get("assigned_to"),
-                "reservation_status": status_val,
-
-                "source": r.get("source"),
-                "last_activity_at": r.get("last_activity_at"),
-                "last_snippet": last_snip,
-
-                "action_priority": action_priority_val,
-                "guest_mood": guest_mood_val,
-                "emotional_signals": emotional_signals,
-
-                "is_resolved": bool(r.get("is_resolved")),
-                "escalation_level": r.get("escalation_level"),
-
-                "has_urgent": has_urgent,
-                "has_negative": has_negative,
-                "last_sentiment": last_sentiment,
-                "msg_24h": cnt24,
-                "msg_7d": cnt7,
-
-                "heat": heat_score,
-                "heat_raw": heat_score,
-
-                "pms_reservation_id": r.get("pms_reservation_id"),
-                "arrival_date": r.get("arrival_date"),
-                "departure_date": r.get("departure_date"),
-            })
-
-        if dirty_any:
-            db.commit()
-
-        # ----------------------------
-        # Analytics from FINAL rendered sessions list
-        # ----------------------------
-        analytics = {
-            "pre_booking": 0,
-            "post_booking": 0,
-            "active": 0,
-            "post_stay": 0,
-            "urgent_sessions": 0,
-            "unhappy_sessions": 0,
-        }
-
-        for row in sessions:
-            stage = _effective_stage_from_dict(row)
-            if stage in ("pre_booking", "post_booking", "active", "post_stay"):
-                analytics[stage] += 1
-            if row.get("has_urgent"):
-                analytics["urgent_sessions"] += 1
-            if row.get("has_negative"):
-                analytics["unhappy_sessions"] += 1
-
-        # ----------------------------
-        # Selected session detail (right panel)
-        # ----------------------------
-        if session_id is not None:
-            sel_q = db.query(ChatSession).filter(ChatSession.id == session_id)
-
-            # scope
-            if allowed_property_ids is not None:
-                sel_q = sel_q.filter(ChatSession.property_id.in_(allowed_property_ids))
-
-            # super + pmc filter
-            if user_role == "super" and pmc_id_int:
-                sel_q = (
-                    sel_q.join(Property, Property.id == ChatSession.property_id)
-                    .filter(Property.pmc_id == pmc_id_int)
-                )
-
-            selected_session = sel_q.first()
-            if not selected_session:
-                raise HTTPException(status_code=404, detail="Chat not found")
-
-            selected_property = db.query(Property).filter(Property.id == selected_session.property_id).first()
-            selected_messages = (
-                db.query(ChatMessage)
-                .filter(ChatMessage.session_id == selected_session.id)
-                .order_by(ChatMessage.created_at.asc())
-                .all()
-            )
 
     return templates.TemplateResponse(
         "admin_dashboard.html",
@@ -3390,7 +3343,6 @@ def admin_dashboard(
             "pmc_id": (pmc_obj.id if pmc_obj else None),
         },
     )
-
 
 
 
