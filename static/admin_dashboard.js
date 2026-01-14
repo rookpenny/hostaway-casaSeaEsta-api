@@ -834,8 +834,8 @@ window.chatAnalyticsChart = window.chatAnalyticsChart || null;
 function rangeToUnixMs(days) {
   const to = Date.now(); // ms
   const from = to - (Number(days) * 24 * 60 * 60 * 1000);
-  //return { from: Math.floor(from), to: Math.floor(to) };
-  return { from: Math.floor(from / 1000), to: Math.floor(to / 1000) };
+  return { from: Math.floor(from), to: Math.floor(to) };
+  //return { from: Math.floor(from / 1000), to: Math.floor(to / 1000) };
 
 }
 
