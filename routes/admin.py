@@ -629,65 +629,52 @@ def persist_session_triage_fields(
     db: Session,
     sess: ChatSession,
     *,
-    emotional_signals: list[str] | None,
-    action_priority: str | None,
+    emotional_signals: list[str],
+    action_priority: str,
     guest_mood: str | None = None,
     guest_mood_confidence: int | None = None,
 ) -> bool:
     """
-    Persists computed triage fields to ChatSession if the columns exist.
+    Persists computed fields to ChatSession if the columns exist.
     Returns True if anything changed.
-
-    Contract:
-      - emotional_signals is a list[str] (stored as JSON array) or None
-      - action_priority normalized to: urgent|high|normal|low (or None)
-      - guest_mood should usually equal emotional_signals[0] when provided
     """
     changed = False
 
-    # ----------------------------
-    # emotional_signals JSON array
-    # ----------------------------
-    if hasattr(sess, "emotional_signals") and emotional_signals is not None:
-        new_val = list(emotional_signals or [])
-        old_val = list(getattr(sess, "emotional_signals", None) or [])
+    # emotional_signals JSONB array
+    if hasattr(sess, "emotional_signals"):
+        new_val = emotional_signals or []
+        old_val = getattr(sess, "emotional_signals", None) or []
         if old_val != new_val:
             setattr(sess, "emotional_signals", new_val)
             changed = True
 
-    # ----------------------------
     # action_priority (canonical)
-    # ----------------------------
-    if hasattr(sess, "action_priority") and action_priority is not None:
+    if hasattr(sess, "action_priority"):
         ap = normalize_action_priority(action_priority)
         if getattr(sess, "action_priority", None) != ap:
             setattr(sess, "action_priority", ap)
             changed = True
 
-    # ----------------------------
-    # guest mood (optional)
-    # ----------------------------
+    # guest_mood (primary signal)
     if guest_mood is not None and hasattr(sess, "guest_mood"):
-        gm = (guest_mood or "").strip().lower() or None
-        if getattr(sess, "guest_mood", None) != gm:
-            setattr(sess, "guest_mood", gm)
+        if getattr(sess, "guest_mood", None) != guest_mood:
+            setattr(sess, "guest_mood", guest_mood)
             changed = True
 
+    # optional confidence
     if guest_mood_confidence is not None and hasattr(sess, "guest_mood_confidence"):
-        conf = int(guest_mood_confidence)
-        if getattr(sess, "guest_mood_confidence", None) != conf:
-            setattr(sess, "guest_mood_confidence", conf)
+        gmc = int(guest_mood_confidence)
+        if getattr(sess, "guest_mood_confidence", None) != gmc:
+            setattr(sess, "guest_mood_confidence", gmc)
             changed = True
 
-    # ----------------------------
-    # finalize write
-    # ----------------------------
     if changed:
         if hasattr(sess, "updated_at"):
             sess.updated_at = datetime.utcnow()
         db.add(sess)
 
     return changed
+
 
 def normalize_action_priority(value: str | None) -> str | None:
     """
@@ -839,21 +826,11 @@ def chat_detail_partial(
     session_id: int,
     db: Session = Depends(get_db),
 ):
-    dirty = persist_session_triage_fields(
-        db,
-        sess,
-        emotional_signals=emotional_signals,
-        action_priority=action_priority_val,
-        guest_mood=guest_mood_val,
-    )
-    if dirty:
-        db.commit()
-    
-        
     user = request.session.get("user")
     if not user:
         raise HTTPException(status_code=401)
 
+    # 1) Load session first (so sess exists)
     sess = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not sess:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -867,10 +844,10 @@ def chat_detail_partial(
         .all()
     )
 
-    # --------------------------------------------------
-    # Message-derived signals
-    # --------------------------------------------------
+    # 2) Compute message-derived facts
     now = datetime.utcnow()
+    cutoff_7d = now - timedelta(days=7)
+    since_24h = now - timedelta(hours=24)
 
     has_urgent = (
         db.query(ChatMessage.id)
@@ -883,7 +860,6 @@ def chat_detail_partial(
         is not None
     )
 
-    cutoff_7d = now - timedelta(days=7)
     has_negative = (
         db.query(ChatMessage.id)
         .filter(
@@ -896,56 +872,41 @@ def chat_detail_partial(
         is not None
     )
 
-    since_24h = now - timedelta(hours=24)
     cnt24 = int(
         db.query(func.count(ChatMessage.id))
-        .filter(
-            ChatMessage.session_id == sess.id,
-            ChatMessage.created_at >= since_24h,
-        )
+        .filter(ChatMessage.session_id == sess.id, ChatMessage.created_at >= since_24h)
         .scalar()
         or 0
     )
 
-    since_7d = now - timedelta(days=7)
     cnt7 = int(
         db.query(func.count(ChatMessage.id))
-        .filter(
-            ChatMessage.session_id == sess.id,
-            ChatMessage.created_at >= since_7d,
-        )
+        .filter(ChatMessage.session_id == sess.id, ChatMessage.created_at >= cutoff_7d)
         .scalar()
         or 0
     )
 
     status_val = (sess.reservation_status or "pre_booking").strip().lower() or "pre_booking"
 
-    # --------------------------------------------------
-    # Last guest text (for positive override)
-    # --------------------------------------------------
+    # last guest text (positivity override)
     last_guest_text = None
     for m in reversed(messages):
         if m.sender in ("guest", "user") and (m.content or "").strip():
             last_guest_text = m.content
             break
 
-    # --------------------------------------------------
-    # Emotional signals (guest mood)
-    # --------------------------------------------------
+    # 3) Derive emotional_signals + guest_mood
     emotional_signals = derive_guest_mood(
         has_urgent=has_urgent,
         has_negative=has_negative,
         cnt24=cnt24,
         cnt7=cnt7,
         status_val=status_val,
-        last_guest_text=last_guest_text,  # ✅ positivity-aware
+        last_guest_text=last_guest_text,
     )
-
     guest_mood_val = emotional_signals[0] if emotional_signals else None
 
-    # --------------------------------------------------
-    # Heat computation (same logic as dashboard)
-    # --------------------------------------------------
+    # 4) Heat + action priority
     raw_heat = (
         (50 if has_urgent else 0)
         + (25 if has_negative else 0)
@@ -964,9 +925,6 @@ def chat_detail_partial(
 
     heat = decay_heat(min(100, boosted), sess.last_activity_at)
 
-    # --------------------------------------------------
-    # Action priority
-    # --------------------------------------------------
     action_priority_val = compute_action_priority(
         heat=heat,
         signals=emotional_signals,
@@ -974,9 +932,18 @@ def chat_detail_partial(
         has_negative=has_negative,
     )
 
-    # --------------------------------------------------
-    # View model
-    # --------------------------------------------------
+    # 5) Persist triage fields AFTER compute
+    dirty = persist_session_triage_fields(
+        db,
+        sess,
+        emotional_signals=emotional_signals,
+        action_priority=action_priority_val,
+        guest_mood=guest_mood_val,
+    )
+    if dirty:
+        db.commit()
+
+    # 6) Template VM (unchanged)
     session_vm = {
         "id": sess.id,
         "property_id": sess.property_id,
@@ -985,18 +952,12 @@ def chat_detail_partial(
         "reservation_status": sess.reservation_status,
         "escalation_level": sess.escalation_level,
         "is_resolved": bool(sess.is_resolved),
-
-        # ✅ keys template expects
         "action_priority": action_priority_val,
         "emotional_signals": emotional_signals,
-        "guest_mood": guest_mood_val,  # optional but handy
-
-        # optional extras
+        "guest_mood": guest_mood_val,
         "internal_note": getattr(sess, "internal_note", None),
         "ai_summary": getattr(sess, "ai_summary", None),
         "ai_summary_updated_at": getattr(sess, "ai_summary_updated_at", None),
-
-        # booking fields
         "reservation_id": getattr(sess, "reservation_id", None),
         "booking_id": getattr(sess, "booking_id", None),
         "confirmation_code": getattr(sess, "confirmation_code", None),
@@ -1012,12 +973,11 @@ def chat_detail_partial(
             "property": property_obj,
             "messages": messages,
             "property_name_by_id": (
-                {property_obj.id: property_obj.property_name}
-                if property_obj
-                else {}
+                {property_obj.id: property_obj.property_name} if property_obj else {}
             ),
         },
     )
+
 
 
 
