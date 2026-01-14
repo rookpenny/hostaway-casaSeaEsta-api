@@ -134,8 +134,8 @@ function moodConfidenceHints(root = document) {
 
 
     // Calm only if explicitly present
-    if (sig.includes("neutral")) {
-      html += pill("😐 Neutral", "bg-emerald-100 text-emerald-700");
+    if (sig.includes("Calm")) {
+      html += pill("🙂 Calm", "bg-emerald-100 text-emerald-700");
     }
 
     el.innerHTML = html || `<span class="text-slate-400">—</span>`;
