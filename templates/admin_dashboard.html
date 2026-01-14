@@ -1540,22 +1540,24 @@
     </main>
   </div>
 
-  <script id="dashboard-bootstrap" type="application/json">
+<script id="dashboard-bootstrap" type="application/json">
 {
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
   "live_props": {{ live_props | tojson }},
   "offline_props": {{ offline_props | tojson }},
   "user_role": {{ user_role | tojson }},
   "api": {
-    "chat_list": "/admin/api/chats",
-    "chat_detail": "/admin/api/chats/{session_id}",
-    "chat_messages": "/admin/api/chats/{session_id}/messages",
-    "chat_assign": "/admin/api/chats/{session_id}/assign",
-    "chat_resolve": "/admin/api/chats/{session_id}/resolve",
-    "message_mood": "/admin/api/messages/{message_id}/mood"
+    "chat_detail_partial": "/admin/chats/partial/detail?session_id={session_id}",
+    "chat_summarize": "/admin/chats/{session_id}/summarize",
+    "chat_resolve": "/admin/chats/{session_id}/resolve",
+    "chat_unresolve": "/admin/chats/{session_id}/unresolve",
+    "chat_escalate": "/admin/chats/{session_id}/escalate",
+    "chat_assign": "/admin/chats/{session_id}/assign",
+    "chat_note": "/admin/chats/{session_id}/note"
   }
 }
 </script>
+
 
 
 </body>
