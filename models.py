@@ -253,6 +253,8 @@ class Property(Base):
     data_folder_path = Column(String, nullable=True)
     last_synced = Column(DateTime, nullable=True)
 
+    hero_image_url = Column(String, nullable=True)
+
     # Relationships
     pmc = relationship("PMC", back_populates="properties")
 
