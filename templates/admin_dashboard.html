@@ -20,6 +20,29 @@
 
   <!-- Your dashboard JS LAST -->
   <script src="/static/admin_dashboard.js" defer></script>
+
+    <style type="text/tailwindcss">
+  @layer components {
+    .btn {
+      @apply inline-flex items-center justify-center gap-2 select-none
+             h-9 px-3 rounded-xl text-sm font-semibold
+             border border-transparent shadow-sm
+             transition-colors
+             focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2
+             disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+    .btn-primary {
+      @apply bg-slate-900 text-white hover:bg-slate-800;
+    }
+    .btn-secondary {
+      @apply bg-white text-slate-800 border-slate-200 hover:bg-slate-50;
+    }
+    .btn-indigo {
+      @apply bg-indigo-600 text-white hover:bg-indigo-700;
+    }
+  }
+</style>
+
 </head>
 
 <body class="bg-slate-50 text-slate-900">
@@ -485,7 +508,7 @@
                   <a
                     href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
                     onclick="return openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
-                    class="h-9 px-3 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                    class="btn btn-primary {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
                     {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
                   >
                     Assistant Config
@@ -493,7 +516,7 @@
 
                   <a
                     href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                    class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                    class="btn btn-secondary {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
                     {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
                   >
                     House Manual
@@ -502,7 +525,7 @@
 
                 <button
                   onclick="syncProperty({{ prop.id }}, this)"
-                  class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  class="btn btn-secondary"
                   type="button"
                   {% if is_locked %}disabled{% endif %}
                 >
@@ -510,11 +533,11 @@
                 </button>
 
                 <button
-                  onclick="toggleProperty({{ prop.id }}, this)"
-                  class="h-9 px-3 rounded-xl bg-indigo-600 text-white text-sm hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed"
-                  type="button"
-                  {% if is_locked %}disabled{% endif %}
-                >
+                    onclick="toggleProperty({{ prop.id }}, this)"
+                    class="btn btn-indigo"
+                    type="button"
+                    {% if is_locked %}disabled{% endif %}
+                  >
                   {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
                 </button>
 
