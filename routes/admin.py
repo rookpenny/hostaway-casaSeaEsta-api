@@ -700,6 +700,7 @@ def chat_detail_partial(
         raise HTTPException(status_code=404, detail="Chat not found")
 
     property_obj = db.query(Property).filter(Property.id == sess.property_id).first()
+
     messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == sess.id)
@@ -707,38 +708,98 @@ def chat_detail_partial(
         .all()
     )
 
-    # derive signals for this one session
-    heat = int(sess.heat_score or 0)
+    # --------------------------------------------------
+    # Message-derived signals
+    # --------------------------------------------------
+    now = datetime.utcnow()
 
-    has_urgent = db.query(ChatMessage.id).filter(
-        ChatMessage.session_id == sess.id,
-        ChatMessage.sender.in_(("guest", "user")),
-        ChatMessage.category == "urgent",
-    ).first() is not None
+    has_urgent = (
+        db.query(ChatMessage.id)
+        .filter(
+            ChatMessage.session_id == sess.id,
+            ChatMessage.sender.in_(("guest", "user")),
+            ChatMessage.category == "urgent",
+        )
+        .first()
+        is not None
+    )
 
-    cutoff = datetime.utcnow() - timedelta(days=7)
-    has_negative = db.query(ChatMessage.id).filter(
-        ChatMessage.session_id == sess.id,
-        ChatMessage.sender.in_(("guest", "user")),
-        ChatMessage.created_at >= cutoff,
-        func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
-    ).first() is not None
+    cutoff_7d = now - timedelta(days=7)
+    has_negative = (
+        db.query(ChatMessage.id)
+        .filter(
+            ChatMessage.session_id == sess.id,
+            ChatMessage.sender.in_(("guest", "user")),
+            ChatMessage.created_at >= cutoff_7d,
+            func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
+        )
+        .first()
+        is not None
+    )
 
-    since_24h = datetime.utcnow() - timedelta(hours=24)
-    cnt24 = int(db.query(func.count(ChatMessage.id)).filter(
-        ChatMessage.session_id == sess.id,
-        ChatMessage.created_at >= since_24h,
-    ).scalar() or 0)
+    since_24h = now - timedelta(hours=24)
+    cnt24 = int(
+        db.query(func.count(ChatMessage.id))
+        .filter(
+            ChatMessage.session_id == sess.id,
+            ChatMessage.created_at >= since_24h,
+        )
+        .scalar()
+        or 0
+    )
 
-    since_7d = datetime.utcnow() - timedelta(days=7)
-    cnt7 = int(db.query(func.count(ChatMessage.id)).filter(
-        ChatMessage.session_id == sess.id,
-        ChatMessage.created_at >= since_7d,
-    ).scalar() or 0)
+    since_7d = now - timedelta(days=7)
+    cnt7 = int(
+        db.query(func.count(ChatMessage.id))
+        .filter(
+            ChatMessage.session_id == sess.id,
+            ChatMessage.created_at >= since_7d,
+        )
+        .scalar()
+        or 0
+    )
 
-    emotional_signals = derive_guest_mood(has_urgent, has_negative, cnt24, cnt7, getattr(sess, "reservation_status", None))
-    action_priority_val = compute_action_priority(heat, emotional_signals, has_urgent, has_negative)
+    status_val = (sess.reservation_status or "").strip() or None
 
+    emotional_signals = derive_guest_mood(
+        has_urgent=has_urgent,
+        has_negative=has_negative,
+        cnt24=cnt24,
+        cnt7=cnt7,
+        status_val=status_val,
+    )
+
+    # --------------------------------------------------
+    # Heat computation (same logic as dashboard)
+    # --------------------------------------------------
+    raw_heat = (
+        (50 if has_urgent else 0)
+        + (25 if has_negative else 0)
+        + min(25, cnt24 * 5)
+        + min(10, cnt7)
+    )
+    raw_heat = min(100, raw_heat)
+
+    boosted = raw_heat
+    if has_urgent:
+        boosted = int(boosted * 1.3)
+    if has_negative:
+        boosted = int(boosted * 1.15)
+    if status_val == "active":
+        boosted = int(boosted * 1.1)
+
+    heat = decay_heat(min(100, boosted), sess.last_activity_at)
+
+    action_priority_val = compute_action_priority(
+        heat=heat,
+        signals=emotional_signals,
+        has_urgent=has_urgent,
+        has_negative=has_negative,
+    )
+
+    # --------------------------------------------------
+    # View model
+    # --------------------------------------------------
     session_vm = {
         "id": sess.id,
         "property_id": sess.property_id,
@@ -752,12 +813,12 @@ def chat_detail_partial(
         "action_priority": action_priority_val,
         "emotional_signals": emotional_signals,
 
-        # optional extras used by template
+        # optional extras
         "internal_note": getattr(sess, "internal_note", None),
         "ai_summary": getattr(sess, "ai_summary", None),
         "ai_summary_updated_at": getattr(sess, "ai_summary_updated_at", None),
 
-        # booking fields used by rs_effective logic
+        # booking fields
         "reservation_id": getattr(sess, "reservation_id", None),
         "booking_id": getattr(sess, "booking_id", None),
         "confirmation_code": getattr(sess, "confirmation_code", None),
@@ -772,10 +833,14 @@ def chat_detail_partial(
             "session": session_vm,
             "property": property_obj,
             "messages": messages,
-            # if you use this in the template:
-            "property_name_by_id": {property_obj.id: property_obj.property_name} if property_obj else {},
+            "property_name_by_id": (
+                {property_obj.id: property_obj.property_name}
+                if property_obj
+                else {}
+            ),
         },
     )
+
 
 
 
@@ -3210,24 +3275,28 @@ def admin_dashboard(
                 has_negative=has_negative,
             )
 
+            dirty_any = False
+
             sess_obj = sess_map.get(sid)
             if sess_obj:
-                persist_session_triage_fields(
+                dirty_any |= persist_session_triage_fields(
                     db,
-                    sess,
+                    sess_obj,
                     emotional_signals=emotional_signals,
                     action_priority=action_priority_val,
                     guest_mood=guest_mood_val,
                 )
 
 
-            # Apply filters (canonical)
-            if mood and hasattr(ChatSession, "emotional_signals"):
-                # JSONB array contains mood
-                base_q = base_q.filter(ChatSession.emotional_signals.contains([mood]))
 
-            if ap_filter and hasattr(ChatSession, "action_priority"):
-                base_q = base_q.filter(ChatSession.action_priority == normalize_action_priority(ap_filter))
+
+            # Apply filters (canonical)
+            #if mood and hasattr(ChatSession, "emotional_signals"):
+            #    # JSONB array contains mood
+            #    base_q = base_q.filter(ChatSession.emotional_signals.contains([mood]))
+
+            #if ap_filter and hasattr(ChatSession, "action_priority"):
+            #    base_q = base_q.filter(ChatSession.action_priority == normalize_action_priority(ap_filter))
 
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
@@ -3271,6 +3340,10 @@ def admin_dashboard(
                 "pms_reservation_id": r.get("pms_reservation_id"),
                 "reservation_confirmed": r.get("reservation_confirmed"),
             })
+
+        
+        if dirty:
+            db.commit()
 
 
         # ----------------------------
@@ -3320,9 +3393,6 @@ def admin_dashboard(
                 .order_by(ChatMessage.created_at.asc())
                 .all()
             )
-
-    # if you changed any sessions in persist_session_triage_fields, commit once here
-    db.commit()
 
     return templates.TemplateResponse(
         "admin_dashboard.html",
