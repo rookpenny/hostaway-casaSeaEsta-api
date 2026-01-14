@@ -275,7 +275,7 @@
             data-action="summary"
             class="bg-slate-900 text-white rounded-xl px-3 py-1 text-sm hover:bg-slate-800"
           >
-            Generate / Refresh
+            Summarize this chat
           </button>
         </div>
       </div>
@@ -285,7 +285,7 @@
           {% if session.ai_summary %}
             {{ session.ai_summary|e }}
           {% else %}
-            <span class="text-slate-500">No summary yet.</span>
+            <span class="text-slate-500">No overview yet.</span>
           {% endif %}
         </div>
       </div>
