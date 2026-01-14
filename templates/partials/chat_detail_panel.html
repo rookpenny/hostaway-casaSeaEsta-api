@@ -28,7 +28,7 @@
   class="space-y-4"
   data-chat-panel="{{ session.id }}"
   data-session-id="{{ session.id }}"
-  data-emotional-signals='{{ (session.emotional_signals or []) | tojson | e }}'
+  data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
   data-action-priority="{{ ap|e }}"
   data-escalation-level="{{ esc|e }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
@@ -92,7 +92,7 @@
             {# Guest Mood (rendered by JS from emotional_signals) #}
             <span
               data-mood-badge
-              data-emotional-signals='{{ (session.emotional_signals or []) | tojson | e }}'
+              data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
             ></span>
 
             {# Resolved/Open pill #}
