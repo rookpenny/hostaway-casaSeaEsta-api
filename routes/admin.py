@@ -599,12 +599,27 @@ def bump_priority(base: str, bump_to: str) -> str:
     return bump_to if rank.get(bump_to, 0) > rank.get(base, 0) else base
 
 
+POSITIVE_HINTS = {
+    "love", "like", "loved", "liked",
+    "haha", "lol", "lmao", "😂", "🤣",
+    "amazing", "awesome", "great", "perfect",
+    "thank you", "thanks", "thx", "appreciate",
+}
+
+def _looks_positive(text: str | None) -> bool:
+    t = (text or "").strip().lower()
+    if not t:
+        return False
+    return any(k in t for k in POSITIVE_HINTS)
+
+
 def derive_guest_mood(
     has_urgent: bool,
     has_negative: bool,
     cnt24: int,
     cnt7: int,
     status_val: str | None,
+    last_guest_text: str | None = None,   # ✅ new optional input
 ) -> list[str]:
     """
     Returns a list of emotional signals, ordered most important first.
@@ -613,20 +628,27 @@ def derive_guest_mood(
     signals: list[str] = []
     status = (status_val or "").strip().lower()
 
+    is_positive = _looks_positive(last_guest_text)
+
     if has_urgent:
         signals.append("panicked")
     if has_negative and "panicked" not in signals:
         signals.append("upset")
 
     # High volume can imply confusion/worry
-    if cnt24 >= 8 and "panicked" not in signals:
+    # ✅ BUT: don't label as confused if the last message looks positive
+    if cnt24 >= 8 and "panicked" not in signals and not is_positive:
         signals.append("confused")
-    elif cnt7 >= 25 and "panicked" not in signals:
+    elif cnt7 >= 25 and "panicked" not in signals and not is_positive:
         signals.append("worried")
 
     # Optional status-based signal
     if status == "active" and (has_urgent or has_negative):
         signals.append("stressed")
+
+    # ✅ Positive override: if we only had volume-based confusion, make it calm instead
+    if is_positive and signals and signals[0] in {"confused", "worried"} and not (has_urgent or has_negative):
+        signals = ["calm"]
 
     if not signals:
         signals.append("calm")
@@ -639,6 +661,7 @@ def derive_guest_mood(
             seen.add(s)
             out.append(s)
     return out[:2]
+
 
 
 def compute_action_priority(
@@ -3245,7 +3268,7 @@ def admin_dashboard(
         # Sessions dicts (+ mood + priority filtering)
         # ----------------------------
 
-        sessions = []
+        sessions: list[dict] = []
         dirty_any = False
         
         for r in rows:
@@ -3260,12 +3283,19 @@ def admin_dashboard(
             # IMPORTANT: r is a dict row (not ORM)
             status_val = (r.get("reservation_status") or "").strip() or None
         
+            # Pull last guest/user text so derive_guest_mood can avoid "confused" on positive chatter
+            last_msg = last_msg_by_session.get(sid)
+            last_guest_text = None
+            if last_msg and getattr(last_msg, "sender", None) in ("guest", "user"):
+                last_guest_text = (getattr(last_msg, "content", None) or "").strip() or None
+        
             emotional_signals = derive_guest_mood(
                 has_urgent=has_urgent,
                 has_negative=has_negative,
                 cnt24=cnt24,
                 cnt7=cnt7,
                 status_val=status_val,
+                last_guest_text=last_guest_text,  # ✅ new optional arg
             )
             guest_mood_val = emotional_signals[0] if emotional_signals else None
         
@@ -3277,6 +3307,7 @@ def admin_dashboard(
                 has_negative=has_negative,
             )
         
+            # Persist computed triage fields (if columns exist)
             sess_obj = sess_map.get(sid)
             if sess_obj:
                 dirty_any |= persist_session_triage_fields(
@@ -3287,12 +3318,11 @@ def admin_dashboard(
                     guest_mood=guest_mood_val,
                 )
         
-            last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
         
             # Snippet: prefer SQL lateral (r["last_message"]), fallback to loaded ChatMessage
             last_snip = (r.get("last_message") or "")
-            if not last_snip and last_msg and last_msg.content:
+            if not last_snip and last_msg and getattr(last_msg, "content", None):
                 last_snip = last_msg.content
             last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
         
@@ -3338,6 +3368,7 @@ def admin_dashboard(
         
         if dirty_any:
             db.commit()
+
 
         
 
