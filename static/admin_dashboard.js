@@ -279,6 +279,14 @@ window.addEventListener("popstate", () => {
 });*/
 
 
+
+
+
+
+
+
+
+
 // =====================================================
 // Chat Detail: Notes + Summary collapse (GLOBAL)
 // Works even when chat_detail_panel.html is injected.
@@ -2618,6 +2626,84 @@ document.addEventListener("change", (e) => {
   if (!(e.target instanceof HTMLSelectElement)) return;
 
   form.requestSubmit ? form.requestSubmit() : form.submit();
+});
+
+
+
+// ==================================================
+// Escalation dropdown (detail panel)
+// ==================================================
+
+document.addEventListener("change", async (e) => {
+  const sel = e.target.closest('[data-role="escalation-select"]');
+  if (!sel) return;
+
+  const panel = sel.closest("[data-session-id]");
+  const sessionId = panel?.getAttribute("data-session-id");
+  if (!sessionId) {
+    console.warn("Escalation change: no session id");
+    return;
+  }
+
+  const level = (sel.value || "").trim(); // "", low, medium, high
+
+  // bootstrap api
+  const bootEl = document.getElementById("dashboard-bootstrap");
+  const boot = bootEl ? JSON.parse(bootEl.textContent) : null;
+  const tmpl = boot?.api?.chat_escalate;
+  if (!tmpl) {
+    console.warn("Missing api.chat_escalate");
+    return;
+  }
+
+  const url = tmpl.replace("{session_id}", encodeURIComponent(sessionId));
+
+  // optimistic UI update (detail)
+  const pill = panel.querySelector('[data-role="escalation-pill"]');
+  if (pill) {
+    pill.textContent =
+      level === "high" ? "🔴 Escalation: High" :
+      level === "medium" ? "🟡 Escalation: Medium" :
+      level === "low" ? "⚪ Escalation: Low" :
+      "No escalation";
+
+    pill.className =
+      "inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold " +
+      (level === "high" ? "bg-rose-100 text-rose-800" :
+       level === "medium" ? "bg-amber-100 text-amber-800" :
+       level === "low" ? "bg-slate-100 text-slate-700" :
+       "bg-slate-100 text-slate-500");
+  }
+
+  panel.setAttribute("data-escalation-level", level);
+
+  try {
+    await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin",
+      body: JSON.stringify({ escalation_level: level }) // ⚠️ adjust if needed
+    });
+
+    // update list row badge
+    const row = document.querySelector(`[data-session-row="${sessionId}"]`);
+    const rowBadge = row?.querySelector("[data-escalation-badge]");
+    if (rowBadge) {
+      rowBadge.textContent =
+        level === "high" ? "🔴 High" :
+        level === "medium" ? "🟡 Medium" :
+        level === "low" ? "⚪ Low" : "—";
+
+      rowBadge.className =
+        "px-2 py-1 rounded-full font-semibold " +
+        (level === "high" ? "bg-rose-100 text-rose-800" :
+         level === "medium" ? "bg-amber-100 text-amber-800" :
+         level === "low" ? "bg-slate-100 text-slate-700" :
+         "text-slate-400");
+    }
+  } catch (err) {
+    console.error("Escalation update failed", err);
+  }
 });
 
 
