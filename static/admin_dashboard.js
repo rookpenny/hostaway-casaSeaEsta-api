@@ -611,23 +611,39 @@ async function loadChatDetail(sessionId) {
 
 
 
+function setEscalationBadge(el, levelRaw) {
+  if (!el) return;
 
+  const level = String(levelRaw || "").toLowerCase().trim();
 
+  // If el is a container (td/div), render a pill span inside it.
+  // If el is already a span (the pill itself), update it directly.
+  const isSpan = el.tagName && el.tagName.toLowerCase() === "span";
+  const target = isSpan ? el : (el.querySelector("span") || null);
 
-/*function setEscalationBadge(container, level) {
-  if (!container) return;
-  const esc = String(level || "").toLowerCase();
+  const pillClass = "px-2 py-1 rounded-full font-semibold";
 
-  if (esc === "high" || esc === "critical") {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-rose-100 text-rose-800 font-semibold">🔴 High</span>`;
-  } else if (esc === "medium" || esc === "attention") {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-amber-100 text-amber-800 font-semibold">🟡 Medium</span>`;
-  } else if (esc === "low") {
-    container.innerHTML = `<span class="px-2 py-1 rounded-full bg-blue-100 text-blue-800 font-semibold">🟢 Low</span>`;
+  const cfg =
+    (level === "critical" || level === "high")
+      ? { text: "🔴 High", cls: `${pillClass} bg-rose-100 text-rose-800` }
+    : (level === "attention" || level === "medium")
+      ? { text: "🟡 Medium", cls: `${pillClass} bg-amber-100 text-amber-800` }
+    : (level === "low")
+      ? { text: "🟢 Low", cls: `${pillClass} bg-blue-100 text-blue-800` }
+    : { text: "—", cls: `${pillClass} text-slate-400` };
+
+  if (target) {
+    // Update existing span
+    target.className = cfg.cls;
+    target.textContent = cfg.text;
   } else {
-    container.innerHTML = `<span class="text-slate-400">—</span>`;
+    // Create span in container
+    el.innerHTML = `<span class="${cfg.cls}">${cfg.text}</span>`;
   }
-}*/
+
+  el.setAttribute("data-escalation-level", level);
+}
+
 
 function setStatusBadge(container, isResolved) {
   if (!container) return;
@@ -732,10 +748,9 @@ function applyEscalationBadge(badgeEl, levelRaw) {
 function updateChatListEscalation(sessionId, level) {
   const row = document.querySelector(`[data-session-row="${sessionId}"]`);
   if (!row) return;
-
-  const badge = row.querySelector("[data-escalation-badge]");
-  setEscalationBadge(badge, level);
+  setEscalationBadge(row.querySelector("[data-escalation-badge]"), level);
 }
+
 
 
     
