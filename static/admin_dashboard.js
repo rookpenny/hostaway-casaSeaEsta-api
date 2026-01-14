@@ -1539,8 +1539,8 @@ window.Chats = {
           : "Updated: just now";
       }
     } catch (e) {
-      box.textContent = `Summary error: ${e?.message || e}`;
-      console.error(e);
+      console.error("refreshSummary error:", e);
+      box.textContent = `Summary error: ${e?.message || e}\n${e?.stack || ""}`;
     }
   },
 };
