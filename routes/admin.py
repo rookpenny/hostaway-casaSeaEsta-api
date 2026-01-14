@@ -629,45 +629,62 @@ def persist_session_triage_fields(
     db: Session,
     sess: ChatSession,
     *,
-    emotional_signals: list[str],
-    action_priority: str,
+    emotional_signals: list[str] | None,
+    action_priority: str | None,
     guest_mood: str | None = None,
     guest_mood_confidence: int | None = None,
 ) -> bool:
     """
-    Persists computed fields to ChatSession if the columns exist.
+    Persists computed triage fields to ChatSession if the columns exist.
     Returns True if anything changed.
+
+    Contract:
+      - emotional_signals is a list[str] (stored as JSON array) or None
+      - action_priority normalized to: urgent|high|normal|low (or None)
+      - guest_mood should usually equal emotional_signals[0] when provided
     """
     changed = False
 
-    # emotional_signals JSONB array
-    if hasattr(sess, "emotional_signals"):
-        new_val = emotional_signals or []
-        old_val = getattr(sess, "emotional_signals", None) or []
+    # ----------------------------
+    # emotional_signals JSON array
+    # ----------------------------
+    if hasattr(sess, "emotional_signals") and emotional_signals is not None:
+        new_val = list(emotional_signals or [])
+        old_val = list(getattr(sess, "emotional_signals", None) or [])
         if old_val != new_val:
             setattr(sess, "emotional_signals", new_val)
             changed = True
 
-    # action_priority
-    if hasattr(sess, "action_priority"):
+    # ----------------------------
+    # action_priority (canonical)
+    # ----------------------------
+    if hasattr(sess, "action_priority") and action_priority is not None:
         ap = normalize_action_priority(action_priority)
         if getattr(sess, "action_priority", None) != ap:
             setattr(sess, "action_priority", ap)
             changed = True
 
+    # ----------------------------
     # guest mood (optional)
+    # ----------------------------
     if guest_mood is not None and hasattr(sess, "guest_mood"):
-        if getattr(sess, "guest_mood", None) != guest_mood:
-            setattr(sess, "guest_mood", guest_mood)
+        gm = (guest_mood or "").strip().lower() or None
+        if getattr(sess, "guest_mood", None) != gm:
+            setattr(sess, "guest_mood", gm)
             changed = True
 
     if guest_mood_confidence is not None and hasattr(sess, "guest_mood_confidence"):
-        if getattr(sess, "guest_mood_confidence", None) != int(guest_mood_confidence):
-            setattr(sess, "guest_mood_confidence", int(guest_mood_confidence))
+        conf = int(guest_mood_confidence)
+        if getattr(sess, "guest_mood_confidence", None) != conf:
+            setattr(sess, "guest_mood_confidence", conf)
             changed = True
 
+    # ----------------------------
+    # finalize write
+    # ----------------------------
     if changed:
-        sess.updated_at = datetime.utcnow()
+        if hasattr(sess, "updated_at"):
+            sess.updated_at = datetime.utcnow()
         db.add(sess)
 
     return changed
