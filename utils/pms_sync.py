@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import PMC, PMCIntegration
 from utils.github_sync import sync_files_to_github
+from utils.hostaway import get_listing_overview
 
 load_dotenv()
 logger = logging.getLogger("uvicorn.error")
@@ -145,6 +146,17 @@ def bootstrap_account_folders_to_github(provider: str, account_id: str, properti
         commit_hint=f"bootstrap {provider}_{account_id} ({len(updated_files)//2} properties)",
     )
     logger.info("[bootstrap] ✅ pushed %s properties for %s_%s", len(updated_files)//2, provider, account_id)
+
+
+
+hero_image_url = None
+if provider == "hostaway":
+    hero_image_url, _, _ = get_listing_overview(
+        listing_id=ext_id,
+        client_id=client_id,
+        client_secret=client_secret,
+    )
+
 
 # ----------------------------
 # Filesystem helpers
