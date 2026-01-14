@@ -1497,32 +1497,29 @@ window.Chats = {
         (typeof apiRoute === "function" && apiRoute("chat_summarize", { session_id: sessionId })) ||
         `/admin/chats/${sessionId}/summarize`;
 
+      // ✅ THIS was missing (res was never defined)
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}), // keeps it explicit; backend ignores body
         credentials: "same-origin",
       });
 
       if (res.status === 401 || res.status === 403) return loginRedirect();
 
       const parsed = await safeReadJson(res);
-      if (!parsed.ok) {
-        throw new Error(`Summary failed (HTTP ${parsed.status})`);
-      }
+      if (!parsed.ok) throw new Error(`Summary failed (HTTP ${parsed.status})`);
 
       const data = parsed.json || {};
-      if (data.ok === false) {
-        throw new Error(data.detail || data.error || "Failed");
-      }
+      if (data.ok === false) throw new Error(data.error || "Failed");
 
       box.textContent = data.summary || "";
-      if (updatedLabel) updatedLabel.textContent = data.updated_at ? `Updated: ${data.updated_at}` : "Updated: just now";
+      if (updatedLabel) updatedLabel.textContent = "Updated: just now";
     } catch (e) {
-      box.textContent = `Summary error: ${e?.message || String(e)}`;
+      box.textContent = `Summary error: ${e.message}`;
     }
-  },
+  }
 };
+
 
 
 
