@@ -889,7 +889,6 @@
                     {% set row_signals = s.emotional_signals %}
                     {% set row_signals = s.emotional_signals if s.emotional_signals is not none else s.signals %}
                     {% if row_signals is none %}{% set row_signals = [] %}{% endif %}
-                    data-emotional-signals='{{ row_signals | tojson | e }}'
 
 
                     
