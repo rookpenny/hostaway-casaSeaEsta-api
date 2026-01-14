@@ -1477,10 +1477,11 @@ document.addEventListener("change", (e) => {
   }
 });
 
- window.Chats = {
+window.Chats = {
   async refreshSummary(sessionId) {
-    const panel = document.querySelector(`[data-chat-panel="${sessionId}"]`) ||
-                  document.querySelector("[data-chat-panel]");
+    const panel =
+      document.querySelector(`[data-chat-panel="${sessionId}"]`) ||
+      document.querySelector("[data-chat-panel]");
     if (!panel) return;
 
     const box = panel.querySelector("[data-summary-box]");
@@ -1492,14 +1493,21 @@ document.addEventListener("change", (e) => {
       box.textContent = "Generating…";
 
       const url =
-        apiRoute("chat_summarize", { session_id: chatId }) ||
-        `/admin/chats/${chatId}/summarize`;
+        apiRoute("chat_summarize", { session_id: sessionId }) ||
+        `/admin/chats/${sessionId}/summarize`;
 
+      const res = await fetch(url, {
+        method: "POST",
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
 
       if (res.status === 401 || res.status === 403) return loginRedirect();
 
       const parsed = await safeReadJson(res);
-      if (!parsed.ok) throw new Error(`Summary failed (HTTP ${parsed.status})`);
+      if (!parsed.ok) {
+        throw new Error(parsed.text || `HTTP ${parsed.status}`);
+      }
 
       const data = parsed.json || {};
       if (data.ok === false) throw new Error(data.error || "Failed");
@@ -1508,9 +1516,12 @@ document.addEventListener("change", (e) => {
       if (updatedLabel) updatedLabel.textContent = "Updated: just now";
     } catch (e) {
       box.textContent = `Summary error: ${e.message}`;
+      console.error("[AI Summary]", e);
     }
-  }
+  },
 };
+
+
 
 
 
