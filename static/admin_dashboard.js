@@ -14,6 +14,24 @@ const IS_LOCKED = !!BOOT.is_locked;
 window.CONTENT_LOCKED = IS_LOCKED; // if you want global
 
 
+// ----------------------------
+// API route helper (from bootstrap)
+// ----------------------------
+const API = (BOOT && BOOT.api) ? BOOT.api : {};
+
+function expandRoute(template, params = {}) {
+  if (!template) return "";
+  return String(template).replace(/\{(\w+)\}/g, (_, k) =>
+    encodeURIComponent(params[k] ?? "")
+  );
+}
+
+function apiRoute(key, params = {}) {
+  const t = API[key];
+  if (!t) return ""; // fallback handled by callers
+  // support both "/path/{id}" and "/path?x={id}"
+  return expandRoute(t, params);
+}
 
 
 // ✅ Expose helpers (Guest Mood / emotional_signals)
@@ -25,23 +43,26 @@ window.getMoodForEl = function getMoodForEl(el) {
 
 
 
-(function moodConfidenceHints(){
-  const nodes = document.querySelectorAll("[data-mood-badge]");
+function applyMoodConfidenceHints(root = document) {
+  const nodes = root.querySelectorAll("[data-mood-badge]");
   for (const el of nodes) {
     const conf = parseInt(el.getAttribute("data-guest-mood-confidence") || "0", 10);
     if (!conf) continue;
 
-    // If confidence is low, visually soften it
+    // After renderMoodBadges runs, badges are spans
+    const badge = el.querySelector("span");
+    if (!badge) continue;
+
     if (conf < 60) {
-      const badge = el.querySelector("span");
-      if (badge) {
-        badge.classList.add("opacity-70");
-        badge.title = `Low confidence mood (${conf}%)`;
-      }
+      badge.classList.add("opacity-70");
+      badge.title = `Low confidence mood (${conf}%)`;
+    } else {
+      badge.classList.remove("opacity-70");
+      if (badge.title && badge.title.includes("confidence")) badge.title = "";
     }
   }
-})();
-
+}
+window.applyMoodConfidenceHints = applyMoodConfidenceHints;
 
 
 
@@ -334,11 +355,10 @@ window.addEventListener("popstate", () => {
       btn.textContent = "Generating…";
 
       try {
-        const res = await fetch(`/admin/chats/${chatId}/summarize`, {
-          method: "POST",
-          credentials: "include",
-          headers: { Accept: "application/json" },
-        });
+        const url =
+          apiRoute("chat_summarize", { session_id: chatId }) ||
+          `/admin/chats/${chatId}/summarize`;
+
         if (res.status === 401 || res.status === 403) return loginRedirect();
 
         const parsed = await safeReadJson(res);
@@ -429,20 +449,27 @@ window.addEventListener("popstate", () => {
   return parsed.json;
 }
 
+async function chatPostRoute(routeKey, params, body) {
+  const url = apiRoute(routeKey, params);
+  if (!url) throw new Error(`Missing API route: ${routeKey}`);
+  return chatPostJSON(url, body);
+}
+
+
 
   function initChatDetailHandlers(sessionId, panelEl) {
   const $ = (sel) => panelEl.querySelector(sel);
 
   // Resolve
   $("#resolve-btn")?.addEventListener("click", async () => {
-    await chatPostJSON(`/admin/chats/${sessionId}/resolve`);
+    await chatPostRoute("chat_resolve", { session_id: sessionId });
     updateChatListRow(sessionId, { is_resolved: true });
     await loadChatDetail(sessionId);
   });
 
   // Unresolve
   $("#unresolve-btn")?.addEventListener("click", async () => {
-    await chatPostJSON(`/admin/chats/${sessionId}/unresolve`);
+    await chatPostRoute("chat_unresolve", { session_id: sessionId });
     updateChatListRow(sessionId, { is_resolved: false });
     await loadChatDetail(sessionId);
   });
@@ -450,7 +477,7 @@ window.addEventListener("popstate", () => {
   // Escalation
   $("#escalation-select")?.addEventListener("change", async (e) => {
     const level = e.target.value || "";
-    await chatPostJSON(`/admin/chats/${sessionId}/escalate`, { level });
+    await chatPostRoute("chat_escalate", { session_id: sessionId }, { level });
     updateChatListRow(sessionId, { escalation_level: level || null });
     await loadChatDetail(sessionId);
   });
@@ -458,7 +485,7 @@ window.addEventListener("popstate", () => {
   // Assign
   $("#assign-btn")?.addEventListener("click", async () => {
     const v = $("#assigned-input")?.value || "";
-    await chatPostJSON(`/admin/chats/${sessionId}/assign`, { assigned_to: v });
+    await chatPostRoute("chat_assign", { session_id: sessionId }, { assigned_to: v });
     updateChatListRow(sessionId, { assigned_to: v });
     await loadChatDetail(sessionId);
   });
@@ -466,7 +493,7 @@ window.addEventListener("popstate", () => {
   // Save note
   $("#save-note-btn")?.addEventListener("click", async () => {
     const note = $("#note-input")?.value || "";
-    await chatPostJSON(`/admin/chats/${sessionId}/note`, { note });
+    await chatPostRoute("chat_note", { session_id: sessionId }, { note });
 
     const s = $("#note-status");
     if (s) {
@@ -492,14 +519,16 @@ async function loadChatDetail(sessionId) {
   panel.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
 
   try {
-    const res = await fetch(
-      `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`,
-      {
-        credentials: "include",
-        headers: { "X-Requested-With": "fetch" },
-        signal: chatDetailAbort.signal,
-      }
-    );
+    const url =
+    apiRoute("chat_detail_partial", { session_id: sessionId }) ||
+    `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`;
+  
+  const res = await fetch(url, {
+    credentials: "include",
+    headers: { "X-Requested-With": "fetch" },
+    signal: chatDetailAbort.signal,
+  });
+
 
     if (res.status === 401 || res.status === 403) {
       loginRedirect();
@@ -563,6 +592,8 @@ async function loadChatDetail(sessionId) {
     
     // Render mood badges after hydration
     window.rerenderAllMoodBadges?.(panel);
+    window.applyMoodConfidenceHints?.(panel);
+
 
 
     // Bind buttons etc
@@ -1460,11 +1491,10 @@ document.addEventListener("change", (e) => {
     try {
       box.textContent = "Generating…";
 
-      const res = await fetch(`/admin/chats/${sessionId}/summarize`, {
-        method: "POST",
-        credentials: "include",
-        headers: { Accept: "application/json" },
-      });
+      const url =
+        apiRoute("chat_summarize", { session_id: chatId }) ||
+        `/admin/chats/${chatId}/summarize`;
+
 
       if (res.status === 401 || res.status === 403) return loginRedirect();
 
@@ -2549,6 +2579,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initRouting();
 
   window.rerenderAllMoodBadges?.();
+  window.applyMoodConfidenceHints?.(document);
 
   // 2) Property filters
   document.getElementById("searchInput")?.addEventListener("input", filterProperties);
