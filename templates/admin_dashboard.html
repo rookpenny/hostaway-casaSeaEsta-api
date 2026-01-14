@@ -368,7 +368,7 @@
 
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
 
-            {% set photo = prop.cover_photo_url %}
+            {% set photo = (prop.cover_photo_url | default("")) if prop is defined else "" %}
             <div class="mb-3">
               <div class="relative w-full aspect-[16/9] overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                 {% if photo %}
