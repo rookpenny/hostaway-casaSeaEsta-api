@@ -3246,18 +3246,20 @@ def admin_dashboard(
         # ----------------------------
 
         sessions = []
+        dirty_any = False
+        
         for r in rows:
             sid = int(r["id"])
-            heat = int(r.get("heat_score") or 0)
-
+            heat_score = int(r.get("heat_score") or 0)
+        
             has_urgent = sid in urgent_ids
             has_negative = sid in negative_ids
             cnt24 = int(counts_24h.get(sid, 0) or 0)
             cnt7 = int(counts_7d.get(sid, 0) or 0)
-
+        
             # IMPORTANT: r is a dict row (not ORM)
             status_val = (r.get("reservation_status") or "").strip() or None
-
+        
             emotional_signals = derive_guest_mood(
                 has_urgent=has_urgent,
                 has_negative=has_negative,
@@ -3265,18 +3267,16 @@ def admin_dashboard(
                 cnt7=cnt7,
                 status_val=status_val,
             )
-            guest_mood_val = (emotional_signals[0] if emotional_signals else None)
-
-            # Canonical priority should be COMPUTED (heat + signals)
+            guest_mood_val = emotional_signals[0] if emotional_signals else None
+        
+            # Canonical priority computed from heat + signals
             action_priority_val = compute_action_priority(
-                heat=heat,
+                heat=heat_score,
                 signals=emotional_signals,
                 has_urgent=has_urgent,
                 has_negative=has_negative,
             )
-
-            dirty_any = False
-
+        
             sess_obj = sess_map.get(sid)
             if sess_obj:
                 dirty_any |= persist_session_triage_fields(
@@ -3286,64 +3286,60 @@ def admin_dashboard(
                     action_priority=action_priority_val,
                     guest_mood=guest_mood_val,
                 )
-
-
-
-
-            # Apply filters (canonical)
-            #if mood and hasattr(ChatSession, "emotional_signals"):
-            #    # JSONB array contains mood
-            #    base_q = base_q.filter(ChatSession.emotional_signals.contains([mood]))
-
-            #if ap_filter and hasattr(ChatSession, "action_priority"):
-            #    base_q = base_q.filter(ChatSession.action_priority == normalize_action_priority(ap_filter))
-
+        
             last_msg = last_msg_by_session.get(sid)
             last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-
+        
             # Snippet: prefer SQL lateral (r["last_message"]), fallback to loaded ChatMessage
             last_snip = (r.get("last_message") or "")
             if not last_snip and last_msg and last_msg.content:
                 last_snip = last_msg.content
             last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
-
+        
             sessions.append({
                 "id": sid,
                 "property_id": int(r.get("property_id") or 0) or None,
-                "property_name": (r.get("property_name") or property_name_by_id.get(int(r.get("property_id") or 0), "") or "Unknown property"),
+                "property_name": (
+                    r.get("property_name")
+                    or property_name_by_id.get(int(r.get("property_id") or 0), "")
+                    or "Unknown property"
+                ),
                 "guest_name": r.get("guest_name"),
                 "assigned_to": r.get("assigned_to"),
                 "reservation_status": status_val or "pre_booking",
-                "source": r.get("source"),  # may be None if not selected in SQL (ok)
+                "source": r.get("source"),
                 "last_activity_at": r.get("last_activity_at"),
                 "last_snippet": last_snip,
-
+        
                 "action_priority": action_priority_val,
                 "guest_mood": guest_mood_val,
                 "emotional_signals": emotional_signals,
-
+        
                 "is_resolved": bool(r.get("is_resolved")),
                 "escalation_level": r.get("escalation_level"),
-
+        
                 "has_urgent": has_urgent,
                 "has_negative": has_negative,
                 "last_sentiment": last_sentiment,
                 "msg_24h": cnt24,
                 "msg_7d": cnt7,
-
-                "heat_raw": heat,
-
-                # booking fields (only if present in table/row; safe as None)
+        
+                # keep both if you want; otherwise you can drop heat_raw
+                "heat": heat_score,
+                "heat_raw": heat_score,
+        
+                # booking fields (safe as None)
                 "reservation_id": r.get("reservation_id"),
                 "booking_id": r.get("booking_id"),
                 "confirmation_code": r.get("confirmation_code"),
                 "pms_reservation_id": r.get("pms_reservation_id"),
                 "reservation_confirmed": r.get("reservation_confirmed"),
             })
+        
+        if dirty_any:
+            db.commit()
 
         
-        if dirty:
-            db.commit()
 
 
         # ----------------------------
@@ -3429,6 +3425,7 @@ def admin_dashboard(
 
             "pmc_id": (pmc_obj.id if pmc_obj else None),
         },
+
     )
 
 
