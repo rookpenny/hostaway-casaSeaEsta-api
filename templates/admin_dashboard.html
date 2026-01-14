@@ -690,6 +690,8 @@
         </section>
 
         <section id="view-chats" class="view space-y-4 {% if initial_view != 'chats' %}hidden{% endif %}">
+          <!-- Chat action flash (JS fills this) -->
+          <div id="chat-flash" class="hidden"></div>
 
           <!-- Inline chat detail -->
           <div id="chat-detail-inline" class="hidden bg-white border border-slate-200 rounded-2xl card">
@@ -702,7 +704,24 @@
               </button>
             </div>
 
-            <div id="chat-detail-panel" class="p-4"></div>
+            <div id="chat-detail-panel" class="p-4">
+            <!-- JS will replace this entire block -->
+            <div id="chat-detail-empty" class="text-sm text-slate-500">
+              Select a chat session to view details.
+            </div>
+          
+            <div id="chat-detail-loading" class="hidden">
+              <div class="animate-pulse space-y-3">
+                <div class="h-4 w-48 bg-slate-200 rounded"></div>
+                <div class="h-3 w-72 bg-slate-200 rounded"></div>
+                <div class="h-3 w-64 bg-slate-200 rounded"></div>
+                <div class="h-24 w-full bg-slate-200 rounded-xl"></div>
+              </div>
+            </div>
+          
+            <div id="chat-detail-error" class="hidden text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-xl p-3"></div>
+          </div>
+
           </div>
 
           <!-- Top strip -->
@@ -1526,42 +1545,18 @@
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
   "live_props": {{ live_props | tojson }},
   "offline_props": {{ offline_props | tojson }},
-  "user_role": {{ user_role | tojson }}
+  "user_role": {{ user_role | tojson }},
+  "api": {
+    "chat_list": "/admin/api/chats",
+    "chat_detail": "/admin/api/chats/{session_id}",
+    "chat_messages": "/admin/api/chats/{session_id}/messages",
+    "chat_assign": "/admin/api/chats/{session_id}/assign",
+    "chat_resolve": "/admin/api/chats/{session_id}/resolve",
+    "message_mood": "/admin/api/messages/{message_id}/mood"
+  }
 }
-  </script>
+</script>
 
-  <script>
-    /*(function enhanceMoodBadges(){
-    const nodes = document.querySelectorAll("[data-mood-badge]");
-    if (!nodes.length) return;
-
-    const rank = ["panicked","angry","upset","worried","confused","calm"]; // pick highest severity
-    const map = {
-      panicked: { label: "😰 Panicked", cls: "bg-rose-100 text-rose-800" },
-      angry:    { label: "😡 Angry",    cls: "bg-rose-100 text-rose-800" },
-      upset:    { label: "😟 Upset",    cls: "bg-orange-100 text-orange-800" },
-      worried:  { label: "🥺 Worried",  cls: "bg-amber-100 text-amber-800" },
-      confused: { label: "😕 Confused", cls: "bg-amber-100 text-amber-800" },
-      calm:     { label: "🙂 Calm",     cls: "bg-emerald-100 text-emerald-700" },
-    };
-
-    for (const el of nodes) {
-      const raw = el.getAttribute("data-emotional-signals");
-      if (!raw) continue;
-
-      let arr = [];
-      try { arr = JSON.parse(raw); } catch (e) { arr = []; }
-      if (!Array.isArray(arr) || !arr.length) continue;
-
-      const lower = arr.map(x => String(x).toLowerCase());
-      const chosen = rank.find(k => lower.includes(k));
-      const cfg = map[chosen];
-      if (!cfg) continue;
-
-      el.innerHTML = `<span class="px-2 py-1 rounded-full font-semibold ${cfg.cls}">${cfg.label}</span>`;
-    }
-  })();*/
-  </script>
 
 </body>
 </html>
