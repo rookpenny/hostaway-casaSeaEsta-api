@@ -1332,6 +1332,163 @@ document.addEventListener("change", (e) => {
   window.filterProperties = filterProperties;
 
   // ----------------------------
+  // NEW PANEL ACTIONS
+  // ----------------------------
+
+
+(function () {
+  function findPanel(el) {
+    return el.closest("[data-chat-panel][data-session-id]");
+  }
+
+  function panelSessionId(panel) {
+    return panel ? panel.getAttribute("data-session-id") : null;
+  }
+
+  async function postJSON(url, payload) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "same-origin", // IMPORTANT: send session cookie
+      body: JSON.stringify(payload || {}),
+    });
+
+    if (!res.ok) {
+      const txt = await res.text();
+      throw new Error(`HTTP ${res.status}: ${txt}`);
+    }
+    return await res.json();
+  }
+
+  // If you already have a "refresh detail panel" function, call it here instead.
+  async function refreshDetail(panel) {
+    const sid = panelSessionId(panel);
+    if (!sid) return;
+
+    // You likely have a container where you inject the detail HTML.
+    // Replace selector below with your actual detail container.
+    const container = panel.parentElement; // safest: replace the current panel in-place
+    const res = await fetch(`/admin/chats/partial/detail?session_id=${encodeURIComponent(sid)}`, {
+      credentials: "same-origin",
+    });
+    const html = await res.text();
+
+    // Replace the whole panel DOM so pills + disabled states update correctly
+    const tmp = document.createElement("div");
+    tmp.innerHTML = html;
+    const nextPanel = tmp.querySelector("[data-chat-panel]");
+    if (nextPanel && container) {
+      panel.replaceWith(nextPanel);
+    }
+  }
+
+  // CLICK HANDLERS
+  document.addEventListener("click", async (e) => {
+    const t = e.target;
+
+    // Save note
+    const saveBtn = t.closest('[data-role="save-note-btn"]');
+    if (saveBtn) {
+      const panel = findPanel(saveBtn);
+      const sid = panelSessionId(panel);
+      if (!sid) return;
+
+      const noteInput = panel.querySelector('[data-role="note-input"]');
+      const statusEl = panel.querySelector('[data-role="note-status"]');
+      const note = (noteInput?.value || "").trim();
+
+      try {
+        if (statusEl) statusEl.textContent = "Saving…";
+        await postJSON(`/admin/chats/${sid}/note`, { note });
+        if (statusEl) statusEl.textContent = "Saved";
+      } catch (err) {
+        console.error(err);
+        if (statusEl) statusEl.textContent = "Save failed";
+        alert(err.message || "Save note failed");
+      }
+      return;
+    }
+
+    // Resolve
+    const resolveBtn = t.closest('[data-role="resolve-btn"]');
+    if (resolveBtn) {
+      const panel = findPanel(resolveBtn);
+      const sid = panelSessionId(panel);
+      if (!sid) return;
+
+      try {
+        await postJSON(`/admin/chats/${sid}/resolve`, {});
+        await refreshDetail(panel);
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Resolve failed");
+      }
+      return;
+    }
+
+    // Unresolve
+    const unresolveBtn = t.closest('[data-role="unresolve-btn"]');
+    if (unresolveBtn) {
+      const panel = findPanel(unresolveBtn);
+      const sid = panelSessionId(panel);
+      if (!sid) return;
+
+      try {
+        await postJSON(`/admin/chats/${sid}/unresolve`, {});
+        await refreshDetail(panel);
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Reopen failed");
+      }
+      return;
+    }
+
+    // Assign
+    const assignBtn = t.closest('[data-role="assign-btn"]');
+    if (assignBtn) {
+      const panel = findPanel(assignBtn);
+      const sid = panelSessionId(panel);
+      if (!sid) return;
+
+      const input = panel.querySelector('[data-role="assigned-input"]');
+      const label = panel.querySelector('[data-role="assigned-label"]');
+      const assigned_to = (input?.value || "").trim();
+
+      try {
+        const out = await postJSON(`/admin/chats/${sid}/assign`, { assigned_to });
+        if (label) label.textContent = out.assigned_to || "—";
+      } catch (err) {
+        console.error(err);
+        alert(err.message || "Assign failed");
+      }
+      return;
+    }
+  });
+
+  // CHANGE HANDLERS
+  document.addEventListener("change", async (e) => {
+    const sel = e.target.closest('[data-role="escalation-select"]');
+    if (!sel) return;
+
+    const panel = findPanel(sel);
+    const sid = panelSessionId(panel);
+    if (!sid) return;
+
+    const level = (sel.value || "").trim();
+
+    try {
+      await postJSON(`/admin/chats/${sid}/escalate`, { level });
+      await refreshDetail(panel);
+    } catch (err) {
+      console.error(err);
+      alert(err.message || "Escalation failed");
+    }
+  });
+})();
+
+
+
+  // ----------------------------
   // Property actions
   // ----------------------------
   window.syncProperty = async function (id, btn) {
