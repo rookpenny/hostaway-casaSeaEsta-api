@@ -1115,17 +1115,18 @@ document.addEventListener("click", (e) => {
   }
 
   async function safeReadJson(res) {
-    const text = await res.text().catch(() => "");
-    if (!res.ok) {
-      return { ok: false, status: res.status, text, json: null };
-    }
-    try {
-      const json = text ? JSON.parse(text) : {};
-      return { ok: true, status: res.status, text, json };
-    } catch (e) {
-      return { ok: false, status: res.status, text, json: null, parseError: e };
-    }
+  const text = await res.text().catch(() => "");
+  if (!res.ok) {
+    return { ok: false, status: res.status, text, json: null };
+  }
+  try {
+    const json = text ? JSON.parse(text) : {};
+    return { ok: true, status: res.status, text, json };
+  } catch (e) {
+    return { ok: false, status: res.status, text, json: null, parseError: e };
+  }
 }
+
 
 
   async function apiJson(url, opts = {}) {
@@ -1493,33 +1494,36 @@ window.Chats = {
       box.textContent = "Generating…";
 
       const url =
-        apiRoute("chat_summarize", { session_id: sessionId }) ||
+        (typeof apiRoute === "function" && apiRoute("chat_summarize", { session_id: sessionId })) ||
         `/admin/chats/${sessionId}/summarize`;
 
       const res = await fetch(url, {
         method: "POST",
-        credentials: "include",
-        headers: { Accept: "application/json" },
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}), // keeps it explicit; backend ignores body
+        credentials: "same-origin",
       });
 
       if (res.status === 401 || res.status === 403) return loginRedirect();
 
       const parsed = await safeReadJson(res);
       if (!parsed.ok) {
-        throw new Error(parsed.text || `HTTP ${parsed.status}`);
+        throw new Error(`Summary failed (HTTP ${parsed.status})`);
       }
 
       const data = parsed.json || {};
-      if (data.ok === false) throw new Error(data.error || "Failed");
+      if (data.ok === false) {
+        throw new Error(data.detail || data.error || "Failed");
+      }
 
       box.textContent = data.summary || "";
-      if (updatedLabel) updatedLabel.textContent = "Updated: just now";
+      if (updatedLabel) updatedLabel.textContent = data.updated_at ? `Updated: ${data.updated_at}` : "Updated: just now";
     } catch (e) {
-      box.textContent = `Summary error: ${e.message}`;
-      console.error("[AI Summary]", e);
+      box.textContent = `Summary error: ${e?.message || String(e)}`;
     }
   },
 };
+
 
 
 
