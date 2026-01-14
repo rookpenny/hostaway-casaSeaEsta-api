@@ -350,7 +350,7 @@ def validate_config(cfg: dict) -> list[str]:
         errors.append("Escalation thresholds are invalid.")
 
     # template variable safety
-    import re
+
     for p in [
         "assistant.voice.welcome_template",
         "assistant.voice.welcome_template_no_name",
@@ -408,9 +408,17 @@ def delete_local_upgrade_image(image_url: str) -> None:
 
 
 
-def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=None,
-                                 action_priority=None, emotional_signals_filter=None,
-                                 q=None, limit=200):
+def fetch_dashboard_chat_sessions(
+    db,
+    *,
+    pmc_id=None,
+    property_id=None,
+    status=None,
+    action_priority=None,
+    emotional_signals_filter=None,  # guest mood
+    q=None,
+    limit=200,
+):
     sql = text("""
     WITH base AS (
       SELECT
@@ -436,7 +444,7 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
         AND (:property_id IS NULL OR cs.property_id = :property_id)
         AND (:status IS NULL OR cs.reservation_status = :status)
 
-        -- ✅ action_priority filter implemented via heat_score tiers
+        -- action_priority filter via heat_score tiers
         AND (
           :action_priority IS NULL
           OR (
@@ -486,6 +494,11 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
         OR b.property_name ILIKE '%' || :q || '%'
         OR coalesce(lm.last_message,'') ILIKE '%' || :q || '%'
       )
+      -- ✅ mood filter (uses latest guest/user mood)
+      AND (
+        :emotional_signals_filter IS NULL
+        OR lower(coalesce(lg.guest_mood, '')) = lower(:emotional_signals_filter)
+      )
 
     ORDER BY b.last_activity_at DESC NULLS LAST
     LIMIT :limit
@@ -502,6 +515,7 @@ def fetch_dashboard_chat_sessions(db, *, pmc_id=None, property_id=None, status=N
     }
 
     return db.execute(sql, params).mappings().all()
+
 
 
 
@@ -599,7 +613,7 @@ def bump_priority(base: str, bump_to: str) -> str:
     return bump_to if rank.get(bump_to, 0) > rank.get(base, 0) else base
 
 
-import re
+
 
 POSITIVE_WORDS = {
     "love", "like", "loved", "liked",
@@ -1515,26 +1529,15 @@ def escalation_rank(level: Optional[str]) -> int:
     return order.get((level or "").lower(), 0)
 
 def derive_signals(has_urgent: bool, has_negative: bool, cnt24: int, cnt7: int, status_val: str) -> list[str]:
-    signals: list[str] = []
-    if has_urgent:
-        signals.append("panicked")
-    if has_negative:
-        signals.append("upset")
-    if has_negative and cnt24 >= 3:
-        signals.append("angry")
-    if (not has_urgent) and (not has_negative) and (cnt7 >= 3 or cnt24 >= 2):
-        signals.append("confused")
-    if status_val == "active" and (has_urgent or has_negative):
-        signals.append("stressed")
-    if not signals:
-        signals.append("calm")
-
-    out, seen = [], set()
-    for s in signals:
-        if s not in seen:
-            seen.add(s)
-            out.append(s)
-    return out[:2]
+    # Backward-compatible wrapper. Keep until all callers migrate.
+    return derive_guest_mood(
+        has_urgent=has_urgent,
+        has_negative=has_negative,
+        cnt24=cnt24,
+        cnt7=cnt7,
+        status_val=status_val,
+        last_guest_text=None,
+    )
 
 
 # ----------------------------
@@ -1733,30 +1736,30 @@ def admin_chats(
         has_urgent = sid in urgent_ids
         has_negative = sid in negative_ids
 
-        # priority filters
+        # legacy priority filters
         if priority == "urgent" and not has_urgent:
             continue
         if priority == "unhappy" and not has_negative:
             continue
 
+        # latest message (already fetched)
         last_msg = last_msg_map.get(sid)
-        snippet = (last_msg.content[:120] + "…") if last_msg and last_msg.content and len(last_msg.content) > 120 else (
-            last_msg.content if last_msg else ""
-        )
+        last_text = (last_msg.content or "") if last_msg else ""
+        snippet = (last_text[:120] + "…") if len(last_text) > 120 else last_text
 
-        # search
+        # search filter
         if q_lower:
             hay = f"{prop.property_name} {sess.guest_name or ''} {snippet}".lower()
             if q_lower not in hay:
                 continue
 
-        status_val = sess.reservation_status or "pre_booking"
-        
-        last_msg = last_msg_by_session.get(sid)
+        status_val = (sess.reservation_status or "pre_booking").strip().lower() or "pre_booking"
+
+        # last guest/user text for positivity override
         last_guest_text = None
-        if last_msg and (last_msg.sender in ("guest", "user")) and last_msg.content:
+        if last_msg and last_msg.sender in ("guest", "user") and (last_msg.content or "").strip():
             last_guest_text = last_msg.content
-        
+
         emotional_signals = derive_guest_mood(
             has_urgent=has_urgent,
             has_negative=has_negative,
@@ -1765,25 +1768,18 @@ def admin_chats(
             status_val=status_val,
             last_guest_text=last_guest_text,
         )
-
         guest_mood_val = emotional_signals[0] if emotional_signals else None
-        
-        action_priority_val = compute_action_priority(
-            heat=heat,
-            signals=emotional_signals,
-            has_urgent=has_urgent,
-            has_negative=has_negative,
-        )
 
-
-        if mood and mood not in {s.lower() for s in signals}:
+        # mood filter (correct variable)
+        if mood and mood not in {s.lower() for s in (emotional_signals or [])}:
             continue
 
+        # heat (compute BEFORE action_priority)
         raw_heat = (
-            (50 if has_urgent else 0) +
-            (25 if has_negative else 0) +
-            min(25, cnt24 * 5) +
-            min(10, cnt7)
+            (50 if has_urgent else 0)
+            + (25 if has_negative else 0)
+            + min(25, cnt24 * 5)
+            + min(10, cnt7)
         )
         raw_heat = min(100, raw_heat)
 
@@ -1796,8 +1792,13 @@ def admin_chats(
             boosted = int(boosted * 1.1)
 
         heat = decay_heat(min(100, boosted), sess.last_activity_at)
-        priority_level = action_priority_val  # optional if you still use priority_level elsewhere
-    
+
+        action_priority_val = compute_action_priority(
+            heat=heat,
+            signals=emotional_signals,
+            has_urgent=has_urgent,
+            has_negative=has_negative,
+        )
 
         # auto escalation
         desired = desired_escalation_level(heat)
@@ -1809,42 +1810,41 @@ def admin_chats(
             db.add(sess)
             auto_escalated += 1
 
-        
+        items.append(
+            {
+                "id": sess.id,
+                "property_id": sess.property_id,
+                "property_name": prop.property_name or "Unknown",
+                "guest_name": sess.guest_name,
+                "reservation_status": status_val,
+                "last_activity_at": sess.last_activity_at,
+                "last_snippet": snippet,
 
-        items.append({
-            "id": sess.id,
-            "property_id": sess.property_id,
-            "property_name": prop.property_name or "Unknown",
-            "guest_name": sess.guest_name,
-            "reservation_status": status_val,
-            "last_activity_at": sess.last_activity_at,
-            "last_snippet": snippet,
-        
-            "emotional_signals": emotional_signals,
-            "guest_mood": guest_mood_val,
+                "emotional_signals": emotional_signals,
+                "guest_mood": guest_mood_val,
 
-        
-            "has_urgent": has_urgent,
-            "has_negative": has_negative,
-        
-            "msg_24h": cnt24,
-            "msg_7d": cnt7,
-        
-            "heat": heat,
-            "heat_raw": raw_heat,
-        
-            "priority_level": priority_level,
-            "action_priority": action_priority_val,  # ✅ ADD
-        
-            "assigned_to": sess.assigned_to,
-            "escalation_level": sess.escalation_level,
-            "is_resolved": bool(sess.is_resolved),
-            "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
-        })
+                "has_urgent": has_urgent,
+                "has_negative": has_negative,
 
+                "msg_24h": cnt24,
+                "msg_7d": cnt7,
+
+                "heat": heat,
+                "heat_raw": raw_heat,
+
+                "priority_level": action_priority_val,       # if templates still read this
+                "action_priority": action_priority_val,      # canonical
+
+                "assigned_to": sess.assigned_to,
+                "escalation_level": sess.escalation_level,
+                "is_resolved": bool(sess.is_resolved),
+                "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
+            }
+        )
 
     if auto_escalated:
         db.commit()
+
 
     items.sort(
         key=lambda x: (x["heat"], x["last_activity_at"] or datetime.min),
