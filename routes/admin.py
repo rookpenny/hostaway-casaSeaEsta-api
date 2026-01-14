@@ -822,6 +822,17 @@ def chat_detail_partial(
     session_id: int,
     db: Session = Depends(get_db),
 ):
+    dirty = persist_session_triage_fields(
+        db,
+        sess,
+        emotional_signals=emotional_signals,
+        action_priority=action_priority_val,
+        guest_mood=guest_mood_val,
+    )
+    if dirty:
+        db.commit()
+    
+        
     user = request.session.get("user")
     if not user:
         raise HTTPException(status_code=401)
@@ -3180,37 +3191,19 @@ def admin_dashboard(
         cnt7 = int(sdata.get("cnt7", 0) or 0)
         last_guest_text = sdata.get("last_guest_text")
 
-        emotional_signals = derive_guest_mood(
-            has_urgent=has_urgent,
-            has_negative=has_negative,
-            cnt24=cnt24,
-            cnt7=cnt7,
-            status_val=status_val,
-            last_guest_text=last_guest_text,
-        )
+        
         guest_mood_val = emotional_signals[0] if emotional_signals else None
-
-        action_priority_val = compute_action_priority(
-            heat=heat_score,
-            signals=emotional_signals,
-            has_urgent=has_urgent,
-            has_negative=has_negative,
-        )
-
         # persist computed triage fields (if columns exist)
         sess_obj = sess_map.get(sid)
-        if sess_obj:
-            dirty_any |= persist_session_triage_fields(
-                db,
-                sess_obj,
-                emotional_signals=emotional_signals,
-                action_priority=action_priority_val,
-                guest_mood=guest_mood_val,
-            )
-
-        last_msg = last_msg_by_session.get(sid)
         last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
 
+        emotional_signals = (r.get("emotional_signals") or [])
+        guest_mood_val = (r.get("guest_mood") or (emotional_signals[0] if emotional_signals else None))
+        action_priority_val = (r.get("action_priority") or None)
+        
+        if not guest_mood_val or not action_priority_val:
+            # compute once, persist, commit (rare)
+        
         last_snip = (r.get("last_message") or "")
         if not last_snip and last_msg and last_msg.content:
             last_snip = last_msg.content
