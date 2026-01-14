@@ -126,10 +126,16 @@ function moodConfidenceHints(root = document) {
     if (sig.includes("confused")) html += pill("😕 Confused", "bg-blue-100 text-blue-700");
     if (sig.includes("worried"))  html += pill("🥺 Worried",  "bg-indigo-100 text-indigo-700");
     if (sig.includes("happy"))    html += pill("😊 Happy",    "bg-yellow-100 text-yellow-800");
+    if (sig.includes("frustrated")) html += pill("😤 Frustrated", "bg-orange-100 text-orange-800");
+    if (sig.includes("sad"))        html += pill("😞 Sad",        "bg-slate-100 text-slate-700");
+    if (sig.includes("neutral"))    html += pill("😐 Neutral",    "bg-slate-100 text-slate-700");
+    if (sig.includes("excited"))    html += pill("🤩 Excited",    "bg-fuchsia-100 text-fuchsia-800");
+    if (sig.includes("relieved"))   html += pill("😮‍💨 Relieved",  "bg-emerald-100 text-emerald-700");
+
 
     // Calm only if explicitly present
-    if (sig.includes("calm")) {
-      html += pill("🙂 Calm", "bg-emerald-100 text-emerald-700");
+    if (sig.includes("neutral")) {
+      html += pill("😐 Neutral", "bg-emerald-100 text-emerald-700");
     }
 
     el.innerHTML = html || `<span class="text-slate-400">—</span>`;
