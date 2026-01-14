@@ -1,4 +1,4 @@
-{# partials/chat_detail_panel.html (CLEAN + CONSISTENT WITH admin.py) #}
+{# partials/chat_detail_panel.html (CLEAN + SCALE-SAFE) #}
 
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
 {% set rs = (session.reservation_status or '')|lower %}
@@ -28,7 +28,7 @@
   class="space-y-4"
   data-chat-panel="{{ session.id }}"
   data-session-id="{{ session.id }}"
-  data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
+  data-emotional-signals='{{ (session.emotional_signals or []) | tojson | e }}'
   data-action-priority="{{ ap|e }}"
   data-escalation-level="{{ esc|e }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
@@ -75,7 +75,7 @@
 
             {# ✅ Action priority (canonical: urgent/high/normal/low) #}
             <span
-              id="action-priority-pill"
+              data-role="action-priority-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
                 {% if ap == 'urgent' %}bg-rose-100 text-rose-800
                 {% elif ap == 'high' %}bg-orange-100 text-orange-800
@@ -90,11 +90,14 @@
             </span>
 
             {# Guest Mood (rendered by JS from emotional_signals) #}
-            <span data-mood-badge data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'></span>
+            <span
+              data-mood-badge
+              data-emotional-signals='{{ (session.emotional_signals or []) | tojson | e }}'
+            ></span>
 
             {# Resolved/Open pill #}
             <span
-              id="resolved-pill"
+              data-role="resolved-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
                 {% if session.is_resolved %}
                   bg-slate-200 text-slate-700
@@ -107,7 +110,7 @@
 
             {# Escalation pill (normalized) #}
             <span
-              id="escalation-pill"
+              data-role="escalation-pill"
               class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
                 {% if esc == 'high' %}
                   bg-rose-100 text-rose-800
@@ -130,7 +133,7 @@
           <!-- Assigned -->
           <div class="text-[14px] text-slate-500">
             Assigned:
-            <span id="assigned-label" class="font-semibold text-slate-700">
+            <span data-role="assigned-label" class="font-semibold text-slate-700">
               {{ assigned or "—" }}
             </span>
           </div>
@@ -141,7 +144,7 @@
 
           <div class="flex flex-wrap items-center gap-2">
             <select
-              id="escalation-select"
+              data-role="escalation-select"
               class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white"
               {% if session.is_resolved %}disabled{% endif %}
             >
@@ -153,7 +156,7 @@
 
             {% if session.is_resolved %}
               <button
-                id="unresolve-btn"
+                data-role="unresolve-btn"
                 class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
                 type="button"
               >
@@ -161,7 +164,7 @@
               </button>
             {% else %}
               <button
-                id="resolve-btn"
+                data-role="resolve-btn"
                 class="h-10 px-4 rounded-xl bg-emerald-700 text-white text-sm font-semibold hover:bg-emerald-800"
                 type="button"
               >
@@ -172,14 +175,14 @@
 
           <div class="flex flex-wrap items-center gap-2">
             <input
-              id="assigned-input"
+              data-role="assigned-input"
               value="{{ assigned|e }}"
               class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white w-full sm:w-[320px]"
               placeholder="Assign to (email)"
               autocomplete="off"
             />
             <button
-              id="assign-btn"
+              data-role="assign-btn"
               class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
               type="button"
             >
@@ -218,21 +221,21 @@
 
       <div class="js-toggle-body mt-3 hidden" data-toggle-body="note" data-chat-id="{{ session.id }}">
         <textarea
-          id="note-input"
+          data-role="note-input"
           class="w-full border border-slate-200 rounded-xl p-2 text-sm bg-white"
           rows="3"
           placeholder="Add an internal note (not visible to guests)"
-        >{{ session.internal_note or "" }}</textarea>
+        >{{ (session.internal_note or "")|e }}</textarea>
 
         <div class="mt-2 flex items-center gap-2">
           <button
-            id="save-note-btn"
+            data-role="save-note-btn"
             class="px-3 py-1 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800"
             type="button"
           >
             Save note
           </button>
-          <span id="note-status" class="text-xs text-slate-500"></span>
+          <span data-role="note-status" class="text-xs text-slate-500"></span>
         </div>
       </div>
     </div>
@@ -280,7 +283,7 @@
       <div class="js-toggle-body mt-3 hidden" data-toggle-body="summary" data-chat-id="{{ session.id }}">
         <div data-summary-box class="text-sm text-slate-800 whitespace-pre-wrap">
           {% if session.ai_summary %}
-            {{ session.ai_summary }}
+            {{ session.ai_summary|e }}
           {% else %}
             <span class="text-slate-500">No summary yet.</span>
           {% endif %}
@@ -309,7 +312,7 @@
                 <span class="text-slate-400">• {{ msg.created_at }}</span>
               </div>
 
-              <div class="whitespace-pre-wrap text-slate-800">{{ msg.content }}</div>
+              <div class="whitespace-pre-wrap text-slate-800">{{ (msg.content or '')|e }}</div>
 
               {% if msg.sender == 'guest' %}
                 <div class="mt-1 text-[11px] text-slate-500">
