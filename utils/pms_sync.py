@@ -372,12 +372,17 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
         logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
 
 
+from datetime import datetime
+from sqlalchemy.orm import Session
+
 # ----------------------------
-# Main sync entrypoint
+# Main sync entrypoint (clean)
 # ----------------------------
 def sync_properties(integration_id: int) -> int:
     """
     Sync properties for one integration (source of truth: pmc_integrations).
+    - Fetches latest properties from PMS (e.g. Hostaway)
+    - Enriches each property with hero_image_url (when supported)
     - Upserts properties into Postgres
     - Ensures the hostscout_data folder structure exists
     - Pushes structure/files to GitHub in a single commit
@@ -387,7 +392,11 @@ def sync_properties(integration_id: int) -> int:
 
     db: Session = SessionLocal()
     try:
-        integ = db.query(PMCIntegration).filter(PMCIntegration.id == int(integration_id)).first()
+        integ = (
+            db.query(PMCIntegration)
+            .filter(PMCIntegration.id == int(integration_id))
+            .first()
+        )
         if not integ:
             raise Exception(f"Integration not found: id={integration_id}")
 
@@ -401,7 +410,6 @@ def sync_properties(integration_id: int) -> int:
 
         account_id = (integ.account_id or "").strip()
         api_secret = (integ.api_secret or "").strip()
-
         if not account_id:
             raise Exception(f"Integration id={integration_id} missing account_id")
         if not api_secret:
@@ -416,9 +424,39 @@ def sync_properties(integration_id: int) -> int:
             provider=provider,
         )
 
+        # 1) Fetch properties from PMS
         props = fetch_properties(token, base_url, provider) or []
 
-        # 1) DB upsert (also calls ensure_pmc_structure for each property in your current code)
+        # 1b) Enrich with hero_image_url (Hostaway supports this cleanly via /listings/{id}?includeResources=1)
+        #     We store it on the same prop dict so save_to_postgres can persist it.
+        if provider == "hostaway" and props:
+            for p in props:
+                try:
+                    listing_id = p.get("id") or p.get("listingId") or p.get("listing_id")
+                    if not listing_id:
+                        continue
+
+                    # Your helper already selects the "primary" image from listingImages.
+                    hero_url, _, _ = get_listing_overview(
+                        listing_id=str(listing_id),
+                        client_id=account_id,
+                        client_secret=api_secret,
+                    )
+
+                    # Persist-friendly key (matches your DB column name)
+                    p["hero_image_url"] = hero_url or None
+
+                except Exception as e:
+                    # Non-fatal: keep syncing even if one listing fails
+                    logger.warning(
+                        "[SYNC] ⚠️ hero_image_url lookup failed for listing_id=%s: %r",
+                        p.get("id"),
+                        e,
+                    )
+                    p["hero_image_url"] = p.get("hero_image_url") or None
+
+        # 2) DB upsert
+        #    (ensure save_to_postgres reads p["hero_image_url"] and upserts into properties.hero_image_url)
         save_to_postgres(
             properties=props,
             client_id=account_id,
@@ -427,7 +465,7 @@ def sync_properties(integration_id: int) -> int:
             integration_id=int(integration_id),
         )
 
-        # 2) Ensure folders/files exist in the repo + push to GitHub (ONE commit)
+        # 3) Ensure folders/files exist in the repo + push to GitHub (ONE commit)
         try:
             bootstrap_account_folders_to_github(
                 provider=provider,
@@ -437,8 +475,9 @@ def sync_properties(integration_id: int) -> int:
         except Exception as e:
             logger.warning("[SYNC] ⚠️ GitHub bootstrap failed (non-fatal): %r", e)
 
-        # 3) Update last_synced_at timestamps
+        # 4) Update last_synced_at timestamps
         now = datetime.utcnow()
+
         if hasattr(integ, "last_synced_at"):
             integ.last_synced_at = now
 
