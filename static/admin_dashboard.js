@@ -2745,7 +2745,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const res = await fetch(`/auth/sync-integration/${integrationId}`, {
         method: "POST",
         credentials: "include",
-        headers: { Accept: "application/json" },
+        //headers: { Accept: "application/json" },
       });
 
       if (res.status === 401 || res.status === 403) return loginRedirect();
