@@ -280,17 +280,16 @@ def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -
 
 def save_to_postgres_update_only(
     properties: List[Dict],
-    client_id: str,
     pmc_record_id: int,
     provider: str,
     integration_id: int,
 ) -> int:
     """
-    Update-only upsert:
+    DB-only upsert for sync flows:
     ✅ Upserts by UNIQUE(integration_id, external_property_id)
-    ✅ Writes integration_id/provider/pmc_id/name/hero_image_url/last_synced
+    ✅ Updates name/provider/pms_property_id/hero_image_url/last_synced
     ✅ DOES NOT create folders
-    ✅ DOES NOT overwrite data_folder_path (keeps existing)
+    ✅ DOES NOT overwrite data_folder_path
     """
     provider = (provider or "").strip().lower()
     if not provider:
@@ -299,8 +298,6 @@ def save_to_postgres_update_only(
         raise ValueError("save_to_postgres_update_only: pmc_record_id is required")
     if integration_id is None:
         raise ValueError("save_to_postgres_update_only: integration_id is required")
-    if not client_id or not str(client_id).strip():
-        raise ValueError("save_to_postgres_update_only: client_id (account_id) is required")
 
     def _external_id(p: dict) -> Optional[str]:
         for k in ("id", "listingId", "propertyId", "uid", "externalId"):
@@ -323,8 +320,6 @@ def save_to_postgres_update_only(
                 return str(v).strip()
         return None
 
-    # NOTE: data_folder_path is intentionally NOT written in VALUES
-    # and NOT updated on conflict — to preserve existing value.
     stmt = text(
         """
         INSERT INTO public.properties (
@@ -348,12 +343,12 @@ def save_to_postgres_update_only(
         )
         ON CONFLICT (integration_id, external_property_id)
         DO UPDATE SET
-            property_name  = EXCLUDED.property_name,
-            pmc_id         = EXCLUDED.pmc_id,
-            provider       = EXCLUDED.provider,
-            pms_property_id= EXCLUDED.pms_property_id,
-            hero_image_url = EXCLUDED.hero_image_url,
-            last_synced    = EXCLUDED.last_synced;
+            property_name    = EXCLUDED.property_name,
+            pmc_id           = EXCLUDED.pmc_id,
+            provider         = EXCLUDED.provider,
+            pms_property_id  = EXCLUDED.pms_property_id,
+            hero_image_url   = EXCLUDED.hero_image_url,
+            last_synced      = EXCLUDED.last_synced;
         """
     )
 
@@ -385,6 +380,7 @@ def save_to_postgres_update_only(
             upserted += 1
 
     return upserted
+
 
 # ----------------------------
 # DB upsert (integration_id-based) — now includes hero_image_url
@@ -606,7 +602,11 @@ def sync_single_property(integration_id: int, external_property_id: str) -> int:
 
     db: Session = SessionLocal()
     try:
-        integ = db.query(PMCIntegration).filter(PMCIntegration.id == int(integration_id)).first()
+        integ = (
+            db.query(PMCIntegration)
+              .filter(PMCIntegration.id == int(integration_id))
+              .first()
+        )
         if not integ:
             raise ValueError(f"Integration not found: id={integration_id}")
 
@@ -633,7 +633,7 @@ def sync_single_property(integration_id: int, external_property_id: str) -> int:
             provider=provider,
         )
 
-        # 1) Fetch ONE listing
+        # 1) Fetch ONE listing/property from PMS
         prop = fetch_single_property(
             access_token=token,
             base_url=base_url,
@@ -643,19 +643,35 @@ def sync_single_property(integration_id: int, external_property_id: str) -> int:
         if not prop:
             return 0
 
-        # 2) Enrich hero image url
+        # 🔒 Normalize Hostaway wrapper + ensure id exists
+        # Some implementations return {"result": {...}}. Your fetch_single_property might already unwrap,
+        # but this makes it safe regardless.
+        if isinstance(prop, dict) and "result" in prop and isinstance(prop["result"], dict):
+            prop = prop["result"]
+
+        # Ensure ext id is present so upsert works deterministically
+        # (your save_to_postgres_update_only likely looks for "id" or "listingId")
         if provider == "hostaway":
-            # Prefer your working helper if it exists:
-            # hero_url, _, _ = get_listing_overview(listing_id=external_property_id, client_id=account_id, client_secret=api_secret)
-            # prop["hero_image_url"] = hero_url or None
+            if prop.get("id") is None and prop.get("listingId") is None and prop.get("listing_id") is None:
+                prop["id"] = external_property_id
 
-            # Otherwise extract from the payload:
-            prop["hero_image_url"] = extract_hostaway_hero_image_url(prop)
+        # 2) Enrich hero image url (Hostaway)
+        if provider == "hostaway":
+            # If you have the working helper, use it (more reliable than parsing edge cases):
+            try:
+                hero_url, _, _ = get_listing_overview(
+                    listing_id=external_property_id,
+                    client_id=account_id,
+                    client_secret=api_secret,
+                )
+                prop["hero_image_url"] = hero_url or None
+            except Exception:
+                # Fallback to local extraction if overview helper fails
+                prop["hero_image_url"] = extract_hostaway_hero_image_url(prop)
 
-        # 3) Upsert JUST THIS property
+        # 3) Upsert JUST THIS property (DB-only: NO folders, NO data_folder_path overwrite)
         upserted = save_to_postgres_update_only(
             properties=[prop],
-            client_id=account_id,
             pmc_record_id=int(pmc_id),
             provider=provider,
             integration_id=int(integration_id),
@@ -663,6 +679,7 @@ def sync_single_property(integration_id: int, external_property_id: str) -> int:
 
         # 4) Update last_synced_at timestamps
         now = datetime.utcnow()
+
         if hasattr(integ, "last_synced_at"):
             integ.last_synced_at = now
 
@@ -678,7 +695,6 @@ def sync_single_property(integration_id: int, external_property_id: str) -> int:
         raise
     finally:
         db.close()
-
 
 # ----------------------------
 # Main sync entrypoint (cleaner + no folder creation)
