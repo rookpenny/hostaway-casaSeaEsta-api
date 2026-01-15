@@ -2730,46 +2730,34 @@ document.addEventListener("change", (e) => {
 // ------------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
-  const syncAllBtn = document.getElementById("sync-all-properties-btn");
-  if (!syncAllBtn) return;
+  const btn = document.getElementById("sync-all-properties-btn");
+  if (!btn) return;
 
-  syncAllBtn.addEventListener("click", async () => {
-    // 👇 you already have this available somewhere
-    // common places:
-    // - window.INTEGRATION_ID
-    // - a data attribute on body or container
-    const integrationId =
-      window.INTEGRATION_ID ||
-      document.body.dataset.integrationId;
+  btn.addEventListener("click", async () => {
+    const integrationId = window.INTEGRATION_ID;
+    if (!integrationId) return alert("Missing INTEGRATION_ID on page");
 
-    if (!integrationId) {
-      alert("Missing integration id");
-      return;
-    }
-
-    syncAllBtn.disabled = true;
-    const originalText = syncAllBtn.textContent;
-    syncAllBtn.textContent = "Syncing…";
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = "Syncing…";
 
     try {
-      const res = await fetch(`/auth/sync-property/${integrationId}`, {
+      const res = await fetch(`/auth/sync-integration/${integrationId}`, {
         method: "POST",
         credentials: "include",
+        headers: { Accept: "application/json" },
       });
 
-      if (!res.ok) {
-        const text = await res.text();
-        throw new Error(text || "Sync failed");
-      }
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+      if (!res.ok) throw new Error(await res.text());
 
-      // simplest + safest
       window.location.reload();
-    } catch (err) {
-      console.error(err);
-      alert("Failed to sync properties");
+    } catch (e) {
+      console.error(e);
+      alert("Failed to sync all properties");
     } finally {
-      syncAllBtn.disabled = false;
-      syncAllBtn.textContent = originalText;
+      btn.disabled = false;
+      btn.textContent = original;
     }
   });
 });
