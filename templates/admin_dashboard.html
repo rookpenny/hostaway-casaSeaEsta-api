@@ -526,9 +526,8 @@
             {% if prop.data_folder_path %}
               <a
                 href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
-                onclick="return openInlineConfig('{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
-                class="btn btn-primary {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-                {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                onclick="openInlineConfig(event, '{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
+                class="btn btn-primary"
               >
                 Assistant Config
               </a>
