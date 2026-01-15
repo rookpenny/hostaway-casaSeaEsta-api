@@ -21,6 +21,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
 from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
+from starlette.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case, and_, or_, text
@@ -36,7 +37,7 @@ from models import PMC, Property, ChatSession, ChatMessage, PMCUser, Guide, Upgr
 #from flask import request, render_template, abort, make_response
 
 from utils.github_sync import ensure_repo, sync_files_to_github
-from utils.pms_sync import sync_properties, sync_all_integrations, sync_single_property
+from utils.pms_sync import sync_properties, sync_all_integrations, sync_single_property, sync_all_integrations_for_pmc
 from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
 from utils.ai_summary import generate_and_store_summary
@@ -293,6 +294,36 @@ def _normalize_config(cfg: dict) -> dict:
         a["quick_replies"] = ["WiFi", "Door code", "Parking", "Check-out time", "Local restaurants", "House rules"]
 
     return cfg
+
+
+
+
+
+@router.post("/auth/sync-pmc-properties")
+def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)):
+    """
+    Sync all properties for the logged-in PMC across all integrations.
+    (PMC users generally only have 1 integration, but this supports multiple safely.)
+    """
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
+
+    if user_role != "pmc" or not pmc_obj:
+        raise HTTPException(status_code=403, detail="Only PMC users can sync this way")
+
+    if needs_payment:
+        return JSONResponse(status_code=402, content={"status": "needs_billing"})
+
+    try:
+        n = sync_all_integrations_for_pmc(int(pmc_obj.id))
+        return {"status": "success", "synced": n}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+
 
 
 @router.get("/admin/config-ui", response_class=HTMLResponse)
