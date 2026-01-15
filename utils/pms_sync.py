@@ -16,7 +16,6 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import PMC, PMCIntegration
 from utils.github_sync import sync_files_to_github
-from utils.hostaway import get_listing_overview
 
 load_dotenv()
 logger = logging.getLogger("uvicorn.error")
@@ -73,7 +72,7 @@ def get_access_token(client_id: str, client_secret: str, base_url: str, provider
 
     return token
 
-'''
+
 def fetch_properties(access_token: str, base_url: str, provider: str) -> List[Dict]:
     provider = (provider or "").strip().lower()
     url = f"{base_url}/listings" if provider == "hostaway" else f"{base_url}/properties"
@@ -88,15 +87,7 @@ def fetch_properties(access_token: str, base_url: str, provider: str) -> List[Di
     if provider == "hostaway":
         return data.get("result", []) or []
     return data.get("properties", []) or []
-'''
-def fetch_properties(access_token: str, base_url: str, provider: str):
-    provider = (provider or "").strip().lower()
-    if provider == "hostaway":
-        url = f"{base_url}/listings"
-    elif provider == "guesty":
-        url = f"{base_url}/properties"
-    else:
-        raise ValueError("Unsupported provider")
+
 
 
 
@@ -154,17 +145,6 @@ def bootstrap_account_folders_to_github(provider: str, account_id: str, properti
         commit_hint=f"bootstrap {provider}_{account_id} ({len(updated_files)//2} properties)",
     )
     logger.info("[bootstrap] ✅ pushed %s properties for %s_%s", len(updated_files)//2, provider, account_id)
-
-
-
-hero_image_url = None
-if provider == "hostaway":
-    hero_image_url, _, _ = get_listing_overview(
-        listing_id=ext_id,
-        client_id=client_id,
-        client_secret=client_secret,
-    )
-
 
 # ----------------------------
 # Filesystem helpers
