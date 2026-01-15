@@ -36,11 +36,12 @@ from models import PMC, Property, ChatSession, ChatMessage, PMCUser, Guide, Upgr
 #from flask import request, render_template, abort, make_response
 
 from utils.github_sync import ensure_repo, sync_files_to_github
-from utils.pms_sync import sync_properties, sync_all_integrations
+from utils.pms_sync import sync_properties, sync_all_integrations, sync_single_property
 from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
 from utils.ai_summary import generate_and_store_summary
 from zoneinfo import ZoneInfo  # Python 3.9+
+
 
 
 
@@ -469,7 +470,40 @@ def validate_config(cfg: dict) -> list[str]:
     return errors
 
 
+# ----------------------------
+# sync all properties for this integration
+# ----------------------------
 
+@router.post("/auth/sync-integration/{integration_id}")
+def auth_sync_integration(integration_id: int):
+    try:
+        n = sync_properties(integration_id)
+        return {"status": "success", "synced": n}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+
+@router.post("/auth/sync-property/{property_id}")
+def auth_sync_one_property(property_id: int):
+    db: Session = SessionLocal()
+    try:
+        prop = db.query(Property).filter(Property.id == int(property_id)).first()
+        if not prop:
+            return JSONResponse(status_code=404, content={"status": "error", "message": "Property not found"})
+
+        if not prop.integration_id or not prop.external_property_id:
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": "Property missing integration_id/external_property_id"},
+            )
+
+        n = sync_single_property(int(prop.integration_id), str(prop.external_property_id))
+        return {"status": "success", "synced": n}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+    finally:
+        db.close()
+        
 # ----------------------------
 # Pydantic classes
 # ----------------------------
