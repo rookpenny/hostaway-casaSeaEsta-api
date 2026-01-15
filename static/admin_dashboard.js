@@ -468,41 +468,33 @@ window.initConfigUI = function initConfigUI(hostEl) {
 };
 
 
-window.openInlineConfig = async function (filePath, propertyName) {
+window.openInlineConfig = async function (e, filePath, propertyName) {
+  e.preventDefault(); // <-- THIS stops the navigation
+
   const wrap = document.getElementById("configPanelWrap");
-  const host = document.getElementById("configInlineContainer");
+  const container = document.getElementById("configInlineContainer");
   const label = document.getElementById("configScopeLabel");
+
   const grid = document.getElementById("propertiesGridWrap");
   const header = document.getElementById("propertiesHeaderCard");
 
-  if (!wrap || !host) return false;
-
   if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
+
+  const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`);
+  container.innerHTML = res.ok
+    ? await res.text()
+    : `<div class="p-4 text-rose-700">Failed to load config</div>`;
+
+  // if your partial expects JS init:
+  if (window.initConfigUI) window.initConfigUI(container);
 
   wrap.classList.remove("hidden");
   grid?.classList.add("hidden");
   header?.classList.add("hidden");
 
-  const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`);
-  if (!res.ok) {
-    host.innerHTML = `<div class="p-4 text-rose-700">Failed to load config</div>`;
-    return false;
-  }
-
-  const html = await res.text();
-
-  // ✅ inject first
-  host.innerHTML = html;
-
-  // ✅ allow re-open to re-init
-  delete host.__configUIInited;
-
-  // ✅ init once
-  window.initConfigUI?.(host);
-
   wrap.scrollIntoView({ behavior: "smooth", block: "start" });
-  return false;
 };
+
 
 
 
