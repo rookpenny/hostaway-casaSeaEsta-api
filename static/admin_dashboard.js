@@ -40,6 +40,433 @@ document.addEventListener("click", (e) => {
 // START OF CONFIG PARTIAL
 // ----------------------------
 
+window.initConfigUI = function initConfigUI(hostEl) {
+  if (!hostEl) return;
+
+  // Prevent double-init if you re-open same panel
+  if (hostEl.__configUIInited) return;
+  hostEl.__configUIInited = true;
+
+  // ✅ Scoped DOM helpers (critical)
+  const $ = (id) => hostEl.querySelector(`#${CSS.escape(id)}`);
+  const $$ = (sel) => Array.from(hostEl.querySelectorAll(sel));
+
+  // ✅ Read server bootstrap JSON from inside the injected partial
+  const bootTag = hostEl.querySelector("#config-ui-bootstrap");
+  let boot = {};
+  try {
+    boot = JSON.parse(bootTag?.textContent || "{}");
+  } catch (e) {
+    console.error("Config UI bootstrap JSON parse failed:", e);
+    boot = {};
+  }
+
+  const FILE_PATH = boot.file_path || "";
+  const IS_DEFAULTS = !!boot.is_defaults;
+  const initialConfig = boot.config_json || {};
+
+  // Optional: show scope label in the dashboard header text if you want
+  // (this is OUTSIDE hostEl, so keep it optional)
+  const scopeLabel = boot.scope_label || "";
+
+  // -----------------------
+  // Helpers (scoped)
+  // -----------------------
+  function setStatus(kind, text) {
+    const dot = $("dot");
+    const statusText = $("statusText");
+    if (dot) dot.className = "status-dot " + (kind || "");
+    if (statusText) statusText.textContent = text || "";
+  }
+
+  function debounce(fn, ms) {
+    let t;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
+    };
+  }
+
+  function splitLines(text) {
+    return (text || "")
+      .split("\n")
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+
+  function joinLines(arr) {
+    return (arr || []).join("\n");
+  }
+
+  function deepClone(x) {
+    return JSON.parse(JSON.stringify(x || {}));
+  }
+
+  function escapeHtml(s) {
+    return String(s || "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function sanitizePreviewText(s) {
+    s = String(s || "");
+    s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
+    s = s.replace(/\s+/g, " ").trim();
+    if (s.length > 260) s = s.slice(0, 260) + "…";
+    return s;
+  }
+
+  // -----------------------
+  // State
+  // -----------------------
+  let cfg = deepClone(initialConfig || {});
+  let dirty = false;
+  let saving = false;
+  let editingRaw = false;
+
+  const DEFAULT_WELCOME_NO_NAME =
+    "Hi there! I’m {{assistant_name}}, your stay assistant for {{property_name}}.";
+
+  // Ensure base structure
+  function ensureShape() {
+    cfg.assistant = cfg.assistant || {};
+    const a = cfg.assistant;
+    a.voice = a.voice || {};
+    a.do = Array.isArray(a.do) ? a.do : a.do ? [String(a.do)] : [];
+    a.dont = Array.isArray(a.dont) ? a.dont : a.dont ? [String(a.dont)] : [];
+    a.quick_replies = Array.isArray(a.quick_replies)
+      ? a.quick_replies
+      : a.quick_replies
+      ? [String(a.quick_replies)]
+      : [];
+  }
+
+  // -----------------------
+  // Render
+  // -----------------------
+  function renderQuickReplies() {
+    const list = $("quickRepliesList");
+    if (!list) return;
+
+    list.innerHTML = "";
+    const a = cfg.assistant || {};
+
+    (a.quick_replies || []).forEach((txt, idx) => {
+      const row = document.createElement("div");
+      row.className = "list-item";
+      row.draggable = true;
+      row.dataset.idx = String(idx);
+
+      row.innerHTML = `
+        <div class="row" style="gap:10px;">
+          <span class="drag">⋮⋮</span>
+          <span>${escapeHtml(txt)}</span>
+        </div>
+        <div class="row" style="gap:8px;">
+          <button class="btn" data-act="up" type="button">↑</button>
+          <button class="btn" data-act="down" type="button">↓</button>
+          <button class="btn danger" data-act="del" type="button">Remove</button>
+        </div>
+      `;
+
+      row.addEventListener("click", (e) => {
+        const act = e.target?.dataset?.act;
+        if (!act) return;
+        e.preventDefault();
+
+        if (act === "del") {
+          a.quick_replies.splice(idx, 1);
+          markDirtyAndRender();
+        } else if (act === "up" && idx > 0) {
+          [a.quick_replies[idx - 1], a.quick_replies[idx]] = [
+            a.quick_replies[idx],
+            a.quick_replies[idx - 1],
+          ];
+          markDirtyAndRender();
+        } else if (act === "down" && idx < a.quick_replies.length - 1) {
+          [a.quick_replies[idx + 1], a.quick_replies[idx]] = [
+            a.quick_replies[idx],
+            a.quick_replies[idx + 1],
+          ];
+          markDirtyAndRender();
+        }
+      });
+
+      row.addEventListener("dragstart", (e) => {
+        e.dataTransfer.setData("text/plain", row.dataset.idx);
+      });
+      row.addEventListener("dragover", (e) => e.preventDefault());
+      row.addEventListener("drop", (e) => {
+        e.preventDefault();
+        const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
+        const to = parseInt(row.dataset.idx, 10);
+        if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
+
+        const item = a.quick_replies.splice(from, 1)[0];
+        a.quick_replies.splice(to, 0, item);
+        markDirtyAndRender();
+      });
+
+      list.appendChild(row);
+    });
+
+    if ((a.quick_replies || []).length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "muted small";
+      empty.textContent = "No quick replies yet.";
+      list.appendChild(empty);
+    }
+  }
+
+  function render() {
+    ensureShape();
+    const a = cfg.assistant;
+
+    $("assistant_name").value = a.name || "Sandy";
+    $("assistant_avatar_url").value = a.avatar_url || "/static/img/sandy.png";
+    $("assistant_tone").value = a.tone || "luxury";
+    $("assistant_verbosity").value = a.verbosity || "balanced";
+    $("assistant_emoji_level").value = a.emoji_level || "light";
+    $("assistant_formality").value = a.formality || "polished";
+    $("assistant_style").value = a.style || "";
+    $("assistant_extra_instructions").value = a.extra_instructions || "";
+
+    $("assistant_do").value = joinLines(a.do);
+    $("assistant_dont").value = joinLines(a.dont);
+
+    $("voice_welcome_template").value = a.voice.welcome_template || "";
+    $("voice_welcome_template_no_name").value =
+      a.voice.welcome_template_no_name || DEFAULT_WELCOME_NO_NAME;
+    $("voice_offline_message").value = a.voice.offline_message || "";
+    $("voice_fallback_message").value = a.voice.fallback_message || "";
+    $("voice_error_message").value = a.voice.error_message || "";
+
+    renderQuickReplies();
+
+    if (!editingRaw) {
+      $("rawJson").value = JSON.stringify(cfg, null, 2);
+    }
+
+    const name = a.name || "Sandy";
+    $("pvName").textContent = name;
+    $("pvName2").textContent = name;
+
+    const tplRaw = String(a.voice?.welcome_template_no_name || "");
+    const tpl = tplRaw.trim();
+
+    let welcomeText = tpl
+      ? tpl
+          .replaceAll("{{assistant_name}}", name)
+          .replaceAll("{{property_name}}", "Casa Sea Esta")
+      : DEFAULT_WELCOME_NO_NAME
+          .replaceAll("{{assistant_name}}", name)
+          .replaceAll("{{property_name}}", "Casa Sea Esta");
+
+    $("pvWelcome").textContent = sanitizePreviewText(welcomeText);
+
+    const v = a.verbosity || "balanced";
+    const t = a.tone || "luxury";
+
+    let reply =
+      "<b>WiFi</b><br/>Network: …<br/>Password: …<br/><br/><b>Parking</b><br/>Here are the best options…";
+    if (v === "short")
+      reply =
+        "<b>WiFi</b><br/>Network: … / Password: …<br/><b>Parking</b><br/>Best option: …";
+    if (v === "detailed")
+      reply =
+        "<b>WiFi</b><br/>Network: …<br/>Password: …<br/>Tip: …<br/><br/><b>Parking</b><br/>Options: …<br/>Notes: …<br/>Map: …";
+    if (t === "luxury")
+      reply = reply.replace(
+        "Here are the best options…",
+        "Here are the best options, tailored for a smooth arrival…"
+      );
+
+    $("pvReply").innerHTML = reply;
+  }
+
+  // -----------------------
+  // Form -> cfg
+  // -----------------------
+  function readFormIntoCfg() {
+    ensureShape();
+    const a = cfg.assistant;
+
+    a.name = $("assistant_name").value.trim() || "Sandy";
+    a.avatar_url = $("assistant_avatar_url").value.trim() || "/static/img/sandy.png";
+    a.tone = $("assistant_tone").value;
+    a.verbosity = $("assistant_verbosity").value;
+    a.emoji_level = $("assistant_emoji_level").value;
+    a.formality = $("assistant_formality").value;
+    a.style = $("assistant_style").value.trim();
+    a.extra_instructions = $("assistant_extra_instructions").value.trim();
+
+    a.do = splitLines($("assistant_do").value);
+    a.dont = splitLines($("assistant_dont").value);
+
+    a.voice.welcome_template = $("voice_welcome_template").value;
+    a.voice.welcome_template_no_name = $("voice_welcome_template_no_name").value;
+    a.voice.offline_message = $("voice_offline_message").value;
+    a.voice.fallback_message = $("voice_fallback_message").value;
+    a.voice.error_message = $("voice_error_message").value;
+  }
+
+  function markDirtyAndRender() {
+    dirty = true;
+    setStatus("warn", "Unsaved changes…");
+    render();
+    scheduleAutosave();
+  }
+
+  // -----------------------
+  // Save
+  // -----------------------
+  async function saveNow() {
+    if (saving) return;
+    saving = true;
+    $("btnSave").disabled = true;
+    setStatus("warn", "Saving…");
+
+    try {
+      readFormIntoCfg();
+
+      const resp = await fetch("/admin/config-ui/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_path: FILE_PATH, config: cfg }),
+      });
+
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Save failed");
+
+      dirty = false;
+      setStatus("ok", "Saved ✓");
+    } catch (e) {
+      console.error(e);
+      setStatus("err", "Save failed: " + (e.message || e));
+    } finally {
+      saving = false;
+      $("btnSave").disabled = false;
+    }
+  }
+
+  const scheduleAutosave = debounce(() => {
+    if (dirty) saveNow();
+  }, 900);
+
+  async function resetToDefaults() {
+    if (IS_DEFAULTS) {
+      // easiest: reload the inline panel
+      // (caller can just close+reopen or you can re-fetch)
+      setStatus("ok", "You are editing defaults already.");
+      return;
+    }
+    if (!confirm("Reset this config to defaults? This will overwrite the current file."))
+      return;
+
+    try {
+      setStatus("warn", "Resetting…");
+      const resp = await fetch("/admin/config-ui/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_path: FILE_PATH }),
+      });
+      const data = await resp.json();
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Reset failed");
+
+      cfg = deepClone(data.config || {});
+      dirty = false;
+      render();
+      setStatus("ok", "Reset to defaults ✓");
+    } catch (e) {
+      console.error(e);
+      setStatus("err", "Reset failed: " + (e.message || e));
+    }
+  }
+
+  function applyRawToForm() {
+    try {
+      const parsed = JSON.parse($("rawJson").value);
+      cfg = deepClone(parsed);
+      dirty = true;
+      render();
+      setStatus("warn", "Applied raw JSON (unsaved)...");
+      scheduleAutosave();
+    } catch (e) {
+      alert("Invalid JSON: " + (e.message || e));
+    }
+  }
+
+  function syncFormToRaw() {
+    readFormIntoCfg();
+    $("rawJson").value = JSON.stringify(cfg, null, 2);
+    setStatus("warn", "Synced form → raw JSON (unsaved)...");
+    dirty = true;
+    scheduleAutosave();
+  }
+
+  // -----------------------
+  // Wire events (scoped)
+  // -----------------------
+  function wire() {
+    $("rawJson").addEventListener("focus", () => (editingRaw = true));
+    $("rawJson").addEventListener("blur", () => (editingRaw = false));
+
+    
+    // Better: just wire inputs inside hostEl
+    $$("input, textarea, select").forEach((el) => {
+      el.addEventListener("input", () => {
+        readFormIntoCfg();
+        dirty = true;
+        setStatus("warn", "Unsaved changes…");
+        if (!editingRaw) $("rawJson").value = JSON.stringify(cfg, null, 2);
+        scheduleAutosave();
+        render();
+      });
+
+      el.addEventListener("change", () => {
+        readFormIntoCfg();
+        dirty = true;
+        setStatus("warn", "Unsaved changes…");
+        if (!editingRaw) $("rawJson").value = JSON.stringify(cfg, null, 2);
+        scheduleAutosave();
+        render();
+      });
+    });
+
+    $("btnSave").addEventListener("click", saveNow);
+    $("btnReload").addEventListener("click", () => {
+      // simplest: close and reopen will re-fetch
+      window.closeInlineConfig?.();
+    });
+
+    const resetBtn = $("btnResetAll");
+    if (resetBtn) resetBtn.addEventListener("click", resetToDefaults);
+
+    $("btnApplyRaw").addEventListener("click", applyRawToForm);
+    $("btnSyncRaw").addEventListener("click", syncFormToRaw);
+
+    $("btnAddQuickReply").addEventListener("click", () => {
+      const v = $("quickReplyInput").value.trim();
+      if (!v) return;
+      ensureShape();
+      cfg.assistant.quick_replies.push(v);
+      $("quickReplyInput").value = "";
+      markDirtyAndRender();
+    });
+
+    // Do NOT attach beforeunload here (it would affect the whole dashboard)
+  }
+
+  // init
+  ensureShape();
+  render();
+  wire();
+  setStatus("", "Loaded.");
+};
+
 
 window.openInlineConfig = async function (filePath, propertyName) {
   const wrap = document.getElementById("configPanelWrap");
@@ -57,27 +484,33 @@ window.openInlineConfig = async function (filePath, propertyName) {
   grid?.classList.add("hidden");
   header?.classList.add("hidden");
 
+  // clear + loading state
+  host.__configUIInited = false;   // allow re-init after close/open
+  host.innerHTML = `<div class="p-4 text-slate-500">Loading…</div>`;
+
   // fetch partial markup
-  const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`);
+  const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`, {
+    credentials: "include",
+    headers: { "X-Requested-With": "fetch" },
+  });
+
   if (!res.ok) {
     host.innerHTML = `<div class="p-4 text-rose-700">Failed to load config</div>`;
     return false;
   }
 
   const html = await res.text();
+
+  // ✅ IMPORTANT: inject HTML first
   host.innerHTML = html;
 
-  // ✅ IMPORTANT: initialize after injection
-  if (window.initConfigUI) {
-    window.initConfigUI(host, {
-      filePath,
-      isDefaults: false, // optional; you can pass server values too
-    });
-  }
+  // ✅ IMPORTANT: init after injection
+  window.initConfigUI?.(host);
 
   wrap.scrollIntoView({ behavior: "smooth", block: "start" });
   return false;
 };
+
 
 
 window.closeInlineConfig = function () {
@@ -87,8 +520,10 @@ window.closeInlineConfig = function () {
   const grid = document.getElementById("propertiesGridWrap");
   const header = document.getElementById("propertiesHeaderCard");
 
-  // clear injected UI so event listeners are dropped
-  if (host) host.innerHTML = "";
+  if (host) {
+    host.innerHTML = "";
+    host.__configUIInited = false; // ✅ allow init next time
+  }
 
   if (label) label.textContent = "Editing…";
 
@@ -100,444 +535,8 @@ window.closeInlineConfig = function () {
 };
 
 
-window.initConfigUI = function initConfigUI(rootEl) {
-  const bootTag = rootEl.querySelector("#config-ui-bootstrap");
-  if (!bootTag) return;
 
-  const boot = JSON.parse(bootTag.textContent || "{}");
-  const FILE_PATH = boot.file_path;
-  const IS_DEFAULTS = !!boot.is_defaults;
-  let cfg = JSON.parse(JSON.stringify(boot.config_json || {}));
 
-  // ✅ IMPORTANT: scope queries to rootEl, not document
-  const $ = (id) => rootEl.querySelector("#" + id);
-    // -----------------------
-    // Server-provided initial JSON (string)
-    // -----------------------
-    const FILE_PATH = {{ file_path|tojson }};
-    const IS_DEFAULTS = {{ (is_defaults or False)|tojson }};
-    const initialConfig = {{ config_json|tojson }};
-
-    // -----------------------
-    // Helpers
-    // -----------------------
-    function $(id){ return document.getElementById(id); }
-    function setStatus(kind, text){
-      const dot = $("dot");
-      dot.className = "status-dot " + (kind || "");
-      $("statusText").textContent = text || "";
-    }
-    function debounce(fn, ms){
-      let t;
-      return (...args) => {
-        clearTimeout(t);
-        t = setTimeout(() => fn(...args), ms);
-      };
-    }
-    function splitLines(text){
-      return (text || "")
-        .split("\n")
-        .map(s => s.trim())
-        .filter(Boolean);
-    }
-    function joinLines(arr){
-      return (arr || []).join("\n");
-    }
-    function deepClone(x){ return JSON.parse(JSON.stringify(x || {})); }
-
-
-    function sanitizePreviewText(s) {
-      s = String(s || "");
-    
-      // Remove zero-width characters that can cause weird rendering
-      s = s.replace(/[\u200B-\u200D\uFEFF]/g, "");
-    
-      // Collapse newlines/tabs into single spaces
-      s = s.replace(/\s+/g, " ").trim();
-    
-      // Hard cap so a bad save can't blow up the UI
-      if (s.length > 260) s = s.slice(0, 260) + "…";
-    
-      return s;
-    }
-
-
-    // -----------------------
-    // State
-    // -----------------------
-    let cfg = deepClone(initialConfig || {});
-    let dirty = false;
-    let saving = false;
-
-    // prevents raw JSON textarea from being overwritten while user is typing there
-    let editingRaw = false;
-
-    // Default voice templates (used for UI + preview fallback)
-    const DEFAULT_WELCOME_NO_NAME = "Hi there! I’m {{assistant_name}}, your stay assistant for {{property_name}}.";
-
-    // Ensure base structure
-    function ensureShape(){
-      cfg.assistant = cfg.assistant || {};
-      const a = cfg.assistant;
-      a.voice = a.voice || {};
-      a.do = Array.isArray(a.do) ? a.do : (a.do ? [String(a.do)] : []);
-      a.dont = Array.isArray(a.dont) ? a.dont : (a.dont ? [String(a.dont)] : []);
-      a.quick_replies = Array.isArray(a.quick_replies) ? a.quick_replies : (a.quick_replies ? [String(a.quick_replies)] : []);
-    }
-
-    // -----------------------
-    // Render form from cfg
-    // -----------------------
-    function render(){
-      ensureShape();
-      const a = cfg.assistant;
-
-      $("assistant_name").value = a.name || "Sandy";
-      $("assistant_avatar_url").value = a.avatar_url || "/static/img/sandy.png";
-      $("assistant_tone").value = a.tone || "luxury";
-      $("assistant_verbosity").value = a.verbosity || "balanced";
-      $("assistant_emoji_level").value = a.emoji_level || "light";
-      $("assistant_formality").value = a.formality || "polished";
-      $("assistant_style").value = a.style || "";
-      $("assistant_extra_instructions").value = a.extra_instructions || "";
-
-      $("assistant_do").value = joinLines(a.do);
-      $("assistant_dont").value = joinLines(a.dont);
-
-      $("voice_welcome_template").value = a.voice.welcome_template || "";
-      // Show a sensible default in the UI if it's empty
-      $("voice_welcome_template_no_name").value = a.voice.welcome_template_no_name || DEFAULT_WELCOME_NO_NAME;
-      $("voice_offline_message").value = a.voice.offline_message || "";
-      $("voice_fallback_message").value = a.voice.fallback_message || "";
-      $("voice_error_message").value = a.voice.error_message || "";
-
-      renderQuickReplies();
-
-      // Only sync raw JSON if user isn't actively editing it
-      if (!editingRaw) {
-        $("rawJson").value = JSON.stringify(cfg, null, 2);
-      }
-
-      // preview
-      const name = a.name || "Sandy";
-      $("pvName").textContent = name;
-      $("pvName2").textContent = name;
-
-      // ---- Welcome preview (safe + clean) ----
-      const tplRaw = String(a.voice?.welcome_template_no_name || "");
-      const tpl = tplRaw.trim();
-      
-      // Use the template only if it is meaningful; otherwise fall back
-      let welcomeText = tpl
-        ? tpl
-            .replaceAll("{{assistant_name}}", name)
-            .replaceAll("{{property_name}}", "Casa Sea Esta")
-        : DEFAULT_WELCOME_NO_NAME
-            .replaceAll("{{assistant_name}}", name)
-            .replaceAll("{{property_name}}", "Casa Sea Esta");
-      
-      // ✅ sanitize + cap preview so corrupted configs can't destroy the UI
-      welcomeText = sanitizePreviewText(welcomeText);
-      
-      $("pvWelcome").textContent = welcomeText;
-
-
-      // simple preview reply depends on tone/verbosity
-      const v = (a.verbosity || "balanced");
-      const t = (a.tone || "luxury");
-
-      let reply = "<b>WiFi</b><br/>Network: …<br/>Password: …<br/><br/><b>Parking</b><br/>Here are the best options…";
-      if (v === "short") reply = "<b>WiFi</b><br/>Network: … / Password: …<br/><b>Parking</b><br/>Best option: …";
-      if (v === "detailed") reply = "<b>WiFi</b><br/>Network: …<br/>Password: …<br/>Tip: …<br/><br/><b>Parking</b><br/>Options: …<br/>Notes: …<br/>Map: …";
-      if (t === "luxury") reply = reply.replace("Here are the best options…", "Here are the best options, tailored for a smooth arrival…");
-
-      $("pvReply").innerHTML = reply;
-    }
-
-    // -----------------------
-    // Quick replies list
-    // -----------------------
-    function renderQuickReplies(){
-      const list = $("quickRepliesList");
-      list.innerHTML = "";
-      const a = cfg.assistant;
-
-      (a.quick_replies || []).forEach((txt, idx) => {
-        const row = document.createElement("div");
-        row.className = "list-item";
-        row.draggable = true;
-        row.dataset.idx = String(idx);
-
-        row.innerHTML = `
-          <div class="row" style="gap:10px;">
-            <span class="drag">⋮⋮</span>
-            <span>${escapeHtml(txt)}</span>
-          </div>
-          <div class="row" style="gap:8px;">
-            <button class="btn" data-act="up" type="button">↑</button>
-            <button class="btn" data-act="down" type="button">↓</button>
-            <button class="btn danger" data-act="del" type="button">Remove</button>
-          </div>
-        `;
-
-        row.addEventListener("click", (e) => {
-          const act = e.target?.dataset?.act;
-          if (!act) return;
-          e.preventDefault();
-
-          if (act === "del") {
-            a.quick_replies.splice(idx, 1);
-            markDirtyAndRender();
-          } else if (act === "up" && idx > 0) {
-            [a.quick_replies[idx-1], a.quick_replies[idx]] = [a.quick_replies[idx], a.quick_replies[idx-1]];
-            markDirtyAndRender();
-          } else if (act === "down" && idx < a.quick_replies.length - 1) {
-            [a.quick_replies[idx+1], a.quick_replies[idx]] = [a.quick_replies[idx], a.quick_replies[idx+1]];
-            markDirtyAndRender();
-          }
-        });
-
-        // drag & drop reorder
-        row.addEventListener("dragstart", (e) => {
-          e.dataTransfer.setData("text/plain", row.dataset.idx);
-        });
-        row.addEventListener("dragover", (e) => {
-          e.preventDefault();
-        });
-        row.addEventListener("drop", (e) => {
-          e.preventDefault();
-          const from = parseInt(e.dataTransfer.getData("text/plain"), 10);
-          const to = parseInt(row.dataset.idx, 10);
-          if (Number.isNaN(from) || Number.isNaN(to) || from === to) return;
-
-          const item = a.quick_replies.splice(from, 1)[0];
-          a.quick_replies.splice(to, 0, item);
-          markDirtyAndRender();
-        });
-
-        list.appendChild(row);
-      });
-
-      if ((a.quick_replies || []).length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "muted small";
-        empty.textContent = "No quick replies yet.";
-        list.appendChild(empty);
-      }
-    }
-
-    function escapeHtml(s){
-      return String(s || "")
-        .replaceAll("&","&amp;")
-        .replaceAll("<","&lt;")
-        .replaceAll(">","&gt;")
-        .replaceAll('"',"&quot;")
-        .replaceAll("'","&#039;");
-    }
-
-    // -----------------------
-    // Apply form -> cfg
-    // -----------------------
-    function readFormIntoCfg(){
-      ensureShape();
-      const a = cfg.assistant;
-
-      a.name = $("assistant_name").value.trim() || "Sandy";
-      a.avatar_url = $("assistant_avatar_url").value.trim() || "/static/img/sandy.png";
-      a.tone = $("assistant_tone").value;
-      a.verbosity = $("assistant_verbosity").value;
-      a.emoji_level = $("assistant_emoji_level").value;
-      a.formality = $("assistant_formality").value;
-      a.style = $("assistant_style").value.trim();
-      a.extra_instructions = $("assistant_extra_instructions").value.trim();
-
-      a.do = splitLines($("assistant_do").value);
-      a.dont = splitLines($("assistant_dont").value);
-
-      a.voice.welcome_template = $("voice_welcome_template").value;
-      a.voice.welcome_template_no_name = $("voice_welcome_template_no_name").value;
-      a.voice.offline_message = $("voice_offline_message").value;
-      a.voice.fallback_message = $("voice_fallback_message").value;
-      a.voice.error_message = $("voice_error_message").value;
-    }
-
-    function markDirtyAndRender(){
-      dirty = true;
-      setStatus("warn", "Unsaved changes…");
-      render();
-      scheduleAutosave();
-    }
-
-    // -----------------------
-    // Save to server
-    // -----------------------
-    async function saveNow(){
-      if (saving) return;
-      saving = true;
-      $("btnSave").disabled = true;
-      setStatus("warn", "Saving…");
-
-      try {
-        // ensure cfg has latest from form before saving
-        readFormIntoCfg();
-
-        const resp = await fetch("/admin/config-ui/save", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_path: FILE_PATH, config: cfg })
-        });
-
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) {
-          throw new Error(data.error || "Save failed");
-        }
-
-        dirty = false;
-        setStatus("ok", "Saved ✓");
-      } catch (e) {
-        console.error(e);
-        setStatus("err", "Save failed: " + (e.message || e));
-      } finally {
-        saving = false;
-        $("btnSave").disabled = false;
-      }
-    }
-
-    const scheduleAutosave = debounce(() => {
-      if (dirty) saveNow();
-    }, 900);
-
-    // -----------------------
-    // Reset to defaults
-    // -----------------------
-    async function resetToDefaults(){
-      // If already editing defaults, just reload from file
-      if (IS_DEFAULTS) {
-        location.reload();
-        return;
-      }
-      if (!confirm("Reset this config to defaults? This will overwrite the current file.")) return;
-
-      try {
-        setStatus("warn", "Resetting…");
-
-        const resp = await fetch("/admin/config-ui/reset", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ file_path: FILE_PATH })
-        });
-        const data = await resp.json();
-        if (!resp.ok || !data.ok) throw new Error(data.error || "Reset failed");
-
-        cfg = deepClone(data.config || {});
-        dirty = false;
-        render();
-        setStatus("ok", "Reset to defaults ✓");
-      } catch (e) {
-        console.error(e);
-        setStatus("err", "Reset failed: " + (e.message || e));
-      }
-    }
-
-    // -----------------------
-    // Raw JSON controls
-    // -----------------------
-    function applyRawToForm(){
-      try {
-        const parsed = JSON.parse($("rawJson").value);
-        cfg = deepClone(parsed);
-        dirty = true;
-        render();
-        setStatus("warn", "Applied raw JSON (unsaved)...");
-        scheduleAutosave();
-      } catch (e) {
-        alert("Invalid JSON: " + (e.message || e));
-      }
-    }
-
-    function syncFormToRaw(){
-      readFormIntoCfg();
-
-      // user explicitly asked to sync, so we DO overwrite raw json even if editing
-      $("rawJson").value = JSON.stringify(cfg, null, 2);
-
-      setStatus("warn", "Synced form → raw JSON (unsaved)...");
-      dirty = true;
-      scheduleAutosave();
-    }
-
-    // -----------------------
-    // Wire events
-    // -----------------------
-    function wire(){
-      // track when user is editing raw JSON
-      $("rawJson").addEventListener("focus", () => { editingRaw = true; });
-      $("rawJson").addEventListener("blur", () => { editingRaw = false; });
-
-      const inputs = document.querySelectorAll("input, textarea, select");
-      inputs.forEach(el => {
-        el.addEventListener("input", () => {
-          readFormIntoCfg();
-          dirty = true;
-          setStatus("warn", "Unsaved changes…");
-
-          // do not overwrite raw JSON while editing it
-          if (!editingRaw) {
-            $("rawJson").value = JSON.stringify(cfg, null, 2);
-          }
-
-          scheduleAutosave();
-          render();
-        });
-
-        el.addEventListener("change", () => {
-          readFormIntoCfg();
-          dirty = true;
-          setStatus("warn", "Unsaved changes…");
-
-          if (!editingRaw) {
-            $("rawJson").value = JSON.stringify(cfg, null, 2);
-          }
-
-          scheduleAutosave();
-          render();
-        });
-      });
-
-      $("btnSave").addEventListener("click", saveNow);
-      $("btnReload").addEventListener("click", () => location.reload());
-
-      const resetBtn = $("btnResetAll");
-      if (resetBtn) {
-        resetBtn.addEventListener("click", resetToDefaults);
-      }
-
-      $("btnApplyRaw").addEventListener("click", applyRawToForm);
-      $("btnSyncRaw").addEventListener("click", syncFormToRaw);
-
-      $("btnAddQuickReply").addEventListener("click", () => {
-        const v = $("quickReplyInput").value.trim();
-        if (!v) return;
-        ensureShape();
-        cfg.assistant.quick_replies.push(v);
-        $("quickReplyInput").value = "";
-        markDirtyAndRender();
-      });
-
-      window.addEventListener("beforeunload", (e) => {
-        if (!dirty) return;
-        e.preventDefault();
-        e.returnValue = "";
-      });
-    }
-
-    // init
-    ensureShape();
-    render();
-    wire();
-    setStatus("", "Loaded.");
-
-  };
 
 // ----------------------------
 // END OF CONFIG PARTIAL
