@@ -479,21 +479,11 @@ window.openInlineConfig = async function (filePath, propertyName) {
 
   if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
 
-  // show config, hide list
   wrap.classList.remove("hidden");
   grid?.classList.add("hidden");
   header?.classList.add("hidden");
 
-  // clear + loading state
-  host.__configUIInited = false;   // allow re-init after close/open
-  host.innerHTML = `<div class="p-4 text-slate-500">Loading…</div>`;
-
-  // fetch partial markup
-  const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`, {
-    credentials: "include",
-    headers: { "X-Requested-With": "fetch" },
-  });
-
+  const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`);
   if (!res.ok) {
     host.innerHTML = `<div class="p-4 text-rose-700">Failed to load config</div>`;
     return false;
@@ -501,15 +491,19 @@ window.openInlineConfig = async function (filePath, propertyName) {
 
   const html = await res.text();
 
-  // ✅ IMPORTANT: inject HTML first
+  // ✅ inject first
   host.innerHTML = html;
 
-  // ✅ IMPORTANT: init after injection
+  // ✅ allow re-open to re-init
+  delete host.__configUIInited;
+
+  // ✅ init once
   window.initConfigUI?.(host);
 
   wrap.scrollIntoView({ behavior: "smooth", block: "start" });
   return false;
 };
+
 
 
 
@@ -521,9 +515,9 @@ window.closeInlineConfig = function () {
   const header = document.getElementById("propertiesHeaderCard");
 
   if (host) {
-    host.innerHTML = "";
-    host.__configUIInited = false; // ✅ allow init next time
-  }
+  host.innerHTML = "";
+  delete host.__configUIInited;
+}
 
   if (label) label.textContent = "Editing…";
 
