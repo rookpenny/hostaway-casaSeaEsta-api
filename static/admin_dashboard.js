@@ -62,15 +62,19 @@ window.initConfigUI = function initConfigUI(hostEl) {
   }
 
   function getFilePath() {
-    // ✅ best: hidden input in the injected partial
-    const hidden = hostEl.querySelector("#configFilePath");
-    if (hidden && hidden.value) return String(hidden.value).trim();
-  
-    // ✅ fallback: JSON bootstrap (what you already do)
-    if (boot.file_path) return String(boot.file_path).trim();
-  
-    return "";
-  }
+  // 1) hidden input (optional if you add it later)
+  const hidden = hostEl.querySelector("#configFilePath");
+  if (hidden && hidden.value) return String(hidden.value).trim();
+
+  // 2) bootstrap JSON
+  if (boot.file_path) return String(boot.file_path).trim();
+
+  // 3) ✅ dataset fallback (what you actually use now)
+  if (hostEl.dataset.filePath) return String(hostEl.dataset.filePath).trim();
+
+  return "";
+}
+
   
   const IS_DEFAULTS = !!boot.is_defaults;
   const initialConfig = boot.config_json || {};
@@ -372,6 +376,12 @@ window.initConfigUI = function initConfigUI(hostEl) {
   }, 900);
 
   async function resetToDefaults() {
+
+    const file_path = getFilePath();
+    if (!file_path) throw new Error("Missing file_path");
+    
+    body: JSON.stringify({ file_path }),
+     
     if (IS_DEFAULTS) {
       // easiest: reload the inline panel
       // (caller can just close+reopen or you can re-fetch)
@@ -452,10 +462,17 @@ window.initConfigUI = function initConfigUI(hostEl) {
     });
 
     $("btnSave").addEventListener("click", saveNow);
-    $("btnReload").addEventListener("click", () => {
-      // simplest: close and reopen will re-fetch
-      window.closeInlineConfig?.();
+    $("btnReload").addEventListener("click", async () => {
+      const fp = getFilePath();
+      if (!fp) return setStatus("err", "Missing file_path");
+    
+      // re-fetch partial and re-init
+      const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(fp)}&partial=1`);
+      hostEl.innerHTML = res.ok ? await res.text() : `<div class="p-4 text-rose-700">Failed to load config</div>`;
+      delete hostEl.__configUIInited;
+      window.initConfigUI(hostEl);
     });
+
 
     const resetBtn = $("btnResetAll");
     if (resetBtn) resetBtn.addEventListener("click", resetToDefaults);
@@ -482,13 +499,18 @@ window.initConfigUI = function initConfigUI(hostEl) {
   setStatus("", "Loaded.");
 };
 
-
 window.openInlineConfig = async function (e, filePath, propertyName) {
-  e.preventDefault(); // <-- THIS stops the navigation
+  e.preventDefault();
 
   const wrap = document.getElementById("configPanelWrap");
   const container = document.getElementById("configInlineContainer");
   const label = document.getElementById("configScopeLabel");
+
+  // ✅ (1) Persist the file path on the host container (fallback for Save)
+  container.dataset.filePath = filePath;
+
+  // ✅ (2) Reset init guard so reopening always re-inits cleanly
+  delete container.__configUIInited;
 
   const grid = document.getElementById("propertiesGridWrap");
   const header = document.getElementById("propertiesHeaderCard");
@@ -500,7 +522,7 @@ window.openInlineConfig = async function (e, filePath, propertyName) {
     ? await res.text()
     : `<div class="p-4 text-rose-700">Failed to load config</div>`;
 
-  // if your partial expects JS init:
+  // ✅ init using container as host
   if (window.initConfigUI) window.initConfigUI(container);
 
   wrap.classList.remove("hidden");
@@ -509,6 +531,7 @@ window.openInlineConfig = async function (e, filePath, propertyName) {
 
   wrap.scrollIntoView({ behavior: "smooth", block: "start" });
 };
+
 
 
 
