@@ -73,7 +73,7 @@ def get_access_token(client_id: str, client_secret: str, base_url: str, provider
 
     return token
 
-
+'''
 def fetch_properties(access_token: str, base_url: str, provider: str) -> List[Dict]:
     provider = (provider or "").strip().lower()
     url = f"{base_url}/listings" if provider == "hostaway" else f"{base_url}/properties"
@@ -88,7 +88,15 @@ def fetch_properties(access_token: str, base_url: str, provider: str) -> List[Di
     if provider == "hostaway":
         return data.get("result", []) or []
     return data.get("properties", []) or []
-
+'''
+def fetch_properties(access_token: str, base_url: str, provider: str):
+    provider = (provider or "").strip().lower()
+    if provider == "hostaway":
+        url = f"{base_url}/listings"
+    elif provider == "guesty":
+        url = f"{base_url}/properties"
+    else:
+        raise ValueError("Unsupported provider")
 
 
 
