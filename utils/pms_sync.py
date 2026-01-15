@@ -18,6 +18,10 @@ from models import PMC, PMCIntegration
 from utils.github_sync import sync_files_to_github
 from utils.hostaway import get_listing_overview 
 
+from db import SessionLocal
+
+
+
 load_dotenv()
 logger = logging.getLogger("uvicorn.error")
 
@@ -388,6 +392,38 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
 
 
 
+
+logger = logging.getLogger(__name__)
+
+def sync_all_integrations_for_pmc(pmc_id: int) -> int:
+    """
+    Sync all connected integrations for a single PMC.
+    Uses sync_properties(integration_id) which is already provider-agnostic.
+    """
+    db: Session = SessionLocal()
+    try:
+        ids = [
+            row[0]
+            for row in (
+                db.query(PMCIntegration.id)
+                .filter(PMCIntegration.pmc_id == int(pmc_id))
+                .filter(PMCIntegration.is_connected.is_(True))
+                .order_by(PMCIntegration.id.asc())
+                .all()
+            )
+        ]
+    finally:
+        db.close()
+
+    total = 0
+    for iid in ids:
+        try:
+            total += sync_properties(iid)
+        except Exception as e:
+            logger.warning("[SYNC] ❌ pmc_id=%s integration_id=%s failed: %r", pmc_id, iid, e)
+
+    logger.info("[SYNC] ✅ pmc_id=%s total properties synced: %s", pmc_id, total)
+    return total
 
 
 # ----------------------------
