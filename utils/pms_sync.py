@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from database import SessionLocal, engine
 from models import PMC, PMCIntegration
 from utils.github_sync import sync_files_to_github
+from utils.hostaway import get_listing_overview 
 
 load_dotenv()
 logger = logging.getLogger("uvicorn.error")
@@ -389,19 +390,26 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
 
 
 # ----------------------------
-# Main sync entrypoint (clean)
+# Main sync entrypoint (cleaner + no folder creation)
 # ----------------------------
 def sync_properties(integration_id: int) -> int:
     """
     Sync properties for one integration (source of truth: pmc_integrations).
+
+    What it does:
     - Fetches latest properties from PMS (e.g. Hostaway)
     - Enriches each property with hero_image_url (when supported)
     - Upserts properties into Postgres
-    - Ensures the hostscout_data folder structure exists
-    - Pushes structure/files to GitHub in a single commit
+    - Updates last_synced_at timestamps
+
+    What it DOES NOT do:
+    - Create hostscout_data folders
+    - Push anything to GitHub
+
+    (Those should be in a separate bootstrap/onboarding flow, not in sync.)
     """
     if integration_id is None:
-        raise Exception("integration_id is required")
+        raise ValueError("integration_id is required")
 
     db: Session = SessionLocal()
     try:
@@ -411,22 +419,22 @@ def sync_properties(integration_id: int) -> int:
             .first()
         )
         if not integ:
-            raise Exception(f"Integration not found: id={integration_id}")
+            raise ValueError(f"Integration not found: id={integration_id}")
 
         provider = (integ.provider or "").strip().lower()
         if not provider:
-            raise Exception(f"Integration id={integration_id} missing provider")
+            raise ValueError(f"Integration id={integration_id} missing provider")
 
         pmc_id = integ.pmc_id
         if not pmc_id:
-            raise Exception(f"Integration id={integration_id} missing pmc_id")
+            raise ValueError(f"Integration id={integration_id} missing pmc_id")
 
         account_id = (integ.account_id or "").strip()
         api_secret = (integ.api_secret or "").strip()
         if not account_id:
-            raise Exception(f"Integration id={integration_id} missing account_id")
+            raise ValueError(f"Integration id={integration_id} missing account_id")
         if not api_secret:
-            raise Exception(f"Integration id={integration_id} missing api_secret")
+            raise ValueError(f"Integration id={integration_id} missing api_secret")
 
         base_url = default_base_url(provider)
 
@@ -440,37 +448,37 @@ def sync_properties(integration_id: int) -> int:
         # 1) Fetch properties from PMS
         props = fetch_properties(token, base_url, provider) or []
 
-        # 1b) Enrich with hero_image_url (Hostaway supports this cleanly via /listings/{id}?includeResources=1)
-        #     We store it on the same prop dict so save_to_postgres can persist it.
+        # 2) Enrich with hero_image_url (Hostaway only)
+        # NOTE: /listings does NOT include images — must call /listings/{id}?includeResources=1
         if provider == "hostaway" and props:
             for p in props:
-                try:
-                    listing_id = p.get("id") or p.get("listingId") or p.get("listing_id")
-                    if not listing_id:
-                        continue
+                listing_id = p.get("id") or p.get("listingId") or p.get("listing_id")
+                if not listing_id:
+                    continue
 
-                    # Your helper already selects the "primary" image from listingImages.
+                # Optional optimization: if upstream already provided one, don't refetch.
+                # (Most likely it's missing, but this makes the function safe if you later cache/enrich upstream.)
+                if p.get("hero_image_url"):
+                    continue
+
+                try:
                     hero_url, _, _ = get_listing_overview(
                         listing_id=str(listing_id),
                         client_id=account_id,
                         client_secret=api_secret,
                     )
-
-                    # Persist-friendly key (matches your DB column name)
                     p["hero_image_url"] = hero_url or None
-
                 except Exception as e:
-                    # Non-fatal: keep syncing even if one listing fails
+                    # non-fatal: keep syncing even if one listing fails
                     logger.warning(
                         "[SYNC] ⚠️ hero_image_url lookup failed for listing_id=%s: %r",
-                        p.get("id"),
+                        listing_id,
                         e,
                     )
-                    p["hero_image_url"] = p.get("hero_image_url") or None
+                    p["hero_image_url"] = None
 
-        # 2) DB upsert
-        #    (ensure save_to_postgres reads p["hero_image_url"] and upserts into properties.hero_image_url)
-        save_to_postgres(
+        # 3) Upsert into Postgres (make sure save_to_postgres reads p["hero_image_url"])
+        upserted = save_to_postgres(
             properties=props,
             client_id=account_id,
             pmc_record_id=int(pmc_id),
@@ -478,19 +486,8 @@ def sync_properties(integration_id: int) -> int:
             integration_id=int(integration_id),
         )
 
-        # 3) Ensure folders/files exist in the repo + push to GitHub (ONE commit)
-        try:
-            bootstrap_account_folders_to_github(
-                provider=provider,
-                account_id=account_id,
-                properties=props,
-            )
-        except Exception as e:
-            logger.warning("[SYNC] ⚠️ GitHub bootstrap failed (non-fatal): %r", e)
-
         # 4) Update last_synced_at timestamps
         now = datetime.utcnow()
-
         if hasattr(integ, "last_synced_at"):
             integ.last_synced_at = now
 
@@ -502,19 +499,17 @@ def sync_properties(integration_id: int) -> int:
 
         logger.info(
             "[SYNC] ✅ Upserted %s properties for integration_id=%s provider=%s",
-            len(props),
+            upserted,
             integration_id,
             provider,
         )
-        return len(props)
+        return upserted
 
     except Exception:
         db.rollback()
         raise
     finally:
         db.close()
-
-
 
 def sync_all_integrations() -> int:
     """
