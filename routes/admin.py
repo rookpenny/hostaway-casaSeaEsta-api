@@ -3310,7 +3310,6 @@ def admin_dashboard(
             "user_role": user_role,
             "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
             "properties": properties,
-            "hero_image_url": hero_image_url,
             "property_name_by_id": property_name_by_id,
             "now": datetime.utcnow(),
 
