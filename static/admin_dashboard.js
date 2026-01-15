@@ -40,6 +40,66 @@ document.addEventListener("click", (e) => {
 // START OF CONFIG PARTIAL
 // ----------------------------
 
+
+window.openInlineConfig = async function (filePath, propertyName) {
+  const wrap = document.getElementById("configPanelWrap");
+  const host = document.getElementById("configInlineContainer");
+  const label = document.getElementById("configScopeLabel");
+  const grid = document.getElementById("propertiesGridWrap");
+  const header = document.getElementById("propertiesHeaderCard");
+
+  if (!wrap || !host) return false;
+
+  if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
+
+  // show config, hide list
+  wrap.classList.remove("hidden");
+  grid?.classList.add("hidden");
+  header?.classList.add("hidden");
+
+  // fetch partial markup
+  const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`);
+  if (!res.ok) {
+    host.innerHTML = `<div class="p-4 text-rose-700">Failed to load config</div>`;
+    return false;
+  }
+
+  const html = await res.text();
+  host.innerHTML = html;
+
+  // ✅ IMPORTANT: initialize after injection
+  if (window.initConfigUI) {
+    window.initConfigUI(host, {
+      filePath,
+      isDefaults: false, // optional; you can pass server values too
+    });
+  }
+
+  wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+  return false;
+};
+
+
+window.closeInlineConfig = function () {
+  const wrap = document.getElementById("configPanelWrap");
+  const host = document.getElementById("configInlineContainer");
+  const label = document.getElementById("configScopeLabel");
+  const grid = document.getElementById("propertiesGridWrap");
+  const header = document.getElementById("propertiesHeaderCard");
+
+  // clear injected UI so event listeners are dropped
+  if (host) host.innerHTML = "";
+
+  if (label) label.textContent = "Editing…";
+
+  wrap?.classList.add("hidden");
+  grid?.classList.remove("hidden");
+  header?.classList.remove("hidden");
+
+  header?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+
 window.initConfigUI = function initConfigUI(rootEl) {
   const bootTag = rootEl.querySelector("#config-ui-bootstrap");
   if (!bootTag) return;
