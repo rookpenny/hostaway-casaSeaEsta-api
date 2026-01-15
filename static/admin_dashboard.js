@@ -2734,33 +2734,34 @@ document.addEventListener("DOMContentLoaded", () => {
   if (!btn) return;
 
   btn.addEventListener("click", async () => {
-    const integrationId = window.INTEGRATION_ID;
-    if (!integrationId) return alert("Missing INTEGRATION_ID on page");
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock property syncing.");
 
     btn.disabled = true;
     const original = btn.textContent;
     btn.textContent = "Syncing…";
 
     try {
-      const res = await fetch(`/auth/sync-integration/${integrationId}`, {
+      const res = await fetch(`/auth/sync-pmc-properties`, {
         method: "POST",
         credentials: "include",
-        //headers: { Accept: "application/json" },
       });
 
       if (res.status === 401 || res.status === 403) return loginRedirect();
+      if (res.status === 402) return (window.location.href = "/pmc/signup");
+
       if (!res.ok) throw new Error(await res.text());
 
       window.location.reload();
-    } catch (e) {
-      console.error(e);
-      alert("Failed to sync all properties");
+    } catch (err) {
+      console.error(err);
+      alert("Failed to sync properties");
     } finally {
       btn.disabled = false;
       btn.textContent = original;
     }
   });
 });
+
 
 // ------------------------------
 // DOM ready (single, clean)
