@@ -62,18 +62,25 @@ window.initConfigUI = function initConfigUI(hostEl) {
   }
 
   function getFilePath() {
-  // 1) hidden input (optional if you add it later)
+  // 1) hidden input (optional, future-proof)
   const hidden = hostEl.querySelector("#configFilePath");
-  if (hidden && hidden.value) return String(hidden.value).trim();
+  if (hidden && hidden.value) {
+    return String(hidden.value).trim();
+  }
 
-  // 2) bootstrap JSON
-  if (boot.file_path) return String(boot.file_path).trim();
+  // 2) bootstrap JSON (used on full page load)
+  if (boot && boot.file_path) {
+    return String(boot.file_path).trim();
+  }
 
-  // 3) ✅ dataset fallback (what you actually use now)
-  if (hostEl.dataset.filePath) return String(hostEl.dataset.filePath).trim();
+  // 3) ✅ INLINE MODE fallback (THIS FIXES YOUR BUG)
+  if (hostEl && hostEl.dataset && hostEl.dataset.filePath) {
+    return String(hostEl.dataset.filePath).trim();
+  }
 
   return "";
 }
+
 
   
   const IS_DEFAULTS = !!boot.is_defaults;
@@ -376,40 +383,40 @@ window.initConfigUI = function initConfigUI(hostEl) {
   }, 900);
 
   async function resetToDefaults() {
+  if (IS_DEFAULTS) {
+    setStatus("ok", "You are editing defaults already.");
+    return;
+  }
+
+  if (!confirm("Reset this config to defaults? This will overwrite the current file.")) {
+    return;
+  }
+
+  try {
+    setStatus("warn", "Resetting…");
 
     const file_path = getFilePath();
     if (!file_path) throw new Error("Missing file_path");
-    
-    body: JSON.stringify({ file_path }),
-     
-    if (IS_DEFAULTS) {
-      // easiest: reload the inline panel
-      // (caller can just close+reopen or you can re-fetch)
-      setStatus("ok", "You are editing defaults already.");
-      return;
-    }
-    if (!confirm("Reset this config to defaults? This will overwrite the current file."))
-      return;
 
-    try {
-      setStatus("warn", "Resetting…");
-      const resp = await fetch("/admin/config-ui/reset", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_path: FILE_PATH }),
-      });
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) throw new Error(data.error || "Reset failed");
+    const resp = await fetch("/admin/config-ui/reset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_path }),
+    });
 
-      cfg = deepClone(data.config || {});
-      dirty = false;
-      render();
-      setStatus("ok", "Reset to defaults ✓");
-    } catch (e) {
-      console.error(e);
-      setStatus("err", "Reset failed: " + (e.message || e));
-    }
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) throw new Error(data.error || "Reset failed");
+
+    cfg = deepClone(data.config || {});
+    dirty = false;
+    render();
+    setStatus("ok", "Reset to defaults ✓");
+  } catch (e) {
+    console.error(e);
+    setStatus("err", "Reset failed: " + (e.message || e));
   }
+}
+
 
   function applyRawToForm() {
     try {
