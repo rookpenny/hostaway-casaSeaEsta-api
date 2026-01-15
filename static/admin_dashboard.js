@@ -2726,7 +2726,7 @@ document.addEventListener("change", (e) => {
 
 
 // ------------------------------
-// DOM ready (single, clean)
+// SYNC ALL PROPERTIES PMC SIDE
 // ------------------------------
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -2774,7 +2774,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-
+// ------------------------------
+// DOM ready (single, clean)
+// ------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
   // 1) Core shell
   initSidebar();
