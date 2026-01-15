@@ -91,9 +91,12 @@ window.initConfigUI = function initConfigUI(hostEl) {
   if (hostEl.dataset.filePath) {
     return String(hostEl.dataset.filePath).trim();
   }
+   
 
   return "";
 }
+
+   window.__getConfigFilePath = getFilePath;
 
   const IS_DEFAULTS = !!boot.is_defaults;
   const DEFAULT_WELCOME_NO_NAME =
