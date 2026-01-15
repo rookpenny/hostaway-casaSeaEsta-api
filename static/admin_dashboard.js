@@ -74,18 +74,25 @@ window.initConfigUI = function initConfigUI(hostEl) {
   hostEl.__configUIInited = true;
 
   function getFilePath() {
-    // 1) hidden input (optional)
-    const hidden = hostEl.querySelector("#configFilePath");
-    if (hidden && hidden.value) return String(hidden.value).trim();
-
-    // 2) bootstrap JSON (full-page and partial modes)
-    if (boot && boot.file_path) return String(boot.file_path).trim();
-
-    // 3) ✅ inline mode fallback (dataset set by openInlineConfig)
-    if (hostEl.dataset && hostEl.dataset.filePath) return String(hostEl.dataset.filePath).trim();
-
-    return "";
+  // 1) Hidden input inside injected partial (most reliable)
+  const hiddenEl = hostEl.querySelector("#configFilePath");
+  if (hiddenEl && hiddenEl.value) {
+    return String(hiddenEl.value).trim();
   }
+
+  // 2) Bootstrap JSON (full-page or partial render)
+  if (typeof boot === "object" && boot && boot.file_path) {
+    return String(boot.file_path).trim();
+  }
+
+  // 3) Inline mode fallback (set by openInlineConfig)
+  if (hostEl.dataset && hostEl.dataset.filePath) {
+    return String(hostEl.dataset.filePath).trim();
+  }
+
+  // Nothing found
+  return "";
+}
 
   const IS_DEFAULTS = !!boot.is_defaults;
   const DEFAULT_WELCOME_NO_NAME =
@@ -545,37 +552,28 @@ window.openInlineConfig = async function (e, filePath, propertyName) {
   e.preventDefault();
 
   const wrap = document.getElementById("configPanelWrap");
-  const host = document.getElementById("configInlineContainer");
+  const hostEl = document.getElementById("configInlineContainer"); // ✅ this is hostEl
   const label = document.getElementById("configScopeLabel");
 
-  const grid = document.getElementById("propertiesGridWrap");
-  const header = document.getElementById("propertiesHeaderCard");
+  // ✅ must be set on hostEl (same element initConfigUI uses)
+  hostEl.dataset.filePath = filePath;
 
-  if (!wrap || !host) return false;
-
-  // ✅ Persist file path for inline mode
-  host.dataset.filePath = filePath;
-
-  // ✅ Reset init guard so reopen always wires cleanly
-  delete host.__configUIInited;
+  // reset init guard for re-open
+  delete hostEl.__configUIInited;
 
   if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
 
   const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`);
-  host.innerHTML = res.ok
+  hostEl.innerHTML = res.ok
     ? await res.text()
     : `<div class="p-4 text-rose-700">Failed to load config</div>`;
 
-  // ✅ Init AFTER injection
-  window.initConfigUI?.(host);
+  // ✅ init using the same hostEl
+  window.initConfigUI(hostEl);
 
   wrap.classList.remove("hidden");
-  grid?.classList.add("hidden");
-  header?.classList.add("hidden");
-
-  wrap.scrollIntoView({ behavior: "smooth", block: "start" });
-  return false;
 };
+
 
 window.closeInlineConfig = function () {
   const wrap = document.getElementById("configPanelWrap");
