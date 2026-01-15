@@ -61,9 +61,20 @@ window.initConfigUI = function initConfigUI(hostEl) {
     boot = {};
   }
 
-  const FILE_PATH = boot.file_path || "";
+  function getFilePath() {
+    // ✅ best: hidden input in the injected partial
+    const hidden = hostEl.querySelector("#configFilePath");
+    if (hidden && hidden.value) return String(hidden.value).trim();
+  
+    // ✅ fallback: JSON bootstrap (what you already do)
+    if (boot.file_path) return String(boot.file_path).trim();
+  
+    return "";
+  }
+  
   const IS_DEFAULTS = !!boot.is_defaults;
   const initialConfig = boot.config_json || {};
+
 
   // Optional: show scope label in the dashboard header text if you want
   // (this is OUTSIDE hostEl, so keep it optional)
@@ -324,33 +335,37 @@ window.initConfigUI = function initConfigUI(hostEl) {
   // Save
   // -----------------------
   async function saveNow() {
-    if (saving) return;
-    saving = true;
-    $("btnSave").disabled = true;
-    setStatus("warn", "Saving…");
+  if (saving) return;
+  saving = true;
+  $("btnSave").disabled = true;
+  setStatus("warn", "Saving…");
 
-    try {
-      readFormIntoCfg();
+  try {
+    readFormIntoCfg();
 
-      const resp = await fetch("/admin/config-ui/save", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_path: FILE_PATH, config: cfg }),
-      });
+    const file_path = getFilePath();
+    if (!file_path) throw new Error("Missing file_path");
 
-      const data = await resp.json();
-      if (!resp.ok || !data.ok) throw new Error(data.error || "Save failed");
+    const resp = await fetch("/admin/config-ui/save", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_path, config: cfg }),
+    });
 
-      dirty = false;
-      setStatus("ok", "Saved ✓");
-    } catch (e) {
-      console.error(e);
-      setStatus("err", "Save failed: " + (e.message || e));
-    } finally {
-      saving = false;
-      $("btnSave").disabled = false;
-    }
+    const data = await resp.json();
+    if (!resp.ok || !data.ok) throw new Error(data.error || "Save failed");
+
+    dirty = false;
+    setStatus("ok", "Saved ✓");
+  } catch (e) {
+    console.error(e);
+    setStatus("err", "Save failed: " + (e.message || e));
+  } finally {
+    saving = false;
+    $("btnSave").disabled = false;
   }
+}
+
 
   const scheduleAutosave = debounce(() => {
     if (dirty) saveNow();
