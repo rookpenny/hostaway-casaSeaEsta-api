@@ -4,11 +4,12 @@ import os
 import re
 import unicodedata
 import logging
+import requests
+
 from datetime import datetime
 from pathlib import Path
 from typing import Optional, List, Dict
 
-import requests
 from dotenv import load_dotenv
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -17,6 +18,13 @@ from database import SessionLocal, engine
 from models import PMC, PMCIntegration
 from utils.github_sync import sync_files_to_github
 from utils.hostaway import get_listing_overview 
+
+# IMPORTANT: import SessionLocal correctly
+from database import SessionLocal
+# from models import PMCIntegration, PMC, Property  # adjust imports to your project
+# from utils.auth import get_access_token           # adjust imports
+# from utils.pms import default_base_url            # adjust imports
+# from utils.pms_sync import save_to_postgres       # wherever it lives
 
 
 load_dotenv()
@@ -73,6 +81,52 @@ def get_access_token(client_id: str, client_secret: str, base_url: str, provider
         raise Exception("Token response missing access_token")
 
     return token
+
+
+
+
+def fetch_single_property(access_token: str, base_url: str, provider: str, external_property_id: str) -> Optional[Dict]:
+    """
+    Fetch exactly one property/listing from the PMS.
+    Returns a single dict, or None if not found.
+
+    Hostaway: GET /listings/{id}?includeResources=1
+    (includeResources=1 is helpful because it can include images)
+    """
+    provider = (provider or "").strip().lower()
+    headers = {"Authorization": f"Bearer {access_token}"}
+
+    if provider == "hostaway":
+        url = f"{base_url}/listings/{external_property_id}?includeResources=1"
+        resp = requests.get(url, headers=headers)
+        if resp.status_code == 404:
+            return None
+        if resp.status_code != 200:
+            raise Exception(f"Failed to fetch Hostaway listing {external_property_id} ({resp.status_code}): {resp.text}")
+
+        data = resp.json() or {}
+        # Hostaway usually returns {"status":"success","result":{...}}
+        result = data.get("result")
+        if isinstance(result, dict):
+            return result
+        return None
+
+    # Generic fallback for other PMS vendors (adjust if your other PMS differs)
+    url = f"{base_url}/properties/{external_property_id}"
+    resp = requests.get(url, headers=headers)
+    if resp.status_code == 404:
+        return None
+    if resp.status_code != 200:
+        raise Exception(f"Failed to fetch property {external_property_id} ({resp.status_code}): {resp.text}")
+
+    data = resp.json() or {}
+    # could be {property:{...}} or direct dict
+    if isinstance(data.get("property"), dict):
+        return data["property"]
+    if isinstance(data, dict):
+        return data
+    return None
+
 
 
 def fetch_properties(access_token: str, base_url: str, provider: str) -> List[Dict]:
@@ -427,15 +481,18 @@ def sync_all_integrations_for_pmc(pmc_id: int) -> int:
 # Sync this property
 # ----------------------------
 
+
 def sync_single_property(integration_id: int, external_property_id: str) -> int:
     """
-    Sync exactly one property for an integration.
-    Hostaway: fetch /listings/{id}?includeResources=1 and upsert just that.
+    Sync exactly one property for an integration by external_property_id (PMS listing id).
+    Returns number upserted (0 or 1).
     """
     if integration_id is None:
         raise ValueError("integration_id is required")
-    if not external_property_id:
+    if not external_property_id or not str(external_property_id).strip():
         raise ValueError("external_property_id is required")
+
+    external_property_id = str(external_property_id).strip()
 
     db: Session = SessionLocal()
     try:
@@ -444,64 +501,68 @@ def sync_single_property(integration_id: int, external_property_id: str) -> int:
             raise ValueError(f"Integration not found: id={integration_id}")
 
         provider = (integ.provider or "").strip().lower()
-        if provider != "hostaway":
-            raise ValueError("sync_single_property currently supports hostaway only")
+        if not provider:
+            raise ValueError(f"Integration id={integration_id} missing provider")
+
+        pmc_id = integ.pmc_id
+        if not pmc_id:
+            raise ValueError(f"Integration id={integration_id} missing pmc_id")
 
         account_id = (integ.account_id or "").strip()
         api_secret = (integ.api_secret or "").strip()
-        if not account_id or not api_secret:
-            raise ValueError("Integration missing account_id/api_secret")
+        if not account_id:
+            raise ValueError(f"Integration id={integration_id} missing account_id")
+        if not api_secret:
+            raise ValueError(f"Integration id={integration_id} missing api_secret")
 
         base_url = default_base_url(provider)
-        token = get_access_token(account_id, api_secret, base_url, provider)
-
-        # Fetch ONE listing with images
-        resp = requests.get(
-            f"{base_url}/listings/{external_property_id}",
-            headers={"Authorization": f"Bearer {token}"},
-            params={"includeResources": 1},
-            timeout=10,
-        )
-        if resp.status_code != 200:
-            raise Exception(f"Failed to fetch listing {external_property_id}: {resp.text}")
-
-        listing = (resp.json() or {}).get("result") or {}
-
-        # hero image
-        hero_url = None
-        images = listing.get("listingImages") or []
-        if images:
-            primary = sorted(
-                images,
-                key=lambda img: img.get("sortOrder") if img.get("sortOrder") is not None else 9999,
-            )[0]
-            hero_url = primary.get("url")
-
-        # Shape into what save_to_postgres expects
-        payload = {
-            "id": str(external_property_id),
-            "internalListingName": listing.get("internalListingName") or listing.get("name"),
-            "hero_image_url": hero_url,
-        }
-
-        upserted = save_to_postgres(
-            properties=[payload],
+        token = get_access_token(
             client_id=account_id,
-            pmc_record_id=int(integ.pmc_id),
+            client_secret=api_secret,
+            base_url=base_url,
+            provider=provider,
+        )
+
+        # 1) Fetch ONE listing
+        prop = fetch_single_property(
+            access_token=token,
+            base_url=base_url,
+            provider=provider,
+            external_property_id=external_property_id,
+        )
+        if not prop:
+            return 0
+
+        # 2) Enrich hero image url
+        if provider == "hostaway":
+            # Prefer your working helper if it exists:
+            # hero_url, _, _ = get_listing_overview(listing_id=external_property_id, client_id=account_id, client_secret=api_secret)
+            # prop["hero_image_url"] = hero_url or None
+
+            # Otherwise extract from the payload:
+            prop["hero_image_url"] = extract_hostaway_hero_image_url(prop)
+
+        # 3) Upsert JUST THIS property
+        upserted = save_to_postgres(
+            properties=[prop],
+            client_id=account_id,
+            pmc_record_id=int(pmc_id),
             provider=provider,
             integration_id=int(integration_id),
         )
 
-        # Update timestamps
+        # 4) Update last_synced_at timestamps
         now = datetime.utcnow()
         if hasattr(integ, "last_synced_at"):
             integ.last_synced_at = now
-        pmc = db.query(PMC).filter(PMC.id == int(integ.pmc_id)).first()
+
+        pmc = db.query(PMC).filter(PMC.id == int(pmc_id)).first()
         if pmc and hasattr(pmc, "last_synced_at"):
             pmc.last_synced_at = now
-        db.commit()
 
-        return upserted
+        db.commit()
+        return int(upserted or 0)
+
     except Exception:
         db.rollback()
         raise
