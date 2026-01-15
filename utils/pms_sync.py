@@ -514,28 +514,39 @@ def sync_properties(integration_id: int) -> int:
 def sync_all_integrations() -> int:
     """
     Sync all connected integrations (useful for cron jobs).
+    WARNING: system-wide operation.
     """
     db: Session = SessionLocal()
     try:
         ids = [
-            row[0]
-            for row in db.query(PMCIntegration.id)
-                         .filter(PMCIntegration.is_connected.is_(True))
-                         .order_by(PMCIntegration.id.asc())
-                         .all()
+            iid for (iid,) in (
+                db.query(PMCIntegration.id)
+                  .filter(PMCIntegration.is_connected.is_(True))
+                  .order_by(PMCIntegration.id.asc())
+                  .all()
+            )
         ]
     finally:
         db.close()
 
-    total = 0
+    total_props = 0
+    ok = 0
+    failed = 0
+
     for iid in ids:
         try:
-            total += sync_properties(iid)
+            n = sync_properties(iid)
+            total_props += int(n or 0)
+            ok += 1
         except Exception as e:
+            failed += 1
             logger.warning("[SYNC] ❌ integration_id=%s failed: %r", iid, e)
 
-    logger.info("[SYNC] ✅ Total properties synced: %s", total)
-    return total
+    logger.info(
+        "[SYNC] ✅ Completed sync_all_integrations: integrations_ok=%s integrations_failed=%s total_properties=%s",
+        ok, failed, total_props
+    )
+    return total_props
 
 
 if __name__ == "__main__":
