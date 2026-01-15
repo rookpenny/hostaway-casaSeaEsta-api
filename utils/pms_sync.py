@@ -18,9 +18,6 @@ from models import PMC, PMCIntegration
 from utils.github_sync import sync_files_to_github
 from utils.hostaway import get_listing_overview 
 
-from db import SessionLocal
-
-
 
 load_dotenv()
 logger = logging.getLogger("uvicorn.error")
