@@ -221,7 +221,7 @@ def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -
 
 
 # ----------------------------
-# DB upsert (integration_id-based)
+# DB upsert (integration_id-based) — now includes hero_image_url
 # ----------------------------
 def save_to_postgres(
     properties: List[Dict],
@@ -235,6 +235,7 @@ def save_to_postgres(
     ✅ Writes integration_id
     ✅ Does NOT overwrite sandy_enabled
     ✅ Stores data_folder_path as repo-relative: data/{provider}_{account}/{provider}_{prop}
+    ✅ Stores hero_image_url (if provided)
     """
     provider = (provider or "").strip().lower()
     if not provider:
@@ -254,11 +255,19 @@ def save_to_postgres(
         return None
 
     def _name(p: dict, pid: str) -> str:
-        for k in ("internalListingName", "name", "title", "listingName", "propertyName"):
+        for k in ("internalListingName", "internalName", "name", "title", "listingName", "propertyName"):
             v = p.get(k)
             if v and str(v).strip():
                 return str(v).strip()
         return f"Property {pid}"
+
+    def _hero_url(p: dict) -> Optional[str]:
+        # We’ll accept a few likely keys, but primarily expect "hero_image_url"
+        for k in ("hero_image_url", "heroImageUrl", "hero_image", "image_url", "imageUrl"):
+            v = p.get(k)
+            if v and str(v).strip():
+                return str(v).strip()
+        return None
 
     stmt = text(
         """
@@ -270,6 +279,7 @@ def save_to_postgres(
             pms_property_id,
             external_property_id,
             data_folder_path,
+            hero_image_url,
             last_synced
         ) VALUES (
             :property_name,
@@ -279,6 +289,7 @@ def save_to_postgres(
             :pms_property_id,
             :external_property_id,
             :data_folder_path,
+            :hero_image_url,
             :last_synced
         )
         ON CONFLICT (integration_id, external_property_id)
@@ -288,6 +299,7 @@ def save_to_postgres(
             provider         = EXCLUDED.provider,
             pms_property_id  = EXCLUDED.pms_property_id,
             data_folder_path = EXCLUDED.data_folder_path,
+            hero_image_url   = EXCLUDED.hero_image_url,
             last_synced      = EXCLUDED.last_synced;
         """
     )
@@ -302,6 +314,7 @@ def save_to_postgres(
                 continue
 
             name = _name(prop, ext_id)
+            hero_image_url = _hero_url(prop)
 
             # Creates folder on disk + returns repo-relative folder path
             rel_folder = ensure_pmc_structure(
@@ -319,7 +332,8 @@ def save_to_postgres(
                     "provider": provider,
                     "pms_property_id": ext_id,
                     "external_property_id": ext_id,
-                    "data_folder_path": rel_folder,  # repo-relative
+                    "data_folder_path": rel_folder,   # repo-relative
+                    "hero_image_url": hero_image_url, # ✅ new
                     "last_synced": now,
                 },
             )
@@ -372,8 +386,7 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
         logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
 
 
-from datetime import datetime
-from sqlalchemy.orm import Session
+
 
 # ----------------------------
 # Main sync entrypoint (clean)
