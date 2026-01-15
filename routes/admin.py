@@ -330,7 +330,7 @@ def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)
 def admin_config_ui(
     request: Request,
     file: str = Query(...),
-    partial: int = Query(0),
+    embed: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     file = require_file_in_scope(request, db, file)
@@ -346,14 +346,10 @@ def admin_config_ui(
     is_defaults = file.strip().lower() == "defaults/config.json"
     scope_label = "Defaults" if is_defaults else "Property"
 
-    template = (
-        "partials/admin_config_ui_partial.html"
-        if partial
-        else "admin_config_ui.html"
-    )
+    tpl = "admin_config_ui_embed.html" if embed else "admin_config_ui.html"
 
     return templates.TemplateResponse(
-        template,
+        tpl,
         {
             "request": request,
             "file_path": file,
@@ -362,6 +358,7 @@ def admin_config_ui(
             "scope_label": scope_label,
         },
     )
+
 
 
 @router.post("/admin/config-ui/save")
