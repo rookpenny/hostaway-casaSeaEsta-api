@@ -2725,9 +2725,55 @@ document.addEventListener("change", (e) => {
 */
 
 
-  // ----------------------------
+// ------------------------------
 // DOM ready (single, clean)
-// ----------------------------
+// ------------------------------
+
+document.addEventListener("DOMContentLoaded", () => {
+  const syncAllBtn = document.getElementById("sync-all-properties-btn");
+  if (!syncAllBtn) return;
+
+  syncAllBtn.addEventListener("click", async () => {
+    // 👇 you already have this available somewhere
+    // common places:
+    // - window.INTEGRATION_ID
+    // - a data attribute on body or container
+    const integrationId =
+      window.INTEGRATION_ID ||
+      document.body.dataset.integrationId;
+
+    if (!integrationId) {
+      alert("Missing integration id");
+      return;
+    }
+
+    syncAllBtn.disabled = true;
+    const originalText = syncAllBtn.textContent;
+    syncAllBtn.textContent = "Syncing…";
+
+    try {
+      const res = await fetch(`/auth/sync-property/${integrationId}`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const text = await res.text();
+        throw new Error(text || "Sync failed");
+      }
+
+      // simplest + safest
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to sync properties");
+    } finally {
+      syncAllBtn.disabled = false;
+      syncAllBtn.textContent = originalText;
+    }
+  });
+});
+
 
 document.addEventListener("DOMContentLoaded", async () => {
   // 1) Core shell
