@@ -8,7 +8,7 @@
 .config-ui-scope .grid { display:grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .config-ui-scope .row { display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
 .config-ui-scope label { font-size: 12px; color:#333; display:block; margin-bottom:6px; }
-.config-ui-scope input[type="text"], input[type="url"], textarea, select {
+.config-ui-scope input[type="text"], .config-ui-scope input[type="url"], .config-ui-scope textarea, .config-ui-scope select {
       width: 100%; box-sizing:border-box; padding: 10px 10px; border:1px solid #d9d9e3; border-radius:10px;
       background:#fff; font-size: 13px;
     }
