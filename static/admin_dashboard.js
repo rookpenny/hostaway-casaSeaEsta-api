@@ -74,23 +74,24 @@ window.initConfigUI = function initConfigUI(hostEl) {
   hostEl.__configUIInited = true;
 
   function getFilePath() {
-  // 1) Hidden input inside injected partial (most reliable)
+  if (!hostEl) return "";
+
+  // 1) Hidden input injected by partial (best source)
   const hiddenEl = hostEl.querySelector("#configFilePath");
   if (hiddenEl && hiddenEl.value) {
     return String(hiddenEl.value).trim();
   }
 
-  // 2) Bootstrap JSON (full-page or partial render)
+  // 2) Bootstrap JSON (full-page or partial)
   if (typeof boot === "object" && boot && boot.file_path) {
     return String(boot.file_path).trim();
   }
 
-  // 3) Inline mode fallback (set by openInlineConfig)
-  if (hostEl.dataset && hostEl.dataset.filePath) {
+  // 3) Inline fallback (dataset set by openInlineConfig)
+  if (hostEl.dataset.filePath) {
     return String(hostEl.dataset.filePath).trim();
   }
 
-  // Nothing found
   return "";
 }
 
@@ -551,28 +552,28 @@ window.initConfigUI = function initConfigUI(hostEl) {
 window.openInlineConfig = async function (e, filePath, propertyName) {
   e.preventDefault();
 
+  const hostEl = document.getElementById("configInlineContainer");
+  hostEl.dataset.filePath = filePath; // ✅ REQUIRED
+
   const wrap = document.getElementById("configPanelWrap");
-  const hostEl = document.getElementById("configInlineContainer"); // ✅ this is hostEl
-  const label = document.getElementById("configScopeLabel");
+  const grid = document.getElementById("propertiesGridWrap");
+  const header = document.getElementById("propertiesHeaderCard");
 
-  // ✅ must be set on hostEl (same element initConfigUI uses)
-  hostEl.dataset.filePath = filePath;
+  const res = await fetch(
+    `/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`
+  );
 
-  // reset init guard for re-open
-  delete hostEl.__configUIInited;
-
-  if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
-
-  const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`);
   hostEl.innerHTML = res.ok
     ? await res.text()
     : `<div class="p-4 text-rose-700">Failed to load config</div>`;
 
-  // ✅ init using the same hostEl
-  window.initConfigUI(hostEl);
+  if (window.initConfigUI) window.initConfigUI(hostEl);
 
   wrap.classList.remove("hidden");
+  grid?.classList.add("hidden");
+  header?.classList.add("hidden");
 };
+
 
 
 window.closeInlineConfig = function () {
