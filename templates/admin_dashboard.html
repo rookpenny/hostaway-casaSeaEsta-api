@@ -442,15 +442,15 @@
                 </button>
               </div>
 
-              <div class="mt-4">
-                <iframe
-  id="configIframe"
-  class="w-full rounded-xl border border-slate-200 bg-white"
-  src="about:blank"
-  scrolling="no"
-  style="height: 1px; overflow: hidden;"
-></iframe>
-              </div>
+             <div class="mt-4">
+  <div
+    id="configInlineContainer"
+    class="bg-white rounded-xl border border-slate-200"
+  >
+    <!-- injected config UI goes here -->
+  </div>
+</div>
+
             </div>
           </div>
 
@@ -583,34 +583,39 @@
         <script>
           // Opens the full Config UI in an iframe (keeps its CSS intact),
           // and hides the properties list until Close is pressed.
-          window.openInlineConfig = function (filePath, propertyName) {
+          window.openInlineConfig = async function (filePath, propertyName) {
             const wrap = document.getElementById("configPanelWrap");
-            const iframe = document.getElementById("configIframe");
+            const container = document.getElementById("configInlineContainer");
             const label = document.getElementById("configScopeLabel");
-
+          
             const grid = document.getElementById("propertiesGridWrap");
             const header = document.getElementById("propertiesHeaderCard");
-
-            if (!wrap || !iframe) return false;
-
+          
+            if (!wrap || !container) return false;
+          
             if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
-
-            const url = `/admin/config-ui?file=${encodeURIComponent(filePath)}`;
-            iframe.src = url;
-
-            // show config
+          
+            // fetch partial HTML
+            const res = await fetch(
+              `/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`
+            );
+          
+            if (!res.ok) {
+              container.innerHTML =
+                `<div class="p-4 text-rose-700">Failed to load config</div>`;
+            } else {
+              container.innerHTML = await res.text();
+            }
+          
             wrap.classList.remove("hidden");
-
-            // hide list + filters
-            if (grid) grid.classList.add("hidden");
-            if (header) header.classList.add("hidden");
-
-            // scroll into view
+            grid?.classList.add("hidden");
+            header?.classList.add("hidden");
+          
             wrap.scrollIntoView({ behavior: "smooth", block: "start" });
-
-            // prevent navigation
+          
             return false;
           };
+
 
           window.closeInlineConfig = function () {
             const wrap = document.getElementById("configPanelWrap");
