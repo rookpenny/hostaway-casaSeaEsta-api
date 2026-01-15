@@ -1606,7 +1606,9 @@
 
     </main>
   </div>
-
+<script>
+  window.INTEGRATION_ID = {{ integration_id | tojson }};
+</script>
 <script id="dashboard-bootstrap" type="application/json">
 {
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
