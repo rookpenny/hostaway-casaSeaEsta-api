@@ -40,19 +40,18 @@
     .kbd { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas; font-size: 12px; background:#f2f2f7; padding:2px 6px; border-radius:8px; border:1px solid #e7e7ef; }
     .notice { border-left:4px solid #111; padding:10px 12px; background:#f9f9ff; border-radius:10px; }
 
-/* When embedded inside dashboard panel */
-#configPanelWrap .wrap {
-  max-width: none !important;
-  margin: 0 !important;
-  padding: 0 !important;
-}
-
-/* Kill any "app page" height/overflow behavior */
+/* EMBEDDED (inside dashboard) — kill inner scroll permanently */
 #configPanelWrap .wrap,
 #configPanelWrap .split,
-#configPanelWrap .card {
+#configPanelWrap .card,
+#configPanelWrap .preview {
   height: auto !important;
   max-height: none !important;
   overflow: visible !important;
+}
+
+/* If anything forces viewport sizing */
+#configPanelWrap .wrap {
+  min-height: 0 !important;
 }
 
