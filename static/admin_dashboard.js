@@ -37,69 +37,59 @@ document.addEventListener("click", (e) => {
 
 
 // ----------------------------
-// START OF CONFIG PARTIAL
+// START OF CONFIG PARTIAL (CLEAN)
 // ----------------------------
 
 window.initConfigUI = function initConfigUI(hostEl) {
   if (!hostEl) return;
 
-  // Prevent double-init if you re-open same panel
+  // If this host was already inited AND still contains a config bootstrap, skip.
+  // (We delete this flag when reopening/reloading.)
   if (hostEl.__configUIInited) return;
-  hostEl.__configUIInited = true;
 
   // ✅ Scoped DOM helpers (critical)
-  const $ = (id) => hostEl.querySelector(`#${CSS.escape(id)}`);
+  const $ = (id) => {
+    const el = hostEl.querySelector(`#${CSS.escape(id)}`);
+    if (!el) throw new Error(`Config UI missing required element #${id}`);
+    return el;
+  };
   const $$ = (sel) => Array.from(hostEl.querySelectorAll(sel));
 
   // ✅ Read server bootstrap JSON from inside the injected partial
   const bootTag = hostEl.querySelector("#config-ui-bootstrap");
+  if (!bootTag) {
+    console.warn("Config UI bootstrap tag not found (#config-ui-bootstrap). Aborting init.");
+    return;
+  }
+
   let boot = {};
   try {
-    boot = JSON.parse(bootTag?.textContent || "{}");
+    boot = JSON.parse(bootTag.textContent || "{}");
   } catch (e) {
     console.error("Config UI bootstrap JSON parse failed:", e);
     boot = {};
   }
 
+  // ✅ Only mark as inited after we confirm the partial exists
+  hostEl.__configUIInited = true;
+
   function getFilePath() {
-  // 1) hidden input (optional, future-proof)
-  const hidden = hostEl.querySelector("#configFilePath");
-  if (hidden && hidden.value) {
-    return String(hidden.value).trim();
+    // 1) hidden input (optional)
+    const hidden = hostEl.querySelector("#configFilePath");
+    if (hidden && hidden.value) return String(hidden.value).trim();
+
+    // 2) bootstrap JSON (full-page and partial modes)
+    if (boot && boot.file_path) return String(boot.file_path).trim();
+
+    // 3) ✅ inline mode fallback (dataset set by openInlineConfig)
+    if (hostEl.dataset && hostEl.dataset.filePath) return String(hostEl.dataset.filePath).trim();
+
+    return "";
   }
 
-  // 2) bootstrap JSON (used on full page load)
-  if (boot && boot.file_path) {
-    return String(boot.file_path).trim();
-  }
-
-  // 3) ✅ INLINE MODE fallback (THIS FIXES YOUR BUG)
-  if (hostEl && hostEl.dataset && hostEl.dataset.filePath) {
-    return String(hostEl.dataset.filePath).trim();
-  }
-
-  return "";
-}
-
-
-  
   const IS_DEFAULTS = !!boot.is_defaults;
-  const initialConfig = boot.config_json || {};
-
-
-  // Optional: show scope label in the dashboard header text if you want
-  // (this is OUTSIDE hostEl, so keep it optional)
-  const scopeLabel = boot.scope_label || "";
-
-  // -----------------------
-  // Helpers (scoped)
-  // -----------------------
-  function setStatus(kind, text) {
-    const dot = $("dot");
-    const statusText = $("statusText");
-    if (dot) dot.className = "status-dot " + (kind || "");
-    if (statusText) statusText.textContent = text || "";
-  }
+  const DEFAULT_WELCOME_NO_NAME =
+    "Hi there! I’m {{assistant_name}}, your stay assistant for {{property_name}}.";
 
   function debounce(fn, ms) {
     let t;
@@ -107,6 +97,10 @@ window.initConfigUI = function initConfigUI(hostEl) {
       clearTimeout(t);
       t = setTimeout(() => fn(...args), ms);
     };
+  }
+
+  function deepClone(x) {
+    return JSON.parse(JSON.stringify(x || {}));
   }
 
   function splitLines(text) {
@@ -118,10 +112,6 @@ window.initConfigUI = function initConfigUI(hostEl) {
 
   function joinLines(arr) {
     return (arr || []).join("\n");
-  }
-
-  function deepClone(x) {
-    return JSON.parse(JSON.stringify(x || {}));
   }
 
   function escapeHtml(s) {
@@ -144,15 +134,11 @@ window.initConfigUI = function initConfigUI(hostEl) {
   // -----------------------
   // State
   // -----------------------
-  let cfg = deepClone(initialConfig || {});
+  let cfg = deepClone(boot.config_json || {});
   let dirty = false;
   let saving = false;
   let editingRaw = false;
 
-  const DEFAULT_WELCOME_NO_NAME =
-    "Hi there! I’m {{assistant_name}}, your stay assistant for {{property_name}}.";
-
-  // Ensure base structure
   function ensureShape() {
     cfg.assistant = cfg.assistant || {};
     const a = cfg.assistant;
@@ -166,11 +152,18 @@ window.initConfigUI = function initConfigUI(hostEl) {
       : [];
   }
 
+  function setStatus(kind, text) {
+    const dot = hostEl.querySelector("#dot");
+    const statusText = hostEl.querySelector("#statusText");
+    if (dot) dot.className = "status-dot " + (kind || "");
+    if (statusText) statusText.textContent = text || "";
+  }
+
   // -----------------------
   // Render
   // -----------------------
   function renderQuickReplies() {
-    const list = $("quickRepliesList");
+    const list = hostEl.querySelector("#quickRepliesList");
     if (!list) return;
 
     list.innerHTML = "";
@@ -247,6 +240,7 @@ window.initConfigUI = function initConfigUI(hostEl) {
     ensureShape();
     const a = cfg.assistant;
 
+    // These MUST exist in your partial; $() will throw if missing.
     $("assistant_name").value = a.name || "Sandy";
     $("assistant_avatar_url").value = a.avatar_url || "/static/img/sandy.png";
     $("assistant_tone").value = a.tone || "luxury";
@@ -272,41 +266,51 @@ window.initConfigUI = function initConfigUI(hostEl) {
       $("rawJson").value = JSON.stringify(cfg, null, 2);
     }
 
+    // Preview bits (optional if your partial has them)
+    const pvName = hostEl.querySelector("#pvName");
+    const pvName2 = hostEl.querySelector("#pvName2");
+    const pvWelcome = hostEl.querySelector("#pvWelcome");
+    const pvReply = hostEl.querySelector("#pvReply");
+
     const name = a.name || "Sandy";
-    $("pvName").textContent = name;
-    $("pvName2").textContent = name;
+    if (pvName) pvName.textContent = name;
+    if (pvName2) pvName2.textContent = name;
 
-    const tplRaw = String(a.voice?.welcome_template_no_name || "");
-    const tpl = tplRaw.trim();
+    if (pvWelcome) {
+      const tplRaw = String(a.voice?.welcome_template_no_name || "");
+      const tpl = tplRaw.trim();
 
-    let welcomeText = tpl
-      ? tpl
-          .replaceAll("{{assistant_name}}", name)
-          .replaceAll("{{property_name}}", "Casa Sea Esta")
-      : DEFAULT_WELCOME_NO_NAME
-          .replaceAll("{{assistant_name}}", name)
-          .replaceAll("{{property_name}}", "Casa Sea Esta");
+      let welcomeText = tpl
+        ? tpl
+            .replaceAll("{{assistant_name}}", name)
+            .replaceAll("{{property_name}}", "Casa Sea Esta")
+        : DEFAULT_WELCOME_NO_NAME
+            .replaceAll("{{assistant_name}}", name)
+            .replaceAll("{{property_name}}", "Casa Sea Esta");
 
-    $("pvWelcome").textContent = sanitizePreviewText(welcomeText);
+      pvWelcome.textContent = sanitizePreviewText(welcomeText);
+    }
 
-    const v = a.verbosity || "balanced";
-    const t = a.tone || "luxury";
+    if (pvReply) {
+      const v = a.verbosity || "balanced";
+      const t = a.tone || "luxury";
 
-    let reply =
-      "<b>WiFi</b><br/>Network: …<br/>Password: …<br/><br/><b>Parking</b><br/>Here are the best options…";
-    if (v === "short")
-      reply =
-        "<b>WiFi</b><br/>Network: … / Password: …<br/><b>Parking</b><br/>Best option: …";
-    if (v === "detailed")
-      reply =
-        "<b>WiFi</b><br/>Network: …<br/>Password: …<br/>Tip: …<br/><br/><b>Parking</b><br/>Options: …<br/>Notes: …<br/>Map: …";
-    if (t === "luxury")
-      reply = reply.replace(
-        "Here are the best options…",
-        "Here are the best options, tailored for a smooth arrival…"
-      );
+      let reply =
+        "<b>WiFi</b><br/>Network: …<br/>Password: …<br/><br/><b>Parking</b><br/>Here are the best options…";
+      if (v === "short")
+        reply =
+          "<b>WiFi</b><br/>Network: … / Password: …<br/><b>Parking</b><br/>Best option: …";
+      if (v === "detailed")
+        reply =
+          "<b>WiFi</b><br/>Network: …<br/>Password: …<br/>Tip: …<br/><br/><b>Parking</b><br/>Options: …<br/>Notes: …<br/>Map: …";
+      if (t === "luxury")
+        reply = reply.replace(
+          "Here are the best options…",
+          "Here are the best options, tailored for a smooth arrival…"
+        );
 
-    $("pvReply").innerHTML = reply;
+      pvReply.innerHTML = reply;
+    }
   }
 
   // -----------------------
@@ -346,78 +350,83 @@ window.initConfigUI = function initConfigUI(hostEl) {
   // Save
   // -----------------------
   async function saveNow() {
-  if (saving) return;
-  saving = true;
-  $("btnSave").disabled = true;
-  setStatus("warn", "Saving…");
+    if (saving) return;
+    saving = true;
 
-  try {
-    readFormIntoCfg();
+    const btnSave = hostEl.querySelector("#btnSave");
+    if (btnSave) btnSave.disabled = true;
 
-    const file_path = getFilePath();
-    if (!file_path) throw new Error("Missing file_path");
+    setStatus("warn", "Saving…");
 
-    const resp = await fetch("/admin/config-ui/save", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file_path, config: cfg }),
-    });
+    try {
+      readFormIntoCfg();
 
-    const data = await resp.json();
-    if (!resp.ok || !data.ok) throw new Error(data.error || "Save failed");
+      const file_path = getFilePath();
+      if (!file_path) throw new Error("Missing file_path");
 
-    dirty = false;
-    setStatus("ok", "Saved ✓");
-  } catch (e) {
-    console.error(e);
-    setStatus("err", "Save failed: " + (e.message || e));
-  } finally {
-    saving = false;
-    $("btnSave").disabled = false;
+      const resp = await fetch("/admin/config-ui/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_path, config: cfg }),
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Save failed");
+
+      dirty = false;
+      setStatus("ok", "Saved ✓");
+    } catch (e) {
+      console.error(e);
+      setStatus("err", "Save failed: " + (e.message || e));
+    } finally {
+      saving = false;
+      if (btnSave) btnSave.disabled = false;
+    }
   }
-}
-
 
   const scheduleAutosave = debounce(() => {
     if (dirty) saveNow();
   }, 900);
 
+  // -----------------------
+  // Reset
+  // -----------------------
   async function resetToDefaults() {
-  if (IS_DEFAULTS) {
-    setStatus("ok", "You are editing defaults already.");
-    return;
+    if (IS_DEFAULTS) {
+      setStatus("ok", "You are editing defaults already.");
+      return;
+    }
+
+    if (!confirm("Reset this config to defaults? This will overwrite the current file.")) return;
+
+    try {
+      setStatus("warn", "Resetting…");
+
+      const file_path = getFilePath();
+      if (!file_path) throw new Error("Missing file_path");
+
+      const resp = await fetch("/admin/config-ui/reset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ file_path }),
+      });
+
+      const data = await resp.json().catch(() => ({}));
+      if (!resp.ok || !data.ok) throw new Error(data.error || "Reset failed");
+
+      cfg = deepClone(data.config || {});
+      dirty = false;
+      render();
+      setStatus("ok", "Reset to defaults ✓");
+    } catch (e) {
+      console.error(e);
+      setStatus("err", "Reset failed: " + (e.message || e));
+    }
   }
 
-  if (!confirm("Reset this config to defaults? This will overwrite the current file.")) {
-    return;
-  }
-
-  try {
-    setStatus("warn", "Resetting…");
-
-    const file_path = getFilePath();
-    if (!file_path) throw new Error("Missing file_path");
-
-    const resp = await fetch("/admin/config-ui/reset", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ file_path }),
-    });
-
-    const data = await resp.json().catch(() => ({}));
-    if (!resp.ok || !data.ok) throw new Error(data.error || "Reset failed");
-
-    cfg = deepClone(data.config || {});
-    dirty = false;
-    render();
-    setStatus("ok", "Reset to defaults ✓");
-  } catch (e) {
-    console.error(e);
-    setStatus("err", "Reset failed: " + (e.message || e));
-  }
-}
-
-
+  // -----------------------
+  // Raw JSON helpers
+  // -----------------------
   function applyRawToForm() {
     try {
       const parsed = JSON.parse($("rawJson").value);
@@ -443,11 +452,11 @@ window.initConfigUI = function initConfigUI(hostEl) {
   // Wire events (scoped)
   // -----------------------
   function wire() {
+    // raw editor focus guard
     $("rawJson").addEventListener("focus", () => (editingRaw = true));
     $("rawJson").addEventListener("blur", () => (editingRaw = false));
 
-    
-    // Better: just wire inputs inside hostEl
+    // Inputs -> autosave
     $$("input, textarea, select").forEach((el) => {
       el.addEventListener("input", () => {
         readFormIntoCfg();
@@ -457,7 +466,6 @@ window.initConfigUI = function initConfigUI(hostEl) {
         scheduleAutosave();
         render();
       });
-
       el.addEventListener("change", () => {
         readFormIntoCfg();
         dirty = true;
@@ -468,93 +476,120 @@ window.initConfigUI = function initConfigUI(hostEl) {
       });
     });
 
-    $("btnSave").addEventListener("click", saveNow);
-    $("btnReload").addEventListener("click", async () => {
+    $("btnSave").addEventListener("click", (e) => {
+      e.preventDefault();
+      saveNow();
+    });
+
+    $("btnReload").addEventListener("click", async (e) => {
+      e.preventDefault();
       const fp = getFilePath();
       if (!fp) return setStatus("err", "Missing file_path");
-    
-      // re-fetch partial and re-init
+
       const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(fp)}&partial=1`);
-      hostEl.innerHTML = res.ok ? await res.text() : `<div class="p-4 text-rose-700">Failed to load config</div>`;
+      hostEl.innerHTML = res.ok
+        ? await res.text()
+        : `<div class="p-4 text-rose-700">Failed to load config</div>`;
+
       delete hostEl.__configUIInited;
       window.initConfigUI(hostEl);
     });
 
-
-    const resetBtn = $("btnResetAll");
-    if (resetBtn) resetBtn.addEventListener("click", resetToDefaults);
-
-    $("btnApplyRaw").addEventListener("click", applyRawToForm);
-    $("btnSyncRaw").addEventListener("click", syncFormToRaw);
-
-    $("btnAddQuickReply").addEventListener("click", () => {
-      const v = $("quickReplyInput").value.trim();
-      if (!v) return;
-      ensureShape();
-      cfg.assistant.quick_replies.push(v);
-      $("quickReplyInput").value = "";
-      markDirtyAndRender();
+    const resetBtn = hostEl.querySelector("#btnResetAll");
+    if (resetBtn) resetBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      resetToDefaults();
     });
 
-    // Do NOT attach beforeunload here (it would affect the whole dashboard)
+    $("btnApplyRaw").addEventListener("click", (e) => {
+      e.preventDefault();
+      applyRawToForm();
+    });
+
+    $("btnSyncRaw").addEventListener("click", (e) => {
+      e.preventDefault();
+      syncFormToRaw();
+    });
+
+    const addBtn = hostEl.querySelector("#btnAddQuickReply");
+    const input = hostEl.querySelector("#quickReplyInput");
+    if (addBtn && input) {
+      addBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const v = input.value.trim();
+        if (!v) return;
+        ensureShape();
+        cfg.assistant.quick_replies.push(v);
+        input.value = "";
+        markDirtyAndRender();
+      });
+    }
   }
 
   // init
-  ensureShape();
-  render();
-  wire();
-  setStatus("", "Loaded.");
+  try {
+    ensureShape();
+    render();
+    wire();
+    setStatus("", "Loaded.");
+  } catch (err) {
+    console.error("Config UI init failed:", err);
+    setStatus("err", err?.message || "Config UI init failed (check console).");
+  }
 };
 
+// ----------------------------
+// Inline open/close (CLEAN)
+// ----------------------------
 window.openInlineConfig = async function (e, filePath, propertyName) {
   e.preventDefault();
 
   const wrap = document.getElementById("configPanelWrap");
-  const container = document.getElementById("configInlineContainer");
+  const host = document.getElementById("configInlineContainer");
   const label = document.getElementById("configScopeLabel");
-
-  // ✅ (1) Persist the file path on the host container (fallback for Save)
-  container.dataset.filePath = filePath;
-
-  // ✅ (2) Reset init guard so reopening always re-inits cleanly
-  delete container.__configUIInited;
 
   const grid = document.getElementById("propertiesGridWrap");
   const header = document.getElementById("propertiesHeaderCard");
 
+  if (!wrap || !host) return false;
+
+  // ✅ Persist file path for inline mode
+  host.dataset.filePath = filePath;
+
+  // ✅ Reset init guard so reopen always wires cleanly
+  delete host.__configUIInited;
+
   if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
 
   const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`);
-  container.innerHTML = res.ok
+  host.innerHTML = res.ok
     ? await res.text()
     : `<div class="p-4 text-rose-700">Failed to load config</div>`;
 
-  // ✅ init using container as host
-  if (window.initConfigUI) window.initConfigUI(container);
+  // ✅ Init AFTER injection
+  window.initConfigUI?.(host);
 
   wrap.classList.remove("hidden");
   grid?.classList.add("hidden");
   header?.classList.add("hidden");
 
   wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+  return false;
 };
-
-
-
-
-
 
 window.closeInlineConfig = function () {
   const wrap = document.getElementById("configPanelWrap");
   const host = document.getElementById("configInlineContainer");
   const label = document.getElementById("configScopeLabel");
+
   const grid = document.getElementById("propertiesGridWrap");
   const header = document.getElementById("propertiesHeaderCard");
 
   if (host) {
-  host.innerHTML = "";
-  delete host.__configUIInited;
-}
+    host.innerHTML = "";
+    delete host.__configUIInited;
+    delete host.dataset.filePath;
+  }
 
   if (label) label.textContent = "Editing…";
 
@@ -565,13 +600,10 @@ window.closeInlineConfig = function () {
   header?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
-
-
-
-
 // ----------------------------
-// END OF CONFIG PARTIAL
+// END OF CONFIG PARTIAL (CLEAN)
 // ----------------------------
+
   
 
 // ----------------------------
