@@ -327,8 +327,12 @@ def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)
 
 
 @router.get("/admin/config-ui", response_class=HTMLResponse)
-def admin_config_ui(request: Request, file: str = Query(...), db: Session = Depends(get_db)):
-    # ✅ scope gate + sanitize
+def admin_config_ui(
+    request: Request,
+    file: str = Query(...),
+    partial: int = Query(0),
+    db: Session = Depends(get_db),
+):
     file = require_file_in_scope(request, db, file)
 
     raw = _read_repo_file_text(file)
@@ -342,8 +346,14 @@ def admin_config_ui(request: Request, file: str = Query(...), db: Session = Depe
     is_defaults = file.strip().lower() == "defaults/config.json"
     scope_label = "Defaults" if is_defaults else "Property"
 
+    template = (
+        "partials/admin_config_ui_partial.html"
+        if partial
+        else "admin_config_ui.html"
+    )
+
     return templates.TemplateResponse(
-        "admin_config_ui.html",
+        template,
         {
             "request": request,
             "file_path": file,
