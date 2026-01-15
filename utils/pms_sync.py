@@ -273,8 +273,118 @@ def ensure_pmc_structure(provider: str, account_id: str, pms_property_id: str) -
         man.write_text("", encoding="utf-8")
 
     return rel_dir
+    
+# ----------------------------
+# SAVE TO POSTGRES - UPDATE ONLY, NO CREATING FOLDERS
+# ----------------------------
 
+def save_to_postgres_update_only(
+    properties: List[Dict],
+    client_id: str,
+    pmc_record_id: int,
+    provider: str,
+    integration_id: int,
+) -> int:
+    """
+    Update-only upsert:
+    ✅ Upserts by UNIQUE(integration_id, external_property_id)
+    ✅ Writes integration_id/provider/pmc_id/name/hero_image_url/last_synced
+    ✅ DOES NOT create folders
+    ✅ DOES NOT overwrite data_folder_path (keeps existing)
+    """
+    provider = (provider or "").strip().lower()
+    if not provider:
+        raise ValueError("save_to_postgres_update_only: provider is required")
+    if pmc_record_id is None:
+        raise ValueError("save_to_postgres_update_only: pmc_record_id is required")
+    if integration_id is None:
+        raise ValueError("save_to_postgres_update_only: integration_id is required")
+    if not client_id or not str(client_id).strip():
+        raise ValueError("save_to_postgres_update_only: client_id (account_id) is required")
 
+    def _external_id(p: dict) -> Optional[str]:
+        for k in ("id", "listingId", "propertyId", "uid", "externalId"):
+            v = p.get(k)
+            if v is not None and str(v).strip():
+                return str(v).strip()
+        return None
+
+    def _name(p: dict, pid: str) -> str:
+        for k in ("internalListingName", "internalName", "name", "title", "listingName", "propertyName"):
+            v = p.get(k)
+            if v and str(v).strip():
+                return str(v).strip()
+        return f"Property {pid}"
+
+    def _hero_url(p: dict) -> Optional[str]:
+        for k in ("hero_image_url", "heroImageUrl", "hero_image", "image_url", "imageUrl"):
+            v = p.get(k)
+            if v and str(v).strip():
+                return str(v).strip()
+        return None
+
+    # NOTE: data_folder_path is intentionally NOT written in VALUES
+    # and NOT updated on conflict — to preserve existing value.
+    stmt = text(
+        """
+        INSERT INTO public.properties (
+            property_name,
+            pmc_id,
+            integration_id,
+            provider,
+            pms_property_id,
+            external_property_id,
+            hero_image_url,
+            last_synced
+        ) VALUES (
+            :property_name,
+            :pmc_id,
+            :integration_id,
+            :provider,
+            :pms_property_id,
+            :external_property_id,
+            :hero_image_url,
+            :last_synced
+        )
+        ON CONFLICT (integration_id, external_property_id)
+        DO UPDATE SET
+            property_name  = EXCLUDED.property_name,
+            pmc_id         = EXCLUDED.pmc_id,
+            provider       = EXCLUDED.provider,
+            pms_property_id= EXCLUDED.pms_property_id,
+            hero_image_url = EXCLUDED.hero_image_url,
+            last_synced    = EXCLUDED.last_synced;
+        """
+    )
+
+    now = datetime.utcnow()
+    upserted = 0
+
+    with engine.begin() as conn:
+        for prop in (properties or []):
+            ext_id = _external_id(prop)
+            if not ext_id:
+                continue
+
+            name = _name(prop, ext_id)
+            hero_image_url = _hero_url(prop)
+
+            conn.execute(
+                stmt,
+                {
+                    "property_name": name,
+                    "pmc_id": int(pmc_record_id),
+                    "integration_id": int(integration_id),
+                    "provider": provider,
+                    "pms_property_id": ext_id,
+                    "external_property_id": ext_id,
+                    "hero_image_url": hero_image_url,
+                    "last_synced": now,
+                },
+            )
+            upserted += 1
+
+    return upserted
 
 # ----------------------------
 # DB upsert (integration_id-based) — now includes hero_image_url
@@ -543,7 +653,7 @@ def sync_single_property(integration_id: int, external_property_id: str) -> int:
             prop["hero_image_url"] = extract_hostaway_hero_image_url(prop)
 
         # 3) Upsert JUST THIS property
-        upserted = save_to_postgres(
+        upserted = save_to_postgres_update_only(
             properties=[prop],
             client_id=account_id,
             pmc_record_id=int(pmc_id),
@@ -659,7 +769,8 @@ def sync_properties(integration_id: int) -> int:
                     p["hero_image_url"] = None
 
         # 3) Upsert into Postgres (make sure save_to_postgres reads p["hero_image_url"])
-        upserted = save_to_postgres(
+        #upserted = save_to_postgres(
+        upserted = save_to_postgres_update_only(
             properties=props,
             client_id=account_id,
             pmc_record_id=int(pmc_id),
