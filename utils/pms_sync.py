@@ -387,6 +387,125 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
         logger.warning("[GITHUB] ⚠️ Failed GitHub sync for account_id=%s provider=%s: %r", account_id, provider, e)
 
 
+# ----------------------------
+# sync all properties for this integration
+# ----------------------------
+
+@router.post("/auth/sync-integration/{integration_id}")
+def auth_sync_integration(integration_id: int):
+    try:
+        n = sync_properties(integration_id)
+        return {"status": "success", "synced": n}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+
+
+@router.post("/auth/sync-property/{property_id}")
+def auth_sync_one_property(property_id: int):
+    db: Session = SessionLocal()
+    try:
+        prop = db.query(Property).filter(Property.id == int(property_id)).first()
+        if not prop:
+            return JSONResponse(status_code=404, content={"status": "error", "message": "Property not found"})
+
+        if not prop.integration_id or not prop.external_property_id:
+            return JSONResponse(
+                status_code=400,
+                content={"status": "error", "message": "Property missing integration_id/external_property_id"},
+            )
+
+        n = sync_single_property(int(prop.integration_id), str(prop.external_property_id))
+        return {"status": "success", "synced": n}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
+    finally:
+        db.close()
+
+
+# ----------------------------
+# Sync this property
+# ----------------------------
+
+def sync_single_property(integration_id: int, external_property_id: str) -> int:
+    """
+    Sync exactly one property for an integration.
+    Hostaway: fetch /listings/{id}?includeResources=1 and upsert just that.
+    """
+    if integration_id is None:
+        raise ValueError("integration_id is required")
+    if not external_property_id:
+        raise ValueError("external_property_id is required")
+
+    db: Session = SessionLocal()
+    try:
+        integ = db.query(PMCIntegration).filter(PMCIntegration.id == int(integration_id)).first()
+        if not integ:
+            raise ValueError(f"Integration not found: id={integration_id}")
+
+        provider = (integ.provider or "").strip().lower()
+        if provider != "hostaway":
+            raise ValueError("sync_single_property currently supports hostaway only")
+
+        account_id = (integ.account_id or "").strip()
+        api_secret = (integ.api_secret or "").strip()
+        if not account_id or not api_secret:
+            raise ValueError("Integration missing account_id/api_secret")
+
+        base_url = default_base_url(provider)
+        token = get_access_token(account_id, api_secret, base_url, provider)
+
+        # Fetch ONE listing with images
+        resp = requests.get(
+            f"{base_url}/listings/{external_property_id}",
+            headers={"Authorization": f"Bearer {token}"},
+            params={"includeResources": 1},
+            timeout=10,
+        )
+        if resp.status_code != 200:
+            raise Exception(f"Failed to fetch listing {external_property_id}: {resp.text}")
+
+        listing = (resp.json() or {}).get("result") or {}
+
+        # hero image
+        hero_url = None
+        images = listing.get("listingImages") or []
+        if images:
+            primary = sorted(
+                images,
+                key=lambda img: img.get("sortOrder") if img.get("sortOrder") is not None else 9999,
+            )[0]
+            hero_url = primary.get("url")
+
+        # Shape into what save_to_postgres expects
+        payload = {
+            "id": str(external_property_id),
+            "internalListingName": listing.get("internalListingName") or listing.get("name"),
+            "hero_image_url": hero_url,
+        }
+
+        upserted = save_to_postgres(
+            properties=[payload],
+            client_id=account_id,
+            pmc_record_id=int(integ.pmc_id),
+            provider=provider,
+            integration_id=int(integration_id),
+        )
+
+        # Update timestamps
+        now = datetime.utcnow()
+        if hasattr(integ, "last_synced_at"):
+            integ.last_synced_at = now
+        pmc = db.query(PMC).filter(PMC.id == int(integ.pmc_id)).first()
+        if pmc and hasattr(pmc, "last_synced_at"):
+            pmc.last_synced_at = now
+        db.commit()
+
+        return upserted
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
 
 
 # ----------------------------
