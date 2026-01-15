@@ -2,11 +2,6 @@ import os
 import requests
 from datetime import datetime
 
-# ENV Vars
-AIRTABLE_API_KEY = os.getenv("AIRTABLE_API_KEY")
-AIRTABLE_BASE_ID = os.getenv("AIRTABLE_BASE_ID")
-AIRTABLE_PROPERTIES_TABLE_ID = "tblm0rEfkTDvsr5BU"
-AIRTABLE_PMC_TABLE_ID = "tblzUdyZk1tAQ5wjx"
 
 # 🔑 Fetch OAuth token from Hostaway
 def get_hostaway_access_token(client_id: str, client_secret: str) -> str:
