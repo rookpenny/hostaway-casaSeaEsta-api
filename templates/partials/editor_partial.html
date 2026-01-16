@@ -1,4 +1,4 @@
-<div class="wrap">
+<div class="wrap" data-manual-editor>
   <div class="topbar">
     <div>
       <h1>House Manual</h1>
@@ -9,80 +9,21 @@
 
     <div class="status">
       <button class="btn" type="button" onclick="window.closeInlineManual?.()">Close</button>
-      <button class="btn primary" type="button" id="btnSaveManual">Save</button>
+      <button class="btn primary" type="button" data-save-manual>Save</button>
     </div>
   </div>
 
   <div class="card" style="margin-top:12px;">
     <label class="muted small">Raw file editor</label>
     <textarea
-      id="manualEditor"
+      data-manual-textarea
       style="min-height:520px;margin-top:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas;font-size:12px;"
     >{{ content }}</textarea>
   </div>
 
-  <!-- Bootstrap data -->
-  <script type="application/json" id="manual-bootstrap">
+  <script type="application/json" data-manual-bootstrap>
   {
     "file_path": {{ file_path | tojson }}
   }
-  </script>
-
-  <!-- Save logic -->
-  <script>
-  (function () {
-    const bootTag = document.getElementById("manual-bootstrap");
-    const boot = JSON.parse(bootTag?.textContent || "{}");
-    const file_path = String(boot.file_path || "").trim();
-
-    const wrap = bootTag.closest(".wrap") || document;
-    const btn = wrap.querySelector("#btnSaveManual");
-    const ta = wrap.querySelector("#manualEditor");
-
-    if (!btn || !ta || !file_path) {
-      console.error("Manual editor init failed", { btn, ta, file_path });
-      return;
-    }
-
-    btn.addEventListener("click", async () => {
-  console.log("Save clicked", {
-    file_path,
-    contentLength: (ta.value || "").length
-  });
-
-  btn.disabled = true;
-
-  const payload = {
-    file_path,
-    content: ta.value || ""
-  };
-
-  try {
-    const resp = await fetch("/admin/save-github-file", {
-
-          method: "POST",
-          credentials: "include",
-          headers: {
-            "Content-Type": "application/json",
-            "Accept": "application/json"
-          },
-          body: JSON.stringify(payload)
-        });
-
-        const text = await resp.text().catch(() => "");
-
-        if (!resp.ok) {
-          throw new Error(text || `Save failed (${resp.status})`);
-        }
-
-        alert("Saved ✓");
-      } catch (err) {
-        console.error("Manual save failed:", err);
-        alert("Save failed: " + (err.message || err));
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  })();
   </script>
 </div>
