@@ -45,15 +45,21 @@
     }
 
     btn.addEventListener("click", async () => {
-      btn.disabled = true;
+  console.log("Save clicked", {
+    file_path,
+    contentLength: (ta.value || "").length
+  });
 
-      const payload = {
-        file_path,
-        content: ta.value || ""
-      };
+  btn.disabled = true;
 
-      try {
-        const resp = await fetch("/admin/save-github-file", {
+  const payload = {
+    file_path,
+    content: ta.value || ""
+  };
+
+  try {
+    const resp = await fetch("/admin/save-github-file", {
+
           method: "POST",
           credentials: "include",
           headers: {
