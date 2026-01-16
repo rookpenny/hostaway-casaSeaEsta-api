@@ -36,6 +36,60 @@ document.addEventListener("click", (e) => {
 });
 
 
+window.initManualEditor = function initManualEditor(hostEl) {
+  if (!hostEl) return;
+  if (hostEl.__manualInited) return; // prevent double binding
+  hostEl.__manualInited = true;
+
+  // These must exist inside the injected manual partial
+  const ta = hostEl.querySelector("#manualEditor");
+  const btn = hostEl.querySelector("#btnSaveManual");
+
+  // bootstrap JSON (recommended), fallback to dataset
+  let file_path = "";
+  const bootTag = hostEl.querySelector("#manual-bootstrap");
+  if (bootTag) {
+    try {
+      const boot = JSON.parse((bootTag.textContent || "{}").trim());
+      file_path = String(boot.file_path || "").trim();
+    } catch (e) {
+      console.error("Invalid manual bootstrap JSON", e);
+    }
+  }
+  if (!file_path) file_path = String(hostEl.dataset.filePath || "").trim();
+
+  if (!ta || !btn || !file_path) {
+    console.error("Manual editor init failed", { ta, btn, file_path });
+    return;
+  }
+
+  btn.addEventListener("click", async () => {
+    console.log("Save clicked", { file_path, len: (ta.value || "").length });
+
+    btn.disabled = true;
+    try {
+      const resp = await fetch("/admin/save-github-file", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ file_path, content: ta.value || "" }),
+      });
+
+      const text = await resp.text().catch(() => "");
+      console.log("manual save response", resp.status, text);
+
+      if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
+      alert("Saved ✓");
+    } catch (e) {
+      console.error(e);
+      alert("Save failed: " + (e.message || e));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+};
+
+
 // ----------------------------
 // START OF CONFIG PARTIAL (CLEAN)
 // ----------------------------
@@ -1444,13 +1498,16 @@ window.openInlineManual = async function (e, filePath) {
   });
 
   hostEl.innerHTML = res.ok
-    ? await res.text()
-    : `<div class="p-4 text-rose-700">Failed to load manual</div>`;
+  ? await res.text()
+  : `<div class="p-4 text-rose-700">Failed to load manual</div>`;
+
+  window.initManualEditor?.(hostEl); // ✅ ADD THIS
 
   wrap.classList.remove("hidden");
   grid?.classList.add("hidden");
   header?.classList.add("hidden");
 };
+
 
 window.closeInlineManual = function () {
   const wrap = document.getElementById("configPanelWrap");
