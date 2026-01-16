@@ -90,6 +90,45 @@ def normalize_guest_mood(v: str | None) -> str:
     return v if v in ALLOWED_GUEST_MOODS else ""
 
 
+@router.get("/admin/manual-ui", response_class=HTMLResponse)
+def admin_manual_ui(
+    request: Request,
+    file: str = Query(...),
+    db: Session = Depends(get_db),
+):
+    file = require_file_in_scope(request, db, file)
+
+    raw = _read_repo_file_text(file)
+
+    return templates.TemplateResponse(
+        "partials/admin_manual_ui_partial.html",
+        {
+            "request": request,
+            "file_path": file,
+            "content": raw or "",
+        },
+    )
+
+@router.post("/admin/manual-ui/save")
+async def admin_manual_ui_save(request: Request, db: Session = Depends(get_db)):
+    payload = await request.json()
+    file_path = (payload.get("file_path") or "").strip()
+    content = payload.get("content")
+
+    if not file_path:
+        return JSONResponse({"ok": False, "error": "Missing file_path"}, status_code=400)
+
+    if not isinstance(content, str):
+        return JSONResponse({"ok": False, "error": "Missing/invalid content"}, status_code=400)
+
+    file_path = require_file_in_scope(request, db, file_path)
+
+    _write_repo_file_text_via_git(
+        rel_path=file_path,
+        text=content.rstrip() + "\n",
+        commit_msg=f"Update manual via UI: {file_path}",
+    )
+    return {"ok": True}
 
 
 def batch_message_signals(
