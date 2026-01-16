@@ -187,12 +187,13 @@
       </div>
     </div>
 
-    <script id="config-ui-bootstrap" type="application/json">
+<script id="config-ui-bootstrap" type="application/json">
 {
   "file_path": {{ file_path|tojson }},
   "is_defaults": {{ (is_defaults or False)|tojson }},
   "config_json": {{ config_json|tojson }},
-  "scope_label": {{ (scope_label or "")|tojson }}
+  "scope_label": {{ (scope_label or "")|tojson }},
+  "property_name": {{ (property_name or "")|tojson }}
 }
 </script>
   </div>
