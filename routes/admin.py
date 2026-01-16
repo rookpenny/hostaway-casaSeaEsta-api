@@ -3729,7 +3729,7 @@ def save_config_file(
 
     return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
 
-
+'''
 @router.post("/admin/save-github-file")
 def save_github_file(
     request: Request,
@@ -3761,6 +3761,55 @@ def save_github_file(
         return HTMLResponse("<h2>File saved to GitHub successfully.</h2><a href='/auth/dashboard'>Return to Dashboard</a>")
 
     return HTMLResponse(f"<h2>GitHub Save Error: {put_response.status_code}<br>{put_response.text}</h2>", status_code=500)
+'''
+
+@router.post("/admin/save-github-file")
+async def save_github_file(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    # Accept JSON or Form
+    ctype = (request.headers.get("content-type") or "").lower()
+
+    file_path = ""
+    content = None
+
+    try:
+        if "application/json" in ctype:
+            payload = await request.json()
+            file_path = (payload.get("file_path") or "").strip()
+            content = payload.get("content")
+        else:
+            form = await request.form()
+            file_path = (form.get("file_path") or "").strip()
+            content = form.get("content")
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Could not parse request body: {e}")
+
+    if not file_path:
+        raise HTTPException(status_code=422, detail="Missing file_path")
+    if not isinstance(content, str):
+        raise HTTPException(status_code=422, detail="Missing/invalid content")
+
+    # Scope + security
+    file_path = require_file_in_scope(request, db, file_path)
+
+    # ✅ Save via your git->github sync (best for scale)
+    _write_repo_file_text_via_git(
+        rel_path=file_path,
+        text=content.rstrip() + "\n",
+        commit_msg=f"Update file via UI: {file_path}",
+    )
+
+    # Return HTML for classic form submits; JSON for fetch/XHR
+    accept = (request.headers.get("accept") or "").lower()
+    if "text/html" in accept:
+        return HTMLResponse(
+            "<h2>File saved to GitHub successfully.</h2>"
+            "<a href='/admin/dashboard'>Return to Dashboard</a>"
+        )
+
+    return JSONResponse({"ok": True, "file_path": file_path})
 
 
 # ----------------------------
