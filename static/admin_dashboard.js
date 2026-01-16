@@ -553,29 +553,73 @@ window.initConfigUI = function initConfigUI(hostEl) {
 // Inline open/close (CLEAN)
 // ----------------------------
 window.openInlineConfig = async function (e, filePath, propertyName) {
-  e.preventDefault();
+  // Stop the <a href> navigation (important for inline onclick)
+  if (e && typeof e.preventDefault === "function") e.preventDefault();
 
   const hostEl = document.getElementById("configInlineContainer");
-  hostEl.dataset.filePath = filePath; // ✅ REQUIRED
-
   const wrap = document.getElementById("configPanelWrap");
   const grid = document.getElementById("propertiesGridWrap");
   const header = document.getElementById("propertiesHeaderCard");
 
-  const res = await fetch(
-    `/admin/config-ui?file=${encodeURIComponent(filePath)}&embed=1`
-  );
+  if (!hostEl || !wrap) return false;
 
-  hostEl.innerHTML = res.ok
-    ? await res.text()
-    : `<div class="p-4 text-rose-700">Failed to load config</div>`;
+  // ✅ Always allow re-init when loading a new property config
+  delete hostEl.__configUIInited;
 
-  if (window.initConfigUI) window.initConfigUI(hostEl);
+  // ✅ Authoritative file path for save/reset
+  hostEl.dataset.filePath = filePath;
 
-  wrap.classList.remove("hidden");
-  grid?.classList.add("hidden");
-  header?.classList.add("hidden");
+  // Optional: show a loading state
+  hostEl.innerHTML = `<div class="p-4 muted">Loading config…</div>`;
+
+  let html = "";
+  try {
+    const res = await fetch(
+      `/admin/config-ui?file=${encodeURIComponent(filePath)}&embed=1`,
+      { credentials: "include" } // ✅ helps in reverse-proxy / SameSite situations
+    );
+
+    // If auth expired, FastAPI may redirect and you’ll inject a login page.
+    // Catch it early to make the failure obvious.
+    const ct = (res.headers.get("content-type") || "").toLowerCase();
+    html = await res.text();
+
+    if (!res.ok) {
+      hostEl.innerHTML = `<div class="p-4 text-rose-700">Failed to load config (${res.status})</div>`;
+      return false;
+    }
+
+    // Very common: injected HTML is actually a login page or full layout.
+    // This heuristic prevents silent “UI broken” confusion.
+    if (html.includes('name="email"') || html.toLowerCase().includes("admin_login")) {
+      hostEl.innerHTML = `<div class="p-4 text-rose-700">
+        Your session may have expired. Please refresh and sign in again.
+      </div>`;
+      return false;
+    }
+
+    hostEl.innerHTML = html;
+
+    // ✅ Force the hidden input to match the clicked file path (no normalization surprises)
+    const fpInput = hostEl.querySelector("#configFilePath");
+    if (fpInput) fpInput.value = filePath;
+
+    // ✅ Initialize the config UI (bind save/reset/autosave/etc.)
+    if (typeof window.initConfigUI === "function") window.initConfigUI(hostEl);
+
+    // Show panel + hide grid/header
+    wrap.classList.remove("hidden");
+    grid?.classList.add("hidden");
+    header?.classList.add("hidden");
+  } catch (err) {
+    console.error("openInlineConfig failed:", err);
+    hostEl.innerHTML = `<div class="p-4 text-rose-700">Failed to load config</div>`;
+  }
+
+  // ✅ Extra safety: stop href navigation in all browsers
+  return false;
 };
+
 
 
 
