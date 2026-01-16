@@ -3286,9 +3286,6 @@ function initRouting() {
   route();
 }
 
-// =============================
-// House Manual: SAVE (delegated)
-// =============================
 if (!window.__MANUAL_SAVE_BOUND__) {
   window.__MANUAL_SAVE_BOUND__ = true;
 
@@ -3299,37 +3296,35 @@ if (!window.__MANUAL_SAVE_BOUND__) {
     e.preventDefault();
 
     const wrap = btn.closest("[data-manual-editor]");
-    if (!wrap) {
-      console.error("Manual save: missing [data-manual-editor]");
-      return;
-    }
-
-    const ta = wrap.querySelector("[data-manual-textarea]");
-    const bootTag = wrap.querySelector("[data-manual-bootstrap]");
+    const ta = wrap?.querySelector("[data-manual-textarea]");
+    const bootTag = wrap?.querySelector("[data-manual-bootstrap]");
 
     let file_path = "";
     try {
       const boot = JSON.parse((bootTag?.textContent || "{}").trim());
       file_path = String(boot.file_path || "").trim();
     } catch (err) {
-      console.error("Manual save: invalid bootstrap JSON", err);
+      console.error("Manual bootstrap JSON parse failed", err);
     }
 
-    if (!ta || !file_path) {
-      console.error("Manual save: missing textarea or file_path", { ta, file_path });
+    if (!wrap || !ta || !file_path) {
+      console.error("Manual save missing data", { wrap, ta, file_path });
       return;
     }
 
-    const payload = { file_path, content: ta.value || "" };
-    console.log("Manual save sending", payload);
+    const jsonBody = JSON.stringify({ file_path, content: ta.value || "" });
+    console.log("Manual save sending bytes:", jsonBody.length, { file_path });
 
     btn.disabled = true;
     try {
       const resp = await fetch("/admin/save-github-file", {
         method: "POST",
         credentials: "include",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify(payload),
+        headers: {
+          "Content-Type": "application/json",
+          "Accept": "application/json",
+        },
+        body: jsonBody,
       });
 
       const text = await resp.text().catch(() => "");
@@ -3345,6 +3340,7 @@ if (!window.__MANUAL_SAVE_BOUND__) {
     }
   });
 }
+
 
 
 
