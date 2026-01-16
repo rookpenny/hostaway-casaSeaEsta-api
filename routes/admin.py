@@ -1277,6 +1277,8 @@ def require_session_in_scope(request: Request, db: Session, session_id: int) -> 
 
 
 def require_file_in_scope(request: Request, db: Session, file_path: str) -> str:
+    if not request.session.get("user"):
+        raise HTTPException(status_code=401, detail="Not authenticated")
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     require_pmc_linked(user_role, pmc_obj)
 
