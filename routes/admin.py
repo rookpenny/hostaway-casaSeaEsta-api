@@ -347,12 +347,12 @@ def admin_config_ui(
     is_defaults = file.strip().lower() == "defaults/config.json"
     scope_label = "Defaults" if is_defaults else "Property"
 
-    if partial:
-        tpl = "admin_config_ui_partial.html"
-    elif embed:
-        tpl = "admin_config_ui_embed.html"
-    else:
-        tpl = "admin_config_ui.html"
+    # treat embed/partial as booleans (keep signature meaningful)
+    embed = (embed == 1)
+    partial = (partial == 1)
+
+    # for now you only have one template
+    tpl = "admin_config_ui_partial.html"
 
     return templates.TemplateResponse(
         tpl,
@@ -362,6 +362,8 @@ def admin_config_ui(
             "config_json": cfg,
             "is_defaults": is_defaults,
             "scope_label": scope_label,
+            "embed": embed,
+            "partial": partial,
         },
     )
 
