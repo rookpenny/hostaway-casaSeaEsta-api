@@ -558,59 +558,6 @@ window.initConfigUI = function initConfigUI(hostEl) {
 };
 
 
-// Manual Save (delegated) — works even when partial is injected via innerHTML
-document.addEventListener("click", async (e) => {
-  const btn = e.target.closest("[data-save-manual]");
-  if (!btn) return;
-
-  const wrap = btn.closest("[data-manual-editor]");
-  if (!wrap) return console.error("Save manual: missing [data-manual-editor] wrapper");
-
-  const ta = wrap.querySelector("[data-manual-textarea]");
-  const bootTag = wrap.querySelector("[data-manual-bootstrap]");
-
-  let file_path = "";
-  try {
-    const boot = JSON.parse((bootTag?.textContent || "{}").trim());
-    file_path = String(boot.file_path || "").trim();
-  } catch (err) {
-    console.error("Save manual: invalid bootstrap JSON", err);
-  }
-
-  // fallback
-  if (!file_path) {
-    const hostEl = wrap.closest("#configInlineContainer");
-    file_path = String(hostEl?.dataset?.filePath || "").trim();
-  }
-
-  if (!ta || !file_path) {
-    console.error("Save manual: missing textarea or file_path", { ta, file_path });
-    return;
-  }
-
-  btn.disabled = true;
-  try {
-    console.log("Manual save clicked", { file_path, len: (ta.value || "").length });
-
-    const resp = await fetch("/admin/save-github-file", {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json", "Accept": "application/json" },
-      body: JSON.stringify({ file_path, content: ta.value || "" }),
-    });
-
-    const text = await resp.text().catch(() => "");
-    console.log("Manual save response", resp.status, text);
-
-    if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
-    alert("Saved ✓");
-  } catch (err) {
-    console.error(err);
-    alert("Save failed: " + (err.message || err));
-  } finally {
-    btn.disabled = false;
-  }
-});
 
 
 
@@ -1501,7 +1448,7 @@ window.openInlineManual = async function (e, filePath) {
   ? await res.text()
   : `<div class="p-4 text-rose-700">Failed to load manual</div>`;
 
-  window.initManualEditor?.(hostEl); // ✅ ADD THIS
+  //window.initManualEditor?.(hostEl); // ✅ ADD THIS
 
   wrap.classList.remove("hidden");
   grid?.classList.add("hidden");
@@ -3338,6 +3285,67 @@ function initRouting() {
 
   route();
 }
+
+// =============================
+// House Manual: SAVE (delegated)
+// =============================
+if (!window.__MANUAL_SAVE_BOUND__) {
+  window.__MANUAL_SAVE_BOUND__ = true;
+
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest("[data-save-manual]");
+    if (!btn) return;
+
+    e.preventDefault();
+
+    const wrap = btn.closest("[data-manual-editor]");
+    if (!wrap) {
+      console.error("Manual save: missing [data-manual-editor]");
+      return;
+    }
+
+    const ta = wrap.querySelector("[data-manual-textarea]");
+    const bootTag = wrap.querySelector("[data-manual-bootstrap]");
+
+    let file_path = "";
+    try {
+      const boot = JSON.parse((bootTag?.textContent || "{}").trim());
+      file_path = String(boot.file_path || "").trim();
+    } catch (err) {
+      console.error("Manual save: invalid bootstrap JSON", err);
+    }
+
+    if (!ta || !file_path) {
+      console.error("Manual save: missing textarea or file_path", { ta, file_path });
+      return;
+    }
+
+    const payload = { file_path, content: ta.value || "" };
+    console.log("Manual save sending", payload);
+
+    btn.disabled = true;
+    try {
+      const resp = await fetch("/admin/save-github-file", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await resp.text().catch(() => "");
+      console.log("Manual save response", resp.status, text);
+
+      if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
+      alert("Saved ✓");
+    } catch (err) {
+      console.error(err);
+      alert("Save failed: " + (err.message || err));
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
 
 
 document.addEventListener("change", (e) => {
