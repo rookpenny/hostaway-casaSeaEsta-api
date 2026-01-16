@@ -352,7 +352,7 @@ def admin_config_ui(
     partial = (partial == 1)
 
     # for now you only have one template
-    tpl = "admin_config_ui_partial.html"
+    tpl = "partials/admin_config_ui_partial.html"
 
     return templates.TemplateResponse(
         tpl,
