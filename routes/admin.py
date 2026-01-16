@@ -331,6 +331,7 @@ def admin_config_ui(
     request: Request,
     file: str = Query(...),
     embed: int | None = Query(default=None),
+    partial: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     file = require_file_in_scope(request, db, file)
@@ -346,7 +347,12 @@ def admin_config_ui(
     is_defaults = file.strip().lower() == "defaults/config.json"
     scope_label = "Defaults" if is_defaults else "Property"
 
-    tpl = "admin_config_ui_embed.html" if embed else "admin_config_ui.html"
+    if partial:
+        tpl = "admin_config_ui_partial.html"
+    elif embed:
+        tpl = "admin_config_ui_embed.html"
+    else:
+        tpl = "admin_config_ui.html"
 
     return templates.TemplateResponse(
         tpl,
