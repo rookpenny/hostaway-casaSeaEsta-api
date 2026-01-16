@@ -1,72 +1,35 @@
-<div class="wrap" data-manual-editor>
-  <div class="topbar">
-    <div>
-      <h1>House Manual</h1>
-      <div class="muted">
-        Editing: <span class="kbd">{{ file_path }}</span>
+<div class="config-ui-scope" data-manual-editor-scope>
+  <div class="wrap" data-manual-editor>
+    <div class="topbar">
+      <div>
+        <h1>House Manual</h1>
+        <div class="muted">
+          Editing: <span class="kbd">{{ file_path }}</span>
+        </div>
+      </div>
+
+      <div class="status">
+        <span class="status-dot" data-manual-dot></span>
+        <span class="muted" data-manual-status-text>Loaded.</span>
+
+        <!-- Close is owned by parent UI -->
+        <button class="btn primary" type="button" data-save-manual disabled>Save</button>
       </div>
     </div>
 
-    <div class="status">
-      <!-- Status pill (like Assistant Config) -->
-      <div class="pill" data-manual-status>
-        <span class="dot" data-dot></span>
-        <span class="label" data-label>Loaded.</span>
-      </div>
-
-      <!-- Parent UI owns Close; keep only Save here -->
-      <button class="btn primary" type="button" data-save-manual disabled>Save</button>
+    <div class="card" style="margin-top:12px;">
+      <label class="muted small">Raw file editor</label>
+      <textarea
+        data-manual-textarea
+        style="min-height: 520px; margin-top:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas; font-size:12px;"
+      >{{ content }}</textarea>
     </div>
+
+    <script type="application/json" data-manual-bootstrap>
+    {
+      "file_path": {{ file_path|tojson }},
+      "initial_content": {{ (content or "")|tojson }}
+    }
+    </script>
   </div>
-
-  <div class="card" style="margin-top:12px;">
-    <label class="muted small">Raw file editor</label>
-    <textarea
-      data-manual-textarea
-      style="min-height:520px;margin-top:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas;font-size:12px;"
-    >{{ content }}</textarea>
-  </div>
-
-  <script type="application/json" data-manual-bootstrap>
-  {
-    "file_path": {{ file_path | tojson }},
-    "initial_content": {{ (content or "") | tojson }}
-  }
-  </script>
-
-  <style>
-    [data-manual-editor] .status { display:flex; gap:12px; align-items:center; }
-    [data-manual-editor] .btn {
-      appearance:none;
-      border:1px solid rgba(0,0,0,.12);
-      background:white;
-      padding:8px 12px;
-      border-radius:10px;
-      font-weight:700;
-      cursor:pointer;
-    }
-    [data-manual-editor] .btn.primary { background:#111; color:#fff; border-color:#111; }
-    [data-manual-editor] .btn:disabled { opacity:.45; cursor:not-allowed; }
-
-    /* pill like assistant config */
-    [data-manual-editor] .pill{
-      display:inline-flex;
-      align-items:center;
-      gap:8px;
-      padding:6px 10px;
-      border-radius:999px;
-      border:1px solid rgba(0,0,0,.10);
-      background:#fff;
-      font-weight:600;
-      font-size:13px;
-      user-select:none;
-      white-space:nowrap;
-    }
-    [data-manual-editor] .dot{
-      width:8px; height:8px;
-      border-radius:999px;
-      background:#9aa0a6; /* default gray */
-      display:inline-block;
-    }
-  </style>
 </div>
