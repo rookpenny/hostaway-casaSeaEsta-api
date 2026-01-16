@@ -8,9 +8,13 @@
     </div>
 
     <div class="status">
-      <button class="btn primary" type="button" data-save-manual>Save</button>
+      <!-- Close is owned by the parent UI now -->
+      <button class="btn primary" type="button" data-save-manual disabled>Save</button>
     </div>
   </div>
+
+  <!-- Toast -->
+  <div class="toast" data-manual-toast hidden>Saved ✓</div>
 
   <div class="card" style="margin-top:12px;">
     <label class="muted small">Raw file editor</label>
@@ -22,7 +26,54 @@
 
   <script type="application/json" data-manual-bootstrap>
   {
-    "file_path": {{ file_path | tojson }}
+    "file_path": {{ file_path | tojson }},
+    "initial_hash": {{ (content or '') | tojson }}
   }
   </script>
+
+  <style>
+    /* Keep it scoped to manual UI */
+    [data-manual-editor] .status { display:flex; gap:10px; align-items:center; }
+
+    [data-manual-editor] .btn {
+      appearance: none;
+      border: 1px solid rgba(0,0,0,.12);
+      background: white;
+      color: inherit;
+      padding: 8px 12px;
+      border-radius: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+    }
+    [data-manual-editor] .btn:hover { background: rgba(0,0,0,.03); }
+    [data-manual-editor] .btn.primary {
+      background: #111;
+      color: #fff;
+      border-color: #111;
+    }
+    [data-manual-editor] .btn.primary:hover { filter: brightness(1.05); }
+
+    [data-manual-editor] .btn:disabled {
+      opacity: .45;
+      cursor: not-allowed;
+      filter: none;
+    }
+
+    [data-manual-editor] .toast {
+      position: sticky;
+      top: 8px;
+      margin-top: 10px;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      border: 1px solid rgba(0,0,0,.10);
+      background: rgba(255,255,255,.95);
+      box-shadow: 0 6px 18px rgba(0,0,0,.08);
+      font-weight: 600;
+      width: fit-content;
+    }
+  </style>
 </div>
