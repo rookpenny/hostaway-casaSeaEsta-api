@@ -1429,8 +1429,10 @@ window.openChatDetail = openChatDetail;
 
 ///----- END OF SECTION
 
-if (!window.__MANUAL_EDITOR_STATUS_V1__) {
-  window.__MANUAL_EDITOR_STATUS_V1__ = true;
+if (!window.__MANUAL_EDITOR_STATUS_V2__) {
+  window.__MANUAL_EDITOR_STATUS_V2__ = true;
+
+  const AUTOSAVE_MS = 900; // tweak to taste (700–1200 feels good)
 
   function _manualWrapFrom(el) {
     return el?.closest?.("[data-manual-editor]") || null;
@@ -1452,29 +1454,24 @@ if (!window.__MANUAL_EDITOR_STATUS_V1__) {
 
     if (state === "loaded") {
       txt.textContent = "Loaded.";
-      // default gray dot (no class)
       return;
     }
-
     if (state === "dirty") {
       txt.textContent = "Unsaved changes…";
       dot.classList.add("warn");
       return;
     }
-
     if (state === "saving") {
       txt.textContent = "Saving…";
       dot.classList.add("warn");
       return;
     }
-
     if (state === "saved") {
       txt.textContent = "Saved ✓";
       dot.classList.add("ok");
       return;
     }
 
-    // error
     txt.textContent = "Save failed";
     dot.classList.add("err");
   }
@@ -1492,7 +1489,78 @@ if (!window.__MANUAL_EDITOR_STATUS_V1__) {
     _manualSetSaveEnabled(wrap, false);
   }
 
-  // Dirty tracking
+  async function _manualDoSave(wrap, { source = "auto" } = {}) {
+    const btn = wrap.querySelector("[data-save-manual]");
+    const ta = wrap.querySelector("[data-manual-textarea]");
+    if (!ta) return;
+
+    _manualEnsureInitial(wrap);
+
+    const b = _manualBoot(wrap);
+    const file_path = String(b.file_path || "").trim();
+    if (!file_path) {
+      _manualSetStatus(wrap, "error");
+      alert("Save failed: missing file path");
+      return;
+    }
+
+    const current = ta.value || "";
+    const dirty = current !== (wrap.__initialText || "");
+    if (!dirty) {
+      _manualSetSaveEnabled(wrap, false);
+      _manualSetStatus(wrap, "loaded");
+      return;
+    }
+
+    // prevent double-save
+    clearTimeout(wrap.__autosaveTimer);
+
+    if (btn) btn.disabled = true;
+    _manualSetStatus(wrap, "saving");
+
+    try {
+      const resp = await fetch("/admin/save-github-file", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ file_path, content: current }),
+      });
+
+      const text = await resp.text().catch(() => "");
+      if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
+
+      // ✅ mark clean baseline so it stops being "dirty"
+      wrap.__initialText = current;
+
+      _manualSetSaveEnabled(wrap, false);
+      _manualSetStatus(wrap, "saved");
+
+      clearTimeout(wrap.__statusTimer);
+      wrap.__statusTimer = setTimeout(() => _manualSetStatus(wrap, "loaded"), 1200);
+    } catch (err) {
+      console.error(err);
+      _manualSetStatus(wrap, "error");
+      alert("Save failed: " + (err.message || err));
+
+      // If still dirty, re-enable save + restore dirty status
+      const stillDirty = (ta.value || "") !== (wrap.__initialText || "");
+      _manualSetSaveEnabled(wrap, stillDirty);
+      if (stillDirty) _manualSetStatus(wrap, "dirty");
+    }
+  }
+
+  function _manualScheduleAutosave(wrap) {
+    clearTimeout(wrap.__autosaveTimer);
+    wrap.__autosaveTimer = setTimeout(() => {
+      // only autosave if still dirty
+      const ta = wrap.querySelector("[data-manual-textarea]");
+      if (!ta) return;
+      const dirty = (ta.value || "") !== (wrap.__initialText || "");
+      if (dirty) _manualDoSave(wrap, { source: "auto" });
+    }, AUTOSAVE_MS);
+  }
+
+  // Dirty tracking + autosave
   document.addEventListener("input", (e) => {
     const ta = e.target.closest?.("[data-manual-textarea]");
     if (!ta) return;
@@ -1505,9 +1573,11 @@ if (!window.__MANUAL_EDITOR_STATUS_V1__) {
     const dirty = (ta.value || "") !== (wrap.__initialText || "");
     _manualSetSaveEnabled(wrap, dirty);
     _manualSetStatus(wrap, dirty ? "dirty" : "loaded");
-  });
 
-  // Save click
+    if (dirty) _manualScheduleAutosave(wrap);
+  }, true);
+
+  // Manual save click
   document.addEventListener("click", async (e) => {
     const btn = e.target.closest?.("[data-save-manual]");
     if (!btn) return;
@@ -1515,53 +1585,13 @@ if (!window.__MANUAL_EDITOR_STATUS_V1__) {
     e.preventDefault();
 
     const wrap = _manualWrapFrom(btn);
-    const ta = wrap?.querySelector("[data-manual-textarea]");
-    if (!wrap || !ta) return;
+    if (!wrap) return;
 
-    _manualEnsureInitial(wrap);
-
-    const b = _manualBoot(wrap);
-    const file_path = String(b.file_path || "").trim();
-    if (!file_path) {
-      _manualSetStatus(wrap, "error");
-      alert("Save failed: missing file path");
-      return;
-    }
-
-    const dirty = (ta.value || "") !== (wrap.__initialText || "");
-    if (!dirty) return;
-
-    btn.disabled = true;
-    _manualSetStatus(wrap, "saving");
-
-    try {
-      const resp = await fetch("/admin/save-github-file", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", "Accept": "application/json" },
-        body: JSON.stringify({ file_path, content: ta.value || "" }),
-      });
-
-      const text = await resp.text().catch(() => "");
-      if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
-
-      wrap.__initialText = ta.value || "";
-      _manualSetSaveEnabled(wrap, false);
-      _manualSetStatus(wrap, "saved");
-
-      clearTimeout(wrap.__statusTimer);
-      wrap.__statusTimer = setTimeout(() => _manualSetStatus(wrap, "loaded"), 1500);
-    } catch (err) {
-      console.error(err);
-      _manualSetStatus(wrap, "error");
-      alert("Save failed: " + (err.message || err));
-
-      const stillDirty = (ta.value || "") !== (wrap.__initialText || "");
-      _manualSetSaveEnabled(wrap, stillDirty);
-      if (stillDirty) _manualSetStatus(wrap, "dirty");
-    }
+    clearTimeout(wrap.__autosaveTimer); // avoid double fire
+    await _manualDoSave(wrap, { source: "manual" });
   }, true);
 }
+
 
 
 
