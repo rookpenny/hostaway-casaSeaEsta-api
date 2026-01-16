@@ -536,6 +536,7 @@
                 href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
                 class="btn btn-secondary {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
                 {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt')"
               >
                 House Manual
               </a>
