@@ -537,7 +537,7 @@ window.initConfigUI = function initConfigUI(hostEl) {
         markDirtyAndRender();
       });
     }
-  }
+  
 
   // init
   try {
