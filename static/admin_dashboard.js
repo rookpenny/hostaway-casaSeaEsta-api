@@ -624,6 +624,9 @@ window.openInlineConfig = async function (e, filePath, propertyName) {
 
 
 window.closeInlineConfig = function () {
+  // ✅ invalidate any in-flight openInlineConfig fetch (if you add token checks there)
+  window.__configInlineOpenToken = (window.__configInlineOpenToken || 0) + 1;
+
   const wrap = document.getElementById("configPanelWrap");
   const host = document.getElementById("configInlineContainer");
   const label = document.getElementById("configScopeLabel");
@@ -643,8 +646,10 @@ window.closeInlineConfig = function () {
   grid?.classList.remove("hidden");
   header?.classList.remove("hidden");
 
-  header?.scrollIntoView({ behavior: "smooth", block: "start" });
+  // Optional: avoid scrolling if header is missing or already in view
+  header?.scrollIntoView?.({ behavior: "smooth", block: "start" });
 };
+
 
 // ----------------------------
 // END OF CONFIG PARTIAL (CLEAN)
