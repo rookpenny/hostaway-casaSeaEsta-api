@@ -14,47 +14,51 @@
   </div>
 
   <div class="card" style="margin-top:12px;">
-    <textarea
-      id="manualEditor"
-      style="min-height:520px; margin-top:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas; font-size:12px;"
-    >{{ content }}</textarea>
+    <label class="muted small">Raw file editor</label>
+    <textarea id="manualEditor"
+              style="min-height: 520px; margin-top:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas; font-size:12px;">{{ content }}</textarea>
   </div>
 
-  <script id="manual-bootstrap" type="application/json">
-  { "file_path": {{ file_path|tojson }} }
+  <script type="application/json" id="manual-bootstrap">
+  {
+    "file_path": {{ file_path|tojson }}
+  }
   </script>
 
   <script>
-    (function () {
-      const boot = JSON.parse(document.getElementById("manual-bootstrap")?.textContent || "{}");
-      const file_path = (boot.file_path || "").trim();
+  (function () {
+    const host = document.currentScript?.closest(".wrap")?.parentElement || document;
+    const bootTag = document.getElementById("manual-bootstrap");
+    const boot = JSON.parse(bootTag?.textContent || "{}");
+    const file_path = (boot.file_path || "").trim();
 
-      const btn = document.getElementById("btnSaveManual");
-      const ta = document.getElementById("manualEditor");
-      if (!btn || !ta || !file_path) return;
+    const btn = document.getElementById("btnSaveManual");
+    const ta = document.getElementById("manualEditor");
 
-      btn.addEventListener("click", async () => {
-        btn.disabled = true;
-        try {
-          const resp = await fetch("/admin/save-manual", {
-            method: "POST",
-            credentials: "include",
-            headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
-            body: new URLSearchParams({
-              file_path,
-              content: ta.value || ""
-            }),
-          });
+    if (!btn || !ta) return;
 
-          if (!resp.ok) throw new Error("Save failed");
-          alert("Saved ✓");
-        } catch (e) {
-          console.error(e);
-          alert("Save failed: " + (e.message || e));
-        } finally {
-          btn.disabled = false;
-        }
-      });
-    })();
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+      try {
+        const resp = await fetch("/admin/save-manual", {
+          method: "POST",
+          credentials: "include",
+          headers: { "Content-Type": "application/x-www-form-urlencoded;charset=UTF-8" },
+          body: new URLSearchParams({
+            file_path,
+            content: ta.value || ""
+          }),
+        });
+
+        if (!resp.ok) throw new Error("Save failed");
+        alert("Saved ✓");
+      } catch (e) {
+        console.error(e);
+        alert("Save failed: " + (e.message || e));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  })();
   </script>
 </div>
