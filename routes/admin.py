@@ -3560,6 +3560,27 @@ def save_manual_file(
     )
 
 
+@router.post("/admin/edit-config/save")
+async def edit_config_save(request: Request, db: Session = Depends(get_db)):
+    payload = await request.json()
+    file_path = (payload.get("file_path") or "").strip()
+    content = payload.get("content") or ""
+
+    if not file_path:
+        return JSONResponse({"ok": False, "error": "Missing file_path"}, status_code=400)
+
+    file_path = require_file_in_scope(request, db, file_path)
+
+    # write the file into your repo via git helper
+    _write_repo_file_text_via_git(
+        rel_path=file_path,
+        text=str(content),
+        commit_msg=f"Update manual via inline editor: {file_path}",
+    )
+    return {"ok": True}
+
+
+
 @router.get("/admin/edit-config", response_class=HTMLResponse)
 def edit_config(
     request: Request,
