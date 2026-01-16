@@ -1429,6 +1429,74 @@ window.openChatDetail = openChatDetail;
 
 ///----- END OF SECTION
 
+// House Manual SAVE — capture mode + stops other handlers from firing
+if (!window.__MANUAL_SAVE_CAPTURE_BOUND__) {
+  window.__MANUAL_SAVE_CAPTURE_BOUND__ = true;
+
+  document.addEventListener(
+    "click",
+    async (e) => {
+      const btn = e.target.closest?.("[data-save-manual]");
+      if (!btn) return;
+
+      // 🔒 prevent *any* other click handlers from running
+      e.preventDefault();
+      e.stopPropagation();
+      e.stopImmediatePropagation();
+
+      const wrap = btn.closest("[data-manual-editor]");
+      const ta = wrap?.querySelector("[data-manual-textarea]");
+      const bootTag = wrap?.querySelector("[data-manual-bootstrap]");
+
+      let file_path = "";
+      try {
+        const boot = JSON.parse((bootTag?.textContent || "{}").trim());
+        file_path = String(boot.file_path || "").trim();
+      } catch (err) {
+        console.error("Manual bootstrap JSON parse failed", err);
+      }
+
+      if (!wrap || !ta || !file_path) {
+        console.error("Manual save missing pieces", { wrap, ta, file_path });
+        alert("Save failed: missing file path or textarea");
+        return;
+      }
+
+      const jsonBody = JSON.stringify({
+        file_path,
+        content: ta.value || "",
+      });
+
+      console.log("MANUAL SAVE sending bytes:", jsonBody.length, { file_path });
+
+      btn.disabled = true;
+      try {
+        const resp = await fetch("/admin/save-github-file", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json",
+          },
+          body: jsonBody,
+        });
+
+        const text = await resp.text().catch(() => "");
+        console.log("MANUAL SAVE response:", resp.status, text);
+
+        if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
+        alert("Saved ✓");
+      } catch (err) {
+        console.error(err);
+        alert("Save failed: " + (err.message || err));
+      } finally {
+        btn.disabled = false;
+      }
+    },
+    true // 👈 CAPTURE MODE (important)
+  );
+}
+
 
 window.openInlineManual = async function (e, filePath) {
   e.preventDefault();
@@ -3284,61 +3352,6 @@ function initRouting() {
   window.addEventListener("hashchange", route);
 
   route();
-}
-
-if (!window.__MANUAL_SAVE_BOUND__) {
-  window.__MANUAL_SAVE_BOUND__ = true;
-
-  document.addEventListener("click", async (e) => {
-    const btn = e.target.closest("[data-save-manual]");
-    if (!btn) return;
-
-    e.preventDefault();
-
-    const wrap = btn.closest("[data-manual-editor]");
-    const ta = wrap?.querySelector("[data-manual-textarea]");
-    const bootTag = wrap?.querySelector("[data-manual-bootstrap]");
-
-    let file_path = "";
-    try {
-      const boot = JSON.parse((bootTag?.textContent || "{}").trim());
-      file_path = String(boot.file_path || "").trim();
-    } catch (err) {
-      console.error("Manual bootstrap JSON parse failed", err);
-    }
-
-    if (!wrap || !ta || !file_path) {
-      console.error("Manual save missing data", { wrap, ta, file_path });
-      return;
-    }
-
-    const jsonBody = JSON.stringify({ file_path, content: ta.value || "" });
-    console.log("Manual save sending bytes:", jsonBody.length, { file_path });
-
-    btn.disabled = true;
-    try {
-      const resp = await fetch("/admin/save-github-file", {
-        method: "POST",
-        credentials: "include",
-        headers: {
-          "Content-Type": "application/json",
-          "Accept": "application/json",
-        },
-        body: jsonBody,
-      });
-
-      const text = await resp.text().catch(() => "");
-      console.log("Manual save response", resp.status, text);
-
-      if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
-      alert("Saved ✓");
-    } catch (err) {
-      console.error(err);
-      alert("Save failed: " + (err.message || err));
-    } finally {
-      btn.disabled = false;
-    }
-  });
 }
 
 
