@@ -1430,18 +1430,39 @@ window.openChatDetail = openChatDetail;
 ///----- END OF SECTION
 
 // =============================
-// House Manual: SAVE + Dirty state + Toast
+// House Manual: status pill + dirty + save
 // =============================
-if (!window.__MANUAL_EDITOR_BOUND__) {
-  window.__MANUAL_EDITOR_BOUND__ = true;
+if (!window.__MANUAL_STATUS_BOUND__) {
+  window.__MANUAL_STATUS_BOUND__ = true;
 
-  function manualToast(wrap, msg) {
-    const t = wrap.querySelector("[data-manual-toast]");
-    if (!t) return;
-    t.textContent = msg || "Saved ✓";
-    t.hidden = false;
-    clearTimeout(t.__hideTimer);
-    t.__hideTimer = setTimeout(() => (t.hidden = true), 1600);
+  function getManualWrap(el) {
+    return el?.closest?.("[data-manual-editor]") || null;
+  }
+
+  function boot(wrap) {
+    const tag = wrap.querySelector("[data-manual-bootstrap]");
+    try { return JSON.parse((tag?.textContent || "{}").trim()); }
+    catch { return {}; }
+  }
+
+  function setPill(wrap, state) {
+    // state: "loaded" | "dirty" | "saving" | "saved" | "error"
+    const pill = wrap.querySelector("[data-manual-status]");
+    const dot = pill?.querySelector("[data-dot]");
+    const label = pill?.querySelector("[data-label]");
+    if (!pill || !dot || !label) return;
+
+    const map = {
+      loaded: { text: "Loaded.", dot: "#9aa0a6" },
+      dirty:  { text: "Unsaved changes…", dot: "#f59e0b" },
+      saving: { text: "Saving…", dot: "#f59e0b" },
+      saved:  { text: "Saved ✓", dot: "#16a34a" },
+      error:  { text: "Save failed", dot: "#ef4444" },
+    };
+
+    const s = map[state] || map.loaded;
+    label.textContent = s.text;
+    dot.style.background = s.dot;
   }
 
   function setSaveEnabled(wrap, enabled) {
@@ -1449,99 +1470,87 @@ if (!window.__MANUAL_EDITOR_BOUND__) {
     if (btn) btn.disabled = !enabled;
   }
 
-  function getInitialText(wrap) {
-    // We stored the actual initial content in the bootstrap tag; we can use that for change detection
-    const bootTag = wrap.querySelector("[data-manual-bootstrap]");
-    try {
-      const boot = JSON.parse((bootTag?.textContent || "{}").trim());
-      return String(boot.initial_hash || "");
-    } catch {
-      return "";
-    }
+  function ensureInitial(wrap) {
+    if (wrap.__initialText != null) return;
+    const b = boot(wrap);
+    wrap.__initialText = String(b.initial_content || "");
+    setPill(wrap, "loaded");
+    setSaveEnabled(wrap, false);
   }
 
-  function getFilePath(wrap) {
-    const bootTag = wrap.querySelector("[data-manual-bootstrap]");
-    try {
-      const boot = JSON.parse((bootTag?.textContent || "{}").trim());
-      return String(boot.file_path || "").trim();
-    } catch {
-      return "";
-    }
-  }
-
-  // When partial loads, initialize dirty state
+  // Dirty tracking
   document.addEventListener("input", (e) => {
     const ta = e.target.closest?.("[data-manual-textarea]");
     if (!ta) return;
 
-    const wrap = ta.closest("[data-manual-editor]");
+    const wrap = getManualWrap(ta);
     if (!wrap) return;
 
-    if (wrap.__initialText == null) wrap.__initialText = getInitialText(wrap);
+    ensureInitial(wrap);
 
     const dirty = (ta.value || "") !== (wrap.__initialText || "");
     setSaveEnabled(wrap, dirty);
+    setPill(wrap, dirty ? "dirty" : "loaded");
   });
 
-  // Save click
-  document.addEventListener(
-    "click",
-    async (e) => {
-      const btn = e.target.closest?.("[data-save-manual]");
-      if (!btn) return;
+  // Save
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest?.("[data-save-manual]");
+    if (!btn) return;
 
-      e.preventDefault();
+    e.preventDefault();
 
-      const wrap = btn.closest("[data-manual-editor]");
-      const ta = wrap?.querySelector("[data-manual-textarea]");
-      if (!wrap || !ta) return;
+    const wrap = getManualWrap(btn);
+    const ta = wrap?.querySelector("[data-manual-textarea]");
+    if (!wrap || !ta) return;
 
-      if (wrap.__initialText == null) wrap.__initialText = getInitialText(wrap);
+    ensureInitial(wrap);
 
-      const file_path = getFilePath(wrap);
-      if (!file_path) {
-        console.error("Manual save: missing file_path");
-        manualToast(wrap, "Save failed");
-        return;
-      }
+    const b = boot(wrap);
+    const file_path = String(b.file_path || "").trim();
+    if (!file_path) {
+      setPill(wrap, "error");
+      alert("Save failed: missing file path");
+      return;
+    }
 
-      // If not dirty, do nothing
-      const dirty = (ta.value || "") !== (wrap.__initialText || "");
-      if (!dirty) return;
+    const dirty = (ta.value || "") !== (wrap.__initialText || "");
+    if (!dirty) return;
 
-      btn.disabled = true;
+    btn.disabled = true;
+    setPill(wrap, "saving");
 
-      try {
-        const payload = { file_path, content: ta.value || "" };
+    try {
+      const resp = await fetch("/admin/save-github-file", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", "Accept": "application/json" },
+        body: JSON.stringify({ file_path, content: ta.value || "" }),
+      });
 
-        const resp = await fetch("/admin/save-github-file", {
-          method: "POST",
-          credentials: "include",
-          headers: { "Content-Type": "application/json", "Accept": "application/json" },
-          body: JSON.stringify(payload),
-        });
+      const text = await resp.text().catch(() => "");
+      if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
 
-        const text = await resp.text().catch(() => "");
-        if (!resp.ok) throw new Error(text || `Save failed (${resp.status})`);
+      wrap.__initialText = ta.value || "";
+      setSaveEnabled(wrap, false);
+      setPill(wrap, "saved");
 
-        // Mark clean again
-        wrap.__initialText = ta.value || "";
-        setSaveEnabled(wrap, false);
+      // After a moment, revert to Loaded (same vibe as config UI)
+      clearTimeout(wrap.__pillTimer);
+      wrap.__pillTimer = setTimeout(() => setPill(wrap, "loaded"), 1500);
+    } catch (err) {
+      console.error(err);
+      setPill(wrap, "error");
+      alert("Save failed: " + (err.message || err));
 
-        manualToast(wrap, "Saved ✓");
-      } catch (err) {
-        console.error(err);
-        manualToast(wrap, "Save failed");
-        alert("Save failed: " + (err.message || err));
-        // If failed, re-enable if still dirty
-        const stillDirty = (ta.value || "") !== (wrap.__initialText || "");
-        setSaveEnabled(wrap, stillDirty);
-      }
-    },
-    true
-  );
+      // Re-enable if still dirty
+      const stillDirty = (ta.value || "") !== (wrap.__initialText || "");
+      setSaveEnabled(wrap, stillDirty);
+      if (stillDirty) setPill(wrap, "dirty");
+    }
+  }, true);
 }
+
 
 
 
