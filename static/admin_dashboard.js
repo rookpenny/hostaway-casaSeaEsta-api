@@ -441,14 +441,13 @@ window.initConfigUI = function initConfigUI(hostEl) {
     scheduleAutosave();
   }
 
-  // -----------------------
+    // -----------------------
   // Wire events (scoped)
   // -----------------------
   function wire() {
     $("rawJson").addEventListener("focus", () => (editingRaw = true));
     $("rawJson").addEventListener("blur", () => (editingRaw = false));
 
-    // ✅ Inputs -> autosave (NO full render on each keystroke)
     const onAnyChange = () => {
       readFormIntoCfg();
       dirty = true;
@@ -459,7 +458,7 @@ window.initConfigUI = function initConfigUI(hostEl) {
     };
 
     $$("input, textarea, select").forEach((el) => {
-      if (el.id === "rawJson") return; // raw JSON should only save via Apply/Sync
+      if (el.id === "rawJson") return;
       el.addEventListener("input", onAnyChange);
       el.addEventListener("change", onAnyChange);
     });
@@ -490,7 +489,6 @@ window.initConfigUI = function initConfigUI(hostEl) {
 
         if (myToken !== window.__configInlineOpenToken || !hostEl.__configUIAlive) return;
 
-        hostEl.__configUIAlive = true;
         hostEl.innerHTML = res.ok
           ? html
           : `<div class="p-4 text-rose-700">Failed to load config</div>`;
@@ -537,52 +535,6 @@ window.initConfigUI = function initConfigUI(hostEl) {
         markDirtyAndRender();
       });
     }
-  
-
-  // init
-  try {
-    ensureShape();
-    render();
-    wire();
-    setStatus("", "Loaded.");
-  } catch (err) {
-    console.error("Config UI init failed:", err);
-    setStatus("err", err?.message || "Config UI init failed (check console).");
-  }
-};
-
-
-
-
-    const resetBtn = hostEl.querySelector("#btnResetAll");
-    if (resetBtn) resetBtn.addEventListener("click", (e) => {
-      e.preventDefault();
-      resetToDefaults();
-    });
-
-    $("btnApplyRaw").addEventListener("click", (e) => {
-      e.preventDefault();
-      applyRawToForm();
-    });
-
-    $("btnSyncRaw").addEventListener("click", (e) => {
-      e.preventDefault();
-      syncFormToRaw();
-    });
-
-    const addBtn = hostEl.querySelector("#btnAddQuickReply");
-    const input = hostEl.querySelector("#quickReplyInput");
-    if (addBtn && input) {
-      addBtn.addEventListener("click", (e) => {
-        e.preventDefault();
-        const v = input.value.trim();
-        if (!v) return;
-        ensureShape();
-        cfg.assistant.quick_replies.push(v);
-        input.value = "";
-        markDirtyAndRender();
-      });
-    }
   }
 
   // init
@@ -596,6 +548,7 @@ window.initConfigUI = function initConfigUI(hostEl) {
     setStatus("err", err?.message || "Config UI init failed (check console).");
   }
 };
+
 
 
 
