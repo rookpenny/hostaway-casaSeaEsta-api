@@ -364,6 +364,7 @@ def admin_config_ui(
             "scope_label": scope_label,
             "embed": embed,
             "partial": partial,
+            "property_name": property_name,
         },
     )
 
