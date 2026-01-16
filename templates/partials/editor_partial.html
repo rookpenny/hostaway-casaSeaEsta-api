@@ -8,9 +8,20 @@
     </div>
 
     <div class="status">
-      <button class="btn" type="button" onclick="window.closeInlineManual?.()">Close</button>
-      <button class="btn primary" id="btnSaveManual" type="button">Save</button>
-    </div>
+  <button class="btn" type="button" onclick="window.closeInlineManual?.()">Close</button>
+
+  <form method="post" action="/admin/save-github-file" onsubmit="syncManualContent(this)">
+    {# If your app uses CSRF, include it here (ONE of these will be right for your app): #}
+    {# {{ csrf_token() }} #}
+    {# <input type="hidden" name="csrf_token" value="{{ csrf_token }}"> #}
+
+    <input type="hidden" name="file_path" value="{{ file_path }}">
+    <textarea name="content" class="jsManualContent" hidden></textarea>
+
+    <button class="btn primary" type="submit">Save</button>
+  </form>
+</div>
+
   </div>
 
   <div class="card" style="margin-top:12px;">
@@ -24,6 +35,14 @@
     "file_path": {{ file_path|tojson }}
   }
   </script>
+<script>
+  function syncManualContent(formEl) {
+    const wrap = formEl.closest(".wrap") || document;
+    const ta = wrap.querySelector("#manualEditor");
+    const hidden = formEl.querySelector(".jsManualContent");
+    if (hidden && ta) hidden.value = ta.value || "";
+  }
+</script>
 
   <script>
 (function () {
@@ -49,9 +68,11 @@
         }),
       });
 
-      if (!resp.ok) throw new Error("Save failed");
-      alert("Saved ✓");
-    } catch (e) {
+      if (!resp.ok) {
+  const msg = await resp.text().catch(() => "");
+  throw new Error(msg || `Save failed (${resp.status})`);
+}
+ catch (e) {
       console.error(e);
       alert("Save failed: " + (e.message || e));
     } finally {
