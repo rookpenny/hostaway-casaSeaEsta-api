@@ -2,7 +2,7 @@ function readBootstrap() {
   const el = document.getElementById("dashboard-bootstrap");
   if (!el) return {};
   try {
-    return JSON.parse(el.textContent || "{}");
+    return JSON.parse((el.textContent || "{}").trim());
   } catch (e) {
     console.error("Invalid dashboard bootstrap JSON", e);
     return {};
@@ -42,12 +42,9 @@ document.addEventListener("click", (e) => {
 
 window.initConfigUI = function initConfigUI(hostEl) {
   if (!hostEl) return;
-
-  // If this host was already inited AND still contains a config bootstrap, skip.
-  // (We delete this flag when reopening/reloading.)
   if (hostEl.__configUIInited) return;
 
-  // ✅ Scoped DOM helpers (critical)
+  // ✅ Scoped DOM helpers
   const $ = (id) => {
     const el = hostEl.querySelector(`#${CSS.escape(id)}`);
     if (!el) throw new Error(`Config UI missing required element #${id}`);
@@ -55,7 +52,7 @@ window.initConfigUI = function initConfigUI(hostEl) {
   };
   const $$ = (sel) => Array.from(hostEl.querySelectorAll(sel));
 
-  // ✅ Read server bootstrap JSON from inside the injected partial
+  // ✅ Bootstrap
   const bootTag = hostEl.querySelector("#config-ui-bootstrap");
   if (!bootTag) {
     console.warn("Config UI bootstrap tag not found (#config-ui-bootstrap). Aborting init.");
@@ -64,39 +61,27 @@ window.initConfigUI = function initConfigUI(hostEl) {
 
   let boot = {};
   try {
-    boot = JSON.parse(bootTag.textContent || "{}");
+    boot = JSON.parse((bootTag.textContent || "{}").trim());
   } catch (e) {
     console.error("Config UI bootstrap JSON parse failed:", e);
     boot = {};
   }
 
-  // ✅ Only mark as inited after we confirm the partial exists
   hostEl.__configUIInited = true;
+  hostEl.__configUIAlive = true;
 
   function getFilePath() {
-  if (!hostEl) return "";
+    if (!hostEl) return "";
 
-  // 1) Hidden input injected by partial (best source)
-  const hiddenEl = hostEl.querySelector("#configFilePath");
-  if (hiddenEl && hiddenEl.value) {
-    return String(hiddenEl.value).trim();
+    const hiddenEl = hostEl.querySelector("#configFilePath");
+    if (hiddenEl && hiddenEl.value) return String(hiddenEl.value).trim();
+
+    if (boot && typeof boot === "object" && boot.file_path) return String(boot.file_path).trim();
+
+    if (hostEl.dataset.filePath) return String(hostEl.dataset.filePath).trim();
+
+    return "";
   }
-
-  // 2) Bootstrap JSON (full-page or partial)
-  if (typeof boot === "object" && boot && boot.file_path) {
-    return String(boot.file_path).trim();
-  }
-
-  // 3) Inline fallback (dataset set by openInlineConfig)
-  if (hostEl.dataset.filePath) {
-    return String(hostEl.dataset.filePath).trim();
-  }
-   
-
-  return "";
-}
-
-   window.__getConfigFilePath = getFilePath;
 
   const IS_DEFAULTS = !!boot.is_defaults;
   const DEFAULT_WELCOME_NO_NAME =
@@ -171,7 +156,54 @@ window.initConfigUI = function initConfigUI(hostEl) {
   }
 
   // -----------------------
-  // Render
+  // Preview (cheap updates)
+  // -----------------------
+  function updatePreviewOnly() {
+    ensureShape();
+    const a = cfg.assistant;
+
+    const pvName = hostEl.querySelector("#pvName");
+    const pvName2 = hostEl.querySelector("#pvName2");
+    const pvWelcome = hostEl.querySelector("#pvWelcome");
+    const pvReply = hostEl.querySelector("#pvReply");
+
+    const name = a.name || "Sandy";
+    if (pvName) pvName.textContent = name;
+    if (pvName2) pvName2.textContent = name;
+
+    if (pvWelcome) {
+      const tpl = String(a.voice?.welcome_template_no_name || "").trim();
+
+      let welcomeText = tpl
+        ? tpl.replaceAll("{{assistant_name}}", name).replaceAll("{{property_name}}", "Casa Sea Esta")
+        : DEFAULT_WELCOME_NO_NAME.replaceAll("{{assistant_name}}", name).replaceAll("{{property_name}}", "Casa Sea Esta");
+
+      pvWelcome.textContent = sanitizePreviewText(welcomeText);
+    }
+
+    if (pvReply) {
+      const v = a.verbosity || "balanced";
+      const t = a.tone || "luxury";
+
+      let reply =
+        "<b>WiFi</b><br/>Network: …<br/>Password: …<br/><br/><b>Parking</b><br/>Here are the best options…";
+      if (v === "short")
+        reply = "<b>WiFi</b><br/>Network: … / Password: …<br/><b>Parking</b><br/>Best option: …";
+      if (v === "detailed")
+        reply =
+          "<b>WiFi</b><br/>Network: …<br/>Password: …<br/>Tip: …<br/><br/><b>Parking</b><br/>Options: …<br/>Notes: …<br/>Map: …";
+      if (t === "luxury")
+        reply = reply.replace(
+          "Here are the best options…",
+          "Here are the best options, tailored for a smooth arrival…"
+        );
+
+      pvReply.innerHTML = reply;
+    }
+  }
+
+  // -----------------------
+  // Render (full)
   // -----------------------
   function renderQuickReplies() {
     const list = hostEl.querySelector("#quickRepliesList");
@@ -207,16 +239,10 @@ window.initConfigUI = function initConfigUI(hostEl) {
           a.quick_replies.splice(idx, 1);
           markDirtyAndRender();
         } else if (act === "up" && idx > 0) {
-          [a.quick_replies[idx - 1], a.quick_replies[idx]] = [
-            a.quick_replies[idx],
-            a.quick_replies[idx - 1],
-          ];
+          [a.quick_replies[idx - 1], a.quick_replies[idx]] = [a.quick_replies[idx], a.quick_replies[idx - 1]];
           markDirtyAndRender();
         } else if (act === "down" && idx < a.quick_replies.length - 1) {
-          [a.quick_replies[idx + 1], a.quick_replies[idx]] = [
-            a.quick_replies[idx],
-            a.quick_replies[idx + 1],
-          ];
+          [a.quick_replies[idx + 1], a.quick_replies[idx]] = [a.quick_replies[idx], a.quick_replies[idx + 1]];
           markDirtyAndRender();
         }
       });
@@ -251,7 +277,6 @@ window.initConfigUI = function initConfigUI(hostEl) {
     ensureShape();
     const a = cfg.assistant;
 
-    // These MUST exist in your partial; $() will throw if missing.
     $("assistant_name").value = a.name || "Sandy";
     $("assistant_avatar_url").value = a.avatar_url || "/static/img/sandy.png";
     $("assistant_tone").value = a.tone || "luxury";
@@ -273,55 +298,9 @@ window.initConfigUI = function initConfigUI(hostEl) {
 
     renderQuickReplies();
 
-    if (!editingRaw) {
-      $("rawJson").value = JSON.stringify(cfg, null, 2);
-    }
+    if (!editingRaw) $("rawJson").value = JSON.stringify(cfg, null, 2);
 
-    // Preview bits (optional if your partial has them)
-    const pvName = hostEl.querySelector("#pvName");
-    const pvName2 = hostEl.querySelector("#pvName2");
-    const pvWelcome = hostEl.querySelector("#pvWelcome");
-    const pvReply = hostEl.querySelector("#pvReply");
-
-    const name = a.name || "Sandy";
-    if (pvName) pvName.textContent = name;
-    if (pvName2) pvName2.textContent = name;
-
-    if (pvWelcome) {
-      const tplRaw = String(a.voice?.welcome_template_no_name || "");
-      const tpl = tplRaw.trim();
-
-      let welcomeText = tpl
-        ? tpl
-            .replaceAll("{{assistant_name}}", name)
-            .replaceAll("{{property_name}}", "Casa Sea Esta")
-        : DEFAULT_WELCOME_NO_NAME
-            .replaceAll("{{assistant_name}}", name)
-            .replaceAll("{{property_name}}", "Casa Sea Esta");
-
-      pvWelcome.textContent = sanitizePreviewText(welcomeText);
-    }
-
-    if (pvReply) {
-      const v = a.verbosity || "balanced";
-      const t = a.tone || "luxury";
-
-      let reply =
-        "<b>WiFi</b><br/>Network: …<br/>Password: …<br/><br/><b>Parking</b><br/>Here are the best options…";
-      if (v === "short")
-        reply =
-          "<b>WiFi</b><br/>Network: … / Password: …<br/><b>Parking</b><br/>Best option: …";
-      if (v === "detailed")
-        reply =
-          "<b>WiFi</b><br/>Network: …<br/>Password: …<br/>Tip: …<br/><br/><b>Parking</b><br/>Options: …<br/>Notes: …<br/>Map: …";
-      if (t === "luxury")
-        reply = reply.replace(
-          "Here are the best options…",
-          "Here are the best options, tailored for a smooth arrival…"
-        );
-
-      pvReply.innerHTML = reply;
-    }
+    updatePreviewOnly();
   }
 
   // -----------------------
@@ -361,9 +340,10 @@ window.initConfigUI = function initConfigUI(hostEl) {
   // Save
   // -----------------------
   async function saveNow() {
+    if (!hostEl.__configUIAlive) return;
     if (saving) return;
-    saving = true;
 
+    saving = true;
     const btnSave = hostEl.querySelector("#btnSave");
     if (btnSave) btnSave.disabled = true;
 
@@ -377,6 +357,7 @@ window.initConfigUI = function initConfigUI(hostEl) {
 
       const resp = await fetch("/admin/config-ui/save", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file_path, config: cfg }),
       });
@@ -418,6 +399,7 @@ window.initConfigUI = function initConfigUI(hostEl) {
 
       const resp = await fetch("/admin/config-ui/reset", {
         method: "POST",
+        credentials: "include",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ file_path }),
       });
@@ -463,28 +445,23 @@ window.initConfigUI = function initConfigUI(hostEl) {
   // Wire events (scoped)
   // -----------------------
   function wire() {
-    // raw editor focus guard
     $("rawJson").addEventListener("focus", () => (editingRaw = true));
     $("rawJson").addEventListener("blur", () => (editingRaw = false));
 
-    // Inputs -> autosave
+    // ✅ Inputs -> autosave (NO full render on each keystroke)
+    const onAnyChange = () => {
+      readFormIntoCfg();
+      dirty = true;
+      setStatus("warn", "Unsaved changes…");
+      if (!editingRaw) $("rawJson").value = JSON.stringify(cfg, null, 2);
+      updatePreviewOnly();
+      scheduleAutosave();
+    };
+
     $$("input, textarea, select").forEach((el) => {
-      el.addEventListener("input", () => {
-        readFormIntoCfg();
-        dirty = true;
-        setStatus("warn", "Unsaved changes…");
-        if (!editingRaw) $("rawJson").value = JSON.stringify(cfg, null, 2);
-        scheduleAutosave();
-        render();
-      });
-      el.addEventListener("change", () => {
-        readFormIntoCfg();
-        dirty = true;
-        setStatus("warn", "Unsaved changes…");
-        if (!editingRaw) $("rawJson").value = JSON.stringify(cfg, null, 2);
-        scheduleAutosave();
-        render();
-      });
+      if (el.id === "rawJson") return; // raw JSON should only save via Apply/Sync
+      el.addEventListener("input", onAnyChange);
+      el.addEventListener("change", onAnyChange);
     });
 
     $("btnSave").addEventListener("click", (e) => {
@@ -494,16 +471,41 @@ window.initConfigUI = function initConfigUI(hostEl) {
 
     $("btnReload").addEventListener("click", async (e) => {
       e.preventDefault();
+
       const fp = getFilePath();
       if (!fp) return setStatus("err", "Missing file_path");
 
-      const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&embed=1`);
-      hostEl.innerHTML = res.ok
-        ? await res.text()
-        : `<div class="p-4 text-rose-700">Failed to load config</div>`;
+      setStatus("warn", "Reloading…");
 
-      delete hostEl.__configUIInited;
-      window.initConfigUI(hostEl);
+      window.__configInlineOpenToken = (window.__configInlineOpenToken || 0) + 1;
+      const myToken = window.__configInlineOpenToken;
+
+      try {
+        const res = await fetch(
+          `/admin/config-ui?file=${encodeURIComponent(fp)}&embed=1`,
+          { credentials: "include" }
+        );
+
+        const html = await res.text();
+
+        if (myToken !== window.__configInlineOpenToken || !hostEl.__configUIAlive) return;
+
+        hostEl.__configUIAlive = true;
+        hostEl.innerHTML = res.ok
+          ? html
+          : `<div class="p-4 text-rose-700">Failed to load config</div>`;
+
+        delete hostEl.__configUIInited;
+
+        hostEl.dataset.filePath = fp;
+        const fpInput = hostEl.querySelector("#configFilePath");
+        if (fpInput) fpInput.value = fp;
+
+        window.initConfigUI(hostEl);
+      } catch (err) {
+        console.error(err);
+        setStatus("err", "Reload failed");
+      }
     });
 
     const resetBtn = hostEl.querySelector("#btnResetAll");
@@ -549,65 +551,98 @@ window.initConfigUI = function initConfigUI(hostEl) {
   }
 };
 
+
+
+
+    const resetBtn = hostEl.querySelector("#btnResetAll");
+    if (resetBtn) resetBtn.addEventListener("click", (e) => {
+      e.preventDefault();
+      resetToDefaults();
+    });
+
+    $("btnApplyRaw").addEventListener("click", (e) => {
+      e.preventDefault();
+      applyRawToForm();
+    });
+
+    $("btnSyncRaw").addEventListener("click", (e) => {
+      e.preventDefault();
+      syncFormToRaw();
+    });
+
+    const addBtn = hostEl.querySelector("#btnAddQuickReply");
+    const input = hostEl.querySelector("#quickReplyInput");
+    if (addBtn && input) {
+      addBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        const v = input.value.trim();
+        if (!v) return;
+        ensureShape();
+        cfg.assistant.quick_replies.push(v);
+        input.value = "";
+        markDirtyAndRender();
+      });
+    }
+  }
+
+  // init
+  try {
+    ensureShape();
+    render();
+    wire();
+    setStatus("", "Loaded.");
+  } catch (err) {
+    console.error("Config UI init failed:", err);
+    setStatus("err", err?.message || "Config UI init failed (check console).");
+  }
+};
+
+
+
+
 // ----------------------------
 // Inline open/close (CLEAN)
 // ----------------------------
-window.openInlineConfig = async function (e, filePath, propertyName) {
-  // Stop the <a href> navigation (important for inline onclick)
+window.openInlineConfig = async function (e, filePath) {
   if (e && typeof e.preventDefault === "function") e.preventDefault();
 
   const hostEl = document.getElementById("configInlineContainer");
   const wrap = document.getElementById("configPanelWrap");
   const grid = document.getElementById("propertiesGridWrap");
   const header = document.getElementById("propertiesHeaderCard");
-
   if (!hostEl || !wrap) return false;
 
-  // ✅ Always allow re-init when loading a new property config
-  delete hostEl.__configUIInited;
+  window.__configInlineOpenToken = (window.__configInlineOpenToken || 0) + 1;
+  const myToken = window.__configInlineOpenToken;
 
-  // ✅ Authoritative file path for save/reset
+  hostEl.__configUIAlive = true;
+  delete hostEl.__configUIInited;
   hostEl.dataset.filePath = filePath;
 
-  // Optional: show a loading state
   hostEl.innerHTML = `<div class="p-4 muted">Loading config…</div>`;
 
-  let html = "";
   try {
     const res = await fetch(
       `/admin/config-ui?file=${encodeURIComponent(filePath)}&embed=1`,
-      { credentials: "include" } // ✅ helps in reverse-proxy / SameSite situations
+      { credentials: "include" }
     );
 
-    // If auth expired, FastAPI may redirect and you’ll inject a login page.
-    // Catch it early to make the failure obvious.
-    const ct = (res.headers.get("content-type") || "").toLowerCase();
-    html = await res.text();
+    const html = await res.text();
+
+    if (myToken !== window.__configInlineOpenToken) return false;
 
     if (!res.ok) {
       hostEl.innerHTML = `<div class="p-4 text-rose-700">Failed to load config (${res.status})</div>`;
       return false;
     }
 
-    // Very common: injected HTML is actually a login page or full layout.
-    // This heuristic prevents silent “UI broken” confusion.
-    if (html.includes('name="email"') || html.toLowerCase().includes("admin_login")) {
-      hostEl.innerHTML = `<div class="p-4 text-rose-700">
-        Your session may have expired. Please refresh and sign in again.
-      </div>`;
-      return false;
-    }
-
     hostEl.innerHTML = html;
 
-    // ✅ Force the hidden input to match the clicked file path (no normalization surprises)
     const fpInput = hostEl.querySelector("#configFilePath");
     if (fpInput) fpInput.value = filePath;
 
-    // ✅ Initialize the config UI (bind save/reset/autosave/etc.)
-    if (typeof window.initConfigUI === "function") window.initConfigUI(hostEl);
+    window.initConfigUI?.(hostEl);
 
-    // Show panel + hide grid/header
     wrap.classList.remove("hidden");
     grid?.classList.add("hidden");
     header?.classList.add("hidden");
@@ -616,21 +651,18 @@ window.openInlineConfig = async function (e, filePath, propertyName) {
     hostEl.innerHTML = `<div class="p-4 text-rose-700">Failed to load config</div>`;
   }
 
-  // ✅ Extra safety: stop href navigation in all browsers
   return false;
 };
 
 
-
-
 window.closeInlineConfig = function () {
-  // ✅ invalidate any in-flight openInlineConfig fetch (if you add token checks there)
+  const host = document.getElementById("configInlineContainer");
+  if (host) host.__configUIAlive = false;
+
   window.__configInlineOpenToken = (window.__configInlineOpenToken || 0) + 1;
 
   const wrap = document.getElementById("configPanelWrap");
-  const host = document.getElementById("configInlineContainer");
   const label = document.getElementById("configScopeLabel");
-
   const grid = document.getElementById("propertiesGridWrap");
   const header = document.getElementById("propertiesHeaderCard");
 
@@ -645,10 +677,9 @@ window.closeInlineConfig = function () {
   wrap?.classList.add("hidden");
   grid?.classList.remove("hidden");
   header?.classList.remove("hidden");
-
-  // Optional: avoid scrolling if header is missing or already in view
   header?.scrollIntoView?.({ behavior: "smooth", block: "start" });
 };
+
 
 
 // ----------------------------
@@ -2137,7 +2168,7 @@ window.Chats.refreshSummary = async function refreshSummary(sessionId) {
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
+      credentials: "include",
       body: "{}",
     });
 
@@ -3318,6 +3349,7 @@ document.addEventListener("change", (e) => {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "same-origin",
+      credentials: "include",
       body: JSON.stringify({ escalation_level: level }) // ⚠️ adjust if needed
     });
 
