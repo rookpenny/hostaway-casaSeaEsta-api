@@ -497,7 +497,7 @@ window.initConfigUI = function initConfigUI(hostEl) {
       const fp = getFilePath();
       if (!fp) return setStatus("err", "Missing file_path");
 
-      const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(fp)}&partial=1`);
+      const res = await fetch(`/admin/config-ui?file=${encodeURIComponent(filePath)}&embed=1`);
       hostEl.innerHTML = res.ok
         ? await res.text()
         : `<div class="p-4 text-rose-700">Failed to load config</div>`;
@@ -563,7 +563,7 @@ window.openInlineConfig = async function (e, filePath, propertyName) {
   const header = document.getElementById("propertiesHeaderCard");
 
   const res = await fetch(
-    `/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`
+    `/admin/config-ui?file=${encodeURIComponent(filePath)}&embed=1`
   );
 
   hostEl.innerHTML = res.ok
