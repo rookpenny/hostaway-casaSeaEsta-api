@@ -3560,14 +3560,19 @@ def save_manual_file(
     )
 
 
-# ✅ moved under /admin
 @router.get("/admin/edit-config", response_class=HTMLResponse)
 def edit_config(
     request: Request,
     file: str,
+    embed: int | None = Query(default=None),
+    partial: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     file = require_file_in_scope(request, db, file)
+
+    # treat embed/partial as booleans
+    embed = (embed == 1)
+    partial = (partial == 1)
 
     repo_owner = "rookpenny"
     repo_name = "hostscout_data"
@@ -3577,7 +3582,10 @@ def edit_config(
     response = requests.get(github_api_url, headers=headers)
 
     if response.status_code != 200:
-        return HTMLResponse(f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>", status_code=404)
+        return HTMLResponse(
+            f"<h2>GitHub Error: {response.status_code}<br>{response.text}</h2>",
+            status_code=404,
+        )
 
     data = response.json()
     try:
@@ -3585,7 +3593,21 @@ def edit_config(
     except Exception:
         return HTMLResponse("<h2>Error decoding file content</h2>", status_code=500)
 
-    return templates.TemplateResponse("editor.html", {"request": request, "file_path": file, "content": content})
+    # ✅ choose template
+    # - full page: editor.html
+    # - inline/embed: partials/editor_partial.html
+    tpl = "partials/editor_partial.html" if (embed or partial) else "editor.html"
+
+    return templates.TemplateResponse(
+        tpl,
+        {
+            "request": request,
+            "file_path": file,
+            "content": content,
+            "embed": embed,
+            "partial": partial,
+        },
+    )
 
 
 # ✅ moved under /admin + fixed function name
