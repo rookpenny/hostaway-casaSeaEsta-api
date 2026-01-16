@@ -1429,6 +1429,47 @@ window.openChatDetail = openChatDetail;
 ///----- END OF SECTION
 
 
+window.openInlineManual = async function (e, filePath) {
+  e.preventDefault();
+
+  const hostEl = document.getElementById("configInlineContainer");
+  hostEl.dataset.filePath = filePath;
+
+  const wrap = document.getElementById("configPanelWrap");
+  const grid = document.getElementById("propertiesGridWrap");
+  const header = document.getElementById("propertiesHeaderCard");
+
+  const res = await fetch(`/admin/edit-config?file=${encodeURIComponent(filePath)}&embed=1`, {
+    credentials: "include",
+  });
+
+  hostEl.innerHTML = res.ok
+    ? await res.text()
+    : `<div class="p-4 text-rose-700">Failed to load manual</div>`;
+
+  wrap.classList.remove("hidden");
+  grid?.classList.add("hidden");
+  header?.classList.add("hidden");
+};
+
+window.closeInlineManual = function () {
+  const wrap = document.getElementById("configPanelWrap");
+  const host = document.getElementById("configInlineContainer");
+  const grid = document.getElementById("propertiesGridWrap");
+  const header = document.getElementById("propertiesHeaderCard");
+
+  if (host) {
+    host.innerHTML = "";
+    delete host.dataset.filePath;
+  }
+
+  wrap?.classList.add("hidden");
+  grid?.classList.remove("hidden");
+  header?.classList.remove("hidden");
+  header?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+
   // -------- Paywall flag (server-rendered) --------
 //const IS_LOCKED = {{ (user_role == 'pmc' and needs_payment) | tojson }};
 //const CONTENT_LOCKED = IS_LOCKED;
