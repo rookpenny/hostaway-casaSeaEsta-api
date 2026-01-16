@@ -174,9 +174,16 @@ window.initConfigUI = function initConfigUI(hostEl) {
     if (pvWelcome) {
       const tpl = String(a.voice?.welcome_template_no_name || "").trim();
 
+      const propertyName =
+        (boot && String(boot.property_name || "").trim()) || "this property";
+      
       let welcomeText = tpl
-        ? tpl.replaceAll("{{assistant_name}}", name).replaceAll("{{property_name}}", "Casa Sea Esta")
-        : DEFAULT_WELCOME_NO_NAME.replaceAll("{{assistant_name}}", name).replaceAll("{{property_name}}", "Casa Sea Esta");
+        ? tpl
+            .replaceAll("{{assistant_name}}", name)
+            .replaceAll("{{property_name}}", propertyName)
+        : DEFAULT_WELCOME_NO_NAME
+            .replaceAll("{{assistant_name}}", name)
+            .replaceAll("{{property_name}}", propertyName);
 
       pvWelcome.textContent = sanitizePreviewText(welcomeText);
     }
