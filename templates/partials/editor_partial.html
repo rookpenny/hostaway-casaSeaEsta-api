@@ -8,79 +8,75 @@
     </div>
 
     <div class="status">
-  <button class="btn" type="button" onclick="window.closeInlineManual?.()">Close</button>
-
-  <form method="post" action="/admin/save-github-file" onsubmit="syncManualContent(this)">
-    {# If your app uses CSRF, include it here (ONE of these will be right for your app): #}
-    {# {{ csrf_token() }} #}
-    {# <input type="hidden" name="csrf_token" value="{{ csrf_token }}"> #}
-
-    <input type="hidden" name="file_path" value="{{ file_path }}">
-    <textarea name="content" class="jsManualContent" hidden></textarea>
-
-    <button class="btn primary" type="submit">Save</button>
-  </form>
-</div>
-
+      <button class="btn" type="button" onclick="window.closeInlineManual?.()">Close</button>
+      <button class="btn primary" type="button" id="btnSaveManual">Save</button>
+    </div>
   </div>
 
   <div class="card" style="margin-top:12px;">
     <label class="muted small">Raw file editor</label>
-    <textarea id="manualEditor"
-              style="min-height: 520px; margin-top:10px; font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas; font-size:12px;">{{ content }}</textarea>
+    <textarea
+      id="manualEditor"
+      style="min-height:520px;margin-top:10px;font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas;font-size:12px;"
+    >{{ content }}</textarea>
   </div>
 
+  <!-- Bootstrap data -->
   <script type="application/json" id="manual-bootstrap">
   {
-    "file_path": {{ file_path|tojson }}
+    "file_path": {{ file_path | tojson }}
   }
   </script>
-<script>
-  function syncManualContent(formEl) {
-    const wrap = formEl.closest(".wrap") || document;
+
+  <!-- Save logic -->
+  <script>
+  (function () {
+    const bootTag = document.getElementById("manual-bootstrap");
+    const boot = JSON.parse(bootTag?.textContent || "{}");
+    const file_path = String(boot.file_path || "").trim();
+
+    const wrap = bootTag.closest(".wrap") || document;
+    const btn = wrap.querySelector("#btnSaveManual");
     const ta = wrap.querySelector("#manualEditor");
-    const hidden = formEl.querySelector(".jsManualContent");
-    if (hidden && ta) hidden.value = ta.value || "";
-  }
-</script>
 
-<script>
-(function () {
-  const bootTag = document.getElementById("manual-bootstrap");
-  const boot = JSON.parse(bootTag?.textContent || "{}");
-  const file_path = (boot.file_path || "").trim();
-
-  const btn = document.getElementById("btnSaveManual");
-  const ta = document.getElementById("manualEditor");
-  if (!btn || !ta) return;
-
-  btn.addEventListener("click", async () => {
-    btn.disabled = true;
-    try {
-      const resp = await fetch("/admin/save-github-file", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" }, // ✅ change
-        body: JSON.stringify({                         // ✅ change
-          file_path,
-          content: ta.value || ""
-        }),
-      });
-
-      if (!resp.ok) {
-        const msg = await resp.text().catch(() => "");
-        throw new Error(msg || `Save failed (${resp.status})`);
-      }
-
-      alert("Saved ✓");
-    } catch (e) {
-      console.error(e);
-      alert("Save failed: " + (e.message || e));
-    } finally {
-      btn.disabled = false;
+    if (!btn || !ta || !file_path) {
+      console.error("Manual editor init failed", { btn, ta, file_path });
+      return;
     }
-  });
-})();
-</script>
 
+    btn.addEventListener("click", async () => {
+      btn.disabled = true;
+
+      const payload = {
+        file_path,
+        content: ta.value || ""
+      };
+
+      try {
+        const resp = await fetch("/admin/save-github-file", {
+          method: "POST",
+          credentials: "include",
+          headers: {
+            "Content-Type": "application/json",
+            "Accept": "application/json"
+          },
+          body: JSON.stringify(payload)
+        });
+
+        const text = await resp.text().catch(() => "");
+
+        if (!resp.ok) {
+          throw new Error(text || `Save failed (${resp.status})`);
+        }
+
+        alert("Saved ✓");
+      } catch (err) {
+        console.error("Manual save failed:", err);
+        alert("Save failed: " + (err.message || err));
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  })();
+  </script>
 </div>
