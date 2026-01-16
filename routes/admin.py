@@ -351,6 +351,26 @@ def admin_config_ui(
     embed = (embed == 1)
     partial = (partial == 1)
 
+    # ✅ Derive property name from file path using Property.data_folder_path
+    property_name = ""
+    if not is_defaults:
+        fp = (file or "").strip().lstrip("/")
+        # Find the property whose data_folder_path is a prefix of this file path
+        # (Pick the longest match to be safe)
+        props = db.query(Property).filter(Property.data_folder_path.isnot(None)).all()
+        best = None
+        best_len = -1
+        for p in props:
+            base = (getattr(p, "data_folder_path", "") or "").strip().strip("/")
+            if not base:
+                continue
+            if fp == base or fp.startswith(base + "/"):
+                if len(base) > best_len:
+                    best = p
+                    best_len = len(base)
+        if best:
+            property_name = (best.property_name or "").strip()
+
     # for now you only have one template
     tpl = "partials/admin_config_ui_partial.html"
 
@@ -364,9 +384,11 @@ def admin_config_ui(
             "scope_label": scope_label,
             "embed": embed,
             "partial": partial,
+            # ✅ NEW: server-driven property name
             "property_name": property_name,
         },
     )
+
 
 
 
