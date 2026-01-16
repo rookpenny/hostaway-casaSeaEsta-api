@@ -8,13 +8,16 @@
     </div>
 
     <div class="status">
-      <!-- Close is owned by the parent UI now -->
+      <!-- Status pill (like Assistant Config) -->
+      <div class="pill" data-manual-status>
+        <span class="dot" data-dot></span>
+        <span class="label" data-label>Loaded.</span>
+      </div>
+
+      <!-- Parent UI owns Close; keep only Save here -->
       <button class="btn primary" type="button" data-save-manual disabled>Save</button>
     </div>
   </div>
-
-  <!-- Toast -->
-  <div class="toast" data-manual-toast hidden>Saved ✓</div>
 
   <div class="card" style="margin-top:12px;">
     <label class="muted small">Raw file editor</label>
@@ -27,53 +30,43 @@
   <script type="application/json" data-manual-bootstrap>
   {
     "file_path": {{ file_path | tojson }},
-    "initial_hash": {{ (content or '') | tojson }}
+    "initial_content": {{ (content or "") | tojson }}
   }
   </script>
 
   <style>
-    /* Keep it scoped to manual UI */
-    [data-manual-editor] .status { display:flex; gap:10px; align-items:center; }
-
+    [data-manual-editor] .status { display:flex; gap:12px; align-items:center; }
     [data-manual-editor] .btn {
-      appearance: none;
-      border: 1px solid rgba(0,0,0,.12);
-      background: white;
-      color: inherit;
-      padding: 8px 12px;
-      border-radius: 10px;
-      font-weight: 600;
-      cursor: pointer;
-      box-shadow: 0 1px 0 rgba(0,0,0,.02);
+      appearance:none;
+      border:1px solid rgba(0,0,0,.12);
+      background:white;
+      padding:8px 12px;
+      border-radius:10px;
+      font-weight:700;
+      cursor:pointer;
     }
-    [data-manual-editor] .btn:hover { background: rgba(0,0,0,.03); }
-    [data-manual-editor] .btn.primary {
-      background: #111;
-      color: #fff;
-      border-color: #111;
-    }
-    [data-manual-editor] .btn.primary:hover { filter: brightness(1.05); }
+    [data-manual-editor] .btn.primary { background:#111; color:#fff; border-color:#111; }
+    [data-manual-editor] .btn:disabled { opacity:.45; cursor:not-allowed; }
 
-    [data-manual-editor] .btn:disabled {
-      opacity: .45;
-      cursor: not-allowed;
-      filter: none;
+    /* pill like assistant config */
+    [data-manual-editor] .pill{
+      display:inline-flex;
+      align-items:center;
+      gap:8px;
+      padding:6px 10px;
+      border-radius:999px;
+      border:1px solid rgba(0,0,0,.10);
+      background:#fff;
+      font-weight:600;
+      font-size:13px;
+      user-select:none;
+      white-space:nowrap;
     }
-
-    [data-manual-editor] .toast {
-      position: sticky;
-      top: 8px;
-      margin-top: 10px;
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      padding: 8px 12px;
-      border-radius: 999px;
-      border: 1px solid rgba(0,0,0,.10);
-      background: rgba(255,255,255,.95);
-      box-shadow: 0 6px 18px rgba(0,0,0,.08);
-      font-weight: 600;
-      width: fit-content;
+    [data-manual-editor] .dot{
+      width:8px; height:8px;
+      border-radius:999px;
+      background:#9aa0a6; /* default gray */
+      display:inline-block;
     }
   </style>
 </div>
