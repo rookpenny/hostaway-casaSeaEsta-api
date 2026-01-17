@@ -49,25 +49,26 @@ async function stripeConnectRefreshStatus() {
   el.textContent = bits.join(" • ");
 }
 
+// ✅ Event delegation: works even if panel is hidden/shown dynamically
 document.addEventListener("click", (e) => {
-  const connectBtn = e.target?.closest?.("#stripe-connect-btn");
-  const refreshBtn = e.target?.closest?.("#stripe-refresh-btn");
-
-  if (connectBtn) {
+  if (e.target.closest("#stripe-connect-btn")) {
     e.preventDefault();
     stripeConnectStart();
     return;
   }
-
-  if (refreshBtn) {
+  if (e.target.closest("#stripe-refresh-btn")) {
     e.preventDefault();
     stripeConnectRefreshStatus();
     return;
   }
+
+  // If they clicked the Settings→Integrations tab, refresh status
+  const tab = e.target.closest(".settings-tab[data-settings='integrations']");
+  if (tab) {
+    setTimeout(stripeConnectRefreshStatus, 50);
+  }
 });
 
 document.addEventListener("DOMContentLoaded", () => {
-  // safe if element not present yet
   stripeConnectRefreshStatus();
 });
-
