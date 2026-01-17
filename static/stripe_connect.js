@@ -1,54 +1,65 @@
 // static/stripe_connect.js
-async function fetchStripeStatus() {
-  const res = await fetch("/admin/integrations/stripe/status");
-  if (!res.ok) throw new Error("Failed to load Stripe status");
-  return await res.json();
+
+async function stripeGetStatus() {
+  const res = await fetch("/admin/integrations/stripe/status", { credentials: "include" });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.detail || "Failed to load status");
+  return data;
 }
 
-function setStatusText(text) {
+function stripeSetStatusText(text) {
   const el = document.getElementById("stripe-connect-status");
   if (el) el.textContent = text;
 }
 
-async function refreshStripeUI() {
+async function stripeRefreshUI() {
   try {
-    setStatusText("Checking status…");
-    const data = await fetchStripeStatus();
-    if (!data.connected) {
-      setStatusText("Not connected. Connect Stripe to accept upgrade payments.");
+    stripeSetStatusText("Checking status…");
+    const s = await stripeGetStatus();
+
+    if (!s.connected) {
+      stripeSetStatusText("Not connected. Connect Stripe to accept upgrade payments.");
       return;
     }
-    const parts = [];
-    parts.push(`Connected (${data.account_id})`);
-    if (data.charges_enabled !== undefined) parts.push(`charges: ${data.charges_enabled ? "on" : "off"}`);
-    if (data.payouts_enabled !== undefined) parts.push(`payouts: ${data.payouts_enabled ? "on" : "off"}`);
-    setStatusText(parts.join(" • "));
+
+    const bits = [`Connected (${s.account_id})`];
+    if (s.charges_enabled !== undefined) bits.push(`charges: ${s.charges_enabled ? "on" : "off"}`);
+    if (s.payouts_enabled !== undefined) bits.push(`payouts: ${s.payouts_enabled ? "on" : "off"}`);
+    stripeSetStatusText(bits.join(" • "));
   } catch (e) {
-    setStatusText("Could not load Stripe status.");
     console.error(e);
+    stripeSetStatusText("Could not load Stripe status.");
   }
 }
 
-async function startStripeConnect() {
+async function stripeStartConnect() {
   const btn = document.getElementById("stripe-connect-btn");
   if (btn) btn.disabled = true;
+
   try {
-    const res = await fetch("/admin/integrations/stripe/connect", { method: "POST" });
-    const data = await res.json();
-    if (!res.ok || !data.url) throw new Error(data.detail || "Connect failed");
+    const res = await fetch("/admin/integrations/stripe/connect", {
+      method: "POST",
+      credentials: "include",
+    });
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok || !data.url) {
+      throw new Error(data.detail || "Connect failed");
+    }
+
     window.location.href = data.url;
   } catch (e) {
     console.error(e);
-    alert("Stripe connect failed. Check logs.");
+    alert("Stripe connect failed. Check Render logs.");
   } finally {
     if (btn) btn.disabled = false;
   }
 }
 
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("stripe-connect-btn")?.addEventListener("click", startStripeConnect);
-  document.getElementById("stripe-refresh-btn")?.addEventListener("click", refreshStripeUI);
+  document.getElementById("stripe-connect-btn")?.addEventListener("click", stripeStartConnect);
+  document.getElementById("stripe-refresh-btn")?.addEventListener("click", stripeRefreshUI);
 
-  // refresh when settings tab opens (simple approach: refresh once on load)
-  refreshStripeUI();
+  // Refresh once on load; if your settings panel loads via tabs, call again when opened.
+  stripeRefreshUI();
 });
