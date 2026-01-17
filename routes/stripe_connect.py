@@ -11,7 +11,7 @@ from database import get_db
 from models import PMCIntegration
 
 # IMPORTANT: import your existing auth helper
-from routes.admin_dashboard import get_user_role_and_scope  # <- adjust if your function lives elsewhere
+from routes.admin import get_user_role_and_scope  # <- adjust if your function lives elsewhere
 
 router = APIRouter()
 
