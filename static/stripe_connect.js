@@ -49,8 +49,25 @@ async function stripeConnectRefreshStatus() {
   el.textContent = bits.join(" • ");
 }
 
+document.addEventListener("click", (e) => {
+  const connectBtn = e.target?.closest?.("#stripe-connect-btn");
+  const refreshBtn = e.target?.closest?.("#stripe-refresh-btn");
+
+  if (connectBtn) {
+    e.preventDefault();
+    stripeConnectStart();
+    return;
+  }
+
+  if (refreshBtn) {
+    e.preventDefault();
+    stripeConnectRefreshStatus();
+    return;
+  }
+});
+
 document.addEventListener("DOMContentLoaded", () => {
-  document.getElementById("stripe-connect-btn")?.addEventListener("click", stripeConnectStart);
-  document.getElementById("stripe-refresh-btn")?.addEventListener("click", stripeConnectRefreshStatus);
+  // safe if element not present yet
   stripeConnectRefreshStatus();
 });
+
