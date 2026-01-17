@@ -6,17 +6,17 @@
 
 # routes/stripe_webhook.py
 import os
-import stripe
 from datetime import datetime, timezone
 from typing import Optional
 
+import stripe
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
 from sqlalchemy import func
+from sqlalchemy.orm import Session
 
 from database import SessionLocal
-from models import PMC
+from models import PMC  # keep your existing PMC model import
 
 router = APIRouter()
 
@@ -33,9 +33,6 @@ def _load_env() -> tuple[str, str]:
 def _require_env() -> tuple[str, str]:
     stripe_secret, webhook_secret = _load_env()
 
-    stripe_secret = (stripe_secret or "").strip()
-    webhook_secret = (webhook_secret or "").strip()
-
     missing = []
     if not stripe_secret:
         missing.append("STRIPE_SECRET_KEY")
@@ -49,7 +46,6 @@ def _require_env() -> tuple[str, str]:
         )
 
     return stripe_secret, webhook_secret
-
 
 
 def _set_if_attr(obj, attr: str, value) -> None:
@@ -76,22 +72,6 @@ def _get_email_from_session(obj: dict) -> Optional[str]:
         return None
 
     return email.strip().lower()
-
-
-
-from datetime import datetime, timezone
-from typing import Optional
-
-import stripe
-from fastapi import APIRouter, Request, HTTPException
-from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
-from sqlalchemy import func
-
-from database import SessionLocal
-from models import PMC
-
-router = APIRouter()
 
 
 @router.post("/stripe/webhook")
@@ -157,7 +137,7 @@ async def stripe_webhook(request: Request):
 
     # Ignore everything we don't care about
     HANDLED = {
-        # Checkout completion (activation)
+        # Checkout completion (activation + upgrades)
         "checkout.session.completed",
 
         # Payment issues
@@ -173,6 +153,9 @@ async def stripe_webhook(request: Request):
 
     db: Session = SessionLocal()
     try:
+        # NOTE: We find PMC for BOTH flows:
+        # - PMC signup checkout (metadata contains pmc_id/type)
+        # - Upgrade checkout (metadata contains pmc_id/type)
         pmc = _find_pmc(db)
         if pmc is None:
             print("[stripe_webhook] No PMC matched. event=", event_type, "event_id=", event_id)
@@ -185,11 +168,61 @@ async def stripe_webhook(request: Request):
         _set_if_attr(pmc, "last_stripe_event_id", event_id)
 
         # ------------------------------------------------------------------
-        # 1) checkout.session.completed (activation moment)
+        # 1) checkout.session.completed (activation moment + upgrade purchases)
         # ------------------------------------------------------------------
         if event_type == "checkout.session.completed":
             checkout_type = (metadata.get("type") or "").strip()
 
+            # ===============================================================
+            # A) Upgrade purchase flow (guest checkout on connected account)
+            # ===============================================================
+            if checkout_type == "upgrade_purchase":
+                purchase_id = (metadata.get("purchase_id") or "").strip()
+                checkout_session_id = (obj.get("id") or "").strip()
+                payment_intent_id = obj.get("payment_intent")
+
+                if purchase_id:
+                    # Import here to avoid any potential circular import issues
+                    try:
+                        from models import UpgradePurchase  # you must create this model/table
+                    except Exception as e:
+                        # If model not available yet, don't fail the webhook
+                        print("[stripe_webhook] UpgradePurchase model missing:", e)
+                        db.commit()
+                        return JSONResponse({"ok": True})
+
+                    try:
+                        p = (
+                            db.query(UpgradePurchase)
+                            .filter(UpgradePurchase.id == int(purchase_id))
+                            .first()
+                        )
+                    except Exception:
+                        p = None
+
+                    if p:
+                        # Idempotent update
+                        if getattr(p, "status", None) != "paid":
+                            p.status = "paid"
+                            p.paid_at = datetime.now(timezone.utc)
+
+                        # Persist stripe ids if columns exist / empty
+                        if hasattr(p, "stripe_checkout_session_id") and checkout_session_id:
+                            if not getattr(p, "stripe_checkout_session_id", None):
+                                p.stripe_checkout_session_id = checkout_session_id
+
+                        if hasattr(p, "stripe_payment_intent_id") and payment_intent_id:
+                            if not getattr(p, "stripe_payment_intent_id", None):
+                                p.stripe_payment_intent_id = payment_intent_id
+
+                        db.commit()
+
+                # Important: return early so we don't run PMC signup logic
+                return JSONResponse({"ok": True})
+
+            # ===============================================================
+            # B) Existing PMC billing / activation flow
+            # ===============================================================
             # Support both your new + legacy type names
             ALLOWED_TYPES = {
                 "pmc_full_activation",                     # ✅ your current flow
@@ -267,4 +300,3 @@ async def stripe_webhook(request: Request):
         raise
     finally:
         db.close()
-
