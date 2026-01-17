@@ -4,11 +4,14 @@ import stripe
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import JSONResponse, RedirectResponse
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models import PMCIntegration
+
+# IMPORTANT: import your existing auth helper
+from routes.admin_dashboard import get_user_role_and_scope  # <- adjust if your function lives elsewhere
 
 router = APIRouter()
 
@@ -23,21 +26,31 @@ def _require_env():
         raise HTTPException(status_code=500, detail="Missing APP_BASE_URL")
 
 
-# ✅ Replace this with your real admin auth / session logic
-def get_current_pmc_id(request: Request) -> int:
-    pmc_id = getattr(request.state, "pmc_id", None)
-    if not pmc_id:
+def require_pmc_scope(request: Request, db: Session):
+    """
+    Uses your existing admin auth:
+    - request.session["user"] must exist
+    - get_user_role_and_scope returns pmc_obj
+    """
+    user = request.session.get("user")
+    if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    return int(pmc_id)
+
+    user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
+
+    if user_role != "pmc" or not pmc_obj:
+        raise HTTPException(status_code=403, detail="PMC access required")
+
+    return pmc_obj
 
 
 @router.get("/admin/integrations/stripe/status")
 def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
-    pmc_id = get_current_pmc_id(request)
+    pmc_obj = require_pmc_scope(request, db)
 
     integ = (
         db.query(PMCIntegration)
-        .filter(PMCIntegration.pmc_id == pmc_id, PMCIntegration.provider == "stripe_connect")
+        .filter(PMCIntegration.pmc_id == pmc_obj.id, PMCIntegration.provider == "stripe_connect")
         .first()
     )
 
@@ -56,21 +69,21 @@ def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
 @router.post("/admin/integrations/stripe/connect")
 def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
     """
-    Called by the admin dashboard button.
-    Creates (or reuses) a Stripe Express account, then returns an onboarding link URL.
+    Called by the admin dashboard 'Connect Stripe' button.
+    Creates (or reuses) a Stripe Express account and returns onboarding link URL.
     """
     _require_env()
-    pmc_id = get_current_pmc_id(request)
+    pmc_obj = require_pmc_scope(request, db)
 
     integ = (
         db.query(PMCIntegration)
-        .filter(PMCIntegration.pmc_id == pmc_id, PMCIntegration.provider == "stripe_connect")
+        .filter(PMCIntegration.pmc_id == pmc_obj.id, PMCIntegration.provider == "stripe_connect")
         .first()
     )
 
     if not integ:
         integ = PMCIntegration(
-            pmc_id=pmc_id,
+            pmc_id=pmc_obj.id,
             provider="stripe_connect",
             is_connected=False,
         )
@@ -78,7 +91,7 @@ def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
         db.commit()
         db.refresh(integ)
 
-    # Create account once
+    # Create the connected account once
     if not integ.account_id:
         acct = stripe.Account.create(
             type="express",
@@ -86,12 +99,12 @@ def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
                 "card_payments": {"requested": True},
                 "transfers": {"requested": True},
             },
-            metadata={"pmc_id": str(pmc_id)},
+            metadata={"pmc_id": str(pmc_obj.id)},
         )
         integ.account_id = acct["id"]
         db.commit()
 
-    # Create onboarding link (Express)
+    # Create onboarding link
     link = stripe.AccountLink.create(
         account=integ.account_id,
         refresh_url=f"{APP_BASE_URL}/admin/dashboard?view=settings&tab=integrations",
@@ -106,14 +119,14 @@ def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
 def stripe_connect_callback(request: Request, db: Session = Depends(get_db)):
     """
     Stripe returns here after onboarding.
-    We fetch the account and mark it connected if charges_enabled.
+    We fetch account + mark connected if charges_enabled.
     """
     _require_env()
-    pmc_id = get_current_pmc_id(request)
+    pmc_obj = require_pmc_scope(request, db)
 
     integ = (
         db.query(PMCIntegration)
-        .filter(PMCIntegration.pmc_id == pmc_id, PMCIntegration.provider == "stripe_connect")
+        .filter(PMCIntegration.pmc_id == pmc_obj.id, PMCIntegration.provider == "stripe_connect")
         .first()
     )
     if not integ or not integ.account_id:
@@ -121,7 +134,7 @@ def stripe_connect_callback(request: Request, db: Session = Depends(get_db)):
 
     acct = stripe.Account.retrieve(integ.account_id)
 
-    # Update optional columns if they exist
+    # Update optional columns if they exist on your model/table
     if hasattr(integ, "charges_enabled"):
         integ.charges_enabled = bool(acct.get("charges_enabled"))
     if hasattr(integ, "payouts_enabled"):
@@ -129,7 +142,6 @@ def stripe_connect_callback(request: Request, db: Session = Depends(get_db)):
     if hasattr(integ, "details_submitted"):
         integ.details_submitted = bool(acct.get("details_submitted"))
 
-    # Practical definition of "ready"
     integ.is_connected = bool(acct.get("charges_enabled"))
 
     if hasattr(integ, "connected_at") and integ.is_connected and not getattr(integ, "connected_at", None):
