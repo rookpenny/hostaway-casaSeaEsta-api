@@ -476,7 +476,6 @@ class AnalyticsEvent(Base):
 # UPGRADES BASE
 # -------------------------------------------------------------------
 
-
 class UpgradePurchase(Base):
     __tablename__ = "upgrade_purchases"
 
@@ -488,7 +487,7 @@ class UpgradePurchase(Base):
 
     reservation_id = Column(Text, nullable=True)
 
-    status = Column(Text, nullable=False, server_default="pending")
+    status = Column(Text, nullable=False, server_default="pending")  # pending|paid|refunded|disputed|failed
 
     amount_cents = Column(Integer, nullable=False)
     platform_fee_cents = Column(Integer, nullable=False, server_default="0")
@@ -500,4 +499,3 @@ class UpgradePurchase(Base):
     paid_at = Column(DateTime(timezone=True), nullable=True)
     refunded_at = Column(DateTime(timezone=True), nullable=True)
     refunded_amount_cents = Column(Integer, nullable=True, server_default="0")
-
