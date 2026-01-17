@@ -2502,7 +2502,7 @@ async openEditor(id) {
   editorWrap.classList.remove("hidden");
   editorBody.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
 
-  /*try {
+  try {
     const res = await fetch(url, { credentials: "include" });
 
     if (res.status === 401 || res.status === 403) return loginRedirect();
@@ -2513,7 +2513,7 @@ async openEditor(id) {
 
     editorBody.innerHTML = await res.text();
 
-    // ✅ Don’t let editor init break the modal
+   /* // ✅ Don’t let editor init break the modal
     try {
       if (typeof initQuillEditor === "function") {
         initQuillEditor({
