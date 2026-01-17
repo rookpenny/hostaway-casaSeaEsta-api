@@ -1,3 +1,4 @@
+# database.py
 import os
 from typing import Generator
 
@@ -29,9 +30,15 @@ url = make_url(DATABASE_URL)
 # -------------------------------------------------------------------
 # ENGINE CONFIG
 # -------------------------------------------------------------------
+# Render / managed Postgres can drop idle connections.
+# These settings reduce stale connections + make reconnects smoother.
 engine_kwargs = {
     "future": True,
-    "pool_pre_ping": True,  # avoids stale connection crashes
+    "pool_pre_ping": True,   # checks connection liveness before using it
+    "pool_recycle": int(os.getenv("DB_POOL_RECYCLE_SECONDS", "300")),  # default 5 min
+    "pool_size": int(os.getenv("DB_POOL_SIZE", "5")),
+    "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "10")),
+    "pool_timeout": int(os.getenv("DB_POOL_TIMEOUT", "30")),
 }
 
 # Enable SQL logging only if explicitly requested
