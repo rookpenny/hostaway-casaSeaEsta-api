@@ -1,3 +1,9 @@
+# Keep your existing /stripe/webhook endpoint (for PMC billing)
+# Add Stripe Connect onboarding endpoints (for PMCs to connect their own Stripe)
+# Add guest upgrade Checkout Session (runs on the PMC’s connected Stripe account)
+# Extend your existing webhook to also mark upgrade purchases as paid (without breaking PMC signup logic)
+
+
 # routes/stripe_webhook.py
 import os
 import stripe
