@@ -46,6 +46,24 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
     flat_fee = 30
     platform_fee = max(0, pct_fee + flat_fee)
 
+    # --- HARD BLOCK: Stripe not connected ---
+    integration = (
+        db.query(PMCIntegration)
+        .filter(
+            PMCIntegration.pmc_id == pmc_id,
+            PMCIntegration.provider == "stripe_connect",
+            PMCIntegration.is_connected == True,
+        )
+        .first()
+    )
+    
+    if not integration or not integration.account_id:
+        raise HTTPException(
+            status_code=403,
+            detail="This property manager has not connected Stripe yet.",
+        )
+
+
     # Create purchase row FIRST
     purchase = UpgradePurchase(
         pmc_id=pmc_id,
