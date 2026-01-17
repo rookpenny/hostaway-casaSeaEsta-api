@@ -1,6 +1,7 @@
 from datetime import datetime
 from sqlalchemy import (
     Column,
+    BigInteger,
     Integer,
     String,
     Boolean,
@@ -9,6 +10,7 @@ from sqlalchemy import (
     Text,
     Date,
     UniqueConstraint,
+    func,
 )
 from sqlalchemy.orm import relationship
 import json
@@ -468,4 +470,34 @@ class AnalyticsEvent(Base):
     pmc = relationship("PMC")
     property = relationship("Property")
     session = relationship("ChatSession")
+
+
+# -------------------------------------------------------------------
+# UPGRADES BASE
+# -------------------------------------------------------------------
+
+
+class UpgradePurchase(Base):
+    __tablename__ = "upgrade_purchases"
+
+    id = Column(BigInteger, primary_key=True, index=True)
+
+    pmc_id = Column(Integer, nullable=False)
+    property_id = Column(Integer, nullable=False)
+    upgrade_id = Column(Integer, nullable=False)
+
+    reservation_id = Column(Text, nullable=True)
+
+    status = Column(Text, nullable=False, server_default="pending")
+
+    amount_cents = Column(Integer, nullable=False)
+    platform_fee_cents = Column(Integer, nullable=False, server_default="0")
+
+    stripe_checkout_session_id = Column(Text, unique=True, nullable=True)
+    stripe_payment_intent_id = Column(Text, unique=True, nullable=True)
+
+    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    refunded_at = Column(DateTime(timezone=True), nullable=True)
+    refunded_amount_cents = Column(Integer, nullable=True, server_default="0")
 
