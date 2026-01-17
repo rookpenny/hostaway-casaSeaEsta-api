@@ -3447,6 +3447,15 @@ def admin_dashboard(
             .all()
         )
 
+    # 🔒 Stripe Connect status (for locking upgrades UI)
+    stripe_connected = False
+    if pmc:
+        stripe_connected = bool(
+            getattr(pmc, "stripe_account_id", None)
+            or getattr(pmc, "stripe_connect_account_id", None)
+        )
+
+
     return templates.TemplateResponse(
         "admin_dashboard.html",
         {
@@ -3471,6 +3480,7 @@ def admin_dashboard(
             "user_email": me_email,
             "user_full_name": (me_user.full_name if me_user else None),
             "team_members": team_members,
+            "stripe_connected": stripe_connected,
             "notif_prefs": notif_prefs,
 
             "sessions": sessions,
