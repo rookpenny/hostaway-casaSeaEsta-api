@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import PMCIntegration
 
+from fastapi.responses import JSONResponse
+
 # IMPORTANT: import your existing auth helper
 from routes.admin import get_user_role_and_scope  # <- adjust if your function lives elsewhere
 
@@ -46,7 +48,12 @@ def require_pmc_scope(request: Request, db: Session):
 
 @router.get("/admin/integrations/stripe/status")
 def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
-    pmc_obj = require_pmc_scope(request, db)
+    try:
+        pmc_obj = require_pmc_scope(request, db)
+    except HTTPException as e:
+        # Force JSON (prevents HTML templates from leaking to fetch)
+        return JSONResponse({"detail": e.detail}, status_code=e.status_code)
+
 
     integ = (
         db.query(PMCIntegration)
