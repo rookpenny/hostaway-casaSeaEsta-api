@@ -16,7 +16,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
-from models import PMC  # keep your existing PMC model import
+from models import PMC, UpgradePurchase  # keep your existing PMC model import
 
 router = APIRouter()
 
