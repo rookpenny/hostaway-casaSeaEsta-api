@@ -2398,7 +2398,7 @@ document.addEventListener("click", (e) => {
 
 
 
-   function initQuillEditor({ editorId, inputId, placeholder = "" }) {
+   /*function initQuillEditor({ editorId, inputId, placeholder = "" }) {
   const editorEl = document.getElementById(editorId);
   const inputEl = document.getElementById(inputId);
 
@@ -2439,7 +2439,7 @@ document.addEventListener("click", (e) => {
   editorEl.__quill = quill;
   return quill;
 }
-
+*/
 
 // ----------------------------
 // Upgrades (single definition + resilient AJAX handling)
@@ -2502,7 +2502,7 @@ async openEditor(id) {
   editorWrap.classList.remove("hidden");
   editorBody.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
 
-  try {
+  /*try {
     const res = await fetch(url, { credentials: "include" });
 
     if (res.status === 401 || res.status === 403) return loginRedirect();
@@ -2526,7 +2526,7 @@ async openEditor(id) {
       }
     } catch (e) {
       console.error("Quill init failed (skipped):", e);
-    }
+    }*/
   } catch (err) {
     console.error("Fetch failed:", err);
     editorBody.innerHTML = `<div class="text-sm text-rose-700">Network error loading editor.</div>`;
