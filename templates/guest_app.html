@@ -3332,6 +3332,9 @@ function loadReactions() {
       }
     }
 
+
+    
+
  function safeReplaceAll(str, needle, replacement) {
   str = String(str ?? "");
   needle = String(needle ?? "");
@@ -3751,6 +3754,65 @@ async function attemptUnlock() {
 const upgradesCarousel = document.getElementById("upgrades-carousel");
 const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
 
+    // ===============================
+// Stripe Upgrade Checkout (Guest)
+// ===============================
+const upgradeActiveButton = document.getElementById("upgrade-active-button");
+const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
+
+// track which upgrade is currently selected
+let activeUpgradeId = null;
+
+// helper: call backend -> get checkout_url -> redirect
+async function startUpgradeCheckout(upgradeId) {
+  if (!upgradeId) return;
+
+  // Optional: prevent buying before unlock
+  if (!isUnlocked) {
+    alert("Please unlock your stay first.");
+    showScreen("home");
+    return;
+  }
+
+  // Disable buttons while loading
+  try {
+    upgradeActiveButton && (upgradeActiveButton.disabled = true);
+    upgradeDetailPurchase && (upgradeDetailPurchase.disabled = true);
+
+    const res = await fetch(`/guest/upgrades/${upgradeId}/checkout`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      // OPTIONAL: if you want reservation/session tracking on backend later
+      body: JSON.stringify({
+        property_id: window.PROPERTY_ID || null,
+        session_id: currentSessionId || null,
+      }),
+    });
+
+    const data = await readJsonSafely(res);
+
+    if (!res.ok) {
+      alert(data?.detail || data?.error || "Checkout failed. Please try again.");
+      return;
+    }
+
+    if (!data?.checkout_url) {
+      alert("Checkout URL missing. Please try again.");
+      return;
+    }
+
+    window.location.href = data.checkout_url;
+  } catch (e) {
+    console.error(e);
+    alert("Checkout failed. Please try again.");
+  } finally {
+    upgradeActiveButton && (upgradeActiveButton.disabled = false);
+    upgradeDetailPurchase && (upgradeDetailPurchase.disabled = false);
+  }
+}
+
+
 let upgradesBound = false;
 
 function getCarouselCenterX() {
@@ -3762,6 +3824,8 @@ function getCarouselCenterX() {
 function setActiveSlideByIndex(idx) {
   const slide = upgradeSlides[idx];
   if (!slide) return;
+
+  activeUpgradeId = slide.dataset.upgradeId ? Number(slide.dataset.upgradeId) : null;
 
   // your existing active/inactive class toggles here...
   upgradeSlides.forEach((s, i) => {
@@ -3871,6 +3935,27 @@ upgradesCarousel.addEventListener("scroll", () => {
   applyScaleEasing();
 });
 }
+
+
+    // CTA under carousel
+upgradeActiveButton?.addEventListener("click", () => {
+  if (!activeUpgradeId) {
+    alert("Select an upgrade first.");
+    return;
+  }
+  startUpgradeCheckout(activeUpgradeId);
+});
+
+// Purchase button in the detail modal (if you set activeUpgradeId when opening modal)
+upgradeDetailPurchase?.addEventListener("click", () => {
+  if (!activeUpgradeId) {
+    alert("Select an upgrade first.");
+    return;
+  }
+  startUpgradeCheckout(activeUpgradeId);
+});
+
+    
 
     function applyScaleEasing() {
   if (!upgradesCarousel || !upgradeSlides.length) return;
