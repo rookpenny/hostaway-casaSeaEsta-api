@@ -39,6 +39,8 @@ from routes.admin_analytics import router as admin_analytics_api_router
 from routes.admin_analytics import router as admin_analytics_router
 
 from routes.stripe_connect import router as stripe_connect_router
+from routes.upgrade_checkout import router as upgrade_checkout_router
+
 
 
 
@@ -83,6 +85,7 @@ app.include_router(pmc_signup.router)
 app.include_router(stripe_webhook.router)
 app.include_router(pmc_onboarding.router)
 app.include_router(stripe_connect_router)
+app.include_router(upgrade_checkout_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
