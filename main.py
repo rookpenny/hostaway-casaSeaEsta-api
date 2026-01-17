@@ -38,6 +38,10 @@ from routes.admin_analytics_ui import router as admin_analytics_ui_router
 from routes.admin_analytics import router as admin_analytics_api_router
 from routes.admin_analytics import router as admin_analytics_router
 
+from routes.stripe_connect import router as stripe_connect_router
+
+
+
 from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
 from seed_guides_route import router as seed_guides_router
 from seed_upgrades_route import router as seed_upgrades_router
@@ -78,6 +82,7 @@ app.include_router(seed_upgrades_router)
 app.include_router(pmc_signup.router)
 app.include_router(stripe_webhook.router)
 app.include_router(pmc_onboarding.router)
+app.include_router(stripe_connect_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
