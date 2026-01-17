@@ -5,95 +5,104 @@ from fastapi import APIRouter, HTTPException
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
-from models import Upgrade, Property, PMCIntegration, UpgradePurchase  # add UpgradePurchase model
+from models import Upgrade, Property, PMCIntegration, UpgradePurchase
 
 router = APIRouter()
-stripe.api_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
-APP_BASE_URL = (os.getenv("APP_BASE_URL") or "").rstrip("/")
 
-
-def calc_platform_fee_cents(amount_cents: int) -> int:
-    # recommended: 2% with min $0.50 and max $20
-    fee = int(round(amount_cents * 0.02))
-    return max(50, min(fee, 2000))
+stripe.api_key = os.getenv("STRIPE_SECRET_KEY")
+APP_BASE_URL = os.getenv("APP_BASE_URL", "").rstrip("/")
 
 
 @router.post("/guest/upgrades/{upgrade_id}/checkout")
 def create_upgrade_checkout(upgrade_id: int):
-    if not APP_BASE_URL:
-        raise HTTPException(500, "Missing APP_BASE_URL")
-
     db: Session = SessionLocal()
     try:
-        u = db.query(Upgrade).filter(Upgrade.id == upgrade_id, Upgrade.is_active == True).first()
-        if not u:
+        # 1) Load upgrade
+        upgrade = (
+            db.query(Upgrade)
+            .filter(Upgrade.id == upgrade_id, Upgrade.is_active == True)
+            .first()
+        )
+        if not upgrade:
             raise HTTPException(404, "Upgrade not found")
 
-        prop = db.query(Property).filter(Property.id == u.property_id).first()
+        # 2) Load property
+        prop = db.query(Property).filter(Property.id == upgrade.property_id).first()
         if not prop:
             raise HTTPException(404, "Property not found")
 
+        pmc_id = prop.pmc_id
+
+        # 3) Load Stripe Connect account
         integ = (
             db.query(PMCIntegration)
-            .filter(PMCIntegration.pmc_id == prop.pmc_id, PMCIntegration.provider == "stripe_connect")
+            .filter(
+                PMCIntegration.pmc_id == pmc_id,
+                PMCIntegration.provider == "stripe_connect",
+                PMCIntegration.is_connected == True,
+            )
             .first()
         )
-        if not integ or not integ.account_id or not integ.is_connected:
+        if not integ or not integ.account_id:
             raise HTTPException(400, "PMC has not connected Stripe")
 
-        amount_cents = int(u.price_cents)
-        currency = (getattr(u, "currency", None) or "usd").lower()
-        fee_cents = calc_platform_fee_cents(amount_cents)
-
+        # 4) Create DB purchase record FIRST
         purchase = UpgradePurchase(
-            pmc_id=prop.pmc_id,
+            pmc_id=pmc_id,
             property_id=prop.id,
-            upgrade_id=u.id,
-            amount_cents=amount_cents,
-            platform_fee_cents=fee_cents,
-            currency=currency,
+            upgrade_id=upgrade.id,
+            amount_cents=upgrade.price_cents,
+            platform_fee_cents=int(upgrade.price_cents * 0.02),  # example 2%
             status="pending",
         )
         db.add(purchase)
         db.commit()
         db.refresh(purchase)
 
-        # Create Checkout on connected account (direct charge)
+        # 5) CREATE STRIPE CHECKOUT SESSION  ← METADATA GOES HERE
         session = stripe.checkout.Session.create(
             mode="payment",
             line_items=[
                 {
                     "price_data": {
-                        "currency": currency,
-                        "product_data": {"name": u.title},
-                        "unit_amount": amount_cents,
+                        "currency": "usd",
+                        "product_data": {
+                            "name": upgrade.title,
+                        },
+                        "unit_amount": upgrade.price_cents,
                     },
                     "quantity": 1,
                 }
             ],
             success_url=f"{APP_BASE_URL}/guest/upgrade/success?purchase_id={purchase.id}",
             cancel_url=f"{APP_BASE_URL}/guest/upgrade/cancel?purchase_id={purchase.id}",
-            payment_intent_data={
-                "application_fee_amount": fee_cents,
-                "metadata": {
-                    "type": "upgrade_purchase",
-                    "purchase_id": str(purchase.id),
-                    "upgrade_id": str(u.id),
-                    "property_id": str(prop.id),
-                    "pmc_id": str(prop.pmc_id),
-                },
-            },
+
+            # 👇👇👇 THIS IS WHERE IT GOES 👇👇👇
             metadata={
                 "type": "upgrade_purchase",
                 "purchase_id": str(purchase.id),
-                "pmc_id": str(prop.pmc_id),
+                "pmc_id": str(pmc_id),
             },
+
+            payment_intent_data={
+                "application_fee_amount": purchase.platform_fee_cents,
+                "metadata": {
+                    # duplicate here is OK and recommended
+                    "type": "upgrade_purchase",
+                    "purchase_id": str(purchase.id),
+                    "pmc_id": str(pmc_id),
+                },
+            },
+
+            # 👇 required for Stripe Connect
             stripe_account=integ.account_id,
         )
 
-        purchase.stripe_checkout_session_id = session["id"]
+        # 6) Save checkout session id
+        purchase.stripe_checkout_session_id = session.id
         db.commit()
 
-        return {"checkout_url": session["url"]}
+        return {"checkout_url": session.url}
+
     finally:
         db.close()
