@@ -66,53 +66,42 @@ def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
     }
 
 
-@router.post("/admin/integrations/stripe/connect")
-def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
-    """
-    Called by the admin dashboard 'Connect Stripe' button.
-    Creates (or reuses) a Stripe Express account and returns onboarding link URL.
-    """
-    _require_env()
-    pmc_obj = require_pmc_scope(request, db)
+async function stripeConnectStart() {
+  const btn = document.getElementById("stripe-connect-btn");
+  btn && (btn.disabled = true);
 
-    integ = (
-        db.query(PMCIntegration)
-        .filter(PMCIntegration.pmc_id == pmc_obj.id, PMCIntegration.provider == "stripe_connect")
-        .first()
-    )
+  try {
+    const res = await fetch("/admin/integrations/stripe/connect", {
+      method: "POST",
+      credentials: "include",
+    });
 
-    if not integ:
-        integ = PMCIntegration(
-            pmc_id=pmc_obj.id,
-            provider="stripe_connect",
-            is_connected=False,
-        )
-        db.add(integ)
-        db.commit()
-        db.refresh(integ)
+    const contentType = res.headers.get("content-type") || "";
+    const raw = await res.text();
 
-    # Create the connected account once
-    if not integ.account_id:
-        acct = stripe.Account.create(
-            type="express",
-            capabilities={
-                "card_payments": {"requested": True},
-                "transfers": {"requested": True},
-            },
-            metadata={"pmc_id": str(pmc_obj.id)},
-        )
-        integ.account_id = acct["id"]
-        db.commit()
+    // If it's not JSON, show the raw body (often it's HTML login page)
+    if (!contentType.includes("application/json")) {
+      console.error("Non-JSON response:", res.status, raw.slice(0, 400));
+      alert(`Stripe connect failed (${res.status}). Response was not JSON. Check console.`);
+      return;
+    }
 
-    # Create onboarding link
-    link = stripe.AccountLink.create(
-        account=integ.account_id,
-        refresh_url=f"{APP_BASE_URL}/admin/dashboard?view=settings&tab=integrations",
-        return_url=f"{APP_BASE_URL}/admin/integrations/stripe/callback",
-        type="account_onboarding",
-    )
+    const data = JSON.parse(raw);
 
-    return {"url": link["url"]}
+    if (!res.ok || !data.url) {
+      console.error("Stripe connect error:", res.status, data);
+      alert(data.detail || `Stripe connect failed (${res.status}).`);
+      return;
+    }
+
+    window.location.href = data.url;
+  } catch (e) {
+    console.error(e);
+    alert("Stripe connect failed. See console.");
+  } finally {
+    btn && (btn.disabled = false);
+  }
+}
 
 
 @router.get("/admin/integrations/stripe/callback")
