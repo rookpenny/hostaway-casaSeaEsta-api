@@ -3449,11 +3449,12 @@ def admin_dashboard(
 
     # 🔒 Stripe Connect status (for locking upgrades UI)
     stripe_connected = False
-    if pmc:
+    if pmc_obj:
         stripe_connected = bool(
-            getattr(pmc, "stripe_account_id", None)
-            or getattr(pmc, "stripe_connect_account_id", None)
+            getattr(pmc_obj, "stripe_account_id", None)
+            or getattr(pmc_obj, "stripe_connect_account_id", None)
         )
+
 
 
     return templates.TemplateResponse(
