@@ -37,7 +37,7 @@ from routes.analytics import router as analytics_router
 from routes.admin_analytics_ui import router as admin_analytics_ui_router
 from routes.admin_analytics import router as admin_analytics_api_router
 from routes.admin_analytics import router as admin_analytics_router
-from routes.upgrade_checkout_pages import router as upgrade_pages_router
+# from routes.upgrade_checkout_pages import router as upgrade_pages_router
 from routes.upgrade_purchase_status import router as upgrade_purchase_status_router
 from routes.stripe_connect import router as stripe_connect_router
 from routes.upgrade_checkout import router as upgrade_checkout_router
@@ -87,7 +87,7 @@ app.include_router(stripe_webhook.router)
 app.include_router(pmc_onboarding.router)
 app.include_router(stripe_connect_router)
 app.include_router(upgrade_checkout_router)
-app.include_router(upgrade_pages_router)
+#app.include_router(upgrade_pages_router)
 app.include_router(upgrade_purchase_status_router)
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
