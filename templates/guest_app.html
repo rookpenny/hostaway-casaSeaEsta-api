@@ -482,6 +482,44 @@
     window.ASSISTANT_CONFIG = {{ assistant_config | tojson }};
   </script>
 
+  <script>
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const upgradeStatus = params.get("upgrade");
+
+    if (!upgradeStatus) return;
+
+    const banner = document.getElementById("upgrade-status-banner");
+    if (!banner) return;
+
+    if (upgradeStatus === "success") {
+      banner.classList.remove("hidden");
+      banner.classList.add("bg-emerald-50", "border-emerald-200", "text-emerald-900");
+      banner.innerHTML = `
+        <div class="font-semibold">✅ Upgrade confirmed</div>
+        <div class="text-sm mt-1">
+          Thanks! Your host has been notified and will take care of this upgrade.
+        </div>
+      `;
+    }
+
+    if (upgradeStatus === "cancel") {
+      banner.classList.remove("hidden");
+      banner.classList.add("bg-slate-50", "border-slate-200", "text-slate-800");
+      banner.innerHTML = `
+        <div class="font-semibold">Payment canceled</div>
+        <div class="text-sm mt-1">
+          You were not charged. You can try again anytime.
+        </div>
+      `;
+    }
+
+    // Optional: clean URL so refresh doesn't re-show banner
+    window.history.replaceState({}, "", window.location.pathname);
+  })();
+</script>
+
+
 </head>
 
 <body class="min-h-screen bg-[#f5f5f5] text-slate-50 flex flex-col overflow-x-hidden">
@@ -878,7 +916,10 @@
             />
           {% endif %}
         </div>
-      
+      <div
+        id="upgrade-status-banner"
+        class="hidden mb-4 rounded-xl border p-3 text-sm"
+      ></div>
         <!-- hidden long copy so JS can read it -->
         <p class="hidden upgrade-long">
           {{ up.long_description or up.short_description }}
