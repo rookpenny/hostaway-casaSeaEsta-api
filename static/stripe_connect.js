@@ -1,4 +1,4 @@
-// static/stripe_connect.js
+let stripePopup = null;
 
 async function stripeConnectStart() {
   const btn = document.getElementById("stripe-connect-btn");
@@ -13,28 +13,19 @@ async function stripeConnectStart() {
     const data = await res.json();
 
     if (!res.ok || !data.url) {
-      alert(data.detail || "Stripe connect failed.");
+      alert(data.detail || "Stripe connect failed");
       return;
     }
 
-    // ✅ Open Stripe onboarding in a new window
-    const popup = window.open(
+    stripePopup = window.open(
       data.url,
-      "stripe-connect",
-      "width=900,height=700"
+      "stripeConnect",
+      "width=900,height=700,resizable=yes,scrollbars=yes"
     );
 
-    // Optional: refresh status when popup closes
-    const timer = setInterval(() => {
-      if (popup.closed) {
-        clearInterval(timer);
-        stripeConnectRefreshStatus();
-      }
-    }, 1000);
-
-  } catch (e) {
-    console.error(e);
-    alert("Stripe connect failed. See console.");
+    if (!stripePopup) {
+      alert("Popup blocked. Please allow popups and try again.");
+    }
   } finally {
     btn && (btn.disabled = false);
   }
