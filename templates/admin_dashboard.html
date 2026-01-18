@@ -701,16 +701,17 @@
                 {% endfor %}
               </select>
              <button
-              type="button"
-              onclick="PMC_STRIPE_CONNECTED ? Upgrades.openNew() : null"
-              class="h-10 px-4 rounded-xl text-sm font-semibold
-                {{ 'bg-slate-900 hover:bg-slate-800 text-white'
-                   if stripe_connected
-                   else 'bg-slate-200 text-slate-500 cursor-not-allowed' }}"
-              {{ 'disabled' if not stripe_connected }}
-            >
-              New Upgrade
-            </button>
+                type="button"
+                onclick="Upgrades.openNew()"
+                class="h-10 px-4 rounded-xl text-sm font-semibold
+                  {{ 'bg-slate-900 hover:bg-slate-800 text-white'
+                     if stripe_connected
+                     else 'bg-slate-200 text-slate-500 cursor-not-allowed' }}"
+                {{ 'disabled' if not stripe_connected }}
+              >
+                New Upgrade
+              </button>
+
 
             </div>
 
