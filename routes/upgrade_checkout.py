@@ -4,11 +4,15 @@ import stripe
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from datetime import datetime, timezone
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 
 from database import get_db
 from models import Upgrade, Property, PMCIntegration, UpgradePurchase
 
+templates = Jinja2Templates(directory="templates")
 router = APIRouter()
+
 stripe.api_key = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
 APP_BASE_URL = (os.getenv("APP_BASE_URL") or "").rstrip("/")
 
@@ -112,3 +116,19 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
     db.commit()
 
     return {"checkout_url": session.url}
+
+@router.get("/guest/upgrade/success", response_class=HTMLResponse)
+def upgrade_success(request: Request, session_id: str | None = None):
+    # session_id comes from Stripe: ?session_id={CHECKOUT_SESSION_ID}
+    return templates.TemplateResponse(
+        "guest_upgrade_success.html",
+        {"request": request, "session_id": session_id},
+    )
+
+@router.get("/guest/upgrade/cancel", response_class=HTMLResponse)
+def upgrade_cancel(request: Request):
+    return templates.TemplateResponse(
+        "guest_upgrade_cancel.html",
+        {"request": request},
+    )
+
