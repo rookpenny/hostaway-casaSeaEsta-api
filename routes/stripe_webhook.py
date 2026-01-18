@@ -1,25 +1,18 @@
-# Keep your existing /stripe/webhook endpoint (for PMC billing)
-# Add Stripe Connect onboarding endpoints (for PMCs to connect their own Stripe)
-# Add guest upgrade Checkout Session (runs on the PMC’s connected Stripe account)
-# Extend your existing webhook to also mark upgrade purchases as paid (without breaking PMC signup logic)
-
-
 # routes/stripe_webhook.py
 import os
+import stripe
 from datetime import datetime, timezone
 from typing import Optional
 
-import stripe
 from fastapi import APIRouter, Request, HTTPException
 from fastapi.responses import JSONResponse
-from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 
 from database import SessionLocal
-from models import PMC, UpgradePurchase  # keep your existing PMC model import
+from models import PMC, UpgradePurchase  # ✅ make sure UpgradePurchase exists in models.py
 
 router = APIRouter()
-
 
 # ----------------------------
 # Helpers
@@ -49,31 +42,36 @@ def _require_env() -> tuple[str, str]:
 
 
 def _set_if_attr(obj, attr: str, value) -> None:
-    """
-    Set an attribute only if it exists on the object.
-    Useful for backward-compatible migrations.
-    """
+    """Set an attribute only if it exists (backward compatible)."""
     if hasattr(obj, attr):
         setattr(obj, attr, value)
 
 
+def _now() -> datetime:
+    return datetime.now(timezone.utc)
+
+
 def _get_email_from_session(obj: dict) -> Optional[str]:
-    """
-    Extract a normalized email address from a Stripe Checkout session object.
-    Works for both subscription and payment mode checkouts.
-    """
+    """Extract normalized email from Stripe Checkout session object."""
     if not isinstance(obj, dict):
         return None
-
     customer_details = obj.get("customer_details") or {}
     email = customer_details.get("email") or obj.get("customer_email")
+    return email.strip().lower() if email else None
 
-    if not email:
+
+def _safe_int(x) -> Optional[int]:
+    try:
+        if x is None:
+            return None
+        return int(str(x).strip())
+    except Exception:
         return None
 
-    return email.strip().lower()
 
-
+# ----------------------------
+# Webhook
+# ----------------------------
 @router.post("/stripe/webhook")
 async def stripe_webhook(request: Request):
     stripe_secret, webhook_secret = _require_env()
@@ -100,7 +98,9 @@ async def stripe_webhook(request: Request):
     obj = ((event.get("data") or {}).get("object")) or {}
     metadata = obj.get("metadata") or {}
 
-    # --- helpers ---
+    # ------------------------------------------------------------
+    # Find PMC (subscription / signup events)
+    # ------------------------------------------------------------
     def _find_pmc(db: Session) -> Optional[PMC]:
         pmc_id = (metadata.get("pmc_id") or "").strip() or None
         customer_id = obj.get("customer")
@@ -135,98 +135,117 @@ async def stripe_webhook(request: Request):
 
         return pmc
 
-    # Ignore everything we don't care about
-    HANDLED = {
-        # Checkout completion (activation + upgrades)
-        "checkout.session.completed",
+    # ------------------------------------------------------------
+    # Find UpgradePurchase (upgrade payment events)
+    # ------------------------------------------------------------
+    def _find_purchase(db: Session) -> Optional[UpgradePurchase]:
+        """
+        Preferred: metadata.purchase_id (we set this when creating Checkout Session)
+        Fallback: stripe_checkout_session_id (for checkout.session.completed)
+        Fallback: stripe_payment_intent_id (for charge.refunded)
+        """
+        purchase_id = _safe_int(metadata.get("purchase_id"))
+        if purchase_id:
+            p = db.query(UpgradePurchase).filter(UpgradePurchase.id == purchase_id).first()
+            if p:
+                return p
 
-        # Payment issues
+        # checkout.session.completed includes session id
+        sess_id = obj.get("id")
+        if isinstance(sess_id, str) and sess_id.startswith("cs_"):
+            p = (
+                db.query(UpgradePurchase)
+                .filter(UpgradePurchase.stripe_checkout_session_id == sess_id)
+                .first()
+            )
+            if p:
+                return p
+
+        # charge.refunded includes payment_intent
+        pi = obj.get("payment_intent")
+        if isinstance(pi, str) and pi.startswith("pi_"):
+            p = (
+                db.query(UpgradePurchase)
+                .filter(UpgradePurchase.stripe_payment_intent_id == pi)
+                .first()
+            )
+            if p:
+                return p
+
+        return None
+
+    # ------------------------------------------------------------
+    # Events we handle
+    # ------------------------------------------------------------
+    HANDLED = {
+        # PMC billing (existing)
+        "checkout.session.completed",
         "invoice.payment_failed",
         "invoice.payment_action_required",
-
-        # Subscription lifecycle
         "customer.subscription.updated",
         "customer.subscription.deleted",
+
+        # ✅ Upgrade refunds
+        "charge.refunded",
     }
+
     if event_type not in HANDLED:
         return JSONResponse({"ok": True})
 
     db: Session = SessionLocal()
     try:
-        # NOTE: We find PMC for BOTH flows:
-        # - PMC signup checkout (metadata contains pmc_id/type)
-        # - Upgrade checkout (metadata contains pmc_id/type)
-        pmc = _find_pmc(db)
-        if pmc is None:
-            print("[stripe_webhook] No PMC matched. event=", event_type, "event_id=", event_id)
-            return JSONResponse({"ok": True})
-
-        # ✅ Idempotency by Stripe event id (best practice)
-        last_event = getattr(pmc, "last_stripe_event_id", None)
-        if last_event and last_event == event_id:
-            return JSONResponse({"ok": True})
-        _set_if_attr(pmc, "last_stripe_event_id", event_id)
-
-        # ------------------------------------------------------------------
-        # 1) checkout.session.completed (activation moment + upgrade purchases)
-        # ------------------------------------------------------------------
+        # ============================================================
+        # A) Upgrade purchase PAID (checkout.session.completed)
+        # ============================================================
         if event_type == "checkout.session.completed":
+            # This event fires for BOTH PMC signup flows and upgrade purchases.
             checkout_type = (metadata.get("type") or "").strip()
 
-            # ===============================================================
-            # A) Upgrade purchase flow (guest checkout on connected account)
-            # ===============================================================
+            # --------------------------
+            # Upgrade purchase flow
+            # --------------------------
             if checkout_type == "upgrade_purchase":
-                purchase_id = (metadata.get("purchase_id") or "").strip()
-                checkout_session_id = (obj.get("id") or "").strip()
+                purchase = _find_purchase(db)
+                if not purchase:
+                    print("[stripe_webhook] No UpgradePurchase matched. event_id=", event_id)
+                    return JSONResponse({"ok": True})
+
+                # Idempotency: if already paid, do nothing
+                if (getattr(purchase, "status", "") or "").lower() == "paid":
+                    return JSONResponse({"ok": True})
+
+                # session id + payment_intent from Checkout Session
+                session_id = obj.get("id")
                 payment_intent_id = obj.get("payment_intent")
 
-                if purchase_id:
-                    # Import here to avoid any potential circular import issues
-                    try:
-                        from models import UpgradePurchase  # you must create this model/table
-                    except Exception as e:
-                        # If model not available yet, don't fail the webhook
-                        print("[stripe_webhook] UpgradePurchase model missing:", e)
-                        db.commit()
-                        return JSONResponse({"ok": True})
+                if session_id and not getattr(purchase, "stripe_checkout_session_id", None):
+                    purchase.stripe_checkout_session_id = session_id
 
-                    try:
-                        p = (
-                            db.query(UpgradePurchase)
-                            .filter(UpgradePurchase.id == int(purchase_id))
-                            .first()
-                        )
-                    except Exception:
-                        p = None
+                if payment_intent_id and not getattr(purchase, "stripe_payment_intent_id", None):
+                    purchase.stripe_payment_intent_id = payment_intent_id
 
-                    if p:
-                        # Idempotent update
-                        if getattr(p, "status", None) != "paid":
-                            p.status = "paid"
-                            p.paid_at = datetime.now(timezone.utc)
+                purchase.status = "paid"
+                purchase.paid_at = _now()
 
-                        # Persist stripe ids if columns exist / empty
-                        if hasattr(p, "stripe_checkout_session_id") and checkout_session_id:
-                            if not getattr(p, "stripe_checkout_session_id", None):
-                                p.stripe_checkout_session_id = checkout_session_id
-
-                        if hasattr(p, "stripe_payment_intent_id") and payment_intent_id:
-                            if not getattr(p, "stripe_payment_intent_id", None):
-                                p.stripe_payment_intent_id = payment_intent_id
-
-                        db.commit()
-
-                # Important: return early so we don't run PMC signup logic
+                db.commit()
                 return JSONResponse({"ok": True})
 
-            # ===============================================================
-            # B) Existing PMC billing / activation flow
-            # ===============================================================
-            # Support both your new + legacy type names
+            # --------------------------
+            # PMC signup/subscription flow (your existing logic)
+            # --------------------------
+            pmc = _find_pmc(db)
+            if pmc is None:
+                return JSONResponse({"ok": True})
+
+            # ✅ Idempotency by Stripe event id (best practice)
+            last_event = getattr(pmc, "last_stripe_event_id", None)
+            if last_event and last_event == event_id:
+                return JSONResponse({"ok": True})
+            _set_if_attr(pmc, "last_stripe_event_id", event_id)
+
             ALLOWED_TYPES = {
-                "pmc_full_activation",                     # ✅ your current flow
-                "pmc_setup_plus_property_subscription",     # legacy name
+                "pmc_full_activation",
+                "pmc_setup_plus_property_subscription",
                 "pmc_signup_onetime",
                 "pmc_property_subscription",
             }
@@ -238,50 +257,102 @@ async def stripe_webhook(request: Request):
             checkout_session_id = obj.get("id")
             subscription_id = obj.get("subscription")  # exists for subscription mode
 
-            # Always record Stripe IDs when present
             if customer_id:
                 _set_if_attr(pmc, "stripe_customer_id", customer_id)
             if subscription_id:
                 _set_if_attr(pmc, "stripe_subscription_id", subscription_id)
 
-            # Store last checkout session (if your model has it)
             _set_if_attr(pmc, "last_stripe_checkout_session_id", checkout_session_id)
 
-            # Mark active/paid for combined flow
             if checkout_type in {"pmc_full_activation", "pmc_setup_plus_property_subscription"}:
                 _set_if_attr(pmc, "billing_status", "active")
                 _set_if_attr(pmc, "active", True)
                 _set_if_attr(pmc, "sync_enabled", True)
-                _set_if_attr(pmc, "signup_paid_at", datetime.now(timezone.utc))
+                _set_if_attr(pmc, "signup_paid_at", _now())
 
-            # Old one-time setup flow
             if checkout_type == "pmc_signup_onetime":
                 _set_if_attr(pmc, "billing_status", "active")
                 _set_if_attr(pmc, "active", True)
                 _set_if_attr(pmc, "sync_enabled", True)
-                _set_if_attr(pmc, "signup_paid_at", datetime.now(timezone.utc))
+                _set_if_attr(pmc, "signup_paid_at", _now())
                 _set_if_attr(pmc, "stripe_signup_checkout_session_id", checkout_session_id)
 
-        # ------------------------------------------------------------------
-        # 2) invoice.payment_failed / payment_action_required (past_due)
-        # ------------------------------------------------------------------
-        elif event_type in {"invoice.payment_failed", "invoice.payment_action_required"}:
+            db.commit()
+            return JSONResponse({"ok": True})
+
+        # ============================================================
+        # B) Upgrade purchase REFUNDED (charge.refunded)
+        # ============================================================
+        if event_type == "charge.refunded":
+            # obj is a Charge
+            charge_id = obj.get("id")
+            payment_intent_id = obj.get("payment_intent")
+            amount_refunded = int(obj.get("amount_refunded") or 0)
+            refunded = bool(obj.get("refunded"))
+
+            purchase = _find_purchase(db)
+
+            # If metadata wasn't on the charge, but we have PI, still works if we stored PI on paid.
+            if not purchase and isinstance(payment_intent_id, str) and payment_intent_id.startswith("pi_"):
+                purchase = (
+                    db.query(UpgradePurchase)
+                    .filter(UpgradePurchase.stripe_payment_intent_id == payment_intent_id)
+                    .first()
+                )
+
+            if not purchase:
+                print("[stripe_webhook] No UpgradePurchase matched for refund. charge=", charge_id, "pi=", payment_intent_id)
+                return JSONResponse({"ok": True})
+
+            # Store PI if missing
+            if payment_intent_id and not getattr(purchase, "stripe_payment_intent_id", None):
+                purchase.stripe_payment_intent_id = payment_intent_id
+
+            # Idempotency-ish: if we already recorded same refunded amount, do nothing
+            prev_refunded = int(getattr(purchase, "refunded_amount_cents", 0) or 0)
+            if amount_refunded <= prev_refunded and (getattr(purchase, "status", "") or "").lower() == "refunded":
+                return JSONResponse({"ok": True})
+
+            purchase.refunded_amount_cents = max(prev_refunded, amount_refunded)
+
+            # If fully refunded, mark refunded. If partial, you can choose "refunded" or "partial_refund"
+            # Your table comment says pending|paid|refunded|disputed|failed — so we’ll keep "refunded"
+            # and rely on refunded_amount_cents for partials.
+            if refunded or amount_refunded >= int(getattr(purchase, "amount_cents", 0) or 0):
+                purchase.status = "refunded"
+                purchase.refunded_at = _now()
+            else:
+                # partial refund: keep paid but set refunded fields (or set refunded anyway)
+                # I recommend: set to "refunded" if any refund, since you track refunded_amount_cents.
+                purchase.status = "refunded"
+                purchase.refunded_at = _now()
+
+            db.commit()
+            return JSONResponse({"ok": True})
+
+        # ============================================================
+        # Existing PMC lifecycle events (unchanged)
+        # ============================================================
+        pmc = _find_pmc(db)
+        if pmc is None:
+            return JSONResponse({"ok": True})
+
+        # Idempotency by event id on PMC
+        last_event = getattr(pmc, "last_stripe_event_id", None)
+        if last_event and last_event == event_id:
+            return JSONResponse({"ok": True})
+        _set_if_attr(pmc, "last_stripe_event_id", event_id)
+
+        if event_type in {"invoice.payment_failed", "invoice.payment_action_required"}:
             _set_if_attr(pmc, "billing_status", "past_due")
             _set_if_attr(pmc, "active", False)
 
-        # ------------------------------------------------------------------
-        # 3) subscription.deleted (canceled)
-        # ------------------------------------------------------------------
         elif event_type == "customer.subscription.deleted":
             _set_if_attr(pmc, "billing_status", "canceled")
             _set_if_attr(pmc, "active", False)
 
-        # ------------------------------------------------------------------
-        # 4) subscription.updated (recovery/cancel_at_period_end/etc.)
-        # ------------------------------------------------------------------
         elif event_type == "customer.subscription.updated":
             status = (obj.get("status") or "").lower()
-
             if status in {"active", "trialing"}:
                 _set_if_attr(pmc, "billing_status", "active")
                 _set_if_attr(pmc, "active", True)
