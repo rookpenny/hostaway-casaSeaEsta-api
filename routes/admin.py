@@ -3456,6 +3456,27 @@ def admin_dashboard(
         )
 
 
+    # 🔒 Stripe Connect status (for locking upgrades UI)
+    stripe_connected = False
+    
+    if user_role == "pmc" and pmc_obj:
+        from models import PMCIntegration  # import at top if you prefer
+    
+        integ = (
+            db.query(PMCIntegration)
+            .filter(
+                PMCIntegration.pmc_id == pmc_obj.id,
+                PMCIntegration.provider == "stripe_connect",
+            )
+            .first()
+        )
+    
+        # You can decide how strict you want this:
+        # Strict = only allow upgrades if charges are enabled
+        stripe_connected = bool(integ and integ.account_id and getattr(integ, "is_connected", False))
+
+
+
 
     return templates.TemplateResponse(
         "admin_dashboard.html",
