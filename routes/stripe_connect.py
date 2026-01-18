@@ -4,7 +4,7 @@ import stripe
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import RedirectResponse, JSONResponse
+from fastapi.responses import RedirectResponse, JSONResponse, HTMLResponse
 from sqlalchemy.orm import Session
 
 from database import get_db
@@ -113,7 +113,7 @@ def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
         link = stripe.AccountLink.create(
             account=integ.account_id,
             refresh_url=f"{APP_BASE_URL}/admin/dashboard?view=settings&tab=integrations",
-            return_url=f"{APP_BASE_URL}/admin/integrations/stripe/callback",
+            return_url=f"{APP_BASE_URL}/admin/integrations/stripe/close",
             type="account_onboarding",
         )
         return {"url": link["url"]}
@@ -186,3 +186,33 @@ def stripe_connect_disconnect(request: Request, db: Session = Depends(get_db)):
     db.commit()
 
     return {"ok": True}
+
+
+
+@router.get("/admin/integrations/stripe/close", response_class=HTMLResponse)
+def stripe_connect_close():
+    return """
+<!doctype html>
+<html>
+  <head>
+    <title>Stripe Connected</title>
+    <meta charset="utf-8" />
+  </head>
+  <body style="font-family: system-ui; text-align: center; padding: 40px;">
+    <h2>✅ Stripe connected</h2>
+    <p>You can close this window.</p>
+
+    <script>
+      try {
+        if (window.opener) {
+          window.opener.location.reload();
+        }
+      } catch (e) {}
+
+      setTimeout(() => {
+        window.close();
+      }, 400);
+    </script>
+  </body>
+</html>
+"""
