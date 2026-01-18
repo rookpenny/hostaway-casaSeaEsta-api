@@ -159,3 +159,30 @@ def stripe_connect_callback(request: Request, db: Session = Depends(get_db)):
 
     db.commit()
     return RedirectResponse(url="/admin/dashboard?view=settings&tab=integrations")
+
+
+@router.post("/admin/integrations/stripe/disconnect")
+def stripe_connect_disconnect(request: Request, db: Session = Depends(get_db)):
+    pmc_obj = require_pmc_scope(request, db)
+
+    integ = (
+        db.query(PMCIntegration)
+        .filter(
+            PMCIntegration.pmc_id == pmc_obj.id,
+            PMCIntegration.provider == "stripe_connect",
+        )
+        .first()
+    )
+
+    if not integ:
+        return {"ok": True}
+
+    # ❗ Do NOT delete the Stripe account on Stripe's side
+    # Just unlink it from this PMC
+    integ.is_connected = False
+    integ.charges_enabled = False
+    integ.payouts_enabled = False
+
+    db.commit()
+
+    return {"ok": True}
