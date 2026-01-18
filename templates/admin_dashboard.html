@@ -700,17 +700,18 @@
                   <option value="{{ p.id }}">{{ p.property_name }}</option>
                 {% endfor %}
               </select>
-             <button
-                type="button"
-                onclick="Upgrades.openNew()"
-                class="h-10 px-4 rounded-xl text-sm font-semibold
-                  {{ 'bg-slate-900 hover:bg-slate-800 text-white'
-                     if stripe_connected
-                     else 'bg-slate-200 text-slate-500 cursor-not-allowed' }}"
-                {{ 'disabled' if not stripe_connected }}
-              >
-                New Upgrade
-              </button>
+            <button
+              type="button"
+              onclick="{{ 'Upgrades.openNew()' if stripe_connected else 'null' }}"
+              class="h-10 px-4 rounded-xl text-sm font-semibold
+                {{ 'bg-slate-900 hover:bg-slate-800 text-white'
+                   if stripe_connected
+                   else 'bg-slate-200 text-slate-500 cursor-not-allowed' }}"
+              {{ 'disabled' if not stripe_connected }}
+            >
+              New Upgrade
+            </button>
+
 
 
             </div>
@@ -1578,22 +1579,26 @@
                     </div>
               
                     <div class="flex items-center gap-2">
-                      <button
-                        type="button"
-                        id="stripe-connect-btn"
-                        class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
-                      >
-                        Connect Stripe
-                      </button>
-              
-                      <button
-                        type="button"
-                        id="stripe-refresh-btn"
-                        class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold"
-                      >
-                        Refresh
-                      </button>
-                    </div>
+                    <button
+                      type="button"
+                      id="stripe-connect-btn"
+                      onclick="stripeConnectStart()"
+                      class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
+                    >
+                      Connect Stripe
+                    </button>
+                  
+                    {% if stripe_connected %}
+                    <button
+                      type="button"
+                      onclick="stripeDisconnect()"
+                      class="h-10 px-4 rounded-xl border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold"
+                    >
+                      Remove connection
+                    </button>
+                    {% endif %}
+                  </div>
+
                   </div>
               
                   <div class="mt-3 text-xs text-slate-500">
