@@ -3447,14 +3447,14 @@ def admin_dashboard(
             .all()
         )
 
-    # 🔒 Stripe Connect status (for locking upgrades UI)
+     # 🔒 Stripe Connect status (for locking upgrades UI)
     stripe_connected = False
     stripe_charges_enabled = False
     stripe_payouts_enabled = False
     stripe_account_id = None
     
     if user_role == "pmc" and pmc_obj:
-        from models import PMCIntegration
+        from models import PMCIntegration  # move to top imports if you want
     
         integ = (
             db.query(PMCIntegration)
@@ -3465,35 +3465,11 @@ def admin_dashboard(
             .first()
         )
     
-        if integ and integ.account_id and getattr(integ, "is_connected", False):
+        if integ and integ.account_id and bool(getattr(integ, "is_connected", False)):
             stripe_connected = True
             stripe_account_id = integ.account_id
             stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
             stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
-
-
-    # 🔒 Stripe Connect status (for locking upgrades UI)
-    stripe_connected = False
-    stripe_charges_enabled = False
-    stripe_payouts_enabled = False
-    
-    if user_role == "pmc" and pmc_obj:
-        from models import PMCIntegration
-    
-        integ = (
-            db.query(PMCIntegration)
-            .filter(
-                PMCIntegration.pmc_id == pmc_obj.id,
-                PMCIntegration.provider == "stripe_connect",
-            )
-            .first()
-        )
-    
-        if integ and integ.account_id and getattr(integ, "is_connected", False):
-            stripe_connected = True
-            stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
-            stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
-
 
 
     return templates.TemplateResponse(
