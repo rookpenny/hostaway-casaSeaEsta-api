@@ -10,19 +10,36 @@ async function stripeConnectStart() {
       credentials: "include",
     });
 
-    const data = await res.json().catch(() => ({}));
+    const data = await res.json();
 
     if (!res.ok || !data.url) {
-      console.error("Stripe connect error", data);
-      alert(data.detail || "Stripe connect failed. Check logs.");
+      alert(data.detail || "Stripe connect failed.");
       return;
     }
 
-    window.location.href = data.url;
+    // ✅ Open Stripe onboarding in a new window
+    const popup = window.open(
+      data.url,
+      "stripe-connect",
+      "width=900,height=700"
+    );
+
+    // Optional: refresh status when popup closes
+    const timer = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(timer);
+        stripeConnectRefreshStatus();
+      }
+    }, 1000);
+
+  } catch (e) {
+    console.error(e);
+    alert("Stripe connect failed. See console.");
   } finally {
     btn && (btn.disabled = false);
   }
 }
+
 
 async function stripeConnectRefreshStatus() {
   const el = document.getElementById("stripe-connect-status");
