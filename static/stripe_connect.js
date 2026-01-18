@@ -41,6 +41,27 @@ async function stripeConnectStart() {
 }
 
 
+async function stripeDisconnect() {
+  if (!confirm("Disconnect Stripe? This will disable upgrade payments.")) {
+    return;
+  }
+
+  const res = await fetch("/admin/integrations/stripe/disconnect", {
+    method: "POST",
+    credentials: "include",
+  });
+
+  if (!res.ok) {
+    alert("Failed to disconnect Stripe.");
+    return;
+  }
+
+  stripeConnectRefreshStatus();
+  location.reload(); // ensures upgrades lock immediately
+}
+
+
+
 async function stripeConnectRefreshStatus() {
   const el = document.getElementById("stripe-connect-status");
   if (!el) return;
