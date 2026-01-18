@@ -920,6 +920,7 @@
         id="upgrade-status-banner"
         class="hidden mb-4 rounded-xl border p-3 text-sm"
       ></div>
+                     
         <!-- hidden long copy so JS can read it -->
         <p class="hidden upgrade-long">
           {{ up.long_description or up.short_description }}
@@ -4034,6 +4035,88 @@ upgradeDetailPurchase?.addEventListener("click", () => {
 
 
   });
+
+  async function pollUpgradePurchaseStatus(purchaseId) {
+    const banner = document.getElementById("upgrade-status-banner");
+    const setBanner = (html, cls) => {
+      if (!banner) return;
+      banner.className = `mb-4 rounded-xl border p-3 text-sm ${cls || ""}`;
+      banner.innerHTML = html;
+      banner.classList.remove("hidden");
+    };
+
+    // show immediate optimistic message
+    setBanner(
+      `<div class="font-semibold">✅ Payment received</div>
+       <div class="text-sm mt-1">Confirming with the host…</div>`,
+      "bg-emerald-50 border-emerald-200 text-emerald-900"
+    );
+
+    const maxAttempts = 8;      // ~8 seconds total
+    const delayMs = 1000;
+
+    for (let i = 0; i < maxAttempts; i++) {
+      try {
+        const res = await fetch(`/guest/upgrades/purchase-status?purchase_id=${encodeURIComponent(purchaseId)}`, {
+          credentials: "include",
+        });
+        const data = await res.json().catch(() => ({}));
+
+        if (res.ok) {
+          if (data.status === "paid") {
+            setBanner(
+              `<div class="font-semibold">✅ Upgrade confirmed</div>
+               <div class="text-sm mt-1">Your host has been notified.</div>`,
+              "bg-emerald-50 border-emerald-200 text-emerald-900"
+            );
+            return;
+          }
+
+          if (data.status === "refunded") {
+            setBanner(
+              `<div class="font-semibold">↩️ Payment refunded</div>
+               <div class="text-sm mt-1">You won’t be charged for this upgrade.</div>`,
+              "bg-slate-50 border-slate-200 text-slate-900"
+            );
+            return;
+          }
+        }
+      } catch (e) {
+        // ignore and keep polling
+      }
+
+      await new Promise(r => setTimeout(r, delayMs));
+    }
+
+    // fallback if webhook is slow
+    setBanner(
+      `<div class="font-semibold">✅ Payment received</div>
+       <div class="text-sm mt-1">Your host will confirm shortly.</div>`,
+      "bg-emerald-50 border-emerald-200 text-emerald-900"
+    );
+  }
+
+  (function () {
+    const params = new URLSearchParams(window.location.search);
+    const upgrade = params.get("upgrade");
+    const purchaseId = params.get("purchase_id");
+
+    if (upgrade === "success" && purchaseId) {
+      pollUpgradePurchaseStatus(purchaseId);
+      // clean URL so refresh doesn't re-trigger
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+
+    if (upgrade === "cancel") {
+      const banner = document.getElementById("upgrade-status-banner");
+      if (banner) {
+        banner.className = "mb-4 rounded-xl border p-3 text-sm bg-slate-50 border-slate-200 text-slate-900";
+        banner.innerHTML = `<div class="font-semibold">Payment canceled</div><div class="text-sm mt-1">You were not charged.</div>`;
+        banner.classList.remove("hidden");
+      }
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  })();
 </script>
 
 
