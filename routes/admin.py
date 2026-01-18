@@ -3449,18 +3449,12 @@ def admin_dashboard(
 
     # 🔒 Stripe Connect status (for locking upgrades UI)
     stripe_connected = False
-    if pmc_obj:
-        stripe_connected = bool(
-            getattr(pmc_obj, "stripe_account_id", None)
-            or getattr(pmc_obj, "stripe_connect_account_id", None)
-        )
-
-
-    # 🔒 Stripe Connect status (for locking upgrades UI)
-    stripe_connected = False
+    stripe_charges_enabled = False
+    stripe_payouts_enabled = False
+    stripe_account_id = None
     
     if user_role == "pmc" and pmc_obj:
-        from models import PMCIntegration  # import at top if you prefer
+        from models import PMCIntegration
     
         integ = (
             db.query(PMCIntegration)
@@ -3471,10 +3465,34 @@ def admin_dashboard(
             .first()
         )
     
-        # You can decide how strict you want this:
-        # Strict = only allow upgrades if charges are enabled
-        stripe_connected = bool(integ and integ.account_id and getattr(integ, "is_connected", False))
+        if integ and integ.account_id and getattr(integ, "is_connected", False):
+            stripe_connected = True
+            stripe_account_id = integ.account_id
+            stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
+            stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
+
+    # 🔒 Stripe Connect status (for locking upgrades UI)
+    stripe_connected = False
+    stripe_charges_enabled = False
+    stripe_payouts_enabled = False
+    
+    if user_role == "pmc" and pmc_obj:
+        from models import PMCIntegration
+    
+        integ = (
+            db.query(PMCIntegration)
+            .filter(
+                PMCIntegration.pmc_id == pmc_obj.id,
+                PMCIntegration.provider == "stripe_connect",
+            )
+            .first()
+        )
+    
+        if integ and integ.account_id and getattr(integ, "is_connected", False):
+            stripe_connected = True
+            stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
+            stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
 
 
@@ -3502,8 +3520,13 @@ def admin_dashboard(
             "user_email": me_email,
             "user_full_name": (me_user.full_name if me_user else None),
             "team_members": team_members,
-            "stripe_connected": stripe_connected,
             "notif_prefs": notif_prefs,
+
+            "stripe_connected": stripe_connected,
+            "stripe_charges_enabled": stripe_charges_enabled,
+            "stripe_payouts_enabled": stripe_payouts_enabled,
+            "stripe_account_id": stripe_account_id,
+
 
             "sessions": sessions,
             "analytics": analytics,
