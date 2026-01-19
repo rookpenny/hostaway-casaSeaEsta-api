@@ -479,23 +479,27 @@ class AnalyticsEvent(Base):
 class UpgradePurchase(Base):
     __tablename__ = "upgrade_purchases"
 
-    id = Column(BigInteger, primary_key=True, index=True)
+    id = Column(Integer, primary_key=True)
 
-    pmc_id = Column(Integer, nullable=False)
-    property_id = Column(Integer, nullable=False)
-    upgrade_id = Column(Integer, nullable=False)
-
-    reservation_id = Column(Text, nullable=True)
-
-    status = Column(Text, nullable=False, server_default="pending")  # pending|paid|refunded|disputed|failed
+    pmc_id = Column(Integer, ForeignKey("pmc.id"), nullable=False)
+    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False)
+    upgrade_id = Column(Integer, ForeignKey("upgrades.id"), nullable=False)
 
     amount_cents = Column(Integer, nullable=False)
-    platform_fee_cents = Column(Integer, nullable=False, server_default="0")
+    platform_fee_cents = Column(Integer, nullable=False)
+    net_amount_cents = Column(Integer, nullable=True)
 
-    stripe_checkout_session_id = Column(Text, unique=True, nullable=True)
-    stripe_payment_intent_id = Column(Text, unique=True, nullable=True)
+    currency = Column(String, default="usd")
 
-    created_at = Column(DateTime(timezone=True), nullable=False, server_default=func.now())
-    paid_at = Column(DateTime(timezone=True), nullable=True)
-    refunded_at = Column(DateTime(timezone=True), nullable=True)
-    refunded_amount_cents = Column(Integer, nullable=True, server_default="0")
+    status = Column(String, default="pending")
+
+    stripe_checkout_session_id = Column(String)
+    stripe_payment_intent_id = Column(String)
+    stripe_transfer_id = Column(String)
+    stripe_destination_account_id = Column(String)
+
+    paid_at = Column(DateTime(timezone=True))
+    refunded_at = Column(DateTime(timezone=True))
+    refunded_amount_cents = Column(Integer, default=0)
+
+    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
