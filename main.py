@@ -41,7 +41,7 @@ from routes.admin_analytics import router as admin_analytics_router
 from routes.upgrade_purchase_status import router as upgrade_purchase_status_router
 from routes.stripe_connect import router as stripe_connect_router
 from routes.upgrade_checkout import router as upgrade_checkout_router
-
+from routes.admin_payouts import router as admin_payouts_router
 
 
 
@@ -89,7 +89,7 @@ app.include_router(stripe_connect_router)
 app.include_router(upgrade_checkout_router)
 #app.include_router(upgrade_pages_router)
 app.include_router(upgrade_purchase_status_router)
-
+app.include_router(admin_payouts_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Middleware ---
