@@ -2879,167 +2879,157 @@ upgradeDetailPurchase?.addEventListener("click", () => {
 
   });
 
-  async function pollUpgradePurchaseStatus(purchaseId) {
-    const banner = document.getElementById("upgrade-status-banner");
-    const setBanner = (html, cls) => {
-      if (!banner) return;
-      banner.className = `mb-4 rounded-xl border p-3 text-sm ${cls || ""}`;
-      banner.innerHTML = html;
-      banner.classList.remove("hidden");
-    };
+  // ===============================
+// Upgrade return (Stripe success/cancel)
+// ===============================
 
-    // show immediate optimistic message
-    setBanner(
-      `<div class="font-semibold">✅ Payment received</div>
-       <div class="text-sm mt-1">Confirming with the host…</div>`,
-      "bg-emerald-50 border-emerald-200 text-emerald-900"
-    );
+function getQueryParam(name) {
+  return new URLSearchParams(window.location.search).get(name);
+}
 
-    const maxAttempts = 8;      // ~8 seconds total
-    const delayMs = 1000;
+function findUpgradeSlideIndexById(upgradeId) {
+  if (!upgradeId) return 0;
+  const idStr = String(upgradeId);
+  const idx = upgradeSlides.findIndex((s) => String(s.dataset.upgradeId || "") === idStr);
+  return idx >= 0 ? idx : 0;
+}
 
-    for (let i = 0; i < maxAttempts; i++) {
-      try {
-        const res = await fetch(`/guest/upgrades/purchase-status?purchase_id=${encodeURIComponent(purchaseId)}`, {
-          credentials: "include",
-        });
-        const data = await res.json().catch(() => ({}));
+function getActiveSlideBanner() {
+  // Use the banner inside the currently active slide (or fallback to first match)
+  const activeSlide = document.querySelector(".upgrade-slide.is-active");
+  return (
+    activeSlide?.querySelector(".upgrade-status-banner") ||
+    document.querySelector(".upgrade-status-banner")
+  );
+}
 
-        if (res.ok) {
-          if (data.status === "paid") {
-            setBanner(
-              `<div class="font-semibold">✅ Upgrade confirmed</div>
-               <div class="text-sm mt-1">Your host has been notified.</div>`,
-              "bg-emerald-50 border-emerald-200 text-emerald-900"
-            );
-            return;
-          }
+function setUpgradeBanner(html, cls) {
+  const banner = getActiveSlideBanner();
+  if (!banner) return;
 
-          if (data.status === "refunded") {
-            setBanner(
-              `<div class="font-semibold">↩️ Payment refunded</div>
-               <div class="text-sm mt-1">You won’t be charged for this upgrade.</div>`,
-              "bg-slate-50 border-slate-200 text-slate-900"
-            );
-            return;
-          }
-        }
-      } catch (e) {
-        // ignore and keep polling
-      }
+  banner.className = `upgrade-status-banner mb-4 rounded-xl border p-3 text-sm ${cls || ""}`;
+  banner.innerHTML = html;
+  banner.classList.remove("hidden");
+}
 
-      await new Promise(r => setTimeout(r, delayMs));
-    }
+function setPurchasedUI({ confirmedText } = {}) {
+  // Update copy under headline
+  const descEl = document.getElementById("upgrade-active-description");
+  if (descEl) descEl.textContent = confirmedText || "Upgrade confirmed. Your host has been notified.";
 
-    // fallback if webhook is slow
-    setBanner(
-      `<div class="font-semibold">✅ Payment received</div>
-       <div class="text-sm mt-1">Your host will confirm shortly.</div>`,
-      "bg-emerald-50 border-emerald-200 text-emerald-900"
-    );
+  // Update button label + disable
+  const btn = document.getElementById("upgrade-active-button");
+  const btnLabel = document.getElementById("upgrade-active-button-label");
+
+  if (btnLabel) btnLabel.textContent = "Purchased";
+  if (btn) {
+    btn.disabled = true;
+    btn.classList.add("opacity-60", "cursor-not-allowed");
   }
+}
 
-  (function () {
-    const params = new URLSearchParams(window.location.search);
-    const upgrade = params.get("upgrade");
-    const purchaseId = params.get("purchase_id");
+async function pollUpgradePurchaseStatus(purchaseId, sessionId) {
+  // Optimistic immediate UI
+  setUpgradeBanner(
+    `<div class="font-semibold">Payment received</div>
+     <div class="text-sm mt-1">Confirming with the host...</div>`,
+    "bg-emerald-50 border-emerald-200 text-emerald-900"
+  );
 
-    if (upgrade === "success" && purchaseId) {
-      pollUpgradePurchaseStatus(purchaseId);
-      // clean URL so refresh doesn't re-trigger
-      window.history.replaceState({}, "", window.location.pathname);
-    }
+  const maxAttempts = 10;  // ~10 seconds
+  const delayMs = 1000;
 
-    if (upgrade === "cancel") {
-      const banner = document.getElementById("upgrade-status-banner");
-      if (banner) {
-        banner.className = "mb-4 rounded-xl border p-3 text-sm bg-slate-50 border-slate-200 text-slate-900";
-        banner.innerHTML = `<div class="font-semibold">Payment canceled</div><div class="text-sm mt-1">You were not charged.</div>`;
-        banner.classList.remove("hidden");
-      }
-      window.history.replaceState({}, "", window.location.pathname);
-    }
-  })();
-
-(function () {
-  function qs(name) {
-    return new URLSearchParams(window.location.search).get(name);
-  }
-
-  async function refreshPurchasedUI() {
-    const upgradeResult = qs("upgrade");            // success|cancel
-    const purchaseId = qs("purchase_id");
-    const sessionId = qs("session_id");
-    const upgradeId = qs("upgrade_id");
-
-    if (upgradeResult !== "success" || !purchaseId) return;
-
-    // Ensure upgrades screen is visible (if you have screen switching logic)
-    // If your app uses "screen=upgrades", keep it as-is.
-    // If you have a JS function like showScreen('upgrades'), call it here.
-    // Example:
-    // if (window.showScreen) window.showScreen("upgrades");
-
-    let data;
+  for (let i = 0; i < maxAttempts; i++) {
     try {
-      const res = await fetch(
-        `/guest/upgrades/purchase-status?purchase_id=${encodeURIComponent(purchaseId)}&session_id=${encodeURIComponent(sessionId || "")}`
-      );
-      data = await res.json().catch(() => ({}));
-      if (!res.ok) return;
-    } catch (e) {
-      console.error("purchase-status failed", e);
-      return;
-    }
+      const url =
+        `/guest/upgrades/purchase-status?purchase_id=${encodeURIComponent(purchaseId)}` +
+        (sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : "");
 
-    if (!data.paid) return;
+      const res = await fetch(url, { credentials: "include" });
+      const data = await res.json().catch(() => ({}));
 
-    // --- 1) Show the green confirmation banner (top of upgrades screen) ---
-    // We'll inject it into upgrade-active-info area, or you can add a dedicated banner container.
-    const activeInfo = document.getElementById("upgrade-active-info");
-    if (activeInfo) activeInfo.classList.remove("hidden");
+      if (res.ok) {
+        if (data.status === "paid") {
+          setUpgradeBanner(
+            `<div class="font-semibold">Upgrade confirmed</div>
+             <div class="text-sm mt-1">Your host has been notified.</div>`,
+            "bg-emerald-50 border-emerald-200 text-emerald-900"
+          );
+          setPurchasedUI({ confirmedText: "Upgrade confirmed. Your host has been notified." });
+          return true;
+        }
 
-    // --- 2) Update headline description copy ---
-    const descEl = document.getElementById("upgrade-active-description");
-    if (descEl) {
-      descEl.textContent = "✅ Upgrade confirmed — Your host has been notified.";
-    }
-
-    // --- 3) Update button to Purchased + disable ---
-    const ctaWrap = document.getElementById("upgrade-active-cta");
-    const btn = document.getElementById("upgrade-active-button");
-    const btnLabel = document.getElementById("upgrade-active-button-label");
-
-    if (ctaWrap) ctaWrap.classList.remove("hidden");
-    if (btnLabel) btnLabel.textContent = "Purchased";
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add("opacity-60", "cursor-not-allowed");
-    }
-
-    // --- 4) Optional: mark the specific card as purchased (if you want) ---
-    // Find the upgrade card by upgradeId and show its inline banner
-    if (upgradeId) {
-      const card = document.querySelector(`[data-upgrade-id="${CSS.escape(String(upgradeId))}"]`);
-      if (card) {
-        const banner = card.querySelector(".upgrade-status-banner");
-        if (banner) {
-          banner.classList.remove("hidden");
-          banner.classList.add("border-emerald-300", "bg-emerald-50", "text-emerald-900");
-          banner.textContent = "✅ Upgrade confirmed — Your host has been notified.";
+        if (data.status === "refunded") {
+          setUpgradeBanner(
+            `<div class="font-semibold">Payment refunded</div>
+             <div class="text-sm mt-1">You won’t be charged for this upgrade.</div>`,
+            "bg-slate-50 border-slate-200 text-slate-900"
+          );
+          return false;
         }
       }
+    } catch (e) {
+      // ignore and keep polling
     }
 
-    // --- 5) Optional: clean URL so refresh doesn't re-run forever ---
-    // Keeps them on upgrades screen but removes purchase params
-    const url = new URL(window.location.href);
-    url.searchParams.delete("upgrade");
-    url.searchParams.delete("purchase_id");
-    url.searchParams.delete("session_id");
-    url.searchParams.delete("upgrade_id");
-    window.history.replaceState({}, "", url.toString());
+    await new Promise((r) => setTimeout(r, delayMs));
   }
 
-  document.addEventListener("DOMContentLoaded", refreshPurchasedUI);
-})();
+  // Webhook might be slow; keep a nice message
+  setUpgradeBanner(
+    `<div class="font-semibold">Payment received</div>
+     <div class="text-sm mt-1">Your host will confirm shortly.</div>`,
+    "bg-emerald-50 border-emerald-200 text-emerald-900"
+  );
+  return false;
+}
+
+async function handleUpgradeReturnFromStripe() {
+  const upgradeResult = getQueryParam("upgrade");       // success|cancel
+  const purchaseId = getQueryParam("purchase_id");
+  const sessionId = getQueryParam("session_id");
+  const upgradeId = getQueryParam("upgrade_id");
+
+  if (!upgradeResult) return;
+
+  // Always route them back to upgrades screen
+  showScreen("upgrades");
+
+  // Ensure carousel is initialized and the active slide is correct
+  // initUpgradesCarousel() is called inside showScreen('upgrades'), but we need to wait a tick.
+  requestAnimationFrame(() => {
+    // select purchased upgrade slide if provided
+    if (upgradeId) {
+      const idx = findUpgradeSlideIndexById(upgradeId);
+      setActiveSlideByIndex(idx);
+      centerSlide(idx, "auto");
+      applyScaleEasing();
+    }
+  });
+
+  if (upgradeResult === "cancel") {
+    // show cancel message
+    requestAnimationFrame(() => {
+      setUpgradeBanner(
+        `<div class="font-semibold">Payment canceled</div>
+         <div class="text-sm mt-1">You were not charged.</div>`,
+        "bg-slate-50 border-slate-200 text-slate-900"
+      );
+    });
+
+    // clean URL (keep pathname)
+    window.history.replaceState({}, "", window.location.pathname);
+    return;
+  }
+
+  if (upgradeResult === "success" && purchaseId) {
+    // confirm paid, then update copy + button
+    await pollUpgradePurchaseStatus(purchaseId, sessionId);
+
+    // clean URL (keep pathname)
+    window.history.replaceState({}, "", window.location.pathname);
+  }
+}
+
+// Run once on load
+handleUpgradeReturnFromStripe();
