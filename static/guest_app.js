@@ -1227,47 +1227,7 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
       else openMenu();
     });
 
-    // --- Chat rendering helpers ---
-/*function hasExplicitOpenRequest(text = "") {
-  const t = String(text).toLowerCase();
 
-  // verbs that mean "open / show / pull up"
-  const verbs = /\b(open|show|bring up|pull up|launch|take me to|go to|view)\b/;
-
-  // targets
-  const wantsWifi   = /\b(wifi|wi-fi|internet|password|ssid|network)\b/.test(t);
-  const wantsDoor   = /\b(door|lock|keypad|entry|code|check-?in)\b/.test(t);
-  const wantsGuides = /\b(guides?|things to do|activities|recommendations?|spots)\b/.test(t);
-  const wantsUpgrades = /\b(upgrades?|late checkout|early check-?in)\b/.test(t);
-
-  // Explicit phrases that should trigger without verbs
-  const directPhrases =
-    /\b(door code|open wifi|show wifi|wifi password|show guides|open guides|open upgrades|show upgrades)\b/.test(t);
-
-  // “what’s the wifi password” should NOT auto-open unless they explicitly say open/show
-  // so we require verbs OR direct phrases.
-  const hasVerb = verbs.test(t);
-
-  return {
-    wifi: (hasVerb && wantsWifi) || /\b(open|show)\s+(wifi|wi-fi)\b/.test(t) || directPhrases,
-    door: (hasVerb && wantsDoor) || /\b(open|show)\s+(door|code|check-?in)\b/.test(t) || directPhrases,
-    guides: (hasVerb && wantsGuides) || /\b(open|show)\s+(guides?|things to do)\b/.test(t) || directPhrases,
-    upgrades: (hasVerb && wantsUpgrades) || /\b(open|show)\s+upgrades?\b/.test(t) || directPhrases,
-  };
-}
-
-function shouldAutoOpen(key, ttlMs = 2 * 60 * 1000) {
-  try {
-    const k = `auto_open_${window.PROPERTY_ID}_${key}`;
-    const last = Number(sessionStorage.getItem(k) || 0);
-    const now = Date.now();
-    if (now - last < ttlMs) return false;
-    sessionStorage.setItem(k, String(now));
-    return true;
-  } catch {
-    return true;
-  }
-}*/
 
 function isAnyOverlayOpen() {
   const wifiModal = document.getElementById("wifi-modal");
