@@ -89,6 +89,19 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(purchase)
 
+    # ✅ Store destination + net amount for reconciliation
+    purchase.stripe_destination_account_id = integ.account_id
+    purchase.net_amount_cents = amount - platform_fee
+
+    if purchase.net_amount_cents <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid upgrade pricing configuration.",
+        )
+    
+    db.commit()
+
+
     # ✅ Redirect guest back to your main guest experience (guest_app)
     # IMPORTANT: keep {CHECKOUT_SESSION_ID} exactly like this so Stripe fills it.
     
@@ -109,6 +122,8 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
         f"&purchase_id={purchase.id}"
         f"&upgrade_id={upgrade.id}"
     )
+
+
 
     session = stripe.checkout.Session.create(
         mode="payment",
