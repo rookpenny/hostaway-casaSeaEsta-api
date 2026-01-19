@@ -37,6 +37,7 @@ def require_pmc_scope(request: Request, db: Session):
 
 
 @router.get("/admin/integrations/stripe/status")
+@router.get("/admin/integrations/stripe/status")
 def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
     try:
         pmc_obj = require_pmc_scope(request, db)
@@ -50,15 +51,24 @@ def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
     )
 
     if not integ or not integ.account_id:
-        return {"connected": False}
+        return {"connected": False, "ready": False}
+
+    # connected = account exists
+    connected = True
+
+    charges_enabled = bool(getattr(integ, "charges_enabled", False))
+    payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
+    details_submitted = bool(getattr(integ, "details_submitted", False))
 
     return {
-        "connected": bool(integ.is_connected),
+        "connected": connected,
+        "ready": bool(charges_enabled),   # "can accept payments"
         "account_id": integ.account_id,
-        "charges_enabled": bool(getattr(integ, "charges_enabled", False)),
-        "payouts_enabled": bool(getattr(integ, "payouts_enabled", False)),
-        "details_submitted": bool(getattr(integ, "details_submitted", False)),
+        "charges_enabled": charges_enabled,
+        "payouts_enabled": payouts_enabled,
+        "details_submitted": details_submitted,
     }
+
 
 
 @router.post("/admin/integrations/stripe/connect")
@@ -113,7 +123,7 @@ def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
         link = stripe.AccountLink.create(
             account=integ.account_id,
             refresh_url=f"{APP_BASE_URL}/admin/dashboard?view=settings&tab=integrations",
-            return_url=f"{APP_BASE_URL}/admin/integrations/stripe/close",
+            return_url=f"{APP_BASE_URL}/admin/integrations/stripe/callback?popup=1",
             type="account_onboarding",
         )
         return {"url": link["url"]}
@@ -122,27 +132,28 @@ def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/admin/integrations/stripe/callback")
-def stripe_connect_callback(request: Request, db: Session = Depends(get_db)):
-    """
-    Stripe returns here after onboarding.
-    We fetch account + mark connected if charges_enabled.
-    """
-    try:
-        _require_env()
-        pmc_obj = require_pmc_scope(request, db)
-    except HTTPException:
-        return RedirectResponse(url="/admin/dashboard?view=settings&tab=integrations")
-
-    stripe.api_key = STRIPE_SECRET_KEY
+def stripe_connect_callback(request: Request, db: Session = Depends(get_db), popup: int = 0):
+    _require_env()
+    pmc_obj = require_pmc_scope(request, db)
 
     integ = (
         db.query(PMCIntegration)
-        .filter(PMCIntegration.pmc_id == pmc_obj.id, PMCIntegration.provider == "stripe_connect")
+        .filter(
+            PMCIntegration.pmc_id == pmc_obj.id,
+            PMCIntegration.provider == "stripe_connect",
+        )
         .first()
     )
+
     if not integ or not integ.account_id:
+        # nothing to update
+        if popup:
+            return HTMLResponse(
+                "<script>try{window.opener&&window.opener.location.reload()}catch(e){};window.close();</script>"
+            )
         return RedirectResponse(url="/admin/dashboard?view=settings&tab=integrations")
 
+    # ✅ Pull fresh truth from Stripe and write it to DB
     acct = stripe.Account.retrieve(integ.account_id)
 
     if hasattr(integ, "charges_enabled"):
@@ -152,12 +163,34 @@ def stripe_connect_callback(request: Request, db: Session = Depends(get_db)):
     if hasattr(integ, "details_submitted"):
         integ.details_submitted = bool(acct.get("details_submitted"))
 
-    integ.is_connected = bool(acct.get("charges_enabled"))
+    # IMPORTANT:
+    # "connected" in UX should mean account exists (saved),
+    # but "ready to charge" is charges_enabled.
+    integ.is_connected = True  # account connected (onboarding may still be incomplete)
 
-    if hasattr(integ, "connected_at") and integ.is_connected and not getattr(integ, "connected_at", None):
+    if hasattr(integ, "connected_at") and not getattr(integ, "connected_at", None):
         integ.connected_at = datetime.now(timezone.utc)
 
     db.commit()
+
+    # ✅ If popup=1, close window + refresh opener
+    if popup:
+        return HTMLResponse(
+            """
+<!doctype html>
+<html><body>
+<script>
+  try {
+    if (window.opener) {
+      window.opener.location.reload();
+    }
+  } catch(e) {}
+  setTimeout(() => window.close(), 250);
+</script>
+</body></html>
+"""
+        )
+
     return RedirectResponse(url="/admin/dashboard?view=settings&tab=integrations")
 
 
