@@ -76,14 +76,15 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
 
     # ✅ Redirect guest back to your main guest experience (guest_app)
     # IMPORTANT: keep {CHECKOUT_SESSION_ID} exactly like this so Stripe fills it.
+    
     success_url = (
         f"{APP_BASE_URL}/guest/{prop.id}"
-        f"?screen=upgrades"
-        f"&upgrade=success"
+        f"?upgrade=success"
         f"&purchase_id={purchase.id}"
         f"&upgrade_id={upgrade.id}"
         f"&session_id={{CHECKOUT_SESSION_ID}}"
     )
+
 
     cancel_url = (
         f"{APP_BASE_URL}/guest/{prop.id}"
