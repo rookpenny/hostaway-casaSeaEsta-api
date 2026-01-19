@@ -11,7 +11,7 @@ router = APIRouter()
 
 STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
 APP_BASE_URL = (os.getenv("APP_BASE_URL") or "").rstrip("/")
-
+STRIPE_CLIENT_ID = (os.getenv("STRIPE_CLIENT_ID") or "").strip()
 
 def _require():
     if not STRIPE_SECRET_KEY:
