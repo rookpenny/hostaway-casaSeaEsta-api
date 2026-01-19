@@ -188,9 +188,10 @@ def stripe_connect_disconnect(request: Request, db: Session = Depends(get_db)):
     if not integ:
         return {"ok": True}
 
-    # unlink locally
+    # If you want "Remove connection" to truly remove it:
     integ.is_connected = False
-    integ.account_id = None
-    db.commit()
+    integ.account_id = None   # ✅ this is the big change
 
+    db.commit()
     return {"ok": True}
+
