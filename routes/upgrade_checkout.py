@@ -79,7 +79,8 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
     
     success_url = (
         f"{APP_BASE_URL}/guest/{prop.id}"
-        f"?upgrade=success"
+        f"?screen=upgrades"
+        f"&upgrade=success"
         f"&purchase_id={purchase.id}"
         f"&upgrade_id={upgrade.id}"
         f"&session_id={{CHECKOUT_SESSION_ID}}"
