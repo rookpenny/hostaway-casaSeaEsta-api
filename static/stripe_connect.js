@@ -71,6 +71,13 @@ async function stripeConnectRefreshStatus() {
     el.textContent = "Not connected.";
     return;
   }
+  
+  if (data.ready) {
+    el.textContent = `Connected (${data.account_id}) • charges: on • payouts: ${data.payouts_enabled ? "on" : "off"}`;
+  } else {
+    el.textContent = `Connected (${data.account_id}) • setup incomplete (finish onboarding to accept payments)`;
+  }
+
 
   const bits = [`Connected (${data.account_id})`];
   if (data.charges_enabled !== undefined) bits.push(`charges: ${data.charges_enabled ? "on" : "off"}`);
