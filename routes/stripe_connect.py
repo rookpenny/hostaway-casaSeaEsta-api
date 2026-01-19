@@ -9,12 +9,14 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import PMCIntegration
-from routes.admin import get_user_role_and_scope  # <-- your correct import
+from routes.admin import get_user_role_and_scope
 
 router = APIRouter()
 
 APP_BASE_URL = (os.getenv("APP_BASE_URL") or "").rstrip("/")
 STRIPE_SECRET_KEY = (os.getenv("STRIPE_SECRET_KEY") or "").strip()
+
+stripe.api_key = STRIPE_SECRET_KEY
 
 
 def _require_env():
@@ -36,7 +38,6 @@ def require_pmc_scope(request: Request, db: Session):
     return pmc_obj
 
 
-
 @router.get("/admin/integrations/stripe/status")
 def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
     try:
@@ -56,9 +57,6 @@ def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
     if not integ or not integ.account_id:
         return {"connected": False}
 
-    # With your model:
-    # connected = we have an account_id saved
-    # is_connected = we received callback and marked it connected
     return {
         "connected": True,
         "account_id": integ.account_id,
@@ -66,24 +64,20 @@ def stripe_connect_status(request: Request, db: Session = Depends(get_db)):
     }
 
 
-
 @router.post("/admin/integrations/stripe/connect")
 def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
-    """
-    Called by the admin dashboard 'Connect Stripe' button.
-    Creates (or reuses) a Stripe Express account and returns onboarding link URL.
-    """
     try:
         _require_env()
         pmc_obj = require_pmc_scope(request, db)
     except HTTPException as e:
         return JSONResponse({"detail": e.detail}, status_code=e.status_code)
 
-    stripe.api_key = STRIPE_SECRET_KEY
-
     integ = (
         db.query(PMCIntegration)
-        .filter(PMCIntegration.pmc_id == pmc_obj.id, PMCIntegration.provider == "stripe_connect")
+        .filter(
+            PMCIntegration.pmc_id == pmc_obj.id,
+            PMCIntegration.provider == "stripe_connect",
+        )
         .first()
     )
 
@@ -109,6 +103,7 @@ def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
                 metadata={"pmc_id": str(pmc_obj.id)},
             )
             integ.account_id = acct["id"]
+            integ.is_connected = False
             db.commit()
         except Exception as e:
             db.rollback()
@@ -122,46 +117,13 @@ def stripe_connect_start(request: Request, db: Session = Depends(get_db)):
             return_url=f"{APP_BASE_URL}/admin/integrations/stripe/callback?popup=1",
             type="account_onboarding",
         )
-
         return {"url": link["url"]}
     except Exception as e:
         return JSONResponse({"detail": f"Stripe account link failed: {str(e)}"}, status_code=500)
 
 
-async function stripeConnectRefreshStatus() {
-  const el = document.getElementById("stripe-connect-status");
-  if (!el) return;
-
-  el.textContent = "Checking…";
-
-  const res = await fetch("/admin/integrations/stripe/status", { credentials: "include" });
-  const data = await res.json().catch(() => ({}));
-
-  if (!res.ok) {
-    el.textContent = "Could not load Stripe status.";
-    return;
-  }
-
-  if (!data.connected) {
-    el.textContent = "Not connected.";
-    return;
-  }
-
-  // connected but maybe not fully completed
-  if (data.is_connected) {
-    el.textContent = `Connected (${data.account_id})`;
-  } else {
-    el.textContent = `Connected (${data.account_id}) • finishing setup…`;
-  }
-}
-
-
 @router.get("/admin/integrations/stripe/callback")
-def stripe_connect_callback(
-    request: Request,
-    db: Session = Depends(get_db),
-    popup: int = 0,
-):
+def stripe_connect_callback(request: Request, db: Session = Depends(get_db), popup: int = 0):
     _require_env()
     pmc_obj = require_pmc_scope(request, db)
 
@@ -175,37 +137,40 @@ def stripe_connect_callback(
     )
 
     if not integ or not integ.account_id:
-        # Nothing to update; still close popup nicely if needed
         if popup:
             return HTMLResponse("""
 <!doctype html><html><body>
 <script>
   try { if (window.opener) window.opener.location.reload(); } catch(e) {}
-  setTimeout(() => window.close(), 250);
+  setTimeout(function(){ window.close(); }, 250);
 </script>
 </body></html>
 """)
         return RedirectResponse(url="/admin/dashboard?view=settings&tab=integrations")
 
-    # Pull Stripe account to validate it exists (and optionally inspect later)
-    acct = stripe.Account.retrieve(integ.account_id)
+    # Validate account exists on Stripe, then mark connected in our DB
+    try:
+        stripe.Account.retrieve(integ.account_id)
+    except Exception as e:
+        if popup:
+            return HTMLResponse(f"<pre>Stripe retrieve failed: {str(e)}</pre>")
+        return RedirectResponse(url="/admin/dashboard?view=settings&tab=integrations")
 
-    # Mark connected in YOUR DB (only column you have)
     integ.is_connected = True
     db.commit()
 
-    # If opened in popup, refresh opener + close
     if popup:
         return HTMLResponse("""
 <!doctype html><html><body>
 <script>
   try { if (window.opener) window.opener.location.reload(); } catch(e) {}
-  setTimeout(() => window.close(), 250);
+  setTimeout(function(){ window.close(); }, 250);
 </script>
 </body></html>
 """)
 
     return RedirectResponse(url="/admin/dashboard?view=settings&tab=integrations")
+
 
 @router.post("/admin/integrations/stripe/disconnect")
 def stripe_connect_disconnect(request: Request, db: Session = Depends(get_db)):
@@ -223,42 +188,9 @@ def stripe_connect_disconnect(request: Request, db: Session = Depends(get_db)):
     if not integ:
         return {"ok": True}
 
-    # ❗ Do NOT delete the Stripe account on Stripe's side
-    # Just unlink it from this PMC
+    # unlink locally
     integ.is_connected = False
-    integ.charges_enabled = False
-    integ.payouts_enabled = False
-
+    integ.account_id = None
     db.commit()
 
     return {"ok": True}
-
-
-
-@router.get("/admin/integrations/stripe/close", response_class=HTMLResponse)
-def stripe_connect_close():
-    return """
-<!doctype html>
-<html>
-  <head>
-    <title>Stripe Connected</title>
-    <meta charset="utf-8" />
-  </head>
-  <body style="font-family: system-ui; text-align: center; padding: 40px;">
-    <h2>✅ Stripe connected</h2>
-    <p>You can close this window.</p>
-
-    <script>
-      try {
-        if (window.opener) {
-          window.opener.location.reload();
-        }
-      } catch (e) {}
-
-      setTimeout(() => {
-        window.close();
-      }, 400);
-    </script>
-  </body>
-</html>
-"""
