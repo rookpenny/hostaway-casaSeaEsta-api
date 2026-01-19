@@ -61,6 +61,21 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
     flat_fee = 30
     platform_fee = max(0, pct_fee + flat_fee)
 
+    # 🔒 Guard invalid amounts / fees
+    if amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid upgrade amount."
+        )
+    
+    # Platform fee can never exceed total charge
+    if platform_fee >= amount:
+        platform_fee = amount - 1  # leave at least $0.01 for PMC
+    
+    if platform_fee < 0:
+        platform_fee = 0
+
+
     # Create purchase row FIRST (pending)
     purchase = UpgradePurchase(
         pmc_id=pmc_id,
@@ -98,20 +113,17 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
     session = stripe.checkout.Session.create(
         mode="payment",
         payment_method_types=["card"],
-        line_items=[
-            {
-                "price_data": {
-                    "currency": "usd",
-                    "product_data": {"name": upgrade.title},
-                    "unit_amount": amount,
-                },
-                "quantity": 1,
-            }
-        ],
+        line_items=[{
+            "price_data": {
+                "currency": "usd",
+                "product_data": {"name": upgrade.title},
+                "unit_amount": amount,
+            },
+            "quantity": 1,
+        }],
         success_url=success_url,
         cancel_url=cancel_url,
-
-        # Helpful metadata
+    
         metadata={
             "type": "upgrade_purchase",
             "purchase_id": str(purchase.id),
@@ -119,11 +131,11 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
             "property_id": str(prop.id),
             "upgrade_id": str(upgrade.id),
         },
-
-        # ✅ Destination charge + platform fee
+    
+        # ✅ THIS is what routes funds to the PMC
         payment_intent_data={
             "application_fee_amount": platform_fee,
-            "transfer_data": {"destination": integ.account_id},
+            "transfer_data": {"destination": integ.account_id},  # ✅ PMC gets the money
             "metadata": {
                 "type": "upgrade_purchase",
                 "purchase_id": str(purchase.id),
@@ -132,7 +144,11 @@ def create_upgrade_checkout(upgrade_id: int, db: Session = Depends(get_db)):
                 "upgrade_id": str(upgrade.id),
             },
         },
+    
+        # ❌ DO NOT set stripe_account here for destination charges
+        # stripe_account=integ.account_id,
     )
+
 
     purchase.stripe_checkout_session_id = session.id
     db.commit()
