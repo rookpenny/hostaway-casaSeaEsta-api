@@ -14,7 +14,6 @@ from models import PMC, UpgradePurchase
 
 router = APIRouter()
 
-
 # ----------------------------
 # Helpers
 # ----------------------------
@@ -34,15 +33,13 @@ def _require_env() -> tuple[str, str]:
         missing.append("STRIPE_WEBHOOK_SECRET")
 
     if missing:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Missing env vars: {', '.join(missing)}",
-        )
+        raise HTTPException(status_code=500, detail=f"Missing env vars: {', '.join(missing)}")
 
     return stripe_secret, webhook_secret
 
 
 def _set_if_attr(obj, attr: str, value) -> None:
+    """Set an attribute only if it exists (backward compatible)."""
     if hasattr(obj, attr):
         setattr(obj, attr, value)
 
@@ -117,7 +114,12 @@ async def stripe_webhook(request: Request):
         if pmc is None and customer_id:
             pmc = db.query(PMC).filter(PMC.stripe_customer_id == customer_id).first()
 
-        if pmc is None and subscription_id and isinstance(subscription_id, str) and subscription_id.startswith("sub_"):
+        if (
+            pmc is None
+            and subscription_id
+            and isinstance(subscription_id, str)
+            and subscription_id.startswith("sub_")
+        ):
             pmc = db.query(PMC).filter(PMC.stripe_subscription_id == subscription_id).first()
 
         if pmc is None and email_l:
@@ -177,13 +179,13 @@ async def stripe_webhook(request: Request):
         "invoice.payment_action_required",
         "customer.subscription.updated",
         "customer.subscription.deleted",
-
         # Upgrade lifecycle extras
         "checkout.session.expired",
         "payment_intent.payment_failed",
-
         # Upgrade refunds
         "charge.refunded",
+        # ✅ Destination-charge transfer reconciliation
+        "transfer.created",
     }
 
     if event_type not in HANDLED:
@@ -192,7 +194,41 @@ async def stripe_webhook(request: Request):
     db: Session = SessionLocal()
     try:
         # ============================================================
-        # A) Checkout completed (PMC OR upgrade)
+        # A) Upgrade transfer created (money sent to PMC)
+        # ============================================================
+        if event_type == "transfer.created":
+            # obj is a Transfer
+            transfer_id = obj.get("id")
+            transfer_metadata = obj.get("metadata") or {}
+
+            purchase_id = _safe_int(transfer_metadata.get("purchase_id"))
+            if not purchase_id:
+                return JSONResponse({"ok": True})
+
+            purchase = (
+                db.query(UpgradePurchase)
+                .filter(UpgradePurchase.id == purchase_id)
+                .first()
+            )
+            if not purchase:
+                return JSONResponse({"ok": True})
+
+            # idempotent-ish
+            if getattr(purchase, "stripe_transfer_id", None) == transfer_id:
+                return JSONResponse({"ok": True})
+
+            _set_if_attr(purchase, "stripe_transfer_id", transfer_id)
+
+            # Nice-to-have: also store destination if your model has it
+            dest_acct = obj.get("destination")
+            if dest_acct:
+                _set_if_attr(purchase, "stripe_destination_account_id", dest_acct)
+
+            db.commit()
+            return JSONResponse({"ok": True})
+
+        # ============================================================
+        # B) Checkout completed (PMC OR upgrade)
         # ============================================================
         if event_type == "checkout.session.completed":
             checkout_type = (metadata.get("type") or "").strip()
@@ -214,12 +250,18 @@ async def stripe_webhook(request: Request):
                 payment_intent_id = obj.get("payment_intent")
 
                 if session_id:
-                    purchase.stripe_checkout_session_id = session_id
+                    _set_if_attr(purchase, "stripe_checkout_session_id", session_id)
                 if payment_intent_id:
-                    purchase.stripe_payment_intent_id = payment_intent_id
+                    _set_if_attr(purchase, "stripe_payment_intent_id", payment_intent_id)
+
+                # net = amount - platform_fee (guard against weird negatives)
+                amount = int(getattr(purchase, "amount_cents", 0) or 0)
+                fee = int(getattr(purchase, "platform_fee_cents", 0) or 0)
+                net = max(0, amount - max(0, fee))
+                _set_if_attr(purchase, "net_amount_cents", net)
 
                 purchase.status = "paid"
-                purchase.paid_at = _now()
+                _set_if_attr(purchase, "paid_at", _now())
 
                 db.commit()
                 return JSONResponse({"ok": True})
@@ -231,6 +273,7 @@ async def stripe_webhook(request: Request):
             if pmc is None:
                 return JSONResponse({"ok": True})
 
+            # Idempotency by Stripe event id (PMC)
             last_event = getattr(pmc, "last_stripe_event_id", None)
             if last_event and last_event == event_id:
                 return JSONResponse({"ok": True})
@@ -274,7 +317,7 @@ async def stripe_webhook(request: Request):
             return JSONResponse({"ok": True})
 
         # ============================================================
-        # B) Upgrade payment failed
+        # C) Upgrade payment failed
         # ============================================================
         if event_type == "payment_intent.payment_failed":
             # obj is a PaymentIntent
@@ -298,10 +341,9 @@ async def stripe_webhook(request: Request):
             return JSONResponse({"ok": True})
 
         # ============================================================
-        # C) Upgrade checkout expired (guest never paid)
+        # D) Upgrade checkout expired (guest never paid)
         # ============================================================
         if event_type == "checkout.session.expired":
-            # obj is a Checkout Session
             sess_id = obj.get("id")
             if not (isinstance(sess_id, str) and sess_id.startswith("cs_")):
                 return JSONResponse({"ok": True})
@@ -322,10 +364,9 @@ async def stripe_webhook(request: Request):
             return JSONResponse({"ok": True})
 
         # ============================================================
-        # D) Upgrade refunded (charge.refunded)
+        # E) Upgrade refunded (charge.refunded)
         # ============================================================
         if event_type == "charge.refunded":
-            # obj is a Charge
             payment_intent_id = obj.get("payment_intent")
             amount_refunded = int(obj.get("amount_refunded") or 0)
             refunded_flag = bool(obj.get("refunded"))
@@ -338,7 +379,7 @@ async def stripe_webhook(request: Request):
                     .first()
                 )
 
-            # Fallback (rare): sometimes charge has no PI in weird flows
+            # fallback
             if not purchase:
                 purchase = _find_purchase(db)
 
@@ -346,18 +387,17 @@ async def stripe_webhook(request: Request):
                 return JSONResponse({"ok": True})
 
             prev_refunded = int(getattr(purchase, "refunded_amount_cents", 0) or 0)
-            purchase.refunded_amount_cents = max(prev_refunded, amount_refunded)
+            _set_if_attr(purchase, "refunded_amount_cents", max(prev_refunded, amount_refunded))
 
-            # Mark refunded if any refund (your schema doesn't have partial status)
             if amount_refunded > 0 or refunded_flag:
                 purchase.status = "refunded"
-                purchase.refunded_at = _now()
+                _set_if_attr(purchase, "refunded_at", _now())
 
             db.commit()
             return JSONResponse({"ok": True})
 
         # ============================================================
-        # Existing PMC lifecycle events (unchanged)
+        # PMC lifecycle events (unchanged)
         # ============================================================
         pmc = _find_pmc(db)
         if pmc is None:
