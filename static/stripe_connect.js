@@ -1,3 +1,5 @@
+// static/stripe_connect.js
+
 let stripePopup = null;
 
 async function stripeConnectStart() {
@@ -29,8 +31,7 @@ async function stripeConnectStart() {
       return;
     }
 
-    // Optional: if popup closes without calling our callback (user closes manually),
-    // refresh status when it closes.
+    // If popup closes (user closes it or callback closes it), refresh status
     const t = setInterval(() => {
       if (stripePopup && stripePopup.closed) {
         clearInterval(t);
@@ -68,7 +69,6 @@ async function stripeConnectRefreshStatus() {
   el.textContent = "Checking...";
 
   const connectBtn = document.getElementById("stripe-connect-btn");
-  const disconnectBtn = document.getElementById("stripe-disconnect-btn");
 
   try {
     const res = await fetch("/admin/integrations/stripe/status", {
@@ -78,55 +78,51 @@ async function stripeConnectRefreshStatus() {
     const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
-      el.textContent = "Could not load Stripe status.";
+      el.textContent = data.detail || "Could not load Stripe status.";
       return;
     }
 
     if (!data.connected) {
       el.textContent = "Not connected.";
+      // Keep connect button visible
       if (connectBtn) connectBtn.classList.remove("hidden");
-      if (disconnectBtn) disconnectBtn.classList.add("hidden");
       return;
     }
 
-    // Your backend returns: connected, account_id, is_connected
+    // We have an account on file. is_connected means callback completed.
     if (data.is_connected) {
       el.textContent = "Connected (" + data.account_id + ")";
+      // Optionally hide connect once fully connected
+      if (connectBtn) connectBtn.classList.add("hidden");
     } else {
       el.textContent =
         "Connected (" +
         data.account_id +
         ") - setup incomplete (finish onboarding to accept payments).";
+      // Keep connect visible so they can re-open onboarding
+      if (connectBtn) connectBtn.classList.remove("hidden");
     }
-
-    // Toggle buttons
-    if (connectBtn) connectBtn.classList.add("hidden");
-    if (disconnectBtn) disconnectBtn.classList.remove("hidden");
   } catch (e) {
     console.error(e);
     el.textContent = "Error checking Stripe status.";
   }
 }
 
-// Event delegation so it works even if tab panels mount/unmount
+// Event delegation so it works even if Settings panels are shown/hidden dynamically
 document.addEventListener("click", (e) => {
   if (e.target.closest("#stripe-connect-btn")) {
     e.preventDefault();
     stripeConnectStart();
     return;
   }
+
   if (e.target.closest("#stripe-refresh-btn")) {
     e.preventDefault();
     stripeConnectRefreshStatus();
     return;
   }
-  if (e.target.closest("#stripe-disconnect-btn")) {
-    e.preventDefault();
-    stripeDisconnect();
-    return;
-  }
 
-  // If they clicked the Settings -> Integrations tab, refresh status
+  // If they clicked Settings -> Integrations tab, refresh status shortly after
   const tab = e.target.closest(".settings-tab[data-settings='integrations']");
   if (tab) {
     setTimeout(stripeConnectRefreshStatus, 50);
