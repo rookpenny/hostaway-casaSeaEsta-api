@@ -29,7 +29,7 @@ def _require_env():
 
 @router.post("/admin/integrations/stripe/connect")
 def stripe_oauth_start(request: Request, db: Session = Depends(get_db)):
-    require_env()
+    _require_env()
 
     # however you identify the logged-in PMC:
     pmc_id = request.session.get("pmc_id")
