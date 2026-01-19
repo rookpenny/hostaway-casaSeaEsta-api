@@ -132,3 +132,16 @@ document.addEventListener("click", (e) => {
 document.addEventListener("DOMContentLoaded", () => {
   stripeConnectRefreshStatus();
 });
+
+
+// Listen for Stripe OAuth completion from popup
+window.addEventListener("message", (event) => {
+  if (!event?.data || event.data.type !== "stripe_oauth_complete") return;
+
+  // Refresh Stripe status UI
+  stripeConnectRefreshStatus();
+
+  // Optional hard reload to lock/unlock upgrades immediately
+  location.reload();
+});
+
