@@ -197,6 +197,41 @@
           <span class="sidebar-label font-medium">Upgrades</span>
         </button>
 
+
+
+        {% if user_role != "super" %}
+        <!-- PMC Payouts (PMC only) -->
+        <button data-view="payouts"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'payouts' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M12 1v22M7 6h10M7 18h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Payouts</span>
+        </button>
+        {% endif %}
+
+        {% if user_role == "super" %}
+        <!-- HostScout Revenue (Super only) -->
+        <button data-view="admin_payouts"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'admin_payouts' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5M4 19h16M8 15v-4M12 19V9M16 13v-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Revenue</span>
+        </button>
+        {% endif %}
+
+        
+                
+
         <!-- Settings -->
         <button data-view="settings"
           class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
@@ -742,6 +777,142 @@
             </div>
           </div>
         </section>
+
+                <!-- PAYOUTS --->
+
+        {% if user_role != "super" %}
+<section id="view-payouts" class="view hidden space-y-4">
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div>
+        <div class="text-sm font-semibold">Your Payouts</div>
+        <div class="text-xs text-slate-500">Upgrade revenue paid to your Stripe account (net of HostScout fee).</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input id="pmc-pay-start" type="date" class="border rounded-xl px-3 py-2 text-sm" />
+        <input id="pmc-pay-end" type="date" class="border rounded-xl px-3 py-2 text-sm" />
+        <button id="pmc-pay-run" class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+          Run
+        </button>
+        <button id="pmc-pay-csv" class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold">
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Gross</div>
+        <div class="text-lg font-semibold" id="pmc-gross">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">HostScout fee</div>
+        <div class="text-lg font-semibold" id="pmc-fee">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Net to you</div>
+        <div class="text-lg font-semibold" id="pmc-net">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Orders (paid / refunded)</div>
+        <div class="text-lg font-semibold" id="pmc-count">0 / 0</div>
+      </div>
+    </div>
+
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-slate-500">
+            <th class="py-2 pr-3">Paid at</th>
+            <th class="py-2 pr-3">Property</th>
+            <th class="py-2 pr-3">Upgrade</th>
+            <th class="py-2 pr-3">Gross</th>
+            <th class="py-2 pr-3">Fee</th>
+            <th class="py-2 pr-3">Net</th>
+            <th class="py-2 pr-3">Status</th>
+          </tr>
+        </thead>
+        <tbody id="pmc-pay-rows" class="text-slate-900"></tbody>
+      </table>
+    </div>
+
+    <div class="mt-3 text-xs text-slate-500">
+      Note: this page is secured by your PMC login. If you’re not a PMC, the endpoint returns 403.
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
+                {% if user_role == "super" %}
+<section id="view-admin_payouts" class="view hidden space-y-4">
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div>
+        <div class="text-sm font-semibold">HostScout Revenue</div>
+        <div class="text-xs text-slate-500">Platform fee totals across all PMCs (net of refunds).</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input id="hs-rev-start" type="date" class="border rounded-xl px-3 py-2 text-sm" />
+        <input id="hs-rev-end" type="date" class="border rounded-xl px-3 py-2 text-sm" />
+        <button id="hs-rev-run" class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+          Run
+        </button>
+        <button id="hs-rev-csv" class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold">
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Gross</div>
+        <div class="text-lg font-semibold" id="hs-gross">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">HostScout fee</div>
+        <div class="text-lg font-semibold" id="hs-fee">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Net to PMCs</div>
+        <div class="text-lg font-semibold" id="hs-net">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Orders (paid / refunded)</div>
+        <div class="text-lg font-semibold" id="hs-count">0 / 0</div>
+      </div>
+    </div>
+
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-slate-500">
+            <th class="py-2 pr-3">PMC</th>
+            <th class="py-2 pr-3">Gross</th>
+            <th class="py-2 pr-3">HostScout fee</th>
+            <th class="py-2 pr-3">Net to PMC</th>
+            <th class="py-2 pr-3">Paid</th>
+            <th class="py-2 pr-3">Refunded</th>
+          </tr>
+        </thead>
+        <tbody id="hs-rows" class="text-slate-900"></tbody>
+      </table>
+    </div>
+
+    <div class="mt-3 text-xs text-slate-500">
+      Note: this page is secured by super login. Non-super gets 403 from the endpoint.
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
+
+
+
+                
 
         <section id="view-chats" class="view space-y-4 {% if initial_view != 'chats' %}hidden{% endif %}">
           <!-- Chat action flash (JS fills this) -->
@@ -1664,6 +1835,165 @@
 }
 </script>
 
+<script>
+  function centsToUsd(cents) {
+    const n = Number(cents || 0) / 100;
+    return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+
+  function downloadCSV(filename, csvText) {
+    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------------------------
+  // SUPER: HostScout revenue
+  // ---------------------------
+  async function runHostScoutRevenue() {
+    const start = document.getElementById("hs-rev-start")?.value || "";
+    const end = document.getElementById("hs-rev-end")?.value || "";
+
+    const qs = new URLSearchParams();
+    if (start) qs.set("start", start);
+    if (end) qs.set("end", end);
+
+    const res = await fetch(`/admin/reports/hostscout-revenue?${qs.toString()}`, {
+      credentials: "include",
+      headers: { "Accept": "application/json" }
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(data?.detail || "Revenue report failed"); return; }
+
+    document.getElementById("hs-gross").textContent = centsToUsd(data.summary.gross_cents);
+    document.getElementById("hs-fee").textContent = centsToUsd(data.summary.hostscout_fee_cents);
+    document.getElementById("hs-net").textContent = centsToUsd(data.summary.net_to_pmc_cents);
+    document.getElementById("hs-count").textContent = `${data.summary.paid_count} / ${data.summary.refunded_count}`;
+
+    const tbody = document.getElementById("hs-rows");
+    tbody.innerHTML = "";
+
+    for (const r of data.by_pmc || []) {
+      const name = (r.pmc && (r.pmc.name || r.pmc.email)) ? (r.pmc.name || r.pmc.email) : `PMC ${r.pmc_id}`;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="py-2 pr-3 font-semibold">${name}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.gross_cents)}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.hostscout_fee_cents)}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.net_to_pmc_cents)}</td>
+        <td class="py-2 pr-3">${r.paid_count}</td>
+        <td class="py-2 pr-3">${r.refunded_count}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    window.__hs_rev_latest = data;
+  }
+
+  document.getElementById("hs-rev-run")?.addEventListener("click", runHostScoutRevenue);
+  document.getElementById("hs-rev-csv")?.addEventListener("click", () => {
+    const data = window.__hs_rev_latest;
+    if (!data?.by_pmc) return alert("Run the report first.");
+
+    const header = ["pmc_id","pmc_name","gross_cents","hostscout_fee_cents","net_to_pmc_cents","paid_count","refunded_count"];
+    const lines = [header.join(",")];
+
+    for (const r of data.by_pmc) {
+      const pmcName = (r.pmc && (r.pmc.name || r.pmc.email)) ? String(r.pmc.name || r.pmc.email).replaceAll('"','""') : "";
+      lines.push([
+        r.pmc_id ?? "",
+        `"${pmcName}"`,
+        r.gross_cents ?? 0,
+        r.hostscout_fee_cents ?? 0,
+        r.net_to_pmc_cents ?? 0,
+        r.paid_count ?? 0,
+        r.refunded_count ?? 0
+      ].join(","));
+    }
+
+    downloadCSV(`hostscout_revenue_${data.range.start}_to_${data.range.end}.csv`, lines.join("\n"));
+  });
+
+  // ---------------------------
+  // PMC: payouts (PMC only)
+  // NOTE: endpoint name below — see note at bottom
+  // ---------------------------
+  async function runPmcPayouts() {
+    const start = document.getElementById("pmc-pay-start")?.value || "";
+    const end = document.getElementById("pmc-pay-end")?.value || "";
+
+    const qs = new URLSearchParams();
+    if (start) qs.set("start", start);
+    if (end) qs.set("end", end);
+
+    const res = await fetch(`/admin/reports/pmc-payouts?${qs.toString()}`, {
+      credentials: "include",
+      headers: { "Accept": "application/json" }
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(data?.detail || "PMC payouts report failed"); return; }
+
+    document.getElementById("pmc-gross").textContent = centsToUsd(data.summary.gross_cents);
+    document.getElementById("pmc-fee").textContent = centsToUsd(data.summary.hostscout_fee_cents);
+    document.getElementById("pmc-net").textContent = centsToUsd(data.summary.net_to_pmc_cents);
+    document.getElementById("pmc-count").textContent = `${data.summary.paid_count} / ${data.summary.refunded_count}`;
+
+    const tbody = document.getElementById("pmc-pay-rows");
+    tbody.innerHTML = "";
+
+    for (const r of data.rows || []) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="py-2 pr-3">${r.paid_at || "—"}</td>
+        <td class="py-2 pr-3">${r.property_name || ("Property " + (r.property_id ?? ""))}</td>
+        <td class="py-2 pr-3">${r.upgrade_title || ("Upgrade " + (r.upgrade_id ?? ""))}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.amount_cents)}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.platform_fee_cents)}</td>
+        <td class="py-2 pr-3">${centsToUsd((r.amount_cents || 0) - (r.platform_fee_cents || 0))}</td>
+        <td class="py-2 pr-3">${r.status || "—"}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    window.__pmc_pay_latest = data;
+  }
+
+  document.getElementById("pmc-pay-run")?.addEventListener("click", runPmcPayouts);
+  document.getElementById("pmc-pay-csv")?.addEventListener("click", () => {
+    const data = window.__pmc_pay_latest;
+    if (!data?.rows) return alert("Run the report first.");
+
+    const header = ["paid_at","property_id","property_name","upgrade_id","upgrade_title","amount_cents","platform_fee_cents","net_cents","status"];
+    const lines = [header.join(",")];
+
+    for (const r of data.rows) {
+      const propName = String(r.property_name || "").replaceAll('"','""');
+      const upName = String(r.upgrade_title || "").replaceAll('"','""');
+      lines.push([
+        r.paid_at || "",
+        r.property_id ?? "",
+        `"${propName}"`,
+        r.upgrade_id ?? "",
+        `"${upName}"`,
+        r.amount_cents ?? 0,
+        r.platform_fee_cents ?? 0,
+        (r.amount_cents || 0) - (r.platform_fee_cents || 0),
+        r.status || ""
+      ].join(","));
+    }
+
+    downloadCSV(`pmc_payouts_${data.range.start}_to_${data.range.end}.csv`, lines.join("\n"));
+  });
+
+  // Optional: auto-run when user lands on those tabs (works with your nav JS that toggles views)
+  // You can also call these in your existing "setView()" logic if you have one.
+</script>
 
 
 </body>
