@@ -2650,31 +2650,45 @@ const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase")
 let activeUpgradeId = null;
 
 // helper: call backend -> get checkout_url -> redirect
+let checkoutInFlight = false;
+
 async function startUpgradeCheckout(upgradeId) {
   if (!upgradeId) return;
+  if (checkoutInFlight) return;
+  checkoutInFlight = true;
 
-  // Optional: prevent buying before unlock
   if (!isUnlocked) {
     alert("Please unlock your stay first.");
     showScreen("home");
+    checkoutInFlight = false;
     return;
   }
 
-  // Disable buttons while loading
+  const propertyId = window.PROPERTY_ID;
+  if (propertyId == null) {
+    alert("Missing property id. Please refresh the page.");
+    checkoutInFlight = false;
+    return;
+  }
+
+  willRedirect = false;
+
   try {
     upgradeActiveButton && (upgradeActiveButton.disabled = true);
     upgradeDetailPurchase && (upgradeDetailPurchase.disabled = true);
 
-    const res = await fetch(`/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "include",
-      // OPTIONAL: if you want reservation/session tracking on backend later
-      body: JSON.stringify({
-        property_id: window.PROPERTY_ID || null,
-        session_id: currentSessionId || null,
-      }),
-    });
+    const res = await fetch(
+      `/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(upgradeId)}/checkout`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          property_id: propertyId,
+          session_id: currentSessionId || null,
+        }),
+      }
+    );
 
     const data = await readJsonSafely(res);
 
@@ -2683,28 +2697,29 @@ async function startUpgradeCheckout(upgradeId) {
       return;
     }
 
-    
-
     if (!data?.checkout_url) {
       alert("Checkout URL missing. Please try again.");
       return;
     }
+
     try {
-      localStorage.setItem(`pending_upgrade_${window.PROPERTY_ID}`, String(upgradeId));
+      localStorage.setItem(`pending_upgrade_${propertyId}`, String(upgradeId));
     } catch {}
+
     willRedirect = true;
-    window.location.href = data.checkout_url;
+    window.location.assign(data.checkout_url);
   } catch (e) {
     console.error(e);
     alert("Checkout failed. Please try again.");
   } finally {
-    upgradeActiveButton && (upgradeActiveButton.disabled = false);
-    upgradeDetailPurchase && (upgradeDetailPurchase.disabled = false);
+    if (!willRedirect) {
+      upgradeActiveButton && (upgradeActiveButton.disabled = false);
+      upgradeDetailPurchase && (upgradeDetailPurchase.disabled = false);
+    }
+    checkoutInFlight = false;
   }
 }
 
-
-let upgradesBound = false;
 
 function getCarouselCenterX() {
   if (!upgradesCarousel) return 0;
@@ -2804,13 +2819,23 @@ function initUpgradesCarousel() {
 
   // update on scroll (throttled-ish)
  let t = null;
-upgradesCarousel.addEventListener("scroll", () => {
+/*upgradesCarousel.addEventListener("scroll", () => {
   if (t) cancelAnimationFrame(t);
   t = requestAnimationFrame(() => {
     applyScaleEasing();      // ✅ continuous smooth scaling
     updateActiveFromScroll(); // ✅ keeps your active index + text logic
   });
+}, { passive: true });*/
+
+  upgradesCarousel.addEventListener("scroll", () => {
+  if (t) cancelAnimationFrame(t);
+  t = requestAnimationFrame(() => {
+    t = null;
+    applyScaleEasing();
+    updateActiveFromScroll();
+  });
 }, { passive: true });
+
 
   
   // tap a card to center it + activate it
@@ -2856,7 +2881,7 @@ upgradeDetailPurchase?.addEventListener("click", () => {
   const viewportCenter = upgradesCarousel.scrollLeft + upgradesCarousel.clientWidth / 2;
 
   upgradeSlides.forEach((slide) => {
-    const rect = slide.getBoundingClientRect();
+    //const rect = slide.getBoundingClientRect();
     // slide center in scroll container coordinates:
     const slideCenter =
       slide.offsetLeft + slide.offsetWidth / 2;
@@ -2914,10 +2939,16 @@ function findUpgradeSlideIndexById(upgradeId) {
 }
 
 function getBannerForUpgrade(upgradeId) {
+  // Safe CSS.escape fallback (older Safari / webviews)
+  const esc =
+    (window.CSS && CSS.escape)
+      ? CSS.escape
+      : (s) => String(s).replace(/"/g, '\\"');
+
   // Prefer the banner inside the purchased upgrade card
   if (upgradeId) {
     const card = document.querySelector(
-      `[data-upgrade-id="${CSS.escape(String(upgradeId))}"]`
+      `[data-upgrade-id="${esc(String(upgradeId))}"]`
     );
     const b = card?.querySelector(".upgrade-status-banner");
     if (b) return b;
@@ -2931,6 +2962,7 @@ function getBannerForUpgrade(upgradeId) {
   // Final fallback: first banner
   return document.querySelector(".upgrade-status-banner");
 }
+
 
 function setUpgradeBanner({ upgradeId = null, title = "", body = "", cls = "" } = {}) {
   const banner = getBannerForUpgrade(upgradeId);
@@ -3036,24 +3068,25 @@ async function handleUpgradeReturnFromStripe() {
   const upgradeResult = getQueryParam("upgrade"); // success|cancel
   const purchaseId = getQueryParam("purchase_id");
   const sessionId = getQueryParam("session_id");
-  const upgradeId = getQueryParam("upgrade_id");
+
+  let upgradeId = getQueryParam("upgrade_id");
+  if (!upgradeId) {
+    try { upgradeId = localStorage.getItem(`pending_upgrade_${window.PROPERTY_ID}`); } catch {}
+  }
 
   if (!upgradeResult) return;
 
-  // Always route them to upgrades
   showScreen("upgrades");
 
-  // Wait one frame so carousel + slides exist + are measured
-  await new Promise((r) => requestAnimationFrame(r));
+  // ✅ wait TWO frames for layout/measurements
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
-  // Focus purchased upgrade if we got it
   if (upgradeId) {
     const idx = findUpgradeSlideIndexById(upgradeId);
     setActiveSlideByIndex(idx);
     centerSlide(idx, "auto");
     try { applyScaleEasing(); } catch {}
   } else {
-    // ensure active slide is in sync (your existing helpers)
     try { updateActiveFromScroll(); } catch {}
   }
 
@@ -3065,17 +3098,36 @@ async function handleUpgradeReturnFromStripe() {
       cls: "bg-slate-50 border-slate-200 text-slate-900",
     });
 
+    try { localStorage.removeItem(`pending_upgrade_${window.PROPERTY_ID}`); } catch {}
     cleanUrlKeepPath();
     return;
   }
 
-  if (upgradeResult === "success" && purchaseId) {
+ /* if (upgradeResult === "success" && purchaseId) {
     await pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId);
+    try { localStorage.removeItem(`pending_upgrade_${window.PROPERTY_ID}`); } catch {}
     cleanUrlKeepPath();
   }
+*/
+
+  if (upgradeResult === "success" && !purchaseId) {
+  setUpgradeBanner({
+    upgradeId,
+    title: "✅ Payment received",
+    body: "Your host will confirm shortly.",
+    cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
+  });
+  cleanUrlKeepPath();
+  return;
 }
 
+}
+  
+
 // Run once (safe if called before DOMContentLoaded, but best after your functions exist)
-handleUpgradeReturnFromStripe();
+document.addEventListener("DOMContentLoaded", () => {
+  handleUpgradeReturnFromStripe();
+});
+
 
 
