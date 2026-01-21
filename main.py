@@ -1164,7 +1164,11 @@ def create_upgrade_checkout(
             detail="This upgrade is not yet configured for payment.",
         )
 
-    success_url = str(request.url_for("guest_app_ui", property_id=property_id)) + "?upgrade=success"
+    success_url = (
+        str(request.url_for("guest_app_ui", property_id=property_id))
+        + f"?upgrade=success&upgrade_id={upgrade.id}"
+    )
+
     cancel_url = str(request.url_for("guest_app_ui", property_id=property_id)) + f"?upgrade={upgrade.slug}"
 
     try:
