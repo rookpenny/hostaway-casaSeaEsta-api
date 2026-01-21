@@ -1166,10 +1166,15 @@ def create_upgrade_checkout(
 
     success_url = (
         str(request.url_for("guest_app_ui", property_id=property_id))
-        + f"?upgrade=success&upgrade_id={upgrade.id}"
+        + f"?upgrade=success"
+        + f"&purchase_id={{CHECKOUT_SESSION_ID}}"
+        + f"&upgrade_id={upgrade.id}"
     )
-
-    cancel_url = str(request.url_for("guest_app_ui", property_id=property_id)) + f"?upgrade={upgrade.slug}"
+    cancel_url = (
+        str(request.url_for("guest_app_ui", property_id=property_id))
+        + f"?upgrade=cancel"
+        + f"&upgrade_id={upgrade.id}"
+    )
 
     try:
         checkout_session = stripe.checkout.Session.create(
