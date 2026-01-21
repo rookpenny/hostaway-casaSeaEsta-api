@@ -40,8 +40,8 @@ from routes.admin_analytics import router as admin_analytics_router
 from routes.upgrade_purchase_status import router as upgrade_purchase_status_router
 from routes.stripe_connect import router as stripe_connect_router
 from routes.upgrade_checkout import router as upgrade_checkout_router
-from routes.admin_payouts import router as admin_payouts_router
-from routes.hostscout_revenue import router as hostscout_revenue_router
+
+
 from routes.reports import router as reports_router
 
 from routes import admin, pmc_auth, pmc_signup, stripe_webhook, pmc_onboarding
@@ -88,8 +88,9 @@ app.include_router(stripe_connect_router)
 app.include_router(upgrade_checkout_router)
 #app.include_router(upgrade_pages_router)
 app.include_router(upgrade_purchase_status_router)
-app.include_router(admin_payouts_router)
-app.include_router(hostscout_revenue_router)
+app.include_router(reports_router)
+
+
 app.include_router(reports_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
