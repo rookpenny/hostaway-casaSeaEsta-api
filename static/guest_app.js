@@ -2664,7 +2664,7 @@ async function startUpgradeCheckout(upgradeId) {
     upgradeActiveButton && (upgradeActiveButton.disabled = true);
     upgradeDetailPurchase && (upgradeDetailPurchase.disabled = true);
 
-    const res = await fetch(`/guest/upgrades/${upgradeId}/checkout`, {
+    const res = await fetch(`/properties/${window.PROPERTY_ID}/upgrades/${upgradeId}/checkout`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
@@ -2682,11 +2682,16 @@ async function startUpgradeCheckout(upgradeId) {
       return;
     }
 
+    
+
     if (!data?.checkout_url) {
       alert("Checkout URL missing. Please try again.");
       return;
     }
-
+    try {
+      localStorage.setItem(`pending_upgrade_${window.PROPERTY_ID}`, String(upgradeId));
+    } catch {}
+    willRedirect = true;
     window.location.href = data.checkout_url;
   } catch (e) {
     console.error(e);
@@ -2735,6 +2740,9 @@ function setActiveSlideByIndex(idx) {
 
   infoWrap?.classList.remove("hidden");
   ctaWrap?.classList.remove("hidden");
+
+  if (window.applyPaidState) window.applyPaidState(activeUpgradeId);
+
 }
 
 
@@ -2875,14 +2883,6 @@ upgradeDetailPurchase?.addEventListener("click", () => {
     slide.style.opacity = opacity.toFixed(3);
   });
 }
-
-
-  });
-
-  // ===============================
-// Upgrade return (Stripe success/cancel)
-// ===============================
-
 // ===============================
 // Stripe Return → Upgrades UI (CLEAN)
 // ===============================
@@ -2945,23 +2945,29 @@ function setUpgradeBanner({ upgradeId = null, title = "", body = "", cls = "" } 
 }
 
 function setPurchasedUI({ confirmedText } = {}) {
-  // copy under headline
   const descEl = document.getElementById("upgrade-active-description");
   if (descEl) {
     descEl.textContent =
       confirmedText || "✅ Upgrade confirmed — Your host has been notified.";
   }
 
-  // CTA button -> Purchased
   const btn = document.getElementById("upgrade-active-button");
   const btnLabel = document.getElementById("upgrade-active-button-label");
-
-  if (btnLabel) btnLabel.textContent = "Purchased";
+  if (btnLabel) btnLabel.textContent = "Purchase confirmed";
   if (btn) {
     btn.disabled = true;
     btn.classList.add("opacity-60", "cursor-not-allowed");
   }
+
+  const modalBtn = document.getElementById("upgrade-detail-purchase");
+  const modalBottomLabel = document.getElementById("upgrade-detail-price-bottom");
+  if (modalBottomLabel) modalBottomLabel.textContent = "Purchase confirmed";
+  if (modalBtn) {
+    modalBtn.disabled = true;
+    modalBtn.classList.add("opacity-60", "cursor-not-allowed");
+  }
 }
+
 
 async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
   // optimistic UI
@@ -3071,3 +3077,5 @@ async function handleUpgradeReturnFromStripe() {
 
 // Run once (safe if called before DOMContentLoaded, but best after your functions exist)
 handleUpgradeReturnFromStripe();
+
+
