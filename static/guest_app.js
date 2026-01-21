@@ -71,6 +71,7 @@
 
     let chatHasWelcome = false;
     let guidesAbortController = null;
+    let willRedirect = false;
     
     // ===============================
 // NEW: Chat UX Enhancements
@@ -2787,7 +2788,6 @@ function updateActiveFromScroll() {
 
 // Bind once
 function initUpgradesCarousel() {
-  const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
   if (upgradesBound) return;
   upgradesBound = true;
 
@@ -3004,7 +3004,7 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
           return true;
         }
 
-        if (data.status === "refunded") {
+        /*if (data.status === "refunded") {
           setUpgradeBanner({
             upgradeId,
             title: "↩️ Payment refunded",
@@ -3012,7 +3012,7 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
             cls: "bg-slate-50 border-slate-200 text-slate-900",
           });
           return false;
-        }
+        }*/
       }
     } catch {
       // ignore + keep polling
