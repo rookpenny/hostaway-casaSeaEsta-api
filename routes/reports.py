@@ -1,10 +1,12 @@
 # routes/reports.py
+import stripe
 from __future__ import annotations
 
 from datetime import date, datetime, timezone, timedelta
 from typing import Optional, Tuple, Any, Dict, List
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from fastapi.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy import func, case
 
@@ -73,6 +75,39 @@ def _cents(x: Any) -> int:
         return int(x or 0)
     except Exception:
         return 0
+
+
+
+
+@router.get("/guest/upgrades/purchase-status")
+def upgrade_purchase_status(request: Request, purchase_id: str):
+    """
+    Real-time verification: asks Stripe whether the checkout session is paid.
+    purchase_id is the Stripe Checkout Session id (cs_...).
+    """
+    if not purchase_id:
+        raise HTTPException(status_code=400, detail="purchase_id is required")
+
+    try:
+        sess = stripe.checkout.Session.retrieve(purchase_id)
+
+        # Stripe fields differ a bit by mode; these are the common truthy checks:
+        payment_status = (getattr(sess, "payment_status", None) or "").lower()
+        status = (getattr(sess, "status", None) or "").lower()
+
+        if payment_status == "paid":
+            return {"status": "paid"}
+        if status in {"open", "complete"}:
+            # complete might still be unpaid in rare async cases; paid is authoritative
+            return {"status": "pending"}
+
+        return {"status": "unpaid"}
+
+    except stripe.error.InvalidRequestError:
+        # bad/unknown session id
+        return JSONResponse({"status": "unknown"}, status_code=404)
+    except Exception:
+        raise HTTPException(status_code=500, detail="Failed to verify purchase status")
 
 
 # ----------------------------
