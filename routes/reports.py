@@ -1,16 +1,23 @@
 # routes/reports.py
-import stripe
+
 from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException, Request, Query
+from sqlalchemy.orm import Session
+from database import get_db
+
+
+import stripe
 
 from datetime import date, datetime, timezone, timedelta
 from typing import Optional, Tuple, Any, Dict, List
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Query
+
 from fastapi.responses import JSONResponse
-from sqlalchemy.orm import Session
+
 from sqlalchemy import func, case
 
-from database import get_db
+
 from models import UpgradePurchase, Property, Upgrade, PMC
 from routes.admin import get_user_role_and_scope
 
