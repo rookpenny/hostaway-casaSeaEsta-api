@@ -3002,7 +3002,12 @@ function setPurchasedUI({ confirmedText } = {}) {
 
 
 async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
-  // optimistic UI
+  purchaseId = purchaseId ? String(purchaseId) : "";
+  sessionId  = sessionId ? String(sessionId) : "";
+  upgradeId  = upgradeId ? String(upgradeId) : null;
+
+  if (!purchaseId) return false;
+
   setUpgradeBanner({
     upgradeId,
     title: "✅ Payment received",
@@ -3010,41 +3015,32 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
     cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
   });
 
-  const maxAttempts = 10; // ~10 seconds
+  const maxAttempts = 10;
   const delayMs = 1000;
 
   for (let i = 0; i < maxAttempts; i++) {
     try {
+      if (document.visibilityState === "hidden") break;
+
       const url =
         `/guest/upgrades/purchase-status?purchase_id=${encodeURIComponent(purchaseId)}` +
-        (sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : "");
+        (sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : "") +
+        `&t=${Date.now()}`;
 
-      const res = await fetch(url, { credentials: "include" });
-      const data = await res.json().catch(() => ({}));
+      const res = await fetch(url, { credentials: "include", cache: "no-store" });
+      const data = await readJsonSafely(res);
 
-      if (res.ok) {
-        if (data.status === "paid") {
-          setUpgradeBanner({
-            upgradeId,
-            title: "✅ Upgrade confirmed",
-            body: "Your host has been notified.",
-            cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
-          });
-          setPurchasedUI({
-            confirmedText: "✅ Upgrade confirmed — Your host has been notified.",
-          });
-          return true;
-        }
-
-        /*if (data.status === "refunded") {
-          setUpgradeBanner({
-            upgradeId,
-            title: "↩️ Payment refunded",
-            body: "You won’t be charged for this upgrade.",
-            cls: "bg-slate-50 border-slate-200 text-slate-900",
-          });
-          return false;
-        }*/
+      if (res.ok && data?.status === "paid") {
+        setUpgradeBanner({
+          upgradeId,
+          title: "✅ Upgrade confirmed",
+          body: "Your host has been notified.",
+          cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
+        });
+        setPurchasedUI({
+          confirmedText: "✅ Upgrade confirmed — Your host has been notified.",
+        });
+        return true;
       }
     } catch {
       // ignore + keep polling
@@ -3053,7 +3049,6 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
     await new Promise((r) => setTimeout(r, delayMs));
   }
 
-  // webhook might be slow
   setUpgradeBanner({
     upgradeId,
     title: "✅ Payment received",
@@ -3064,8 +3059,9 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
   return false;
 }
 
+
 async function handleUpgradeReturnFromStripe() {
-  const upgradeResult = getQueryParam("upgrade"); // success|cancel
+  const upgradeResult = (getQueryParam("upgrade") || "").toLowerCase().trim(); // success|cancel
   const purchaseId = getQueryParam("purchase_id");
   const sessionId = getQueryParam("session_id");
 
@@ -3073,12 +3069,18 @@ async function handleUpgradeReturnFromStripe() {
   if (!upgradeId) {
     try { upgradeId = localStorage.getItem(`pending_upgrade_${window.PROPERTY_ID}`); } catch {}
   }
+  upgradeId = upgradeId ? String(upgradeId) : null;
 
   if (!upgradeResult) return;
 
-  showScreen("upgrades");
+  const clearPendingUpgrade = () => {
+    try { localStorage.removeItem(`pending_upgrade_${window.PROPERTY_ID}`); } catch {}
+  };
 
-  // ✅ wait TWO frames for layout/measurements
+  showScreen("upgrades");
+  try { initUpgradesCarousel(); } catch {}
+
+  // wait for layout
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
   if (upgradeId) {
@@ -3098,30 +3100,32 @@ async function handleUpgradeReturnFromStripe() {
       cls: "bg-slate-50 border-slate-200 text-slate-900",
     });
 
-    try { localStorage.removeItem(`pending_upgrade_${window.PROPERTY_ID}`); } catch {}
+    clearPendingUpgrade();
     cleanUrlKeepPath();
     return;
   }
 
- /* if (upgradeResult === "success" && purchaseId) {
+  if (upgradeResult === "success" && purchaseId) {
     await pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId);
-    try { localStorage.removeItem(`pending_upgrade_${window.PROPERTY_ID}`); } catch {}
+    clearPendingUpgrade();
     cleanUrlKeepPath();
+    return;
   }
-*/
 
   if (upgradeResult === "success" && !purchaseId) {
-  setUpgradeBanner({
-    upgradeId,
-    title: "✅ Payment received",
-    body: "Your host will confirm shortly.",
-    cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
-  });
-  cleanUrlKeepPath();
-  return;
+    setUpgradeBanner({
+      upgradeId,
+      title: "✅ Payment received",
+      body: "Your host will confirm shortly.",
+      cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
+    });
+
+    clearPendingUpgrade();
+    cleanUrlKeepPath();
+    return;
+  }
 }
 
-}
   
 
 // Run once (safe if called before DOMContentLoaded, but best after your functions exist)
