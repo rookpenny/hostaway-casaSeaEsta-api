@@ -39,7 +39,7 @@ from routes.admin_analytics import router as admin_analytics_api_router
 from routes.admin_analytics import router as admin_analytics_router
 from routes.upgrade_purchase_status import router as upgrade_purchase_status_router
 from routes.stripe_connect import router as stripe_connect_router
-#from routes.upgrade_checkout import router as upgrade_checkout_router
+from routes.upgrade_checkout import router as upgrade_checkout_router
 
 
 from routes.reports import router as reports_router
@@ -85,7 +85,7 @@ app.include_router(pmc_signup.router)
 app.include_router(stripe_webhook.router)
 app.include_router(pmc_onboarding.router)
 app.include_router(stripe_connect_router)
-#app.include_router(upgrade_checkout_router)
+app.include_router(upgrade_checkout_router)
 #app.include_router(upgrade_pages_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
@@ -1127,125 +1127,6 @@ class UpgradeCheckoutRequest(BaseModel):
     guest_email: Optional[str] = None
 
 
-@app.post("/properties/{property_id}/upgrades/{upgrade_id}/checkout")
-def create_upgrade_checkout(
-    property_id: int,
-    upgrade_id: int,
-    payload: UpgradeCheckoutRequest,
-    request: Request,
-    db: Session = Depends(get_db),
-):
-    # 1) require unlock
-    if not request.session.get(f"guest_verified_{property_id}", False):
-        raise HTTPException(
-            status_code=403,
-            detail="Please unlock your stay before purchasing upgrades.",
-        )
-
-    # 2) validate property
-    prop = db.query(Property).filter(Property.id == property_id).first()
-    if not prop:
-        raise HTTPException(status_code=404, detail="Property not found")
-
-    # 3) validate upgrade
-    upgrade = (
-        db.query(Upgrade)
-        .filter(
-            Upgrade.id == upgrade_id,
-            Upgrade.property_id == property_id,
-            Upgrade.is_active.is_(True),
-        )
-        .first()
-    )
-    if not upgrade:
-        raise HTTPException(status_code=404, detail="Upgrade not found")
-
-    # 4) build return urls
-    success_url = (
-        str(request.url_for("guest_app_ui", property_id=property_id))
-        + "?upgrade=success"
-        + "&purchase_id={CHECKOUT_SESSION_ID}"
-        + f"&upgrade_id={upgrade.id}"
-    )
-    cancel_url = (
-        str(request.url_for("guest_app_ui", property_id=property_id))
-        + "?upgrade=cancel"
-        + f"&upgrade_id={upgrade.id}"
-    )
-
-    # 5) build Stripe line item:
-    #    - Prefer stripe_price_id if you have it
-    #    - Otherwise, fall back to using your DB price_cents (+ currency)
-    if upgrade.stripe_price_id:
-        line_item = {"price": upgrade.stripe_price_id, "quantity": 1}
-    else:
-        # fallback: inline pricing from DB (NO Stripe Price required)
-        if upgrade.price_cents is None:
-            raise HTTPException(
-                status_code=400,
-                detail="This upgrade is missing price_cents so it cannot be purchased.",
-            )
-
-        currency = (getattr(upgrade, "currency", None) or "usd").lower().strip()
-
-        # Stripe requires int cents
-        try:
-            unit_amount = int(upgrade.price_cents)
-        except Exception:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid price_cents for this upgrade.",
-            )
-
-        if unit_amount <= 0:
-            raise HTTPException(
-                status_code=400,
-                detail="This upgrade price must be greater than 0.",
-            )
-
-        line_item = {
-            "price_data": {
-                "currency": currency,
-                "unit_amount": unit_amount,
-                "product_data": {
-                    "name": (upgrade.title or "Upgrade").strip(),
-                    # description is optional; keep it short to be safe
-                    "description": ((upgrade.short_description or "").strip()[:500]) or None,
-                },
-            },
-            "quantity": 1,
-        }
-
-    # If we set description None, Stripe can complain; remove it cleanly
-    if isinstance(line_item, dict) and "price_data" in line_item:
-        pd = line_item["price_data"]
-        if isinstance(pd, dict) and "product_data" in pd:
-            prod = pd["product_data"]
-            if isinstance(prod, dict) and prod.get("description") is None:
-                prod.pop("description", None)
-
-    # 6) create checkout session
-    try:
-        checkout_session = stripe.checkout.Session.create(
-            mode="payment",
-            line_items=[line_item],
-            success_url=success_url,
-            cancel_url=cancel_url,
-            metadata={
-                "property_id": str(property_id),
-                "upgrade_id": str(upgrade.id),
-                "upgrade_slug": upgrade.slug or "",
-            },
-            customer_email=payload.guest_email,
-        )
-    except Exception:
-        logger.exception("Stripe checkout creation failed")
-        raise HTTPException(
-            status_code=500,
-            detail="Unable to start checkout for this upgrade.",
-        )
-
-    return {"checkout_url": checkout_session.url}
 
 
 AFFIRMATIONS = {"yes", "y", "yeah", "yep", "sure", "ok", "okay", "please", "sounds good"}
