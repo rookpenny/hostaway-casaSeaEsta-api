@@ -57,6 +57,7 @@
     let departureDate = null;
     let checkinTime = null;
     let checkoutTime = null;
+    let upgradesBound = false;
 
     let nextUserParentId = null; // set when user clicks a chip; consumed by sendChat()
 
@@ -3127,11 +3128,8 @@ async function handleUpgradeReturnFromStripe() {
 }
 
   
+handleUpgradeReturnFromStripe();
 
-// Run once (safe if called before DOMContentLoaded, but best after your functions exist)
-document.addEventListener("DOMContentLoaded", () => {
-  handleUpgradeReturnFromStripe();
-});
 
 
 
