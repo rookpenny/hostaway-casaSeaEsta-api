@@ -3130,6 +3130,6 @@ async function handleUpgradeReturnFromStripe() {
   
 handleUpgradeReturnFromStripe();
 
-
+});
 
 
