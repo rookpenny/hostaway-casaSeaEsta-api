@@ -1979,7 +1979,12 @@ function loadReactions() {
       card.style.minHeight = minHeight;
 
       const imageUrl =
-        guide.image_url || "{{ experiences_hero_url or hero_image_url or default_image_url }}";
+        guide.image_url ||
+        window.EXPERIENCES_HERO_URL ||
+        window.HERO_IMAGE_URL ||
+        window.DEFAULT_IMAGE_URL ||
+        "/static/img/default-hero.jpg";
+
 
       const img = document.createElement("img");
       img.src = imageUrl;
