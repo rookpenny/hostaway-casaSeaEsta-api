@@ -2973,21 +2973,18 @@ function initUpgradesCarousel() {
 
     // CTA under carousel
 upgradeActiveButton?.addEventListener("click", () => {
-  console.log(
-    "[UPGRADE CTA CLICK]",
-    "activeUpgradeId =",
-    activeUpgradeId,
-    "type =",
-    typeof activeUpgradeId
-  );
+  const idNum = Number(activeUpgradeId);
 
-  if (!Number.isFinite(activeUpgradeId) || activeUpgradeId <= 0) {
+  console.log("[UPGRADE CTA CLICK]", activeUpgradeId, typeof activeUpgradeId, "->", idNum);
+
+  if (!Number.isFinite(idNum) || idNum <= 0) {
     alert("Invalid upgrade selected. Please refresh and try again.");
     return;
   }
 
-  startUpgradeCheckout(activeUpgradeId);
+  startUpgradeCheckout(idNum); // or startUpgradeCheckout(String(idNum)) if your API expects string
 });
+
 
 
 // Purchase button in the detail modal (if you set activeUpgradeId when opening modal)
