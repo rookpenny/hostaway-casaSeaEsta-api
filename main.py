@@ -237,7 +237,7 @@ def classify_sentiment_with_fallback(client: OpenAI, text: str) -> SentimentResu
     return {"sentiment": s, "mood": "other", "confidence": 0}
 
 
-    @app.exception_handler(Exception)
+@app.exception_handler(Exception)
 async def unhandled_exception_handler(request: Request, exc: Exception):
     return JSONResponse(
         status_code=500,
