@@ -1,4 +1,7 @@
 
+
+
+
   document.addEventListener("DOMContentLoaded", function () {
     // Normalize Sandy live flag (boolean-safe)
     const sandyLive = window.SANDY_LIVE === true || window.SANDY_LIVE === "true";
@@ -182,7 +185,27 @@ function restoreChatHistory() {
 }
 
 
+const PAID_UPGRADES_KEY = `paid_upgrades_${window.PROPERTY_ID}`;
 
+function readPaidUpgrades() {
+  try {
+    return JSON.parse(localStorage.getItem(PAID_UPGRADES_KEY) || "[]");
+  } catch { return []; }
+}
+
+function writePaidUpgrades(ids) {
+  try { localStorage.setItem(PAID_UPGRADES_KEY, JSON.stringify(ids || [])); } catch {}
+}
+
+function markUpgradePaid(upgradeId) {
+  const id = Number(upgradeId);
+  if (!id) return;
+  const ids = new Set(readPaidUpgrades());
+  ids.add(id);
+  writePaidUpgrades([...ids]);
+}
+
+    
 
 
 // --- Lightweight “memory” (frontend-only) ---
@@ -1085,6 +1108,24 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
       });
     }
 
+    async function syncPaidUpgradesFromServer() {
+  try {
+    const res = await fetch(`/guest/properties/${window.PROPERTY_ID}/upgrades/paid`, {
+      credentials: "include",
+      cache: "no-store",
+    });
+    if (!res.ok) return;
+
+    const data = await res.json();
+    const ids = Array.isArray(data?.paid_upgrade_ids) ? data.paid_upgrade_ids : [];
+    writePaidUpgrades(ids);
+
+    // apply to currently selected upgrade (and optionally all slides)
+    if (window.applyPaidState && activeUpgradeId) window.applyPaidState(activeUpgradeId);
+  } catch {}
+}
+
+
     function loadGuestState() {
       try {
 
@@ -1145,6 +1186,11 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
     }
 
     loadGuestState();
+
+    if (isUnlocked) {
+  syncPaidUpgradesFromServer();
+}
+    
 
     function updateHomeState() {
       if (isUnlocked) {
@@ -1307,6 +1353,7 @@ function autoActOnIntent(intent, userText) {
 }
 
 
+    
 
 
     
@@ -2500,7 +2547,9 @@ async function attemptUnlock() {
         } catch (e) {
           console.warn("Error applying guest info to UI:", e);
         }
-    
+
+        await syncPaidUpgradesFromServer();
+
         saveGuestState();
         updateHomeState();
         showScreen("home");
@@ -2727,6 +2776,48 @@ async function startUpgradeCheckout(upgradeId) {
 }
 
 
+    window.applyPaidState = function applyPaidState(upgradeId) {
+  const paidIds = new Set(readPaidUpgrades());
+  const isPaid = paidIds.has(Number(upgradeId));
+
+  // Update the CTA under carousel
+  const btn = document.getElementById("upgrade-active-button");
+  const label = document.getElementById("upgrade-active-button-label");
+  const desc = document.getElementById("upgrade-active-description");
+
+  if (isPaid) {
+    if (label) label.textContent = "Purchase confirmed";
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add("opacity-60", "cursor-not-allowed");
+    }
+    if (desc) desc.textContent = "✅ Upgrade confirmed — Your host has been notified.";
+  } else {
+    // restore “normal” state (your existing setActiveSlideByIndex will set price text)
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("opacity-60", "cursor-not-allowed");
+    }
+  }
+
+  // Optional: also disable the modal purchase button
+  const modalBtn = document.getElementById("upgrade-detail-purchase");
+  const modalLabel = document.getElementById("upgrade-detail-price-bottom");
+  if (isPaid) {
+    if (modalLabel) modalLabel.textContent = "Purchase confirmed";
+    if (modalBtn) {
+      modalBtn.disabled = true;
+      modalBtn.classList.add("opacity-60", "cursor-not-allowed");
+    }
+  } else {
+    if (modalBtn) {
+      modalBtn.disabled = false;
+      modalBtn.classList.remove("opacity-60", "cursor-not-allowed");
+    }
+  }
+};
+
+    
 function getCarouselCenterX() {
   if (!upgradesCarousel) return 0;
   const r = upgradesCarousel.getBoundingClientRect();
@@ -3037,6 +3128,9 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
       const data = await readJsonSafely(res);
 
       if (res.ok && data?.status === "paid") {
+        if (upgradeId) markUpgradePaid(upgradeId);
+        await syncPaidUpgradesFromServer();
+      
         setUpgradeBanner({
           upgradeId,
           title: "✅ Upgrade confirmed",
@@ -3048,6 +3142,7 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
         });
         return true;
       }
+
     } catch {
       // ignore + keep polling
     }
