@@ -6,6 +6,7 @@ import re
 import asyncio
 import time as pytime
 import unicodedata
+import traceback
 
 import stripe
 import uvicorn
@@ -235,6 +236,17 @@ def classify_sentiment_with_fallback(client: OpenAI, text: str) -> SentimentResu
     s = simple_sentiment(text)  # returns negative/neutral/positive
     return {"sentiment": s, "mood": "other", "confidence": 0}
 
+
+    @app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    return JSONResponse(
+        status_code=500,
+        content={
+            "error": str(exc),
+            "path": str(request.url.path),
+            "trace": traceback.format_exc().splitlines()[-15:],  # last lines only
+        },
+    )
 
 
 # ----------------------------
