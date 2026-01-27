@@ -2332,6 +2332,7 @@ function loadReactions() {
      if (name === "upgrades") {
   initUpgradesCarousel();
   requestAnimationFrame(updateActiveFromScroll);
+  syncPaidUpgradesFromServer(); // ✅ rehydrate paid upgrades after refresh
 }
 
 
@@ -2732,16 +2733,17 @@ async function startUpgradeCheckout(upgradeId) {
     upgradeActiveButton && (upgradeActiveButton.disabled = true);
     upgradeDetailPurchase && (upgradeDetailPurchase.disabled = true);
 
+    /*const res = await fetch(
+      `/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(upgradeId)}/checkout`,*/
     const res = await fetch(
-      `/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(upgradeId)}/checkout`,
+   `/guest/upgrades/${encodeURIComponent(upgradeId)}/checkout`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          property_id: propertyId,
-          session_id: currentSessionId || null,
-        }),
+       session_id: currentSessionId || null,
+     }),
       }
     );
 
