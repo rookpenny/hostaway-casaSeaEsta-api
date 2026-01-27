@@ -25,6 +25,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
+
 from pydantic import BaseModel
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -38,8 +39,10 @@ from routes.admin_analytics_ui import router as admin_analytics_ui_router
 from routes.admin_analytics import router as admin_analytics_api_router
 from routes.admin_analytics import router as admin_analytics_router
 from routes.upgrade_purchase_status import router as upgrade_purchase_status_router
+
 from routes.stripe_connect import router as stripe_connect_router
 from routes.upgrade_checkout import router as upgrade_checkout_router
+
 
 
 from routes.reports import router as reports_router
@@ -89,7 +92,6 @@ app.include_router(upgrade_checkout_router)
 #app.include_router(upgrade_pages_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
-app.include_router(routes.upgrade_checkout.router)
 
 
 
