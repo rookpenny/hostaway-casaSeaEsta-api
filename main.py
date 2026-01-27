@@ -89,6 +89,8 @@ app.include_router(upgrade_checkout_router)
 #app.include_router(upgrade_pages_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
+app.include_router(routes.upgrade_checkout.router)
+
 
 
 app.include_router(reports_router)
