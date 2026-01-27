@@ -2834,12 +2834,19 @@ function setActiveSlideByIndex(idx) {
   slide.dataset.upgradeId ??
   slide.getAttribute("data-upgrade-id");
 
-activeUpgradeId = Number(rawId);
+/*activeUpgradeId = Number(rawId);
 
 if (!Number.isFinite(activeUpgradeId)) {
   console.warn("[UPGRADES] Slide missing valid data-upgrade-id", slide);
   activeUpgradeId = null;
+}*/
+  activeUpgradeId = (rawId ?? "").toString().trim();
+
+if (!activeUpgradeId) {
+  console.warn("[UPGRADES] Slide missing valid data-upgrade-id", slide);
+  activeUpgradeId = null;
 }
+
 
 
   // your existing active/inactive class toggles here...
@@ -2986,10 +2993,10 @@ upgradeActiveButton?.addEventListener("click", () => {
 // Purchase button in the detail modal (if you set activeUpgradeId when opening modal)
 upgradeDetailPurchase?.addEventListener("click", () => {
   if (!activeUpgradeId) {
-    alert("Select an upgrade first.");
-    return;
-  }
-  startUpgradeCheckout(activeUpgradeId);
+  alert("Invalid upgrade selected. Please refresh and try again.");
+  return;
+}
+startUpgradeCheckout(activeUpgradeId);
 });
 
     
