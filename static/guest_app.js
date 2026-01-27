@@ -2709,7 +2709,13 @@ let activeUpgradeId = null;
 let checkoutInFlight = false;
 
 async function startUpgradeCheckout(upgradeId) {
-  if (!upgradeId) return;
+  // --- Normalize & validate upgrade id ---
+  const id = Number(String(upgradeId ?? "").trim());
+  if (!Number.isFinite(id) || id <= 0) {
+    alert("Invalid upgrade selected. Please refresh and try again.");
+    return;
+  }
+
   if (checkoutInFlight) return;
   checkoutInFlight = true;
 
@@ -2727,30 +2733,36 @@ async function startUpgradeCheckout(upgradeId) {
     return;
   }
 
-  willRedirect = false;
+  let willRedirect = false;
 
   try {
-    upgradeActiveButton && (upgradeActiveButton.disabled = true);
-    upgradeDetailPurchase && (upgradeDetailPurchase.disabled = true);
+    // Disable buttons while request is in flight
+    if (upgradeActiveButton) upgradeActiveButton.disabled = true;
+    if (upgradeDetailPurchase) upgradeDetailPurchase.disabled = true;
 
-    /*const res = await fetch(
-      `/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(upgradeId)}/checkout`,*/
+    console.log("[UPGRADE CHECKOUT] starting", { upgradeId: id });
+
     const res = await fetch(
-   `/guest/upgrades/${encodeURIComponent(upgradeId)}/checkout`,
+      `/guest/upgrades/${encodeURIComponent(id)}/checkout`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-       session_id: currentSessionId || null,
-     }),
+          session_id: currentSessionId || null,
+        }),
       }
     );
 
     const data = await readJsonSafely(res);
 
     if (!res.ok) {
-      alert(data?.detail || data?.error || "Checkout failed. Please try again.");
+      console.error("[UPGRADE CHECKOUT ERROR]", data);
+      alert(
+        data?.detail ||
+        data?.error ||
+        "Checkout failed. Please try again."
+      );
       return;
     }
 
@@ -2759,23 +2771,28 @@ async function startUpgradeCheckout(upgradeId) {
       return;
     }
 
+    // Remember pending upgrade (per property)
     try {
-      localStorage.setItem(`pending_upgrade_${propertyId}`, String(upgradeId));
+      localStorage.setItem(
+        `pending_upgrade_${propertyId}`,
+        String(id)
+      );
     } catch {}
 
     willRedirect = true;
     window.location.assign(data.checkout_url);
-  } catch (e) {
-    console.error(e);
+  } catch (err) {
+    console.error("[UPGRADE CHECKOUT EXCEPTION]", err);
     alert("Checkout failed. Please try again.");
   } finally {
     if (!willRedirect) {
-      upgradeActiveButton && (upgradeActiveButton.disabled = false);
-      upgradeDetailPurchase && (upgradeDetailPurchase.disabled = false);
+      if (upgradeActiveButton) upgradeActiveButton.disabled = false;
+      if (upgradeDetailPurchase) upgradeDetailPurchase.disabled = false;
     }
     checkoutInFlight = false;
   }
 }
+
 
 
     window.applyPaidState = function applyPaidState(upgradeId) {
