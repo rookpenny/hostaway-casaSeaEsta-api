@@ -2830,7 +2830,17 @@ function setActiveSlideByIndex(idx) {
   const slide = upgradeSlides[idx];
   if (!slide) return;
 
-  activeUpgradeId = slide.dataset.upgradeId ? Number(slide.dataset.upgradeId) : null;
+ const rawId =
+  slide.dataset.upgradeId ??
+  slide.getAttribute("data-upgrade-id");
+
+activeUpgradeId = Number(rawId);
+
+if (!Number.isFinite(activeUpgradeId)) {
+  console.warn("[UPGRADES] Slide missing valid data-upgrade-id", slide);
+  activeUpgradeId = null;
+}
+
 
   // your existing active/inactive class toggles here...
   upgradeSlides.forEach((s, i) => {
@@ -2956,12 +2966,22 @@ function initUpgradesCarousel() {
 
     // CTA under carousel
 upgradeActiveButton?.addEventListener("click", () => {
-  if (!activeUpgradeId) {
-    alert("Select an upgrade first.");
+  console.log(
+    "[UPGRADE CTA CLICK]",
+    "activeUpgradeId =",
+    activeUpgradeId,
+    "type =",
+    typeof activeUpgradeId
+  );
+
+  if (!Number.isFinite(activeUpgradeId) || activeUpgradeId <= 0) {
+    alert("Invalid upgrade selected. Please refresh and try again.");
     return;
   }
+
   startUpgradeCheckout(activeUpgradeId);
 });
+
 
 // Purchase button in the detail modal (if you set activeUpgradeId when opening modal)
 upgradeDetailPurchase?.addEventListener("click", () => {
