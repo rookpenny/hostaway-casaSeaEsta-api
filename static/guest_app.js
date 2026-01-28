@@ -1120,7 +1120,10 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
     writePaidUpgrades(ids);
 
     // apply to current active slide if available; otherwise no-op
-if (window.applyPaidState) window.applyPaidState(activeUpgradeId);
+const activeSlide = document.querySelector(".upgrade-slide.is-active");
+const id = activeSlide?.dataset?.upgradeId;
+if (window.applyPaidState && id) window.applyPaidState(id);
+
 
   } catch {}
 }
@@ -2842,6 +2845,10 @@ function getCarouselCenterX() {
 function setActiveSlideByIndex(idx) {
   const slide = upgradeSlides[idx];
   if (!slide) return;
+
+  // ✅ SHOW the text + CTA (they are hidden by default in HTML)
+  document.getElementById("upgrade-active-info")?.classList.remove("hidden");
+  document.getElementById("upgrade-active-cta")?.classList.remove("hidden");
 
   const rawId = slide.getAttribute("data-upgrade-id") || slide.dataset.upgradeId;
   const idNum = Number.parseInt(rawId, 10);
