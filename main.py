@@ -650,6 +650,16 @@ def hour_to_ampm(hour):
     return f"{hour12}:00 {suffix}"
 
 
+
+@app.get("/__routes")
+def __routes():
+    out = []
+    for r in app.routes:
+        methods = sorted(list(getattr(r, "methods", []) or []))
+        out.append({"path": getattr(r, "path", None), "methods": methods, "name": getattr(r, "name", None)})
+    return JSONResponse(out)
+
+
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
     request.session["last_property"] = property_id
