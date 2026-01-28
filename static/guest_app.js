@@ -2709,8 +2709,11 @@ let activeUpgradeId = null;
 let checkoutInFlight = false;
 
 async function startUpgradeCheckout(upgradeId) {
-  // --- Normalize & validate upgrade id ---
-  const id = Number(String(upgradeId ?? "").trim());
+  // ✅ force numeric id
+  const id = Number(upgradeId);
+
+  console.log("[UPGRADE CHECKOUT] raw=", upgradeId, "coerced=", id, "type=", typeof id);
+
   if (!Number.isFinite(id) || id <= 0) {
     alert("Invalid upgrade selected. Please refresh and try again.");
     return;
@@ -2733,36 +2736,31 @@ async function startUpgradeCheckout(upgradeId) {
     return;
   }
 
-  let willRedirect = false;
+  willRedirect = false;
 
   try {
-    // Disable buttons while request is in flight
     if (upgradeActiveButton) upgradeActiveButton.disabled = true;
     if (upgradeDetailPurchase) upgradeDetailPurchase.disabled = true;
 
-    console.log("[UPGRADE CHECKOUT] starting", { upgradeId: id });
+    const url = `/guest/upgrades/${encodeURIComponent(id)}/checkout`;
+    console.log("[UPGRADE CHECKOUT] POST", url, "session_id=", currentSessionId);
 
-    const res = await fetch(
-      `/guest/upgrades/${encodeURIComponent(id)}/checkout`,
-      {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          session_id: currentSessionId || null,
-        }),
-      }
-    );
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ session_id: currentSessionId || null }),
+    });
 
-    const data = await readJsonSafely(res);
+    // read body ONCE, log it, then parse
+    const raw = await res.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw }; }
+
+    console.log("[UPGRADE CHECKOUT] status", res.status, "data", data);
 
     if (!res.ok) {
-      console.error("[UPGRADE CHECKOUT ERROR]", data);
-      alert(
-        data?.detail ||
-        data?.error ||
-        "Checkout failed. Please try again."
-      );
+      alert(data?.detail || data?.error || `Checkout failed (${res.status}).`);
       return;
     }
 
@@ -2771,18 +2769,14 @@ async function startUpgradeCheckout(upgradeId) {
       return;
     }
 
-    // Remember pending upgrade (per property)
     try {
-      localStorage.setItem(
-        `pending_upgrade_${propertyId}`,
-        String(id)
-      );
+      localStorage.setItem(`pending_upgrade_${propertyId}`, String(id));
     } catch {}
 
     willRedirect = true;
     window.location.assign(data.checkout_url);
-  } catch (err) {
-    console.error("[UPGRADE CHECKOUT EXCEPTION]", err);
+  } catch (e) {
+    console.error("[UPGRADE CHECKOUT] exception", e);
     alert("Checkout failed. Please try again.");
   } finally {
     if (!willRedirect) {
@@ -2792,6 +2786,7 @@ async function startUpgradeCheckout(upgradeId) {
     checkoutInFlight = false;
   }
 }
+
 
 
 
@@ -2990,17 +2985,11 @@ function initUpgradesCarousel() {
 
     // CTA under carousel
 upgradeActiveButton?.addEventListener("click", () => {
-  const idNum = Number(activeUpgradeId);
-
-  console.log("[UPGRADE CTA CLICK]", activeUpgradeId, typeof activeUpgradeId, "->", idNum);
-
-  if (!Number.isFinite(idNum) || idNum <= 0) {
-    alert("Invalid upgrade selected. Please refresh and try again.");
-    return;
-  }
-
-  startUpgradeCheckout(idNum); // or startUpgradeCheckout(String(idNum)) if your API expects string
+  const id = Number(activeUpgradeId);
+  console.log("[UPGRADE CTA CLICK]", "activeUpgradeId =", activeUpgradeId, "coerced =", id, "type =", typeof activeUpgradeId);
+  startUpgradeCheckout(id);
 });
+
 
 
 
