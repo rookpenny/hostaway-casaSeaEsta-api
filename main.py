@@ -102,11 +102,14 @@ ALLOWED_ORIGINS = [
 ]
 
 
+SESSION_SECRET = (os.getenv("SESSION_SECRET") or "").strip()
+if not SESSION_SECRET:
+    raise RuntimeError("SESSION_SECRET missing")
+
+
 app.add_middleware(
     SessionMiddleware,
-    SESSION_SECRET = (os.getenv("SESSION_SECRET") or "").strip()
-    if not SESSION_SECRET:
-        raise RuntimeError("SESSION_SECRET missing")
+    secret_key=SESSION_SECRET,
     same_site="none",
     https_only=True,
 )
