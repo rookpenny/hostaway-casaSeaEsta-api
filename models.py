@@ -169,7 +169,6 @@ class Guide(Base):
     body_html = Column(Text, nullable=True)
 
     category = Column(String, nullable=True)
-    image_url = Column(String, nullable=True)
 
     is_active = Column(Boolean, default=True)
     sort_order = Column(Integer, default=0)
@@ -292,7 +291,6 @@ class Upgrade(Base):
 
     title = Column(String, nullable=False)
     short_description = Column(String, nullable=True)
-    long_description = Column(Text, nullable=True)
 
     price_cents = Column(Integer, nullable=False, default=0)
     currency = Column(String, nullable=False, default="usd")
@@ -476,30 +474,54 @@ class AnalyticsEvent(Base):
 # UPGRADES BASE
 # -------------------------------------------------------------------
 
+
 class UpgradePurchase(Base):
     __tablename__ = "upgrade_purchases"
 
     id = Column(Integer, primary_key=True)
 
-    pmc_id = Column(Integer, ForeignKey("pmc.id"), nullable=False)
-    property_id = Column(Integer, ForeignKey("properties.id"), nullable=False)
-    upgrade_id = Column(Integer, ForeignKey("upgrades.id"), nullable=False)
+    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id", ondelete="CASCADE"), nullable=False, index=True)
+    upgrade_id = Column(Integer, ForeignKey("upgrades.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # ✅ tie purchase to a specific "stay session" (so repurchase checks don't block other stays)
+    guest_session_id = Column(
+        Integer,
+        ForeignKey("chat_sessions.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     amount_cents = Column(Integer, nullable=False)
-    platform_fee_cents = Column(Integer, nullable=False)
-    net_amount_cents = Column(Integer, nullable=True)
+    platform_fee_cents = Column(Integer, nullable=False, default=0)
+    net_amount_cents = Column(Integer, nullable=False)
 
-    currency = Column(String, default="usd")
+    currency = Column(String, nullable=False, default="usd")
 
-    status = Column(String, default="pending")
+    # pending | paid | refunded | canceled | failed
+    status = Column(String, nullable=False, default="pending", index=True)
 
-    stripe_checkout_session_id = Column(String)
-    stripe_payment_intent_id = Column(String)
-    stripe_transfer_id = Column(String)
-    stripe_destination_account_id = Column(String)
+    # Stripe tracking
+    stripe_checkout_session_id = Column(String, unique=True, index=True, nullable=True)
+    stripe_payment_intent_id = Column(String, unique=True, index=True, nullable=True)
+    stripe_transfer_id = Column(String, unique=True, index=True, nullable=True)
+    stripe_destination_account_id = Column(String, nullable=True, index=True)
 
-    paid_at = Column(DateTime(timezone=True))
-    refunded_at = Column(DateTime(timezone=True))
-    refunded_amount_cents = Column(Integer, default=0)
+    paid_at = Column(DateTime(timezone=True), nullable=True)
+    refunded_at = Column(DateTime(timezone=True), nullable=True)
+    refunded_amount_cents = Column(Integer, nullable=False, default=0)
 
-    created_at = Column(DateTime(timezone=True), default=datetime.utcnow)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow)
+    updated_at = Column(DateTime(timezone=True), nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+    # Optional relationships (only add if you want them)
+    property = relationship("Property")
+    upgrade = relationship("Upgrade")
+    session = relationship("ChatSession", foreign_keys=[guest_session_id])
+
+    __table_args__ = (
+        # ✅ Prevent duplicate PAID purchases per stay+upgrade (works well with your "status == paid" check)
+        # Note: if guest_session_id can be NULL, this constraint won't protect NULL rows (Postgres behavior).
+        # If you want stronger protection, make guest_session_id non-null for guest flows.
+        UniqueConstraint("guest_session_id", "upgrade_id", name="uq_upgrade_purchase_guest_session_upgrade"),
+    )
