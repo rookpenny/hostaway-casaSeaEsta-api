@@ -185,25 +185,24 @@ function restoreChatHistory() {
 }
 
 
-const PAID_UPGRADES_KEY = `paid_upgrades_${window.PROPERTY_ID}`;
+//const PAID_UPGRADES_KEY = `paid_upgrades_${window.PROPERTY_ID}`;
+
+function paidUpgradesKey() {
+  // Scope to property + VERIFIED session (prevents cross-guest “already purchased”)
+  const sid = currentSessionId ? String(currentSessionId) : "anon";
+  return `paid_upgrades_${window.PROPERTY_ID}_${sid}`;
+}
 
 function readPaidUpgrades() {
   try {
-    return JSON.parse(localStorage.getItem(PAID_UPGRADES_KEY) || "[]");
+    return JSON.parse(localStorage.getItem(paidUpgradesKey()) || "[]");
   } catch { return []; }
 }
 
 function writePaidUpgrades(ids) {
-  try { localStorage.setItem(PAID_UPGRADES_KEY, JSON.stringify(ids || [])); } catch {}
+  try { localStorage.setItem(paidUpgradesKey(), JSON.stringify(ids || [])); } catch {}
 }
 
-function markUpgradePaid(upgradeId) {
-  const id = Number(upgradeId);
-  if (!id) return;
-  const ids = new Set(readPaidUpgrades());
-  ids.add(id);
-  writePaidUpgrades([...ids]);
-}
 
     
 
@@ -1120,8 +1119,9 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
     const ids = Array.isArray(data?.paid_upgrade_ids) ? data.paid_upgrade_ids : [];
     writePaidUpgrades(ids);
 
-    // apply to currently selected upgrade (and optionally all slides)
-    if (window.applyPaidState && activeUpgradeId) window.applyPaidState(activeUpgradeId);
+    // apply to current active slide if available; otherwise no-op
+if (window.applyPaidState) window.applyPaidState(activeUpgradeId);
+
   } catch {}
 }
 
@@ -2709,16 +2709,11 @@ let activeUpgradeId = null;
 let checkoutInFlight = false;
 
 async function startUpgradeCheckout(upgradeId) {
-  // ✅ force numeric id
-  const id = Number(upgradeId);
-
-  console.log("[UPGRADE CHECKOUT] raw=", upgradeId, "coerced=", id, "type=", typeof id);
-
-  if (!Number.isFinite(id) || id <= 0) {
+  const idNum = Number.parseInt(String(upgradeId), 10);
+  if (!Number.isFinite(idNum) || idNum <= 0) {
     alert("Invalid upgrade selected. Please refresh and try again.");
     return;
   }
-
   if (checkoutInFlight) return;
   checkoutInFlight = true;
 
@@ -2742,8 +2737,7 @@ async function startUpgradeCheckout(upgradeId) {
     if (upgradeActiveButton) upgradeActiveButton.disabled = true;
     if (upgradeDetailPurchase) upgradeDetailPurchase.disabled = true;
 
-    const url = `/guest/upgrades/${encodeURIComponent(id)}/checkout`;
-    console.log("[UPGRADE CHECKOUT] POST", url, "session_id=", currentSessionId);
+    const url = `/guest/upgrades/${encodeURIComponent(idNum)}/checkout`;
 
     const res = await fetch(url, {
       method: "POST",
@@ -2752,31 +2746,31 @@ async function startUpgradeCheckout(upgradeId) {
       body: JSON.stringify({ session_id: currentSessionId || null }),
     });
 
-    // read body ONCE, log it, then parse
-    const raw = await res.text();
+    // Read body once, no matter what it is
+    const text = await res.text();
     let data = {};
-    try { data = raw ? JSON.parse(raw) : {}; } catch { data = { raw }; }
-
-    console.log("[UPGRADE CHECKOUT] status", res.status, "data", data);
+    try { data = JSON.parse(text); } catch { data = { raw: text }; }
 
     if (!res.ok) {
+      console.error("[UPGRADE CHECKOUT ERROR]", res.status, data);
       alert(data?.detail || data?.error || `Checkout failed (${res.status}).`);
       return;
     }
 
     if (!data?.checkout_url) {
+      console.error("[UPGRADE CHECKOUT] Missing checkout_url:", data);
       alert("Checkout URL missing. Please try again.");
       return;
     }
 
     try {
-      localStorage.setItem(`pending_upgrade_${propertyId}`, String(id));
+      localStorage.setItem(`pending_upgrade_${propertyId}`, String(idNum));
     } catch {}
 
     willRedirect = true;
     window.location.assign(data.checkout_url);
   } catch (e) {
-    console.error("[UPGRADE CHECKOUT] exception", e);
+    console.error("[UPGRADE CHECKOUT EXCEPTION]", e);
     alert("Checkout failed. Please try again.");
   } finally {
     if (!willRedirect) {
@@ -2807,12 +2801,17 @@ async function startUpgradeCheckout(upgradeId) {
     }
     if (desc) desc.textContent = "✅ Upgrade confirmed — Your host has been notified.";
   } else {
-    // restore “normal” state (your existing setActiveSlideByIndex will set price text)
-    if (btn) {
-      btn.disabled = false;
-      btn.classList.remove("opacity-60", "cursor-not-allowed");
-    }
+  // restore “normal” state
+  if (btn) {
+    btn.disabled = false;
+    btn.classList.remove("opacity-60", "cursor-not-allowed");
   }
+  // restore label based on active slide price
+  const activeSlide = document.querySelector(".upgrade-slide.is-active");
+  const price = activeSlide?.dataset?.upgradePrice || "";
+  if (label) label.textContent = price ? `${price} – Purchase` : "Purchase";
+}
+
 
   // Optional: also disable the modal purchase button
   const modalBtn = document.getElementById("upgrade-detail-purchase");
@@ -2838,40 +2837,31 @@ function getCarouselCenterX() {
   return r.left + r.width / 2;
 }
 
+
+
 function setActiveSlideByIndex(idx) {
   const slide = upgradeSlides[idx];
   if (!slide) return;
 
- const rawId =
-  slide.dataset.upgradeId ??
-  slide.getAttribute("data-upgrade-id");
+  const rawId = slide.getAttribute("data-upgrade-id") || slide.dataset.upgradeId;
+  const idNum = Number.parseInt(rawId, 10);
 
-/*activeUpgradeId = Number(rawId);
+  if (!Number.isFinite(idNum)) {
+    console.warn("[UPGRADES] Invalid data-upgrade-id on slide:", rawId, slide);
+    activeUpgradeId = null;
+    return;
+  }
 
-if (!Number.isFinite(activeUpgradeId)) {
-  console.warn("[UPGRADES] Slide missing valid data-upgrade-id", slide);
-  activeUpgradeId = null;
-}*/
-  activeUpgradeId = (rawId ?? "").toString().trim();
+  activeUpgradeId = idNum;
 
-if (!activeUpgradeId) {
-  console.warn("[UPGRADES] Slide missing valid data-upgrade-id", slide);
-  activeUpgradeId = null;
-}
-
-
-
-  // your existing active/inactive class toggles here...
   upgradeSlides.forEach((s, i) => {
     s.classList.toggle("is-active", i === idx);
     s.classList.toggle("is-inactive", i !== idx);
   });
 
-  // ✅ populate below-carousel text
-  const infoWrap = document.getElementById("upgrade-active-info");
+  // update UI text
   const titleEl  = document.getElementById("upgrade-active-title");
   const descEl   = document.getElementById("upgrade-active-description");
-  const ctaWrap  = document.getElementById("upgrade-active-cta");
   const ctaLabel = document.getElementById("upgrade-active-button-label");
 
   const title = slide.dataset.upgradeTitle || "Upgrade";
@@ -2882,12 +2872,21 @@ if (!activeUpgradeId) {
   if (descEl)  descEl.textContent  = long;
   if (ctaLabel) ctaLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 
-  infoWrap?.classList.remove("hidden");
-  ctaWrap?.classList.remove("hidden");
-
-  if (window.applyPaidState) window.applyPaidState(activeUpgradeId);
-
+  window.applyPaidState?.(activeUpgradeId);
 }
+
+upgradeActiveButton?.addEventListener("click", () => {
+  console.log("[UPGRADE CTA CLICK]", activeUpgradeId, typeof activeUpgradeId);
+
+  const idNum = Number.parseInt(String(activeUpgradeId), 10);
+  if (!Number.isFinite(idNum) || idNum <= 0) {
+    alert("Invalid upgrade selected. Please refresh and try again.");
+    return;
+  }
+
+  startUpgradeCheckout(idNum);
+});
+
 
 
 function findClosestSlideIndex() {
@@ -2982,13 +2981,6 @@ function initUpgradesCarousel() {
 });
 }
 
-
-    // CTA under carousel
-upgradeActiveButton?.addEventListener("click", () => {
-  const id = Number(activeUpgradeId);
-  console.log("[UPGRADE CTA CLICK]", "activeUpgradeId =", activeUpgradeId, "coerced =", id, "type =", typeof activeUpgradeId);
-  startUpgradeCheckout(id);
-});
 
 
 
