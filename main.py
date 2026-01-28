@@ -38,11 +38,11 @@ from models import Property, ChatSession, ChatMessage, PMC, PMCIntegration, Upgr
 from routes.analytics import router as analytics_router
 from routes.admin_analytics_ui import router as admin_analytics_ui_router
 from routes.admin_analytics import router as admin_analytics_api_router
-from routes.admin_analytics import router as admin_analytics_router
 from routes.upgrade_purchase_status import router as upgrade_purchase_status_router
 
 from routes.stripe_connect import router as stripe_connect_router
 from routes.upgrade_checkout import router as upgrade_checkout_router
+
 
 
 
@@ -66,7 +66,6 @@ from utils.ai_summary import maybe_autosummarize_on_new_guest_message
 from utils.sentiment import classify_guest_sentiment
 
 
-from typing import Optional, Literal, TypedDict
 
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
@@ -75,7 +74,6 @@ app = FastAPI()
 
 # --- Routers ---
 app.include_router(analytics_router)
-app.include_router(admin_analytics_router)
 app.include_router(admin_analytics_ui_router)
 app.include_router(admin_analytics_api_router)
 
@@ -94,19 +92,21 @@ app.include_router(upgrade_checkout_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
 
-
-
-app.include_router(reports_router)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Middleware ---
 ALLOWED_ORIGINS = [
     "https://hostaway-casaseaesta-api.onrender.com",
+    "http://localhost:3000",
+    "http://localhost:5173",
 ]
+
 
 app.add_middleware(
     SessionMiddleware,
-    secret_key=os.getenv("SESSION_SECRET") or "fallbacksecret",
+    SESSION_SECRET = (os.getenv("SESSION_SECRET") or "").strip()
+    if not SESSION_SECRET:
+        raise RuntimeError("SESSION_SECRET missing")
     same_site="none",
     https_only=True,
 )
@@ -1164,7 +1164,6 @@ def _safe_role(value: str) -> str:
         return v
     return "user"
 
-from sqlalchemy.inspection import inspect as sa_inspect
 
 def _chatmessage_columns() -> set[str]:
     try:
@@ -1378,7 +1377,7 @@ def property_chat(
         db.add(
             ChatMessage(
                 session_id=session_id,
-                sender="guest",
+                sender="user",
                 content=user_message,
                 created_at=now,
                 sentiment=sentiment_label,     # ✅ string only
