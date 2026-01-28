@@ -484,13 +484,14 @@ class UpgradePurchase(Base):
     property_id = Column(Integer, ForeignKey("properties.id", ondelete="CASCADE"), nullable=False, index=True)
     upgrade_id = Column(Integer, ForeignKey("upgrades.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    # ✅ tie purchase to a specific "stay session" (so repurchase checks don't block other stays)
+    # ✅ ADD THIS
     guest_session_id = Column(
         Integer,
-        ForeignKey("chat_sessions.id", ondelete="SET NULL"),
+        ForeignKey("chat_sessions.id"),
         nullable=True,
         index=True,
     )
+
 
     amount_cents = Column(Integer, nullable=False)
     platform_fee_cents = Column(Integer, nullable=False, default=0)
