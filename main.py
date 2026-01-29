@@ -1059,7 +1059,7 @@ def verify_json(
             status_code=500,
         )
 
-    WINDOW_DAYS = 30
+    WINDOW_DAYS = 120
     today = datetime.utcnow().date()
     arrival_obj = _parse_ymd(arrival_date)
 
