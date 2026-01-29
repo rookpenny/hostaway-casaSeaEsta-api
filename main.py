@@ -1041,6 +1041,7 @@ def verify_json(
                 listing_id=str(prop.pms_property_id),
                 client_id=account_id,
                 client_secret=api_secret,
+                window_days=WINDOW_DAYS,  # ✅ NEW
             )
         else:
             (
