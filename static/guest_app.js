@@ -1107,7 +1107,7 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
       });
     }
 
-    async function syncPaidUpgradesFromServer() {
+async function syncPaidUpgradesFromServer() {
   try {
     const res = await fetch(`/guest/properties/${window.PROPERTY_ID}/upgrades/paid`, {
       credentials: "include",
@@ -1115,18 +1115,18 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
     });
     if (!res.ok) return;
 
-    const data = await res.json();
+    const data = await readJsonSafely(res);
     const ids = Array.isArray(data?.paid_upgrade_ids) ? data.paid_upgrade_ids : [];
     writePaidUpgrades(ids);
 
-    // apply to current active slide if available; otherwise no-op
-const activeSlide = document.querySelector(".upgrade-slide.is-active");
-const id = activeSlide?.dataset?.upgradeId;
-if (window.applyPaidState && id) window.applyPaidState(id);
-
-
-  } catch {}
+    const activeSlide = document.querySelector(".upgrade-slide.is-active");
+    const id = activeSlide?.dataset?.upgradeId;
+    if (window.applyPaidState && id) window.applyPaidState(id);
+  } catch (e) {
+    console.warn("syncPaidUpgradesFromServer failed:", e);
+  }
 }
+
 
 
     function loadGuestState() {
