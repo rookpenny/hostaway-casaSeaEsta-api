@@ -71,6 +71,9 @@ logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
 
 app = FastAPI()
+WINDOW_DAYS = int(os.getenv("WINDOW_DAYS", "120"))
+
+
 
 # --- Routers ---
 app.include_router(analytics_router)
@@ -951,6 +954,7 @@ def verify_json(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    WINDOW_DAYS = int(os.getenv("WINDOW_DAYS", "120"))  # ✅ define before any use
     code = (payload.code or "").strip()
 
     if not code.isdigit() or len(code) != 4:
@@ -1060,7 +1064,7 @@ def verify_json(
             status_code=500,
         )
 
-    WINDOW_DAYS = 120
+    
     today = datetime.utcnow().date()
     arrival_obj = _parse_ymd(arrival_date)
 
