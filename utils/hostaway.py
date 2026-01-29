@@ -46,17 +46,15 @@ def cached_token_for_pmc(client_id: str, client_secret: str) -> str:
 
 
 
-def fetch_reservations(listing_id: str, token: str):
+def fetch_reservations(listing_id: str, token: str, window_days: int = 60, past_days: int = 30):
     """
     Fetch reservations for a listing in a rolling window:
-    30 days in the past to 60 days in the future.
-    This covers:
-      - current in-house stays that started last month
-      - upcoming reservations in the near future
+    - past_days in the past
+    - window_days in the future
     """
     today = datetime.utcnow().date()
-    date_from = (today - timedelta(days=30)).strftime("%Y-%m-%d")
-    date_to = (today + timedelta(days=60)).strftime("%Y-%m-%d")
+    date_from = (today - timedelta(days=int(past_days))).strftime("%Y-%m-%d")
+    date_to = (today + timedelta(days=int(window_days))).strftime("%Y-%m-%d")
 
     resp = requests.get(
         f"{HOSTAWAY_BASE_URL}/reservations",
@@ -75,9 +73,10 @@ def fetch_reservations(listing_id: str, token: str):
     result = data.get("result", [])
     print(
         f"[Hostaway] fetched {len(result)} reservations for listing {listing_id} "
-        f"between {date_from} and {date_to}"
+        f"between {date_from} and {date_to} (past_days={past_days}, window_days={window_days})"
     )
     return result
+
 
 def calculate_extra_nights(next_start_date):
     """
@@ -217,26 +216,11 @@ def get_upcoming_phone_for_listing(
     listing_id: str,
     client_id: str,
     client_secret: str,
+    window_days: int = 120,
 ) -> tuple[str | None, str | None, str | None, str | None, str | None, str | None]:
-    """
-    Look up the phone for either:
-      1) The CURRENT in-house reservation for a Hostaway listing (today between arrival & departure), or
-      2) The NEXT upcoming reservation (arrival >= today, closest arrival date).
-
-    Returns:
-        (
-            phone_last4,
-            full_phone,
-            reservation_id,
-            guest_name,
-            arrival_date,
-            departure_date,
-        )
-        or (None, None, None, None, None, None) on failure / no match.
-    """
     try:
         token = get_token_for_pmc(client_id, client_secret)
-        reservations = fetch_reservations(listing_id, token)
+        reservations = fetch_reservations(listing_id, token, window_days=window_days)
 
         today = datetime.utcnow().date()
 
@@ -247,13 +231,12 @@ def get_upcoming_phone_for_listing(
         upcoming_days = None
 
         for r in reservations:
-            # Try to get a usable phone field
-            phone = (
+            full_phone = (
                 r.get("phone")
                 or r.get("guestPhone")
                 or r.get("guestPhoneNumber")
             )
-            if not phone:
+            if not full_phone:
                 continue
 
             checkin_str = r.get("arrivalDate")
@@ -267,22 +250,19 @@ def get_upcoming_phone_for_listing(
             except Exception:
                 continue
 
-            # 1️⃣ Current in-house stay: today between arrival & departure (inclusive)
-            if checkin <= today <= checkout:
-                # If multiple, prefer the one with the earliest arrival
+            # ✅ treat checkout day as NOT in-house
+            if checkin <= today < checkout:
                 if current_stay is None or checkin < current_arrival:
                     current_stay = r
                     current_arrival = checkin
                 continue
 
-            # 2️⃣ Future stay: arrival is after today
             days_until_checkin = (checkin - today).days
             if days_until_checkin >= 0:
                 if upcoming_res is None or days_until_checkin < upcoming_days:
                     upcoming_res = r
                     upcoming_days = days_until_checkin
 
-        # Prefer a current stay if we found one
         best_res = current_stay or upcoming_res
         if not best_res:
             return None, None, None, None, None, None
@@ -299,22 +279,14 @@ def get_upcoming_phone_for_listing(
         if len(digits_only) < 4:
             return None, None, None, None, None, None
 
-        phone_last4 = full_phone[-4:]
-        reservation_id = str(
-            best_res.get("id")
-            or best_res.get("reservationId")
-            or ""
-        )
+        # ✅ correct last4
+        phone_last4 = digits_only[-4:]
 
+        reservation_id = str(best_res.get("id") or best_res.get("reservationId") or "")
         if not reservation_id:
             return None, None, None, None, None, None
 
-        # 🔹 New fields
-        guest_name = (
-            best_res.get("guestName")
-            or best_res.get("name")
-            or None
-        )
+        guest_name = best_res.get("guestName") or best_res.get("name") or None
         arrival_date = best_res.get("arrivalDate")
         departure_date = best_res.get("departureDate")
 
