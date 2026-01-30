@@ -19,6 +19,8 @@ from utils.hostaway import (
 )
 
 
+from urllib.parse import quote_plus
+
 from pathlib import Path as FSPath
 from typing import Optional, Any, Dict, Literal, TypedDict
 from datetime import datetime, timedelta, time as dt_time
@@ -675,6 +677,8 @@ def __routes():
     return JSONResponse(out)
 
 
+
+
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
     request.session["last_property"] = property_id
@@ -713,8 +717,8 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         .strip()
         .lower()
     )
-    _pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
 
+    # "live" means sandy enabled AND pmc active (your existing definition)
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
     # Load config/manual from disk
@@ -778,6 +782,30 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     today_res = get_today_reservation(db, prop.id)
     same_day_turnover = compute_same_day_turnover(db, prop.id, today_res)
 
+    # ---- helpers ----
+    def format_price_display(up: "Upgrade") -> str:
+        """
+        Single source of truth for what the UI shows.
+        Uses price_cents when available; falls back safely.
+        """
+        currency = (getattr(up, "currency", None) or "usd").lower()
+        cents = getattr(up, "price_cents", None)
+
+        if cents is None:
+            # allow optional preformatted value if your model has it
+            val = getattr(up, "price_display", None)
+            return str(val) if val else ""
+
+        try:
+            amount = float(cents) / 100.0
+        except Exception:
+            return ""
+
+        symbol = "$" if currency in ("usd", "us$", "$") else ""
+        if symbol:
+            return f"{symbol}{amount:,.2f}"
+        return f"{amount:,.2f} {currency.upper()}"
+
     # Load upgrades
     upgrades = (
         db.query(Upgrade)
@@ -793,23 +821,24 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     for up in upgrades:
         slug = (up.slug or "").lower()
         title_lower = (up.title or "").lower() if up.title else ""
-        
+
         is_time_flex = (
             slug in {"early-check-in", "late-checkout", "late-check-out"}
             or "early check" in title_lower
             or "late check" in title_lower
         )
-        
-        # ✅ New: compute availability instead of skipping
+
+        # ✅ compute availability instead of skipping
         is_available = True
-        unavailable_reason = None
-        
+        unavailable_reason = ""
+
         if is_time_flex and same_day_turnover:
             is_available = False
             unavailable_reason = "Not available for same-day turnovers."
-        
-        # ... keep your price_display logic ...
-        
+
+        # ✅ FIX: define price_display (this is what was crashing)
+        price_display = format_price_display(up)
+
         visible_upgrades.append(
             {
                 "id": up.id,
@@ -818,20 +847,17 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "short_description": up.short_description,
                 "long_description": up.long_description,
                 "price_cents": up.price_cents,
-                "price_currency": up.currency or "usd",
-                "price_display": price_display,
+                "price_currency": (up.currency or "usd"),
+                "price_display": price_display,  # ✅ now always defined
                 "stripe_price_id": up.stripe_price_id,
                 "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
-        
-                # ✅ add these
-                "is_available": is_available,
+
+                # ✅ availability surface area for frontend data attrs
+                "is_available": bool(is_available),
                 "unavailable_reason": unavailable_reason,
             }
         )
-
-
-    from urllib.parse import quote_plus
 
     google_maps_link = None
     if address or city_name:
@@ -874,6 +900,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "hide_time_flex": same_day_turnover,
         },
     )
+
 
 
 def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
