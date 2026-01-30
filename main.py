@@ -10,6 +10,15 @@ import traceback
 
 import stripe
 import uvicorn
+
+from utils.hostaway import (
+    get_upcoming_phone_for_listing,  # (optional now; can remove later)
+    get_listing_overview,
+    fetch_reservations,
+    get_token_for_pmc,
+)
+
+
 from pathlib import Path as FSPath
 from typing import Optional, Any, Dict, Literal, TypedDict
 from datetime import datetime, timedelta, time as dt_time
@@ -60,7 +69,7 @@ from utils.pms_sync import sync_all_integrations
 from utils.pms_access import get_pms_access_info, ensure_pms_data
 from utils.prearrival import prearrival_router
 from utils.prearrival_debug import prearrival_debug_router
-from utils.hostaway import get_upcoming_phone_for_listing, get_listing_overview
+
 from utils.github_sync import ensure_repo
 from utils.ai_summary import maybe_autosummarize_on_new_guest_message
 from utils.sentiment import classify_guest_sentiment
@@ -954,7 +963,7 @@ def verify_json(
     request: Request,
     db: Session = Depends(get_db),
 ):
-    WINDOW_DAYS = int(os.getenv("WINDOW_DAYS", "120"))  # ✅ define before any use
+    WINDOW_DAYS = int(os.getenv("WINDOW_DAYS", "120"))
     code = (payload.code or "").strip()
 
     if not code.isdigit() or len(code) != 4:
@@ -974,6 +983,7 @@ def verify_json(
             status_code=400,
         )
 
+    # --- Test unlock bypass ---
     test_code = (os.getenv("TEST_UNLOCK_CODE") or "").strip()
     if test_code and code == test_code:
         request.session[f"guest_verified_{property_id}"] = True
@@ -1016,7 +1026,7 @@ def verify_json(
             "checkout_time": "10:00 AM",
         }
 
-    integ = None
+    # --- Resolve integration/provider ---
     try:
         integ = get_integration_for_property(db, prop)
     except Exception:
@@ -1026,7 +1036,14 @@ def verify_json(
     integ_provider = (getattr(integ, "provider", None) or "").strip().lower()
     provider = prop_provider or integ_provider
 
+    phone_last4 = None
+    reservation_id = None
+    guest_name = None
+    arrival_date = None
+    departure_date = None
+
     try:
+        # --- Hostaway: match reservation by CODE (last4) ---
         if provider == "hostaway" and getattr(prop, "pms_property_id", None):
             account_id = (getattr(integ, "account_id", None) or "").strip()
             api_secret = (getattr(integ, "api_secret", None) or "").strip()
@@ -1034,19 +1051,65 @@ def verify_json(
             if not account_id or not api_secret:
                 raise Exception("Missing Hostaway creds on integration (account_id/api_secret)")
 
-            (
-                phone_last4,
-                _door_code,
-                reservation_id,
-                guest_name,
-                arrival_date,
-                departure_date,
-            ) = get_upcoming_phone_for_listing(
+            token = get_token_for_pmc(account_id, api_secret)
+            reservations = fetch_reservations(
                 listing_id=str(prop.pms_property_id),
-                client_id=account_id,
-                client_secret=api_secret,
-                window_days=WINDOW_DAYS,  # ✅ NEW
+                token=token,
+                window_days=WINDOW_DAYS,
+                past_days=30,
             )
+
+            today = datetime.utcnow().date()
+            best = None
+            best_days = None
+
+            for r in reservations:
+                full_phone = (
+                    r.get("phone")
+                    or r.get("guestPhone")
+                    or r.get("guestPhoneNumber")
+                    or ""
+                )
+                digits = "".join(ch for ch in full_phone if ch.isdigit())
+                if len(digits) < 4:
+                    continue
+
+                # ✅ Must match the entered code
+                if digits[-4:] != code:
+                    continue
+
+                checkin_str = r.get("arrivalDate")
+                if not checkin_str:
+                    continue
+
+                try:
+                    checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
+                except Exception:
+                    continue
+
+                days_until = (checkin - today).days
+                if days_until < 0:
+                    continue
+                if days_until > WINDOW_DAYS:
+                    continue
+
+                if best is None or days_until < best_days:
+                    best = r
+                    best_days = days_until
+
+            if not best:
+                return JSONResponse(
+                    {"success": False, "error": "No upcoming reservation found matching that code."},
+                    status_code=400,
+                )
+
+            phone_last4 = code
+            reservation_id = str(best.get("id") or best.get("reservationId") or "")
+            guest_name = best.get("guestName") or best.get("name") or None
+            arrival_date = best.get("arrivalDate")
+            departure_date = best.get("departureDate")
+
+        # --- Other PMS providers: keep existing behavior ---
         else:
             (
                 phone_last4,
@@ -1064,7 +1127,7 @@ def verify_json(
             status_code=500,
         )
 
-    
+    # --- Validate arrival window (belt + suspenders) ---
     today = datetime.utcnow().date()
     arrival_obj = _parse_ymd(arrival_date)
 
@@ -1090,6 +1153,7 @@ def verify_json(
     checkin_time_display = _format_time_display(getattr(prop, "checkin_time", None), default="4:00 PM")
     checkout_time_display = _format_time_display(getattr(prop, "checkout_time", None), default="10:00 AM")
 
+    # --- Mark verified + create session ---
     request.session[f"guest_verified_{property_id}"] = True
 
     now = datetime.utcnow()
