@@ -793,25 +793,23 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     for up in upgrades:
         slug = (up.slug or "").lower()
         title_lower = (up.title or "").lower() if up.title else ""
-
+        
         is_time_flex = (
             slug in {"early-check-in", "late-checkout", "late-check-out"}
             or "early check" in title_lower
             or "late check" in title_lower
         )
-
-        if same_day_turnover and is_time_flex:
-            continue
-
-        price_display = None
-        if up.price_cents is not None:
-            currency = (up.currency or "usd").lower()
-            amount = up.price_cents / 100.0
-            if currency == "usd":
-                price_display = f"${amount:,.0f}"
-            else:
-                price_display = f"{amount:,.2f} {currency.upper()}"
-
+        
+        # ✅ New: compute availability instead of skipping
+        is_available = True
+        unavailable_reason = None
+        
+        if is_time_flex and same_day_turnover:
+            is_available = False
+            unavailable_reason = "Not available for same-day turnovers."
+        
+        # ... keep your price_display logic ...
+        
         visible_upgrades.append(
             {
                 "id": up.id,
@@ -825,8 +823,13 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "stripe_price_id": up.stripe_price_id,
                 "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
+        
+                # ✅ add these
+                "is_available": is_available,
+                "unavailable_reason": unavailable_reason,
             }
         )
+
 
     from urllib.parse import quote_plus
 
