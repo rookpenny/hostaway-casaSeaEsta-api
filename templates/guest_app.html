@@ -850,7 +850,7 @@
     <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
       {% if upgrades and upgrades|length > 0 %}
         {% for up in upgrades %}
-          {% set available = (up.is_available is not defined) or (up.is_available) %}
+          {% set available = (up.is_available is defined) and (up.is_available) %}
           {% set reason = up.unavailable_reason or "Not available for this stay." %}
           {% set safe_reason = reason|replace('\n',' ')|replace('\r',' ')|e %}
           {% set safe_title = (up.title or "Upgrade")|replace('\n',' ')|replace('\r',' ')|e %}
