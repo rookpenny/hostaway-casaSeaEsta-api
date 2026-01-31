@@ -195,11 +195,6 @@ def _is_time_flex_upgrade(up: Upgrade) -> tuple[bool, str]:
 
 
 
-
-
-
-
-@app.get("/guest/properties/{property_id}/upgrades/availability")
 @app.get("/guest/properties/{property_id}/upgrades/availability")
 def guest_upgrades_availability(
     property_id: int,
@@ -980,26 +975,32 @@ def _hostaway_turnover_flags(
         return (False, False)
 
 def _apply_reservation_blocking_filters(q):
-    """
-    Filters out non-blocking reservations if your Reservation model has the columns.
-    Safe: only applies filters for columns that exist.
-    """
     cols = {c.key for c in sa_inspect(Reservation).mapper.column_attrs}
 
-    # Common: status column (Hostaway etc.)
-    if "status" in cols:
-        # Keep only statuses that actually occupy the calendar
-        q = q.filter(~Reservation.status.in_(["canceled", "cancelled", "inquiry", "expired"]))
+    # statuses that should NOT block turnover logic
+    bad_statuses = {"canceled", "cancelled", "inquiry", "expired", "declined"}
 
-    # Common: is_cancelled boolean
+    # if there's a status-like field
+    if "status" in cols:
+        q = q.filter(~Reservation.status.in_(bad_statuses))
+    if "reservation_status" in cols:
+        q = q.filter(~Reservation.reservation_status.in_(bad_statuses))
+
+    # block/hold types that should NOT count as an arrival turnover (optional)
+    # (If you DO want blocks to block, remove this)
+    bad_types = {"block", "blocked", "hold", "owner", "owner_stay", "maintenance"}
+    if "type" in cols:
+        q = q.filter(~Reservation.type.in_(bad_types))
+    if "reservation_type" in cols:
+        q = q.filter(~Reservation.reservation_type.in_(bad_types))
+    if "kind" in cols:
+        q = q.filter(~Reservation.kind.in_(bad_types))
+
+    # boolean flags
     if "is_cancelled" in cols:
         q = q.filter(Reservation.is_cancelled.is_(False))
-
-    # Common: cancelled_at timestamp
     if "cancelled_at" in cols:
         q = q.filter(Reservation.cancelled_at.is_(None))
-
-    # Common: is_active boolean
     if "is_active" in cols:
         q = q.filter(Reservation.is_active.is_(True))
 
@@ -1007,51 +1008,56 @@ def _apply_reservation_blocking_filters(q):
 
 
 @app.get("/debug/turnover/{property_id}")
-def debug_turnover(property_id: int, request: Request, db: Session = Depends(get_db)):
-    sid = request.session.get(f"guest_session_{property_id}")
-    active = None
-    if sid:
-        active = db.query(ChatSession).filter(ChatSession.id == int(sid)).first()
+def debug_turnover(property_id: int, session_id: int | None = None, db: Session = Depends(get_db)):
+    qs = db.query(ChatSession).filter(ChatSession.property_id == property_id)
+    if session_id:
+        qs = qs.filter(ChatSession.id == session_id)
+    s = qs.order_by(ChatSession.last_activity_at.desc()).first()
+    if not s:
+        return {"error": "no session"}
 
-    arrival = getattr(active, "arrival_date", None)
-    departure = getattr(active, "departure_date", None)
+    arr = _to_date_any(getattr(s, "arrival_date", None))
+    dep = _to_date_any(getattr(s, "departure_date", None))
 
-    arrival_d = _to_date_any(arrival)
-    departure_d = _to_date_any(departure)
+    dep_on_arrival_q = db.query(Reservation).filter(
+        Reservation.property_id == property_id,
+        cast(Reservation.departure_date, Date) == arr,
+    )
+    arr_on_departure_q = db.query(Reservation).filter(
+        Reservation.property_id == property_id,
+        cast(Reservation.arrival_date, Date) == dep,
+    )
 
-    dep_count = 0
-    arr_count = 0
+    dep_matches = dep_on_arrival_q.limit(20).all()
+    arr_matches = arr_on_departure_q.limit(20).all()
 
-    if arrival_d:
-        dep_count = (
-            db.query(Reservation)
-            .filter(
-                Reservation.property_id == property_id,
-                func.date(Reservation.departure_date) == arrival_d,
-            )
-            .count()
-        )
+    def pack(r: Reservation):
+        cols = {c.key for c in sa_inspect(Reservation).mapper.column_attrs}
+        def g(name):
+            return getattr(r, name, None) if name in cols else None
 
-    if departure_d:
-        arr_count = (
-            db.query(Reservation)
-            .filter(
-                Reservation.property_id == property_id,
-                func.date(Reservation.arrival_date) == departure_d,
-            )
-            .count()
-        )
+        return {
+            "id": g("id"),
+            "property_id": g("property_id"),
+            "arrival_date": str(_to_date_any(g("arrival_date"))),
+            "departure_date": str(_to_date_any(g("departure_date"))),
+            "status": g("status") or g("reservation_status"),
+            "type": g("type") or g("reservation_type") or g("kind"),
+            "is_active": g("is_active"),
+            "is_cancelled": g("is_cancelled"),
+            "source": g("source") or g("provider"),
+            "pms_reservation_id": g("pms_reservation_id") or g("reservation_id") or g("external_id"),
+        }
 
     return {
-        "session_id": sid,
-        "arrival_raw": str(arrival),
-        "departure_raw": str(departure),
-        "arrival_date": str(arrival_d) if arrival_d else None,
-        "departure_date": str(departure_d) if departure_d else None,
-        "departures_on_arrival_day_count": dep_count,
-        "arrivals_on_departure_day_count": arr_count,
+        "session_id": s.id,
+        "arrival_date": str(arr),
+        "departure_date": str(dep),
+        "departures_on_arrival_day_count": dep_on_arrival_q.count(),
+        "arrivals_on_departure_day_count": arr_on_departure_q.count(),
+        "departures_on_arrival_day_sample": [pack(x) for x in dep_matches],
+        "arrivals_on_departure_day_sample": [pack(x) for x in arr_matches],
     }
-
 
 
 # ----------------------------
