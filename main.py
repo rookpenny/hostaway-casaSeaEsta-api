@@ -1235,11 +1235,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     checkin_time_display = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
     checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd"))
 
-    same_day_turnover = bool(turnover_on_arrival or turnover_on_departure)
-
-    return templates.TemplateResponse(
-        "guest_app.html",
-        {
+return templates.TemplateResponse(
+    "guest_app.html",
+    {
             "request": request,
             "property_id": prop.id,
             "property_name": prop.property_name,
@@ -1268,10 +1266,16 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "turnover_on_departure": turnover_on_departure,
             "same_day_turnover": same_day_turnover,
             "hide_time_flex": same_day_turnover,
+            "turnover_on_arrival": turnover_on_arrival,
+            "turnover_on_departure": turnover_on_departure,
+    
+            # optional, if you still want this info for display
+            "same_day_turnover": bool(turnover_on_arrival or turnover_on_departure),
+    
+            # ✅ IMPORTANT: do NOT use this to hide both upgrades
+            "hide_time_flex": False,
         },
     )
-
-
 
 
 
