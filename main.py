@@ -1067,9 +1067,11 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
               </head>
               <body class="min-h-screen bg-[#f5f5f5] flex items-center justify-center p-6">
                 <div class="max-w-md w-full bg-white rounded-3xl p-6 shadow-sm text-center">
-                  <h1 class="text-2xl font-semibold text-slate-900">Guest experience unavailable</h1>
+                  <h1 class="text-2xl font-semibold text-slate-900">
+                    Guest experience unavailable
+                  </h1>
                   <p class="mt-3 text-slate-600">
-                    This property hasn’t enabled Sandy yet. Please contact your host for assistance.
+                    This property hasn’t enabled Sandy yet. Please contact your host.
                   </p>
                 </div>
               </body>
@@ -1087,7 +1089,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
-    # Load config/manual
+    # Load config
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
     wifi = cfg.get("wifi") or {}
@@ -1098,37 +1100,33 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     hero_image_url = cfg.get("hero_image_url")
     experiences_hero_url = cfg.get("experiences_hero_url")
 
+    # ----------------------------
     # Hostaway overrides
+    # ----------------------------
     if pmc and prop_provider == "hostaway" and getattr(prop, "pms_property_id", None):
         try:
             integ = get_integration_for_property(db, prop)
             if (integ.provider or "").strip().lower() == "hostaway":
-                account_id = (integ.account_id or "").strip()
-                api_secret = (integ.api_secret or "").strip()
-                if not account_id or not api_secret:
-                    raise Exception("Missing Hostaway creds on integration")
-
                 hero, ha_address, ha_city = get_listing_overview(
                     listing_id=str(prop.pms_property_id),
-                    client_id=account_id,
-                    client_secret=api_secret,
+                    client_id=integ.account_id,
+                    client_secret=integ.api_secret,
                 )
 
-                if hero and not hero_image_url:
-                    hero_image_url = hero
-                    experiences_hero_url = experiences_hero_url or hero
-
-                if ha_address and not address:
-                    address = ha_address
-                if ha_city and not city_name:
-                    city_name = ha_city
+                hero_image_url = hero_image_url or hero
+                experiences_hero_url = experiences_hero_url or hero
+                address = address or ha_address
+                city_name = city_name or ha_city
 
         except Exception as e:
-            logger.warning("[Hostaway] Failed to fetch listing overview: %r", e)
+            logger.warning("[Hostaway] Listing overview failed: %r", e)
 
     if not experiences_hero_url and hero_image_url:
         experiences_hero_url = hero_image_url
 
+    # ----------------------------
+    # Session resolution
+    # ----------------------------
     latest_session = (
         db.query(ChatSession)
         .filter(ChatSession.property_id == prop.id)
@@ -1136,47 +1134,54 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         .first()
     )
 
-    reservation_name = latest_session.guest_name if latest_session and getattr(latest_session, "guest_name", None) else None
-    arrival_date_db = latest_session.arrival_date if latest_session else None
-    departure_date_db = latest_session.departure_date if latest_session else None
+    reservation_name = latest_session.guest_name if latest_session else None
 
-    # Turnover logic: prefer verified session if exists
     verified_session_id = request.session.get(f"guest_session_{property_id}")
     active_session = None
 
     if verified_session_id:
-        try:
-            active_session = (
-                db.query(ChatSession)
-                .filter(ChatSession.id == int(verified_session_id), ChatSession.property_id == prop.id)
-                .first()
+        active_session = (
+            db.query(ChatSession)
+            .filter(
+                ChatSession.id == int(verified_session_id),
+                ChatSession.property_id == prop.id,
             )
-        except Exception:
-            active_session = None
+            .first()
+        )
 
-    if not active_session:
-        active_session = latest_session
+    active_session = active_session or latest_session
 
-    arrival_for_turnover = getattr(active_session, "arrival_date", None)
-    departure_for_turnover = getattr(active_session, "departure_date", None)
-    guest_reservation_id = getattr(active_session, "reservation_id", None)
+    arrival_date = getattr(active_session, "arrival_date", None)
+    departure_date = getattr(active_session, "departure_date", None)
+    reservation_id = getattr(active_session, "reservation_id", None)
 
-    turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_for_turnover, guest_reservation_id)
-    turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_for_turnover, guest_reservation_id)
-    
-    # ✅ Hostaway fallback if DB has no matching reservations
-    if (not turnover_on_arrival and not turnover_on_departure) and prop_provider == "hostaway":
-        ha_arrival, ha_departure = _hostaway_turnover_flags(
+    # ----------------------------
+    # Turnover logic
+    # ----------------------------
+    turnover_on_arrival = turnover_on_arrival_day(
+        db, prop.id, arrival_date, reservation_id
+    )
+    turnover_on_departure = turnover_on_departure_day(
+        db, prop.id, departure_date, reservation_id
+    )
+
+    # Hostaway fallback
+    if not (turnover_on_arrival or turnover_on_departure) and prop_provider == "hostaway":
+        ha_arr, ha_dep = _hostaway_turnover_flags(
             db=db,
             prop=prop,
-            arrival_date=arrival_for_turnover,
-            departure_date=departure_for_turnover,
-            guest_reservation_id=guest_reservation_id,
+            arrival_date=arrival_date,
+            departure_date=departure_date,
+            guest_reservation_id=reservation_id,
         )
-        turnover_on_arrival = turnover_on_arrival or ha_arrival
-        turnover_on_departure = turnover_on_departure or ha_departure
+        turnover_on_arrival |= ha_arr
+        turnover_on_departure |= ha_dep
 
+    same_day_turnover = bool(turnover_on_arrival or turnover_on_departure)
 
+    # ----------------------------
+    # Upgrades (per-item availability)
+    # ----------------------------
     upgrades = (
         db.query(Upgrade)
         .filter(Upgrade.property_id == prop.id, Upgrade.is_active.is_(True))
@@ -1187,25 +1192,22 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     visible_upgrades = []
     for up in upgrades:
         slug = (up.slug or "").lower()
-        title_lower = (up.title or "").lower()
+        title = (up.title or "").lower()
 
         is_time_flex = (
             slug in {"early-check-in", "late-checkout", "late-check-out"}
-            or "early check" in title_lower
-            or "late check" in title_lower
+            or "early check" in title
+            or "late check" in title
         )
 
         is_available = True
         unavailable_reason = ""
 
         if is_time_flex:
-            is_early = (slug == "early-check-in") or ("early check" in title_lower)
-            is_late = (slug in {"late-checkout", "late-check-out"}) or ("late check" in title_lower)
-
-            if is_early and turnover_on_arrival:
+            if ("early" in slug or "early" in title) and turnover_on_arrival:
                 is_available = False
                 unavailable_reason = "Not available for same-day turnovers."
-            elif is_late and turnover_on_departure:
+            if ("late" in slug or "late" in title) and turnover_on_departure:
                 is_available = False
                 unavailable_reason = "Not available for same-day turnovers."
 
@@ -1217,27 +1219,33 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "short_description": up.short_description,
                 "long_description": up.long_description,
                 "price_cents": up.price_cents,
-                "price_currency": (up.currency or "usd"),
+                "price_currency": up.currency or "usd",
                 "price_display": format_price_display(up),
                 "stripe_price_id": up.stripe_price_id,
                 "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
-                "is_available": bool(is_available),
+                "is_available": is_available,
                 "unavailable_reason": unavailable_reason,
             }
         )
 
+    # ----------------------------
+    # Misc UI helpers
+    # ----------------------------
     google_maps_link = None
     if address or city_name:
         q = " ".join(filter(None, [address, city_name]))
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
-    checkin_time_display = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
-    checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd"))
+    checkin_time = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
+    checkout_time = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime"))
 
-return templates.TemplateResponse(
-    "guest_app.html",
-    {
+    # ----------------------------
+    # Render
+    # ----------------------------
+    return templates.TemplateResponse(
+        "guest_app.html",
+        {
             "request": request,
             "property_id": prop.id,
             "property_name": prop.property_name,
@@ -1245,13 +1253,10 @@ return templates.TemplateResponse(
             "property_address": address,
             "wifi_ssid": wifi.get("ssid"),
             "wifi_password": wifi.get("password"),
-            "checkin_time": checkin_time_display,
-            "checkout_time": checkout_time_display,
-            "arrival_date": arrival_date_db or cfg.get("arrival_date"),
-            "departure_date": departure_date_db or cfg.get("departure_date"),
-            "feature_image_url": cfg.get("feature_image_url"),
-            "family_image_url": cfg.get("family_image_url"),
-            "foodie_image_url": cfg.get("foodie_image_url"),
+            "checkin_time": checkin_time,
+            "checkout_time": checkout_time,
+            "arrival_date": arrival_date,
+            "departure_date": departure_date,
             "city_name": city_name,
             "hero_image_url": hero_image_url,
             "experiences_hero_url": experiences_hero_url,
@@ -1265,19 +1270,9 @@ return templates.TemplateResponse(
             "turnover_on_arrival": turnover_on_arrival,
             "turnover_on_departure": turnover_on_departure,
             "same_day_turnover": same_day_turnover,
-            "hide_time_flex": same_day_turnover,
-            "turnover_on_arrival": turnover_on_arrival,
-            "turnover_on_departure": turnover_on_departure,
-    
-            # optional, if you still want this info for display
-            "same_day_turnover": bool(turnover_on_arrival or turnover_on_departure),
-    
-            # ✅ IMPORTANT: do NOT use this to hide both upgrades
-            "hide_time_flex": False,
+            "hide_time_flex": False,  # ✅ NEVER hide both
         },
     )
-
-
 
 def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
     if not reservation or not reservation.departure_date:
