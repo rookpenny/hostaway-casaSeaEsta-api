@@ -18,7 +18,7 @@ from utils.hostaway import (
     get_token_for_pmc,
 )
 
-
+from sqlalchemy import and_, cast, Date
 from urllib.parse import quote_plus
 
 from pathlib import Path as FSPath
@@ -199,6 +199,7 @@ def _is_time_flex_upgrade(up: Upgrade) -> tuple[bool, str]:
 
 
 @app.get("/guest/properties/{property_id}/upgrades/availability")
+@app.get("/guest/properties/{property_id}/upgrades/availability")
 def guest_upgrades_availability(
     property_id: int,
     session_id: str | None = None,
@@ -210,14 +211,21 @@ def guest_upgrades_availability(
 
     qs = db.query(ChatSession).filter(ChatSession.property_id == property_id)
 
+    guest_session = None
+
     if session_id:
-        qs = qs.filter(ChatSession.id == session_id)
+        guest_session = qs.filter(ChatSession.id == int(session_id)).first()
+    else:
+        # Prefer most recent verified session, otherwise most recent session
+        guest_session = (
+            qs.filter(getattr(ChatSession, "is_verified", True) == True)
+            .order_by(ChatSession.last_activity_at.desc())
+            .first()
+        ) or qs.order_by(ChatSession.last_activity_at.desc()).first()
 
-    guest_session = qs.first()
-
-    arrival = getattr(guest_session, "arrival_date", None)
-    departure = getattr(guest_session, "departure_date", None)
-    guest_reservation_id = getattr(guest_session, "reservation_id", None)
+    arrival = getattr(guest_session, "arrival_date", None) if guest_session else None
+    departure = getattr(guest_session, "departure_date", None) if guest_session else None
+    guest_reservation_id = getattr(guest_session, "reservation_id", None) if guest_session else None
 
     turnover_arrival = turnover_on_arrival_day(db, property_id, arrival, guest_reservation_id)
     turnover_departure = turnover_on_departure_day(db, property_id, departure, guest_reservation_id)
@@ -252,6 +260,7 @@ def guest_upgrades_availability(
         )
 
     return {
+        "session_id_used": getattr(guest_session, "id", None),
         "arrival_date": str(arrival) if arrival else None,
         "departure_date": str(departure) if departure else None,
         "turnover_on_arrival": turnover_arrival,
@@ -791,9 +800,13 @@ def _to_date_any(x: Any) -> Optional[datetime.date]:
         return None
 
 
-# ----------------------------
-# Turnover rules
-# ----------------------------
+def _day_range(d: datetime.date) -> tuple[datetime, datetime]:
+    """UTC day range for a date: [00:00, next day 00:00)."""
+    start = datetime(d.year, d.month, d.day)
+    end = start + timedelta(days=1)
+    return start, end
+
+
 def turnover_on_arrival_day(
     db: Session,
     property_id: int,
@@ -802,14 +815,22 @@ def turnover_on_arrival_day(
 ) -> bool:
     """
     Early check-in is NOT available if someone else is DEPARTING on the guest's arrival date.
+    Works whether Reservation.departure_date is DATE or DATETIME.
     """
     arrival = _to_date_any(arrival_date)
     if not arrival:
         return False
 
+    start_dt, end_dt = _day_range(arrival)
+
+    # Works for DATE columns AND DATETIME columns
     q = db.query(Reservation).filter(
         Reservation.property_id == property_id,
-        Reservation.departure_date == arrival,
+        # Date-safe + DateTime-safe
+        (
+            (cast(Reservation.departure_date, Date) == arrival)
+            | and_(Reservation.departure_date >= start_dt, Reservation.departure_date < end_dt)
+        ),
     )
 
     if guest_reservation_id:
@@ -830,14 +851,20 @@ def turnover_on_departure_day(
 ) -> bool:
     """
     Late checkout is NOT available if someone else is ARRIVING on the guest's departure date.
+    Works whether Reservation.arrival_date is DATE or DATETIME.
     """
     dep = _to_date_any(departure_date)
     if not dep:
         return False
 
+    start_dt, end_dt = _day_range(dep)
+
     q = db.query(Reservation).filter(
         Reservation.property_id == property_id,
-        Reservation.arrival_date == dep,
+        (
+            (cast(Reservation.arrival_date, Date) == dep)
+            | and_(Reservation.arrival_date >= start_dt, Reservation.arrival_date < end_dt)
+        ),
     )
 
     if guest_reservation_id:
