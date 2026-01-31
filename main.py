@@ -18,9 +18,6 @@ from utils.hostaway import (
     get_token_for_pmc,
 )
 
-from sqlalchemy import and_, cast, Date, func
-
-from urllib.parse import quote_plus
 
 from pathlib import Path as FSPath
 from typing import Optional, Any, Dict, Literal, TypedDict
@@ -107,23 +104,7 @@ app.include_router(upgrade_checkout_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
 
-
-
-# --- Paths (ABSOLUTE so Render/uvicorn working-dir changes don't break static/templates) ---
-BASE_DIR = FSPath(__file__).resolve().parent
-STATIC_DIR = BASE_DIR / "static"
-TEMPLATES_DIR = BASE_DIR / "templates"
-
-# Ensure dirs exist (helps avoid silent StaticFiles mount issues)
-STATIC_DIR.mkdir(parents=True, exist_ok=True)
-TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
-
-templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
-
-# Mount static using absolute path
-app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # --- Middleware ---
 ALLOWED_ORIGINS = [
@@ -153,7 +134,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+templates = Jinja2Templates(directory="templates")
 
 TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
 TMP_DIR = FSPath("static/uploads/upgrades/tmp")
@@ -192,108 +173,6 @@ def normalize_sentiment_label(value) -> str:
     if label not in {"positive", "neutral", "negative"}:
         return "neutral"
     return label
-
-
-
-
-def _is_time_flex_upgrade(up: Upgrade) -> tuple[bool, str]:
-    slug = (up.slug or "").lower()
-    title_lower = (up.title or "").lower()
-    kind = None
-
-    if slug in {"early-check-in"} or "early check" in title_lower:
-        kind = "early_checkin"
-    elif slug in {"late-checkout", "late-check-out"} or "late check" in title_lower:
-        kind = "late_checkout"
-
-    return (kind is not None, kind or "")
-
-
-
-
-@app.get("/guest/properties/{property_id}/upgrades/availability")
-def guest_upgrades_availability(
-    property_id: int,
-    request: Request,
-    session_id: str | None = None,
-    db: Session = Depends(get_db),
-):
-
-    prop = db.query(Property).filter(Property.id == property_id).first()
-    if not prop:
-        raise HTTPException(status_code=404, detail="Property not found")
-
-    # ✅ If session_id is supplied, use it. Otherwise use the SAME resolver as UI.
-    guest_session = None
-    if session_id:
-        try:
-            guest_session = (
-                db.query(ChatSession)
-                .filter(ChatSession.id == int(session_id), ChatSession.property_id == property_id)
-                .first()
-            )
-        except Exception:
-            guest_session = None
-
-    if not guest_session:
-        # request can be None depending on FastAPI injection; be safe
-        if request is not None:
-            guest_session = resolve_guest_session(db, request, property_id)
-        else:
-            guest_session = (
-                db.query(ChatSession)
-                .filter(ChatSession.property_id == property_id)
-                .order_by(ChatSession.last_activity_at.desc())
-                .first()
-            )
-
-    arrival = getattr(guest_session, "arrival_date", None) if guest_session else None
-    departure = getattr(guest_session, "departure_date", None) if guest_session else None
-    guest_reservation_id = getattr(guest_session, "reservation_id", None) if guest_session else None
-
-    turnover_arrival = turnover_on_arrival_day(db, property_id, arrival, guest_reservation_id) if guest_session else False
-    turnover_departure = turnover_on_departure_day(db, property_id, departure, guest_reservation_id) if guest_session else False
-
-
-    # Hostaway fallback if DB doesn't show turnover
-    if guest_session and (not turnover_arrival or not turnover_departure):
-        ha_arr, ha_dep = _hostaway_turnover_flags(db, prop, arrival, departure, guest_reservation_id)
-        turnover_arrival = turnover_arrival or ha_arr
-        turnover_departure = turnover_departure or ha_dep
-
-    
-    upgrades = (
-        db.query(Upgrade)
-        .filter(Upgrade.property_id == property_id, Upgrade.is_active.is_(True))
-        .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
-        .all()
-    )
-
-    items = []
-    for up in upgrades:
-        is_available = True
-        reason = None
-
-        is_time_flex, kind = _is_time_flex_upgrade(up)
-        if kind == "early_checkin" and turnover_arrival:
-            is_available = False
-            reason = "Not available for same-day turnovers."
-        elif kind == "late_checkout" and turnover_departure:
-            is_available = False
-            reason = "Not available for same-day turnovers."
-
-        items.append({"upgrade_id": up.id, "is_available": is_available, "unavailable_reason": reason})
-
-    return {
-        "session_id_used": getattr(guest_session, "id", None),
-        "arrival_date": str(arrival) if arrival else None,
-        "departure_date": str(departure) if departure else None,
-        "turnover_on_arrival": turnover_arrival,
-        "turnover_on_departure": turnover_departure,
-        "items": items,
-    }
-
-
 
 
 def classify_sentiment_openai(
@@ -630,44 +509,11 @@ def list_routes():
     return [{"path": route.path, "methods": list(route.methods)} for route in app.router.routes]
 
 
-def resolve_public_image_url(request: Request, raw: str | None) -> str | None:
-    """
-    Normalizes image URLs so the frontend always gets a usable URL.
-    Accepts:
-      - full URLs: https://...
-      - absolute paths: /static/...
-      - relative static paths: uploads/...   (served from /static/uploads/...)
-    """
-    if not raw:
-        return None
-
-    s = str(raw).strip()
-    if not s:
-        return None
-
-    # already public
-    if s.startswith("http://") or s.startswith("https://") or s.startswith("data:"):
-        return s
-    if s.startswith("/"):
-        return s
-
-    # treat as relative-to-static
-    # e.g. "uploads/guides/x.jpg" -> "/static/uploads/guides/x.jpg"
-    try:
-        return str(request.url_for("static", path=s))
-    except Exception:
-        return f"/static/{s.lstrip('/')}"
-
-
-
-
 @app.get("/properties/{property_id}/guides")
 def list_property_guides(
     property_id: int,
-    request: Request,
     db: Session = Depends(get_db),
 ):
-
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -693,7 +539,7 @@ def list_property_guides(
                 "long_description": g.long_description,
                 "body_html": g.body_html,
                 "category": g.category,
-                "image_url": resolve_public_image_url(request, g.image_url),
+                "image_url": g.image_url,
                 "sort_order": g.sort_order,
             }
         )
@@ -829,334 +675,6 @@ def __routes():
     return JSONResponse(out)
 
 
-
-# ----------------------------
-# Date helpers
-# ----------------------------
-def _parse_ymd(d: Optional[str]) -> Optional[datetime.date]:
-    if not d:
-        return None
-    s = str(d).strip()
-    if not s:
-        return None
-    try:
-        return datetime.strptime(s, "%Y-%m-%d").date()
-    except Exception:
-        return None
-
-
-def _to_date_any(x: Any) -> Optional[datetime.date]:
-    """
-    Normalize various inputs (datetime/date/str) -> date
-    """
-    if x is None:
-        return None
-    if isinstance(x, datetime):
-        return x.date()
-    if hasattr(x, "year") and hasattr(x, "month") and hasattr(x, "day") and not isinstance(x, str):
-        # already date-like (datetime.date)
-        try:
-            return x
-        except Exception:
-            return None
-    if isinstance(x, str):
-        return _parse_ymd(x)
-    return None
-
-def _day_range(d: datetime.date) -> tuple[datetime, datetime]:
-    """UTC day range for a date: [00:00, next day 00:00)."""
-    start = datetime(d.year, d.month, d.day)
-    end = start + timedelta(days=1)
-    return start, end
-
-
-def turnover_on_arrival_day(
-    db: Session,
-    property_id: int,
-    arrival_date: Any,
-    guest_reservation_id: str | None = None,
-) -> bool:
-    """
-    Early check-in is NOT available if someone else is DEPARTING on the guest's arrival date.
-    Handles Reservation.departure_date stored as DATE or DATETIME.
-    Filters out cancelled/non-blocking reservations when possible.
-    """
-    arrival = _to_date_any(arrival_date)
-    if not arrival:
-        return False
-
-    q = db.query(Reservation).filter(
-        Reservation.property_id == property_id,
-        cast(Reservation.departure_date, Date) == arrival,
-    )
-
-    q = _apply_reservation_blocking_filters(q)
-
-    if guest_reservation_id:
-        # NOTE: this only excludes if your guest_reservation_id matches Reservation.id.
-        # If your Reservation.id is internal DB id and guest_reservation_id is PMS id,
-        # this won't exclude the same stay — which is fine for this query anyway.
-        try:
-            gid = int(str(guest_reservation_id))
-            q = q.filter(Reservation.id != gid)
-        except Exception:
-            pass
-
-    return db.query(q.exists()).scalar() is True
-
-
-def turnover_on_departure_day(
-    db: Session,
-    property_id: int,
-    departure_date: Any,
-    guest_reservation_id: str | None = None,
-) -> bool:
-    """
-    Late checkout is NOT available if someone else is ARRIVING on the guest's departure date.
-    Handles Reservation.arrival_date stored as DATE or DATETIME.
-    Filters out cancelled/non-blocking reservations when possible.
-    """
-    dep = _to_date_any(departure_date)
-    if not dep:
-        return False
-
-    q = db.query(Reservation).filter(
-        Reservation.property_id == property_id,
-        cast(Reservation.arrival_date, Date) == dep,
-    )
-
-    q = _apply_reservation_blocking_filters(q)
-
-    if guest_reservation_id:
-        try:
-            gid = int(str(guest_reservation_id))
-            q = q.filter(Reservation.id != gid)
-        except Exception:
-            pass
-
-    return db.query(q.exists()).scalar() is True
-
-
-def _hostaway_turnover_flags(
-    db: Session,
-    prop: Property,
-    arrival_date: Any,
-    departure_date: Any,
-    guest_reservation_id: str | None,
-) -> tuple[bool, bool]:
-    """
-    Fallback turnover detection using Hostaway API when DB reservations are missing.
-    Returns: (turnover_on_arrival, turnover_on_departure)
-    """
-    arrival = _to_date_any(arrival_date)
-    dep = _to_date_any(departure_date)
-    if not arrival and not dep:
-        return (False, False)
-
-    try:
-        integ = get_integration_for_property(db, prop)
-        if (integ.provider or "").strip().lower() != "hostaway":
-            return (False, False)
-
-        if not getattr(prop, "pms_property_id", None):
-            return (False, False)
-
-        account_id = (integ.account_id or "").strip()
-        api_secret = (integ.api_secret or "").strip()
-        if not account_id or not api_secret:
-            return (False, False)
-
-        token = get_token_for_pmc(account_id, api_secret)
-
-        # Expand window to include far-future stays (like 2026)
-        today = datetime.utcnow().date()
-        max_needed = 0
-        if arrival:
-            max_needed = max(max_needed, (arrival - today).days)
-        if dep:
-            max_needed = max(max_needed, (dep - today).days)
-
-        window_days = max(WINDOW_DAYS, max_needed + 30)
-        window_days = min(window_days, 730)  # cap at 2 years to be safe
-
-        reservations = fetch_reservations(
-            listing_id=str(prop.pms_property_id),
-            token=token,
-            window_days=window_days,
-            past_days=30,
-        )
-
-        turnover_arrival = False
-        turnover_departure = False
-
-        guest_id_str = str(guest_reservation_id).strip() if guest_reservation_id else ""
-
-        for r in reservations or []:
-            rid = str(r.get("id") or r.get("reservationId") or "").strip()
-            if guest_id_str and rid and rid == guest_id_str:
-                continue
-
-            a = _parse_ymd(r.get("arrivalDate"))
-            d = _parse_ymd(r.get("departureDate"))
-            if not a or not d:
-                continue
-
-            # Someone departs on guest arrival day -> no early check-in
-            if arrival and d == arrival:
-                turnover_arrival = True
-
-            # Someone arrives on guest departure day -> no late checkout
-            if dep and a == dep:
-                turnover_departure = True
-
-            if turnover_arrival and turnover_departure:
-                break
-
-        return (turnover_arrival, turnover_departure)
-
-    except Exception as e:
-        logger.warning("[Hostaway turnover fallback failed] %r", e)
-        return (False, False)
-
-def _apply_reservation_blocking_filters(q):
-    cols = {c.key for c in sa_inspect(Reservation).mapper.column_attrs}
-
-    # statuses that should NOT block turnover logic
-    bad_statuses = {"canceled", "cancelled", "inquiry", "expired", "declined"}
-
-    # if there's a status-like field
-    if "status" in cols:
-        q = q.filter(~Reservation.status.in_(bad_statuses))
-    if "reservation_status" in cols:
-        q = q.filter(~Reservation.reservation_status.in_(bad_statuses))
-
-    # block/hold types that should NOT count as an arrival turnover (optional)
-    # (If you DO want blocks to block, remove this)
-    bad_types = {"block", "blocked", "hold", "owner", "owner_stay", "maintenance"}
-    if "type" in cols:
-        q = q.filter(~Reservation.type.in_(bad_types))
-    if "reservation_type" in cols:
-        q = q.filter(~Reservation.reservation_type.in_(bad_types))
-    if "kind" in cols:
-        q = q.filter(~Reservation.kind.in_(bad_types))
-
-    # boolean flags
-    if "is_cancelled" in cols:
-        q = q.filter(Reservation.is_cancelled.is_(False))
-    if "cancelled_at" in cols:
-        q = q.filter(Reservation.cancelled_at.is_(None))
-    if "is_active" in cols:
-        q = q.filter(Reservation.is_active.is_(True))
-
-    return q
-
-
-def resolve_guest_session(db: Session, request: Request, property_id: int) -> ChatSession | None:
-    """
-    1) Use verified session from cookie if present
-    2) Else fallback to most recent session for property (for display + availability)
-    """
-    verified_session_id = request.session.get(f"guest_session_{property_id}")
-
-    if verified_session_id:
-        try:
-            s = (
-                db.query(ChatSession)
-                .filter(
-                    ChatSession.id == int(verified_session_id),
-                    ChatSession.property_id == int(property_id),
-                )
-                .first()
-            )
-            if s:
-                return s
-        except Exception:
-            pass
-
-    return (
-        db.query(ChatSession)
-        .filter(ChatSession.property_id == int(property_id))
-        .order_by(ChatSession.last_activity_at.desc())
-        .first()
-    )
-
-
-@app.get("/debug/turnover/{property_id}")
-def debug_turnover(property_id: int, session_id: int | None = None, db: Session = Depends(get_db)):
-    qs = db.query(ChatSession).filter(ChatSession.property_id == property_id)
-    if session_id:
-        qs = qs.filter(ChatSession.id == session_id)
-    s = qs.order_by(ChatSession.last_activity_at.desc()).first()
-    if not s:
-        return {"error": "no session"}
-
-    arr = _to_date_any(getattr(s, "arrival_date", None))
-    dep = _to_date_any(getattr(s, "departure_date", None))
-
-    dep_on_arrival_q = db.query(Reservation).filter(
-        Reservation.property_id == property_id,
-        cast(Reservation.departure_date, Date) == arr,
-    )
-    arr_on_departure_q = db.query(Reservation).filter(
-        Reservation.property_id == property_id,
-        cast(Reservation.arrival_date, Date) == dep,
-    )
-
-    dep_matches = dep_on_arrival_q.limit(20).all()
-    arr_matches = arr_on_departure_q.limit(20).all()
-
-    def pack(r: Reservation):
-        cols = {c.key for c in sa_inspect(Reservation).mapper.column_attrs}
-        def g(name):
-            return getattr(r, name, None) if name in cols else None
-
-        return {
-            "id": g("id"),
-            "property_id": g("property_id"),
-            "arrival_date": str(_to_date_any(g("arrival_date"))),
-            "departure_date": str(_to_date_any(g("departure_date"))),
-            "status": g("status") or g("reservation_status"),
-            "type": g("type") or g("reservation_type") or g("kind"),
-            "is_active": g("is_active"),
-            "is_cancelled": g("is_cancelled"),
-            "source": g("source") or g("provider"),
-            "pms_reservation_id": g("pms_reservation_id") or g("reservation_id") or g("external_id"),
-        }
-
-    return {
-        "session_id": s.id,
-        "arrival_date": str(arr),
-        "departure_date": str(dep),
-        "departures_on_arrival_day_count": dep_on_arrival_q.count(),
-        "arrivals_on_departure_day_count": arr_on_departure_q.count(),
-        "departures_on_arrival_day_sample": [pack(x) for x in dep_matches],
-        "arrivals_on_departure_day_sample": [pack(x) for x in arr_matches],
-    }
-
-
-# ----------------------------
-# Price formatting helper
-# ----------------------------
-def format_price_display(up: Upgrade) -> str:
-    currency = (getattr(up, "currency", None) or "usd").lower()
-    cents = getattr(up, "price_cents", None)
-
-    if cents is None:
-        val = getattr(up, "price_display", None)
-        return str(val) if val else ""
-
-    try:
-        amount = float(cents) / 100.0
-    except Exception:
-        return ""
-
-    symbol = "$" if currency in ("usd", "us$", "$") else ""
-    return f"{symbol}{amount:,.2f}" if symbol else f"{amount:,.2f} {currency.upper()}"
-
-
-# ----------------------------
-# Guest UI route (WORKING / STABLE)
-# ----------------------------
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
     request.session["last_property"] = property_id
@@ -1165,7 +683,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # HARD GATE
+    # HARD GATE: property must have sandy_enabled
     if not bool(getattr(prop, "sandy_enabled", False)):
         return HTMLResponse(
             """
@@ -1179,7 +697,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 <div class="max-w-md w-full bg-white rounded-3xl p-6 shadow-sm text-center">
                   <h1 class="text-2xl font-semibold text-slate-900">Guest experience unavailable</h1>
                   <p class="mt-3 text-slate-600">
-                    This property hasn’t enabled Sandy yet. Please contact your host.
+                    This property hasn’t enabled Sandy yet. Please contact your host for assistance.
                   </p>
                 </div>
               </body>
@@ -1189,78 +707,110 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         )
 
     pmc = getattr(prop, "pmc", None)
+
+    prop_provider = (
+        (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "")
+        .strip()
+        .lower()
+    )
+    _pmc_provider = (getattr(pmc, "pms_integration", None) or "").strip().lower() if pmc else ""
+
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
-    # ----------------------------
-    # Load config (keep all image fields)
-    # ----------------------------
+    # Load config/manual from disk
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
     wifi = cfg.get("wifi") or {}
+
     assistant_config = cfg.get("assistant") if isinstance(cfg.get("assistant"), dict) else {}
 
     address = cfg.get("address")
     city_name = cfg.get("city_name")
+    hero_image_url = cfg.get("hero_image_url")
+    experiences_hero_url = cfg.get("experiences_hero_url")
 
-    hero_image_url = resolve_public_image_url(request, cfg.get("hero_image_url"))
-    experiences_hero_url = resolve_public_image_url(request, cfg.get("experiences_hero_url")) or hero_image_url
-    
-    feature_image_url = resolve_public_image_url(request, cfg.get("feature_image_url"))
-    family_image_url = resolve_public_image_url(request, cfg.get("family_image_url"))
-    foodie_image_url = resolve_public_image_url(request, cfg.get("foodie_image_url"))
+    # Hostaway overrides (if configured)
+    if pmc and prop_provider == "hostaway" and getattr(prop, "pms_property_id", None):
+        try:
+            integ = get_integration_for_property(db, prop)
+            provider = (integ.provider or "").strip().lower()
+            if provider == "hostaway":
+                account_id = (integ.account_id or "").strip()
+                api_secret = (integ.api_secret or "").strip()
+                if not account_id or not api_secret:
+                    raise Exception("Missing Hostaway creds on integration")
 
+                hero, ha_address, ha_city = get_listing_overview(
+                    listing_id=str(prop.pms_property_id),
+                    client_id=account_id,
+                    client_secret=api_secret,
+                )
 
-    
+                if hero and not hero_image_url:
+                    hero_image_url = hero
+                    if not experiences_hero_url:
+                        experiences_hero_url = hero
 
-    # ----------------------------
-    # Resolve session (ONE rule)
-    # ----------------------------
-    session = resolve_guest_session(db, request, property_id)
+                if ha_address and not address:
+                    address = ha_address
 
-    verified_session_id = request.session.get(f"guest_session_{property_id}")
-    is_verified = bool(request.session.get(f"guest_verified_{property_id}", False))
+                if ha_city and not city_name:
+                    city_name = ha_city
 
-    reservation_name = getattr(session, "guest_name", None) if session else None
-    arrival_date = getattr(session, "arrival_date", None) if session else None
-    departure_date = getattr(session, "departure_date", None) if session else None
-    reservation_id = getattr(session, "reservation_id", None) if session else None
+        except Exception as e:
+            logger.warning("[Hostaway] Failed to fetch listing overview: %r", e)
 
-    # ----------------------------
-    # Turnover logic (DB ONLY here)
-    # ----------------------------
-    turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_date, reservation_id) if session else False
-    turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_date, reservation_id) if session else False
-    
-    # If DB shows no turnover, fallback to Hostaway API (helps when reservations aren't synced)
-    if session and (not turnover_on_arrival or not turnover_on_departure):
-        ha_arr, ha_dep = _hostaway_turnover_flags(db, prop, arrival_date, departure_date, reservation_id)
-        turnover_on_arrival = turnover_on_arrival or ha_arr
-        turnover_on_departure = turnover_on_departure or ha_dep
+    if not experiences_hero_url and hero_image_url:
+        experiences_hero_url = hero_image_url
 
+    latest_session = (
+        db.query(ChatSession)
+        .filter(ChatSession.property_id == prop.id)
+        .order_by(ChatSession.last_activity_at.desc())
+        .first()
+    )
 
-    # ----------------------------
-    # Upgrades per-item availability
-    # ----------------------------
+    reservation_name = latest_session.guest_name if latest_session and latest_session.guest_name else None
+    arrival_date_db = latest_session.arrival_date if latest_session and latest_session.arrival_date else None
+    departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
+
+    # Today's in-house reservation (for turnover logic)
+    today_res = get_today_reservation(db, prop.id)
+    same_day_turnover = compute_same_day_turnover(db, prop.id, today_res)
+
+    # Load upgrades
     upgrades = (
         db.query(Upgrade)
-        .filter(Upgrade.property_id == prop.id, Upgrade.is_active.is_(True))
+        .filter(
+            Upgrade.property_id == prop.id,
+            Upgrade.is_active.is_(True),
+        )
         .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
         .all()
     )
 
     visible_upgrades = []
     for up in upgrades:
-        is_available = True
-        unavailable_reason = ""
+        slug = (up.slug or "").lower()
+        title_lower = (up.title or "").lower() if up.title else ""
 
-        is_time_flex, kind = _is_time_flex_upgrade(up)
+        is_time_flex = (
+            slug in {"early-check-in", "late-checkout", "late-check-out"}
+            or "early check" in title_lower
+            or "late check" in title_lower
+        )
 
-        if kind == "early_checkin" and turnover_on_arrival:
-            is_available = False
-            unavailable_reason = "Not available for same-day turnovers."
-        elif kind == "late_checkout" and turnover_on_departure:
-            is_available = False
-            unavailable_reason = "Not available for same-day turnovers."
+        if same_day_turnover and is_time_flex:
+            continue
+
+        price_display = None
+        if up.price_cents is not None:
+            currency = (up.currency or "usd").lower()
+            amount = up.price_cents / 100.0
+            if currency == "usd":
+                price_display = f"${amount:,.0f}"
+            else:
+                price_display = f"{amount:,.2f} {currency.upper()}"
 
         visible_upgrades.append(
             {
@@ -1271,29 +821,25 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "long_description": up.long_description,
                 "price_cents": up.price_cents,
                 "price_currency": up.currency or "usd",
-                "price_display": format_price_display(up),
+                "price_display": price_display,
                 "stripe_price_id": up.stripe_price_id,
-                "image_url": resolve_public_image_url(request, getattr(up, "image_url", None)),
+                "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
-                "is_available": bool(is_available),
-                "unavailable_reason": unavailable_reason,
             }
         )
 
-    # ----------------------------
-    # UI helpers
-    # ----------------------------
+    from urllib.parse import quote_plus
+
     google_maps_link = None
     if address or city_name:
         q = " ".join(filter(None, [address, city_name]))
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
-    checkin_time = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
-    checkout_time = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd"))
+    checkin_time_display = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
+    checkout_time_display = hour_to_ampm(
+        cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd")
+    )
 
-    # ----------------------------
-    # Render
-    # ----------------------------
     return templates.TemplateResponse(
         "guest_app.html",
         {
@@ -1304,32 +850,82 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "property_address": address,
             "wifi_ssid": wifi.get("ssid"),
             "wifi_password": wifi.get("password"),
-            "checkin_time": checkin_time,
-            "checkout_time": checkout_time,
-            "arrival_date": arrival_date,
-            "departure_date": departure_date,
-
+            "checkin_time": checkin_time_display,
+            "checkout_time": checkout_time_display,
+            "arrival_date": arrival_date_db or cfg.get("arrival_date"),
+            "departure_date": departure_date_db or cfg.get("departure_date"),
+            "feature_image_url": cfg.get("feature_image_url"),
+            "family_image_url": cfg.get("family_image_url"),
+            "foodie_image_url": cfg.get("foodie_image_url"),
+            "city_name": city_name,
             "hero_image_url": hero_image_url,
             "experiences_hero_url": experiences_hero_url,
-            "feature_image_url": feature_image_url,
-            "family_image_url": family_image_url,
-            "foodie_image_url": foodie_image_url,
-
-            "city_name": city_name,
             "google_maps_link": google_maps_link,
             "is_live": is_live,
             "sandy_enabled": bool(getattr(prop, "sandy_enabled", False)),
-            "is_verified": is_verified,
-
+            "is_verified": request.session.get(f"guest_verified_{property_id}", False),
             "assistant_config": assistant_config,
-            "initial_session_id": verified_session_id,  # IMPORTANT for JS
+            "initial_session_id": request.session.get(f"guest_session_{property_id}", None),
             "upgrades": visible_upgrades,
-
-            "turnover_on_arrival": turnover_on_arrival,
-            "turnover_on_departure": turnover_on_departure,
+            "same_day_turnover": same_day_turnover,
+            "hide_time_flex": same_day_turnover,
         },
     )
 
+
+def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
+    if not reservation or not reservation.departure_date:
+        return False
+
+    checkout = reservation.departure_date
+
+    next_guest = (
+        db.query(Reservation)
+        .filter(
+            Reservation.property_id == property_id,
+            Reservation.arrival_date == checkout,
+            Reservation.id != reservation.id,
+        )
+        .first()
+    )
+    return next_guest is not None
+
+
+def should_hide_upgrade_for_turnover(upgrade: Upgrade, same_day_turnover: bool) -> bool:
+    if not same_day_turnover:
+        return False
+
+    title = (upgrade.title or "").lower()
+
+    early_phrases = [
+        "early check-in",
+        "early check in",
+        "early arrival",
+    ]
+    late_phrases = [
+        "late checkout",
+        "late check-out",
+        "late check out",
+        "late departure",
+    ]
+
+    return any(p in title for p in early_phrases + late_phrases)
+
+
+class VerifyRequest(BaseModel):
+    code: str
+
+
+def _parse_ymd(d: Optional[str]) -> Optional[datetime.date]:
+    if not d:
+        return None
+    s = str(d).strip()
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return None
 
 
 def _format_time_display(value: Any, default: str = "") -> str:
@@ -1359,8 +955,6 @@ def _format_time_display(value: Any, default: str = "") -> str:
 
     return s
 
-class VerifyRequest(BaseModel):
-    code: str
 
 @app.post("/guest/{property_id}/verify-json")
 def verify_json(
