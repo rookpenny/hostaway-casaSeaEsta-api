@@ -831,8 +831,6 @@ def _day_range(d: datetime.date) -> tuple[datetime, datetime]:
     return start, end
 
 
-from sqlalchemy import func  # add this import near your other sqlalchemy imports
-
 def turnover_on_arrival_day(
     db: Session,
     property_id: int,
@@ -841,7 +839,8 @@ def turnover_on_arrival_day(
 ) -> bool:
     """
     Early check-in is NOT available if someone else is DEPARTING on the guest's arrival date.
-    Works whether Reservation.departure_date is DATE or DATETIME.
+    Handles Reservation.departure_date stored as DATE or DATETIME.
+    Filters out cancelled/non-blocking reservations when possible.
     """
     arrival = _to_date_any(arrival_date)
     if not arrival:
@@ -849,11 +848,15 @@ def turnover_on_arrival_day(
 
     q = db.query(Reservation).filter(
         Reservation.property_id == property_id,
-        func.date(Reservation.departure_date) == arrival,  # ✅ key fix
+        cast(Reservation.departure_date, Date) == arrival,
     )
 
-    # Only exclude if your Reservation.id is truly the same id space (often it's not)
+    q = _apply_reservation_blocking_filters(q)
+
     if guest_reservation_id:
+        # NOTE: this only excludes if your guest_reservation_id matches Reservation.id.
+        # If your Reservation.id is internal DB id and guest_reservation_id is PMS id,
+        # this won't exclude the same stay — which is fine for this query anyway.
         try:
             gid = int(str(guest_reservation_id))
             q = q.filter(Reservation.id != gid)
@@ -871,7 +874,8 @@ def turnover_on_departure_day(
 ) -> bool:
     """
     Late checkout is NOT available if someone else is ARRIVING on the guest's departure date.
-    Works whether Reservation.arrival_date is DATE or DATETIME.
+    Handles Reservation.arrival_date stored as DATE or DATETIME.
+    Filters out cancelled/non-blocking reservations when possible.
     """
     dep = _to_date_any(departure_date)
     if not dep:
@@ -879,8 +883,10 @@ def turnover_on_departure_day(
 
     q = db.query(Reservation).filter(
         Reservation.property_id == property_id,
-        func.date(Reservation.arrival_date) == dep,  # ✅ key fix
+        cast(Reservation.arrival_date, Date) == dep,
     )
+
+    q = _apply_reservation_blocking_filters(q)
 
     if guest_reservation_id:
         try:
@@ -890,7 +896,6 @@ def turnover_on_departure_day(
             pass
 
     return db.query(q.exists()).scalar() is True
-
 
 
 def _hostaway_turnover_flags(
@@ -974,6 +979,31 @@ def _hostaway_turnover_flags(
         logger.warning("[Hostaway turnover fallback failed] %r", e)
         return (False, False)
 
+def _apply_reservation_blocking_filters(q):
+    """
+    Filters out non-blocking reservations if your Reservation model has the columns.
+    Safe: only applies filters for columns that exist.
+    """
+    cols = {c.key for c in sa_inspect(Reservation).mapper.column_attrs}
+
+    # Common: status column (Hostaway etc.)
+    if "status" in cols:
+        # Keep only statuses that actually occupy the calendar
+        q = q.filter(~Reservation.status.in_(["canceled", "cancelled", "inquiry", "expired"]))
+
+    # Common: is_cancelled boolean
+    if "is_cancelled" in cols:
+        q = q.filter(Reservation.is_cancelled.is_(False))
+
+    # Common: cancelled_at timestamp
+    if "cancelled_at" in cols:
+        q = q.filter(Reservation.cancelled_at.is_(None))
+
+    # Common: is_active boolean
+    if "is_active" in cols:
+        q = q.filter(Reservation.is_active.is_(True))
+
+    return q
 
 
 @app.get("/debug/turnover/{property_id}")
