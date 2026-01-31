@@ -482,7 +482,30 @@
     window.INITIAL_VERIFIED = {{ is_verified | tojson }};
     window.INITIAL_SESSION_ID = {{ initial_session_id | tojson }};
     window.ASSISTANT_CONFIG = {{ assistant_config | tojson }};
-  </script>
+
+
+  
+  // ✅ Always define a usable session id for upgrade availability calls
+  // Priority:
+  // 1) server-provided INITIAL_SESSION_ID (verified session)
+  // 2) sessionStorage previously saved value
+  // 3) null
+  let currentSessionId =
+    window.INITIAL_SESSION_ID ||
+    sessionStorage.getItem("INITIAL_SESSION_ID") ||
+    null;
+
+  // Persist for later reloads
+  if (currentSessionId) {
+    sessionStorage.setItem("INITIAL_SESSION_ID", String(currentSessionId));
+  }
+
+  // Optional: expose for debugging
+  window.CURRENT_SESSION_ID = currentSessionId;
+</script>
+
+
+  
 
 </head>
 
