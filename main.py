@@ -1060,7 +1060,11 @@ def format_price_display(up: Upgrade) -> str:
 
 
 # ----------------------------
-# Guest UI route (FINAL / CLEAN)
+# Guest UI route (FINAL / CLEAN + FIXED)
+# - Restores image context keys so photos load
+# - Keeps VERIFIED session as the ONLY source of turnover gating
+# - Adds safe hero fallbacks (feature -> hero)
+# - (Optional) keeps Hostaway listing overview hero override (doesn't affect turnover)
 # ----------------------------
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
@@ -1106,26 +1110,62 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
     address = cfg.get("address")
     city_name = cfg.get("city_name")
-    hero_image_url = cfg.get("hero_image_url")
+
+    # ✅ Restore image keys your template likely expects
+    feature_image_url = cfg.get("feature_image_url")
+    family_image_url = cfg.get("family_image_url")
+    foodie_image_url = cfg.get("foodie_image_url")
+
+    # ✅ Strong hero fallbacks so photos don't "disappear"
+    hero_image_url = cfg.get("hero_image_url") or feature_image_url or family_image_url or foodie_image_url
     experiences_hero_url = cfg.get("experiences_hero_url") or hero_image_url
 
+    # (Optional) keep Hostaway listing overview override for hero/address/city
+    prop_provider = (
+        (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "")
+        .strip()
+        .lower()
+    )
+    if prop_provider == "hostaway" and getattr(prop, "pms_property_id", None):
+        try:
+            integ = get_integration_for_property(db, prop)
+            if (getattr(integ, "provider", "") or "").strip().lower() == "hostaway":
+                hero, ha_address, ha_city = get_listing_overview(
+                    listing_id=str(prop.pms_property_id),
+                    client_id=(integ.account_id or "").strip(),
+                    client_secret=(integ.api_secret or "").strip(),
+                )
+                if hero and not hero_image_url:
+                    hero_image_url = hero
+                if hero and not experiences_hero_url:
+                    experiences_hero_url = hero
+                if ha_address and not address:
+                    address = ha_address
+                if ha_city and not city_name:
+                    city_name = ha_city
+        except Exception as e:
+            logger.warning("[Hostaway] Listing overview failed: %r", e)
+
+    if not experiences_hero_url and hero_image_url:
+        experiences_hero_url = hero_image_url
+
     # ----------------------------
-    # VERIFIED SESSION ONLY
+    # VERIFIED SESSION ONLY (for turnover + dates)
     # ----------------------------
     verified_session_id = request.session.get(f"guest_session_{property_id}")
     active_session = None
 
     if verified_session_id:
-        active_session = (
-            db.query(ChatSession)
-            .filter(
-                ChatSession.id == int(verified_session_id),
-                ChatSession.property_id == prop.id,
+        try:
+            active_session = (
+                db.query(ChatSession)
+                .filter(ChatSession.id == int(verified_session_id), ChatSession.property_id == prop.id)
+                .first()
             )
-            .first()
-        )
+        except Exception:
+            active_session = None
 
-    # latest_session ONLY for display fallback
+    # latest_session ONLY for display fallback (never used for turnover gating)
     latest_session = (
         db.query(ChatSession)
         .filter(ChatSession.property_id == prop.id)
@@ -1134,37 +1174,30 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     )
 
     reservation_name = (
-        getattr(active_session, "guest_name", None)
-        or getattr(latest_session, "guest_name", None)
+        (getattr(active_session, "guest_name", None) if active_session else None)
+        or (getattr(latest_session, "guest_name", None) if latest_session else None)
     )
 
-    arrival_date = getattr(active_session, "arrival_date", None)
-    departure_date = getattr(active_session, "departure_date", None)
-    reservation_id = getattr(active_session, "reservation_id", None)
+    arrival_date = getattr(active_session, "arrival_date", None) if active_session else None
+    departure_date = getattr(active_session, "departure_date", None) if active_session else None
+    reservation_id = getattr(active_session, "reservation_id", None) if active_session else None
 
     # ----------------------------
-    # TURNOVER (DB ONLY — NO FALLBACKS)
+    # TURNOVER (DB ONLY — VERIFIED SESSION ONLY)
     # ----------------------------
     turnover_on_arrival = False
     turnover_on_departure = False
 
     if active_session:
-        turnover_on_arrival = turnover_on_arrival_day(
-            db, prop.id, arrival_date, reservation_id
-        )
-        turnover_on_departure = turnover_on_departure_day(
-            db, prop.id, departure_date, reservation_id
-        )
+        turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_date, reservation_id)
+        turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_date, reservation_id)
 
     # ----------------------------
     # UPGRADES (PER-ITEM AVAILABILITY)
     # ----------------------------
     upgrades = (
         db.query(Upgrade)
-        .filter(
-            Upgrade.property_id == prop.id,
-            Upgrade.is_active.is_(True),
-        )
+        .filter(Upgrade.property_id == prop.id, Upgrade.is_active.is_(True))
         .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
         .all()
     )
@@ -1176,10 +1209,10 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
         is_time_flex, kind = _is_time_flex_upgrade(up)
 
-        if kind == "early_checkin" and turnover_on_arrival:
+        if is_time_flex and kind == "early_checkin" and turnover_on_arrival:
             is_available = False
             unavailable_reason = "Not available for same-day turnovers."
-        elif kind == "late_checkout" and turnover_on_departure:
+        elif is_time_flex and kind == "late_checkout" and turnover_on_departure:
             is_available = False
             unavailable_reason = "Not available for same-day turnovers."
 
@@ -1230,20 +1263,28 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "arrival_date": arrival_date,
             "departure_date": departure_date,
             "city_name": city_name,
+
+            # ✅ restore photo keys (template dependencies)
+            "feature_image_url": feature_image_url,
+            "family_image_url": family_image_url,
+            "foodie_image_url": foodie_image_url,
             "hero_image_url": hero_image_url,
             "experiences_hero_url": experiences_hero_url,
+
             "google_maps_link": google_maps_link,
             "is_live": is_live,
             "sandy_enabled": bool(getattr(prop, "sandy_enabled", False)),
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
-            "assistant_config": assistant_config,
+
+            # ✅ this must exist so JS can set currentSessionId safely
             "initial_session_id": verified_session_id,
+
+            "assistant_config": assistant_config,
             "upgrades": visible_upgrades,
             "turnover_on_arrival": turnover_on_arrival,
             "turnover_on_departure": turnover_on_departure,
         },
     )
-
 
 
 
