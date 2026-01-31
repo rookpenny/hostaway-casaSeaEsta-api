@@ -231,6 +231,25 @@ def guest_upgrades_availability(
     turnover_arrival = turnover_on_arrival_day(db, property_id, arrival, guest_reservation_id)
     turnover_departure = turnover_on_departure_day(db, property_id, departure, guest_reservation_id)
 
+    prop_provider = (
+    (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "")
+    .strip()
+    .lower()
+    )
+    
+    # ✅ Hostaway fallback when DB has no reservations
+    if (not turnover_arrival and not turnover_departure) and prop_provider == "hostaway":
+        ha_arrival, ha_departure = _hostaway_turnover_flags(
+            db=db,
+            prop=prop,
+            arrival_date=arrival,
+            departure_date=departure,
+            guest_reservation_id=guest_reservation_id,
+        )
+        turnover_arrival = turnover_arrival or ha_arrival
+        turnover_departure = turnover_departure or ha_departure
+
+
     upgrades = (
         db.query(Upgrade)
         .filter(Upgrade.property_id == property_id, Upgrade.is_active.is_(True))
@@ -874,6 +893,88 @@ def turnover_on_departure_day(
 
 
 
+def _hostaway_turnover_flags(
+    db: Session,
+    prop: Property,
+    arrival_date: Any,
+    departure_date: Any,
+    guest_reservation_id: str | None,
+) -> tuple[bool, bool]:
+    """
+    Fallback turnover detection using Hostaway API when DB reservations are missing.
+    Returns: (turnover_on_arrival, turnover_on_departure)
+    """
+    arrival = _to_date_any(arrival_date)
+    dep = _to_date_any(departure_date)
+    if not arrival and not dep:
+        return (False, False)
+
+    try:
+        integ = get_integration_for_property(db, prop)
+        if (integ.provider or "").strip().lower() != "hostaway":
+            return (False, False)
+
+        if not getattr(prop, "pms_property_id", None):
+            return (False, False)
+
+        account_id = (integ.account_id or "").strip()
+        api_secret = (integ.api_secret or "").strip()
+        if not account_id or not api_secret:
+            return (False, False)
+
+        token = get_token_for_pmc(account_id, api_secret)
+
+        # Expand window to include far-future stays (like 2026)
+        today = datetime.utcnow().date()
+        max_needed = 0
+        if arrival:
+            max_needed = max(max_needed, (arrival - today).days)
+        if dep:
+            max_needed = max(max_needed, (dep - today).days)
+
+        window_days = max(WINDOW_DAYS, max_needed + 30)
+        window_days = min(window_days, 730)  # cap at 2 years to be safe
+
+        reservations = fetch_reservations(
+            listing_id=str(prop.pms_property_id),
+            token=token,
+            window_days=window_days,
+            past_days=30,
+        )
+
+        turnover_arrival = False
+        turnover_departure = False
+
+        guest_id_str = str(guest_reservation_id).strip() if guest_reservation_id else ""
+
+        for r in reservations or []:
+            rid = str(r.get("id") or r.get("reservationId") or "").strip()
+            if guest_id_str and rid and rid == guest_id_str:
+                continue
+
+            a = _parse_ymd(r.get("arrivalDate"))
+            d = _parse_ymd(r.get("departureDate"))
+            if not a or not d:
+                continue
+
+            # Someone departs on guest arrival day -> no early check-in
+            if arrival and d == arrival:
+                turnover_arrival = True
+
+            # Someone arrives on guest departure day -> no late checkout
+            if dep and a == dep:
+                turnover_departure = True
+
+            if turnover_arrival and turnover_departure:
+                break
+
+        return (turnover_arrival, turnover_departure)
+
+    except Exception as e:
+        logger.warning("[Hostaway turnover fallback failed] %r", e)
+        return (False, False)
+
+
 
 @app.get("/debug/turnover/{property_id}")
 def debug_turnover(property_id: int, request: Request, db: Session = Depends(get_db)):
@@ -1062,6 +1163,19 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
     turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_for_turnover, guest_reservation_id)
     turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_for_turnover, guest_reservation_id)
+    
+    # ✅ Hostaway fallback if DB has no matching reservations
+    if (not turnover_on_arrival and not turnover_on_departure) and prop_provider == "hostaway":
+        ha_arrival, ha_departure = _hostaway_turnover_flags(
+            db=db,
+            prop=prop,
+            arrival_date=arrival_for_turnover,
+            departure_date=departure_for_turnover,
+            guest_reservation_id=guest_reservation_id,
+        )
+        turnover_on_arrival = turnover_on_arrival or ha_arrival
+        turnover_on_departure = turnover_on_departure or ha_departure
+
 
     upgrades = (
         db.query(Upgrade)
