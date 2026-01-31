@@ -1152,26 +1152,35 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     # ----------------------------
     # VERIFIED SESSION ONLY (for turnover + dates)
     # ----------------------------
-    verified_session_id = request.session.get(f"guest_session_{property_id}")
-    active_session = None
+    # ----------------------------
+# Session resolution (STABLE)
+# ----------------------------
+verified_session_id = request.session.get(f"guest_session_{property_id}")
 
-    if verified_session_id:
-        try:
-            active_session = (
-                db.query(ChatSession)
-                .filter(ChatSession.id == int(verified_session_id), ChatSession.property_id == prop.id)
-                .first()
+active_session = None
+
+if verified_session_id:
+    try:
+        active_session = (
+            db.query(ChatSession)
+            .filter(
+                ChatSession.id == int(verified_session_id),
+                ChatSession.property_id == prop.id,
             )
-        except Exception:
-            active_session = None
+            .first()
+        )
+    except Exception:
+        active_session = None
 
-    # latest_session ONLY for display fallback (never used for turnover gating)
-    latest_session = (
+# ✅ Fallback ONLY if no verified session
+if not active_session:
+    active_session = (
         db.query(ChatSession)
         .filter(ChatSession.property_id == prop.id)
         .order_by(ChatSession.last_activity_at.desc())
         .first()
     )
+
 
     reservation_name = (
         (getattr(active_session, "guest_name", None) if active_session else None)
