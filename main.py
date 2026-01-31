@@ -201,49 +201,27 @@ def guest_upgrades_availability(
     session_id: str | None = None,
     db: Session = Depends(get_db),
 ):
+    if not session_id:
+        raise HTTPException(status_code=400, detail="session_id is required")
+
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    qs = db.query(ChatSession).filter(ChatSession.property_id == property_id)
+    guest_session = (
+        db.query(ChatSession)
+        .filter(ChatSession.property_id == property_id, ChatSession.id == int(session_id))
+        .first()
+    )
+    if not guest_session:
+        raise HTTPException(status_code=404, detail="ChatSession not found for session_id")
 
-    guest_session = None
-
-    if session_id:
-        guest_session = qs.filter(ChatSession.id == int(session_id)).first()
-    else:
-        # Prefer most recent verified session, otherwise most recent session
-        guest_session = (
-            qs.filter(getattr(ChatSession, "is_verified", True) == True)
-            .order_by(ChatSession.last_activity_at.desc())
-            .first()
-        ) or qs.order_by(ChatSession.last_activity_at.desc()).first()
-
-    arrival = getattr(guest_session, "arrival_date", None) if guest_session else None
-    departure = getattr(guest_session, "departure_date", None) if guest_session else None
-    guest_reservation_id = getattr(guest_session, "reservation_id", None) if guest_session else None
+    arrival = getattr(guest_session, "arrival_date", None)
+    departure = getattr(guest_session, "departure_date", None)
+    guest_reservation_id = getattr(guest_session, "reservation_id", None)
 
     turnover_arrival = turnover_on_arrival_day(db, property_id, arrival, guest_reservation_id)
     turnover_departure = turnover_on_departure_day(db, property_id, departure, guest_reservation_id)
-
-    prop_provider = (
-    (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "")
-    .strip()
-    .lower()
-    )
-    
-    # ✅ Hostaway fallback when DB has no reservations
-    if (not turnover_arrival and not turnover_departure) and prop_provider == "hostaway":
-        ha_arrival, ha_departure = _hostaway_turnover_flags(
-            db=db,
-            prop=prop,
-            arrival_date=arrival,
-            departure_date=departure,
-            guest_reservation_id=guest_reservation_id,
-        )
-        turnover_arrival = turnover_arrival or ha_arrival
-        turnover_departure = turnover_departure or ha_departure
-
 
     upgrades = (
         db.query(Upgrade)
@@ -275,13 +253,14 @@ def guest_upgrades_availability(
         )
 
     return {
-        "session_id_used": getattr(guest_session, "id", None),
+        "session_id_used": guest_session.id,
         "arrival_date": str(arrival) if arrival else None,
         "departure_date": str(departure) if departure else None,
         "turnover_on_arrival": turnover_arrival,
         "turnover_on_departure": turnover_departure,
         "items": out,
     }
+
 
 
 
