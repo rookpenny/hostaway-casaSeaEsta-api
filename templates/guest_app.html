@@ -474,35 +474,30 @@
   </style>
 
   <!-- Server-injected runtime config -->
-  <script>
-    window.PROPERTY_ID = {{ property_id | tojson }};
-    window.PROPERTY_NAME = {{ property_name | tojson }};
-    window.SANDY_LIVE = {{ is_live | tojson }};
-    window.SANDY_ENABLED = {{ sandy_enabled | tojson }};
-    window.INITIAL_VERIFIED = {{ is_verified | tojson }};
-    window.INITIAL_SESSION_ID = {{ initial_session_id | tojson }};
-    window.ASSISTANT_CONFIG = {{ assistant_config | tojson }};
+ <script>
+  window.PROPERTY_ID = {{ property_id | tojson }};
+  window.PROPERTY_NAME = {{ property_name | tojson }};
+  window.SANDY_LIVE = {{ is_live | tojson }};
+  window.SANDY_ENABLED = {{ sandy_enabled | tojson }};
+  window.INITIAL_VERIFIED = {{ is_verified | tojson }};
+  window.INITIAL_SESSION_ID = {{ initial_session_id | tojson }};
+  window.ASSISTANT_CONFIG = {{ assistant_config | tojson }};
 
-
-  
-  // ✅ Always define a usable session id for upgrade availability calls
-  // Priority:
-  // 1) server-provided INITIAL_SESSION_ID (verified session)
-  // 2) sessionStorage previously saved value
-  // 3) null
-  let currentSessionId =
+  // ✅ Align with guest_app.js
+  let sid =
     window.INITIAL_SESSION_ID ||
-    sessionStorage.getItem("INITIAL_SESSION_ID") ||
+    sessionStorage.getItem("CURRENT_SESSION_ID") ||
+    localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ||
     null;
 
-  // Persist for later reloads
-  if (currentSessionId) {
-    sessionStorage.setItem("INITIAL_SESSION_ID", String(currentSessionId));
+  if (sid != null) {
+    sid = String(sid);
+    window.CURRENT_SESSION_ID = sid;
+    sessionStorage.setItem("CURRENT_SESSION_ID", sid);
+    localStorage.setItem(`server_session_${window.PROPERTY_ID}`, sid);
   }
-
-  // Optional: expose for debugging
-  window.CURRENT_SESSION_ID = currentSessionId;
 </script>
+
 
 
   
@@ -873,7 +868,7 @@
     <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
       {% if upgrades and upgrades|length > 0 %}
         {% for up in upgrades %}
-          {% set available = (up.is_available is defined) and (up.is_available) %}
+          {% set available = (up.is_available is not defined) or (up.is_available) %}
           {% set reason = up.unavailable_reason or "Not available for this stay." %}
           {% set safe_reason = reason|replace('\n',' ')|replace('\r',' ')|e %}
           {% set safe_title = (up.title or "Upgrade")|replace('\n',' ')|replace('\r',' ')|e %}
@@ -949,7 +944,7 @@
 
   <!-- Logic -->
   <script>
-    (function () {
+   /* (function () {
       const slides = Array.from(document.querySelectorAll(".upgrade-slide"));
       if (!slides.length) return;
 
@@ -1005,7 +1000,7 @@
 
       // Default selection
       setActive(slides[0]);
-    })();
+    })();*/
   </script>
 </section>
 
