@@ -10,14 +10,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="theme-color" content="#020617" />
-  <link rel="apple-touch-icon" href="{{ request.url_for('static', path='icons/app-icon-192.png') }}" />
+  <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
 
   <!-- Tailwind CDN + DOMPurify -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/dompurify@3.1.6/dist/purify.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-  <script src="{{ request.url_for('static', path='guest_app.js') }}" defer></script>
+  <script src="/static/guest_app.js" defer></script>
   
   <style>
     html,
@@ -27,6 +27,9 @@
       overflow-x: hidden; /* only block horizontal scroll */
     }
 
+    #quick-replies-bar {
+  display: none !important;
+}
 
 
     * { box-sizing: border-box; }
@@ -228,7 +231,7 @@
       overflow: hidden;
     }
     .avatar-sandy {
-      background-image: url("{{ request.url_for('static', path='img/sandy.png') }}");
+      background-image: url("/static/img/sandy.png");
       background-size: cover;
       background-position: center;
       background-color: transparent;
@@ -471,33 +474,15 @@
   </style>
 
   <!-- Server-injected runtime config -->
- <script>
-  window.PROPERTY_ID = {{ property_id | tojson }};
-  window.PROPERTY_NAME = {{ property_name | tojson }};
-  window.SANDY_LIVE = {{ is_live | tojson }};
-  window.SANDY_ENABLED = {{ sandy_enabled | tojson }};
-  window.INITIAL_VERIFIED = {{ is_verified | tojson }};
-  window.INITIAL_SESSION_ID = {{ initial_session_id | tojson }};
-  window.ASSISTANT_CONFIG = {{ assistant_config | tojson }};
-
-  // ✅ Align with guest_app.js
-  let sid =
-    window.INITIAL_SESSION_ID ||
-    sessionStorage.getItem("CURRENT_SESSION_ID") ||
-    localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ||
-    null;
-
-  if (sid != null) {
-    sid = String(sid);
-    window.CURRENT_SESSION_ID = sid;
-    sessionStorage.setItem("CURRENT_SESSION_ID", sid);
-    localStorage.setItem(`server_session_${window.PROPERTY_ID}`, sid);
-  }
-</script>
-
-
-
-  
+  <script>
+    window.PROPERTY_ID = {{ property_id | tojson }};
+    window.PROPERTY_NAME = {{ property_name | tojson }};
+    window.SANDY_LIVE = {{ is_live | tojson }};
+    window.SANDY_ENABLED = {{ sandy_enabled | tojson }};
+    window.INITIAL_VERIFIED = {{ is_verified | tojson }};
+    window.INITIAL_SESSION_ID = {{ initial_session_id | tojson }};
+    window.ASSISTANT_CONFIG = {{ assistant_config | tojson }};
+  </script>
 
 </head>
 
@@ -535,7 +520,7 @@
             <a href="#" class="flex items-center gap-2" aria-label="Home">
               <img
                 id="logo-img"
-                src="{{ request.url_for('static', path='img/neat-sleeps-white.png') }}"
+                src="/static/img/neat-sleeps-white.png"
                 alt="{{ property_name }}"
                 class="h-7"
               />
@@ -705,7 +690,7 @@
                 >
                   <div class="h-[430px] w-full overflow-hidden">
                     <img
-                      src="{{ hero_image_url or request.url_for('static', path='img/default-hero.jpg') }}"
+                      src="{{ hero_image_url or default_image_url }}"
                       alt="{{ property_name }}"
                       class="w-full h-full object-cover"
                     />
@@ -840,169 +825,156 @@
           </p>
         </section>
 
-        
-<!-- UPGRADES -->
-<section
-  id="screen-upgrades"
-  class="hidden bg-[#f5f5f5] flex flex-col flex-1 text-[0.95rem] px-4 pt-24"
-  aria-label="Upgrades"
->
-  <div class="text-center pb-3">
-    <p class="text-[11px] font-semibold text-[#666666]">
-      Casa {{ property_name or "Your stay" }}
-    </p>
-    <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
-      Upgrades you’ll love,<br />
-      <span class="guest-name">{{ reservation_name or "Guest" }}</span>.
-    </h1>
-  </div>
+        <!-- UPGRADES -->
+        <section
+          id="screen-upgrades"
+          class="hidden bg-[#f5f5f5] flex flex-col flex-1 text-[0.95rem] px-4 pt-24"
+          aria-label="Upgrades"
+        >
+          <div class="text-center pb-3">
+            <p class="text-[11px] font-semibold text-[#666666]">
+              Casa {{ property_name or "Your stay" }}
+            </p>
+            <h1 class="mt-2 text-[32px] font-semibold text-[#000000] leading-tight">
+              Upgrades you’ll love,<br />
+              <span class="guest-name">{{ reservation_name or "Guest" }}</span>.
+            </h1>
+          </div>
 
-  <!-- Carousel -->
-  <div
-    id="upgrades-carousel"
-    class="upgrades-carousel relative w-full max-w-[420px] mx-auto overflow-x-auto"
-  >
-    <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
-      {% if upgrades and upgrades|length > 0 %}
-        {% for up in upgrades %}
-          {% set available = (up.is_available is not defined) or (up.is_available) %}
-          {% set reason = up.unavailable_reason or "Not available for this stay." %}
-          {% set safe_reason = reason|replace('\n',' ')|replace('\r',' ')|e %}
-          {% set safe_title = (up.title or "Upgrade")|replace('\n',' ')|replace('\r',' ')|e %}
-          {% set safe_price = (up.price_display or "")|replace('\n',' ')|replace('\r',' ')|e %}
+          <!-- Beats-style carousel shell -->
+          <div id="upgrades-carousel" class="upgrades-carousel relative w-full max-w-[420px] mx-auto overflow-x-auto">
+            <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
+              {% if upgrades and upgrades|length > 0 %}
+                {% for up in upgrades %}
+                  {% set slug = up.slug or "" %}
+                  {% set title_lower = (up.title or "")|lower %}
+                  {% set is_time_flex =
+                        slug in ["early-check-in", "late-checkout", "late-check-out"]
+                        or "early check" in title_lower
+                        or "late check" in title_lower
+                  %}
+                  {% if same_day_turnover and is_time_flex %}
+                    {# skip time-flex on same-day turnover #}
+                  {% else %}
+                   <button
+        type="button"
+        class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
+        data-upgrade-id="{{ up.id }}"
+        data-upgrade-title="{{ up.title }}"
+        data-upgrade-price="{{ up.price_display or '' }}"
+      >
+        <div
+          class="upgrade-card-inner w-[280px] h-[360px] bg-white"
+        >
+          {% if up.image_url %}
+            <img
+              src="{{ up.image_url }}"
+              alt="{{ up.title }}"
+              class="w-full h-full object-cover"
+            />
+          {% else %}
+            <img
+              src="{{ hero_image_url or default_image_url }}"
+              alt="{{ up.title }}"
+              class="w-full h-full object-cover"
+            />
+          {% endif %}
+        </div>
+      <div class="upgrade-status-banner hidden mb-4 rounded-xl border p-3 text-sm"></div>
+                     
+        <!-- hidden long copy so JS can read it -->
+        <p class="hidden upgrade-long">
+          {{ up.long_description or up.short_description }}
+        </p>
+      </button>
 
-          <button
-            type="button"
-            class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none{% if not available %} opacity-60 cursor-not-allowed{% endif %}"
-            data-upgrade-id="{{ up.id }}"
-            data-upgrade-title="{{ safe_title }}"
-            data-upgrade-price="{{ safe_price }}"
-            data-upgrade-available="{{ '1' if available else '0' }}"
-            data-upgrade-unavailable-reason="{{ safe_reason }}"
-            {% if not available %} disabled aria-disabled="true"{% endif %}
+                  {% endif %}
+                {% endfor %}
+              {% else %}
+                <p class="text-xs text-slate-500">Upgrades aren’t available for this stay yet.</p>
+              {% endif %}
+            </div>
+          </div>
+
+          <div id="upgrade-active-info" class="text-center hidden">
+            <h3 id="upgrade-active-title" class="text-[20px] font-semibold text-[#000000]"></h3>
+            <p
+              id="upgrade-active-description"
+              class="text-[14px] leading-relaxed text-[#000000] max-w-xs mx-auto pt-2"
+            ></p>
+          </div>
+
+          <div id="upgrade-active-cta" class="mt-6 flex justify-center hidden">
+            <button
+              id="upgrade-active-button"
+              type="button"
+              class="inline-flex items-center justify-center rounded-[999px] border border-[#020617] px-10 py-4 text-[15px] font-semibold bg-white text-[#020617] hover:bg-black hover:text-white transition-colors duration-200"
+            >
+              <span id="upgrade-active-button-label">$0.00 – Purchase</span>
+            </button>
+          </div>
+
+          <!-- Purchase confirmation -->
+          
+          
+                    
+        </section>
+
+        <!-- UPGRADE DETAIL -->
+        <div id="upgrade-modal" class="fixed inset-0 bg-black/80 hidden items-center justify-center z-[500]">
+          <section
+            id="screen-upgrade-detail"
+            class="bg-[#f5f5f5] text-slate-900 flex flex-col min-h-screen w-full"
+            aria-label="Upgrade details"
           >
-            <div class="upgrade-card-inner w-[280px] h-[360px] bg-white rounded-3xl overflow-hidden shadow-sm">
+            <div class="relative h-64 w-full overflow-hidden">
               <img
-                src="{{ up.image_url or hero_image_url or experiences_hero_url or request.url_for('static', path='img/default-hero.jpg') }}"
-                alt="{{ safe_title }}"
+                id="upgrade-detail-image"
+                src="{{ hero_image_url or default_image_url }}"
+                alt=""
                 class="w-full h-full object-cover"
               />
+              <button
+                id="upgrade-modal-close"
+                type="button"
+                class="absolute top-6 right-5 w-9 h-9 rounded-full bg-black/80 flex items-center justify-center text-slate-50 text-xl leading-none z-[510]"
+              >
+                ×
+              </button>
             </div>
 
-            <!-- Banner shown when unavailable -->
+            <div class="px-6 pt-6 pb-32 flex-1 overflow-y-auto">
+              <h2 id="upgrade-detail-title" class="text-2xl font-semibold leading-tight">Upgrade title</h2>
+
+              <p
+                id="upgrade-detail-body"
+                class="mt-4 text-sm text-slate-800 leading-relaxed whitespace-pre-line"
+              >
+                Full description goes here.
+              </p>
+
+              <div class="mt-8 border border-slate-200 rounded-2xl p-4">
+                <p class="text-[11px] uppercase tracking-[0.2em] text-slate-500 mb-2">Your upgrade</p>
+                <div class="flex items-center justify-between text-sm">
+                  <span id="upgrade-detail-name" class="font-medium">Upgrade name</span>
+                  <span id="upgrade-detail-price" class="font-semibold">$0.00</span>
+                </div>
+              </div>
+            </div>
+
             <div
-              class="upgrade-status-banner mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700{% if available %} hidden{% endif %}"
+              class="fixed bottom-0 left-0 right-0 px-4 pb-6 pt-3 bg-[#f5f5f5]/95 backdrop-blur-sm shadow-[0_-12px_30px_rgba(15,23,42,0.18)]"
             >
-              {{ reason }}
+              <button
+                id="upgrade-detail-purchase"
+                type="button"
+                class="w-full rounded-full py-3 text-sm font-semibold bg-slate-900 text-slate-50"
+              >
+                <span id="upgrade-detail-price-bottom">$0.00 – Purchase</span>
+              </button>
             </div>
-
-            <p class="hidden upgrade-long">
-              {{ up.long_description or up.short_description or "" }}
-            </p>
-          </button>
-        {% endfor %}
-      {% else %}
-        <p class="text-xs text-slate-500">
-          Upgrades aren’t available for this stay yet.
-        </p>
-      {% endif %}
-    </div>
-  </div>
-
-  <!-- Active upgrade info -->
-  <div id="upgrade-active-info" class="text-center hidden">
-    <h3
-      id="upgrade-active-title"
-      class="text-[20px] font-semibold text-[#000000]"
-    ></h3>
-    <p
-      id="upgrade-active-description"
-      class="text-[14px] leading-relaxed text-[#000000] max-w-xs mx-auto pt-2"
-    ></p>
-
-    <div
-      id="upgrade-active-unavailable"
-      class="mt-4 hidden max-w-xs mx-auto rounded-xl border border-slate-200 bg-white p-3 text-[13px] text-slate-700"
-    ></div>
-  </div>
-
-  <!-- CTA -->
-  <div id="upgrade-active-cta" class="mt-6 flex justify-center hidden">
-    <button
-      id="upgrade-active-button"
-      type="button"
-      class="inline-flex items-center justify-center rounded-[999px] border border-[#020617] px-10 py-4 text-[15px] font-semibold bg-white text-[#020617] hover:bg-black hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#020617]"
-      disabled
-      aria-disabled="true"
-    >
-      <span id="upgrade-active-button-label">Select an upgrade</span>
-    </button>
-  </div>
-
-  <!-- Logic -->
-  <script>
-   /* (function () {
-      const slides = Array.from(document.querySelectorAll(".upgrade-slide"));
-      if (!slides.length) return;
-
-      const info = document.getElementById("upgrade-active-info");
-      const cta = document.getElementById("upgrade-active-cta");
-
-      const titleEl = document.getElementById("upgrade-active-title");
-      const descEl = document.getElementById("upgrade-active-description");
-      const unavailEl = document.getElementById("upgrade-active-unavailable");
-
-      const btn = document.getElementById("upgrade-active-button");
-      const btnLabel = document.getElementById("upgrade-active-button-label");
-
-      function setActive(slide) {
-        const title = slide.dataset.upgradeTitle || "Upgrade";
-        const price = slide.dataset.upgradePrice || "";
-        const available = slide.dataset.upgradeAvailable === "1";
-        const reason =
-          slide.dataset.upgradeUnavailableReason ||
-          "Not available for this stay.";
-
-        const longDesc = slide.querySelector(".upgrade-long");
-        const desc = longDesc ? longDesc.textContent.trim() : "";
-
-        info.classList.remove("hidden");
-        cta.classList.remove("hidden");
-
-        titleEl.textContent = title;
-        descEl.textContent = desc;
-
-        if (available) {
-          unavailEl.classList.add("hidden");
-          unavailEl.textContent = "";
-
-          btn.disabled = false;
-          btn.setAttribute("aria-disabled", "false");
-          btnLabel.textContent = price
-            ? `${price} – Purchase`
-            : "Purchase";
-        } else {
-          unavailEl.classList.remove("hidden");
-          unavailEl.textContent = reason;
-
-          btn.disabled = true;
-          btn.setAttribute("aria-disabled", "true");
-          btnLabel.textContent = "Unavailable";
-        }
-      }
-
-      slides.forEach((s) => {
-        s.addEventListener("click", () => setActive(s));
-      });
-
-      // Default selection
-      setActive(slides[0]);
-    })();*/
-  </script>
-</section>
-
-
-        
+          </section>
+        </div>
 
         <!-- WiFi modal -->
         <div
@@ -1094,10 +1066,12 @@
             <div class="flex-1 overflow-y-auto pt-28 pb-16 px-8">
               <div class="max-w-[24rem] mx-auto">
                 <h2 id="guide-modal-title" class="text-[30px] font-semibold leading-tight tracking-tight">Headline</h2>
-                <div id="guide-modal-body" class="mt-8 text-[16px] leading-[1.45] text-black">
-
+                <p
+                  id="guide-modal-body"
+                  class="mt-8 text-[16px] font-semibold leading-[1.40] text-black whitespace-pre-line"
+                >
                   Full description goes here.
-                </div>
+                </p>
               </div>
             </div>
           </section>
