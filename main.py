@@ -1213,8 +1213,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         turnover_on_arrival |= ha_arr
         turnover_on_departure |= ha_dep
 
-    same_day_turnover = bool(turnover_on_arrival or turnover_on_departure)
-
+    
     # ----------------------------
     # Upgrades (per-item availability)
     # ----------------------------
@@ -1305,54 +1304,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "upgrades": visible_upgrades,
             "turnover_on_arrival": turnover_on_arrival,
             "turnover_on_departure": turnover_on_departure,
-            "same_day_turnover": same_day_turnover,
-            "hide_time_flex": False,  # ✅ NEVER hide both
+           
         },
     )
-
-def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
-    if not reservation or not reservation.departure_date:
-        return False
-
-    checkout = reservation.departure_date
-
-    next_guest = (
-        db.query(Reservation)
-        .filter(
-            Reservation.property_id == property_id,
-            Reservation.arrival_date == checkout,
-            Reservation.id != reservation.id,
-        )
-        .first()
-    )
-    return next_guest is not None
-
-
-def should_hide_upgrade_for_turnover(upgrade: Upgrade, same_day_turnover: bool) -> bool:
-    if not same_day_turnover:
-        return False
-
-    title = (upgrade.title or "").lower()
-
-    early_phrases = [
-        "early check-in",
-        "early check in",
-        "early arrival",
-    ]
-    late_phrases = [
-        "late checkout",
-        "late check-out",
-        "late check out",
-        "late departure",
-    ]
-
-    return any(p in title for p in early_phrases + late_phrases)
-
-
-class VerifyRequest(BaseModel):
-    code: str
-
-
 
 
 
