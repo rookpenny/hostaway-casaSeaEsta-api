@@ -763,26 +763,33 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     if not experiences_hero_url and hero_image_url:
         experiences_hero_url = hero_image_url
 
-    latest_session = (
-        db.query(ChatSession)
-        .filter(ChatSession.property_id == prop.id)
-        .order_by(ChatSession.last_activity_at.desc())
-        .first()
-    )
-
-    reservation_name = latest_session.guest_name if latest_session and latest_session.guest_name else None
-    arrival_date_db = latest_session.arrival_date if latest_session and latest_session.arrival_date else None
-    departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
-
-    # Today's in-house reservation (for turnover logic)
-    turnover_dates = compute_turnover_dates_next_window(db, prop.id, WINDOW_DAYS)
-
+    # ✅ Use the VERIFIED guest session for this browser/session (not "latest_session")
+    current_session_id = request.session.get(f"guest_session_{property_id}", None)
+    current_session = None
+    if current_session_id:
+        current_session = (
+            db.query(ChatSession)
+            .filter(ChatSession.id == int(current_session_id), ChatSession.property_id == prop.id)
+            .first()
+        )
+    
+    reservation_name = (current_session.guest_name if current_session and current_session.guest_name else None)
+    arrival_date_db = (current_session.arrival_date if current_session and current_session.arrival_date else None)
+    departure_date_db = (current_session.departure_date if current_session and current_session.departure_date else None)
+    reservation_id_db = (getattr(current_session, "reservation_id", None) if current_session else None)
+    
     stay_arrival_str = (arrival_date_db or cfg.get("arrival_date"))
     stay_departure_str = (departure_date_db or cfg.get("departure_date"))
-
-    turnover_on_arrival, turnover_on_departure = turnover_flags_for_stay(
-        stay_arrival_str, stay_departure_str, turnover_dates
+    
+    # ✅ Turnover flags computed from reservation dates, not today
+    turnover_on_arrival, turnover_on_departure = turnover_flags_for_reservation(
+        db=db,
+        property_id=prop.id,
+        arrival_date_str=stay_arrival_str,
+        departure_date_str=stay_departure_str,
+        exclude_reservation_id=reservation_id_db,
     )
+
 
 
     # Load upgrades
@@ -909,6 +916,44 @@ def _is_late_checkout_upgrade(up: Upgrade) -> bool:
         or "late check out" in title
         or "late departure" in title
     )
+
+def turnover_flags_for_reservation(
+    db: Session,
+    property_id: int,
+    arrival_date_str: str | None,
+    departure_date_str: str | None,
+    exclude_reservation_id: str | None = None,
+) -> tuple[bool, bool]:
+    """
+    Reservation-based turnover checks (NOT based on today):
+      - turnover_on_arrival: someone else checks OUT on my arrival date
+      - turnover_on_departure: someone else checks IN on my departure date
+    """
+    a = _parse_ymd(arrival_date_str) if arrival_date_str else None
+    d = _parse_ymd(departure_date_str) if departure_date_str else None
+
+    if not a and not d:
+        return (False, False)
+
+    q = db.query(Reservation).filter(Reservation.property_id == property_id)
+
+    # Optional exclusion if your Reservation table has a reservation_id column
+    # (If not, this block will be ignored safely.)
+    if exclude_reservation_id:
+        if hasattr(Reservation, "reservation_id"):
+            q = q.filter(Reservation.reservation_id != exclude_reservation_id)
+
+    turnover_on_arrival = False
+    turnover_on_departure = False
+
+    if a:
+        turnover_on_arrival = db.query(q.filter(Reservation.departure_date == a).exists()).scalar()
+
+    if d:
+        turnover_on_departure = db.query(q.filter(Reservation.arrival_date == d).exists()).scalar()
+
+    return (bool(turnover_on_arrival), bool(turnover_on_departure))
+
 
 def compute_turnover_dates_next_window(db: Session, property_id: int, window_days: int) -> set:
     today = datetime.utcnow().date()
