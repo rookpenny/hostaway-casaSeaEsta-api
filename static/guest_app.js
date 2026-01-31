@@ -366,6 +366,51 @@ function createBotBubble({ id = null, thread_id = null, parent_id = null, varian
 }
 
 
+async function syncUpgradeAvailabilityFromServer() {
+  try {
+    if (!currentSessionId) return;
+
+    const res = await fetch(
+      `/guest/properties/${window.PROPERTY_ID}/upgrades/availability?session_id=${encodeURIComponent(currentSessionId)}`,
+      { credentials: "include", cache: "no-store" }
+    );
+    if (!res.ok) return;
+
+    const data = await res.json();
+    const items = Array.isArray(data?.items) ? data.items : [];
+
+    // map upgrade_id -> {is_available, unavailable_reason}
+    const map = new Map(items.map(x => [String(x.upgrade_id), x]));
+
+    document.querySelectorAll(".upgrade-slide").forEach((slide) => {
+      const id = String(slide.dataset.upgradeId || "");
+      const row = map.get(id);
+      if (!row) return;
+
+      slide.dataset.upgradeAvailable = row.is_available ? "1" : "0";
+      slide.dataset.upgradeUnavailableReason = row.unavailable_reason || "";
+
+      const banner = slide.querySelector(".upgrade-status-banner");
+      if (banner) {
+        if (!row.is_available) {
+          banner.textContent = row.unavailable_reason || "Not available for this stay.";
+          banner.classList.remove("hidden");
+        } else {
+          banner.classList.add("hidden");
+        }
+      }
+    });
+
+    // re-apply gating for active slide
+    const activeSlide = document.querySelector(".upgrade-slide.is-active");
+    if (activeSlide) {
+      setUpgradeCtaAvailability(activeSlide);
+      if (activeUpgradeId != null) window.applyPaidState?.(activeUpgradeId);
+    }
+  } catch (e) {
+    console.warn("syncUpgradeAvailabilityFromServer failed:", e);
+  }
+}
 
 
 async function typewriterTo(el, fullText, { speed = 12 } = {}) {
@@ -2330,13 +2375,19 @@ function loadReactions() {
 
   document.body.classList.toggle("chat-screen", name === "chat");
 
-  if (name === "experiences") loadGuidesIfNeeded();
-
-     if (name === "upgrades") {
+if (name === "upgrades") {
   initUpgradesCarousel();
+
+  // make sure an active slide is selected immediately
   requestAnimationFrame(updateActiveFromScroll);
-  syncPaidUpgradesFromServer(); // ✅ rehydrate paid upgrades after refresh
+
+  // ✅ pull server-side availability for THIS session (same-day turnover, etc.)
+  syncUpgradeAvailabilityFromServer();
+
+  // ✅ rehydrate paid upgrades (still needed)
+  syncPaidUpgradesFromServer();
 }
+
 
 
   if (name === "chat") swapLogoWithFade(LOGO_BLACK);
@@ -2508,7 +2559,8 @@ async function attemptUnlock() {
     // ✅ bind server session immediately after verify
     if (data.session_id != null) {
       currentSessionId = data.session_id;
-    
+    await syncUpgradeAvailabilityFromServer();
+
       try {
         localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(data.session_id));
       } catch {}
