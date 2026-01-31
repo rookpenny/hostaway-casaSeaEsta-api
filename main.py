@@ -891,7 +891,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         .lower()
     )
 
-    # "live" means sandy enabled AND pmc active (your existing definition)
+    # "live" means sandy enabled AND pmc active
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
     # Load config/manual from disk
@@ -951,30 +951,44 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     arrival_date_db = latest_session.arrival_date if latest_session and latest_session.arrival_date else None
     departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
 
-    # Today's in-house reservation (for turnover logic)
+    # ----------------------------
+    # Turnover logic (ARRIVAL vs DEPARTURE)
     # Prefer the *current verified* guest session if it exists
-verified_session_id = request.session.get(f"guest_session_{property_id}", None)
-active_session = None
-if verified_session_id:
-    active_session = (
-        db.query(ChatSession)
-        .filter(ChatSession.id == int(verified_session_id), ChatSession.property_id == prop.id)
-        .first()
+    # ----------------------------
+    verified_session_id = request.session.get(f"guest_session_{property_id}", None)
+    active_session = None
+
+    if verified_session_id:
+        try:
+            active_session = (
+                db.query(ChatSession)
+                .filter(
+                    ChatSession.id == int(verified_session_id),
+                    ChatSession.property_id == prop.id,
+                )
+                .first()
+            )
+        except Exception:
+            active_session = None
+
+    # Fallback (pre-unlock browsing): use latest_session
+    if not active_session:
+        active_session = latest_session
+
+    arrival_for_turnover = getattr(active_session, "arrival_date", None)
+    departure_for_turnover = getattr(active_session, "departure_date", None)
+    guest_reservation_id = getattr(active_session, "reservation_id", None)
+
+    turnover_on_arrival = turnover_on_arrival_day(
+        db, prop.id, arrival_for_turnover, guest_reservation_id
+    )
+    turnover_on_departure = turnover_on_departure_day(
+        db, prop.id, departure_for_turnover, guest_reservation_id
     )
 
-# Fallback (pre-unlock browsing): use latest_session
-if not active_session:
-    active_session = latest_session
-
-arrival_for_turnover = getattr(active_session, "arrival_date", None)
-departure_for_turnover = getattr(active_session, "departure_date", None)
-guest_reservation_id = getattr(active_session, "reservation_id", None)
-
-turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_for_turnover, guest_reservation_id)
-turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_for_turnover, guest_reservation_id)
-
-
+    # ----------------------------
     # Load upgrades
+    # ----------------------------
     upgrades = (
         db.query(Upgrade)
         .filter(
@@ -988,7 +1002,7 @@ turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_for_tur
     visible_upgrades = []
     for up in upgrades:
         slug = (up.slug or "").lower()
-        title_lower = (up.title or "").lower() if up.title else ""
+        title_lower = (up.title or "").lower()
 
         is_time_flex = (
             slug in {"early-check-in", "late-checkout", "late-check-out"}
@@ -996,21 +1010,22 @@ turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_for_tur
             or "late check" in title_lower
         )
 
-        # ✅ compute availability instead of skipping
+        # compute availability instead of skipping
         is_available = True
         unavailable_reason = ""
 
-        # ✅ Apply per-upgrade turnover rules
-if is_time_flex:
-    if (slug == "early-check-in" or "early check" in title_lower) and turnover_on_arrival:
-        is_available = False
-        unavailable_reason = "Not available for same-day turnovers."
-    elif (slug in {"late-checkout", "late-check-out"} or "late check" in title_lower) and turnover_on_departure:
-        is_available = False
-        unavailable_reason = "Not available for same-day turnovers."
+        # Apply per-upgrade turnover rules
+        if is_time_flex:
+            is_early = (slug == "early-check-in") or ("early check" in title_lower)
+            is_late = (slug in {"late-checkout", "late-check-out"}) or ("late check" in title_lower)
 
+            if is_early and turnover_on_arrival:
+                is_available = False
+                unavailable_reason = "Not available for same-day turnovers."
+            elif is_late and turnover_on_departure:
+                is_available = False
+                unavailable_reason = "Not available for same-day turnovers."
 
-        # ✅ FIX: define price_display (this is what was crashing)
         price_display = format_price_display(up)
 
         visible_upgrades.append(
@@ -1022,12 +1037,10 @@ if is_time_flex:
                 "long_description": up.long_description,
                 "price_cents": up.price_cents,
                 "price_currency": (up.currency or "usd"),
-                "price_display": price_display,  # ✅ now always defined
+                "price_display": price_display,
                 "stripe_price_id": up.stripe_price_id,
                 "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
-
-                # ✅ availability surface area for frontend data attrs
                 "is_available": bool(is_available),
                 "unavailable_reason": unavailable_reason,
             }
@@ -1072,11 +1085,8 @@ if is_time_flex:
             "upgrades": visible_upgrades,
             "turnover_on_arrival": turnover_on_arrival,
             "turnover_on_departure": turnover_on_departure,
-            
-            # Keep these if your template expects them:
             "same_day_turnover": bool(turnover_on_arrival or turnover_on_departure),
             "hide_time_flex": bool(turnover_on_arrival or turnover_on_departure),
-
         },
     )
 
