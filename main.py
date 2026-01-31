@@ -194,75 +194,8 @@ def _is_time_flex_upgrade(up: Upgrade) -> tuple[bool, str]:
 
 
 
-def _to_date_any(x: Any) -> Optional[datetime.date]:
-    if x is None:
-        return None
-    if hasattr(x, "date") and isinstance(x, datetime):
-        return x.date()
-    if isinstance(x, str):
-        return _parse_ymd(x)
-    # if already a date
-    try:
-        return x if hasattr(x, "year") and hasattr(x, "month") and hasattr(x, "day") else None
-    except Exception:
-        return None
 
 
-def turnover_on_arrival_day(
-    db: Session,
-    property_id: int,
-    arrival_date: Any,
-    guest_reservation_id: str | None = None,
-) -> bool:
-    """
-    Early check-in is NOT available if someone else is DEPARTING on the guest's arrival date.
-    """
-    arrival = _to_date_any(arrival_date)
-    if not arrival:
-        return False
-
-    q = db.query(Reservation).filter(
-        Reservation.property_id == property_id,
-        Reservation.departure_date == arrival,
-    )
-
-    if guest_reservation_id:
-        # Reservation.id is usually int; be defensive
-        try:
-            gid = int(str(guest_reservation_id))
-            q = q.filter(Reservation.id != gid)
-        except Exception:
-            pass
-
-    return db.query(q.exists()).scalar() is True
-
-
-def turnover_on_departure_day(
-    db: Session,
-    property_id: int,
-    departure_date: Any,
-    guest_reservation_id: str | None = None,
-) -> bool:
-    """
-    Late checkout is NOT available if someone else is ARRIVING on the guest's departure date.
-    """
-    dep = _to_date_any(departure_date)
-    if not dep:
-        return False
-
-    q = db.query(Reservation).filter(
-        Reservation.property_id == property_id,
-        Reservation.arrival_date == dep,
-    )
-
-    if guest_reservation_id:
-        try:
-            gid = int(str(guest_reservation_id))
-            q = q.filter(Reservation.id != gid)
-        except Exception:
-            pass
-
-    return db.query(q.exists()).scalar() is True
 
 
 @app.get("/guest/properties/{property_id}/upgrades/availability")
@@ -828,11 +761,99 @@ def __routes():
     return JSONResponse(out)
 
 
-def format_price_display(up: "Upgrade") -> str:
+
+# ----------------------------
+# Date helpers (ORDER MATTERS)
+# ----------------------------
+def _parse_ymd(d: Optional[str]) -> Optional[datetime.date]:
+    if not d:
+        return None
+    s = str(d).strip()
+    if not s:
+        return None
+    try:
+        return datetime.strptime(s, "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+def _to_date_any(x: Any) -> Optional[datetime.date]:
+    if x is None:
+        return None
+    if isinstance(x, datetime):
+        return x.date()
+    if isinstance(x, str):
+        return _parse_ymd(x)
+    # already a date-like object
+    try:
+        return x if hasattr(x, "year") and hasattr(x, "month") and hasattr(x, "day") else None
+    except Exception:
+        return None
+
+
+# ----------------------------
+# Turnover rules
+# ----------------------------
+def turnover_on_arrival_day(
+    db: Session,
+    property_id: int,
+    arrival_date: Any,
+    guest_reservation_id: str | None = None,
+) -> bool:
     """
-    Single source of truth for what the UI shows.
-    Uses price_cents when available; falls back safely.
+    Early check-in is NOT available if someone else is DEPARTING on the guest's arrival date.
     """
+    arrival = _to_date_any(arrival_date)
+    if not arrival:
+        return False
+
+    q = db.query(Reservation).filter(
+        Reservation.property_id == property_id,
+        Reservation.departure_date == arrival,
+    )
+
+    if guest_reservation_id:
+        try:
+            gid = int(str(guest_reservation_id))
+            q = q.filter(Reservation.id != gid)
+        except Exception:
+            pass
+
+    return db.query(q.exists()).scalar() is True
+
+
+def turnover_on_departure_day(
+    db: Session,
+    property_id: int,
+    departure_date: Any,
+    guest_reservation_id: str | None = None,
+) -> bool:
+    """
+    Late checkout is NOT available if someone else is ARRIVING on the guest's departure date.
+    """
+    dep = _to_date_any(departure_date)
+    if not dep:
+        return False
+
+    q = db.query(Reservation).filter(
+        Reservation.property_id == property_id,
+        Reservation.arrival_date == dep,
+    )
+
+    if guest_reservation_id:
+        try:
+            gid = int(str(guest_reservation_id))
+            q = q.filter(Reservation.id != gid)
+        except Exception:
+            pass
+
+    return db.query(q.exists()).scalar() is True
+
+
+# ----------------------------
+# Price formatting helper
+# ----------------------------
+def format_price_display(up: Upgrade) -> str:
     currency = (getattr(up, "currency", None) or "usd").lower()
     cents = getattr(up, "price_cents", None)
 
@@ -846,12 +867,12 @@ def format_price_display(up: "Upgrade") -> str:
         return ""
 
     symbol = "$" if currency in ("usd", "us$", "$") else ""
-    if symbol:
-        return f"{symbol}{amount:,.2f}"
-    return f"{amount:,.2f} {currency.upper()}"
+    return f"{symbol}{amount:,.2f}" if symbol else f"{amount:,.2f} {currency.upper()}"
 
 
-
+# ----------------------------
+# Guest UI route (CLEAN)
+# ----------------------------
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
     request.session["last_property"] = property_id
@@ -884,21 +905,18 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         )
 
     pmc = getattr(prop, "pmc", None)
-
     prop_provider = (
         (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "")
         .strip()
         .lower()
     )
 
-    # "live" means sandy enabled AND pmc active
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
-    # Load config/manual from disk
+    # Load config/manual
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
     wifi = cfg.get("wifi") or {}
-
     assistant_config = cfg.get("assistant") if isinstance(cfg.get("assistant"), dict) else {}
 
     address = cfg.get("address")
@@ -906,12 +924,11 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     hero_image_url = cfg.get("hero_image_url")
     experiences_hero_url = cfg.get("experiences_hero_url")
 
-    # Hostaway overrides (if configured)
+    # Hostaway overrides
     if pmc and prop_provider == "hostaway" and getattr(prop, "pms_property_id", None):
         try:
             integ = get_integration_for_property(db, prop)
-            provider = (integ.provider or "").strip().lower()
-            if provider == "hostaway":
+            if (integ.provider or "").strip().lower() == "hostaway":
                 account_id = (integ.account_id or "").strip()
                 api_secret = (integ.api_secret or "").strip()
                 if not account_id or not api_secret:
@@ -925,12 +942,10 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
                 if hero and not hero_image_url:
                     hero_image_url = hero
-                    if not experiences_hero_url:
-                        experiences_hero_url = hero
+                    experiences_hero_url = experiences_hero_url or hero
 
                 if ha_address and not address:
                     address = ha_address
-
                 if ha_city and not city_name:
                     city_name = ha_city
 
@@ -947,31 +962,24 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         .first()
     )
 
-    reservation_name = latest_session.guest_name if latest_session and latest_session.guest_name else None
-    arrival_date_db = latest_session.arrival_date if latest_session and latest_session.arrival_date else None
-    departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
+    reservation_name = latest_session.guest_name if latest_session and getattr(latest_session, "guest_name", None) else None
+    arrival_date_db = latest_session.arrival_date if latest_session else None
+    departure_date_db = latest_session.departure_date if latest_session else None
 
-    # ----------------------------
-    # Turnover logic (ARRIVAL vs DEPARTURE)
-    # Prefer the *current verified* guest session if it exists
-    # ----------------------------
-    verified_session_id = request.session.get(f"guest_session_{property_id}", None)
+    # Turnover logic: prefer verified session if exists
+    verified_session_id = request.session.get(f"guest_session_{property_id}")
     active_session = None
 
     if verified_session_id:
         try:
             active_session = (
                 db.query(ChatSession)
-                .filter(
-                    ChatSession.id == int(verified_session_id),
-                    ChatSession.property_id == prop.id,
-                )
+                .filter(ChatSession.id == int(verified_session_id), ChatSession.property_id == prop.id)
                 .first()
             )
         except Exception:
             active_session = None
 
-    # Fallback (pre-unlock browsing): use latest_session
     if not active_session:
         active_session = latest_session
 
@@ -979,22 +987,12 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     departure_for_turnover = getattr(active_session, "departure_date", None)
     guest_reservation_id = getattr(active_session, "reservation_id", None)
 
-    turnover_on_arrival = turnover_on_arrival_day(
-        db, prop.id, arrival_for_turnover, guest_reservation_id
-    )
-    turnover_on_departure = turnover_on_departure_day(
-        db, prop.id, departure_for_turnover, guest_reservation_id
-    )
+    turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_for_turnover, guest_reservation_id)
+    turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_for_turnover, guest_reservation_id)
 
-    # ----------------------------
-    # Load upgrades
-    # ----------------------------
     upgrades = (
         db.query(Upgrade)
-        .filter(
-            Upgrade.property_id == prop.id,
-            Upgrade.is_active.is_(True),
-        )
+        .filter(Upgrade.property_id == prop.id, Upgrade.is_active.is_(True))
         .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
         .all()
     )
@@ -1010,11 +1008,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             or "late check" in title_lower
         )
 
-        # compute availability instead of skipping
         is_available = True
         unavailable_reason = ""
 
-        # Apply per-upgrade turnover rules
         if is_time_flex:
             is_early = (slug == "early-check-in") or ("early check" in title_lower)
             is_late = (slug in {"late-checkout", "late-check-out"}) or ("late check" in title_lower)
@@ -1026,8 +1022,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 is_available = False
                 unavailable_reason = "Not available for same-day turnovers."
 
-        price_display = format_price_display(up)
-
         visible_upgrades.append(
             {
                 "id": up.id,
@@ -1037,7 +1031,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "long_description": up.long_description,
                 "price_cents": up.price_cents,
                 "price_currency": (up.currency or "usd"),
-                "price_display": price_display,
+                "price_display": format_price_display(up),
                 "stripe_price_id": up.stripe_price_id,
                 "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
@@ -1052,9 +1046,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
     checkin_time_display = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
-    checkout_time_display = hour_to_ampm(
-        cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd")
-    )
+    checkout_time_display = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd"))
+
+    same_day_turnover = bool(turnover_on_arrival or turnover_on_departure)
 
     return templates.TemplateResponse(
         "guest_app.html",
@@ -1081,14 +1075,16 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "sandy_enabled": bool(getattr(prop, "sandy_enabled", False)),
             "is_verified": request.session.get(f"guest_verified_{property_id}", False),
             "assistant_config": assistant_config,
-            "initial_session_id": request.session.get(f"guest_session_{property_id}", None),
+            "initial_session_id": verified_session_id,
             "upgrades": visible_upgrades,
             "turnover_on_arrival": turnover_on_arrival,
             "turnover_on_departure": turnover_on_departure,
-            "same_day_turnover": bool(turnover_on_arrival or turnover_on_departure),
-            "hide_time_flex": bool(turnover_on_arrival or turnover_on_departure),
+            "same_day_turnover": same_day_turnover,
+            "hide_time_flex": same_day_turnover,
         },
     )
+
+
 
 
 
@@ -1135,16 +1131,7 @@ class VerifyRequest(BaseModel):
     code: str
 
 
-def _parse_ymd(d: Optional[str]) -> Optional[datetime.date]:
-    if not d:
-        return None
-    s = str(d).strip()
-    if not s:
-        return None
-    try:
-        return datetime.strptime(s, "%Y-%m-%d").date()
-    except Exception:
-        return None
+
 
 
 def _format_time_display(value: Any, default: str = "") -> str:
