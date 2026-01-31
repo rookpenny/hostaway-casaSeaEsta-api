@@ -27,8 +27,10 @@
       return;
     }
 
-    const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
-    const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
+    window.STATIC_LOGO_WHITE = "{{ request.url_for('static', path='img/neat-sleeps-white.png') }}";
+    window.STATIC_LOGO_BLACK = "{{ request.url_for('static', path='img/neat-sleeps-black.png') }}";
+    window.STATIC_DEFAULT_HERO = "{{ request.url_for('static', path='img/default-hero.jpg') }}";
+
 
     // helper: are we currently on the chat screen?
     function isChatVisible() {
@@ -2209,6 +2211,15 @@ function loadReactions() {
         guidesFiltersContainer.appendChild(btn);
       });
 
+      const all = document.createElement("button");
+      all.type = "button";
+      all.dataset.filter = "all";
+      all.textContent = "All";
+      all.className = "guide-filter ...";
+      all.addEventListener("click", () => { guidesState.activeFilter = "all"; updateGuideFilterStates(); renderGuidesGrid(); });
+      guidesFiltersContainer.appendChild(all);
+
+
       const allBtn = document.querySelector('button.guide-filter[data-filter="all"]');
       allBtn?.addEventListener("click", () => {
         guidesState.activeFilter = "all";
@@ -2770,7 +2781,10 @@ async function attemptUnlock() {
 
     // --- Upgrades carousel (Beats-style) ---
 const upgradesCarousel = document.getElementById("upgrades-carousel");
-const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
+
+function getUpgradeSlides() {
+  return Array.from(document.querySelectorAll(".upgrade-slide"));
+}
 
 
 function isUpgradeAvailable(slideEl) {
@@ -3007,7 +3021,7 @@ function getCarouselCenterX() {
 
 
 function setActiveSlideByIndex(idx) {
-  const slide = upgradeSlides[idx];
+  const slide = getUpgradeSlides()[idx];
   if (!slide) return;
 
   document.getElementById("upgrade-active-info")?.classList.remove("hidden");
@@ -3024,7 +3038,7 @@ function setActiveSlideByIndex(idx) {
 
   activeUpgradeId = idNum;
 
-  upgradeSlides.forEach((s, i) => {
+  getUpgradeSlides().forEach((s, i) => {
     s.classList.toggle("is-active", i === idx);
     s.classList.toggle("is-inactive", i !== idx);
   });
@@ -3091,13 +3105,13 @@ upgradeActiveButton?.addEventListener("click", () => {
 
 
 function findClosestSlideIndex() {
-  if (!upgradesCarousel || !upgradeSlides.length) return 0;
+  if (!upgradesCarousel || !getUpgradeSlides().length) return 0;
 
   const centerX = getCarouselCenterX();
   let bestIdx = 0;
   let bestDist = Infinity;
 
-  upgradeSlides.forEach((slide, idx) => {
+  getUpgradeSlides().forEach((slide, idx) => {
     const r = slide.getBoundingClientRect();
     const slideCenter = r.left + r.width / 2;
     const dist = Math.abs(slideCenter - centerX);
@@ -3111,9 +3125,9 @@ function findClosestSlideIndex() {
 }
 
 function centerSlide(idx, behavior = "smooth") {
-  if (!upgradesCarousel || !upgradeSlides[idx]) return;
+  if (!upgradesCarousel || !getUpgradeSlides()[idx]) return;
 
-  const slide = upgradeSlides[idx];
+  const slide = getUpgradeSlides()[idx];
   const cRect = upgradesCarousel.getBoundingClientRect();
   const sRect = slide.getBoundingClientRect();
 
@@ -3134,7 +3148,7 @@ function initUpgradesCarousel() {
   if (upgradesBound) return;
   upgradesBound = true;
 
-  if (!upgradesCarousel || !upgradeSlides.length) return;
+  if (!upgradesCarousel || !getUpgradeSlides().length) return;
 
   // default state
   setActiveSlideByIndex(0);
@@ -3167,7 +3181,7 @@ function initUpgradesCarousel() {
 
   
   // tap a card to center it + activate it
-  upgradeSlides.forEach((slide, idx) => {
+  getUpgradeSlides().forEach((slide, idx) => {
     slide.addEventListener("click", () => {
       setActiveSlideByIndex(idx);
       centerSlide(idx, "smooth");
@@ -3206,11 +3220,11 @@ startUpgradeCheckout(activeUpgradeId);
     
 
     function applyScaleEasing() {
-  if (!upgradesCarousel || !upgradeSlides.length) return;
+  if (!upgradesCarousel || !getUpgradeSlides().length) return;
 
   const viewportCenter = upgradesCarousel.scrollLeft + upgradesCarousel.clientWidth / 2;
 
-  upgradeSlides.forEach((slide) => {
+  getUpgradeSlides().forEach((slide) => {
     //const rect = slide.getBoundingClientRect();
     // slide center in scroll container coordinates:
     const slideCenter =
@@ -3261,7 +3275,7 @@ function findUpgradeSlideIndexById(upgradeId) {
   const idStr = String(upgradeId);
 
   // uses the outer-scoped upgradeSlides array you already have
-  const idx = (upgradeSlides || []).findIndex(
+  const idx = (getUpgradeSlides() || []).findIndex(
     (s) => String(s?.dataset?.upgradeId || "") === idStr
   );
 
