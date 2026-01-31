@@ -877,42 +877,48 @@ def turnover_on_departure_day(
 
 @app.get("/debug/turnover/{property_id}")
 def debug_turnover(property_id: int, request: Request, db: Session = Depends(get_db)):
-    prop = db.query(Property).filter(Property.id == property_id).first()
-    if not prop:
-        raise HTTPException(status_code=404, detail="Property not found")
+    sid = request.session.get(f"guest_session_{property_id}")
+    active = None
+    if sid:
+        active = db.query(ChatSession).filter(ChatSession.id == int(sid)).first()
 
-    verified_session_id = request.session.get(f"guest_session_{property_id}")
-    latest_session = (
-        db.query(ChatSession)
-        .filter(ChatSession.property_id == prop.id)
-        .order_by(ChatSession.last_activity_at.desc())
-        .first()
-    )
+    arrival = getattr(active, "arrival_date", None)
+    departure = getattr(active, "departure_date", None)
 
-    active_session = None
-    if verified_session_id:
-        active_session = (
-            db.query(ChatSession)
-            .filter(ChatSession.id == int(verified_session_id), ChatSession.property_id == prop.id)
-            .first()
+    arrival_d = _to_date_any(arrival)
+    departure_d = _to_date_any(departure)
+
+    dep_count = 0
+    arr_count = 0
+
+    if arrival_d:
+        dep_count = (
+            db.query(Reservation)
+            .filter(
+                Reservation.property_id == property_id,
+                func.date(Reservation.departure_date) == arrival_d,
+            )
+            .count()
         )
 
-    if not active_session:
-        active_session = latest_session
-
-    arrival = getattr(active_session, "arrival_date", None)
-    departure = getattr(active_session, "departure_date", None)
-    rid = getattr(active_session, "reservation_id", None)
+    if departure_d:
+        arr_count = (
+            db.query(Reservation)
+            .filter(
+                Reservation.property_id == property_id,
+                func.date(Reservation.arrival_date) == departure_d,
+            )
+            .count()
+        )
 
     return {
-        "active_session_id": getattr(active_session, "id", None),
-        "arrival_date_raw": arrival,
-        "departure_date_raw": departure,
-        "arrival_date_as_date": str(_to_date_any(arrival)) if _to_date_any(arrival) else None,
-        "departure_date_as_date": str(_to_date_any(departure)) if _to_date_any(departure) else None,
-        "guest_reservation_id": rid,
-        "turnover_on_arrival": turnover_on_arrival_day(db, prop.id, arrival, rid),
-        "turnover_on_departure": turnover_on_departure_day(db, prop.id, departure, rid),
+        "session_id": sid,
+        "arrival_raw": str(arrival),
+        "departure_raw": str(departure),
+        "arrival_date": str(arrival_d) if arrival_d else None,
+        "departure_date": str(departure_d) if departure_d else None,
+        "departures_on_arrival_day_count": dep_count,
+        "arrivals_on_departure_day_count": arr_count,
     }
 
 
