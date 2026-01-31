@@ -368,10 +368,18 @@ function createBotBubble({ id = null, thread_id = null, parent_id = null, varian
 
 async function syncUpgradeAvailabilityFromServer() {
   try {
-    if (!currentSessionId) return;
+    // ✅ prefer a globally-available session id, then fall back
+    const sid =
+      window.CURRENT_SESSION_ID ||
+      (typeof currentSessionId !== "undefined" ? currentSessionId : null) ||
+      window.INITIAL_SESSION_ID ||
+      localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ||
+      null;
+
+    if (!sid) return;
 
     const res = await fetch(
-      `/guest/properties/${window.PROPERTY_ID}/upgrades/availability?session_id=${encodeURIComponent(currentSessionId)}`,
+      `/guest/properties/${window.PROPERTY_ID}/upgrades/availability?session_id=${encodeURIComponent(String(sid))}`,
       { credentials: "include", cache: "no-store" }
     );
     if (!res.ok) return;
@@ -380,7 +388,7 @@ async function syncUpgradeAvailabilityFromServer() {
     const items = Array.isArray(data?.items) ? data.items : [];
 
     // map upgrade_id -> {is_available, unavailable_reason}
-    const map = new Map(items.map(x => [String(x.upgrade_id), x]));
+    const map = new Map(items.map((x) => [String(x.upgrade_id), x]));
 
     document.querySelectorAll(".upgrade-slide").forEach((slide) => {
       const id = String(slide.dataset.upgradeId || "");
@@ -405,12 +413,15 @@ async function syncUpgradeAvailabilityFromServer() {
     const activeSlide = document.querySelector(".upgrade-slide.is-active");
     if (activeSlide) {
       setUpgradeCtaAvailability(activeSlide);
-      if (activeUpgradeId != null) window.applyPaidState?.(activeUpgradeId);
+      if (typeof activeUpgradeId !== "undefined" && activeUpgradeId != null) {
+        window.applyPaidState?.(activeUpgradeId);
+      }
     }
   } catch (e) {
     console.warn("syncUpgradeAvailabilityFromServer failed:", e);
   }
 }
+
 
 
 async function typewriterTo(el, fullText, { speed = 12 } = {}) {
@@ -1863,6 +1874,7 @@ function renderMessage(text, sender, opts = {}) {
     if (data.session_id != null) {                 // handles 0 too
       currentSessionId = data.session_id;
       saveGuestState();
+      window.CURRENT_SESSION_ID = currentSessionId;
     
       try {
         localStorage.setItem(
@@ -2560,6 +2572,7 @@ async function attemptUnlock() {
     if (data.session_id != null) {
       currentSessionId = data.session_id;
     await syncUpgradeAvailabilityFromServer();
+      window.CURRENT_SESSION_ID = currentSessionId;
 
       try {
         localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(data.session_id));
