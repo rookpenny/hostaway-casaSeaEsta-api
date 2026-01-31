@@ -1152,6 +1152,8 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     family_image_url = cfg.get("family_image_url")
     foodie_image_url = cfg.get("foodie_image_url")
 
+    
+
     # ----------------------------
     # Resolve session (ONE rule)
     # ----------------------------
@@ -1242,13 +1244,13 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "arrival_date": arrival_date,
             "departure_date": departure_date,
 
+            "hero_image_url": hero_image_url,
+            "experiences_hero_url": experiences_hero_url,
             "feature_image_url": feature_image_url,
             "family_image_url": family_image_url,
             "foodie_image_url": foodie_image_url,
 
             "city_name": city_name,
-            "hero_image_url": hero_image_url,
-            "experiences_hero_url": experiences_hero_url,
             "google_maps_link": google_maps_link,
             "is_live": is_live,
             "sandy_enabled": bool(getattr(prop, "sandy_enabled", False)),
