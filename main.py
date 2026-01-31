@@ -775,8 +775,15 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
 
     # Today's in-house reservation (for turnover logic)
-    today_res = get_today_reservation(db, prop.id)
-    same_day_turnover = compute_same_day_turnover(db, prop.id, today_res)
+    turnover_dates = compute_turnover_dates_next_window(db, prop.id, WINDOW_DAYS)
+
+    stay_arrival_str = (arrival_date_db or cfg.get("arrival_date"))
+    stay_departure_str = (departure_date_db or cfg.get("departure_date"))
+
+    turnover_on_arrival, turnover_on_departure = turnover_flags_for_stay(
+        stay_arrival_str, stay_departure_str, turnover_dates
+    )
+
 
     # Load upgrades
     upgrades = (
@@ -794,14 +801,19 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         slug = (up.slug or "").lower()
         title_lower = (up.title or "").lower() if up.title else ""
 
-        is_time_flex = (
-            slug in {"early-check-in", "late-checkout", "late-check-out"}
-            or "early check" in title_lower
-            or "late check" in title_lower
-        )
+        is_early = _is_early_checkin_upgrade(up)
+        is_late = _is_late_checkout_upgrade(up)
 
-        if same_day_turnover and is_time_flex:
-            continue
+        disabled = False
+        disabled_reason = None
+
+        if is_early and turnover_on_arrival:
+            disabled = True
+            disabled_reason = "Not available due to same-day turnover."
+        if is_late and turnover_on_departure:
+            disabled = True
+            disabled_reason = "Not available due to same-day turnover."
+
 
         price_display = None
         if up.price_cents is not None:
@@ -825,6 +837,11 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "stripe_price_id": up.stripe_price_id,
                 "image_url": getattr(up, "image_url", None),
                 "badge": getattr(up, "badge", None),
+                "disabled": disabled,
+                "disabled_reason": disabled_reason,
+                "is_early_checkin": is_early,
+                "is_late_checkout": is_late,
+
             }
         )
 
@@ -867,28 +884,65 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "assistant_config": assistant_config,
             "initial_session_id": request.session.get(f"guest_session_{property_id}", None),
             "upgrades": visible_upgrades,
-            "same_day_turnover": same_day_turnover,
-            "hide_time_flex": same_day_turnover,
+            "turnover_on_arrival": turnover_on_arrival,
+            "turnover_on_departure": turnover_on_departure,
         },
     )
 
+def _is_early_checkin_upgrade(up: Upgrade) -> bool:
+    slug = (getattr(up, "slug", "") or "").strip().lower()
+    title = (getattr(up, "title", "") or "").strip().lower()
+    return (
+        slug in {"early-check-in", "early-checkin", "early_checkin"}
+        or "early check-in" in title
+        or "early check in" in title
+        or "early arrival" in title
+    )
 
-def compute_same_day_turnover(db: Session, property_id: int, reservation: Reservation | None) -> bool:
-    if not reservation or not reservation.departure_date:
-        return False
+def _is_late_checkout_upgrade(up: Upgrade) -> bool:
+    slug = (getattr(up, "slug", "") or "").strip().lower()
+    title = (getattr(up, "title", "") or "").strip().lower()
+    return (
+        slug in {"late-checkout", "late-check-out", "late_checkout", "late-check-out"}
+        or "late checkout" in title
+        or "late check-out" in title
+        or "late check out" in title
+        or "late departure" in title
+    )
 
-    checkout = reservation.departure_date
+def compute_turnover_dates_next_window(db: Session, property_id: int, window_days: int) -> set:
+    today = datetime.utcnow().date()
+    end = today + timedelta(days=window_days)
 
-    next_guest = (
-        db.query(Reservation)
+    rows = (
+        db.query(Reservation.arrival_date, Reservation.departure_date)
         .filter(
             Reservation.property_id == property_id,
-            Reservation.arrival_date == checkout,
-            Reservation.id != reservation.id,
+            Reservation.arrival_date.isnot(None),
+            Reservation.departure_date.isnot(None),
+            Reservation.departure_date >= today,
+            Reservation.arrival_date <= end,
         )
-        .first()
+        .all()
     )
-    return next_guest is not None
+
+    checkins = set()
+    checkouts = set()
+    for a, d in rows:
+        if a:
+            checkins.add(a)
+        if d:
+            checkouts.add(d)
+
+    return checkins.intersection(checkouts)
+
+def turnover_flags_for_stay(arrival_date_str: str | None, departure_date_str: str | None, turnover_dates: set) -> tuple[bool, bool]:
+    a = _parse_ymd(arrival_date_str) if arrival_date_str else None
+    d = _parse_ymd(departure_date_str) if departure_date_str else None
+    return (bool(a and a in turnover_dates), bool(d and d in turnover_dates))
+
+
+
 
 
 def should_hide_upgrade_for_turnover(upgrade: Upgrade, same_day_turnover: bool) -> bool:
