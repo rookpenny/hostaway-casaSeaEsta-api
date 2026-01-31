@@ -198,10 +198,11 @@ def _is_time_flex_upgrade(up: Upgrade) -> tuple[bool, str]:
 @app.get("/guest/properties/{property_id}/upgrades/availability")
 def guest_upgrades_availability(
     property_id: int,
+    request: Request,
     session_id: str | None = None,
-    request: Request = None,
     db: Session = Depends(get_db),
 ):
+
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
