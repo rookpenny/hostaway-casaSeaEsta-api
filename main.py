@@ -107,7 +107,23 @@ app.include_router(upgrade_checkout_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
 
-app.mount("/static", StaticFiles(directory="static"), name="static")
+
+
+# --- Paths (ABSOLUTE so Render/uvicorn working-dir changes don't break static/templates) ---
+BASE_DIR = FSPath(__file__).resolve().parent
+STATIC_DIR = BASE_DIR / "static"
+TEMPLATES_DIR = BASE_DIR / "templates"
+
+# Ensure dirs exist (helps avoid silent StaticFiles mount issues)
+STATIC_DIR.mkdir(parents=True, exist_ok=True)
+TEMPLATES_DIR.mkdir(parents=True, exist_ok=True)
+
+templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
+
+# Mount static using absolute path
+app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+
+
 
 # --- Middleware ---
 ALLOWED_ORIGINS = [
@@ -137,7 +153,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-templates = Jinja2Templates(directory="templates")
+
 
 TMP_MAX_AGE_SECONDS = 60 * 60 * 6  # 6 hours
 TMP_DIR = FSPath("static/uploads/upgrades/tmp")
@@ -238,6 +254,14 @@ def guest_upgrades_availability(
     turnover_arrival = turnover_on_arrival_day(db, property_id, arrival, guest_reservation_id) if guest_session else False
     turnover_departure = turnover_on_departure_day(db, property_id, departure, guest_reservation_id) if guest_session else False
 
+
+    # Hostaway fallback if DB doesn't show turnover
+    if guest_session and (not turnover_arrival or not turnover_departure):
+        ha_arr, ha_dep = _hostaway_turnover_flags(db, prop, arrival, departure, guest_reservation_id)
+        turnover_arrival = turnover_arrival or ha_arr
+        turnover_departure = turnover_departure or ha_dep
+
+    
     upgrades = (
         db.query(Upgrade)
         .filter(Upgrade.property_id == property_id, Upgrade.is_active.is_(True))
@@ -606,11 +630,44 @@ def list_routes():
     return [{"path": route.path, "methods": list(route.methods)} for route in app.router.routes]
 
 
+def resolve_public_image_url(request: Request, raw: str | None) -> str | None:
+    """
+    Normalizes image URLs so the frontend always gets a usable URL.
+    Accepts:
+      - full URLs: https://...
+      - absolute paths: /static/...
+      - relative static paths: uploads/...   (served from /static/uploads/...)
+    """
+    if not raw:
+        return None
+
+    s = str(raw).strip()
+    if not s:
+        return None
+
+    # already public
+    if s.startswith("http://") or s.startswith("https://") or s.startswith("data:"):
+        return s
+    if s.startswith("/"):
+        return s
+
+    # treat as relative-to-static
+    # e.g. "uploads/guides/x.jpg" -> "/static/uploads/guides/x.jpg"
+    try:
+        return str(request.url_for("static", path=s))
+    except Exception:
+        return f"/static/{s.lstrip('/')}"
+
+
+
+
 @app.get("/properties/{property_id}/guides")
 def list_property_guides(
     property_id: int,
+    request: Request,
     db: Session = Depends(get_db),
 ):
+
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
@@ -636,7 +693,7 @@ def list_property_guides(
                 "long_description": g.long_description,
                 "body_html": g.body_html,
                 "category": g.category,
-                "image_url": g.image_url,
+                "image_url": resolve_public_image_url(request, g.image_url),
                 "sort_order": g.sort_order,
             }
         )
@@ -1145,13 +1202,13 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     address = cfg.get("address")
     city_name = cfg.get("city_name")
 
-    hero_image_url = cfg.get("hero_image_url")
-    experiences_hero_url = cfg.get("experiences_hero_url") or hero_image_url
+    hero_image_url = resolve_public_image_url(request, cfg.get("hero_image_url"))
+    experiences_hero_url = resolve_public_image_url(request, cfg.get("experiences_hero_url")) or hero_image_url
+    
+    feature_image_url = resolve_public_image_url(request, cfg.get("feature_image_url"))
+    family_image_url = resolve_public_image_url(request, cfg.get("family_image_url"))
+    foodie_image_url = resolve_public_image_url(request, cfg.get("foodie_image_url"))
 
-    # keep these so your photos don’t disappear
-    feature_image_url = cfg.get("feature_image_url")
-    family_image_url = cfg.get("family_image_url")
-    foodie_image_url = cfg.get("foodie_image_url")
 
     
 
@@ -1173,6 +1230,13 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     # ----------------------------
     turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_date, reservation_id) if session else False
     turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_date, reservation_id) if session else False
+    
+    # If DB shows no turnover, fallback to Hostaway API (helps when reservations aren't synced)
+    if session and (not turnover_on_arrival or not turnover_on_departure):
+        ha_arr, ha_dep = _hostaway_turnover_flags(db, prop, arrival_date, departure_date, reservation_id)
+        turnover_on_arrival = turnover_on_arrival or ha_arr
+        turnover_on_departure = turnover_on_departure or ha_dep
+
 
     # ----------------------------
     # Upgrades per-item availability
@@ -1209,7 +1273,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
                 "price_currency": up.currency or "usd",
                 "price_display": format_price_display(up),
                 "stripe_price_id": up.stripe_price_id,
-                "image_url": getattr(up, "image_url", None),
+                "image_url": resolve_public_image_url(request, getattr(up, "image_url", None)),
                 "badge": getattr(up, "badge", None),
                 "is_available": bool(is_available),
                 "unavailable_reason": unavailable_reason,
