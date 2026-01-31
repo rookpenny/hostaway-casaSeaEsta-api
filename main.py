@@ -828,6 +828,28 @@ def __routes():
     return JSONResponse(out)
 
 
+def format_price_display(up: "Upgrade") -> str:
+    """
+    Single source of truth for what the UI shows.
+    Uses price_cents when available; falls back safely.
+    """
+    currency = (getattr(up, "currency", None) or "usd").lower()
+    cents = getattr(up, "price_cents", None)
+
+    if cents is None:
+        val = getattr(up, "price_display", None)
+        return str(val) if val else ""
+
+    try:
+        amount = float(cents) / 100.0
+    except Exception:
+        return ""
+
+    symbol = "$" if currency in ("usd", "us$", "$") else ""
+    if symbol:
+        return f"{symbol}{amount:,.2f}"
+    return f"{amount:,.2f} {currency.upper()}"
+
 
 
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
@@ -951,30 +973,6 @@ guest_reservation_id = getattr(active_session, "reservation_id", None)
 turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_for_turnover, guest_reservation_id)
 turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_for_turnover, guest_reservation_id)
 
-
-    # ---- helpers ----
-    def format_price_display(up: "Upgrade") -> str:
-        """
-        Single source of truth for what the UI shows.
-        Uses price_cents when available; falls back safely.
-        """
-        currency = (getattr(up, "currency", None) or "usd").lower()
-        cents = getattr(up, "price_cents", None)
-
-        if cents is None:
-            # allow optional preformatted value if your model has it
-            val = getattr(up, "price_display", None)
-            return str(val) if val else ""
-
-        try:
-            amount = float(cents) / 100.0
-        except Exception:
-            return ""
-
-        symbol = "$" if currency in ("usd", "us$", "$") else ""
-        if symbol:
-            return f"{symbol}{amount:,.2f}"
-        return f"{amount:,.2f} {currency.upper()}"
 
     # Load upgrades
     upgrades = (
