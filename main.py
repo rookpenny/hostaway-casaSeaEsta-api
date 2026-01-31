@@ -812,9 +812,8 @@ def _day_range(d: datetime.date) -> tuple[datetime, datetime]:
     return start, end
 
 
-# ----------------------------
-# Turnover rules (DATE-safe)
-# ----------------------------
+from sqlalchemy import func  # add this import near your other sqlalchemy imports
+
 def turnover_on_arrival_day(
     db: Session,
     property_id: int,
@@ -822,23 +821,19 @@ def turnover_on_arrival_day(
     guest_reservation_id: str | None = None,
 ) -> bool:
     """
-    Early check-in is NOT available if someone else is DEPARTING
-    on the guest's ARRIVAL date.
+    Early check-in is NOT available if someone else is DEPARTING on the guest's arrival date.
     Works whether Reservation.departure_date is DATE or DATETIME.
     """
     arrival = _to_date_any(arrival_date)
     if not arrival:
         return False
 
-    # Compare on date portion only (handles DateTime columns)
-    dep_col_as_date = func.date(Reservation.departure_date)
-
-    q = db.query(Reservation.id).filter(
+    q = db.query(Reservation).filter(
         Reservation.property_id == property_id,
-        dep_col_as_date == arrival,
+        func.date(Reservation.departure_date) == arrival,  # ✅ key fix
     )
 
-    # Exclude guest's own reservation if present
+    # Only exclude if your Reservation.id is truly the same id space (often it's not)
     if guest_reservation_id:
         try:
             gid = int(str(guest_reservation_id))
@@ -847,6 +842,38 @@ def turnover_on_arrival_day(
             pass
 
     return db.query(q.exists()).scalar() is True
+
+
+def turnover_on_departure_day(
+    db: Session,
+    property_id: int,
+    departure_date: Any,
+    guest_reservation_id: str | None = None,
+) -> bool:
+    """
+    Late checkout is NOT available if someone else is ARRIVING on the guest's departure date.
+    Works whether Reservation.arrival_date is DATE or DATETIME.
+    """
+    dep = _to_date_any(departure_date)
+    if not dep:
+        return False
+
+    q = db.query(Reservation).filter(
+        Reservation.property_id == property_id,
+        func.date(Reservation.arrival_date) == dep,  # ✅ key fix
+    )
+
+    if guest_reservation_id:
+        try:
+            gid = int(str(guest_reservation_id))
+            q = q.filter(Reservation.id != gid)
+        except Exception:
+            pass
+
+    return db.query(q.exists()).scalar() is True
+
+
+
 
 @app.get("/debug/turnover/{property_id}")
 def debug_turnover(property_id: int, request: Request, db: Session = Depends(get_db)):
@@ -889,36 +916,6 @@ def debug_turnover(property_id: int, request: Request, db: Session = Depends(get
     }
 
 
-def turnover_on_departure_day(
-    db: Session,
-    property_id: int,
-    departure_date: Any,
-    guest_reservation_id: str | None = None,
-) -> bool:
-    """
-    Late checkout is NOT available if someone else is ARRIVING
-    on the guest's DEPARTURE date.
-    Works whether Reservation.arrival_date is DATE or DATETIME.
-    """
-    dep = _to_date_any(departure_date)
-    if not dep:
-        return False
-
-    arr_col_as_date = func.date(Reservation.arrival_date)
-
-    q = db.query(Reservation.id).filter(
-        Reservation.property_id == property_id,
-        arr_col_as_date == dep,
-    )
-
-    if guest_reservation_id:
-        try:
-            gid = int(str(guest_reservation_id))
-            q = q.filter(Reservation.id != gid)
-        except Exception:
-            pass
-
-    return db.query(q.exists()).scalar() is True
 
 # ----------------------------
 # Price formatting helper
