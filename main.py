@@ -1336,6 +1336,8 @@ def _format_time_display(value: Any, default: str = "") -> str:
 
     return s
 
+class VerifyRequest(BaseModel):
+    code: str
 
 @app.post("/guest/{property_id}/verify-json")
 def verify_json(
