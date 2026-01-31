@@ -825,7 +825,8 @@
           </p>
         </section>
 
-       <!-- UPGRADES -->
+        
+<!-- UPGRADES -->
 <section
   id="screen-upgrades"
   class="hidden bg-[#f5f5f5] flex flex-col flex-1 text-[0.95rem] px-4 pt-24"
@@ -841,13 +842,16 @@
     </h1>
   </div>
 
-  <!-- Beats-style carousel shell -->
-  <div id="upgrades-carousel" class="upgrades-carousel relative w-full max-w-[420px] mx-auto overflow-x-auto">
+  <!-- Carousel -->
+  <div
+    id="upgrades-carousel"
+    class="upgrades-carousel relative w-full max-w-[420px] mx-auto overflow-x-auto"
+  >
     <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
       {% if upgrades and upgrades|length > 0 %}
         {% for up in upgrades %}
           {% set available = (up.is_available is not defined) or (up.is_available) %}
-          {% set reason = (up.unavailable_reason or "Not available for this stay.") %}
+          {% set reason = up.unavailable_reason or "Not available for this stay." %}
           {% set safe_reason = reason|replace('\n',' ')|replace('\r',' ')|e %}
           {% set safe_title = (up.title or "Upgrade")|replace('\n',' ')|replace('\r',' ')|e %}
           {% set safe_price = (up.price_display or "")|replace('\n',' ')|replace('\r',' ')|e %}
@@ -862,25 +866,17 @@
             data-upgrade-unavailable-reason="{{ safe_reason }}"
             {% if not available %} disabled aria-disabled="true"{% endif %}
           >
-            <div class="upgrade-card-inner w-[280px] h-[360px] bg-white">
-              {% if up.image_url %}
-                <img
-                  src="{{ up.image_url }}"
-                  alt="{{ safe_title }}"
-                  class="w-full h-full object-cover"
-                />
-              {% else %}
-                <img
-                  src="{{ hero_image_url or experiences_hero_url or '/static/img/default-hero.jpg' }}"
-                  alt="{{ safe_title }}"
-                  class="w-full h-full object-cover"
-                />
-              {% endif %}
+            <div class="upgrade-card-inner w-[280px] h-[360px] bg-white rounded-3xl overflow-hidden shadow-sm">
+              <img
+                src="{{ up.image_url or hero_image_url or experiences_hero_url or '/static/img/default-hero.jpg' }}"
+                alt="{{ safe_title }}"
+                class="w-full h-full object-cover"
+              />
             </div>
 
-            <!-- Banner (only visible when unavailable) -->
+            <!-- Banner shown when unavailable -->
             <div
-              class="upgrade-status-banner mb-4 rounded-xl border p-3 text-sm{% if available %} hidden{% endif %}"
+              class="upgrade-status-banner mt-4 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700{% if available %} hidden{% endif %}"
             >
               {{ reason }}
             </div>
@@ -889,31 +885,105 @@
               {{ up.long_description or up.short_description or "" }}
             </p>
           </button>
-
         {% endfor %}
       {% else %}
-        <p class="text-xs text-slate-500">Upgrades aren’t available for this stay yet.</p>
+        <p class="text-xs text-slate-500">
+          Upgrades aren’t available for this stay yet.
+        </p>
       {% endif %}
     </div>
   </div>
 
+  <!-- Active upgrade info -->
   <div id="upgrade-active-info" class="text-center hidden">
-    <h3 id="upgrade-active-title" class="text-[20px] font-semibold text-[#000000]"></h3>
+    <h3
+      id="upgrade-active-title"
+      class="text-[20px] font-semibold text-[#000000]"
+    ></h3>
     <p
       id="upgrade-active-description"
       class="text-[14px] leading-relaxed text-[#000000] max-w-xs mx-auto pt-2"
     ></p>
+
+    <div
+      id="upgrade-active-unavailable"
+      class="mt-4 hidden max-w-xs mx-auto rounded-xl border border-slate-200 bg-white p-3 text-[13px] text-slate-700"
+    ></div>
   </div>
 
+  <!-- CTA -->
   <div id="upgrade-active-cta" class="mt-6 flex justify-center hidden">
     <button
       id="upgrade-active-button"
       type="button"
-      class="inline-flex items-center justify-center rounded-[999px] border border-[#020617] px-10 py-4 text-[15px] font-semibold bg-white text-[#020617] hover:bg-black hover:text-white transition-colors duration-200"
+      class="inline-flex items-center justify-center rounded-[999px] border border-[#020617] px-10 py-4 text-[15px] font-semibold bg-white text-[#020617] hover:bg-black hover:text-white transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-white disabled:hover:text-[#020617]"
+      disabled
+      aria-disabled="true"
     >
-      <span id="upgrade-active-button-label">$0.00 – Purchase</span>
+      <span id="upgrade-active-button-label">Select an upgrade</span>
     </button>
   </div>
+
+  <!-- Logic -->
+  <script>
+    (function () {
+      const slides = Array.from(document.querySelectorAll(".upgrade-slide"));
+      if (!slides.length) return;
+
+      const info = document.getElementById("upgrade-active-info");
+      const cta = document.getElementById("upgrade-active-cta");
+
+      const titleEl = document.getElementById("upgrade-active-title");
+      const descEl = document.getElementById("upgrade-active-description");
+      const unavailEl = document.getElementById("upgrade-active-unavailable");
+
+      const btn = document.getElementById("upgrade-active-button");
+      const btnLabel = document.getElementById("upgrade-active-button-label");
+
+      function setActive(slide) {
+        const title = slide.dataset.upgradeTitle || "Upgrade";
+        const price = slide.dataset.upgradePrice || "";
+        const available = slide.dataset.upgradeAvailable === "1";
+        const reason =
+          slide.dataset.upgradeUnavailableReason ||
+          "Not available for this stay.";
+
+        const longDesc = slide.querySelector(".upgrade-long");
+        const desc = longDesc ? longDesc.textContent.trim() : "";
+
+        info.classList.remove("hidden");
+        cta.classList.remove("hidden");
+
+        titleEl.textContent = title;
+        descEl.textContent = desc;
+
+        if (available) {
+          unavailEl.classList.add("hidden");
+          unavailEl.textContent = "";
+
+          btn.disabled = false;
+          btn.setAttribute("aria-disabled", "false");
+          btnLabel.textContent = price
+            ? `${price} – Purchase`
+            : "Purchase";
+        } else {
+          unavailEl.classList.remove("hidden");
+          unavailEl.textContent = reason;
+
+          btn.disabled = true;
+          btn.setAttribute("aria-disabled", "true");
+          btnLabel.textContent = "Unavailable";
+        }
+      }
+
+      slides.forEach((s) => {
+        s.addEventListener("click", () => setActive(s));
+      });
+
+      // Default selection
+      setActive(slides[0]);
+    })();
+  </script>
 </section>
 
 
