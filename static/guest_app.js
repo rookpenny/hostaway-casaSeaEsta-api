@@ -2840,6 +2840,78 @@ function getCarouselCenterX() {
   return r.left + r.width / 2;
 }
 
+function isUpgradeDisabled(slideEl) {
+  if (!slideEl) return false;
+
+  // Supports both dataset and attribute style
+  const v = (slideEl.dataset?.upgradeDisabled || slideEl.getAttribute("data-upgrade-disabled") || "").toString();
+  return v === "true" || v === "1";
+}
+
+function getUpgradeDisabledReason(slideEl) {
+  if (!slideEl) return "";
+  return (
+    slideEl.dataset?.upgradeDisabledReason ||
+    slideEl.getAttribute("data-upgrade-disabled-reason") ||
+    ""
+  ).toString().trim();
+}
+
+/**
+ * Applies disabled state to BOTH:
+ * - carousel CTA (upgrade-active-button)
+ * - modal CTA (upgrade-detail-purchase)
+ * Does NOT override a "paid" state (paid always wins).
+ */
+function applyUpgradeDisabledState(slideEl) {
+  const disabled = isUpgradeDisabled(slideEl);
+  const reason = getUpgradeDisabledReason(slideEl) || "Not available for this stay.";
+
+  const paidIds = new Set(readPaidUpgrades());
+  const rawId = slideEl?.dataset?.upgradeId || slideEl?.getAttribute("data-upgrade-id");
+  const idNum = Number.parseInt(String(rawId || ""), 10);
+  const isPaid = Number.isFinite(idNum) && paidIds.has(idNum);
+
+  const btn = document.getElementById("upgrade-active-button");
+  const label = document.getElementById("upgrade-active-button-label");
+  const desc = document.getElementById("upgrade-active-description");
+
+  const modalBtn = document.getElementById("upgrade-detail-purchase");
+  const modalLabel = document.getElementById("upgrade-detail-price-bottom");
+
+  // If already paid, don't replace the paid UI
+  if (isPaid) return;
+
+  if (disabled) {
+    if (btn) {
+      btn.disabled = true;
+      btn.classList.add("opacity-60", "cursor-not-allowed");
+    }
+    if (label) label.textContent = "Not available";
+    if (desc) desc.textContent = reason;
+
+    if (modalBtn) {
+      modalBtn.disabled = true;
+      modalBtn.classList.add("opacity-60", "cursor-not-allowed");
+    }
+    if (modalLabel) modalLabel.textContent = "Not available";
+  } else {
+    // restore normal enabled state (but don't touch if paid)
+    if (btn) {
+      btn.disabled = false;
+      btn.classList.remove("opacity-60", "cursor-not-allowed");
+    }
+    if (modalBtn) {
+      modalBtn.disabled = false;
+      modalBtn.classList.remove("opacity-60", "cursor-not-allowed");
+    }
+
+    // restore labels based on current slide price
+    const price = slideEl?.dataset?.upgradePrice || "";
+    if (label) label.textContent = price ? `${price} – Purchase` : "Purchase";
+    if (modalLabel) modalLabel.textContent = price ? `${price} – Purchase` : "Purchase";
+  }
+}
 
 
 function setActiveSlideByIndex(idx) {
@@ -2880,18 +2952,31 @@ function setActiveSlideByIndex(idx) {
   if (ctaLabel) ctaLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 
   window.applyPaidState?.(activeUpgradeId);
+    // ✅ Disabled state (availability) should be applied after paid-state logic
+  applyUpgradeDisabledState(slide);
+
 }
 
 upgradeActiveButton?.addEventListener("click", () => {
   console.log("[UPGRADE CTA CLICK]", activeUpgradeId, typeof activeUpgradeId);
 
-  const idNum = Number.parseInt(String(activeUpgradeId), 10);
+  /*const idNum = Number.parseInt(String(activeUpgradeId), 10);
   if (!Number.isFinite(idNum) || idNum <= 0) {
     alert("Invalid upgrade selected. Please refresh and try again.");
     return;
   }
 
+  startUpgradeCheckout(idNum);*/
+
+    const slide = document.querySelector(".upgrade-slide.is-active");
+  if (slide && isUpgradeDisabled(slide)) {
+    alert(getUpgradeDisabledReason(slide) || "Not available for this stay.");
+    return;
+  }
+
   startUpgradeCheckout(idNum);
+
+  
 });
 
 
@@ -2972,14 +3057,17 @@ function initUpgradesCarousel() {
 
 
   
-  // tap a card to center it + activate it
   upgradeSlides.forEach((slide, idx) => {
-    slide.addEventListener("click", () => {
-      setActiveSlideByIndex(idx);
-      centerSlide(idx, "smooth");
-      // (optional) open modal here if you want click to open details instead of center
-    });
+  slide.addEventListener("click", () => {
+    // still allow browsing/centering disabled upgrades if you want:
+    setActiveSlideByIndex(idx);
+    centerSlide(idx, "smooth");
+
+    // If you want to prevent selecting disabled at all, uncomment:
+    // if (isUpgradeDisabled(slide)) return;
   });
+});
+
 
   // keep correct on resize
   window.addEventListener("resize", () => {
@@ -2992,14 +3080,26 @@ function initUpgradesCarousel() {
 
 
 
-// Purchase button in the detail modal (if you set activeUpgradeId when opening modal)
 upgradeDetailPurchase?.addEventListener("click", () => {
   if (!activeUpgradeId) {
-  alert("Invalid upgrade selected. Please refresh and try again.");
-  return;
-}
-startUpgradeCheckout(activeUpgradeId);
+    alert("Invalid upgrade selected. Please refresh and try again.");
+    return;
+  }
+
+  // If modal was opened for a specific upgrade, prefer that slide instead of "is-active"
+  const slide =
+    document.querySelector(`[data-upgrade-id="${String(activeUpgradeId)}"]`) ||
+    document.querySelector(".upgrade-slide.is-active");
+
+  if (slide && isUpgradeDisabled(slide)) {
+    alert(getUpgradeDisabledReason(slide) || "Not available for this stay.");
+    return;
+  }
+
+  startUpgradeCheckout(activeUpgradeId);
 });
+
+
 
     
 
