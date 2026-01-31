@@ -10,14 +10,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="theme-color" content="#020617" />
-  <link rel="apple-touch-icon" href="/static/icons/app-icon-192.png" />
+  <link rel="apple-touch-icon" href="{{ request.url_for('static', path='icons/app-icon-192.png') }}" />
 
   <!-- Tailwind CDN + DOMPurify -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/dompurify@3.1.6/dist/purify.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 
-  <script src="/static/guest_app.js" defer></script>
+  <script src="{{ request.url_for('static', path='guest_app.js') }}" defer></script>
   
   <style>
     html,
@@ -231,7 +231,7 @@
       overflow: hidden;
     }
     .avatar-sandy {
-      background-image: url("/static/img/sandy.png");
+      background-image: url("{{ request.url_for('static', path='img/sandy.png') }}");
       background-size: cover;
       background-position: center;
       background-color: transparent;
@@ -538,7 +538,7 @@
             <a href="#" class="flex items-center gap-2" aria-label="Home">
               <img
                 id="logo-img"
-                src="/static/img/neat-sleeps-white.png"
+                src="{{ request.url_for('static', path='img/neat-sleeps-white.png') }}"
                 alt="{{ property_name }}"
                 class="h-7"
               />
@@ -708,7 +708,7 @@
                 >
                   <div class="h-[430px] w-full overflow-hidden">
                     <img
-                      src="{{ hero_image_url or default_image_url }}"
+                      src="{{ hero_image_url or request.url_for('static', path='img/default-hero.jpg') }}"
                       alt="{{ property_name }}"
                       class="w-full h-full object-cover"
                     />
@@ -886,7 +886,7 @@
           >
             <div class="upgrade-card-inner w-[280px] h-[360px] bg-white rounded-3xl overflow-hidden shadow-sm">
               <img
-                src="{{ up.image_url or hero_image_url or experiences_hero_url or '/static/img/default-hero.jpg' }}"
+                src="{{ up.image_url or hero_image_url or experiences_hero_url or request.url_for('static', path='img/default-hero.jpg') }}"
                 alt="{{ safe_title }}"
                 class="w-full h-full object-cover"
               />
@@ -1097,12 +1097,10 @@
             <div class="flex-1 overflow-y-auto pt-28 pb-16 px-8">
               <div class="max-w-[24rem] mx-auto">
                 <h2 id="guide-modal-title" class="text-[30px] font-semibold leading-tight tracking-tight">Headline</h2>
-                <p
-                  id="guide-modal-body"
-                  class="mt-8 text-[16px] font-semibold leading-[1.40] text-black whitespace-pre-line"
-                >
+                <div id="guide-modal-body" class="mt-8 text-[16px] leading-[1.45] text-black">
+
                   Full description goes here.
-                </p>
+                </div>
               </div>
             </div>
           </section>
