@@ -177,6 +177,94 @@ def normalize_sentiment_label(value) -> str:
     return label
 
 
+
+
+def _is_time_flex_upgrade(up: Upgrade) -> tuple[bool, str]:
+    slug = (up.slug or "").lower()
+    title_lower = (up.title or "").lower()
+    kind = None
+
+    if slug in {"early-check-in"} or "early check" in title_lower:
+        kind = "early_checkin"
+    elif slug in {"late-checkout", "late-check-out"} or "late check" in title_lower:
+        kind = "late_checkout"
+
+    return (kind is not None, kind or "")
+
+
+@app.get("/guest/properties/{property_id}/upgrades/availability")
+def guest_upgrades_availability(
+    property_id: int,
+    session_id: str | None = None,
+    db: Session = Depends(get_db),
+):
+    prop = db.query(Property).filter(Property.id == property_id).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+
+    # Identify the *guest session* (not “latest_session for property”)
+    qs = db.query(ChatSession).filter(ChatSession.property_id == property_id)
+    if session_id:
+        qs = qs.filter(ChatSession.id == session_id)
+    guest_session = qs.first()
+
+    # If we don't have dates, we can't compute turnover correctly
+    arrival = getattr(guest_session, "arrival_date", None)
+    departure = getattr(guest_session, "departure_date", None)
+
+    # Load all active upgrades
+    upgrades = (
+        db.query(Upgrade)
+        .filter(Upgrade.property_id == property_id, Upgrade.is_active.is_(True))
+        .all()
+    )
+
+    # Compute turnover per relevant day:
+    # - early check-in depends on turnover on ARRIVAL day
+    # - late checkout depends on turnover on DEPARTURE day
+    turnover_on_arrival = False
+    turnover_on_departure = False
+
+    if arrival:
+        res_arrival = get_reservation_for_date(db, property_id, arrival)  # you implement
+        turnover_on_arrival = compute_same_day_turnover(db, property_id, res_arrival)
+
+    if departure:
+        res_departure = get_reservation_for_date(db, property_id, departure)  # you implement
+        turnover_on_departure = compute_same_day_turnover(db, property_id, res_departure)
+
+    out = []
+    for up in upgrades:
+        is_available = True
+        reason = None
+
+        is_time_flex, kind = _is_time_flex_upgrade(up)
+
+        if is_time_flex and kind == "early_checkin" and turnover_on_arrival:
+            is_available = False
+            reason = "Not available for same-day turnovers."
+        elif is_time_flex and kind == "late_checkout" and turnover_on_departure:
+            is_available = False
+            reason = "Not available for same-day turnovers."
+
+        out.append(
+            {
+                "upgrade_id": up.id,
+                "is_available": is_available,
+                "unavailable_reason": reason,
+            }
+        )
+
+    return {
+        "arrival_date": str(arrival) if arrival else None,
+        "departure_date": str(departure) if departure else None,
+        "turnover_on_arrival": turnover_on_arrival,
+        "turnover_on_departure": turnover_on_departure,
+        "items": out,
+    }
+
+
+
 def classify_sentiment_openai(
     client: OpenAI,
     text: str,
