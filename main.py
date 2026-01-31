@@ -192,6 +192,79 @@ def _is_time_flex_upgrade(up: Upgrade) -> tuple[bool, str]:
     return (kind is not None, kind or "")
 
 
+
+
+def _to_date_any(x: Any) -> Optional[datetime.date]:
+    if x is None:
+        return None
+    if hasattr(x, "date") and isinstance(x, datetime):
+        return x.date()
+    if isinstance(x, str):
+        return _parse_ymd(x)
+    # if already a date
+    try:
+        return x if hasattr(x, "year") and hasattr(x, "month") and hasattr(x, "day") else None
+    except Exception:
+        return None
+
+
+def turnover_on_arrival_day(
+    db: Session,
+    property_id: int,
+    arrival_date: Any,
+    guest_reservation_id: str | None = None,
+) -> bool:
+    """
+    Early check-in is NOT available if someone else is DEPARTING on the guest's arrival date.
+    """
+    arrival = _to_date_any(arrival_date)
+    if not arrival:
+        return False
+
+    q = db.query(Reservation).filter(
+        Reservation.property_id == property_id,
+        Reservation.departure_date == arrival,
+    )
+
+    if guest_reservation_id:
+        # Reservation.id is usually int; be defensive
+        try:
+            gid = int(str(guest_reservation_id))
+            q = q.filter(Reservation.id != gid)
+        except Exception:
+            pass
+
+    return db.query(q.exists()).scalar() is True
+
+
+def turnover_on_departure_day(
+    db: Session,
+    property_id: int,
+    departure_date: Any,
+    guest_reservation_id: str | None = None,
+) -> bool:
+    """
+    Late checkout is NOT available if someone else is ARRIVING on the guest's departure date.
+    """
+    dep = _to_date_any(departure_date)
+    if not dep:
+        return False
+
+    q = db.query(Reservation).filter(
+        Reservation.property_id == property_id,
+        Reservation.arrival_date == dep,
+    )
+
+    if guest_reservation_id:
+        try:
+            gid = int(str(guest_reservation_id))
+            q = q.filter(Reservation.id != gid)
+        except Exception:
+            pass
+
+    return db.query(q.exists()).scalar() is True
+
+
 @app.get("/guest/properties/{property_id}/upgrades/availability")
 def guest_upgrades_availability(
     property_id: int,
@@ -202,64 +275,54 @@ def guest_upgrades_availability(
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # Identify the *guest session* (not “latest_session for property”)
     qs = db.query(ChatSession).filter(ChatSession.property_id == property_id)
+
     if session_id:
         qs = qs.filter(ChatSession.id == session_id)
+
     guest_session = qs.first()
 
-    # If we don't have dates, we can't compute turnover correctly
     arrival = getattr(guest_session, "arrival_date", None)
     departure = getattr(guest_session, "departure_date", None)
+    guest_reservation_id = getattr(guest_session, "reservation_id", None)
 
-    # Load all active upgrades
+    turnover_arrival = turnover_on_arrival_day(db, property_id, arrival, guest_reservation_id)
+    turnover_departure = turnover_on_departure_day(db, property_id, departure, guest_reservation_id)
+
     upgrades = (
         db.query(Upgrade)
         .filter(Upgrade.property_id == property_id, Upgrade.is_active.is_(True))
+        .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
         .all()
     )
-
-    # Compute turnover per relevant day:
-    # - early check-in depends on turnover on ARRIVAL day
-    # - late checkout depends on turnover on DEPARTURE day
-    turnover_on_arrival = False
-    turnover_on_departure = False
-
-    if arrival:
-        res_arrival = get_reservation_for_date(db, property_id, arrival)  # you implement
-        turnover_on_arrival = compute_same_day_turnover(db, property_id, res_arrival)
-
-    if departure:
-        res_departure = get_reservation_for_date(db, property_id, departure)  # you implement
-        turnover_on_departure = compute_same_day_turnover(db, property_id, res_departure)
 
     out = []
     for up in upgrades:
         is_available = True
-        reason = None
+        reason = ""
 
         is_time_flex, kind = _is_time_flex_upgrade(up)
 
-        if is_time_flex and kind == "early_checkin" and turnover_on_arrival:
+        if is_time_flex and kind == "early_checkin" and turnover_arrival:
             is_available = False
             reason = "Not available for same-day turnovers."
-        elif is_time_flex and kind == "late_checkout" and turnover_on_departure:
+        elif is_time_flex and kind == "late_checkout" and turnover_departure:
             is_available = False
             reason = "Not available for same-day turnovers."
 
         out.append(
             {
                 "upgrade_id": up.id,
-                "is_available": is_available,
-                "unavailable_reason": reason,
+                "is_available": bool(is_available),
+                "unavailable_reason": reason or None,
             }
         )
 
     return {
         "arrival_date": str(arrival) if arrival else None,
         "departure_date": str(departure) if departure else None,
-        "turnover_on_arrival": turnover_on_arrival,
-        "turnover_on_departure": turnover_on_departure,
+        "turnover_on_arrival": turnover_arrival,
+        "turnover_on_departure": turnover_departure,
         "items": out,
     }
 
@@ -867,8 +930,27 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     departure_date_db = latest_session.departure_date if latest_session and latest_session.departure_date else None
 
     # Today's in-house reservation (for turnover logic)
-    today_res = get_today_reservation(db, prop.id)
-    same_day_turnover = compute_same_day_turnover(db, prop.id, today_res)
+    # Prefer the *current verified* guest session if it exists
+verified_session_id = request.session.get(f"guest_session_{property_id}", None)
+active_session = None
+if verified_session_id:
+    active_session = (
+        db.query(ChatSession)
+        .filter(ChatSession.id == int(verified_session_id), ChatSession.property_id == prop.id)
+        .first()
+    )
+
+# Fallback (pre-unlock browsing): use latest_session
+if not active_session:
+    active_session = latest_session
+
+arrival_for_turnover = getattr(active_session, "arrival_date", None)
+departure_for_turnover = getattr(active_session, "departure_date", None)
+guest_reservation_id = getattr(active_session, "reservation_id", None)
+
+turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_for_turnover, guest_reservation_id)
+turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_for_turnover, guest_reservation_id)
+
 
     # ---- helpers ----
     def format_price_display(up: "Upgrade") -> str:
@@ -920,9 +1002,15 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         is_available = True
         unavailable_reason = ""
 
-        if is_time_flex and same_day_turnover:
-            is_available = False
-            unavailable_reason = "Not available for same-day turnovers."
+        # ✅ Apply per-upgrade turnover rules
+if is_time_flex:
+    if (slug == "early-check-in" or "early check" in title_lower) and turnover_on_arrival:
+        is_available = False
+        unavailable_reason = "Not available for same-day turnovers."
+    elif (slug in {"late-checkout", "late-check-out"} or "late check" in title_lower) and turnover_on_departure:
+        is_available = False
+        unavailable_reason = "Not available for same-day turnovers."
+
 
         # ✅ FIX: define price_display (this is what was crashing)
         price_display = format_price_display(up)
@@ -984,8 +1072,13 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "assistant_config": assistant_config,
             "initial_session_id": request.session.get(f"guest_session_{property_id}", None),
             "upgrades": visible_upgrades,
-            "same_day_turnover": same_day_turnover,
-            "hide_time_flex": same_day_turnover,
+            "turnover_on_arrival": turnover_on_arrival,
+            "turnover_on_departure": turnover_on_departure,
+            
+            # Keep these if your template expects them:
+            "same_day_turnover": bool(turnover_on_arrival or turnover_on_departure),
+            "hide_time_flex": bool(turnover_on_arrival or turnover_on_departure),
+
         },
     )
 
