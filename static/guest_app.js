@@ -366,8 +366,9 @@ function createBotBubble({ id = null, thread_id = null, parent_id = null, varian
 async function syncUpgradeAvailabilityFromServer() {
   try {
     // ✅ only run when unlocked/verified
-    const isVerified = !!(window.INITIAL_VERIFIED || window.isUnlocked);
+    const isVerified = !!isUnlocked;
     if (!isVerified) return;
+
 
     // ✅ single source of truth: server-injected session id
     const sid =
