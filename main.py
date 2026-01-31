@@ -1226,25 +1226,20 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
 
     visible_upgrades = []
     for up in upgrades:
-        slug = (up.slug or "").lower()
-        title = (up.title or "").lower()
-
-        is_time_flex = (
-            slug in {"early-check-in", "late-checkout", "late-check-out"}
-            or "early check" in title
-            or "late check" in title
-        )
-
         is_available = True
         unavailable_reason = ""
-
+        
+        is_time_flex, kind = _is_time_flex_upgrade(up)
+        
         if is_time_flex:
-            if ("early" in slug or "early" in title) and turnover_on_arrival:
+            if kind == "early_checkin" and turnover_on_arrival:
                 is_available = False
                 unavailable_reason = "Not available for same-day turnovers."
-            if ("late" in slug or "late" in title) and turnover_on_departure:
+        
+            elif kind == "late_checkout" and turnover_on_departure:
                 is_available = False
                 unavailable_reason = "Not available for same-day turnovers."
+
 
         visible_upgrades.append(
             {
