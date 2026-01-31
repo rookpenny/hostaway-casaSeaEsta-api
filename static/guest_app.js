@@ -365,17 +365,23 @@ function createBotBubble({ id = null, thread_id = null, parent_id = null, varian
 
 async function syncUpgradeAvailabilityFromServer() {
   try {
-     if (!isUnlocked) return;                 // ✅ require verified
-    if (!currentSessionId) return;           // ✅ require session id
-    // ✅ prefer a globally-available session id, then fall back
+    // ✅ Require verified/unlocked state
+    if (!window.INITIAL_VERIFIED && !window.isUnlocked) return;
+
+    // ✅ Resolve session id (single source of truth)
     const sid =
-      window.CURRENT_SESSION_ID ||
-      (typeof currentSessionId !== "undefined" ? currentSessionId : null) ||
-      window.INITIAL_SESSION_ID ||
-      localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ||
+      window.CURRENT_SESSION_ID ??
+      window.INITIAL_SESSION_ID ??
+      sessionStorage.getItem("INITIAL_SESSION_ID") ??
+      localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ??
       null;
 
     if (!sid) return;
+
+    // ✅ Persist so refreshes don't lose it
+    window.CURRENT_SESSION_ID = String(sid);
+    sessionStorage.setItem("INITIAL_SESSION_ID", String(sid));
+    localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(sid));
 
     const res = await fetch(
       `/guest/properties/${window.PROPERTY_ID}/upgrades/availability?session_id=${encodeURIComponent(String(sid))}`,
@@ -386,21 +392,24 @@ async function syncUpgradeAvailabilityFromServer() {
     const data = await res.json();
     const items = Array.isArray(data?.items) ? data.items : [];
 
-    // map upgrade_id -> {is_available, unavailable_reason}
-    const map = new Map(items.map((x) => [String(x.upgrade_id), x]));
+    // Map upgrade_id -> { is_available, unavailable_reason }
+    const availabilityById = new Map(items.map((x) => [String(x.upgrade_id), x]));
 
     document.querySelectorAll(".upgrade-slide").forEach((slide) => {
       const id = String(slide.dataset.upgradeId || "");
-      const row = map.get(id);
+      const row = availabilityById.get(id);
       if (!row) return;
 
-      slide.dataset.upgradeAvailable = row.is_available ? "1" : "0";
-      slide.dataset.upgradeUnavailableReason = row.unavailable_reason || "";
+      const available = !!row.is_available;
+      const reason = row.unavailable_reason || "";
+
+      slide.dataset.upgradeAvailable = available ? "1" : "0";
+      slide.dataset.upgradeUnavailableReason = reason;
 
       const banner = slide.querySelector(".upgrade-status-banner");
       if (banner) {
-        if (!row.is_available) {
-          banner.textContent = row.unavailable_reason || "Not available for this stay.";
+        if (!available) {
+          banner.textContent = reason || "Not available for this stay.";
           banner.classList.remove("hidden");
         } else {
           banner.classList.add("hidden");
@@ -408,18 +417,17 @@ async function syncUpgradeAvailabilityFromServer() {
       }
     });
 
-    // re-apply gating for active slide
+    // Re-apply gating for active slide
     const activeSlide = document.querySelector(".upgrade-slide.is-active");
     if (activeSlide) {
       setUpgradeCtaAvailability(activeSlide);
-      if (typeof activeUpgradeId !== "undefined" && activeUpgradeId != null) {
-        window.applyPaidState?.(activeUpgradeId);
-      }
+      if (window.activeUpgradeId != null) window.applyPaidState?.(window.activeUpgradeId);
     }
   } catch (e) {
     console.warn("syncUpgradeAvailabilityFromServer failed:", e);
   }
 }
+
 
 
 
