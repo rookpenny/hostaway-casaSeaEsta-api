@@ -2848,6 +2848,40 @@ function isUpgradeDisabled(slideEl) {
   return v === "true" || v === "1";
 }
 
+
+    function restoreUpgradeNormalCopy(slideEl) {
+  if (!slideEl || isUpgradeDisabled(slideEl)) return;
+
+  const titleEl = document.getElementById("upgrade-active-title");
+  const descEl  = document.getElementById("upgrade-active-description");
+
+  if (titleEl) titleEl.classList.remove("text-slate-500");
+  if (descEl)  descEl.classList.remove("text-slate-500");
+}
+
+
+
+function applyUpgradeDisabledCopy(slideEl) {
+  if (!slideEl || !isUpgradeDisabled(slideEl)) return;
+
+  const reason = getUpgradeDisabledReason(slideEl) || "Not available for this stay.";
+
+  const titleEl = document.getElementById("upgrade-active-title");
+  const descEl  = document.getElementById("upgrade-active-description");
+
+  // Title area
+  if (titleEl) {
+    titleEl.textContent = "Not available";
+    titleEl.classList.add("text-slate-500");
+  }
+
+  // Body / description
+  if (descEl) {
+    descEl.textContent = reason;
+    descEl.classList.add("text-slate-500");
+  }
+}
+
 function getUpgradeDisabledReason(slideEl) {
   if (!slideEl) return "";
   return (
@@ -2954,6 +2988,8 @@ function setActiveSlideByIndex(idx) {
   window.applyPaidState?.(activeUpgradeId);
     // ✅ Disabled state (availability) should be applied after paid-state logic
   applyUpgradeDisabledState(slide);
+  applyUpgradeDisabledCopy(slide);
+  restoreUpgradeNormalCopy(slide);
 
 }
 
@@ -3075,8 +3111,6 @@ function initUpgradesCarousel() {
   applyScaleEasing();
 });
 }
-
-
 
 
 
