@@ -27,10 +27,8 @@
       return;
     }
 
-    window.STATIC_LOGO_WHITE = "{{ request.url_for('static', path='img/neat-sleeps-white.png') }}";
-    window.STATIC_LOGO_BLACK = "{{ request.url_for('static', path='img/neat-sleeps-black.png') }}";
-    window.STATIC_DEFAULT_HERO = "{{ request.url_for('static', path='img/default-hero.jpg') }}";
-
+    const LOGO_WHITE = "/static/img/neat-sleeps-white.png";
+    const LOGO_BLACK = "/static/img/neat-sleeps-black.png";
 
     // helper: are we currently on the chat screen?
     function isChatVisible() {
@@ -52,7 +50,10 @@
      // --- Global state ---
     let isUnlocked = !!window.INITIAL_VERIFIED;
     let lastUnlockCode = null;
-    let currentSessionId = window.INITIAL_SESSION_ID || null;
+    let currentSessionId =
+      window.INITIAL_SESSION_ID ||
+      localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ||
+      null;
 
     let guestName = null;
     let arrivalDate = null;
@@ -364,68 +365,6 @@ function createBotBubble({ id = null, thread_id = null, parent_id = null, varian
   return { row, bubble, body };
 }
 
-
-async function syncUpgradeAvailabilityFromServer() {
-  try {
-    // ✅ only run when unlocked/verified
-    const isVerified = !!isUnlocked;
-    if (!isVerified) return;
-
-
-    // ✅ single source of truth: server-injected session id
-    const sid =
-      window.CURRENT_SESSION_ID ||
-      window.INITIAL_SESSION_ID ||
-      sessionStorage.getItem("CURRENT_SESSION_ID") ||
-      localStorage.getItem(`server_session_${window.PROPERTY_ID}`);
-
-    if (!sid) return;
-
-    // ✅ persist it so refresh doesn't lose it
-    window.CURRENT_SESSION_ID = String(sid);
-    sessionStorage.setItem("CURRENT_SESSION_ID", String(sid));
-    localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(sid));
-
-    const url = `/guest/properties/${window.PROPERTY_ID}/upgrades/availability?session_id=${encodeURIComponent(
-      String(sid)
-    )}`;
-
-    const res = await fetch(url, { credentials: "include", cache: "no-store" });
-    if (!res.ok) return;
-
-    const data = await res.json();
-    const items = Array.isArray(data?.items) ? data.items : [];
-
-    const byId = new Map(items.map((x) => [String(x.upgrade_id), x]));
-
-    document.querySelectorAll(".upgrade-slide").forEach((slide) => {
-      const id = String(slide.dataset.upgradeId || "");
-      const row = byId.get(id);
-      if (!row) return;
-
-      const available = !!row.is_available;
-      const reason = row.unavailable_reason || "";
-
-      slide.dataset.upgradeAvailable = available ? "1" : "0";
-      slide.dataset.upgradeUnavailableReason = reason;
-
-      const banner = slide.querySelector(".upgrade-status-banner");
-      if (banner) {
-        if (!available) {
-          banner.textContent = reason || "Not available for this stay.";
-          banner.classList.remove("hidden");
-        } else {
-          banner.classList.add("hidden");
-        }
-      }
-    });
-
-    const activeSlide = document.querySelector(".upgrade-slide.is-active");
-    if (activeSlide) setUpgradeCtaAvailability(activeSlide);
-  } catch (e) {
-    console.warn("syncUpgradeAvailabilityFromServer failed:", e);
-  }
-}
 
 
 
@@ -1879,7 +1818,6 @@ function renderMessage(text, sender, opts = {}) {
     if (data.session_id != null) {                 // handles 0 too
       currentSessionId = data.session_id;
       saveGuestState();
-      window.CURRENT_SESSION_ID = currentSessionId;
     
       try {
         localStorage.setItem(
@@ -2211,15 +2149,6 @@ function loadReactions() {
         guidesFiltersContainer.appendChild(btn);
       });
 
-      const all = document.createElement("button");
-      all.type = "button";
-      all.dataset.filter = "all";
-      all.textContent = "All";
-      all.className = "guide-filter ...";
-      all.addEventListener("click", () => { guidesState.activeFilter = "all"; updateGuideFilterStates(); renderGuidesGrid(); });
-      guidesFiltersContainer.appendChild(all);
-
-
       const allBtn = document.querySelector('button.guide-filter[data-filter="all"]');
       allBtn?.addEventListener("click", () => {
         guidesState.activeFilter = "all";
@@ -2401,19 +2330,13 @@ function loadReactions() {
 
   document.body.classList.toggle("chat-screen", name === "chat");
 
-if (name === "upgrades") {
+  if (name === "experiences") loadGuidesIfNeeded();
+
+     if (name === "upgrades") {
   initUpgradesCarousel();
-
-  // make sure an active slide is selected immediately
   requestAnimationFrame(updateActiveFromScroll);
-
-  // ✅ pull server-side availability for THIS session (same-day turnover, etc.)
-  syncUpgradeAvailabilityFromServer();
-
-  // ✅ rehydrate paid upgrades (still needed)
-  syncPaidUpgradesFromServer();
+  syncPaidUpgradesFromServer(); // ✅ rehydrate paid upgrades after refresh
 }
-
 
 
   if (name === "chat") swapLogoWithFade(LOGO_BLACK);
@@ -2584,19 +2507,12 @@ async function attemptUnlock() {
 
     // ✅ bind server session immediately after verify
     if (data.session_id != null) {
-  currentSessionId = String(data.session_id);
-
-  // ✅ publish + persist immediately
-  window.CURRENT_SESSION_ID = currentSessionId;
-  try {
-    sessionStorage.setItem("CURRENT_SESSION_ID", currentSessionId);
-    localStorage.setItem(`server_session_${window.PROPERTY_ID}`, currentSessionId);
-  } catch {}
-
-  // ✅ now pull server truth for early/late availability
-  await syncUpgradeAvailabilityFromServer();
-}
-
+      currentSessionId = data.session_id;
+    
+      try {
+        localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(data.session_id));
+      } catch {}
+    }
 
 
     if (unlockError) unlockError.textContent = "";
@@ -2781,62 +2697,8 @@ async function attemptUnlock() {
 
     // --- Upgrades carousel (Beats-style) ---
 const upgradesCarousel = document.getElementById("upgrades-carousel");
+const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
 
-function getUpgradeSlides() {
-  return Array.from(document.querySelectorAll(".upgrade-slide"));
-}
-
-
-function isUpgradeAvailable(slideEl) {
-  if (!slideEl) return true;
-  const v = String(slideEl.dataset.upgradeAvailable || "1").trim();
-  return v !== "0";
-}
-
-function getUpgradeUnavailableReason(slideEl) {
-  return String(slideEl?.dataset?.upgradeUnavailableReason || "").trim();
-}
-
-function setUpgradeCtaAvailability(slideEl) {
-  const btn = document.getElementById("upgrade-active-button");
-  const label = document.getElementById("upgrade-active-button-label");
-  const modalBtn = document.getElementById("upgrade-detail-purchase");
-
-  if (!btn && !modalBtn) return;
-
-  const available = isUpgradeAvailable(slideEl);
-  const reason = getUpgradeUnavailableReason(slideEl) || "Not available for this stay.";
-
-  if (!available) {
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add("opacity-60", "cursor-not-allowed");
-      btn.classList.remove("hover:bg-black", "hover:text-white");
-    }
-    if (label) label.textContent = reason;
-
-    // availability can always disable modal
-    if (modalBtn) {
-      modalBtn.disabled = true;
-      modalBtn.classList.add("opacity-60", "cursor-not-allowed");
-    }
-    return;
-  }
-
-  // available → restore base state for MAIN CTA only
-  if (btn) {
-    btn.disabled = false;
-    btn.classList.remove("opacity-60", "cursor-not-allowed");
-    btn.classList.add("hover:bg-black", "hover:text-white");
-  }
-
-  // ✅ leave modalBtn alone here — applyPaidState decides
-}
-
-
-
-
-    
     // ===============================
 // Stripe Upgrade Checkout (Guest)
 // ===============================
@@ -2857,14 +2719,6 @@ async function startUpgradeCheckout(upgradeId) {
   }
   if (checkoutInFlight) return;
   checkoutInFlight = true;
-
-  // ✅ availability guard lives here (not only in click handlers)
-  const activeSlide = document.querySelector(".upgrade-slide.is-active");
-  if (activeSlide && !isUpgradeAvailable(activeSlide)) {
-    alert(getUpgradeUnavailableReason(activeSlide) || "Not available for this stay.");
-    checkoutInFlight = false;
-    return;
-  }
 
   if (!isUnlocked) {
     alert("Please unlock your stay first.");
@@ -2895,6 +2749,7 @@ async function startUpgradeCheckout(upgradeId) {
       body: JSON.stringify({ session_id: currentSessionId || null }),
     });
 
+    // Read body once, no matter what it is
     const text = await res.text();
     let data = {};
     try { data = JSON.parse(text); } catch { data = { raw: text }; }
@@ -2921,11 +2776,9 @@ async function startUpgradeCheckout(upgradeId) {
     console.error("[UPGRADE CHECKOUT EXCEPTION]", e);
     alert("Checkout failed. Please try again.");
   } finally {
-    // ✅ restore correct UI state (paid/unavailable wins)
     if (!willRedirect) {
-      const slide = document.querySelector(".upgrade-slide.is-active");
-      setUpgradeCtaAvailability?.(slide);
-      if (activeUpgradeId != null) window.applyPaidState?.(activeUpgradeId);
+      if (upgradeActiveButton) upgradeActiveButton.disabled = false;
+      if (upgradeDetailPurchase) upgradeDetailPurchase.disabled = false;
     }
     checkoutInFlight = false;
   }
@@ -2934,82 +2787,51 @@ async function startUpgradeCheckout(upgradeId) {
 
 
 
-
-  window.applyPaidState = function applyPaidState(upgradeId) {
+    window.applyPaidState = function applyPaidState(upgradeId) {
   const paidIds = new Set(readPaidUpgrades());
   const isPaid = paidIds.has(Number(upgradeId));
 
+  // Update the CTA under carousel
   const btn = document.getElementById("upgrade-active-button");
   const label = document.getElementById("upgrade-active-button-label");
   const desc = document.getElementById("upgrade-active-description");
 
-  const modalBtn = document.getElementById("upgrade-detail-purchase");
-  const modalLabel = document.getElementById("upgrade-detail-price-bottom");
-
-  const esc = (window.CSS && CSS.escape)
-    ? CSS.escape
-    : (s) => String(s).replace(/"/g, '\\"');
-
-  const slide =
-    document.querySelector(`.upgrade-slide[data-upgrade-id="${esc(String(upgradeId))}"]`) ||
-    document.querySelector(".upgrade-slide.is-active");
-
-  const available = !slide ? true : isUpgradeAvailable(slide);
-  const reason = getUpgradeUnavailableReason(slide) || "Not available for this stay.";
-  const price = slide?.dataset?.upgradePrice || "";
-
-  // ---- Paid wins ----
   if (isPaid) {
     if (label) label.textContent = "Purchase confirmed";
-    if (desc) desc.textContent = "✅ Upgrade confirmed — Your host has been notified.";
-
     if (btn) {
       btn.disabled = true;
       btn.classList.add("opacity-60", "cursor-not-allowed");
-      btn.classList.remove("hover:bg-black", "hover:text-white");
     }
+    if (desc) desc.textContent = "✅ Upgrade confirmed — Your host has been notified.";
+  } else {
+  // restore “normal” state
+  if (btn) {
+    btn.disabled = false;
+    btn.classList.remove("opacity-60", "cursor-not-allowed");
+  }
+  // restore label based on active slide price
+  const activeSlide = document.querySelector(".upgrade-slide.is-active");
+  const price = activeSlide?.dataset?.upgradePrice || "";
+  if (label) label.textContent = price ? `${price} – Purchase` : "Purchase";
+}
 
+
+  // Optional: also disable the modal purchase button
+  const modalBtn = document.getElementById("upgrade-detail-purchase");
+  const modalLabel = document.getElementById("upgrade-detail-price-bottom");
+  if (isPaid) {
     if (modalLabel) modalLabel.textContent = "Purchase confirmed";
     if (modalBtn) {
       modalBtn.disabled = true;
       modalBtn.classList.add("opacity-60", "cursor-not-allowed");
     }
-    return;
-  }
-
-  // ---- Unavailable wins (even if not paid) ----
-  if (!available) {
-    if (label) label.textContent = reason;
-
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add("opacity-60", "cursor-not-allowed");
-      btn.classList.remove("hover:bg-black", "hover:text-white");
-    }
-
-    if (modalLabel) modalLabel.textContent = reason;
+  } else {
     if (modalBtn) {
-      modalBtn.disabled = true;
-      modalBtn.classList.add("opacity-60", "cursor-not-allowed");
+      modalBtn.disabled = false;
+      modalBtn.classList.remove("opacity-60", "cursor-not-allowed");
     }
-    return;
   }
-
-  // ---- Normal state: available + not paid ----
-  if (btn) {
-    btn.disabled = false;
-    btn.classList.remove("opacity-60", "cursor-not-allowed");
-    btn.classList.add("hover:bg-black", "hover:text-white");
-  }
-  if (label) label.textContent = price ? `${price} – Purchase` : "Purchase";
-
-  if (modalBtn) {
-    modalBtn.disabled = false;
-    modalBtn.classList.remove("opacity-60", "cursor-not-allowed");
-  }
-  if (modalLabel) modalLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 };
-
 
     
 function getCarouselCenterX() {
@@ -3021,9 +2843,10 @@ function getCarouselCenterX() {
 
 
 function setActiveSlideByIndex(idx) {
-  const slide = getUpgradeSlides()[idx];
+  const slide = upgradeSlides[idx];
   if (!slide) return;
 
+  // ✅ SHOW the text + CTA (they are hidden by default in HTML)
   document.getElementById("upgrade-active-info")?.classList.remove("hidden");
   document.getElementById("upgrade-active-cta")?.classList.remove("hidden");
 
@@ -3038,11 +2861,12 @@ function setActiveSlideByIndex(idx) {
 
   activeUpgradeId = idNum;
 
-  getUpgradeSlides().forEach((s, i) => {
+  upgradeSlides.forEach((s, i) => {
     s.classList.toggle("is-active", i === idx);
     s.classList.toggle("is-inactive", i !== idx);
   });
 
+  // update UI text
   const titleEl  = document.getElementById("upgrade-active-title");
   const descEl   = document.getElementById("upgrade-active-description");
   const ctaLabel = document.getElementById("upgrade-active-button-label");
@@ -3053,44 +2877,13 @@ function setActiveSlideByIndex(idx) {
 
   if (titleEl) titleEl.textContent = title;
   if (descEl)  descEl.textContent  = long;
-
-  const available = isUpgradeAvailable(slide);
-  const reason = getUpgradeUnavailableReason(slide) || "Not available for this stay.";
-
-  // Banner: only show for unavailable here (paid banner can be handled in applyPaidState if desired)
-  const banner = slide.querySelector(".upgrade-status-banner");
-  if (banner) {
-    if (!available) {
-      banner.textContent = reason;
-      banner.classList.remove("hidden");
-    } else {
-      banner.classList.add("hidden");
-    }
-  }
-
-  if (!available) {
-    if (ctaLabel) ctaLabel.textContent = reason;
-    setUpgradeCtaAvailability(slide);
-    return;
-  }
-
   if (ctaLabel) ctaLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 
-  setUpgradeCtaAvailability(slide);      // enables main CTA
-  window.applyPaidState?.(activeUpgradeId); // may disable paid
+  window.applyPaidState?.(activeUpgradeId);
 }
 
-
-
 upgradeActiveButton?.addEventListener("click", () => {
-  const activeSlide =
-    document.querySelector(`.upgrade-slide[data-upgrade-id="${String(activeUpgradeId)}"]`) ||
-    document.querySelector(".upgrade-slide.is-active");
-
-  if (activeSlide && !isUpgradeAvailable(activeSlide)) {
-    alert(getUpgradeUnavailableReason(activeSlide) || "Not available for this stay.");
-    return;
-  }
+  console.log("[UPGRADE CTA CLICK]", activeUpgradeId, typeof activeUpgradeId);
 
   const idNum = Number.parseInt(String(activeUpgradeId), 10);
   if (!Number.isFinite(idNum) || idNum <= 0) {
@@ -3103,15 +2896,14 @@ upgradeActiveButton?.addEventListener("click", () => {
 
 
 
-
 function findClosestSlideIndex() {
-  if (!upgradesCarousel || !getUpgradeSlides().length) return 0;
+  if (!upgradesCarousel || !upgradeSlides.length) return 0;
 
   const centerX = getCarouselCenterX();
   let bestIdx = 0;
   let bestDist = Infinity;
 
-  getUpgradeSlides().forEach((slide, idx) => {
+  upgradeSlides.forEach((slide, idx) => {
     const r = slide.getBoundingClientRect();
     const slideCenter = r.left + r.width / 2;
     const dist = Math.abs(slideCenter - centerX);
@@ -3125,9 +2917,9 @@ function findClosestSlideIndex() {
 }
 
 function centerSlide(idx, behavior = "smooth") {
-  if (!upgradesCarousel || !getUpgradeSlides()[idx]) return;
+  if (!upgradesCarousel || !upgradeSlides[idx]) return;
 
-  const slide = getUpgradeSlides()[idx];
+  const slide = upgradeSlides[idx];
   const cRect = upgradesCarousel.getBoundingClientRect();
   const sRect = slide.getBoundingClientRect();
 
@@ -3148,7 +2940,7 @@ function initUpgradesCarousel() {
   if (upgradesBound) return;
   upgradesBound = true;
 
-  if (!upgradesCarousel || !getUpgradeSlides().length) return;
+  if (!upgradesCarousel || !upgradeSlides.length) return;
 
   // default state
   setActiveSlideByIndex(0);
@@ -3181,7 +2973,7 @@ function initUpgradesCarousel() {
 
   
   // tap a card to center it + activate it
-  getUpgradeSlides().forEach((slide, idx) => {
+  upgradeSlides.forEach((slide, idx) => {
     slide.addEventListener("click", () => {
       setActiveSlideByIndex(idx);
       centerSlide(idx, "smooth");
@@ -3202,14 +2994,6 @@ function initUpgradesCarousel() {
 
 // Purchase button in the detail modal (if you set activeUpgradeId when opening modal)
 upgradeDetailPurchase?.addEventListener("click", () => {
-const activeSlide = document.querySelector(".upgrade-slide.is-active");
-  if (activeSlide && !isUpgradeAvailable(activeSlide)) {
-    const reason = getUpgradeUnavailableReason(activeSlide) || "Not available for this stay.";
-    alert(reason);
-    return;
-  }
-
-  
   if (!activeUpgradeId) {
   alert("Invalid upgrade selected. Please refresh and try again.");
   return;
@@ -3220,11 +3004,11 @@ startUpgradeCheckout(activeUpgradeId);
     
 
     function applyScaleEasing() {
-  if (!upgradesCarousel || !getUpgradeSlides().length) return;
+  if (!upgradesCarousel || !upgradeSlides.length) return;
 
   const viewportCenter = upgradesCarousel.scrollLeft + upgradesCarousel.clientWidth / 2;
 
-  getUpgradeSlides().forEach((slide) => {
+  upgradeSlides.forEach((slide) => {
     //const rect = slide.getBoundingClientRect();
     // slide center in scroll container coordinates:
     const slideCenter =
@@ -3275,7 +3059,7 @@ function findUpgradeSlideIndexById(upgradeId) {
   const idStr = String(upgradeId);
 
   // uses the outer-scoped upgradeSlides array you already have
-  const idx = (getUpgradeSlides() || []).findIndex(
+  const idx = (upgradeSlides || []).findIndex(
     (s) => String(s?.dataset?.upgradeId || "") === idStr
   );
 
@@ -3477,22 +3261,4 @@ async function handleUpgradeReturnFromStripe() {
   
 handleUpgradeReturnFromStripe();
 
-    // ✅ Run availability sync once on page load (if already unlocked)
-if (isUnlocked) {
-  // ensure the global session id is set for other code paths
-  if (currentSessionId != null) window.CURRENT_SESSION_ID = String(currentSessionId);
-
-  // persist so refresh doesn't lose it
-  try {
-    sessionStorage.setItem("CURRENT_SESSION_ID", String(currentSessionId));
-    localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(currentSessionId));
-  } catch {}
-
-  // pull server truth for early/late availability
-  syncUpgradeAvailabilityFromServer();
-}
-
-
 });
-
-
