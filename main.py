@@ -199,29 +199,43 @@ def _is_time_flex_upgrade(up: Upgrade) -> tuple[bool, str]:
 def guest_upgrades_availability(
     property_id: int,
     session_id: str | None = None,
+    request: Request = None,
     db: Session = Depends(get_db),
 ):
-    if not session_id:
-        raise HTTPException(status_code=400, detail="session_id is required")
-
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    guest_session = (
-        db.query(ChatSession)
-        .filter(ChatSession.property_id == property_id, ChatSession.id == int(session_id))
-        .first()
-    )
+    # ✅ If session_id is supplied, use it. Otherwise use the SAME resolver as UI.
+    guest_session = None
+    if session_id:
+        try:
+            guest_session = (
+                db.query(ChatSession)
+                .filter(ChatSession.id == int(session_id), ChatSession.property_id == property_id)
+                .first()
+            )
+        except Exception:
+            guest_session = None
+
     if not guest_session:
-        raise HTTPException(status_code=404, detail="ChatSession not found for session_id")
+        # request can be None depending on FastAPI injection; be safe
+        if request is not None:
+            guest_session = resolve_guest_session(db, request, property_id)
+        else:
+            guest_session = (
+                db.query(ChatSession)
+                .filter(ChatSession.property_id == property_id)
+                .order_by(ChatSession.last_activity_at.desc())
+                .first()
+            )
 
-    arrival = getattr(guest_session, "arrival_date", None)
-    departure = getattr(guest_session, "departure_date", None)
-    guest_reservation_id = getattr(guest_session, "reservation_id", None)
+    arrival = getattr(guest_session, "arrival_date", None) if guest_session else None
+    departure = getattr(guest_session, "departure_date", None) if guest_session else None
+    guest_reservation_id = getattr(guest_session, "reservation_id", None) if guest_session else None
 
-    turnover_arrival = turnover_on_arrival_day(db, property_id, arrival, guest_reservation_id)
-    turnover_departure = turnover_on_departure_day(db, property_id, departure, guest_reservation_id)
+    turnover_arrival = turnover_on_arrival_day(db, property_id, arrival, guest_reservation_id) if guest_session else False
+    turnover_departure = turnover_on_departure_day(db, property_id, departure, guest_reservation_id) if guest_session else False
 
     upgrades = (
         db.query(Upgrade)
@@ -230,35 +244,28 @@ def guest_upgrades_availability(
         .all()
     )
 
-    out = []
+    items = []
     for up in upgrades:
         is_available = True
-        reason = ""
+        reason = None
 
         is_time_flex, kind = _is_time_flex_upgrade(up)
-
-        if is_time_flex and kind == "early_checkin" and turnover_arrival:
+        if kind == "early_checkin" and turnover_arrival:
             is_available = False
             reason = "Not available for same-day turnovers."
-        elif is_time_flex and kind == "late_checkout" and turnover_departure:
+        elif kind == "late_checkout" and turnover_departure:
             is_available = False
             reason = "Not available for same-day turnovers."
 
-        out.append(
-            {
-                "upgrade_id": up.id,
-                "is_available": bool(is_available),
-                "unavailable_reason": reason or None,
-            }
-        )
+        items.append({"upgrade_id": up.id, "is_available": is_available, "unavailable_reason": reason})
 
     return {
-        "session_id_used": guest_session.id,
+        "session_id_used": getattr(guest_session, "id", None),
         "arrival_date": str(arrival) if arrival else None,
         "departure_date": str(departure) if departure else None,
         "turnover_on_arrival": turnover_arrival,
         "turnover_on_departure": turnover_departure,
-        "items": out,
+        "items": items,
     }
 
 
@@ -986,6 +993,36 @@ def _apply_reservation_blocking_filters(q):
     return q
 
 
+def resolve_guest_session(db: Session, request: Request, property_id: int) -> ChatSession | None:
+    """
+    1) Use verified session from cookie if present
+    2) Else fallback to most recent session for property (for display + availability)
+    """
+    verified_session_id = request.session.get(f"guest_session_{property_id}")
+
+    if verified_session_id:
+        try:
+            s = (
+                db.query(ChatSession)
+                .filter(
+                    ChatSession.id == int(verified_session_id),
+                    ChatSession.property_id == int(property_id),
+                )
+                .first()
+            )
+            if s:
+                return s
+        except Exception:
+            pass
+
+    return (
+        db.query(ChatSession)
+        .filter(ChatSession.property_id == int(property_id))
+        .order_by(ChatSession.last_activity_at.desc())
+        .first()
+    )
+
+
 @app.get("/debug/turnover/{property_id}")
 def debug_turnover(property_id: int, session_id: int | None = None, db: Session = Depends(get_db)):
     qs = db.query(ChatSession).filter(ChatSession.property_id == property_id)
@@ -1060,11 +1097,7 @@ def format_price_display(up: Upgrade) -> str:
 
 
 # ----------------------------
-# Guest UI route (FINAL / CLEAN + FIXED)
-# - Restores image context keys so photos load
-# - Keeps VERIFIED session as the ONLY source of turnover gating
-# - Adds safe hero fallbacks (feature -> hero)
-# - (Optional) keeps Hostaway listing overview hero override (doesn't affect turnover)
+# Guest UI route (WORKING / STABLE)
 # ----------------------------
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
@@ -1101,7 +1134,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     is_live = bool(getattr(prop, "sandy_enabled", False) and pmc and getattr(pmc, "active", False))
 
     # ----------------------------
-    # Load config
+    # Load config (keep all image fields)
     # ----------------------------
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
@@ -1111,98 +1144,35 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     address = cfg.get("address")
     city_name = cfg.get("city_name")
 
-    # ✅ Restore image keys your template likely expects
+    hero_image_url = cfg.get("hero_image_url")
+    experiences_hero_url = cfg.get("experiences_hero_url") or hero_image_url
+
+    # keep these so your photos don’t disappear
     feature_image_url = cfg.get("feature_image_url")
     family_image_url = cfg.get("family_image_url")
     foodie_image_url = cfg.get("foodie_image_url")
 
-    # ✅ Strong hero fallbacks so photos don't "disappear"
-    hero_image_url = cfg.get("hero_image_url") or feature_image_url or family_image_url or foodie_image_url
-    experiences_hero_url = cfg.get("experiences_hero_url") or hero_image_url
+    # ----------------------------
+    # Resolve session (ONE rule)
+    # ----------------------------
+    session = resolve_guest_session(db, request, property_id)
 
-    # (Optional) keep Hostaway listing overview override for hero/address/city
-    prop_provider = (
-        (getattr(prop, "provider", None) or getattr(prop, "pms_integration", None) or "")
-        .strip()
-        .lower()
-    )
-    if prop_provider == "hostaway" and getattr(prop, "pms_property_id", None):
-        try:
-            integ = get_integration_for_property(db, prop)
-            if (getattr(integ, "provider", "") or "").strip().lower() == "hostaway":
-                hero, ha_address, ha_city = get_listing_overview(
-                    listing_id=str(prop.pms_property_id),
-                    client_id=(integ.account_id or "").strip(),
-                    client_secret=(integ.api_secret or "").strip(),
-                )
-                if hero and not hero_image_url:
-                    hero_image_url = hero
-                if hero and not experiences_hero_url:
-                    experiences_hero_url = hero
-                if ha_address and not address:
-                    address = ha_address
-                if ha_city and not city_name:
-                    city_name = ha_city
-        except Exception as e:
-            logger.warning("[Hostaway] Listing overview failed: %r", e)
+    verified_session_id = request.session.get(f"guest_session_{property_id}")
+    is_verified = bool(request.session.get(f"guest_verified_{property_id}", False))
 
-    if not experiences_hero_url and hero_image_url:
-        experiences_hero_url = hero_image_url
+    reservation_name = getattr(session, "guest_name", None) if session else None
+    arrival_date = getattr(session, "arrival_date", None) if session else None
+    departure_date = getattr(session, "departure_date", None) if session else None
+    reservation_id = getattr(session, "reservation_id", None) if session else None
 
     # ----------------------------
-    # VERIFIED SESSION ONLY (for turnover + dates)
+    # Turnover logic (DB ONLY here)
     # ----------------------------
-    # ----------------------------
-# Session resolution (STABLE)
-# ----------------------------
-verified_session_id = request.session.get(f"guest_session_{property_id}")
-
-active_session = None
-
-if verified_session_id:
-    try:
-        active_session = (
-            db.query(ChatSession)
-            .filter(
-                ChatSession.id == int(verified_session_id),
-                ChatSession.property_id == prop.id,
-            )
-            .first()
-        )
-    except Exception:
-        active_session = None
-
-# ✅ Fallback ONLY if no verified session
-if not active_session:
-    active_session = (
-        db.query(ChatSession)
-        .filter(ChatSession.property_id == prop.id)
-        .order_by(ChatSession.last_activity_at.desc())
-        .first()
-    )
-
-
-    reservation_name = (
-        (getattr(active_session, "guest_name", None) if active_session else None)
-        or (getattr(latest_session, "guest_name", None) if latest_session else None)
-    )
-
-    arrival_date = getattr(active_session, "arrival_date", None) if active_session else None
-    departure_date = getattr(active_session, "departure_date", None) if active_session else None
-    reservation_id = getattr(active_session, "reservation_id", None) if active_session else None
+    turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_date, reservation_id) if session else False
+    turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_date, reservation_id) if session else False
 
     # ----------------------------
-    # TURNOVER (DB ONLY — VERIFIED SESSION ONLY)
-    # ----------------------------
-    turnover_on_arrival = False
-    turnover_on_departure = False
-
-    if active_session:
-        turnover_on_arrival = turnover_on_arrival_day(db, prop.id, arrival_date, reservation_id)
-        turnover_on_departure = turnover_on_departure_day(db, prop.id, departure_date, reservation_id)
-
-    # ----------------------------
-    # UPGRADES (PER-ITEM AVAILABILITY)
+    # Upgrades per-item availability
     # ----------------------------
     upgrades = (
         db.query(Upgrade)
@@ -1218,10 +1188,10 @@ if not active_session:
 
         is_time_flex, kind = _is_time_flex_upgrade(up)
 
-        if is_time_flex and kind == "early_checkin" and turnover_on_arrival:
+        if kind == "early_checkin" and turnover_on_arrival:
             is_available = False
             unavailable_reason = "Not available for same-day turnovers."
-        elif is_time_flex and kind == "late_checkout" and turnover_on_departure:
+        elif kind == "late_checkout" and turnover_on_departure:
             is_available = False
             unavailable_reason = "Not available for same-day turnovers."
 
@@ -1252,10 +1222,10 @@ if not active_session:
         google_maps_link = f"https://www.google.com/maps/search/?api=1&query={quote_plus(q)}"
 
     checkin_time = hour_to_ampm(cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart"))
-    checkout_time = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime"))
+    checkout_time = hour_to_ampm(cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd"))
 
     # ----------------------------
-    # RENDER
+    # Render
     # ----------------------------
     return templates.TemplateResponse(
         "guest_app.html",
@@ -1271,25 +1241,23 @@ if not active_session:
             "checkout_time": checkout_time,
             "arrival_date": arrival_date,
             "departure_date": departure_date,
-            "city_name": city_name,
 
-            # ✅ restore photo keys (template dependencies)
             "feature_image_url": feature_image_url,
             "family_image_url": family_image_url,
             "foodie_image_url": foodie_image_url,
+
+            "city_name": city_name,
             "hero_image_url": hero_image_url,
             "experiences_hero_url": experiences_hero_url,
-
             "google_maps_link": google_maps_link,
             "is_live": is_live,
             "sandy_enabled": bool(getattr(prop, "sandy_enabled", False)),
-            "is_verified": request.session.get(f"guest_verified_{property_id}", False),
-
-            # ✅ this must exist so JS can set currentSessionId safely
-            "initial_session_id": verified_session_id,
+            "is_verified": is_verified,
 
             "assistant_config": assistant_config,
+            "initial_session_id": verified_session_id,  # IMPORTANT for JS
             "upgrades": visible_upgrades,
+
             "turnover_on_arrival": turnover_on_arrival,
             "turnover_on_departure": turnover_on_departure,
         },
