@@ -1304,7 +1304,6 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "upgrades": visible_upgrades,
             "turnover_on_arrival": turnover_on_arrival,
             "turnover_on_departure": turnover_on_departure,
-           
         },
     )
 
