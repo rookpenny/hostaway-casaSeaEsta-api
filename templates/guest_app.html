@@ -846,50 +846,45 @@
             <div class="upgrades-track flex items-center h-[420px] pt-6 pb-4">
               {% if upgrades and upgrades|length > 0 %}
                 {% for up in upgrades %}
-                  {% set slug = up.slug or "" %}
-                  {% set title_lower = (up.title or "")|lower %}
-                  {% set is_time_flex =
-                        slug in ["early-check-in", "late-checkout", "late-check-out"]
-                        or "early check" in title_lower
-                        or "late check" in title_lower
-                  %}
-                  {% if same_day_turnover and is_time_flex %}
-                    {# skip time-flex on same-day turnover #}
-                  {% else %}
-                   <button
-        type="button"
-        class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none"
-        data-upgrade-id="{{ up.id }}"
-        data-upgrade-title="{{ up.title }}"
-        data-upgrade-price="{{ up.price_display or '' }}"
-      >
-        <div
-          class="upgrade-card-inner w-[280px] h-[360px] bg-white"
-        >
-          {% if up.image_url %}
-            <img
-              src="{{ up.image_url }}"
-              alt="{{ up.title }}"
-              class="w-full h-full object-cover"
-            />
-          {% else %}
-            <img
-              src="{{ hero_image_url or default_image_url }}"
-              alt="{{ up.title }}"
-              class="w-full h-full object-cover"
-            />
-          {% endif %}
-        </div>
-      <div class="upgrade-status-banner hidden mb-4 rounded-xl border p-3 text-sm"></div>
-                     
-        <!-- hidden long copy so JS can read it -->
-        <p class="hidden upgrade-long">
-          {{ up.long_description or up.short_description }}
-        </p>
-      </button>
+  <button
+    type="button"
+    class="upgrade-slide upgrade-card relative shrink-0 text-left focus:outline-none {% if up.disabled %}opacity-50 cursor-not-allowed{% endif %}"
+    data-upgrade-id="{{ up.id }}"
+    data-upgrade-title="{{ up.title }}"
+    data-upgrade-price="{{ up.price_display or '' }}"
+    data-upgrade-disabled="{{ 'true' if up.disabled else 'false' }}"
+    data-upgrade-disabled-reason="{{ up.disabled_reason or '' }}"
+    {% if up.disabled %}disabled{% endif %}
+  >
+    <div class="upgrade-card-inner w-[280px] h-[360px] bg-white">
+      {% if up.image_url %}
+        <img
+          src="{{ up.image_url }}"
+          alt="{{ up.title }}"
+          class="w-full h-full object-cover"
+        />
+      {% else %}
+        <img
+          src="{{ hero_image_url or default_image_url }}"
+          alt="{{ up.title }}"
+          class="w-full h-full object-cover"
+        />
+      {% endif %}
+    </div>
 
-                  {% endif %}
-                {% endfor %}
+    <div
+      class="upgrade-status-banner {% if up.disabled %}block{% else %}hidden{% endif %} mt-3 rounded-xl border border-slate-200 bg-white p-3 text-sm text-slate-700"
+    >
+      {{ up.disabled_reason or "Not available for this stay." }}
+    </div>
+
+    <!-- hidden long copy so JS can read it -->
+    <p class="hidden upgrade-long">
+      {{ up.long_description or up.short_description }}
+    </p>
+  </button>
+{% endfor %}
+
               {% else %}
                 <p class="text-xs text-slate-500">Upgrades aren’t available for this stay yet.</p>
               {% endif %}
