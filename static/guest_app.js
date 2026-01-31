@@ -50,10 +50,7 @@
      // --- Global state ---
     let isUnlocked = !!window.INITIAL_VERIFIED;
     let lastUnlockCode = null;
-    let currentSessionId =
-      window.INITIAL_SESSION_ID ||
-      localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ||
-      null;
+    let currentSessionId = window.INITIAL_SESSION_ID || null;
 
     let guestName = null;
     let arrivalDate = null;
@@ -368,6 +365,8 @@ function createBotBubble({ id = null, thread_id = null, parent_id = null, varian
 
 async function syncUpgradeAvailabilityFromServer() {
   try {
+     if (!isUnlocked) return;                 // ✅ require verified
+    if (!currentSessionId) return;           // ✅ require session id
     // ✅ prefer a globally-available session id, then fall back
     const sid =
       window.CURRENT_SESSION_ID ||
