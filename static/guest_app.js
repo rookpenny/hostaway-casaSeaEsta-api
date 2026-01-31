@@ -365,39 +365,39 @@ function createBotBubble({ id = null, thread_id = null, parent_id = null, varian
 
 async function syncUpgradeAvailabilityFromServer() {
   try {
-    // ✅ Require verified/unlocked state
-    if (!window.INITIAL_VERIFIED && !window.isUnlocked) return;
+    // ✅ only run when unlocked/verified
+    const isVerified = !!(window.INITIAL_VERIFIED || window.isUnlocked);
+    if (!isVerified) return;
 
-    // ✅ Resolve session id (single source of truth)
+    // ✅ single source of truth: server-injected session id
     const sid =
-      window.CURRENT_SESSION_ID ??
-      window.INITIAL_SESSION_ID ??
-      sessionStorage.getItem("INITIAL_SESSION_ID") ??
-      localStorage.getItem(`server_session_${window.PROPERTY_ID}`) ??
-      null;
+      window.CURRENT_SESSION_ID ||
+      window.INITIAL_SESSION_ID ||
+      sessionStorage.getItem("CURRENT_SESSION_ID") ||
+      localStorage.getItem(`server_session_${window.PROPERTY_ID}`);
 
     if (!sid) return;
 
-    // ✅ Persist so refreshes don't lose it
+    // ✅ persist it so refresh doesn't lose it
     window.CURRENT_SESSION_ID = String(sid);
-    sessionStorage.setItem("INITIAL_SESSION_ID", String(sid));
+    sessionStorage.setItem("CURRENT_SESSION_ID", String(sid));
     localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(sid));
 
-    const res = await fetch(
-      `/guest/properties/${window.PROPERTY_ID}/upgrades/availability?session_id=${encodeURIComponent(String(sid))}`,
-      { credentials: "include", cache: "no-store" }
-    );
+    const url = `/guest/properties/${window.PROPERTY_ID}/upgrades/availability?session_id=${encodeURIComponent(
+      String(sid)
+    )}`;
+
+    const res = await fetch(url, { credentials: "include", cache: "no-store" });
     if (!res.ok) return;
 
     const data = await res.json();
     const items = Array.isArray(data?.items) ? data.items : [];
 
-    // Map upgrade_id -> { is_available, unavailable_reason }
-    const availabilityById = new Map(items.map((x) => [String(x.upgrade_id), x]));
+    const byId = new Map(items.map((x) => [String(x.upgrade_id), x]));
 
     document.querySelectorAll(".upgrade-slide").forEach((slide) => {
       const id = String(slide.dataset.upgradeId || "");
-      const row = availabilityById.get(id);
+      const row = byId.get(id);
       if (!row) return;
 
       const available = !!row.is_available;
@@ -417,17 +417,12 @@ async function syncUpgradeAvailabilityFromServer() {
       }
     });
 
-    // Re-apply gating for active slide
     const activeSlide = document.querySelector(".upgrade-slide.is-active");
-    if (activeSlide) {
-      setUpgradeCtaAvailability(activeSlide);
-      if (window.activeUpgradeId != null) window.applyPaidState?.(window.activeUpgradeId);
-    }
+    if (activeSlide) setUpgradeCtaAvailability(activeSlide);
   } catch (e) {
     console.warn("syncUpgradeAvailabilityFromServer failed:", e);
   }
 }
-
 
 
 
@@ -2577,14 +2572,19 @@ async function attemptUnlock() {
 
     // ✅ bind server session immediately after verify
     if (data.session_id != null) {
-      currentSessionId = data.session_id;
-    await syncUpgradeAvailabilityFromServer();
-      window.CURRENT_SESSION_ID = currentSessionId;
+  currentSessionId = String(data.session_id);
 
-      try {
-        localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(data.session_id));
-      } catch {}
-    }
+  // ✅ publish + persist immediately
+  window.CURRENT_SESSION_ID = currentSessionId;
+  try {
+    sessionStorage.setItem("CURRENT_SESSION_ID", currentSessionId);
+    localStorage.setItem(`server_session_${window.PROPERTY_ID}`, currentSessionId);
+  } catch {}
+
+  // ✅ now pull server truth for early/late availability
+  await syncUpgradeAvailabilityFromServer();
+}
+
 
 
     if (unlockError) unlockError.textContent = "";
@@ -3461,6 +3461,22 @@ async function handleUpgradeReturnFromStripe() {
 
   
 handleUpgradeReturnFromStripe();
+
+    // ✅ Run availability sync once on page load (if already unlocked)
+if (isUnlocked) {
+  // ensure the global session id is set for other code paths
+  if (currentSessionId != null) window.CURRENT_SESSION_ID = String(currentSessionId);
+
+  // persist so refresh doesn't lose it
+  try {
+    sessionStorage.setItem("CURRENT_SESSION_ID", String(currentSessionId));
+    localStorage.setItem(`server_session_${window.PROPERTY_ID}`, String(currentSessionId));
+  } catch {}
+
+  // pull server truth for early/late availability
+  syncUpgradeAvailabilityFromServer();
+}
+
 
 });
 
