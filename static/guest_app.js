@@ -2863,6 +2863,33 @@ async function startUpgradeCheckout(upgradeId) {
 }
 
 
+    function getUpgradeAvailabilityMessage(slideEl, ev) {
+  // 1) Server wins if it gives us a reason
+  if (ev && !ev.eligible) {
+    return ev.disabled_reason || "";
+  }
+
+  // 2) Opens-at logic (exact, date-based)
+  if (ev?.opens_at) {
+    const opens = new Date(ev.opens_at);
+    const today = new Date();
+    const diffDays = Math.ceil(
+      (opens.setHours(0,0,0,0) - today.setHours(0,0,0,0)) / 86400000
+    );
+
+    if (diffDays === 1) return "Early check-in opens tomorrow.";
+    if (diffDays > 1) return `Early check-in opens in ${diffDays} days.`;
+  }
+
+  // 3) Client-only same-day rules
+  const rule = getSameDayRuleForSlide(slideEl);
+  if (rule?.disabled && rule.reason) {
+    return rule.reason;
+  }
+
+  return ""; // available → no message
+}
+
 
 /* ===============================
    Paid + Disabled + Carousel UI
@@ -3013,7 +3040,7 @@ function setActiveSlideByIndex(idx) {
 
   const titleEl  = document.getElementById("upgrade-active-title");
   const descEl   = document.getElementById("upgrade-active-description");
-  const statusEl = document.getElementById("upgrade-active-status");
+  const statusEl = document.getElementById("upgrade-active-status"); // ✅ your orange line
   const ctaLabel = document.getElementById("upgrade-active-button-label");
   const ctaBtn   = document.getElementById("upgrade-active-button");
 
@@ -3022,13 +3049,16 @@ function setActiveSlideByIndex(idx) {
   const long  = slide.querySelector(".upgrade-long")?.textContent?.trim() || "";
 
   const disabled = isUpgradeDisabled(slide);
-  const reason = getUpgradeDisabledReason(slide) || "Not available for this stay.";
+  const reason = getUpgradeDisabledReason(slide) || "";
 
+  // --- Title ---
   if (titleEl) titleEl.textContent = title;
 
+  // --- ✅ Single source of truth message (ONLY in orange line) ---
   if (statusEl) {
-    if (disabled) {
-      statusEl.textContent = reason;
+    const msg = disabled ? reason : "";
+    if (msg) {
+      statusEl.textContent = msg;
       statusEl.classList.remove("hidden");
     } else {
       statusEl.textContent = "";
@@ -3036,10 +3066,13 @@ function setActiveSlideByIndex(idx) {
     }
   }
 
-  if (descEl) descEl.textContent = disabled ? `${long}\n\n${reason}` : long;
+  // --- Description: value prop only (no availability text) ---
+  if (descEl) descEl.textContent = long;
 
+  // --- CTA label ---
   if (ctaLabel) ctaLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 
+  // --- CTA enabled/disabled ---
   if (ctaBtn) {
     if (disabled) {
       ctaBtn.disabled = true;
@@ -3053,14 +3086,10 @@ function setActiveSlideByIndex(idx) {
   // paid overrides
   window.applyPaidState?.(activeUpgradeId);
 
-  // ✅ NEW: show “eligible tomorrow at X” helper text
-  if (activeUpgradeId) {
-    loadUpgradeRecommendation(window.PROPERTY_ID, activeUpgradeId);
-  }
-
   // keep scaling synced with active selection
   applyScaleEasing();
 }
+
 
 function findClosestSlideIndex() {
   if (!upgradesCarousel || !upgradeSlides.length) return 0;
