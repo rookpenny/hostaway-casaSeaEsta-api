@@ -1,13 +1,13 @@
-#api/guest_upgrades.py
-
+# api/guest_upgrades.py
 from __future__ import annotations
+
+from datetime import datetime, date, time
+from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from sqlalchemy.orm import Session
 from sqlalchemy import and_, exists
-from datetime import datetime, date, time
-from typing import List, Optional
+from sqlalchemy.orm import Session
 
 from database import get_db
 from models import ChatSession, Reservation, Upgrade, UpgradePurchase
@@ -19,6 +19,11 @@ from services.upgrade_rules import (
 )
 
 router = APIRouter(prefix="/guest", tags=["guest-upgrades"])
+
+
+# ✅ REQUIRED BY main.py
+def register_guest_upgrades_routes(app) -> None:
+    app.include_router(router)
 
 
 # -----------------------------
@@ -45,6 +50,7 @@ def _parse_time_loose(s: Optional[str], default: time) -> time:
         return default
 
     raw = str(s).strip()
+
     # try HH:MM (24h)
     for fmt in ("%H:%M", "%H:%M:%S"):
         try:
@@ -142,7 +148,6 @@ def get_stay_context(db: Session, property_id: int, session: ChatSession) -> Sta
     checkin_t = default_checkin
     checkout_t = default_checkout
 
-    # If you later store session.checkin_time / session.checkout_time, parse here.
     # For now, try Reservation record for same stay if available:
     stay_res = None
     if session.pms_reservation_id:
@@ -166,8 +171,7 @@ def get_stay_context(db: Session, property_id: int, session: ChatSession) -> Sta
             and_(
                 Reservation.property_id == property_id,
                 Reservation.departure_date == arrival,
-                # exclude same reservation if we can
-                *( [Reservation.pms_reservation_id != session.pms_reservation_id] if session.pms_reservation_id else [] )
+                *([Reservation.pms_reservation_id != session.pms_reservation_id] if session.pms_reservation_id else []),
             )
         )
     ).scalar()
@@ -178,7 +182,7 @@ def get_stay_context(db: Session, property_id: int, session: ChatSession) -> Sta
             and_(
                 Reservation.property_id == property_id,
                 Reservation.arrival_date == departure,
-                *( [Reservation.pms_reservation_id != session.pms_reservation_id] if session.pms_reservation_id else [] )
+                *([Reservation.pms_reservation_id != session.pms_reservation_id] if session.pms_reservation_id else []),
             )
         )
     ).scalar()
@@ -213,7 +217,7 @@ def upgrade_to_ctx(up: Upgrade) -> UpgradeCtx:
     )
 
 
-def ensure_not_already_paid(db: Session, session_id: int, upgrade_id: int):
+def ensure_not_already_paid(db: Session, session_id: int, upgrade_id: int) -> None:
     paid = (
         db.query(UpgradePurchase)
         .filter(
