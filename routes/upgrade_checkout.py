@@ -79,12 +79,28 @@ def _parse_ymd(s: Optional[str]) -> Optional[date]:
 def _get_stay_reservation(db: Session, *, property_id: int, guest_session_id: int) -> Optional[Reservation]:
     """
     Resolve the guest's Reservation row using ChatSession stay dates.
-    Prefer phone_last4 when available, but DO NOT fail hard if Reservation.phone_last4 isn't populated.
+    Prefer reservation_id when present, then phone_last4, then dates-only.
     """
     sess = db.query(ChatSession).filter(ChatSession.id == int(guest_session_id)).first()
     if not sess:
         return None
 
+    # ✅ 0) Try reservation_id first (most reliable)
+    rid = (getattr(sess, "reservation_id", None) or "").strip()
+    if rid and hasattr(Reservation, "reservation_id"):
+        hit = (
+            db.query(Reservation)
+            .filter(
+                Reservation.property_id == int(property_id),
+                Reservation.reservation_id == rid,
+            )
+            .order_by(Reservation.id.desc())
+            .first()
+        )
+        if hit:
+            return hit
+
+    # ✅ 1) Fallback to arrival/departure
     arr = _parse_ymd(getattr(sess, "arrival_date", None))
     dep = _parse_ymd(getattr(sess, "departure_date", None))
     if not arr or not dep:
@@ -96,22 +112,13 @@ def _get_stay_reservation(db: Session, *, property_id: int, guest_session_id: in
         Reservation.departure_date == dep,
     )
 
-    # Try phone_last4 match first (if both sides support it)
+    # ✅ 2) Phone match if available, but don't fail if not populated
     phone_last4 = (getattr(sess, "phone_last4", None) or "").strip()
-
-    # Only apply phone filter if Reservation actually has the column
-    has_phone_col = hasattr(Reservation, "phone_last4")
-
-    if phone_last4 and has_phone_col:
-        q1 = base_q.filter(Reservation.phone_last4 == phone_last4)
-        hit = q1.order_by(Reservation.id.desc()).first()
+    if phone_last4 and hasattr(Reservation, "phone_last4"):
+        hit = base_q.filter(Reservation.phone_last4 == phone_last4).order_by(Reservation.id.desc()).first()
         if hit:
             return hit
 
-        # ✅ Fallback: reservations may not have phone_last4 populated
-        return base_q.order_by(Reservation.id.desc()).first()
-
-    # No phone constraint
     return base_q.order_by(Reservation.id.desc()).first()
 
 def _guest_verified(request: Request, property_id: int) -> bool:
