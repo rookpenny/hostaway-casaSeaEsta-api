@@ -2912,18 +2912,32 @@ async function startUpgradeCheckout(upgradeId) {
     return;
   }
 
+// ✅ Must have a server session id to map to a reservation/stay
+if (!currentSessionId) {
+    alert("Please re-unlock your stay to continue.");
+    showScreen("home");
+    checkoutInFlight = false;
+    return;
+ }
+
   willRedirect = false;
 
   try {
     if (upgradeActiveButton) upgradeActiveButton.disabled = true;
     //const url = `/guest/upgrades/${encodeURIComponent(idNum)}/checkout`;
-      const url = `/guest/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(idNum)}/checkout`;
-
+    //  const url = `/guest/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(idNum)}/checkout`;
+    
+    const sid = encodeURIComponent(String(currentSessionId));
+    const url =
+        `/guest/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(idNum)}/checkout` +
+        `?session_id=${sid}`;
+      
     const res = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",
-      body: JSON.stringify({ session_id: currentSessionId || null }),
+      //body: JSON.stringify({ session_id: currentSessionId || null }),
+        body: JSON.stringify({ session_id: String(currentSessionId) }),
     });
 
     // Read body once, no matter what it is
