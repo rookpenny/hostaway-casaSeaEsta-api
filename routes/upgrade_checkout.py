@@ -1,13 +1,14 @@
 # routes/upgrade_checkout.py
 import os
 from typing import Optional, Dict, Any
+from datetime import datetime, date
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from sqlalchemy.orm import Session
 
 from database import get_db
-from models import PMCIntegration, Property, Upgrade, UpgradePurchase
+from models import PMCIntegration, Property, Upgrade, UpgradePurchase, ChatSession, Reservation
 
 router = APIRouter()
 
@@ -33,6 +34,43 @@ def _require_env() -> tuple[str, str]:
         raise HTTPException(status_code=500, detail=f"Missing env vars: {', '.join(missing)}")
 
     return stripe_secret, app_base
+
+
+def _parse_ymd(s: Optional[str]) -> Optional[date]:
+    if not s:
+        return None
+    try:
+        return datetime.strptime(str(s).strip(), "%Y-%m-%d").date()
+    except Exception:
+        return None
+
+
+def _get_stay_reservation(db: Session, *, property_id: int, guest_session_id: int) -> Optional[Reservation]:
+    """
+    Resolve the guest's Reservation row using the ChatSession's stored stay dates + phone_last4.
+    This keeps checkout eligibility tied to the actual stay.
+    """
+    sess = db.query(ChatSession).filter(ChatSession.id == int(guest_session_id)).first()
+    if not sess:
+        return None
+
+    arr = _parse_ymd(getattr(sess, "arrival_date", None))
+    dep = _parse_ymd(getattr(sess, "departure_date", None))
+    if not arr or not dep:
+        return None
+
+    q = db.query(Reservation).filter(
+        Reservation.property_id == int(property_id),
+        Reservation.arrival_date == arr,
+        Reservation.departure_date == dep,
+    )
+
+    # tighten match if available
+    phone_last4 = (getattr(sess, "phone_last4", None) or "").strip()
+    if phone_last4:
+        q = q.filter(Reservation.phone_last4 == phone_last4)
+
+    return q.order_by(Reservation.id.desc()).first()
 
 
 def _guest_verified(request: Request, property_id: int) -> bool:
@@ -123,6 +161,16 @@ def _create_checkout_for_upgrade(
     # Ensure upgrade belongs to this property
     if int(getattr(upgrade, "property_id", 0) or 0) != int(property_id):
         raise HTTPException(status_code=404, detail="Upgrade not found")
+
+    # ✅ Eligibility gate (same-day turnover + timing rules)
+    reservation = _get_stay_reservation(db, property_id=int(property_id), guest_session_id=int(guest_session_id))
+    if not reservation:
+        raise HTTPException(status_code=400, detail="Could not find your stay details for this upgrade.")
+
+    eligible, reason = is_upgrade_eligible(db=db, upgrade=upgrade, reservation=reservation)
+    if not eligible:
+        raise HTTPException(status_code=403, detail=reason)
+
 
     pmc_id = int(prop.pmc_id)
     destination_account_id = _get_stripe_destination_account(db, pmc_id)
