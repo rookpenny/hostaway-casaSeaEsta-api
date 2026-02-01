@@ -7,7 +7,7 @@ from typing import Any, Tuple
 from sqlalchemy.orm import Session
 
 from models import Reservation  # your SQLAlchemy model
-from utils.upgrades_eligibility import is_upgrade_eligible
+
 
 def is_upgrade_eligible(
     *,
