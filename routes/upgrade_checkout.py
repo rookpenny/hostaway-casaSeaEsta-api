@@ -78,21 +78,23 @@ def _parse_ymd(s: Optional[str]) -> Optional[date]:
 
 def _get_stay_reservation(db: Session, *, property_id: int, guest_session_id: int) -> Optional[Reservation]:
     """
-    Resolve the guest's Reservation row using ChatSession stay dates.
-    Prefer reservation_id when present, then phone_last4, then dates-only.
+    Resolve the guest's Reservation row using:
+      1) ChatSession.reservation_id -> Reservation.pms_reservation_id (best)
+      2) arrival/departure dates (fallback)
+      3) phone_last4 as a *preference*, but never a hard requirement
     """
     sess = db.query(ChatSession).filter(ChatSession.id == int(guest_session_id)).first()
     if not sess:
         return None
 
-    # ✅ 0) Try reservation_id first (most reliable)
-    rid = (getattr(sess, "reservation_id", None) or "").strip()
-    if rid and hasattr(Reservation, "reservation_id"):
+    # ✅ 1) Strongest match: PMS reservation id
+    sess_rid = (getattr(sess, "reservation_id", None) or "").strip()
+    if sess_rid:
         hit = (
             db.query(Reservation)
             .filter(
                 Reservation.property_id == int(property_id),
-                Reservation.reservation_id == rid,
+                Reservation.pms_reservation_id == sess_rid,
             )
             .order_by(Reservation.id.desc())
             .first()
@@ -100,7 +102,7 @@ def _get_stay_reservation(db: Session, *, property_id: int, guest_session_id: in
         if hit:
             return hit
 
-    # ✅ 1) Fallback to arrival/departure
+    # ✅ 2) Fallback: dates
     arr = _parse_ymd(getattr(sess, "arrival_date", None))
     dep = _parse_ymd(getattr(sess, "departure_date", None))
     if not arr or not dep:
@@ -112,10 +114,14 @@ def _get_stay_reservation(db: Session, *, property_id: int, guest_session_id: in
         Reservation.departure_date == dep,
     )
 
-    # ✅ 2) Phone match if available, but don't fail if not populated
+    # ✅ 3) Prefer phone_last4 if it exists on BOTH sides, but do not require it
     phone_last4 = (getattr(sess, "phone_last4", None) or "").strip()
-    if phone_last4 and hasattr(Reservation, "phone_last4"):
-        hit = base_q.filter(Reservation.phone_last4 == phone_last4).order_by(Reservation.id.desc()).first()
+    if phone_last4:
+        hit = (
+            base_q.filter(Reservation.phone_last4 == phone_last4)
+            .order_by(Reservation.id.desc())
+            .first()
+        )
         if hit:
             return hit
 
