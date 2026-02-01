@@ -2812,21 +2812,80 @@ function getCarouselCenterX() {
   const r = upgradesCarousel.getBoundingClientRect();
   return r.left + r.width / 2;
 }
+function isTodayDateStr(dateStr) {
+  if (!dateStr) return false;
+  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
+  return String(dateStr) === today;
+}
 
+function isArrivalDay() {
+  return isTodayDateStr(arrivalDate);
+}
+
+function isDepartureDay() {
+  return isTodayDateStr(departureDate);
+}
+
+// Heuristic rules by title (no backend changes required)
+function getSameDayRuleForSlide(slideEl) {
+  const title = (slideEl?.dataset?.upgradeTitle || "").toLowerCase().trim();
+
+  // You can expand these phrases if needed
+  const isLateCheckout = title.includes("late checkout") || title.includes("late check-out");
+  const isEarlyCheckin = title.includes("early check-in") || title.includes("early checkin") || title.includes("early check in");
+
+  if (isLateCheckout) {
+    return {
+      disabled: !isDepartureDay(),
+      reason: "Late checkout is only available on your departure day.",
+    };
+  }
+
+  if (isEarlyCheckin) {
+    return {
+      disabled: !isArrivalDay(),
+      reason: "Early check-in is only available on your arrival day.",
+    };
+  }
+
+  return { disabled: false, reason: "" };
+}
+
+// Original dataset-based disabled (server-driven)
 function isUpgradeDisabled(slideEl) {
   if (!slideEl) return false;
+
+  // 1) server-driven disabled always wins
   const v = (slideEl.dataset?.upgradeDisabled || slideEl.getAttribute("data-upgrade-disabled") || "").toString();
-  return v === "true" || v === "1";
+  const serverDisabled = v === "true" || v === "1";
+
+  if (serverDisabled) return true;
+
+  // 2) same-day rule (client-side)
+  const rule = getSameDayRuleForSlide(slideEl);
+  return !!rule.disabled;
 }
 
 function getUpgradeDisabledReason(slideEl) {
   if (!slideEl) return "";
-  return (
-    slideEl.dataset?.upgradeDisabledReason ||
-    slideEl.getAttribute("data-upgrade-disabled-reason") ||
-    ""
-  ).toString().trim();
+
+  // If server disabled, show server reason
+  const v = (slideEl.dataset?.upgradeDisabled || slideEl.getAttribute("data-upgrade-disabled") || "").toString();
+  const serverDisabled = v === "true" || v === "1";
+
+  if (serverDisabled) {
+    return (
+      slideEl.dataset?.upgradeDisabledReason ||
+      slideEl.getAttribute("data-upgrade-disabled-reason") ||
+      ""
+    ).toString().trim();
+  }
+
+  // Otherwise show same-day reason if it applies
+  const rule = getSameDayRuleForSlide(slideEl);
+  return (rule.reason || "").toString().trim();
 }
+
 
 /* ✅ KEEP: smooth scaling effect */
 function applyScaleEasing() {
