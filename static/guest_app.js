@@ -3091,21 +3091,13 @@ function setPurchasedUI({ confirmedText } = {}) {
   const btn = document.getElementById("upgrade-active-button");
   const btnLabel = document.getElementById("upgrade-active-button-label");
   if (btnLabel) btnLabel.textContent = "Purchase confirmed";
+
   if (btn) {
     btn.disabled = true;
     btn.classList.add("opacity-60", "cursor-not-allowed");
   }
-
-  // ✅ OPTIONAL modal controls (safe lookup; won’t crash if not on page)
-  const modalBottomLabel = document.getElementById("upgrade-modal-bottom-label");
-  const modalBtn = document.getElementById("upgrade-modal-button");
-
-  if (modalBottomLabel) modalBottomLabel.textContent = "Purchase confirmed";
-  if (modalBtn) {
-    modalBtn.disabled = true;
-    modalBtn.classList.add("opacity-60", "cursor-not-allowed");
-  }
 }
+
 
 
 
