@@ -203,6 +203,31 @@ function writePaidUpgrades(ids) {
   try { localStorage.setItem(paidUpgradesKey(), JSON.stringify(ids || [])); } catch {}
 }
 
+async function loadUpgradeRecommendation(propertyId, upgradeId) {
+  const el = document.getElementById("upgrade-active-recommendation");
+  if (!el) return;
+
+  el.textContent = ""; // clear
+
+  try {
+    const res = await fetch(
+      `/guest/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(upgradeId)}/recommendation`,
+      { credentials: "include" }
+    );
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      // don't scare the guest — fail quietly
+      return;
+    }
+
+    if (data?.suggested_message) {
+      el.textContent = data.suggested_message;
+    }
+  } catch (e) {
+    // fail silently
+  }
+}
 
     
 
@@ -3027,6 +3052,11 @@ function setActiveSlideByIndex(idx) {
 
   // paid overrides
   window.applyPaidState?.(activeUpgradeId);
+
+  // ✅ NEW: show “eligible tomorrow at X” helper text
+  if (activeUpgradeId) {
+    loadUpgradeRecommendation(window.PROPERTY_ID, activeUpgradeId);
+  }
 
   // keep scaling synced with active selection
   applyScaleEasing();
