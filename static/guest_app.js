@@ -2916,7 +2916,8 @@ async function startUpgradeCheckout(upgradeId) {
 
   try {
     if (upgradeActiveButton) upgradeActiveButton.disabled = true;
-    const url = `/guest/upgrades/${encodeURIComponent(idNum)}/checkout`;
+    //const url = `/guest/upgrades/${encodeURIComponent(idNum)}/checkout`;
+      const url = `/guest/properties/${encodeURIComponent(propertyId)}/upgrades/${encodeURIComponent(idNum)}/checkout`;
 
     const res = await fetch(url, {
       method: "POST",
