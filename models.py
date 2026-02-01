@@ -1,4 +1,4 @@
-from datetime import datetime
+
 from sqlalchemy import (
     Column,
     BigInteger,
@@ -18,7 +18,7 @@ from database import Base  # ✅ Use the shared Base from database.py
 import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
-
+from datetime import datetime, timezone
 
 
 # -------------------------------------------------------------------
@@ -275,6 +275,37 @@ class Property(Base):
         # Optional: keep legacy uniqueness during transition (safe)
         UniqueConstraint("pmc_id", "provider", "pms_property_id", name="uq_properties_provider_pms_id"),
     )
+
+
+
+# -------------------------------------------------------------------
+# MESSAGES
+# -------------------------------------------------------------------
+
+def utcnow():
+    return datetime.now(timezone.utc)
+
+class PMCMessage(Base):
+    __tablename__ = "pmc_messages"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pmc_id = Column(Integer, ForeignKey("pmc.id"), nullable=False, index=True)
+
+    # Useful fields for admin UI
+    type = Column(String(50), nullable=False, default="upgrade_request")  # e.g. upgrade_request
+    subject = Column(String(255), nullable=False)
+    body = Column(Text, nullable=False)
+
+    # Optional metadata you may want later
+    property_id = Column(Integer, nullable=True, index=True)
+    upgrade_purchase_id = Column(Integer, nullable=True, index=True)
+    upgrade_id = Column(Integer, nullable=True, index=True)
+    guest_session_id = Column(Integer, nullable=True, index=True)
+
+    is_read = Column(Boolean, nullable=False, default=False)
+    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+
+    pmc = relationship("PMC")
 
 
 # -------------------------------------------------------------------
