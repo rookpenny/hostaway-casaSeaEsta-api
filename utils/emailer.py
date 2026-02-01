@@ -90,8 +90,11 @@ def send_upgrade_purchase_email(
     upgrade_id: int | None = None,
 ) -> bool:
     """
-    Sends an "Upgrade purchased" notification email via Resend.
-    Returns True if provider accepted send; False otherwise.
+    Sends an "Upgrade purchased" email (early check-in / late checkout / etc).
+
+    Returns:
+      True if Resend accepted the send request.
+      False if email not configured or provider failed.
     """
     if not email_enabled():
         return False
@@ -106,16 +109,14 @@ def send_upgrade_purchase_email(
     safe_pmc_name = (pmc_name or "Your team").strip()
     safe_property_name = (property_name or "Your property").strip()
     safe_upgrade_title = (upgrade_title or "Upgrade").strip()
-    safe_guest_name = (guest_name or "").strip()
 
     amt = (int(amount_cents or 0) / 100.0)
     cur = (currency or "usd").upper().strip()
 
     subject = f"[HostScout] New upgrade purchase: {safe_upgrade_title} — {safe_property_name}"
 
-    # Optional admin deep link (adjust if you have a different route)
     base = (APP_BASE_URL or "").rstrip("/")
-    admin_url = f"{base}/admin/dashboard#messages"  # tweak to your actual messages tab
+    admin_url = f"{base}/admin/dashboard#messages"  # change if your UI uses a different hash/route
 
     stay_line = ""
     if arrival_date and departure_date:
@@ -125,7 +126,9 @@ def send_upgrade_purchase_email(
     if purchase_id: meta_bits.append(f"Purchase ID: {purchase_id}")
     if property_id: meta_bits.append(f"Property ID: {property_id}")
     if upgrade_id: meta_bits.append(f"Upgrade ID: {upgrade_id}")
-    meta_block = "<br/>".join(meta_bits) if meta_bits else ""
+    meta_html = "<br/>".join(meta_bits)
+
+    safe_guest = (guest_name or "").strip()
 
     html = f"""
     <div style="font-family: ui-sans-serif, system-ui; line-height: 1.5;">
@@ -136,10 +139,10 @@ def send_upgrade_purchase_email(
       <p><b>Upgrade:</b> {safe_upgrade_title}</p>
       <p><b>Amount:</b> {amt:.2f} {cur}</p>
 
-      {"<p><b>Guest:</b> " + safe_guest_name + "</p>" if safe_guest_name else ""}
-      {"<p><b>Stay:</b> " + stay_line + "</p>" if stay_line else ""}
+      {f"<p><b>Guest:</b> {safe_guest}</p>" if safe_guest else ""}
+      {f"<p><b>Stay:</b> {stay_line}</p>" if stay_line else ""}
 
-      {f"<p style='color:#64748b;font-size:12px;margin-top:12px;'>{meta_block}</p>" if meta_block else ""}
+      {f"<p style='color:#64748b;font-size:12px;margin-top:12px;'>{meta_html}</p>" if meta_html else ""}
 
       <p style="margin-top:16px;">
         <a href="{admin_url}"
@@ -166,4 +169,3 @@ def send_upgrade_purchase_email(
         return True
     except Exception:
         return False
-
