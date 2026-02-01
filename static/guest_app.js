@@ -1107,6 +1107,64 @@ function renderErrorWithActions(message, { parent_id = null } = {}) {
       });
     }
 
+async function refreshUpgradeEligibility() {
+  try {
+    if (!isUnlocked || !currentSessionId) return;
+
+    const res = await fetch(
+      `/guest/properties/${window.PROPERTY_ID}/upgrades/evaluated?session_id=${encodeURIComponent(currentSessionId)}`,
+      { credentials: "include", cache: "no-store" }
+    );
+    if (!res.ok) return;
+
+    const data = await readJsonSafely(res);
+    const list = Array.isArray(data?.upgrades) ? data.upgrades : [];
+
+    // map id -> evaluated
+    const byId = new Map(list.map(u => [String(u.id), u]));
+
+    document.querySelectorAll(".upgrade-slide").forEach((slide) => {
+      const id = String(slide.dataset.upgradeId || "");
+      const ev = byId.get(id);
+      if (!ev) return;
+
+      const disabled = !ev.eligible;
+      slide.dataset.upgradeDisabled = disabled ? "true" : "false";
+      slide.dataset.upgradeDisabledReason = ev.disabled_reason || "";
+
+      // Optional: disable click focus
+      if (disabled) slide.setAttribute("disabled", "disabled");
+      else slide.removeAttribute("disabled");
+
+      // Update banner inside card if present
+      const banner = slide.querySelector(".upgrade-status-banner");
+      if (banner) {
+        if (disabled) {
+          banner.textContent = ev.disabled_reason || "Not available for this stay.";
+          banner.classList.remove("hidden");
+          banner.classList.add("block");
+        } else {
+          banner.classList.add("hidden");
+          banner.classList.remove("block");
+        }
+      }
+    });
+
+    // Re-apply state for active card
+    const active = document.querySelector(".upgrade-slide.is-active");
+    if (active) {
+      const activeId = active.dataset.upgradeId;
+      // your existing function reads dataset.* so this updates the CTA/desc correctly
+      const idx = upgradeSlides.findIndex(s => String(s.dataset.upgradeId) === String(activeId));
+      if (idx >= 0) setActiveSlideByIndex(idx);
+    }
+  } catch (e) {
+    console.warn("refreshUpgradeEligibility failed:", e);
+  }
+}
+
+
+    
 async function syncPaidUpgradesFromServer() {
   try {
     const res = await fetch(`/guest/properties/${window.PROPERTY_ID}/upgrades/paid`, {
@@ -2334,6 +2392,7 @@ function loadReactions() {
   initUpgradesCarousel();
   requestAnimationFrame(updateActiveFromScroll);
   syncPaidUpgradesFromServer(); // ✅ rehydrate paid upgrades after refresh
+  refreshUpgradeEligibility(); // ✅ add this
 }
 
 
@@ -2551,6 +2610,7 @@ async function attemptUnlock() {
         }
 
         await syncPaidUpgradesFromServer();
+    refreshUpgradeEligibility(); // ✅ add this
 
         saveGuestState();
         updateHomeState();
@@ -3289,7 +3349,7 @@ async function handleUpgradeReturnFromStripe() {
   }
 }
 
-  
+await refreshUpgradeEligibility(); // ✅ add this 
 handleUpgradeReturnFromStripe();
 
 });
