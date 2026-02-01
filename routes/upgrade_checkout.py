@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import PMCIntegration, Property, Upgrade, UpgradePurchase, ChatSession, Reservation
 
+from utils.upgrades_eligibility import is_upgrade_eligible
+
 router = APIRouter()
 
 
