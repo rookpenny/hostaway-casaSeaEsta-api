@@ -6,12 +6,16 @@ from datetime import datetime, date
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, Body
 from sqlalchemy.orm import Session
+from pydantic import BaseModel
 
 from database import get_db
 from models import PMCIntegration, Property, Upgrade, UpgradePurchase, ChatSession, Reservation
 from utils.upgrades_eligibility import is_upgrade_eligible
 
 router = APIRouter()
+
+class CheckoutBody(BaseModel):
+    session_id: Optional[int] = None
 
 
 # -------------------------
@@ -58,6 +62,35 @@ def _require_guest_session_id_from_cookie(request: Request, property_id: int) ->
         return int(raw)
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid guest session for this stay.")
+
+
+
+def _resolve_guest_session_id(
+    request: Request,
+    property_id: int,
+    *,
+    session_id_q: Optional[int],
+    session_id_body: Optional[int],
+) -> int:
+    """
+    Resolve guest_session_id in priority order:
+      1) query param (?session_id=)
+      2) JSON body { session_id }
+      3) cookie-backed session (guest_session_{property_id})
+    """
+    if session_id_q is not None:
+        try:
+            return int(session_id_q)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid session_id (query).")
+
+    if session_id_body is not None:
+        try:
+            return int(session_id_body)
+        except Exception:
+            raise HTTPException(status_code=400, detail="Invalid session_id (body).")
+
+    return _require_guest_session_id(request, property_id)
 
 
 def _extract_guest_session_id(
@@ -369,10 +402,11 @@ def create_upgrade_checkout(
     property_id: int,
     upgrade_id: int,
     request: Request,
-    db: Session = Depends(get_db),
+    payload: Optional[CheckoutBody] = None,
     session_id: Optional[int] = Query(default=None),
-    body: Dict[str, Any] = Body(default={}),
+    db: Session = Depends(get_db),
 ):
+    # --- load upgrade ---
     upgrade = (
         db.query(Upgrade)
         .filter(
@@ -385,8 +419,15 @@ def create_upgrade_checkout(
     if not upgrade:
         raise HTTPException(status_code=404, detail="Upgrade not found")
 
-    guest_session_id = _extract_guest_session_id(request, property_id, session_id, body)
+    # --- resolve the CORRECT ChatSession.id ---
+    guest_session_id = _resolve_guest_session_id(
+        request,
+        property_id,
+        session_id_q=session_id,
+        session_id_body=(payload.session_id if payload else None),
+    )
 
+    # --- delegate to your existing checkout logic ---
     return _create_checkout_for_upgrade(
         db,
         request,
@@ -394,7 +435,6 @@ def create_upgrade_checkout(
         upgrade=upgrade,
         guest_session_id=int(guest_session_id),
     )
-
 
 # ==========================================================
 # POST /guest/upgrades/{upgrade_id}/checkout  (optional keep)
