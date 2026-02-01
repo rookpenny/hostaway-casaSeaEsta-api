@@ -188,10 +188,10 @@ function restoreChatHistory() {
 //const PAID_UPGRADES_KEY = `paid_upgrades_${window.PROPERTY_ID}`;
 
 function paidUpgradesKey() {
-  // Scope to property + VERIFIED session (prevents cross-guest “already purchased”)
-  const sid = currentSessionId ? String(currentSessionId) : "anon";
-  return `paid_upgrades_${window.PROPERTY_ID}_${sid}`;
+  if (!currentSessionId) return null; // 🚫 don’t cache without a stay
+  return `paid_upgrades_${window.PROPERTY_ID}_${String(currentSessionId)}`;
 }
+
 
 function readPaidUpgrades() {
   try {
