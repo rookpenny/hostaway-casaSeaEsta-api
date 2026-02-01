@@ -18,7 +18,7 @@ from utils.hostaway import (
     get_token_for_pmc,
 )
 
-from app.api.guest_upgrades import register_guest_upgrades_routes
+from api.guest_upgrades import register_guest_upgrades_routes
 from pathlib import Path as FSPath
 from typing import Optional, Any, Dict, Literal, TypedDict
 from datetime import datetime, timedelta, time as dt_time
