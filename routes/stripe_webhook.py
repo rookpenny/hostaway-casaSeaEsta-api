@@ -10,7 +10,10 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from database import SessionLocal
-from models import PMC, UpgradePurchase
+
+from models import PMC, UpgradePurchase, Property, Upgrade, ChatSession, PMCUser, PMCMessage
+from utils.emailer import send_upgrade_purchase_email
+
 
 router = APIRouter()
 
@@ -69,6 +72,72 @@ def _get_email_from_session(obj: Dict[str, Any]) -> Optional[str]:
 # ----------------------------
 # Lookup helpers
 # ----------------------------
+
+
+def _pmc_notification_emails(db: Session, pmc_id: int) -> list[str]:
+    """
+    Returns emails that should receive upgrade notifications.
+
+    Default behavior:
+      - include PMC.email
+      - include all active pmc_users emails
+      - OPTIONAL: if notification_prefs has {"upgrade_purchases": false}, skip that user
+    """
+    emails = set()
+
+    pmc = db.query(PMC).filter(PMC.id == int(pmc_id)).first()
+    if pmc and getattr(pmc, "email", None):
+        e = str(pmc.email).strip().lower()
+        if e and "@" in e:
+            emails.add(e)
+
+    users = (
+        db.query(PMCUser)
+        .filter(PMCUser.pmc_id == int(pmc_id), PMCUser.is_active == True)  # noqa: E712
+        .all()
+    )
+
+    for u in users:
+        e = (getattr(u, "email", None) or "").strip().lower()
+        if not e or "@" not in e:
+            continue
+
+        prefs = getattr(u, "notification_prefs", None) or {}
+        # if prefs explicitly disables upgrade purchase emails, skip
+        if isinstance(prefs, dict) and prefs.get("upgrade_purchases") is False:
+            continue
+
+        emails.add(e)
+
+    return sorted(emails)
+
+
+def _create_pmc_message(
+    db: Session,
+    *,
+    pmc_id: int,
+    subject: str,
+    body: str,
+    property_id: int | None = None,
+    upgrade_purchase_id: int | None = None,
+    upgrade_id: int | None = None,
+    guest_session_id: int | None = None,
+) -> None:
+    msg = PMCMessage(
+        pmc_id=int(pmc_id),
+        type="upgrade_request",  # matches your model default intent
+        subject=str(subject or "").strip() or "Upgrade request",
+        body=str(body or "").strip() or "",
+        property_id=property_id,
+        upgrade_purchase_id=upgrade_purchase_id,
+        upgrade_id=upgrade_id,
+        guest_session_id=guest_session_id,
+        is_read=False,
+    )
+    db.add(msg)
+    db.commit()
+
+
 def _find_pmc_from_event(db: Session, obj: Dict[str, Any], metadata: Dict[str, Any]) -> Optional[PMC]:
     """
     Used for PMC billing flows only.
