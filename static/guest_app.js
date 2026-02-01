@@ -1160,16 +1160,12 @@ async function refreshUpgradeEligibility() {
       else slide.removeAttribute("disabled");
 
       const banner = slide.querySelector(".upgrade-status-banner");
-      if (banner) {
-        if (disabled) {
-          banner.textContent = ev.disabled_reason || "Not available for this stay.";
-          banner.classList.remove("hidden");
-          banner.classList.add("block");
-        } else {
+        if (banner) {
+          banner.textContent = "";
           banner.classList.add("hidden");
           banner.classList.remove("block");
         }
-      }
+
     });
 
     // re-apply active CTA state
@@ -2779,11 +2775,151 @@ async function attemptUnlock() {
     
 const upgradesCarousel = document.getElementById("upgrades-carousel");
 const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
-
+const upgradeActiveButton = document.getElementById("upgrade-active-button");
     // ===============================
 // Stripe Upgrade Checkout (Guest)
 // ===============================
-const upgradeActiveButton = document.getElementById("upgrade-active-button");
+
+// ===============================
+// Upgrade Status Router (ONE output)
+// ===============================
+
+
+const STATUS_PRIORITY = {
+  [STATUS_SOURCES.STRIPE]: 300,
+  [STATUS_SOURCES.PAID]: 250,
+  [STATUS_SOURCES.ELIGIBILITY]: 100,
+  [STATUS_SOURCES.INFO]: 10,
+};
+
+let statusState = {
+  entries: new Map(), // source -> { text, cls, ts, sticky, upgradeId }
+};
+
+function getStatusEl() {
+  return document.getElementById("upgrade-active-status"); // ✅ orange line
+}
+
+function setUpgradeStatus({
+  source,
+  text = "",
+  cls = "",
+  sticky = false,
+  upgradeId = null, // optional: tie message to a specific upgrade
+} = {}) {
+  if (!source) return;
+
+  statusState.entries.set(source, {
+    text: String(text || ""),
+    cls: String(cls || ""),
+    ts: Date.now(),
+    sticky: !!sticky,
+    upgradeId: upgradeId != null ? String(upgradeId) : null,
+  });
+
+  renderUpgradeStatus();
+}
+
+function clearUpgradeStatus(source) {
+  if (!source) return;
+  statusState.entries.delete(source);
+  renderUpgradeStatus();
+}
+
+function clearAllUpgradeStatus() {
+  statusState.entries.clear();
+  renderUpgradeStatus();
+}
+
+// ===============================
+// Upgrade Status Router (ONE output)
+// ===============================
+const STATUS_SOURCES = {
+  STRIPE: "stripe",
+  PAID: "paid",
+  ELIGIBILITY: "eligibility",
+  INFO: "info",
+};
+
+const STATUS_PRIORITY = {
+  [STATUS_SOURCES.STRIPE]: 300,
+  [STATUS_SOURCES.PAID]: 250,
+  [STATUS_SOURCES.ELIGIBILITY]: 100,
+  [STATUS_SOURCES.INFO]: 10,
+};
+
+let statusState = {
+  entries: new Map(), // source -> { text, cls, ts, sticky, upgradeId }
+};
+
+function getStatusEl() {
+  return document.getElementById("upgrade-active-status"); // orange line
+}
+
+function getActiveUpgradeIdStr() {
+  return activeUpgradeId != null ? String(activeUpgradeId) : null;
+}
+
+function setUpgradeStatus({ source, text = "", cls = "", sticky = false, upgradeId = null } = {}) {
+  if (!source) return;
+
+  statusState.entries.set(source, {
+    text: String(text || ""),
+    cls: String(cls || ""),
+    ts: Date.now(),
+    sticky: !!sticky,
+    upgradeId: upgradeId != null ? String(upgradeId) : null,
+  });
+
+  renderUpgradeStatus();
+}
+
+function clearUpgradeStatus(source) {
+  if (!source) return;
+  statusState.entries.delete(source);
+  renderUpgradeStatus();
+}
+
+function renderUpgradeStatus() {
+  const el = getStatusEl();
+  if (!el) return;
+
+  const activeId = getActiveUpgradeIdStr();
+
+  const candidates = [...statusState.entries.entries()]
+    .map(([source, entry]) => ({ source, ...entry }))
+    .filter((e) => e.text && (!e.upgradeId || (activeId && e.upgradeId === activeId)));
+
+  if (!candidates.length) {
+    el.textContent = "";
+    el.classList.add("hidden");
+    return;
+  }
+
+  candidates.sort((a, b) => {
+    const pa = STATUS_PRIORITY[a.source] || 0;
+    const pb = STATUS_PRIORITY[b.source] || 0;
+    if (pb !== pa) return pb - pa;
+    return (b.ts || 0) - (a.ts || 0);
+  });
+
+  const top = candidates[0];
+  el.textContent = top.text || "";
+  el.classList.remove("hidden");
+  el.dataset.statusSource = top.source;
+  el.dataset.statusSticky = top.sticky ? "1" : "0";
+}
+
+function isStatusStickyAbove(source) {
+  const p = STATUS_PRIORITY[source] || 0;
+  for (const [src, entry] of statusState.entries.entries()) {
+    if (!entry?.sticky) continue;
+    const ps = STATUS_PRIORITY[src] || 0;
+    if (ps >= p) return true;
+  }
+  return false;
+}
+
 
 
 // track which upgrade is currently selected
@@ -3054,20 +3190,25 @@ function setActiveSlideByIndex(idx) {
   // --- Title ---
   if (titleEl) titleEl.textContent = title;
 
-  // --- ✅ Single source of truth message (ONLY in orange line) ---
-  if (statusEl) {
-    const msg = disabled ? reason : "";
+    // --- ✅ Status: route ONLY eligibility messages here ---
+  // If Stripe is currently showing something sticky, don't overwrite it.
+  if (!isStatusStickyAbove(STATUS_SOURCES.ELIGIBILITY)) {
+    const msg = disabled ? (reason || "") : "";
     if (msg) {
-      statusEl.textContent = msg;
-      statusEl.classList.remove("hidden");
+      setUpgradeStatus({
+        source: STATUS_SOURCES.ELIGIBILITY,
+        text: msg,
+        sticky: false,
+        upgradeId: activeUpgradeId, // tie to current upgrade
+      });
     } else {
-      statusEl.textContent = "";
-      statusEl.classList.add("hidden");
+      clearUpgradeStatus(STATUS_SOURCES.ELIGIBILITY);
     }
   }
 
-  // --- Description: value prop only (no availability text) ---
+  // --- Description stays value prop only ---
   if (descEl) descEl.textContent = long;
+
 
   // --- CTA label ---
   if (ctaLabel) ctaLabel.textContent = price ? `${price} – Purchase` : "Purchase";
@@ -3219,43 +3360,9 @@ function findUpgradeSlideIndexById(upgradeId) {
   return idx >= 0 ? idx : 0;
 }
 
-function getBannerForUpgrade(upgradeId) {
-  // Safe CSS.escape fallback (older Safari / webviews)
-  const esc =
-    (window.CSS && CSS.escape)
-      ? CSS.escape
-      : (s) => String(s).replace(/"/g, '\\"');
-
-  // Prefer the banner inside the purchased upgrade card
-  if (upgradeId) {
-    const card = document.querySelector(
-      `[data-upgrade-id="${esc(String(upgradeId))}"]`
-    );
-    const b = card?.querySelector(".upgrade-status-banner");
-    if (b) return b;
-  }
-
-  // Fallback: active slide banner
-  const activeSlide = document.querySelector(".upgrade-slide.is-active");
-  const b2 = activeSlide?.querySelector(".upgrade-status-banner");
-  if (b2) return b2;
-
-  // Final fallback: first banner
-  return document.querySelector(".upgrade-status-banner");
-}
 
 
-function setUpgradeBanner({ upgradeId = null, title = "", body = "", cls = "" } = {}) {
-  const banner = getBannerForUpgrade(upgradeId);
-  if (!banner) return;
 
-  banner.className = `upgrade-status-banner mb-4 rounded-xl border p-3 text-sm ${cls || ""}`;
-  banner.innerHTML = `
-    <div class="font-semibold">${title || ""}</div>
-    ${body ? `<div class="text-sm mt-1">${body}</div>` : ""}
-  `;
-  banner.classList.remove("hidden");
-}
 
 function setPurchasedUI({ confirmedText } = {}) {
   const descEl = document.getElementById("upgrade-active-description");
@@ -3278,17 +3385,18 @@ function setPurchasedUI({ confirmedText } = {}) {
 
 
 async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
-  purchaseId = purchaseId ? String(purchaseId) : "";
-  sessionId  = sessionId ? String(sessionId) : "";
-  upgradeId  = upgradeId ? String(upgradeId) : null;
+  const pid = purchaseId ? String(purchaseId) : "";
+  const sid = sessionId ? String(sessionId) : "";
+  const uid = upgradeId ? String(upgradeId) : null;
 
-  if (!purchaseId) return false;
+  if (!pid) return false;
 
-  setUpgradeBanner({
-    upgradeId,
-    title: "✅ Payment received",
-    body: "Confirming with the host…",
-    cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
+  // ✅ Show Stripe status in the orange line (sticky so carousel updates won't overwrite)
+  setUpgradeStatus({
+    source: STATUS_SOURCES.STRIPE,
+    text: "✅ Payment received — Confirming with the host…",
+    sticky: true,
+    upgradeId: uid,
   });
 
   const maxAttempts = 10;
@@ -3299,29 +3407,35 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
       if (document.visibilityState === "hidden") break;
 
       const url =
-        `/guest/upgrades/purchase-status?purchase_id=${encodeURIComponent(purchaseId)}` +
-        (sessionId ? `&session_id=${encodeURIComponent(sessionId)}` : "") +
+        `/guest/upgrades/purchase-status?purchase_id=${encodeURIComponent(pid)}` +
+        (sid ? `&session_id=${encodeURIComponent(sid)}` : "") +
         `&t=${Date.now()}`;
 
       const res = await fetch(url, { credentials: "include", cache: "no-store" });
       const data = await readJsonSafely(res);
 
       if (res.ok && data?.status === "paid") {
-        if (upgradeId) markUpgradePaid(upgradeId);
+        if (uid) markUpgradePaid(uid);
         await syncPaidUpgradesFromServer();
-      
-        setUpgradeBanner({
-          upgradeId,
-          title: "✅ Upgrade confirmed",
-          body: "Your host has been notified.",
-          cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
+
+        // ✅ Confirmed message in orange line
+        setUpgradeStatus({
+          source: STATUS_SOURCES.STRIPE,
+          text: "✅ Upgrade confirmed — Your host has been notified.",
+          sticky: true,
+          upgradeId: uid,
         });
+
+        // Keep your existing purchased UI behavior
         setPurchasedUI({
           confirmedText: "✅ Upgrade confirmed — Your host has been notified.",
         });
+
+        // Optional: release the orange line after a few seconds so eligibility can show again
+        setTimeout(() => clearUpgradeStatus(STATUS_SOURCES.STRIPE), 8000);
+
         return true;
       }
-
     } catch {
       // ignore + keep polling
     }
@@ -3329,12 +3443,16 @@ async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
     await new Promise((r) => setTimeout(r, delayMs));
   }
 
-  setUpgradeBanner({
-    upgradeId,
-    title: "✅ Payment received",
-    body: "Your host will confirm shortly.",
-    cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
+  // ✅ Timed out (still not confirmed)
+  setUpgradeStatus({
+    source: STATUS_SOURCES.STRIPE,
+    text: "✅ Payment received — Your host will confirm shortly.",
+    sticky: true,
+    upgradeId: uid,
   });
+
+  // Optional: clear later
+  setTimeout(() => clearUpgradeStatus(STATUS_SOURCES.STRIPE), 12000);
 
   return false;
 }
@@ -3357,12 +3475,14 @@ async function handleUpgradeReturnFromStripe() {
     try { localStorage.removeItem(`pending_upgrade_${window.PROPERTY_ID}`); } catch {}
   };
 
+  // Go to upgrades UI + ensure carousel is ready
   showScreen("upgrades");
   try { initUpgradesCarousel(); } catch {}
 
   // wait for layout
   await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
 
+  // Focus the relevant upgrade card if we have it
   if (upgradeId) {
     const idx = findUpgradeSlideIndexById(upgradeId);
     setActiveSlideByIndex(idx);
@@ -3372,39 +3492,47 @@ async function handleUpgradeReturnFromStripe() {
     try { updateActiveFromScroll(); } catch {}
   }
 
+  // --- CANCEL ---
   if (upgradeResult === "cancel") {
-    setUpgradeBanner({
+    setUpgradeStatus({
+      source: STATUS_SOURCES.STRIPE,
+      text: "Payment canceled — You were not charged.",
+      sticky: false,
       upgradeId,
-      title: "Payment canceled",
-      body: "You were not charged.",
-      cls: "bg-slate-50 border-slate-200 text-slate-900",
     });
+    setTimeout(() => clearUpgradeStatus(STATUS_SOURCES.STRIPE), 6000);
 
     clearPendingUpgrade();
     cleanUrlKeepPath();
     return;
   }
 
+  // --- SUCCESS + purchase_id (poll + host confirm) ---
   if (upgradeResult === "success" && purchaseId) {
+    // pollUpgradePurchaseStatus already sets orange-line statuses + clears later
     await pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId);
+
     clearPendingUpgrade();
     cleanUrlKeepPath();
     return;
   }
 
+  // --- SUCCESS but no purchase_id (fallback) ---
   if (upgradeResult === "success" && !purchaseId) {
-    setUpgradeBanner({
+    setUpgradeStatus({
+      source: STATUS_SOURCES.STRIPE,
+      text: "✅ Payment received — Your host will confirm shortly.",
+      sticky: true,
       upgradeId,
-      title: "✅ Payment received",
-      body: "Your host will confirm shortly.",
-      cls: "bg-emerald-50 border-emerald-200 text-emerald-900",
     });
+    setTimeout(() => clearUpgradeStatus(STATUS_SOURCES.STRIPE), 12000);
 
     clearPendingUpgrade();
     cleanUrlKeepPath();
     return;
   }
 }
+
 
 await handleUpgradeReturnFromStripe();
 await refreshUpgradeEligibility();
