@@ -2,42 +2,41 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, date, time, timedelta, timezone
-from typing import Optional, Tuple, Dict, Any
+from typing import Optional, Dict, Any
 
 
 # -----------------------------
-# Data shapes your repo should provide
+# Data shapes from DB
 # -----------------------------
 
 @dataclass
 class StayContext:
     property_id: int
-    session_id: str
+    session_id: int
 
     arrival_date: date
     departure_date: date
 
-    checkin_time: time          # default check-in (e.g. 16:00)
-    checkout_time: time         # default checkout (e.g. 10:00)
+    checkin_time: time
+    checkout_time: time
 
-    # Operational flags you can compute from reservations/turnovers:
+    # derived from reservations table
     has_same_day_turnover_on_arrival: bool
     has_same_day_turnover_on_departure: bool
 
-    # Optional operational constraints:
+    # optional ops flags (future)
     cleaner_confirmed_ready_early: bool = False
     cleaner_confirmed_ok_late: bool = False
-    is_vip: bool = False
 
 
 @dataclass
-class Upgrade:
+class UpgradeCtx:
     id: int
     property_id: int
-    code: str  # e.g. "EARLY_CHECKIN", "LATE_CHECKOUT"
+    slug: str
     title: str
     price_cents: int
-    enabled: bool = True
+    is_active: bool
 
 
 @dataclass
@@ -45,23 +44,30 @@ class EvalResult:
     eligible: bool
     reason: str = ""
     opens_at: Optional[datetime] = None
-    # You can expand with price overrides, etc.
 
 
 # -----------------------------
-# Rules config (enterprise-friendly)
+# Rules config (single source of truth)
 # -----------------------------
-DEFAULT_RULES = {
-    # Early check-in: offer same-day only if no turnover + ops constraints satisfied
+
+RULES: Dict[str, Dict[str, Any]] = {
+    # Map to slugs by intent detection (see slug_to_kind below)
     "EARLY_CHECKIN": {
-        "same_day_cutoff_hours_before_checkin": 6,   # example: stop selling too close to check-in
-        "days_prior_window_open": 2,                 # your example: 2 days prior, if no arrival-day turnover expected
+        # Your example: open 2 days prior
+        "days_prior_window_open": 2,
+
+        # Stop selling too close to check-in (same-day cutoff)
+        "cutoff_hours_before_checkin": 6,
+
+        # Require no same-day turnover
         "requires_no_turnover": True,
-        "requires_cleaner_confirmation": False,      # flip true if you want strict ops gating
+
+        # Optional: require housekeeping confirmation
+        "requires_cleaner_confirmation": False,
     },
     "LATE_CHECKOUT": {
-        "same_day_cutoff_hours_before_checkout": 2,  # example: stop selling too close to checkout
         "days_prior_window_open": 2,
+        "cutoff_hours_before_checkout": 2,
         "requires_no_turnover": True,
         "requires_cleaner_confirmation": False,
     },
@@ -72,96 +78,104 @@ def _now_utc() -> datetime:
     return datetime.now(timezone.utc)
 
 
-def _combine_local(d: date, t: time) -> datetime:
-    # If you have property timezones, convert properly.
-    # For now treat as UTC-naive-ish by attaching UTC.
+def _combine_utc(d: date, t: time) -> datetime:
     return datetime.combine(d, t).replace(tzinfo=timezone.utc)
+
+
+def slug_to_kind(slug: str) -> Optional[str]:
+    """
+    Your Upgrade model uses `slug` not `code`.
+    We'll map common slugs -> kinds.
+    """
+    s = (slug or "").lower().strip()
+
+    # early-check-in, early_checkin, earlycheckin, etc.
+    if "early" in s and ("check" in s or "arrival" in s):
+        return "EARLY_CHECKIN"
+
+    # late-check-out, late_checkout, latecheckout, etc.
+    if "late" in s and ("check" in s or "depart" in s):
+        return "LATE_CHECKOUT"
+
+    return None
 
 
 def evaluate_upgrade(
     *,
-    upgrade: Upgrade,
+    upgrade: UpgradeCtx,
     stay: StayContext,
-    rules: Dict[str, Any] = DEFAULT_RULES,
     now: Optional[datetime] = None,
 ) -> EvalResult:
-    """
-    Backend source of truth:
-      - returns eligible + reason + opens_at
-      - keep it deterministic and unit-testable
-    """
     now = now or _now_utc()
 
-    if not upgrade.enabled:
+    if not upgrade.is_active:
         return EvalResult(False, "Not available for this stay.")
 
     if upgrade.property_id != stay.property_id:
         return EvalResult(False, "Invalid upgrade for this property.")
 
-    code = (upgrade.code or "").upper().strip()
-    cfg = rules.get(code)
-
-    if not cfg:
-        # Unknown upgrade type -> default allow only if enabled
+    kind = slug_to_kind(upgrade.slug)
+    if not kind:
+        # Unknown upgrade type -> allow if active
         return EvalResult(True)
 
-    if code == "EARLY_CHECKIN":
-        return _eval_early_checkin(cfg, stay, now)
+    cfg = RULES.get(kind, {})
 
-    if code == "LATE_CHECKOUT":
-        return _eval_late_checkout(cfg, stay, now)
+    if kind == "EARLY_CHECKIN":
+        return _eval_early(cfg, stay, now)
 
-    # Default allow
+    if kind == "LATE_CHECKOUT":
+        return _eval_late(cfg, stay, now)
+
     return EvalResult(True)
 
 
-def _eval_early_checkin(cfg: Dict[str, Any], stay: StayContext, now: datetime) -> EvalResult:
-    arrival_dt = _combine_local(stay.arrival_date, stay.checkin_time)
+def _eval_early(cfg: Dict[str, Any], stay: StayContext, now: datetime) -> EvalResult:
+    arrival_dt = _combine_utc(stay.arrival_date, stay.checkin_time)
 
-    # Too early in lifecycle? (only sell starting N days prior)
+    # window open N days before arrival
     days_prior = int(cfg.get("days_prior_window_open", 0))
-    window_opens = arrival_dt - timedelta(days=days_prior)
-    if days_prior > 0 and now < window_opens:
+    opens = arrival_dt - timedelta(days=days_prior)
+    if days_prior > 0 and now < opens:
         return EvalResult(
             False,
             f"Early check-in opens {days_prior} days before arrival.",
-            opens_at=window_opens,
+            opens_at=opens,
         )
 
-    # Cutoff close to check-in (same-day cutoff)
-    cutoff_hours = int(cfg.get("same_day_cutoff_hours_before_checkin", 0))
+    # cutoff close to check-in
+    cutoff_hours = int(cfg.get("cutoff_hours_before_checkin", 0))
     cutoff = arrival_dt - timedelta(hours=cutoff_hours)
     if cutoff_hours > 0 and now > cutoff:
         return EvalResult(False, "It’s too close to check-in to purchase early check-in.")
 
-    # Turnover constraints
+    # turnover constraint
     if bool(cfg.get("requires_no_turnover", True)) and stay.has_same_day_turnover_on_arrival:
         return EvalResult(False, "Not available due to same-day turnover.")
 
-    # Optional ops confirmation
+    # optional ops confirmation
     if bool(cfg.get("requires_cleaner_confirmation", False)) and not stay.cleaner_confirmed_ready_early:
         return EvalResult(False, "Pending housekeeping confirmation.")
 
-    # Past arrival -> no
     if now >= arrival_dt:
         return EvalResult(False, "Arrival has already started.")
 
     return EvalResult(True)
 
 
-def _eval_late_checkout(cfg: Dict[str, Any], stay: StayContext, now: datetime) -> EvalResult:
-    departure_dt = _combine_local(stay.departure_date, stay.checkout_time)
+def _eval_late(cfg: Dict[str, Any], stay: StayContext, now: datetime) -> EvalResult:
+    departure_dt = _combine_utc(stay.departure_date, stay.checkout_time)
 
     days_prior = int(cfg.get("days_prior_window_open", 0))
-    window_opens = departure_dt - timedelta(days=days_prior)
-    if days_prior > 0 and now < window_opens:
+    opens = departure_dt - timedelta(days=days_prior)
+    if days_prior > 0 and now < opens:
         return EvalResult(
             False,
             f"Late checkout opens {days_prior} days before departure.",
-            opens_at=window_opens,
+            opens_at=opens,
         )
 
-    cutoff_hours = int(cfg.get("same_day_cutoff_hours_before_checkout", 0))
+    cutoff_hours = int(cfg.get("cutoff_hours_before_checkout", 0))
     cutoff = departure_dt - timedelta(hours=cutoff_hours)
     if cutoff_hours > 0 and now > cutoff:
         return EvalResult(False, "It’s too close to checkout to purchase late checkout.")
@@ -172,7 +186,6 @@ def _eval_late_checkout(cfg: Dict[str, Any], stay: StayContext, now: datetime) -
     if bool(cfg.get("requires_cleaner_confirmation", False)) and not stay.cleaner_confirmed_ok_late:
         return EvalResult(False, "Pending housekeeping confirmation.")
 
-    # Past departure -> no
     if now >= departure_dt:
         return EvalResult(False, "Checkout has already started.")
 
