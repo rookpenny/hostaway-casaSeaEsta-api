@@ -1119,7 +1119,8 @@ def verify_json(
         db.refresh(session)
 
         request.session[f"guest_session_{property_id}"] = session.id
-        request.session[f"guest_phone_last4_{property_id}"] = phone_last4
+        #request.session[f"guest_phone_last4_{property_id}"] = phone_last4
+        request.session[f"guest_phone_last4_{property_id}"] = code
 
         return {
             "success": True,
@@ -1328,6 +1329,7 @@ def dynamic_manifest(property_id: int, request: Request, db: Session = Depends(g
 
 class UpgradeCheckoutRequest(BaseModel):
     guest_email: Optional[str] = None
+    session_id: Optional[int] = None
 
 
 
