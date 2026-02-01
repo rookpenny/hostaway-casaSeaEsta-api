@@ -1,7 +1,7 @@
 # routes/upgrade_checkout.py
 import os
 from typing import Optional, Dict, Any
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 
 import stripe
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
