@@ -18,7 +18,7 @@ from utils.hostaway import (
     get_token_for_pmc,
 )
 
-
+from app.api.guest_upgrades import register_guest_upgrades_routes
 from pathlib import Path as FSPath
 from typing import Optional, Any, Dict, Literal, TypedDict
 from datetime import datetime, timedelta, time as dt_time
@@ -103,6 +103,9 @@ app.include_router(upgrade_checkout_router)
 #app.include_router(upgrade_pages_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
+
+register_guest_upgrades_routes(app)
+
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
