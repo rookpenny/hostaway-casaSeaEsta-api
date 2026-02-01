@@ -2857,10 +2857,18 @@ function renderUpgradeStatus() {
   });
 
   const top = candidates[0];
+
   el.textContent = top.text || "";
   el.classList.remove("hidden");
+
+  // ✅ apply class (optional)
+  // clear previous status class you manage
+  el.classList.remove("status-ok", "status-warn", "status-error");
+  if (top.cls) el.classList.add(top.cls);
+
   el.dataset.statusSource = top.source;
   el.dataset.statusSticky = top.sticky ? "1" : "0";
+
 }
 
 function isStatusStickyAbove(source) {
