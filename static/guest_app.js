@@ -1120,7 +1120,6 @@ async function refreshUpgradeEligibility() {
     const data = await readJsonSafely(res);
     const list = Array.isArray(data?.upgrades) ? data.upgrades : [];
 
-    // map id -> evaluated
     const byId = new Map(list.map(u => [String(u.id), u]));
 
     document.querySelectorAll(".upgrade-slide").forEach((slide) => {
@@ -1132,11 +1131,9 @@ async function refreshUpgradeEligibility() {
       slide.dataset.upgradeDisabled = disabled ? "true" : "false";
       slide.dataset.upgradeDisabledReason = ev.disabled_reason || "";
 
-      // Optional: disable click focus
       if (disabled) slide.setAttribute("disabled", "disabled");
       else slide.removeAttribute("disabled");
 
-      // Update banner inside card if present
       const banner = slide.querySelector(".upgrade-status-banner");
       if (banner) {
         if (disabled) {
@@ -1150,11 +1147,10 @@ async function refreshUpgradeEligibility() {
       }
     });
 
-    // Re-apply state for active card
+    // re-apply active CTA state
     const active = document.querySelector(".upgrade-slide.is-active");
     if (active) {
       const activeId = active.dataset.upgradeId;
-      // your existing function reads dataset.* so this updates the CTA/desc correctly
       const idx = upgradeSlides.findIndex(s => String(s.dataset.upgradeId) === String(activeId));
       if (idx >= 0) setActiveSlideByIndex(idx);
     }
@@ -1162,6 +1158,7 @@ async function refreshUpgradeEligibility() {
     console.warn("refreshUpgradeEligibility failed:", e);
   }
 }
+
 
 
     
@@ -2388,12 +2385,13 @@ function loadReactions() {
 
   if (name === "experiences") loadGuidesIfNeeded();
 
-     if (name === "upgrades") {
+if (name === "upgrades") {
   initUpgradesCarousel();
   requestAnimationFrame(updateActiveFromScroll);
-  syncPaidUpgradesFromServer(); // ✅ rehydrate paid upgrades after refresh
-  refreshUpgradeEligibility(); // ✅ add this
+  syncPaidUpgradesFromServer();
+  refreshUpgradeEligibility(); // ✅ add
 }
+
 
 
   if (name === "chat") swapLogoWithFade(LOGO_BLACK);
