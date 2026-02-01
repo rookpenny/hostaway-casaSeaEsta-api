@@ -152,6 +152,21 @@ async def start_checkout(upgrade_id: int, body: CheckoutIn):
 
     # Temporary NotImplemented until you wire your repo:
     raise NotImplementedError("Implement upgrade lookup + stay context lookup + then call repo_create_stripe_checkout.")
+    # PASTE THIS INSIDE start_checkout AFTER YOU LOOK UP `up` and `stay`:
+
+    result = evaluate_upgrade(upgrade=up, stay=stay)
+    if not result.eligible:
+        raise HTTPException(status_code=403, detail=result.reason or "Upgrade not available.")
+    
+    checkout_url = await repo_create_stripe_checkout(
+        property_id=stay.property_id,
+        session_id=session_id,
+        upgrade_id=upgrade_id,
+    )
+    return CheckoutOut(checkout_url=checkout_url)
+
+
+
 
 
 def register_guest_upgrades_routes(app):
