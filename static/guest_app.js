@@ -2776,60 +2776,8 @@ async function attemptUnlock() {
 const upgradesCarousel = document.getElementById("upgrades-carousel");
 const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
 const upgradeActiveButton = document.getElementById("upgrade-active-button");
-    // ===============================
-// Stripe Upgrade Checkout (Guest)
-// ===============================
-
-// ===============================
-// Upgrade Status Router (ONE output)
-// ===============================
 
 
-const STATUS_PRIORITY = {
-  [STATUS_SOURCES.STRIPE]: 300,
-  [STATUS_SOURCES.PAID]: 250,
-  [STATUS_SOURCES.ELIGIBILITY]: 100,
-  [STATUS_SOURCES.INFO]: 10,
-};
-
-let statusState = {
-  entries: new Map(), // source -> { text, cls, ts, sticky, upgradeId }
-};
-
-function getStatusEl() {
-  return document.getElementById("upgrade-active-status"); // ✅ orange line
-}
-
-function setUpgradeStatus({
-  source,
-  text = "",
-  cls = "",
-  sticky = false,
-  upgradeId = null, // optional: tie message to a specific upgrade
-} = {}) {
-  if (!source) return;
-
-  statusState.entries.set(source, {
-    text: String(text || ""),
-    cls: String(cls || ""),
-    ts: Date.now(),
-    sticky: !!sticky,
-    upgradeId: upgradeId != null ? String(upgradeId) : null,
-  });
-
-  renderUpgradeStatus();
-}
-
-function clearUpgradeStatus(source) {
-  if (!source) return;
-  statusState.entries.delete(source);
-  renderUpgradeStatus();
-}
-
-function clearAllUpgradeStatus() {
-  statusState.entries.clear();
-  renderUpgradeStatus();
-}
 
 // ===============================
 // Upgrade Status Router (ONE output)
@@ -2877,6 +2825,11 @@ function setUpgradeStatus({ source, text = "", cls = "", sticky = false, upgrade
 function clearUpgradeStatus(source) {
   if (!source) return;
   statusState.entries.delete(source);
+  renderUpgradeStatus();
+}
+
+function clearAllUpgradeStatus() {
+  statusState.entries.clear();
   renderUpgradeStatus();
 }
 
