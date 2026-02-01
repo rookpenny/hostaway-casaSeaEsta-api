@@ -12,7 +12,7 @@ from typing import List, Optional
 from database import get_db
 from models import ChatSession, Reservation, Upgrade, UpgradePurchase
 
-from app.services.upgrade_rules import (
+from services.upgrade_rules import (
     StayContext,
     UpgradeCtx,
     evaluate_upgrade,
