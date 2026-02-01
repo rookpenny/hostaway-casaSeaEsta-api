@@ -1284,7 +1284,6 @@ function isAnyOverlayOpen() {
   const wifiModal = document.getElementById("wifi-modal");
   const checkinModal = document.getElementById("checkin-modal");
   const guideModal = document.getElementById("guide-modal");
-  const upgradeModal = document.getElementById("upgrade-modal");
   const drawer = document.getElementById("suggestions-drawer");
 
   const open = (el) => el && !el.classList.contains("hidden");
@@ -1293,7 +1292,6 @@ function isAnyOverlayOpen() {
     open(wifiModal) ||
     open(checkinModal) ||
     open(guideModal) ||
-    open(upgradeModal) ||
     open(drawer) ||
     document.body.classList.contains("menu-open") ||
     document.body.classList.contains("modal-open") ||
@@ -2695,7 +2693,7 @@ async function attemptUnlock() {
       if (chatPlus) chatPlus.disabled = true;
     }
 
-    // --- Upgrades carousel (Beats-style) ---
+    
 const upgradesCarousel = document.getElementById("upgrades-carousel");
 const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
 
@@ -2703,7 +2701,7 @@ const upgradeSlides = Array.from(document.querySelectorAll(".upgrade-slide"));
 // Stripe Upgrade Checkout (Guest)
 // ===============================
 const upgradeActiveButton = document.getElementById("upgrade-active-button");
-const upgradeDetailPurchase = document.getElementById("upgrade-detail-purchase");
+
 
 // track which upgrade is currently selected
 let activeUpgradeId = null;
@@ -2738,8 +2736,6 @@ async function startUpgradeCheckout(upgradeId) {
 
   try {
     if (upgradeActiveButton) upgradeActiveButton.disabled = true;
-    if (upgradeDetailPurchase) upgradeDetailPurchase.disabled = true;
-
     const url = `/guest/upgrades/${encodeURIComponent(idNum)}/checkout`;
 
     const res = await fetch(url, {
@@ -2778,7 +2774,6 @@ async function startUpgradeCheckout(upgradeId) {
   } finally {
     if (!willRedirect) {
       if (upgradeActiveButton) upgradeActiveButton.disabled = false;
-      if (upgradeDetailPurchase) upgradeDetailPurchase.disabled = false;
     }
     checkoutInFlight = false;
   }
@@ -2786,54 +2781,32 @@ async function startUpgradeCheckout(upgradeId) {
 
 
 
+/* ===============================
+   Paid + Disabled + Carousel UI
+   (Stripe checkout + Stripe return are NOT touched)
+   ✅ Keeps applyScaleEasing
+=============================== */
 
-    window.applyPaidState = function applyPaidState(upgradeId) {
+window.applyPaidState = function applyPaidState(upgradeId) {
   const paidIds = new Set(readPaidUpgrades());
-  const isPaid = paidIds.has(Number(upgradeId));
+  const idNum = Number.parseInt(String(upgradeId), 10);
+  const isPaid = Number.isFinite(idNum) && paidIds.has(idNum);
 
-  // Update the CTA under carousel
   const btn = document.getElementById("upgrade-active-button");
   const label = document.getElementById("upgrade-active-button-label");
   const desc = document.getElementById("upgrade-active-description");
 
-  if (isPaid) {
-    if (label) label.textContent = "Purchase confirmed";
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add("opacity-60", "cursor-not-allowed");
-    }
-    if (desc) desc.textContent = "✅ Upgrade confirmed — Your host has been notified.";
-  } else {
-  // restore “normal” state
+  if (!isPaid) return;
+
+  if (label) label.textContent = "Purchase confirmed";
+  if (desc) desc.textContent = "✅ Upgrade confirmed — Your host has been notified.";
+
   if (btn) {
-    btn.disabled = false;
-    btn.classList.remove("opacity-60", "cursor-not-allowed");
-  }
-  // restore label based on active slide price
-  const activeSlide = document.querySelector(".upgrade-slide.is-active");
-  const price = activeSlide?.dataset?.upgradePrice || "";
-  if (label) label.textContent = price ? `${price} – Purchase` : "Purchase";
-}
-
-
-  // Optional: also disable the modal purchase button
-  const modalBtn = document.getElementById("upgrade-detail-purchase");
-  const modalLabel = document.getElementById("upgrade-detail-price-bottom");
-  if (isPaid) {
-    if (modalLabel) modalLabel.textContent = "Purchase confirmed";
-    if (modalBtn) {
-      modalBtn.disabled = true;
-      modalBtn.classList.add("opacity-60", "cursor-not-allowed");
-    }
-  } else {
-    if (modalBtn) {
-      modalBtn.disabled = false;
-      modalBtn.classList.remove("opacity-60", "cursor-not-allowed");
-    }
+    btn.disabled = true;
+    btn.classList.add("opacity-60", "cursor-not-allowed");
   }
 };
 
-    
 function getCarouselCenterX() {
   if (!upgradesCarousel) return 0;
   const r = upgradesCarousel.getBoundingClientRect();
@@ -2842,44 +2815,8 @@ function getCarouselCenterX() {
 
 function isUpgradeDisabled(slideEl) {
   if (!slideEl) return false;
-
-  // Supports both dataset and attribute style
   const v = (slideEl.dataset?.upgradeDisabled || slideEl.getAttribute("data-upgrade-disabled") || "").toString();
   return v === "true" || v === "1";
-}
-
-
-    function restoreUpgradeNormalCopy(slideEl) {
-  if (!slideEl || isUpgradeDisabled(slideEl)) return;
-
-  const titleEl = document.getElementById("upgrade-active-title");
-  const descEl  = document.getElementById("upgrade-active-description");
-
-  if (titleEl) titleEl.classList.remove("text-slate-500");
-  if (descEl)  descEl.classList.remove("text-slate-500");
-}
-
-
-
-function applyUpgradeDisabledCopy(slideEl) {
-  if (!slideEl || !isUpgradeDisabled(slideEl)) return;
-
-  const reason = getUpgradeDisabledReason(slideEl) || "Not available for this stay.";
-
-  const titleEl = document.getElementById("upgrade-active-title");
-  const descEl  = document.getElementById("upgrade-active-description");
-
-  // Title area
-  if (titleEl) {
-    titleEl.textContent = "Not available";
-    titleEl.classList.add("text-slate-500");
-  }
-
-  // Body / description
-  if (descEl) {
-    descEl.textContent = reason;
-    descEl.classList.add("text-slate-500");
-  }
 }
 
 function getUpgradeDisabledReason(slideEl) {
@@ -2891,131 +2828,92 @@ function getUpgradeDisabledReason(slideEl) {
   ).toString().trim();
 }
 
-/**
- * Applies disabled state to BOTH:
- * - carousel CTA (upgrade-active-button)
- * - modal CTA (upgrade-detail-purchase)
- * Does NOT override a "paid" state (paid always wins).
- */
-function applyUpgradeDisabledState(slideEl) {
-  const disabled = isUpgradeDisabled(slideEl);
-  const reason = getUpgradeDisabledReason(slideEl) || "Not available for this stay.";
+/* ✅ KEEP: smooth scaling effect */
+function applyScaleEasing() {
+  if (!upgradesCarousel || !upgradeSlides.length) return;
 
-  const paidIds = new Set(readPaidUpgrades());
-  const rawId = slideEl?.dataset?.upgradeId || slideEl?.getAttribute("data-upgrade-id");
-  const idNum = Number.parseInt(String(rawId || ""), 10);
-  const isPaid = Number.isFinite(idNum) && paidIds.has(idNum);
+  const viewportCenter = upgradesCarousel.scrollLeft + upgradesCarousel.clientWidth / 2;
 
-  const btn = document.getElementById("upgrade-active-button");
-  const label = document.getElementById("upgrade-active-button-label");
-  const desc = document.getElementById("upgrade-active-description");
+  upgradeSlides.forEach((slide) => {
+    const slideCenter = slide.offsetLeft + slide.offsetWidth / 2;
+    const dist = Math.abs(viewportCenter - slideCenter);
 
-  const modalBtn = document.getElementById("upgrade-detail-purchase");
-  const modalLabel = document.getElementById("upgrade-detail-price-bottom");
+    const maxDist = upgradesCarousel.clientWidth * 0.7;
+    const t = Math.min(dist / maxDist, 1);
+    const eased = 1 - Math.pow(t, 1.8);
 
-  // If already paid, don't replace the paid UI
-  if (isPaid) return;
+    const minScale = 0.72;
+    const scale = minScale + (1 - minScale) * eased;
 
-  if (disabled) {
-    if (btn) {
-      btn.disabled = true;
-      btn.classList.add("opacity-60", "cursor-not-allowed");
-    }
-    if (label) label.textContent = "Not available";
-    if (desc) desc.textContent = reason;
+    const lift = (1 - scale) * 18;
+    const opacity = 0.65 + 0.35 * eased;
 
-    if (modalBtn) {
-      modalBtn.disabled = true;
-      modalBtn.classList.add("opacity-60", "cursor-not-allowed");
-    }
-    if (modalLabel) modalLabel.textContent = "Not available";
-  } else {
-    // restore normal enabled state (but don't touch if paid)
-    if (btn) {
-      btn.disabled = false;
-      btn.classList.remove("opacity-60", "cursor-not-allowed");
-    }
-    if (modalBtn) {
-      modalBtn.disabled = false;
-      modalBtn.classList.remove("opacity-60", "cursor-not-allowed");
-    }
-
-    // restore labels based on current slide price
-    const price = slideEl?.dataset?.upgradePrice || "";
-    if (label) label.textContent = price ? `${price} – Purchase` : "Purchase";
-    if (modalLabel) modalLabel.textContent = price ? `${price} – Purchase` : "Purchase";
-  }
+    slide.style.transform = `translateY(${lift}px) scale(${scale})`;
+    slide.style.opacity = opacity.toFixed(3);
+  });
 }
-
 
 function setActiveSlideByIndex(idx) {
   const slide = upgradeSlides[idx];
   if (!slide) return;
 
-  // ✅ SHOW the text + CTA (they are hidden by default in HTML)
   document.getElementById("upgrade-active-info")?.classList.remove("hidden");
   document.getElementById("upgrade-active-cta")?.classList.remove("hidden");
 
   const rawId = slide.getAttribute("data-upgrade-id") || slide.dataset.upgradeId;
-  const idNum = Number.parseInt(rawId, 10);
-
-  if (!Number.isFinite(idNum)) {
-    console.warn("[UPGRADES] Invalid data-upgrade-id on slide:", rawId, slide);
-    activeUpgradeId = null;
-    return;
-  }
-
-  activeUpgradeId = idNum;
+  const idNum = Number.parseInt(String(rawId || ""), 10);
+  activeUpgradeId = Number.isFinite(idNum) ? idNum : null;
 
   upgradeSlides.forEach((s, i) => {
     s.classList.toggle("is-active", i === idx);
     s.classList.toggle("is-inactive", i !== idx);
   });
 
-  // update UI text
   const titleEl  = document.getElementById("upgrade-active-title");
   const descEl   = document.getElementById("upgrade-active-description");
+  const statusEl = document.getElementById("upgrade-active-status");
   const ctaLabel = document.getElementById("upgrade-active-button-label");
+  const ctaBtn   = document.getElementById("upgrade-active-button");
 
   const title = slide.dataset.upgradeTitle || "Upgrade";
   const price = slide.dataset.upgradePrice || "";
   const long  = slide.querySelector(".upgrade-long")?.textContent?.trim() || "";
 
+  const disabled = isUpgradeDisabled(slide);
+  const reason = getUpgradeDisabledReason(slide) || "Not available for this stay.";
+
   if (titleEl) titleEl.textContent = title;
-  if (descEl)  descEl.textContent  = long;
+
+  if (statusEl) {
+    if (disabled) {
+      statusEl.textContent = reason;
+      statusEl.classList.remove("hidden");
+    } else {
+      statusEl.textContent = "";
+      statusEl.classList.add("hidden");
+    }
+  }
+
+  if (descEl) descEl.textContent = disabled ? `${long}\n\n${reason}` : long;
+
   if (ctaLabel) ctaLabel.textContent = price ? `${price} – Purchase` : "Purchase";
 
+  if (ctaBtn) {
+    if (disabled) {
+      ctaBtn.disabled = true;
+      ctaBtn.classList.add("opacity-60", "cursor-not-allowed");
+    } else {
+      ctaBtn.disabled = false;
+      ctaBtn.classList.remove("opacity-60", "cursor-not-allowed");
+    }
+  }
+
+  // paid overrides
   window.applyPaidState?.(activeUpgradeId);
-    // ✅ Disabled state (availability) should be applied after paid-state logic
-  applyUpgradeDisabledState(slide);
-  applyUpgradeDisabledCopy(slide);
-  restoreUpgradeNormalCopy(slide);
 
+  // keep scaling synced with active selection
+  applyScaleEasing();
 }
-
-upgradeActiveButton?.addEventListener("click", () => {
-  console.log("[UPGRADE CTA CLICK]", activeUpgradeId, typeof activeUpgradeId);
-
-  /*const idNum = Number.parseInt(String(activeUpgradeId), 10);
-  if (!Number.isFinite(idNum) || idNum <= 0) {
-    alert("Invalid upgrade selected. Please refresh and try again.");
-    return;
-  }
-
-  startUpgradeCheckout(idNum);*/
-
-    const slide = document.querySelector(".upgrade-slide.is-active");
-  if (slide && isUpgradeDisabled(slide)) {
-    alert(getUpgradeDisabledReason(slide) || "Not available for this stay.");
-    return;
-  }
-
-  startUpgradeCheckout(idNum);
-
-  
-});
-
-
 
 function findClosestSlideIndex() {
   if (!upgradesCarousel || !upgradeSlides.length) return 0;
@@ -3044,7 +2942,6 @@ function centerSlide(idx, behavior = "smooth") {
   const cRect = upgradesCarousel.getBoundingClientRect();
   const sRect = slide.getBoundingClientRect();
 
-  // current scrollLeft + delta from centers
   const current = upgradesCarousel.scrollLeft;
   const delta = (sRect.left + sRect.width / 2) - (cRect.left + cRect.width / 2);
 
@@ -3056,120 +2953,66 @@ function updateActiveFromScroll() {
   setActiveSlideByIndex(idx);
 }
 
-// Bind once
 function initUpgradesCarousel() {
   if (upgradesBound) return;
   upgradesBound = true;
 
   if (!upgradesCarousel || !upgradeSlides.length) return;
 
-  // default state
   setActiveSlideByIndex(0);
 
-  // center first slide after layout settles
   requestAnimationFrame(() => {
-  centerSlide(0, "auto");
-  applyScaleEasing();
-});
-
-  // update on scroll (throttled-ish)
- let t = null;
-/*upgradesCarousel.addEventListener("scroll", () => {
-  if (t) cancelAnimationFrame(t);
-  t = requestAnimationFrame(() => {
-    applyScaleEasing();      // ✅ continuous smooth scaling
-    updateActiveFromScroll(); // ✅ keeps your active index + text logic
-  });
-}, { passive: true });*/
-
-  upgradesCarousel.addEventListener("scroll", () => {
-  if (t) cancelAnimationFrame(t);
-  t = requestAnimationFrame(() => {
-    t = null;
+    centerSlide(0, "auto");
     applyScaleEasing();
-    updateActiveFromScroll();
   });
-}, { passive: true });
 
+  let raf = null;
+  upgradesCarousel.addEventListener("scroll", () => {
+    if (raf) cancelAnimationFrame(raf);
+    raf = requestAnimationFrame(() => {
+      raf = null;
+      // ✅ keep BOTH effects
+      applyScaleEasing();
+      updateActiveFromScroll();
+    });
+  }, { passive: true });
 
-  
   upgradeSlides.forEach((slide, idx) => {
-  slide.addEventListener("click", () => {
-    // still allow browsing/centering disabled upgrades if you want:
-    setActiveSlideByIndex(idx);
-    centerSlide(idx, "smooth");
-
-    // If you want to prevent selecting disabled at all, uncomment:
-    // if (isUpgradeDisabled(slide)) return;
+    slide.addEventListener("click", () => {
+      setActiveSlideByIndex(idx);
+      centerSlide(idx, "smooth");
+      applyScaleEasing();
+    });
   });
-});
 
-
-  // keep correct on resize
   window.addEventListener("resize", () => {
-  updateActiveFromScroll();
-  applyScaleEasing();
-});
+    updateActiveFromScroll();
+    applyScaleEasing();
+  });
 }
 
-
-
-upgradeDetailPurchase?.addEventListener("click", () => {
-  if (!activeUpgradeId) {
+/* CTA click — uses YOUR existing Stripe function above */
+upgradeActiveButton?.addEventListener("click", () => {
+  const idNum = Number.parseInt(String(activeUpgradeId), 10);
+  if (!Number.isFinite(idNum) || idNum <= 0) {
     alert("Invalid upgrade selected. Please refresh and try again.");
     return;
   }
 
-  // If modal was opened for a specific upgrade, prefer that slide instead of "is-active"
-  const slide =
-    document.querySelector(`[data-upgrade-id="${String(activeUpgradeId)}"]`) ||
-    document.querySelector(".upgrade-slide.is-active");
-
+  const slide = document.querySelector(".upgrade-slide.is-active");
   if (slide && isUpgradeDisabled(slide)) {
     alert(getUpgradeDisabledReason(slide) || "Not available for this stay.");
     return;
   }
 
-  startUpgradeCheckout(activeUpgradeId);
+  // ✅ keep Stripe checkout intact
+  startUpgradeCheckout(idNum);
 });
 
 
 
+
     
-
-    function applyScaleEasing() {
-  if (!upgradesCarousel || !upgradeSlides.length) return;
-
-  const viewportCenter = upgradesCarousel.scrollLeft + upgradesCarousel.clientWidth / 2;
-
-  upgradeSlides.forEach((slide) => {
-    //const rect = slide.getBoundingClientRect();
-    // slide center in scroll container coordinates:
-    const slideCenter =
-      slide.offsetLeft + slide.offsetWidth / 2;
-
-    const dist = Math.abs(viewportCenter - slideCenter);
-
-    // Normalize distance: 0 at center, 1 when far
-    const maxDist = upgradesCarousel.clientWidth * 0.7; // tweak “spread”
-    const t = Math.min(dist / maxDist, 1);
-
-    // Easing curve (smooth falloff)
-    const eased = 1 - Math.pow(t, 1.8);
-
-    // Scale range: center 1.0 -> edges 0.72 (match your design)
-    const minScale = 0.72;
-    const scale = minScale + (1 - minScale) * eased;
-
-    // Optional: tiny lift + fade to sell depth
-    const lift = (1 - scale) * 18; // px
-    const opacity = 0.65 + 0.35 * eased;
-
-    // Apply to the slide container for “whole card” motion
-    slide.style.transform = `translateY(${lift}px) scale(${scale})`;
-    slide.style.opacity = opacity.toFixed(3);
-  });
-}
 // ===============================
 // Stripe Return → Upgrades UI (CLEAN)
 // ===============================
@@ -3253,14 +3096,17 @@ function setPurchasedUI({ confirmedText } = {}) {
     btn.classList.add("opacity-60", "cursor-not-allowed");
   }
 
-  const modalBtn = document.getElementById("upgrade-detail-purchase");
-  const modalBottomLabel = document.getElementById("upgrade-detail-price-bottom");
+  // ✅ OPTIONAL modal controls (safe lookup; won’t crash if not on page)
+  const modalBottomLabel = document.getElementById("upgrade-modal-bottom-label");
+  const modalBtn = document.getElementById("upgrade-modal-button");
+
   if (modalBottomLabel) modalBottomLabel.textContent = "Purchase confirmed";
   if (modalBtn) {
     modalBtn.disabled = true;
     modalBtn.classList.add("opacity-60", "cursor-not-allowed");
   }
 }
+
 
 
 async function pollUpgradePurchaseStatus(purchaseId, sessionId, upgradeId) {
