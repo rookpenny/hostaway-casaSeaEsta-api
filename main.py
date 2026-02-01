@@ -1067,9 +1067,22 @@ def verify_json(
     request: Request,
     db: Session = Depends(get_db),
 ):
+    """
+    Verifies a guest by last-4 of phone number and creates a verified ChatSession.
+    Hostaway behavior:
+      - Accepts IN-HOUSE stays (arrival <= today <= departure)
+      - Accepts UPCOMING stays (arrival >= today within WINDOW_DAYS)
+      - Prefers IN-HOUSE if multiple matches, else soonest upcoming
+
+    Notes:
+      - This version keeps your TEST_UNLOCK_CODE bypass
+      - Uses UTC date comparisons (same as your original). If you want "checkout time cutoff"
+        by property timezone, ask and I’ll drop that variant too.
+    """
     WINDOW_DAYS = int(os.getenv("WINDOW_DAYS", "120"))
     code = (payload.code or "").strip()
 
+    # --- Validate 4 digits ---
     if not code.isdigit() or len(code) != 4:
         return JSONResponse(
             {"success": False, "error": "Please enter exactly 4 digits."},
@@ -1119,7 +1132,6 @@ def verify_json(
         db.refresh(session)
 
         request.session[f"guest_session_{property_id}"] = session.id
-        #request.session[f"guest_phone_last4_{property_id}"] = phone_last4
         request.session[f"guest_phone_last4_{property_id}"] = code
 
         return {
@@ -1167,7 +1179,7 @@ def verify_json(
 
             today = datetime.utcnow().date()
             best = None
-            best_days = None
+            best_rank = None  # smaller tuple is better
 
             for r in reservations:
                 full_phone = (
@@ -1184,28 +1196,37 @@ def verify_json(
                 if digits[-4:] != code:
                     continue
 
-                checkin_str = r.get("arrivalDate")
-                if not checkin_str:
+                arr_str = r.get("arrivalDate")
+                dep_str = r.get("departureDate")
+                if not arr_str or not dep_str:
                     continue
 
                 try:
-                    checkin = datetime.strptime(checkin_str, "%Y-%m-%d").date()
+                    arr = datetime.strptime(arr_str, "%Y-%m-%d").date()
+                    dep = datetime.strptime(dep_str, "%Y-%m-%d").date()
                 except Exception:
                     continue
 
-                days_until = (checkin - today).days
-                if days_until < 0:
-                    continue
-                if days_until > WINDOW_DAYS:
+                # ✅ Accept current (in-house) OR upcoming (within window)
+                in_house = (arr <= today <= dep)
+                upcoming = (arr >= today) and ((arr - today).days <= WINDOW_DAYS)
+
+                if not (in_house or upcoming):
                     continue
 
-                if best is None or days_until < best_days:
+                # ✅ Prefer in-house, otherwise soonest upcoming
+                if in_house:
+                    rank = (0, (today - arr).days)  # currently staying
+                else:
+                    rank = (1, (arr - today).days)  # upcoming arrival in N days
+
+                if best is None or rank < best_rank:
                     best = r
-                    best_days = days_until
+                    best_rank = rank
 
             if not best:
                 return JSONResponse(
-                    {"success": False, "error": "No upcoming reservation found matching that code."},
+                    {"success": False, "error": "No current or upcoming reservation found matching that code."},
                     status_code=400,
                 )
 
@@ -1245,7 +1266,7 @@ def verify_json(
 
     if not phone_last4 or not reservation_id:
         return JSONResponse(
-            {"success": False, "error": "No upcoming reservation found for this property."},
+            {"success": False, "error": "No current or upcoming reservation found for this property."},
             status_code=400,
         )
 
@@ -1298,6 +1319,7 @@ def verify_json(
         "checkout_time": checkout_time_display,
         "reservation_id": reservation_id,
     }
+
 
 
 # --- property chat request (kept as-is for your frontend payload shape) ---
