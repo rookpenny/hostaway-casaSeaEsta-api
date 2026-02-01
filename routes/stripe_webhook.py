@@ -340,12 +340,85 @@ async def stripe_webhook(request: Request):
 
                 purchase.status = "paid"
                 _set_if_attr(purchase, "paid_at", _now())
-
-                # Optional: store event id if your model has a column for it
                 _set_if_attr(purchase, "last_stripe_event_id", event_id)
-
-                db.commit()
+                
+                db.commit()  # ✅ commit paid first so we never lose the payment status
+                
+                # ----------------------------------------------------
+                # ✅ Notify PMC (Admin message + Email) - best effort
+                # ----------------------------------------------------
+                try:
+                    pmc_id = int(getattr(purchase, "pmc_id", 0) or 0)
+                    property_id = int(getattr(purchase, "property_id", 0) or 0)
+                    upgrade_id = int(getattr(purchase, "upgrade_id", 0) or 0)
+                    guest_session_id = int(getattr(purchase, "guest_session_id", 0) or 0)
+                
+                    pmc = db.query(PMC).filter(PMC.id == pmc_id).first()
+                    prop = db.query(Property).filter(Property.id == property_id).first()
+                    upg = db.query(Upgrade).filter(Upgrade.id == upgrade_id).first()
+                    sess = db.query(ChatSession).filter(ChatSession.id == guest_session_id).first() if guest_session_id else None
+                
+                    pmc_name = (getattr(pmc, "pmc_name", None) or f"PMC #{pmc_id}").strip()
+                    property_name = (getattr(prop, "property_name", None) or f"Property #{property_id}").strip()
+                    upgrade_title = (getattr(upg, "title", None) or "Upgrade").strip()
+                
+                    guest_name = (getattr(sess, "guest_name", None) or "").strip() if sess else ""
+                    arr = (getattr(sess, "arrival_date", None) or "") if sess else ""
+                    dep = (getattr(sess, "departure_date", None) or "") if sess else ""
+                
+                    amount_cents = int(getattr(purchase, "amount_cents", 0) or 0)
+                    currency = (getattr(purchase, "currency", None) or "usd").lower().strip()
+                
+                    subject = f"New upgrade purchase: {upgrade_title} — {property_name}"
+                
+                    body_lines = [
+                        f"Upgrade: {upgrade_title}",
+                        f"Property: {property_name} (ID: {property_id})",
+                    ]
+                    if guest_name:
+                        body_lines.append(f"Guest: {guest_name}")
+                    if arr and dep:
+                        body_lines.append(f"Stay: {arr} → {dep}")
+                    body_lines.append(f"Amount: {amount_cents/100:.2f} {currency.upper()}")
+                    body_lines.append(f"Purchase ID: {purchase.id}")
+                
+                    body = "\n".join(body_lines)
+                
+                    # ✅ Admin message (pmc_messages)
+                    _create_pmc_message(
+                        db,
+                        pmc_id=pmc_id,
+                        subject=subject,
+                        body=body,
+                        property_id=property_id,
+                        upgrade_purchase_id=int(purchase.id),
+                        upgrade_id=upgrade_id,
+                        guest_session_id=guest_session_id or None,
+                    )
+                
+                    # ✅ Email notification (PMC.email + active users unless opted out)
+                    recipients = _pmc_notification_emails(db, pmc_id)
+                
+                    send_upgrade_purchase_email(
+                        to_emails=recipients,
+                        pmc_name=pmc_name,
+                        property_name=property_name,
+                        upgrade_title=upgrade_title,
+                        amount_cents=amount_cents,
+                        currency=currency,
+                        guest_name=guest_name or None,
+                        arrival_date=str(arr) if arr else None,
+                        departure_date=str(dep) if dep else None,
+                        purchase_id=int(purchase.id),
+                        property_id=property_id,
+                        upgrade_id=upgrade_id,
+                    )
+                except Exception:
+                    # Never fail Stripe webhook because notifications failed
+                    pass
+                
                 return JSONResponse({"ok": True})
+
 
             # --------------------------
             # PMC signup/subscription flow
