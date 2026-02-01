@@ -2,7 +2,7 @@
 
 
 
-  document.addEventListener("DOMContentLoaded", function () {
+document.addEventListener("DOMContentLoaded", async function () {
     // Normalize Sandy live flag (boolean-safe)
     const sandyLive = window.SANDY_LIVE === true || window.SANDY_LIVE === "true";
 
@@ -3377,7 +3377,7 @@ async function handleUpgradeReturnFromStripe() {
   }
 }
 
-await refreshUpgradeEligibility(); // ✅ add this 
-handleUpgradeReturnFromStripe();
+await handleUpgradeReturnFromStripe();
+await refreshUpgradeEligibility();
 
 });
