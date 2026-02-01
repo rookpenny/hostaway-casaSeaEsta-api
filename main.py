@@ -35,6 +35,7 @@ from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
+from routes.upgrade_recommendations import router as upgrade_recommendations_router
 
 from pydantic import BaseModel
 
@@ -103,6 +104,7 @@ app.include_router(upgrade_checkout_router)
 #app.include_router(upgrade_pages_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
+app.include_router(upgrade_recommendations_router)
 
 register_guest_upgrades_routes(app)
 
