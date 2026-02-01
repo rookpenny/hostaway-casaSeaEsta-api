@@ -74,68 +74,157 @@ def _get_email_from_session(obj: Dict[str, Any]) -> Optional[str]:
 # ----------------------------
 
 
-def _pmc_notification_emails(db: Session, pmc_id: int) -> list[str]:
+def _pref_allows_upgrade_email(prefs: Any) -> bool:
     """
-    Returns emails that should receive upgrade notifications.
-
-    Default behavior:
-      - include PMC.email
-      - include all active pmc_users emails
-      - OPTIONAL: if notification_prefs has {"upgrade_purchases": false}, skip that user
+    prefs is JSONB; missing/invalid => allow by default.
+    key: notification_prefs["upgrade_purchases_email"] (default True)
     """
-    emails = set()
+    try:
+        if not isinstance(prefs, dict):
+            return True
+        return bool(prefs.get("upgrade_purchases_email", True))
+    except Exception:
+        return True
 
-    pmc = db.query(PMC).filter(PMC.id == int(pmc_id)).first()
-    if pmc and getattr(pmc, "email", None):
-        e = str(pmc.email).strip().lower()
-        if e and "@" in e:
-            emails.add(e)
+
+def _select_upgrade_recipients(db: Session, pmc: PMC) -> list[str]:
+    """
+    1) active pmc_users with role owner/admin or is_superuser, prefs allow
+    2) fallback pmc.email
+    """
+    recipients: list[str] = []
 
     users = (
         db.query(PMCUser)
-        .filter(PMCUser.pmc_id == int(pmc_id), PMCUser.is_active == True)  # noqa: E712
+        .filter(PMCUser.pmc_id == pmc.id, PMCUser.is_active == True)  # noqa: E712
         .all()
     )
 
     for u in users:
-        e = (getattr(u, "email", None) or "").strip().lower()
-        if not e or "@" not in e:
+        role = (getattr(u, "role", "") or "").lower().strip()
+        is_super = bool(getattr(u, "is_superuser", False))
+
+        if not (is_super or role in {"owner", "admin"}):
             continue
 
-        prefs = getattr(u, "notification_prefs", None) or {}
-        # if prefs explicitly disables upgrade purchase emails, skip
-        if isinstance(prefs, dict) and prefs.get("upgrade_purchases") is False:
+        if not _pref_allows_upgrade_email(getattr(u, "notification_prefs", None)):
             continue
 
-        emails.add(e)
+        em = (getattr(u, "email", "") or "").strip().lower()
+        if em:
+            recipients.append(em)
 
-    return sorted(emails)
+    if not recipients:
+        em = (getattr(pmc, "email", "") or "").strip().lower()
+        if em:
+            recipients.append(em)
+
+    # de-dupe, keep order
+    out = []
+    seen = set()
+    for e in recipients:
+        if e not in seen:
+            out.append(e)
+            seen.add(e)
+    return out
 
 
-def _create_pmc_message(
-    db: Session,
-    *,
-    pmc_id: int,
-    subject: str,
-    body: str,
-    property_id: int | None = None,
-    upgrade_purchase_id: int | None = None,
-    upgrade_id: int | None = None,
-    guest_session_id: int | None = None,
-) -> None:
+def _create_upgrade_message_if_missing(db: Session, pmc_id: int, purchase: UpgradePurchase, subject: str, body: str) -> bool:
+    """
+    Idempotent: one message per purchase.
+    Returns True if created, False if already exists.
+    """
+    existing = (
+        db.query(PMCMessage)
+        .filter(
+            PMCMessage.pmc_id == pmc_id,
+            PMCMessage.type == "upgrade_purchase",
+            PMCMessage.upgrade_purchase_id == int(purchase.id),
+        )
+        .first()
+    )
+    if existing:
+        return False
+
     msg = PMCMessage(
-        pmc_id=int(pmc_id),
-        type="upgrade_request",  # matches your model default intent
-        subject=str(subject or "").strip() or "Upgrade request",
-        body=str(body or "").strip() or "",
-        property_id=property_id,
-        upgrade_purchase_id=upgrade_purchase_id,
-        upgrade_id=upgrade_id,
-        guest_session_id=guest_session_id,
+        pmc_id=pmc_id,
+        type="upgrade_purchase",
+        subject=subject,
+        body=body,
+        property_id=getattr(purchase, "property_id", None),
+        upgrade_purchase_id=int(purchase.id),
+        upgrade_id=getattr(purchase, "upgrade_id", None),
+        guest_session_id=getattr(purchase, "guest_session_id", None),
         is_read=False,
     )
     db.add(msg)
     db.commit()
+    return True
+
+
+def _notify_pmc_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None:
+    """
+    Creates admin message + emails recipients.
+    Email only sends on first message creation (prevents duplicate emails).
+    """
+    pmc = db.query(PMC).filter(PMC.id == int(purchase.pmc_id)).first()
+    if not pmc:
+        return
+
+    prop = db.query(Property).filter(Property.id == int(purchase.property_id)).first()
+    upgrade = db.query(Upgrade).filter(Upgrade.id == int(purchase.upgrade_id)).first()
+
+    sess = None
+    if getattr(purchase, "guest_session_id", None):
+        sess = db.query(ChatSession).filter(ChatSession.id == int(purchase.guest_session_id)).first()
+
+    pmc_name = (getattr(pmc, "pmc_name", "") or "PMC").strip()
+    property_name = (getattr(prop, "property_name", "") or f"Property {purchase.property_id}").strip()
+    upgrade_title = (getattr(upgrade, "title", "") or "Upgrade").strip()
+
+    guest_name = (getattr(sess, "guest_name", None) or "").strip() if sess else None
+    arr = (getattr(sess, "arrival_date", None) or "").strip() if sess else None
+    dep = (getattr(sess, "departure_date", None) or "").strip() if sess else None
+
+    amount_cents = int(getattr(purchase, "amount_cents", 0) or 0)
+    currency = (getattr(purchase, "currency", None) or "usd").strip()
+
+    subject = f"Upgrade purchased: {upgrade_title} — {property_name}"
+
+    body_lines = [
+        f"Upgrade: {upgrade_title}",
+        f"Property: {property_name}",
+        f"Amount: {amount_cents/100:.2f} {currency.upper()}",
+        f"Purchase ID: {purchase.id}",
+    ]
+    if guest_name:
+        body_lines.insert(0, f"Guest: {guest_name}")
+    if arr and dep:
+        body_lines.append(f"Stay: {arr} → {dep}")
+
+    body = "\n".join(body_lines)
+
+    created = _create_upgrade_message_if_missing(db, int(pmc.id), purchase, subject, body)
+
+    if created:
+        recipients = _select_upgrade_recipients(db, pmc)
+        if recipients:
+            # Uses YOUR existing emailer.py function
+            send_upgrade_purchase_email(
+                to_emails=recipients,
+                pmc_name=pmc_name,
+                property_name=property_name,
+                upgrade_title=upgrade_title,
+                amount_cents=amount_cents,
+                currency=currency,
+                guest_name=guest_name,
+                arrival_date=arr,
+                departure_date=dep,
+                purchase_id=int(purchase.id),
+                property_id=int(purchase.property_id),
+                upgrade_id=int(purchase.upgrade_id),
+            )
+
 
 
 def _find_pmc_from_event(db: Session, obj: Dict[str, Any], metadata: Dict[str, Any]) -> Optional[PMC]:
@@ -345,79 +434,16 @@ async def stripe_webhook(request: Request):
                 db.commit()  # ✅ commit paid first so we never lose the payment status
                 
                 # ----------------------------------------------------
-                # ✅ Notify PMC (Admin message + Email) - best effort
+                # ✅ Notify PMC (Admin message + Email) - best effort + idempotent
                 # ----------------------------------------------------
+
                 try:
-                    pmc_id = int(getattr(purchase, "pmc_id", 0) or 0)
-                    property_id = int(getattr(purchase, "property_id", 0) or 0)
-                    upgrade_id = int(getattr(purchase, "upgrade_id", 0) or 0)
-                    guest_session_id = int(getattr(purchase, "guest_session_id", 0) or 0)
-                
-                    pmc = db.query(PMC).filter(PMC.id == pmc_id).first()
-                    prop = db.query(Property).filter(Property.id == property_id).first()
-                    upg = db.query(Upgrade).filter(Upgrade.id == upgrade_id).first()
-                    sess = db.query(ChatSession).filter(ChatSession.id == guest_session_id).first() if guest_session_id else None
-                
-                    pmc_name = (getattr(pmc, "pmc_name", None) or f"PMC #{pmc_id}").strip()
-                    property_name = (getattr(prop, "property_name", None) or f"Property #{property_id}").strip()
-                    upgrade_title = (getattr(upg, "title", None) or "Upgrade").strip()
-                
-                    guest_name = (getattr(sess, "guest_name", None) or "").strip() if sess else ""
-                    arr = (getattr(sess, "arrival_date", None) or "") if sess else ""
-                    dep = (getattr(sess, "departure_date", None) or "") if sess else ""
-                
-                    amount_cents = int(getattr(purchase, "amount_cents", 0) or 0)
-                    currency = (getattr(purchase, "currency", None) or "usd").lower().strip()
-                
-                    subject = f"New upgrade purchase: {upgrade_title} — {property_name}"
-                
-                    body_lines = [
-                        f"Upgrade: {upgrade_title}",
-                        f"Property: {property_name} (ID: {property_id})",
-                    ]
-                    if guest_name:
-                        body_lines.append(f"Guest: {guest_name}")
-                    if arr and dep:
-                        body_lines.append(f"Stay: {arr} → {dep}")
-                    body_lines.append(f"Amount: {amount_cents/100:.2f} {currency.upper()}")
-                    body_lines.append(f"Purchase ID: {purchase.id}")
-                
-                    body = "\n".join(body_lines)
-                
-                    # ✅ Admin message (pmc_messages)
-                    _create_pmc_message(
-                        db,
-                        pmc_id=pmc_id,
-                        subject=subject,
-                        body=body,
-                        property_id=property_id,
-                        upgrade_purchase_id=int(purchase.id),
-                        upgrade_id=upgrade_id,
-                        guest_session_id=guest_session_id or None,
-                    )
-                
-                    # ✅ Email notification (PMC.email + active users unless opted out)
-                    recipients = _pmc_notification_emails(db, pmc_id)
-                
-                    send_upgrade_purchase_email(
-                        to_emails=recipients,
-                        pmc_name=pmc_name,
-                        property_name=property_name,
-                        upgrade_title=upgrade_title,
-                        amount_cents=amount_cents,
-                        currency=currency,
-                        guest_name=guest_name or None,
-                        arrival_date=str(arr) if arr else None,
-                        departure_date=str(dep) if dep else None,
-                        purchase_id=int(purchase.id),
-                        property_id=property_id,
-                        upgrade_id=upgrade_id,
-                    )
+                    _notify_pmc_upgrade_purchase(db, purchase)
                 except Exception:
-                    # Never fail Stripe webhook because notifications failed
                     pass
                 
                 return JSONResponse({"ok": True})
+
 
 
             # --------------------------
