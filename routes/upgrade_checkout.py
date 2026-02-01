@@ -37,6 +37,35 @@ def _require_env() -> tuple[str, str]:
 
     return stripe_secret, app_base
 
+async def _resolve_guest_session_id(request: Request, property_id: int) -> int:
+    # 1) cookie session
+    raw = request.session.get(f"guest_session_{property_id}")
+    if raw is not None:
+        try:
+            return int(raw)
+        except Exception:
+            pass
+
+    # 2) query string fallback
+    qp = request.query_params.get("guest_session_id") or request.query_params.get("session_id")
+    if qp:
+        try:
+            return int(qp)
+        except Exception:
+            pass
+
+    # 3) JSON body fallback (if present)
+    try:
+        data = await request.json()
+        if isinstance(data, dict):
+            v = data.get("guest_session_id") or data.get("session_id")
+            if v is not None:
+                return int(v)
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=400, detail="Missing guest session for this stay.")
+
 
 def _parse_ymd(s: Optional[str]) -> Optional[date]:
     if not s:
@@ -49,8 +78,8 @@ def _parse_ymd(s: Optional[str]) -> Optional[date]:
 
 def _get_stay_reservation(db: Session, *, property_id: int, guest_session_id: int) -> Optional[Reservation]:
     """
-    Resolve the guest's Reservation row using the ChatSession's stored stay dates + phone_last4.
-    This keeps checkout eligibility tied to the actual stay.
+    Resolve the guest's Reservation row using ChatSession stay dates.
+    Prefer phone_last4 when available, but DO NOT fail hard if Reservation.phone_last4 isn't populated.
     """
     sess = db.query(ChatSession).filter(ChatSession.id == int(guest_session_id)).first()
     if not sess:
@@ -61,19 +90,29 @@ def _get_stay_reservation(db: Session, *, property_id: int, guest_session_id: in
     if not arr or not dep:
         return None
 
-    q = db.query(Reservation).filter(
+    base_q = db.query(Reservation).filter(
         Reservation.property_id == int(property_id),
         Reservation.arrival_date == arr,
         Reservation.departure_date == dep,
     )
 
-    # tighten match if available
+    # Try phone_last4 match first (if both sides support it)
     phone_last4 = (getattr(sess, "phone_last4", None) or "").strip()
-    if phone_last4:
-        q = q.filter(Reservation.phone_last4 == phone_last4)
 
-    return q.order_by(Reservation.id.desc()).first()
+    # Only apply phone filter if Reservation actually has the column
+    has_phone_col = hasattr(Reservation, "phone_last4")
 
+    if phone_last4 and has_phone_col:
+        q1 = base_q.filter(Reservation.phone_last4 == phone_last4)
+        hit = q1.order_by(Reservation.id.desc()).first()
+        if hit:
+            return hit
+
+        # ✅ Fallback: reservations may not have phone_last4 populated
+        return base_q.order_by(Reservation.id.desc()).first()
+
+    # No phone constraint
+    return base_q.order_by(Reservation.id.desc()).first()
 
 def _guest_verified(request: Request, property_id: int) -> bool:
     return bool(request.session.get(f"guest_verified_{property_id}", False))
@@ -139,7 +178,7 @@ def _calc_platform_fee(amount_cents: int) -> int:
     return fee
 
 
-def _create_checkout_for_upgrade(
+async def _create_checkout_for_upgrade(
     db: Session,
     request: Request,
     *,
@@ -154,7 +193,8 @@ def _create_checkout_for_upgrade(
     if not _guest_verified(request, property_id):
         raise HTTPException(status_code=403, detail="Please unlock your stay before purchasing upgrades.")
 
-    guest_session_id = _require_guest_session_id(request, property_id)
+    #guest_session_id = _require_guest_session_id(request, property_id)
+    guest_session_id = await _resolve_guest_session_id(request, property_id)
 
     prop = db.query(Property).filter(Property.id == property_id).first()
     if not prop:
@@ -308,7 +348,7 @@ def create_upgrade_checkout_guest(
 # POST /guest/properties/{property_id}/upgrades/{upgrade_id}/checkout
 # ==========================================================
 @router.post("/guest/properties/{property_id}/upgrades/{upgrade_id}/checkout")
-def create_upgrade_checkout(
+async def create_upgrade_checkout(
     property_id: int,
     upgrade_id: int,
     request: Request,
@@ -326,7 +366,7 @@ def create_upgrade_checkout(
     if not upgrade:
         raise HTTPException(status_code=404, detail="Upgrade not found")
 
-    return _create_checkout_for_upgrade(db, request, property_id=int(property_id), upgrade=upgrade)
+    return await _create_checkout_for_upgrade(db, request, property_id=int(property_id), upgrade=upgrade)
 
 
 # ==========================================================
