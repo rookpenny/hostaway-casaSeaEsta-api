@@ -1,7 +1,7 @@
 # routes/stripe_webhook.py
 import os
 from datetime import datetime, timezone
-from typing import Optional, Tuple, Any, Dict
+from typing import Optional, Tuple, Any, Dict, List
 
 import stripe
 from fastapi import APIRouter, Request, HTTPException
@@ -87,7 +87,7 @@ def _pref_allows_upgrade_email(prefs: Any) -> bool:
         return True
 
 
-def _select_upgrade_recipients(db: Session, pmc: PMC) -> list[str]:
+def _select_upgrade_recipients(db: Session, pmc: PMC) -> List[str]:
     """
     1) active pmc_users with role owner/admin or is_superuser, prefs allow
     2) fallback pmc.email
@@ -195,8 +195,11 @@ def _resolve_pmc_message(db: Session, *, pmc_id: int, dedupe_key: str) -> None:
     db.add(m)
 
 
-
 def _notify_pmc_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None:
+    """
+    Creates admin message + emails recipients.
+    Email only sends on first message creation (prevents duplicate emails).
+    """
     pmc = db.query(PMC).filter(PMC.id == int(purchase.pmc_id)).first()
     if not pmc:
         return
@@ -208,12 +211,13 @@ def _notify_pmc_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None
     if getattr(purchase, "guest_session_id", None):
         sess = db.query(ChatSession).filter(ChatSession.id == int(purchase.guest_session_id)).first()
 
+    pmc_name = (getattr(pmc, "pmc_name", "") or "PMC").strip()
     property_name = (getattr(prop, "property_name", "") or f"Property {purchase.property_id}").strip()
     upgrade_title = (getattr(upgrade, "title", "") or "Upgrade").strip()
 
     guest_name = (getattr(sess, "guest_name", None) or "").strip() if sess else ""
-    arr = getattr(sess, "arrival_date", None) if sess else None
-    dep = getattr(sess, "departure_date", None) if sess else None
+    arr = (getattr(sess, "arrival_date", None) or "").strip() if sess else ""
+    dep = (getattr(sess, "departure_date", None) or "").strip() if sess else ""
 
     amount_cents = int(getattr(purchase, "amount_cents", 0) or 0)
     currency = (getattr(purchase, "currency", None) or "usd").strip()
@@ -235,13 +239,15 @@ def _notify_pmc_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None
 
     dedupe_paid = f"upgrade_purchase:paid:{int(purchase.id)}"
 
+    # ✅ determine if this is the first time we create the "paid" message
     existed_before = (
-        db.query(PMCMessage.id)
+        db.query(PMCMessage)
         .filter(PMCMessage.pmc_id == int(pmc.id), PMCMessage.dedupe_key == dedupe_paid)
         .first()
         is not None
     )
 
+    # ✅ upsert the paid message (idempotent)
     _upsert_pmc_message(
         db,
         pmc_id=int(pmc.id),
@@ -255,15 +261,27 @@ def _notify_pmc_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None
     )
     db.commit()
 
+    # ✅ email only on first creation
     if not existed_before:
         recipients = _select_upgrade_recipients(db, pmc)
         if recipients:
-            # adjust args to match your email helper
-            send_upgrade_purchase_email(
-                to_emails=recipients,
-                subject=subject,
-                body=body,
-            )
+            try:
+                send_upgrade_purchase_email(
+                    recipients=recipients,
+                    pmc_name=pmc_name,
+                    property_name=property_name,
+                    upgrade_title=upgrade_title,
+                    amount_cents=amount_cents,
+                    currency=currency,
+                    purchase_id=int(purchase.id),
+                    guest_name=(guest_name or None),
+                    arrival_date=(arr or None),
+                    departure_date=(dep or None),
+                )
+            except Exception:
+                # best-effort only
+                pass
+
 
 
 def _find_pmc_from_event(db: Session, obj: Dict[str, Any], metadata: Dict[str, Any]) -> Optional[PMC]:
@@ -386,7 +404,7 @@ async def stripe_webhook(request: Request):
         "payment_intent.payment_failed",
         # Upgrade refunds
         "charge.refunded",
-        # Optional: destination transfer reconciliation
+        # Optional reconciliation
         "transfer.created",
     }
 
@@ -396,7 +414,7 @@ async def stripe_webhook(request: Request):
     db: Session = SessionLocal()
     try:
         # ============================================================
-        # 1) Destination transfer created (best-effort reconciliation)
+        # 1) Transfer created (best-effort reconciliation)
         # ============================================================
         if event_type == "transfer.created":
             transfer_id = obj.get("id")
@@ -433,23 +451,22 @@ async def stripe_webhook(request: Request):
             # Upgrade purchase flow
             # --------------------------
             if checkout_type == "upgrade_purchase":
-                # Strict match first
                 purchase = _find_purchase_strict(db, metadata)
-
-                # Optional fallback ONLY if metadata missing
                 if not purchase:
                     purchase = _find_purchase_fallback(db, obj)
 
                 if not purchase:
                     return JSONResponse({"ok": True})
 
-                # Idempotency by Stripe event id (purchase)
+                # ✅ idempotency: Stripe may resend same event
                 if getattr(purchase, "last_stripe_event_id", None) == event_id:
                     return JSONResponse({"ok": True})
 
-                # If already paid/refunded, do nothing
                 current_status = (getattr(purchase, "status", "") or "").lower()
                 if current_status in {"paid", "refunded"}:
+                    # still store event id so replays short-circuit next time
+                    _set_if_attr(purchase, "last_stripe_event_id", event_id)
+                    db.commit()
                     return JSONResponse({"ok": True})
 
                 session_id = obj.get("id")
@@ -460,7 +477,6 @@ async def stripe_webhook(request: Request):
                 if payment_intent_id:
                     _set_if_attr(purchase, "stripe_payment_intent_id", payment_intent_id)
 
-                # Net = amount - platform_fee (guard)
                 amount = int(getattr(purchase, "amount_cents", 0) or 0)
                 fee = int(getattr(purchase, "platform_fee_cents", 0) or 0)
                 net = max(0, amount - max(0, fee))
@@ -470,33 +486,39 @@ async def stripe_webhook(request: Request):
                 _set_if_attr(purchase, "paid_at", _now())
                 _set_if_attr(purchase, "last_stripe_event_id", event_id)
 
-                # Resolve any pending message (best effort, but inside same txn)
+                # ✅ commit paid first (you wanted this)
+                db.commit()
+
+                # resolve “pending” message best-effort
                 try:
                     _resolve_pmc_message(
                         db,
                         pmc_id=int(purchase.pmc_id),
                         dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}",
                     )
+                    db.commit()
                 except Exception:
-                    # don't break payment status updates
-                    pass
+                    db.rollback()
 
-                db.commit()  # ✅ commit paid state + message resolution together
-
-                # Notify PMC (admin message + email) best-effort; helper should be idempotent
+                # notify best-effort
                 try:
                     _notify_pmc_upgrade_purchase(db, purchase)
                 except Exception:
-                    logger.exception("[STRIPE] upgrade purchase notify failed purchase_id=%s", getattr(purchase, "id", None))
+                    pass
 
                 return JSONResponse({"ok": True})
 
             # --------------------------
-            # PMC signup/subscription flow
+            # PMC subscription flow
             # --------------------------
             pmc = _find_pmc_from_event(db, obj, metadata)
             if pmc is None:
                 return JSONResponse({"ok": True})
+
+            last_event = getattr(pmc, "last_stripe_event_id", None)
+            if last_event and last_event == event_id:
+                return JSONResponse({"ok": True})
+            _set_if_attr(pmc, "last_stripe_event_id", event_id)
 
             ALLOWED_TYPES = {
                 "pmc_full_activation",
@@ -505,13 +527,8 @@ async def stripe_webhook(request: Request):
                 "pmc_property_subscription",
             }
             if checkout_type and checkout_type not in ALLOWED_TYPES:
+                db.commit()
                 return JSONResponse({"ok": True})
-
-            # Idempotency by Stripe event id (PMC)
-            last_event = getattr(pmc, "last_stripe_event_id", None)
-            if last_event and last_event == event_id:
-                return JSONResponse({"ok": True})
-            _set_if_attr(pmc, "last_stripe_event_id", event_id)
 
             customer_id = obj.get("customer")
             checkout_session_id = obj.get("id")
@@ -561,6 +578,8 @@ async def stripe_webhook(request: Request):
 
             status_now = (getattr(purchase, "status", "") or "").lower()
             if status_now in {"paid", "refunded"}:
+                _set_if_attr(purchase, "last_stripe_event_id", event_id)
+                db.commit()
                 return JSONResponse({"ok": True})
 
             purchase.status = "failed"
@@ -577,11 +596,7 @@ async def stripe_webhook(request: Request):
                 status="open",
                 purchase=purchase,
             )
-            _resolve_pmc_message(
-                db,
-                pmc_id=int(purchase.pmc_id),
-                dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}",
-            )
+            _resolve_pmc_message(db, pmc_id=int(purchase.pmc_id), dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}")
             db.commit()
             return JSONResponse({"ok": True})
 
@@ -606,6 +621,8 @@ async def stripe_webhook(request: Request):
 
             status_now = (getattr(purchase, "status", "") or "").lower()
             if status_now in {"paid", "refunded"}:
+                _set_if_attr(purchase, "last_stripe_event_id", event_id)
+                db.commit()
                 return JSONResponse({"ok": True})
 
             purchase.status = "failed"
@@ -622,11 +639,7 @@ async def stripe_webhook(request: Request):
                 status="open",
                 purchase=purchase,
             )
-            _resolve_pmc_message(
-                db,
-                pmc_id=int(purchase.pmc_id),
-                dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}",
-            )
+            _resolve_pmc_message(db, pmc_id=int(purchase.pmc_id), dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}")
             db.commit()
             return JSONResponse({"ok": True})
 
@@ -639,6 +652,7 @@ async def stripe_webhook(request: Request):
             refunded_flag = bool(obj.get("refunded"))
 
             purchase: Optional[UpgradePurchase] = None
+
             if isinstance(payment_intent_id, str) and payment_intent_id.startswith("pi_"):
                 purchase = (
                     db.query(UpgradePurchase)
@@ -647,7 +661,6 @@ async def stripe_webhook(request: Request):
                 )
 
             if not purchase:
-                # fallback (best-effort): may succeed if payload includes payment_intent/cs id in your implementation
                 purchase = _find_purchase_fallback(db, obj)
 
             if not purchase:
@@ -676,11 +689,7 @@ async def stripe_webhook(request: Request):
                 status="open",
                 purchase=purchase,
             )
-            _resolve_pmc_message(
-                db,
-                pmc_id=int(purchase.pmc_id),
-                dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}",
-            )
+            _resolve_pmc_message(db, pmc_id=int(purchase.pmc_id), dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}")
             db.commit()
             return JSONResponse({"ok": True})
 
@@ -724,4 +733,3 @@ async def stripe_webhook(request: Request):
         raise
     finally:
         db.close()
-
