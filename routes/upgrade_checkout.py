@@ -324,7 +324,7 @@ def _create_checkout_for_upgrade(
         stripe_destination_account_id=destination_account_id,
     )
 
-    _upsert_pmc_message(
+    upsert_pmc_message(
         db,
         pmc_id=int(pmc_id),
         dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}",
