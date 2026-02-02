@@ -93,7 +93,8 @@ def _resolve_guest_session_id(
         except Exception:
             raise HTTPException(status_code=400, detail="Invalid session_id (body).")
 
-    return _require_guest_session_id(request, property_id)
+    # ✅ correct fallback
+    return _require_guest_session_id_from_cookie(request, property_id)
 
 
 def _extract_guest_session_id(
@@ -280,7 +281,7 @@ def _create_checkout_for_upgrade(
     if int(getattr(upgrade, "property_id", 0) or 0) != int(property_id):
         raise HTTPException(status_code=404, detail="Upgrade not found")
 
-    # ✅ Eligibility gate (now robust)
+    # ✅ Eligibility gate
     reservation = _get_stay_reservation(db, property_id=int(property_id), guest_session_id=int(guest_session_id))
     if not reservation:
         raise HTTPException(status_code=400, detail="Could not find your stay details for this upgrade.")
@@ -309,8 +310,11 @@ def _create_checkout_for_upgrade(
         raise HTTPException(status_code=400, detail="Invalid upgrade pricing configuration.")
 
     currency = (getattr(upgrade, "currency", None) or "usd").lower().strip()
-    title = getattr(upgrade, "title", None) or "Upgrade"
+    title = (getattr(upgrade, "title", None) or "Upgrade").strip()
 
+    # ------------------------------------------------------------
+    # 1) Create pending purchase FIRST (so we have purchase.id)
+    # ------------------------------------------------------------
     purchase = UpgradePurchase(
         pmc_id=pmc_id,
         property_id=int(prop.id),
@@ -323,47 +327,29 @@ def _create_checkout_for_upgrade(
         status="pending",
         stripe_destination_account_id=destination_account_id,
     )
-
-    upsert_pmc_message(
-        db,
-        pmc_id=int(pmc_id),
-        dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}",
-        msg_type="upgrade_purchase_pending",
-        subject=f"Upgrade checkout started: {title}",
-        body=f"A guest started checkout for {title}. Purchase ID: {purchase.id}",
-        severity="info",
-        status="open",
-        purchase=purchase,
-    )
-
     db.add(purchase)
     db.commit()
     db.refresh(purchase)
 
-
-        # --- PMC inbox message: pending purchase started ---
-    upsert_pmc_message(
-        db,
-        pmc_id=int(pmc_id),
-        dedupe_key=f"upgrade_purchase:pending:{purchase.id}",
-        type="upgrade_purchase_pending",
-        severity="info",
-        status="open",
-        subject=f"Upgrade started: {title}",
-        body=(
-            f"A guest started checkout for **{title}**.\n\n"
-            f"- Amount: {amount/100:.2f} {currency.upper()}\n"
-            f"- Status: pending\n"
-            f"- Purchase ID: {purchase.id}\n"
-        ),
-        property_id=int(prop.id),
-        upgrade_purchase_id=int(purchase.id),
-        upgrade_id=int(upgrade.id),
-        guest_session_id=int(guest_session_id),
-        link_url=f"/admin/dashboard?view=upgrades",  # or a better link you have
-    )
-    db.commit()
-
+    # ------------------------------------------------------------
+    # 2) PMC inbox message: pending (idempotent via dedupe_key)
+    # ------------------------------------------------------------
+    try:
+        upsert_pmc_message(
+            db,
+            pmc_id=int(pmc_id),
+            dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}",
+            msg_type="upgrade_purchase_pending",
+            subject=f"Upgrade checkout started: {title}",
+            body=f"A guest started checkout for {title}. Purchase ID: {purchase.id}",
+            severity="info",
+            status="open",
+            purchase=purchase,
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        # best-effort only; do not block checkout
 
     success_url = (
         f"{app_base_url}/guest/{prop.id}"
@@ -381,6 +367,9 @@ def _create_checkout_for_upgrade(
         f"&upgrade_id={upgrade.id}"
     )
 
+    # ------------------------------------------------------------
+    # 3) Create Stripe Checkout
+    # ------------------------------------------------------------
     try:
         session = stripe.checkout.Session.create(
             mode="payment",
@@ -419,6 +408,7 @@ def _create_checkout_for_upgrade(
             },
         )
     except Exception:
+        # mark purchase failed (do not delete)
         try:
             purchase.status = "failed"
             db.add(purchase)
@@ -432,8 +422,6 @@ def _create_checkout_for_upgrade(
     db.commit()
 
     return {"checkout_url": session.url, "purchase_id": purchase.id}
-
-
 # ==========================================================
 # POST /guest/properties/{property_id}/upgrades/{upgrade_id}/checkout
 # ==========================================================
