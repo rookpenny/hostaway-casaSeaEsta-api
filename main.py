@@ -38,6 +38,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.staticfiles import StaticFiles
 
 from routes.upgrade_recommendations import router as upgrade_recommendations_router
+from routes.admin_messages import router as admin_messages_router
 
 from pydantic import BaseModel
 
