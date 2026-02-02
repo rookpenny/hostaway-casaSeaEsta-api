@@ -11,6 +11,8 @@ from pydantic import BaseModel
 from database import get_db
 from models import PMCIntegration, Property, Upgrade, UpgradePurchase, ChatSession, Reservation
 from utils.upgrades_eligibility import is_upgrade_eligible
+from utils.pmc_messages import upsert_pmc_message
+
 
 router = APIRouter()
 
@@ -324,6 +326,31 @@ def _create_checkout_for_upgrade(
     db.add(purchase)
     db.commit()
     db.refresh(purchase)
+
+
+        # --- PMC inbox message: pending purchase started ---
+    upsert_pmc_message(
+        db,
+        pmc_id=int(pmc_id),
+        dedupe_key=f"upgrade_purchase:pending:{purchase.id}",
+        type="upgrade_purchase_pending",
+        severity="info",
+        status="open",
+        subject=f"Upgrade started: {title}",
+        body=(
+            f"A guest started checkout for **{title}**.\n\n"
+            f"- Amount: {amount/100:.2f} {currency.upper()}\n"
+            f"- Status: pending\n"
+            f"- Purchase ID: {purchase.id}\n"
+        ),
+        property_id=int(prop.id),
+        upgrade_purchase_id=int(purchase.id),
+        upgrade_id=int(upgrade.id),
+        guest_session_id=int(guest_session_id),
+        link_url=f"/admin/dashboard?view=upgrades",  # or a better link you have
+    )
+    db.commit()
+
 
     success_url = (
         f"{app_base_url}/guest/{prop.id}"
