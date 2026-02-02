@@ -12,6 +12,8 @@ from sqlalchemy import (
     UniqueConstraint,
     func,
 )
+
+
 from sqlalchemy.orm import relationship
 import json
 from database import Base  # ✅ Use the shared Base from database.py
@@ -19,6 +21,36 @@ import sqlalchemy as sa
 from sqlalchemy.dialects.postgresql import JSONB
 
 from datetime import datetime, timezone
+
+
+class AdminMessage(Base):
+    __tablename__ = "admin_messages"
+
+    id = sa.Column(sa.Integer, primary_key=True, index=True)
+
+    # Scope
+    pmc_id = sa.Column(sa.Integer, sa.ForeignKey("pmcs.id"), nullable=True, index=True)
+    property_id = sa.Column(sa.Integer, sa.ForeignKey("properties.id"), nullable=True, index=True)
+
+    # Type of message
+    kind = sa.Column(sa.String(50), nullable=False, index=True)  # upgrade_purchase | upgrade_request | etc.
+
+    # Content
+    subject = sa.Column(sa.String(255), nullable=True)
+    body = sa.Column(sa.Text, nullable=True)
+
+    # Optional metadata
+    meta = sa.Column(sa.JSON, nullable=True)
+
+    # Read tracking
+    read_at = sa.Column(sa.DateTime, nullable=True, index=True)
+
+    # Timestamps
+    created_at = sa.Column(sa.DateTime, nullable=False, default=datetime.utcnow, index=True)
+
+    # optional relationships (if you want)
+    # pmc = relationship("PMC")
+    # property = relationship("Property")
 
 
 # -------------------------------------------------------------------
