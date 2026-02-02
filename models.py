@@ -290,24 +290,25 @@ def utcnow():
 class PMCMessage(Base):
     __tablename__ = "pmc_messages"
 
-    id = Column(Integer, primary_key=True, index=True)
-    pmc_id = Column(Integer, ForeignKey("pmc.id"), nullable=False, index=True)
+    id = sa.Column(sa.Integer, primary_key=True)
+    pmc_id = sa.Column(sa.Integer, sa.ForeignKey("pmc.id"), nullable=False)
 
-    # Useful fields for admin UI
-    type = Column(String(50), nullable=False, default="upgrade_request")  # e.g. upgrade_request
-    subject = Column(String(255), nullable=False)
-    body = Column(Text, nullable=False)
+    type = sa.Column(sa.String(50), nullable=False, server_default="upgrade_request")
+    subject = sa.Column(sa.String(255), nullable=False)
+    body = sa.Column(sa.Text, nullable=False)
 
-    # Optional metadata you may want later
-    property_id = Column(Integer, nullable=True, index=True)
-    upgrade_purchase_id = Column(Integer, nullable=True, index=True)
-    upgrade_id = Column(Integer, nullable=True, index=True)
-    guest_session_id = Column(Integer, nullable=True, index=True)
+    property_id = sa.Column(sa.Integer, sa.ForeignKey("properties.id"), nullable=True)
+    upgrade_purchase_id = sa.Column(sa.Integer, sa.ForeignKey("upgrade_purchases.id"), nullable=True)
+    upgrade_id = sa.Column(sa.Integer, sa.ForeignKey("upgrades.id"), nullable=True)
+    guest_session_id = sa.Column(sa.Integer, sa.ForeignKey("chat_sessions.id"), nullable=True)
 
-    is_read = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
+    status = sa.Column(sa.String(20), nullable=False, server_default="open")
+    severity = sa.Column(sa.String(20), nullable=False, server_default="info")
+    dedupe_key = sa.Column(sa.String(255), nullable=True)
+    link_url = sa.Column(sa.Text, nullable=True)
 
-    pmc = relationship("PMC")
+    is_read = sa.Column(sa.Boolean, nullable=False, server_default=sa.text("false"))
+    created_at = sa.Column(sa.DateTime(timezone=True), nullable=False, server_default=sa.func.now())
 
 
 # -------------------------------------------------------------------
