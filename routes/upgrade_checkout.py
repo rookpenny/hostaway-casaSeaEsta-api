@@ -14,6 +14,7 @@ from utils.upgrades_eligibility import is_upgrade_eligible
 from utils.pmc_messages import upsert_pmc_message
 
 
+
 router = APIRouter()
 
 class CheckoutBody(BaseModel):
@@ -321,6 +322,18 @@ def _create_checkout_for_upgrade(
         currency=currency,
         status="pending",
         stripe_destination_account_id=destination_account_id,
+    )
+
+    _upsert_pmc_message(
+        db,
+        pmc_id=int(pmc_id),
+        dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}",
+        msg_type="upgrade_purchase_pending",
+        subject=f"Upgrade checkout started: {title}",
+        body=f"A guest started checkout for {title}. Purchase ID: {purchase.id}",
+        severity="info",
+        status="open",
+        purchase=purchase,
     )
 
     db.add(purchase)
