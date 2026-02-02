@@ -28,6 +28,8 @@ from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 from sqlalchemy.inspection import inspect as sa_inspect
 
+from routes.admin_messages import router as admin_messages_router
+
 from fastapi import FastAPI, Request, HTTPException, Depends, status
 from fastapi.responses import JSONResponse, HTMLResponse, Response, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
@@ -105,6 +107,7 @@ app.include_router(upgrade_checkout_router)
 app.include_router(upgrade_purchase_status_router)
 app.include_router(reports_router)
 app.include_router(upgrade_recommendations_router)
+app.include_router(admin_messages_router)
 
 register_guest_upgrades_routes(app)
 
