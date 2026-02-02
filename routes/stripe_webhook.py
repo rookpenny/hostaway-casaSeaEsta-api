@@ -129,37 +129,71 @@ def _select_upgrade_recipients(db: Session, pmc: PMC) -> list[str]:
     return out
 
 
-def _create_upgrade_message_if_missing(db: Session, pmc_id: int, purchase: UpgradePurchase, subject: str, body: str) -> bool:
-    """
-    Idempotent: one message per purchase.
-    Returns True if created, False if already exists.
-    """
-    existing = (
-        db.query(PMCMessage)
-        .filter(
-            PMCMessage.pmc_id == pmc_id,
-            PMCMessage.type == "upgrade_purchase",
-            PMCMessage.upgrade_purchase_id == int(purchase.id),
-        )
-        .first()
-    )
-    if existing:
-        return False
+def _upsert_pmc_message(
+    db: Session,
+    *,
+    pmc_id: int,
+    dedupe_key: str,
+    msg_type: str,
+    subject: str,
+    body: str,
+    status: str = "open",     # open|resolved
+    severity: str = "info",   # info|warning|critical
+    purchase: Optional[UpgradePurchase] = None,
+) -> None:
+    q = db.query(PMCMessage).filter(PMCMessage.pmc_id == pmc_id, PMCMessage.dedupe_key == dedupe_key)
+    m = q.first()
 
-    msg = PMCMessage(
+    if m:
+        m.type = msg_type
+        m.subject = subject
+        m.body = body
+        if hasattr(m, "status"):
+            m.status = status
+        if hasattr(m, "severity"):
+            m.severity = severity
+        m.is_read = False
+        # keep links to entities up to date
+        if purchase:
+            m.property_id = getattr(purchase, "property_id", None)
+            m.upgrade_purchase_id = int(purchase.id)
+            m.upgrade_id = getattr(purchase, "upgrade_id", None)
+            m.guest_session_id = getattr(purchase, "guest_session_id", None)
+        db.add(m)
+        return
+
+    m = PMCMessage(
         pmc_id=pmc_id,
-        type="upgrade_purchase",
+        dedupe_key=dedupe_key,
+        type=msg_type,
         subject=subject,
         body=body,
-        property_id=getattr(purchase, "property_id", None),
-        upgrade_purchase_id=int(purchase.id),
-        upgrade_id=getattr(purchase, "upgrade_id", None),
-        guest_session_id=getattr(purchase, "guest_session_id", None),
         is_read=False,
+        property_id=(getattr(purchase, "property_id", None) if purchase else None),
+        upgrade_purchase_id=(int(purchase.id) if purchase else None),
+        upgrade_id=(getattr(purchase, "upgrade_id", None) if purchase else None),
+        guest_session_id=(getattr(purchase, "guest_session_id", None) if purchase else None),
     )
-    db.add(msg)
-    db.commit()
-    return True
+    if hasattr(m, "status"):
+        m.status = status
+    if hasattr(m, "severity"):
+        m.severity = severity
+
+    db.add(m)
+
+
+def _resolve_pmc_message(db: Session, *, pmc_id: int, dedupe_key: str) -> None:
+    m = (
+        db.query(PMCMessage)
+        .filter(PMCMessage.pmc_id == pmc_id, PMCMessage.dedupe_key == dedupe_key)
+        .first()
+    )
+    if not m:
+        return
+    if hasattr(m, "status"):
+        m.status = "resolved"
+    db.add(m)
+
 
 
 def _notify_pmc_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None:
@@ -204,26 +238,39 @@ def _notify_pmc_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None
 
     body = "\n".join(body_lines)
 
-    created = _create_upgrade_message_if_missing(db, int(pmc.id), purchase, subject, body)
+    # “Paid” message (idempotent via dedupe key)
+    dedupe_paid = f"upgrade_purchase:paid:{int(purchase.id)}"
+    _upsert_pmc_message(
+        db,
+        pmc_id=int(pmc.id),
+        dedupe_key=dedupe_paid,
+        msg_type="upgrade_purchase_paid",
+        subject=subject,
+        body=body,
+        severity="info",
+        status="open",
+        purchase=purchase,
+    )
+    db.commit()
+    
+    
+    # email only on first creation is harder now; simplest fast fix:
+    # check if message existed before upsert
 
-    if created:
-        recipients = _select_upgrade_recipients(db, pmc)
-        if recipients:
-            # Uses YOUR existing emailer.py function
-            send_upgrade_purchase_email(
-                to_emails=recipients,
-                pmc_name=pmc_name,
-                property_name=property_name,
-                upgrade_title=upgrade_title,
-                amount_cents=amount_cents,
-                currency=currency,
-                guest_name=guest_name,
-                arrival_date=arr,
-                departure_date=dep,
-                purchase_id=int(purchase.id),
-                property_id=int(purchase.property_id),
-                upgrade_id=int(purchase.upgrade_id),
-            )
+    existing_paid = (
+        db.query(PMCMessage)
+        .filter(PMCMessage.pmc_id == int(pmc.id), PMCMessage.dedupe_key == dedupe_paid)
+        .first()
+    )
+    
+    _upsert_pmc_message(...)
+    
+    db.commit()
+
+if not existing_paid:
+    recipients = _select_upgrade_recipients(db, pmc)
+    if recipients:
+        send_upgrade_purchase_email(...)
 
 
 
@@ -428,10 +475,19 @@ async def stripe_webhook(request: Request):
                 _set_if_attr(purchase, "net_amount_cents", net)
 
                 purchase.status = "paid"
+
+               
+
                 _set_if_attr(purchase, "paid_at", _now())
                 _set_if_attr(purchase, "last_stripe_event_id", event_id)
                 
                 db.commit()  # ✅ commit paid first so we never lose the payment status
+
+                 try:
+                    _resolve_pmc_message(db, pmc_id=int(purchase.pmc_id), dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}")
+                    db.commit()
+                except Exception:
+                    db.rollback()
                 
                 # ----------------------------------------------------
                 # ✅ Notify PMC (Admin message + Email) - best effort + idempotent
@@ -518,7 +574,21 @@ async def stripe_webhook(request: Request):
 
             purchase.status = "failed"
             _set_if_attr(purchase, "last_stripe_event_id", event_id)
+
+            _upsert_pmc_message(
+                db,
+                pmc_id=int(purchase.pmc_id),
+                dedupe_key=f"upgrade_purchase:failed:{int(purchase.id)}",
+                msg_type="upgrade_purchase_failed",
+                subject="Upgrade payment failed",
+                body=f"Upgrade payment failed. Purchase ID: {purchase.id}",
+                severity="warning",
+                status="open",
+                purchase=purchase,
+            )
+            _resolve_pmc_message(db, pmc_id=int(purchase.pmc_id), dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}")
             db.commit()
+
             return JSONResponse({"ok": True})
 
         # ============================================================
@@ -543,7 +613,20 @@ async def stripe_webhook(request: Request):
 
             purchase.status = "failed"
             _set_if_attr(purchase, "last_stripe_event_id", event_id)
+            _upsert_pmc_message(
+                db,
+                pmc_id=int(purchase.pmc_id),
+                dedupe_key=f"upgrade_purchase:failed:{int(purchase.id)}",
+                msg_type="upgrade_purchase_failed",
+                subject="Upgrade payment failed",
+                body=f"Upgrade payment failed. Purchase ID: {purchase.id}",
+                severity="warning",
+                status="open",
+                purchase=purchase,
+            )
+            _resolve_pmc_message(db, pmc_id=int(purchase.pmc_id), dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}")
             db.commit()
+
             return JSONResponse({"ok": True})
 
         # ============================================================
@@ -578,7 +661,21 @@ async def stripe_webhook(request: Request):
                 _set_if_attr(purchase, "refunded_at", _now())
 
             _set_if_attr(purchase, "last_stripe_event_id", event_id)
+
+            _upsert_pmc_message(
+                db,
+                pmc_id=int(purchase.pmc_id),
+                dedupe_key=f"upgrade_purchase:refunded:{int(purchase.id)}",
+                msg_type="upgrade_purchase_refunded",
+                subject="Upgrade refunded",
+                body=f"An upgrade was refunded. Purchase ID: {purchase.id}",
+                severity="warning",
+                status="open",
+                purchase=purchase,
+            )
+            _resolve_pmc_message(db, pmc_id=int(purchase.pmc_id), dedupe_key=f"upgrade_purchase:pending:{int(purchase.id)}")
             db.commit()
+
             return JSONResponse({"ok": True})
 
         # ============================================================
