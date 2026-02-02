@@ -1993,6 +1993,378 @@ async function safeReadJson(res) {
     });
   }
 
+
+// ----------------------------
+// Messages (Admin notifications)
+// ----------------------------
+window.Messages = {
+  loaded: false,
+  state: {
+    limit: 20,
+    offset: 0,
+    status: "all", // all | unread
+    type: "all",   // all | upgrade_purchase | upgrade_request
+    q: "",
+    selectedId: null,
+    total: null, // optional if backend returns it
+  },
+
+  // --- helpers ---
+  _el(id) { return document.getElementById(id); },
+
+  _routeList() {
+    // supports query placeholders in bootstrap:
+    // "/admin/messages?status={status}&type={type}&q={q}&limit={limit}&offset={offset}"
+    const url = apiRoute("messages_list", {
+      status: this.state.status,
+      type: this.state.type,
+      q: this.state.q,
+      limit: this.state.limit,
+      offset: this.state.offset,
+    });
+
+    // fallback if bootstrap missing
+    if (url) return url;
+
+    const qs = new URLSearchParams({
+      status: this.state.status,
+      type: this.state.type,
+      q: this.state.q,
+      limit: String(this.state.limit),
+      offset: String(this.state.offset),
+    });
+    return `/admin/messages?${qs.toString()}`;
+  },
+
+  _routeUnreadCount() {
+    return apiRoute("messages_unread_count") || "/admin/messages/unread-count";
+  },
+
+  _routeMarkRead(id) {
+    return apiRoute("messages_mark_read", { message_id: id }) || `/admin/messages/${encodeURIComponent(id)}/read`;
+  },
+
+  _routeMarkAllRead() {
+    return apiRoute("messages_mark_all_read") || "/admin/messages/mark-all-read";
+  },
+
+  _escape(s) {
+    return String(s ?? "").replace(/[&<>"']/g, (m) => ({
+      "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+    }[m]));
+  },
+
+  _fmtTime(ts) {
+    // reuse your relative time style if provided
+    // Accept both ISO and "YYYY-MM-DD HH:MM:SS"
+    if (!ts) return "—";
+    const normalized = String(ts).includes("T") ? String(ts) : String(ts).replace(" ", "T");
+    const d = new Date(normalized);
+    if (isNaN(d.getTime())) return String(ts);
+    // show short absolute; relative updater is for .js-rel-time elements elsewhere
+    return d.toLocaleString();
+  },
+
+  _badgeKind(kind) {
+    const k = String(kind || "").toLowerCase();
+    if (k === "upgrade_purchase") return "Upgrade purchase";
+    if (k === "upgrade_request") return "Upgrade request";
+    return k ? k : "Message";
+  },
+
+  // --- unread badge in sidebar ---
+  async refreshUnreadBadge() {
+    const badge = this._el("messages-unread-badge");
+    if (!badge) return;
+
+    try {
+      const { res, data } = await apiJson(this._routeUnreadCount());
+      if (!res.ok) return;
+
+      const n = Number(data?.unread_count ?? data?.count ?? 0) || 0;
+      badge.textContent = String(n);
+      badge.classList.toggle("hidden", n <= 0);
+    } catch (e) {
+      // silent; badge is non-critical
+      console.warn("messages unread badge failed:", e);
+    }
+  },
+
+  // --- list rendering ---
+  _renderList(rows) {
+    const listEl = this._el("messages-list");
+    if (!listEl) return;
+
+    if (!rows || !rows.length) {
+      listEl.innerHTML = `<div class="p-4 text-sm text-slate-500">No messages.</div>`;
+      return;
+    }
+
+    const selectedId = this.state.selectedId;
+
+    listEl.innerHTML = rows.map((m) => {
+      const id = m.id ?? m.message_id ?? "";
+      const unread = !!(m.is_unread ?? m.unread ?? (m.read_at == null && m.is_read === false));
+      const subject = this._escape(m.subject || m.title || this._badgeKind(m.kind || m.type));
+      const preview = this._escape(m.preview || m.body_preview || m.body || "").slice(0, 140);
+      const when = this._escape(m.created_at || m.ts || m.timestamp || "");
+      const kind = this._escape(this._badgeKind(m.kind || m.type));
+
+      const active = String(id) === String(selectedId);
+
+      return `
+        <button type="button"
+          class="w-full text-left p-4 border-t border-slate-200 hover:bg-slate-50 ${active ? "bg-slate-50" : ""}"
+          data-message-open="${this._escape(id)}">
+          <div class="flex items-center gap-2">
+            <div class="text-sm font-semibold text-slate-900 flex-1">
+              ${unread ? `<span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-2 align-middle"></span>` : ""}
+              ${subject}
+            </div>
+            <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
+              ${kind}
+            </span>
+          </div>
+          <div class="mt-1 text-sm text-slate-500">${preview || "—"}</div>
+          <div class="mt-2 text-xs text-slate-400">${when}</div>
+        </button>
+      `;
+    }).join("");
+  },
+
+  _renderDetail(m) {
+    const detailEl = this._el("messages-detail");
+    if (!detailEl) return;
+
+    if (!m) {
+      detailEl.innerHTML = `<div class="text-sm text-slate-500">Select a message on the left.</div>`;
+      return;
+    }
+
+    const id = m.id ?? m.message_id ?? "";
+    const unread = !!(m.is_unread ?? m.unread ?? (m.read_at == null && m.is_read === false));
+    const subject = this._escape(m.subject || m.title || this._badgeKind(m.kind || m.type));
+    const kind = this._escape(this._badgeKind(m.kind || m.type));
+    const created = this._escape(this._fmtTime(m.created_at || m.ts || m.timestamp));
+    const body = this._escape(m.body || m.content || m.message || "");
+
+    detailEl.innerHTML = `
+      <div class="flex items-start justify-between gap-3">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">${subject}</div>
+          <div class="mt-1 text-xs text-slate-500">${created}</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-[11px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">${kind}</span>
+          ${unread ? `
+            <button type="button" class="h-9 px-3 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-xs font-semibold"
+              data-message-mark-read="${this._escape(id)}">
+              Mark read
+            </button>` : `
+            <span class="text-xs text-slate-400">Read</span>
+          `}
+        </div>
+      </div>
+
+      <div class="mt-4 whitespace-pre-wrap text-sm text-slate-700 bg-white border border-slate-200 rounded-xl p-4">
+        ${body || "—"}
+      </div>
+    `;
+  },
+
+  _updatePagingLabel(countOnPage) {
+    const label = this._el("messages-paging-label");
+    if (!label) return;
+
+    const { limit, offset } = this.state;
+    if (!countOnPage) {
+      label.textContent = "—";
+      return;
+    }
+    const start = offset + 1;
+    const end = offset + countOnPage;
+    label.textContent = `${start}–${end}`;
+  },
+
+  // --- fetch list ---
+  async refreshList({ keepSelection = true } = {}) {
+    const listEl = this._el("messages-list");
+    if (listEl) listEl.innerHTML = `<div class="p-4 text-sm text-slate-500">Loading…</div>`;
+
+    try {
+      const { res, data } = await apiJson(this._routeList());
+      if (!res.ok) {
+        if (listEl) listEl.innerHTML = `<div class="p-4 text-sm text-rose-700">Failed to load messages.</div>`;
+        return;
+      }
+
+      const rows = data?.rows || data?.messages || [];
+      this.state.total = data?.total ?? data?.count ?? null;
+
+      this._renderList(rows);
+      this._updatePagingLabel(rows.length);
+
+      // auto-select first (or keep current)
+      if (!keepSelection || !this.state.selectedId) {
+        const first = rows[0];
+        const firstId = first?.id ?? first?.message_id ?? null;
+        if (firstId != null) {
+          this.state.selectedId = firstId;
+          this._renderDetail(first);
+          // mark read on open
+          await this._maybeMarkRead(first);
+        } else {
+          this._renderDetail(null);
+        }
+      } else {
+        // if selection exists, re-render detail from the newly loaded rows if found
+        const found = rows.find(r => String(r.id ?? r.message_id) === String(this.state.selectedId));
+        if (found) this._renderDetail(found);
+      }
+
+      await this.refreshUnreadBadge();
+    } catch (e) {
+      console.error("Messages.refreshList failed:", e);
+      if (listEl) listEl.innerHTML = `<div class="p-4 text-sm text-rose-700">Network error loading messages.</div>`;
+    }
+  },
+
+  async _maybeMarkRead(m) {
+    const id = m?.id ?? m?.message_id;
+    if (!id) return;
+
+    const unread = !!(m.is_unread ?? m.unread ?? (m.read_at == null && m.is_read === false));
+    if (!unread) return;
+
+    try {
+      const { res, data } = await apiJson(this._routeMarkRead(id), { method: "POST" });
+      if (!res.ok || data?.ok === false) return;
+      // optimistic: refresh list to remove unread dot + update badge
+      await this.refreshList({ keepSelection: true });
+    } catch (e) {
+      console.warn("mark read failed:", e);
+    }
+  },
+
+  // --- init / wire ---
+  initOnce() {
+    if (this.loaded) return;
+    this.loaded = true;
+
+    const filterEl = this._el("messages-filter");
+    const searchEl = this._el("messages-search");
+    const refreshBtn = this._el("messages-refresh");
+    const markAllBtn = this._el("messages-mark-all-read");
+    const prevBtn = this._el("messages-prev");
+    const nextBtn = this._el("messages-next");
+
+    // Filter dropdown (maps to status/type)
+    filterEl?.addEventListener("change", () => {
+      const v = String(filterEl.value || "all");
+      this.state.offset = 0;
+
+      if (v === "unread") {
+        this.state.status = "unread";
+        this.state.type = "all";
+      } else if (v === "upgrade_purchase" || v === "upgrade_request") {
+        this.state.status = "all";
+        this.state.type = v;
+      } else {
+        this.state.status = "all";
+        this.state.type = "all";
+      }
+
+      this.refreshList({ keepSelection: false });
+    });
+
+    // Search (debounced)
+    let t = null;
+    searchEl?.addEventListener("input", () => {
+      clearTimeout(t);
+      t = setTimeout(() => {
+        this.state.q = String(searchEl.value || "").trim();
+        this.state.offset = 0;
+        this.refreshList({ keepSelection: false });
+      }, 250);
+    });
+
+    refreshBtn?.addEventListener("click", () => {
+      this.refreshList({ keepSelection: true });
+    });
+
+    markAllBtn?.addEventListener("click", async () => {
+      try {
+        const { res, data } = await apiJson(this._routeMarkAllRead(), { method: "POST" });
+        if (!res.ok || data?.ok === false) return toast(data?.error || "Failed to mark all read.");
+        toast("Marked all read ✓");
+        this.state.offset = 0;
+        this.state.selectedId = null;
+        await this.refreshList({ keepSelection: false });
+      } catch (e) {
+        console.error(e);
+        toast("Failed to mark all read.");
+      }
+    });
+
+    prevBtn?.addEventListener("click", () => {
+      this.state.offset = Math.max(0, this.state.offset - this.state.limit);
+      this.refreshList({ keepSelection: false });
+    });
+
+    nextBtn?.addEventListener("click", () => {
+      // if backend returns total, enforce it; otherwise allow next and the page may be empty
+      if (this.state.total != null && this.state.offset + this.state.limit >= this.state.total) return;
+      this.state.offset += this.state.limit;
+      this.refreshList({ keepSelection: false });
+    });
+
+    // Delegated clicks inside list/detail
+    document.addEventListener("click", async (e) => {
+      const openBtn = e.target.closest("[data-message-open]");
+      if (openBtn) {
+        const id = openBtn.getAttribute("data-message-open");
+        if (!id) return;
+        this.state.selectedId = id;
+
+        // find the object by re-parsing from the list by refetching quickly:
+        // simplest: refreshList(keepSelection:true) then mark read.
+        await this.refreshList({ keepSelection: true });
+
+        // after refreshList, detail is already rendered if selection found;
+        // mark read based on selected message in current DOM by clicking "Mark read" if present
+        const markBtn = document.querySelector(`[data-message-mark-read="${CSS.escape(id)}"]`);
+        if (markBtn) markBtn.click();
+        return;
+      }
+
+      const markBtn = e.target.closest("[data-message-mark-read]");
+      if (markBtn) {
+        const id = markBtn.getAttribute("data-message-mark-read");
+        if (!id) return;
+        try {
+          const { res, data } = await apiJson(this._routeMarkRead(id), { method: "POST" });
+          if (!res.ok || data?.ok === false) return;
+          toast("Marked read ✓");
+          await this.refreshList({ keepSelection: true });
+        } catch (err) {
+          console.error(err);
+          toast("Failed to mark read.");
+        }
+      }
+    });
+  },
+
+  async openView() {
+    // called by router when view-messages becomes visible
+    this.initOnce();
+    await this.refreshUnreadBadge();
+    await this.refreshList({ keepSelection: false });
+  },
+};
+
+
+
+
   // ----------------------------
   // Overview counters + chart refresh (no hard refresh)
   // NOTE: make sure your HTML has:
@@ -3374,6 +3746,11 @@ function initRouting() {
     if (key === currentViewKey) return;
     currentViewKey = key;
 
+    if (key === "messages") {
+      await window.Messages?.openView?.();
+    }
+
+
     // show/hide views
     views.forEach(v => v.classList.add("hidden"));
     document.getElementById(`view-${key}`)?.classList.remove("hidden");
@@ -3596,6 +3973,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSidebar();
   initRouting();
 
+  window.Messages?.refreshUnreadBadge?.();
   window.rerenderAllMoodBadges?.();
   window.applyMoodConfidenceHints?.(document);
 
