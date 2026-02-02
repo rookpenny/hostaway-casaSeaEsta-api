@@ -21,7 +21,6 @@ from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
 from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
-from starlette.responses import JSONResponse
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case, and_, or_, text
@@ -32,7 +31,7 @@ from typing import Optional, Dict
 from openai import OpenAI
 from datetime import datetime, timedelta, date
 
-from models import PMC, Property, ChatSession, ChatMessage, PMCUser, Guide, Upgrade
+from models import PMC, Property, ChatSession, ChatMessage, PMCUser, Guide, Upgrade, PMCMessage
 
 #from flask import request, render_template, abort, make_response
 
@@ -42,8 +41,6 @@ from utils.emailer import send_invite_email, email_enabled
 from urllib.parse import urlparse
 from utils.ai_summary import generate_and_store_summary
 from zoneinfo import ZoneInfo  # Python 3.9+
-
-
 
 
 router = APIRouter()
@@ -88,6 +85,56 @@ ALLOWED_GUEST_MOODS = {k for (k, _) in GUEST_MOOD_CHOICES if k}
 def normalize_guest_mood(v: str | None) -> str:
     v = (v or "").strip().lower()
     return v if v in ALLOWED_GUEST_MOODS else ""
+
+
+@router.get("/admin/inbox")
+def inbox(request: Request, db: Session = Depends(get_db)):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+    if user_role != "pmc" or not pmc_obj:
+        raise HTTPException(status_code=403)
+
+    rows = (
+        db.query(PMCMessage)
+        .filter(PMCMessage.pmc_id == pmc_obj.id)
+        .order_by(PMCMessage.created_at.desc())
+        .limit(200)
+        .all()
+    )
+    return {
+        "items": [
+            {
+                "id": m.id,
+                "type": m.type,
+                "subject": m.subject,
+                "body": m.body,
+                "severity": getattr(m, "severity", "info"),
+                "status": getattr(m, "status", "open"),
+                "is_read": bool(m.is_read),
+                "created_at": m.created_at.isoformat() if m.created_at else None,
+                "link_url": getattr(m, "link_url", None),
+                "property_id": m.property_id,
+                "upgrade_purchase_id": m.upgrade_purchase_id,
+                "guest_session_id": m.guest_session_id,
+            }
+            for m in rows
+        ]
+    }
+
+
+@router.post("/admin/inbox/{msg_id}/read")
+def mark_read(msg_id: int, request: Request, db: Session = Depends(get_db)):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+    if user_role != "pmc" or not pmc_obj:
+        raise HTTPException(status_code=403)
+
+    m = db.query(PMCMessage).filter(PMCMessage.id == int(msg_id), PMCMessage.pmc_id == pmc_obj.id).first()
+    if not m:
+        raise HTTPException(status_code=404)
+
+    m.is_read = True
+    db.add(m)
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/admin/manual-ui", response_class=HTMLResponse)
@@ -1665,7 +1712,7 @@ def save_notification_prefs(
     prefs = payload.prefs or {}
 
     # Optional: whitelist known keys so random junk doesn't get stored
-    allowed = {"guest_messages", "maintenance_assigned", "turnover_due"}
+    allowed = {"guest_messages", "maintenance_assigned", "turnover_due", "upgrade_purchases_email"}
     cleaned = {k: bool(v) for k, v in prefs.items() if str(k) in allowed}
 
     u.notification_prefs = cleaned
