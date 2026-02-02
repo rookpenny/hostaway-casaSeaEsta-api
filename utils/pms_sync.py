@@ -553,14 +553,10 @@ def _try_github_sync(account_id: str, provider: str, properties: List[Dict]) -> 
 logger = logging.getLogger(__name__)
 
 def sync_all_integrations_for_pmc(pmc_id: int) -> int:
-    """
-    Sync all connected integrations for a single PMC.
-    Uses sync_properties(integration_id) which is already provider-agnostic.
-    """
     db: Session = SessionLocal()
     try:
         ids = [
-            row[0]
+            int(row[0])
             for row in (
                 db.query(PMCIntegration.id)
                 .filter(PMCIntegration.pmc_id == int(pmc_id))
@@ -572,15 +568,20 @@ def sync_all_integrations_for_pmc(pmc_id: int) -> int:
     finally:
         db.close()
 
+    if not ids:
+        logger.info("[SYNC] pmc_id=%s has no connected integrations", pmc_id)
+        return 0
+
     total = 0
     for iid in ids:
         try:
-            total += sync_properties(iid)
+            total += int(sync_properties(int(iid)) or 0)
         except Exception as e:
             logger.warning("[SYNC] ❌ pmc_id=%s integration_id=%s failed: %r", pmc_id, iid, e)
 
     logger.info("[SYNC] ✅ pmc_id=%s total properties synced: %s", pmc_id, total)
     return total
+
 
 
 # ----------------------------
@@ -665,9 +666,13 @@ def sync_single_property(integration_id: int, external_property_id: str) -> int:
                     client_secret=api_secret,
                 )
                 prop["hero_image_url"] = hero_url or None
-            except Exception:
+            #except Exception:
                 # Fallback to local extraction if overview helper fails
-                prop["hero_image_url"] = extract_hostaway_hero_image_url(prop)
+                #prop["hero_image_url"] = extract_hostaway_hero_image_url(prop)
+            
+            except Exception:
+                prop["hero_image_url"] = None
+
 
         # 3) Upsert JUST THIS property (DB-only: NO folders, NO data_folder_path overwrite)
         upserted = save_to_postgres_update_only(
@@ -788,7 +793,7 @@ def sync_properties(integration_id: int) -> int:
         #upserted = save_to_postgres(
         upserted = save_to_postgres_update_only(
             properties=props,
-            client_id=account_id,
+            #client_id=account_id,
             pmc_record_id=int(pmc_id),
             provider=provider,
             integration_id=int(integration_id),
