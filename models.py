@@ -563,14 +563,13 @@ class UpgradePurchase(Base):
 
 
 # -------------------------------------------------------------------
-# TASKS
+# TASKS + NOTIFICATIONS
 # -------------------------------------------------------------------
 
 class Task(Base):
     __tablename__ = "tasks"
 
     id = Column(Integer, primary_key=True, index=True)
-
     pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
     property_id = Column(Integer, ForeignKey("properties.id", ondelete="SET NULL"), nullable=True, index=True)
 
@@ -583,10 +582,9 @@ class Task(Base):
 
     due_at = Column(DateTime, nullable=True)
 
-    source_type = Column(String(50), nullable=False, default="manual")
+    source_type = Column(String(50), nullable=False, default="manual")  # manual|guest_message|issue_report|system
     source_id = Column(String(255), nullable=True)
 
-    # ✅ define ONCE
     created_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
 
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
@@ -609,7 +607,6 @@ class TaskAssignee(Base):
     __tablename__ = "task_assignees"
 
     id = Column(Integer, primary_key=True, index=True)
-
     task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="CASCADE"), nullable=False, index=True)
 
@@ -620,9 +617,7 @@ class TaskAssignee(Base):
     user = relationship("PMCUser", foreign_keys="TaskAssignee.user_id")
     assigned_by = relationship("PMCUser", foreign_keys="TaskAssignee.assigned_by_user_id")
 
-    __table_args__ = (
-        UniqueConstraint("task_id", "user_id", name="uq_task_assignees_task_user"),
-    )
+    __table_args__ = (UniqueConstraint("task_id", "user_id", name="uq_task_assignees_task_user"),)
 
 
 class TaskComment(Base):
@@ -636,7 +631,7 @@ class TaskComment(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     task = relationship("Task", back_populates="comments", foreign_keys=[task_id])
-    user = relationship("PMCUser", foreign_keys=[user_id])  # ✅ explicit
+    user = relationship("PMCUser", foreign_keys=[user_id])
 
 
 class TaskAttachment(Base):
@@ -654,7 +649,7 @@ class TaskAttachment(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     task = relationship("Task", back_populates="attachments", foreign_keys=[task_id])
-    uploader = relationship("PMCUser", foreign_keys=[uploaded_by_user_id])  # ✅ explicit
+    uploader = relationship("PMCUser", foreign_keys=[uploaded_by_user_id])
 
 
 class TaskActivity(Base):
@@ -669,7 +664,7 @@ class TaskActivity(Base):
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
     task = relationship("Task", back_populates="activities", foreign_keys=[task_id])
-    actor = relationship("PMCUser", foreign_keys=[actor_user_id])  # ✅ explicit
+    actor = relationship("PMCUser", foreign_keys=[actor_user_id])
 
 
 class RecurringTaskTemplate(Base):
@@ -683,7 +678,7 @@ class RecurringTaskTemplate(Base):
     description = Column(Text, nullable=True)
     category = Column(String(50), nullable=False, default="Maintenance")
 
-    rrule = Column(String(500), nullable=False)
+    rrule = Column(String(500), nullable=False)  # limited parser in backend
     next_run_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
@@ -707,3 +702,22 @@ class TaskAssignmentRule(Base):
     enabled = Column(Boolean, default=True, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
+    assignee = relationship("PMCUser", foreign_keys=[assign_to_user_id])
+
+
+class Notification(Base):
+    __tablename__ = "notifications"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="CASCADE"), nullable=True, index=True)
+
+    type = Column(String(50), nullable=False)
+    title = Column(String(255), nullable=False)
+    body = Column(Text, nullable=True)
+    meta = Column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
+
+    is_read = Column(Boolean, default=False, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    user = relationship("PMCUser", foreign_keys=[user_id])
