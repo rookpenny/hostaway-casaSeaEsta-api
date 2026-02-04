@@ -587,7 +587,7 @@ class Task(Base):
     source_id = Column(String(255), nullable=True)
 
     created_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
-
+    
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
@@ -601,7 +601,10 @@ class Task(Base):
     comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
     attachments = relationship("TaskAttachment", back_populates="task", cascade="all, delete-orphan")
     activities = relationship("TaskActivity", back_populates="task", cascade="all, delete-orphan")
+    
+    created_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
 
+    created_by = relationship("PMCUser", foreign_keys=[created_by_user_id])  # ✅ explicit
 
 class TaskAssignee(Base):
     __tablename__ = "task_assignees"
@@ -613,8 +616,9 @@ class TaskAssignee(Base):
     assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     assigned_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
 
-    task = relationship("Task")
-    user = relationship("PMCUser")
+    task = relationship("Task", foreign_keys=[task_id])
+    user = relationship("PMCUser", foreign_keys=[user_id])  # ✅ fixes ambiguity
+    assigned_by = relationship("PMCUser", foreign_keys=[assigned_by_user_id])  # optional but useful
 
     __table_args__ = (UniqueConstraint("task_id", "user_id", name="uq_task_assignees_task_user"),)
 
@@ -640,15 +644,15 @@ class TaskAttachment(Base):
     task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
     uploaded_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
 
-    file_url = Column(Text, nullable=False)  # e.g. /static/uploads/tasks/<pmc>/<uuid>.jpg
-    file_type = Column(String(20), nullable=False, default="photo")  # photo | video | other
+    file_url = Column(Text, nullable=False)
+    file_type = Column(String(20), nullable=False, default="photo")
     mime_type = Column(String(100), nullable=True)
     captured_at = Column(DateTime, nullable=True)
-
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    task = relationship("Task", back_populates="attachments")
-    uploader = relationship("PMCUser")
+    task = relationship("Task", foreign_keys=[task_id])
+    uploader = relationship("PMCUser", foreign_keys=[uploaded_by_user_id])  # ✅ explicit
+
 
 
 class TaskActivity(Base):
@@ -658,13 +662,12 @@ class TaskActivity(Base):
     task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
     actor_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
 
-    event_type = Column(String(50), nullable=False)  # created | status_changed | assigned | unassigned | comment_added | attachment_added | due_changed
+    event_type = Column(String(50), nullable=False)
     meta = Column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
-
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    task = relationship("Task", back_populates="activities")
-    actor = relationship("PMCUser")
+    task = relationship("Task", foreign_keys=[task_id])
+    actor = relationship("PMCUser", foreign_keys=[actor_user_id])  # ✅ explicit
 
 
 class RecurringTaskTemplate(Base):
