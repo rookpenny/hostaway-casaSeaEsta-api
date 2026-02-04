@@ -4143,19 +4143,20 @@ window.Tasks = window.Tasks || (function () {
           const actions = document.createElement("div");
           actions.style.cssText = "display:flex; justify-content:flex-end; gap:10px; align-items:center;";
 
-          const statusBtn = document.createElement("button");
-          statusBtn.className = "btn";
-          statusBtn.textContent = "Change status";
-          statusBtn.addEventListener("click", async () => {
-            const next = prompt(`Set status: ${Object.keys(STATUS_LABEL).join(", ")}`, t.status);
-            if (!next) return;
+          const select = document.createElement("select");
+          select.innerHTML = Object.entries(STATUS_LABEL)
+            .map(([k, v]) =>
+              `<option value="${k}" ${k === t.status ? "selected" : ""}>${v}</option>`
+            ).join("");
+          
+          select.addEventListener("change", async () => {
             try {
-              await apiUpdate(t.id, { status: next });
+              await apiUpdate(t.id, { status: select.value });
               await refresh();
             } catch (e) { alert(e.message || e); }
           });
-
-          actions.appendChild(statusBtn);
+          
+          actions.appendChild(select);
 
           row.appendChild(cb);
           row.appendChild(main);
