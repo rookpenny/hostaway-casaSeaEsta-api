@@ -3966,6 +3966,413 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 
+// ----------------------------
+// TASKS MODULE (styled)
+// ----------------------------
+window.Tasks = window.Tasks || (function () {
+  const STATUS_ORDER = ["in_review", "in_progress", "waiting", "todo", "completed", "canceled"];
+
+  const STATUS_LABEL = {
+    todo: "To-do",
+    in_progress: "In Progress",
+    waiting: "Waiting",
+    in_review: "In Review",
+    canceled: "Canceled",
+    completed: "Completed",
+  };
+
+  // pill styling (matches screenshot vibe, still neutral to your dashboard)
+  const STATUS_PILL_CLASS = {
+    in_review: "bg-amber-50 text-amber-700 border-amber-200",
+    in_progress: "bg-sky-50 text-sky-700 border-sky-200",
+    waiting: "bg-violet-50 text-violet-700 border-violet-200",
+    todo: "bg-slate-50 text-slate-700 border-slate-200",
+    completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+    canceled: "bg-rose-50 text-rose-700 border-rose-200",
+  };
+
+  let selected = new Set();
+  let activeTab = "all";
+
+  const $id = (id) => document.getElementById(id);
+  const qsa = (parent, sel) => Array.from(parent.querySelectorAll(sel));
+
+  function esc(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function isoToPrettyDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+  }
+
+  async function apiList({ q, status } = {}) {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    const res = await fetch(`/admin/api/tasks?${params.toString()}`, { credentials: "include" });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data?.error || "Failed to load tasks");
+    return data;
+  }
+
+  async function apiCreate(payload) {
+    const res = await fetch(`/admin/api/tasks`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data?.error || "Create failed");
+    return data.item;
+  }
+
+  async function apiBatch(action, payload) {
+    const res = await fetch(`/admin/api/tasks/batch`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data?.error || "Batch failed");
+    return data;
+  }
+
+  async function apiUpdate(taskId, payload) {
+    const res = await fetch(`/admin/api/tasks/${taskId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data?.error || "Update failed");
+    return data.item;
+  }
+
+  function setBatchBar() {
+    const bar = $id("tasksBatchBar");
+    const cnt = selected.size;
+    if (!bar) return;
+
+    bar.classList.toggle("hidden", !cnt);
+
+    const label = $id("tasksSelectedCount");
+    if (label) label.textContent = `${cnt} selected`;
+  }
+
+  function groupByStatus(items) {
+    const g = {};
+    for (const it of items || []) {
+      const s = it.status || "todo";
+      (g[s] ||= []).push(it);
+    }
+    return g;
+  }
+
+  function buildStatusSelect(current, onChange) {
+    const sel = document.createElement("select");
+    sel.className = "status-select";
+    for (const k of Object.keys(STATUS_LABEL)) {
+      const opt = document.createElement("option");
+      opt.value = k;
+      opt.textContent = STATUS_LABEL[k];
+      if (k === current) opt.selected = true;
+      sel.appendChild(opt);
+    }
+    sel.addEventListener("change", () => onChange(sel.value));
+    return sel;
+  }
+
+  function renderList(host, items, counts) {
+    host.innerHTML = "";
+
+    const grouped = groupByStatus(items);
+
+    for (const status of STATUS_ORDER) {
+      const rows = grouped[status] || [];
+      // keep empty sections hidden except completed/canceled, like your old logic
+      if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
+
+      const sec = document.createElement("div");
+      sec.className = "tasks-group";
+
+      // Header row: pill + count
+      const head = document.createElement("div");
+      head.className = "tasks-group-head";
+
+      const left = document.createElement("div");
+      left.className = "flex items-center gap-3";
+
+      const pill = document.createElement("span");
+      pill.className = `tasks-group-pill ${STATUS_PILL_CLASS[status] || "bg-slate-50 text-slate-700 border-slate-200"}`;
+      pill.textContent = STATUS_LABEL[status] || status;
+
+      const cnt = (counts && counts[status]) ? counts[status] : rows.length;
+      const count = document.createElement("span");
+      count.className = "text-xs text-slate-500";
+      count.textContent = `${cnt} task${cnt === 1 ? "" : "s"}`;
+
+      left.appendChild(pill);
+      left.appendChild(count);
+
+      head.appendChild(left);
+      sec.appendChild(head);
+
+      // Table-like header (Name / Due date / Category / Assignee)
+      const cols = document.createElement("div");
+      cols.className = "mt-3 text-xs text-slate-500 px-4";
+      cols.innerHTML = `
+        <div class="grid grid-cols-12 gap-3">
+          <div class="col-span-1"></div>
+          <div class="col-span-5">Name</div>
+          <div class="col-span-2">Due date</div>
+          <div class="col-span-2">Category</div>
+          <div class="col-span-2 text-right">Status</div>
+        </div>
+      `;
+      sec.appendChild(cols);
+
+      if (rows.length === 0) {
+        const empty = document.createElement("div");
+        empty.className = "mt-3 text-sm text-slate-500 px-4";
+        empty.textContent = "No tasks";
+        sec.appendChild(empty);
+      } else {
+        for (const t of rows) {
+          const row = document.createElement("div");
+          row.className = "tasks-row";
+
+          const grid = document.createElement("div");
+          grid.className = "tasks-row-grid";
+
+          // checkbox
+          const cbWrap = document.createElement("div");
+          cbWrap.className = "col-span-12 sm:col-span-1 flex items-center";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.className = "h-5 w-5 rounded border-slate-300";
+          cb.checked = selected.has(t.id);
+          cb.addEventListener("change", () => {
+            if (cb.checked) selected.add(t.id);
+            else selected.delete(t.id);
+            setBatchBar();
+          });
+
+          cbWrap.appendChild(cb);
+
+          // name + property
+          const name = document.createElement("div");
+          name.className = "col-span-12 sm:col-span-5";
+          name.innerHTML = `
+            <div class="font-semibold text-slate-900">${esc(t.title)}</div>
+            <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
+          `;
+
+          // due
+          const due = document.createElement("div");
+          due.className = "col-span-6 sm:col-span-2 text-sm text-slate-700";
+          const pretty = isoToPrettyDate(t.due_at);
+          due.innerHTML = pretty
+            ? `<span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white">📅 ${esc(pretty)}</span>`
+            : `<span class="text-slate-400">—</span>`;
+
+          // category
+          const cat = document.createElement("div");
+          cat.className = "col-span-6 sm:col-span-2 text-sm";
+          cat.innerHTML = `
+            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700">
+              ${esc(t.category || "Maintenance")}
+            </span>
+          `;
+
+          // status select (instead of prompt)
+          const st = document.createElement("div");
+          st.className = "col-span-12 sm:col-span-2 flex justify-end";
+
+          const sel = buildStatusSelect(t.status || "todo", async (next) => {
+            try {
+              await apiUpdate(t.id, { status: next });
+              await refresh();
+            } catch (e) {
+              alert(e.message || e);
+            }
+          });
+
+          st.appendChild(sel);
+
+          grid.appendChild(cbWrap);
+          grid.appendChild(name);
+          grid.appendChild(due);
+          grid.appendChild(cat);
+          grid.appendChild(st);
+
+          row.appendChild(grid);
+          sec.appendChild(row);
+        }
+      }
+
+      host.appendChild(sec);
+    }
+  }
+
+  function wireTabs() {
+    const host = $id("view-tasks");
+    if (!host) return;
+
+    const tabs = qsa(host, "[data-tasks-tab]");
+    tabs.forEach((b) => {
+      b.addEventListener("click", () => {
+        tabs.forEach((x) => x.classList.remove("is-active"));
+        b.classList.add("is-active");
+        activeTab = b.dataset.tasksTab || "all";
+        refresh();
+      });
+    });
+  }
+
+  function wireModal() {
+    const openBtn = $id("btnCreateTask");
+    const modal = $id("taskModal");
+    const close = $id("taskModalClose");
+    const cancel = $id("taskModalCancel");
+    const save = $id("taskModalSave");
+    if (!openBtn || !modal || !close || !cancel || !save) return;
+
+    const open = () => modal.classList.remove("hidden");
+    const hide = () => modal.classList.add("hidden");
+
+    openBtn.addEventListener("click", open);
+    close.addEventListener("click", hide);
+    cancel.addEventListener("click", hide);
+
+    modal.addEventListener("click", (e) => {
+      if (e.target === modal) hide();
+    });
+
+    save.addEventListener("click", async () => {
+      try {
+        const title = ($id("taskTitle").value || "").trim();
+        const category = $id("taskCategory").value || "Maintenance";
+        const due = $id("taskDueAt").value || null;
+        const status = $id("taskStatus").value || "todo";
+        const description = ($id("taskDescription").value || "").trim() || null;
+
+        if (!title) return alert("Title required");
+
+        await apiCreate({ title, category, due_at: due, status, description });
+
+        hide();
+        $id("taskTitle").value = "";
+        $id("taskDescription").value = "";
+        $id("taskDueAt").value = "";
+
+        await refresh();
+      } catch (e) {
+        alert(e.message || e);
+      }
+    });
+  }
+
+  function wireBatch() {
+    const btnDone = $id("btnBatchComplete");
+    const btnStatus = $id("btnBatchStatus");
+    const btnDelete = $id("btnBatchDelete");
+
+    if (btnDone) btnDone.addEventListener("click", async () => {
+      try {
+        await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
+        selected.clear();
+        setBatchBar();
+        await refresh();
+      } catch (e) { alert(e.message || e); }
+    });
+
+    if (btnStatus) btnStatus.addEventListener("click", async () => {
+      const next = prompt(`Set status: ${Object.keys(STATUS_LABEL).join(", ")}`, "in_progress");
+      if (!next) return;
+      try {
+        await apiBatch("status", { task_ids: Array.from(selected), status: next });
+        selected.clear();
+        setBatchBar();
+        await refresh();
+      } catch (e) { alert(e.message || e); }
+    });
+
+    if (btnDelete) btnDelete.addEventListener("click", async () => {
+      if (!confirm("Delete selected tasks?")) return;
+      try {
+        await apiBatch("delete", { task_ids: Array.from(selected) });
+        selected.clear();
+        setBatchBar();
+        await refresh();
+      } catch (e) { alert(e.message || e); }
+    });
+  }
+
+  function wireSearch() {
+    const s = $id("tasksSearch");
+    const st = $id("tasksFilterStatus");
+    if (s) s.addEventListener("input", () => refresh());
+    if (st) st.addEventListener("change", () => refresh());
+  }
+
+  async function refresh() {
+    const host = $id("tasksListHost");
+    if (!host) return;
+
+    if (activeTab !== "all") {
+      host.innerHTML =
+        `<div class="text-sm text-slate-500 py-6">${
+          activeTab === "recurring"
+            ? "Recurring tasks UI next (templates + scheduler)."
+            : activeTab === "auto"
+              ? "Auto-assignment rules UI next."
+              : "Notifications UI next."
+        }</div>`;
+      return;
+    }
+
+    const q = ($id("tasksSearch")?.value || "").trim();
+    const st = ($id("tasksFilterStatus")?.value || "").trim();
+
+    host.innerHTML = `<div class="text-sm text-slate-500 py-6">Loading…</div>`;
+
+    try {
+      const data = await apiList({ q, status: st });
+      renderList(host, data.items || [], data.counts || {});
+    } catch (e) {
+      host.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">${esc(e.message || e)}</div>`;
+    }
+  }
+
+  function init() {
+    const view = document.getElementById("view-tasks");
+    if (!view || view.__tasksInit) return;
+    view.__tasksInit = true;
+
+    wireTabs();
+    wireSearch();
+    wireModal();
+    wireBatch();
+    refresh();
+  }
+
+  return { init, refresh };
+})();
+
+
+
 
 
 // ------------------------------
@@ -4064,571 +4471,5 @@ document.addEventListener("click", (e) => {
   if (view === "tasks" && window.Tasks && typeof window.Tasks.init === "function") {
     window.Tasks.init();
   }
-});
-
-
-// ----------------------------
-// TASKS MODULE (FULL)
-// ----------------------------
-window.Tasks = (function () {
-  const STATUS_ORDER = ["in_review", "in_progress", "waiting", "todo", "completed", "canceled"];
-  const STATUS_LABEL = {
-    todo: "To-do",
-    in_progress: "In Progress",
-    waiting: "Waiting",
-    in_review: "In Review",
-    canceled: "Canceled",
-    completed: "Completed",
-  };
-
-  let selected = new Set();
-  let activeTab = "all";
-  let drawerTaskId = null;
-
-  const $id = (id) => document.getElementById(id);
-
-  function qsa(parent, sel) { return Array.from(parent.querySelectorAll(sel)); }
-
-  function esc(s) {
-    return String(s ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function isoToPrettyDate(iso) {
-    if (!iso) return "";
-    try {
-      const d = new Date(iso);
-      if (Number.isNaN(d.getTime())) return "";
-      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-    } catch { return ""; }
-  }
-
-  // ---------------- API ----------------
-
-  async function apiJSON(url, opts = {}) {
-    const res = await fetch(url, { credentials: "include", ...opts });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || "Request failed");
-    return data;
-  }
-
-  const api = {
-    listTasks: (q, status) => {
-      const p = new URLSearchParams();
-      if (q) p.set("q", q);
-      if (status) p.set("status", status);
-      return apiJSON(`/admin/api/tasks?${p.toString()}`);
-    },
-    createTask: (payload) => apiJSON(`/admin/api/tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
-    updateTask: (id, payload) => apiJSON(`/admin/api/tasks/${id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
-    batch: (payload) => apiJSON(`/admin/api/tasks/batch`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
-    detail: (id) => apiJSON(`/admin/api/tasks/${id}`),
-    addComment: (id, body) => apiJSON(`/admin/api/tasks/${id}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ body }),
-    }),
-    listRecurring: () => apiJSON(`/admin/api/recurring_tasks`),
-    createRecurring: (payload) => apiJSON(`/admin/api/recurring_tasks`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
-    runRecurring: () => apiJSON(`/admin/api/recurring_tasks/run`, { method: "POST" }),
-    listRules: () => apiJSON(`/admin/api/task_assignment_rules`),
-    createRule: (payload) => apiJSON(`/admin/api/task_assignment_rules`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    }),
-    listNotifications: () => apiJSON(`/admin/api/notifications`),
-    markRead: (id) => apiJSON(`/admin/api/notifications/${id}/read`, { method: "POST" }),
-  };
-
-  // --------------- UI helpers ----------------
-
-  function setBatchBar() {
-    const bar = $id("tasksBatchBar");
-    const cnt = selected.size;
-    if (!bar) return;
-    bar.style.display = cnt ? "block" : "none";
-    const label = $id("tasksSelectedCount");
-    if (label) label.textContent = `${cnt} selected`;
-  }
-
-  function groupByStatus(items) {
-    const g = {};
-    for (const it of items) {
-      const s = it.status || "todo";
-      (g[s] ||= []).push(it);
-    }
-    return g;
-  }
-
-  function renderEmpty(host, title, body) {
-    host.innerHTML = `
-      <div class="rounded-2xl border border-slate-200 p-10 text-center">
-        <div class="text-lg font-semibold">${esc(title)}</div>
-        <div class="text-slate-500 mt-2">${esc(body)}</div>
-      </div>
-    `;
-  }
-
-  function statusSelectHTML(current) {
-    return Object.keys(STATUS_LABEL).map((k) =>
-      `<option value="${k}" ${k === current ? "selected" : ""}>${STATUS_LABEL[k]}</option>`
-    ).join("");
-  }
-
-  // --------------- LIST ----------------
-
-  function renderList(host, items, counts) {
-    host.innerHTML = "";
-
-    if (!items || items.length === 0) {
-      renderEmpty(host, "No tasks yet", "Create your first task or generate tasks from messages.");
-      return;
-    }
-
-    const grouped = groupByStatus(items);
-
-    for (const status of STATUS_ORDER) {
-      const rows = grouped[status] || [];
-      if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
-
-      const section = document.createElement("div");
-      section.className = "tasks-section";
-      section.style.cssText = "border:1px solid #eee; border-radius:14px; padding:10px; margin:12px 0; background:#fff;";
-
-      const head = document.createElement("div");
-      head.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 8px;";
-
-      const left = document.createElement("div");
-      left.style.cssText = "display:flex; align-items:center; gap:10px;";
-
-      const pill = document.createElement("span");
-      pill.textContent = STATUS_LABEL[status] || status;
-      pill.style.cssText = "font-weight:600; padding:6px 10px; border-radius:999px; background:#f6f6f6;";
-
-      const count = document.createElement("span");
-      const c = (counts && counts[status]) ? counts[status] : rows.length;
-      count.textContent = `${c} task${c === 1 ? "" : "s"}`;
-      count.style.cssText = "font-size:12px; color:#666; padding:4px 8px; border-radius:999px; background:#fafafa; border:1px solid #eee;";
-
-      left.appendChild(pill);
-      left.appendChild(count);
-
-      head.appendChild(left);
-      section.appendChild(head);
-
-      const list = document.createElement("div");
-      list.style.cssText = "display:flex; flex-direction:column; gap:8px; padding:8px;";
-
-      for (const t of rows) {
-        const row = document.createElement("div");
-        row.dataset.taskId = String(t.id);
-        row.style.cssText = "display:grid; grid-template-columns: 28px 1fr 130px 120px 180px; gap:10px; align-items:center; padding:10px; border:1px solid #eee; border-radius:12px; cursor:pointer;";
-
-        const cb = document.createElement("input");
-        cb.type = "checkbox";
-        cb.checked = selected.has(t.id);
-        cb.addEventListener("click", (e) => e.stopPropagation());
-        cb.addEventListener("change", () => {
-          if (cb.checked) selected.add(t.id);
-          else selected.delete(t.id);
-          setBatchBar();
-        });
-
-        const main = document.createElement("div");
-        main.innerHTML = `
-          <div style="font-weight:600;">${esc(t.title)}</div>
-          <div style="font-size:12px; color:#666; margin-top:2px;">${esc(t.property_name || "")}</div>
-        `;
-
-        const due = document.createElement("div");
-        const pretty = isoToPrettyDate(t.due_at);
-        due.innerHTML = pretty
-          ? `<span style="display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border:1px solid #eee; border-radius:999px; font-size:12px;">📅 ${esc(pretty)}</span>`
-          : `<span style="color:#777; font-size:12px;">—</span>`;
-
-        const cat = document.createElement("div");
-        cat.innerHTML = `<span style="display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border-radius:999px; background:#f6f6ff; border:1px solid #e8e8ff; font-size:12px;">${esc(t.category || "Maintenance")}</span>`;
-
-        const actions = document.createElement("div");
-        actions.style.cssText = "display:flex; justify-content:flex-end; gap:10px; align-items:center;";
-
-        const sel = document.createElement("select");
-        sel.innerHTML = statusSelectHTML(t.status);
-        sel.style.cssText = "border:1px solid #eee; border-radius:10px; padding:6px 8px; font-size:12px;";
-        sel.addEventListener("click", (e) => e.stopPropagation());
-        sel.addEventListener("change", async () => {
-          try { await api.updateTask(t.id, { status: sel.value }); await refresh(); }
-          catch (e) { alert(e.message || e); }
-        });
-
-        actions.appendChild(sel);
-
-        row.appendChild(cb);
-        row.appendChild(main);
-        row.appendChild(due);
-        row.appendChild(cat);
-        row.appendChild(actions);
-
-        row.addEventListener("click", () => openDrawer(t.id));
-
-        list.appendChild(row);
-      }
-
-      section.appendChild(list);
-      host.appendChild(section);
-    }
-  }
-
-  // --------------- DRAWER ----------------
-
-  function openDrawer(id) {
-    drawerTaskId = id;
-    const drawer = $id("taskDrawer");
-    if (!drawer) return;
-    drawer.style.display = "block";
-    loadDrawer(id);
-  }
-
-  function closeDrawer() {
-    const drawer = $id("taskDrawer");
-    if (!drawer) return;
-    drawer.style.display = "none";
-    drawerTaskId = null;
-  }
-
-  async function loadDrawer(id) {
-    const d = await api.detail(id);
-
-    $id("drawerTitle").textContent = d.item.title || "Task";
-    $id("drawerMeta").innerHTML = `
-      <div><b>Status:</b> ${esc(STATUS_LABEL[d.item.status] || d.item.status)}</div>
-      <div><b>Category:</b> ${esc(d.item.category || "")}</div>
-      <div><b>Due:</b> ${esc(isoToPrettyDate(d.item.due_at) || "—")}</div>
-    `;
-
-    const statusSel = $id("drawerStatus");
-    statusSel.innerHTML = statusSelectHTML(d.item.status);
-    statusSel.onchange = async () => {
-      await api.updateTask(id, { status: statusSel.value });
-      await refresh();
-      await loadDrawer(id);
-    };
-
-    $id("drawerDescription").textContent = d.item.description || "—";
-
-    // attachments
-    const aHost = $id("drawerAttachments");
-    aHost.innerHTML = (d.attachments || []).map((a) => {
-      const isVid = (a.file_type === "video") || (a.file_url || "").match(/\.(mp4|mov|webm)$/i);
-      return isVid
-        ? `<video controls class="w-full rounded-xl border" src="${esc(a.file_url)}"></video>`
-        : `<img class="w-full rounded-xl border object-cover" src="${esc(a.file_url)}" />`;
-    }).join("");
-
-    // comments
-    const cHost = $id("drawerComments");
-    cHost.innerHTML = (d.comments || []).map((c) => `
-      <div class="rounded-xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">${esc(c.user_name || "User")} • ${esc(isoToPrettyDate(c.created_at))}</div>
-        <div class="mt-1">${esc(c.body)}</div>
-      </div>
-    `).join("") || `<div class="text-slate-500 text-sm">No comments yet.</div>`;
-
-    // activity
-    const evHost = $id("drawerActivity");
-    evHost.innerHTML = (d.activity || []).map((ev) => `
-      <div class="rounded-xl border border-slate-200 p-3">
-        <div class="text-xs text-slate-500">${esc(ev.actor_name || "System")} • ${esc(isoToPrettyDate(ev.created_at))}</div>
-        <div class="mt-1"><b>${esc(ev.event_type)}</b> ${esc(JSON.stringify(ev.meta || {}))}</div>
-      </div>
-    `).join("") || `<div class="text-slate-500 text-sm">No activity yet.</div>`;
-  }
-
-  async function uploadDrawerFile(file) {
-    if (!drawerTaskId) return;
-    const fd = new FormData();
-    fd.append("file", file);
-    const res = await fetch(`/admin/api/tasks/${drawerTaskId}/attachments`, { method: "POST", credentials: "include", body: fd });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) throw new Error(data?.error || "Upload failed");
-    await refresh();
-    await loadDrawer(drawerTaskId);
-  }
-
-  // --------------- RECURRING ----------------
-
-  async function renderRecurring(host) {
-    const data = await api.listRecurring();
-    const items = data.items || [];
-    host.innerHTML = `
-      <div class="flex items-center justify-between">
-        <div class="text-slate-600">Recurring templates generate tasks automatically.</div>
-        <div class="flex gap-2">
-          <button id="btnRunRecurring" class="px-3 py-2 rounded-xl border">Run now</button>
-          <button id="btnCreateRecurring" class="px-3 py-2 rounded-xl bg-slate-900 text-white">+ Template</button>
-        </div>
-      </div>
-      <div class="mt-4 space-y-2">
-        ${items.map((r) => `
-          <div class="rounded-xl border border-slate-200 p-4 bg-white">
-            <div class="font-semibold">${esc(r.title)}</div>
-            <div class="text-sm text-slate-600 mt-1">${esc(r.category)} • ${esc(r.rrule)} • Next: ${esc(isoToPrettyDate(r.next_run_at) || "—")}</div>
-          </div>
-        `).join("") || `<div class="text-slate-500">No templates yet.</div>`}
-      </div>
-    `;
-
-    $id("btnRunRecurring").onclick = async () => { await api.runRecurring(); await renderRecurring(host); await refresh(); };
-
-    $id("btnCreateRecurring").onclick = async () => {
-      const title = prompt("Template title?");
-      if (!title) return;
-      const rrule = prompt("RRULE (example: FREQ=WEEKLY;INTERVAL=1;BYDAY=MO,TH)", "FREQ=WEEKLY;INTERVAL=1");
-      const category = prompt("Category?", "Maintenance");
-      await api.createRecurring({ title, rrule, category });
-      await renderRecurring(host);
-    };
-  }
-
-  // --------------- AUTO-ASSIGN RULES ----------------
-
-  async function renderAutoAssign(host) {
-    const data = await api.listRules();
-    const items = data.items || [];
-    host.innerHTML = `
-      <div class="flex items-center justify-between">
-        <div class="text-slate-600">Rules automatically assign tasks to team members.</div>
-        <button id="btnCreateRule" class="px-3 py-2 rounded-xl bg-slate-900 text-white">+ Rule</button>
-      </div>
-      <div class="mt-4 space-y-2">
-        ${items.map((r) => `
-          <div class="rounded-xl border border-slate-200 p-4 bg-white">
-            <div class="font-semibold">Assign to user_id: ${esc(r.assign_to_user_id)}</div>
-            <div class="text-sm text-slate-600 mt-1">
-              category=${esc(r.category || "*")} source=${esc(r.source_type || "*")} keyword=${esc(r.keyword || "*")} enabled=${esc(String(r.enabled))}
-            </div>
-          </div>
-        `).join("") || `<div class="text-slate-500">No rules yet.</div>`}
-      </div>
-    `;
-
-    $id("btnCreateRule").onclick = async () => {
-      const assign_to_user_id = prompt("Assign to user_id?");
-      if (!assign_to_user_id) return;
-      const category = prompt("Category (or blank)", "");
-      const source_type = prompt("Source type (manual/guest_message/system) or blank", "");
-      const keyword = prompt("Keyword (or blank)", "");
-      await api.createRule({ assign_to_user_id: Number(assign_to_user_id), category: category || null, source_type: source_type || null, keyword: keyword || null, enabled: true });
-      await renderAutoAssign(host);
-    };
-  }
-
-  // --------------- NOTIFICATIONS ----------------
-
-  async function renderNotifications(host) {
-    const data = await api.listNotifications();
-    const items = data.items || [];
-    host.innerHTML = `
-      <div class="text-slate-600">Unread: <b>${esc(String(data.unread || 0))}</b></div>
-      <div class="mt-4 space-y-2">
-        ${items.map((n) => `
-          <div class="rounded-xl border border-slate-200 p-4 bg-white">
-            <div class="flex items-center justify-between">
-              <div class="font-semibold">${esc(n.title)}</div>
-              ${n.is_read ? `<span class="text-xs text-slate-500">Read</span>` : `<button class="px-2 py-1 rounded-lg border" data-read="${n.id}">Mark read</button>`}
-            </div>
-            <div class="text-sm text-slate-600 mt-1">${esc(n.body || "")}</div>
-            <div class="text-xs text-slate-500 mt-2">${esc(isoToPrettyDate(n.created_at) || "")}</div>
-          </div>
-        `).join("") || `<div class="text-slate-500">No notifications.</div>`}
-      </div>
-    `;
-
-    qsa(host, "[data-read]").forEach((btn) => {
-      btn.onclick = async () => { await api.markRead(btn.getAttribute("data-read")); await renderNotifications(host); };
-    });
-  }
-
-  // --------------- MODAL ----------------
-
-  function wireModal() {
-    const openBtn = $id("btnCreateTask");
-    const modal = $id("taskModal");
-    const close = $id("taskModalClose");
-    const cancel = $id("taskModalCancel");
-    const save = $id("taskModalSave");
-    if (!openBtn || !modal || !close || !cancel || !save) return;
-
-    function open() { modal.style.display = "block"; }
-    function hide() { modal.style.display = "none"; }
-
-    openBtn.onclick = open;
-    close.onclick = hide;
-    cancel.onclick = hide;
-
-    save.onclick = async () => {
-      const title = ($id("taskTitle").value || "").trim();
-      const category = $id("taskCategory").value || "Maintenance";
-      const due = $id("taskDueAt").value || null;
-      const status = $id("taskStatus").value || "todo";
-      const description = ($id("taskDescription").value || "").trim() || null;
-      if (!title) return alert("Title required");
-
-      await api.createTask({ title, category, due_at: due, status, description });
-      hide();
-      $id("taskTitle").value = "";
-      $id("taskDescription").value = "";
-      $id("taskDueAt").value = "";
-      await refresh();
-    };
-  }
-
-  function wireDrawer() {
-    const close = $id("taskDrawerClose");
-    const bg = $id("taskDrawerBackdrop");
-    if (close) close.onclick = closeDrawer;
-    if (bg) bg.onclick = closeDrawer;
-
-    const upload = $id("drawerUpload");
-    if (upload) upload.onchange = async () => {
-      const f = upload.files?.[0];
-      if (!f) return;
-      try { await uploadDrawerFile(f); }
-      catch (e) { alert(e.message || e); }
-      upload.value = "";
-    };
-
-    const btn = $id("drawerCommentBtn");
-    if (btn) btn.onclick = async () => {
-      if (!drawerTaskId) return;
-      const body = ($id("drawerCommentInput").value || "").trim();
-      if (!body) return;
-      await api.addComment(drawerTaskId, body);
-      $id("drawerCommentInput").value = "";
-      await loadDrawer(drawerTaskId);
-    };
-  }
-
-  function wireTabs() {
-    const host = $id("view-tasks");
-    if (!host) return;
-
-    const tabs = qsa(host, "[data-tasks-tab]");
-    tabs.forEach((b) => {
-      b.addEventListener("click", () => {
-        tabs.forEach((x) => x.classList.remove("is-active"));
-        b.classList.add("is-active");
-        activeTab = b.dataset.tasksTab || "all";
-        refresh();
-      });
-    });
-  }
-
-  function wireBatch() {
-    const btnDone = $id("btnBatchComplete");
-    const btnStatus = $id("btnBatchStatus");
-    const btnDelete = $id("btnBatchDelete");
-
-    if (btnDone) btnDone.onclick = async () => {
-      await api.batch({ action: "status", task_ids: Array.from(selected), status: "completed" });
-      selected.clear(); setBatchBar(); await refresh();
-    };
-
-    if (btnStatus) btnStatus.onclick = async () => {
-      const next = prompt(`Set status: ${Object.keys(STATUS_LABEL).join(", ")}`, "in_progress");
-      if (!next) return;
-      await api.batch({ action: "status", task_ids: Array.from(selected), status: next });
-      selected.clear(); setBatchBar(); await refresh();
-    };
-
-    if (btnDelete) btnDelete.onclick = async () => {
-      if (!confirm("Delete selected tasks?")) return;
-      await api.batch({ action: "delete", task_ids: Array.from(selected) });
-      selected.clear(); setBatchBar(); await refresh();
-    };
-  }
-
-  function wireSearch() {
-    const s = $id("tasksSearch");
-    const st = $id("tasksFilterStatus");
-    if (s) s.addEventListener("input", () => refresh());
-    if (st) st.addEventListener("change", () => refresh());
-  }
-
-  async function refresh() {
-    const host = $id("tasksListHost");
-    if (!host) return;
-
-    if (activeTab === "recurring") {
-      host.innerHTML = `<div class="text-slate-500 p-4">Loading…</div>`;
-      await renderRecurring(host);
-      return;
-    }
-
-    if (activeTab === "auto") {
-      host.innerHTML = `<div class="text-slate-500 p-4">Loading…</div>`;
-      await renderAutoAssign(host);
-      return;
-    }
-
-    if (activeTab === "notifications") {
-      host.innerHTML = `<div class="text-slate-500 p-4">Loading…</div>`;
-      await renderNotifications(host);
-      return;
-    }
-
-    const q = ($id("tasksSearch")?.value || "").trim();
-    const st = ($id("tasksFilterStatus")?.value || "").trim();
-
-    host.innerHTML = `<div class="text-slate-500 p-4">Loading…</div>`;
-    try {
-      const data = await api.listTasks(q, st);
-      renderList(host, data.items || [], data.counts || {});
-    } catch (e) {
-      host.innerHTML = `<div class="p-4 text-red-700">${esc(e.message || e)}</div>`;
-    }
-  }
-
-  function init() {
-    const view = document.getElementById("view-tasks");
-    if (!view || view.__tasksInit) return;
-    view.__tasksInit = true;
-
-    wireTabs();
-    wireSearch();
-    wireModal();
-    wireBatch();
-    wireDrawer();
-    refresh();
-  }
-
-  return { init, refresh };
-})();
-
-// If Tasks view exists, allow init on load (and your view-switcher should call Tasks.init() too)
-document.addEventListener("DOMContentLoaded", () => {
-  const tasksView = document.getElementById("view-tasks");
-  if (tasksView) window.Tasks.init();
 });
 
