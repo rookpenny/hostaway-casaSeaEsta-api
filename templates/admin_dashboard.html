@@ -135,7 +135,23 @@
 
         
 
-        <a class="nav-item" href="/admin/dashboard?view=tasks" data-view-link="tasks">Tasks</a>
+        <!-- Tasks -->
+        <button
+          data-view="tasks"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'tasks' else 'false' }}"
+          type="button"
+        >
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <!-- clipboard / checklist icon -->
+              <path d="M9 3h6a2 2 0 0 1 2 2v16H7V5a2 2 0 0 1 2-2z" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M9 7h6M9 11h6M9 15h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Tasks</span>
+        </button>
+
 
 
 
