@@ -2070,7 +2070,6 @@
   window.PMC_STRIPE_CONNECTED = {{ stripe_connected | tojson }};
 </script>
 
-
 <script id="dashboard-bootstrap" type="application/json">
 {
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
@@ -2084,15 +2083,15 @@
     "chat_unresolve": "/admin/chats/{session_id}/unresolve",
     "chat_escalate": "/admin/chats/{session_id}/escalate",
     "chat_assign": "/admin/chats/{session_id}/assign",
-    "chat_note": "/admin/chats/{session_id}/note"
+    "chat_note": "/admin/chats/{session_id}/note",
     "messages_list": "/admin/messages?status={status}&type={type}&q={q}&limit={limit}&offset={offset}",
     "messages_unread_count": "/admin/messages/unread-count",
     "messages_mark_read": "/admin/messages/{message_id}/read",
     "messages_mark_all_read": "/admin/messages/mark-all-read"
-
   }
 }
 </script>
+
 
 <script>
   function centsToUsd(cents) {
