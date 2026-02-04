@@ -471,7 +471,7 @@
         </section>
 
         <!-- MESSAGES -->
-        <section id="view-messages" class="view hidden space-y-4 {% if initial_view != 'messages' %}hidden{% endif %}">
+        <section id="view-messages" class="view space-y-4 {% if initial_view != 'messages' %}hidden{% endif %}">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -550,7 +550,7 @@
         </section>
 
 <!-- Tasks --->
-                   <section class="view" id="view-tasks" style="display:none;">
+                   <section id="view-tasks" class="view space-y-6 {% if initial_view != 'tasks' %}hidden{% endif %}">
   <div class="flex items-center justify-between">
     <div>
       <h1 class="text-xl font-semibold">Tasks</h1>
