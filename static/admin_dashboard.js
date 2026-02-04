@@ -4388,3 +4388,34 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
  // applyChatsFilters();
 });
+
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("[data-view-btn]");
+  if (!btn) return;
+
+  const view = btn.getAttribute("data-view-btn");
+  if (!view) return;
+
+  // 1) update URL query param without full reload
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", view);
+  url.searchParams.delete("session_id"); // optional: keep behavior consistent
+  window.history.pushState({}, "", url.toString());
+
+  // 2) hide all views, show selected
+  document.querySelectorAll("section.view").forEach((el) => {
+    el.style.display = "none";
+  });
+
+  const target = document.getElementById(`view-${view}`);
+  if (target) target.style.display = "";
+
+  // 3) optional: update active styling
+  document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
+  btn.classList.add("active");
+
+  // 4) init tasks module if present
+  if (view === "tasks" && window.Tasks && typeof window.Tasks.init === "function") {
+    window.Tasks.init();
+  }
+});
