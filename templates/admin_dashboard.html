@@ -549,113 +549,48 @@
           </div>
         </section>
 
-<!-- Tasks --->
-                   <section id="view-tasks" class="view space-y-6 {% if initial_view != 'tasks' %}hidden{% endif %}">
-  <div class="flex items-center justify-between">
-    <div>
-      <h1 class="text-xl font-semibold">Tasks</h1>
-      <p class="text-slate-500 mt-1">Track work across properties with photos, comments, recurring schedules, and assignment rules.</p>
+<section id="view-tasks" class="view hidden space-y-4 {% if initial_view != 'tasks' %}hidden{% endif %}">
+  <div class="bg-white border border-slate-200 rounded-2xl p-5 card">
+    <!-- Header -->
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <div class="text-2xl font-semibold">Tasks</div>
+        <div class="mt-1 text-slate-500">
+          Track work across properties with photos, comments, recurring schedules, and assignment rules.
+        </div>
+      </div>
+
+      <button id="btnCreateTask" type="button" class="btn btn-primary h-11 px-5 rounded-2xl">
+        + Create task
+      </button>
     </div>
 
-    <button id="btnCreateTask"
-      class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">
-      + Create task
-    </button>
-  </div>
-
-  <div class="mt-5 flex items-center gap-3">
-    <button class="chip is-active" data-tasks-tab="all">All</button>
-    <button class="chip" data-tasks-tab="recurring">Recurring</button>
-    <button class="chip" data-tasks-tab="auto">Auto-assignment</button>
-    <button class="chip" data-tasks-tab="notifications">Notifications</button>
-  </div>
-
-  <div class="mt-4 flex items-center gap-3">
-    <input id="tasksSearch" type="search" placeholder="Search tasks..."
-      class="w-full max-w-xl rounded-xl border border-slate-200 px-4 py-2 outline-none" />
-    <select id="tasksFilterStatus" class="rounded-xl border border-slate-200 px-3 py-2">
-      <option value="">All statuses</option>
-      <option value="todo">To-do</option>
-      <option value="in_progress">In Progress</option>
-      <option value="waiting">Waiting</option>
-      <option value="in_review">In Review</option>
-      <option value="canceled">Canceled</option>
-      <option value="completed">Completed</option>
-    </select>
-  </div>
-
-  <div id="tasksBatchBar" style="display:none;" class="mt-4">
-    <div class="inline-flex items-center gap-3 rounded-xl bg-slate-900 text-white px-4 py-3">
-      <span id="tasksSelectedCount">0 selected</span>
-      <button id="btnBatchComplete" class="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/15">Mark done</button>
-      <button id="btnBatchStatus" class="rounded-lg bg-white/10 px-3 py-1.5 hover:bg-white/15">Change status</button>
-      <button id="btnBatchDelete" class="rounded-lg bg-red-600 px-3 py-1.5 hover:bg-red-500">Delete</button>
+    <!-- Tabs -->
+    <div class="mt-5 flex items-center gap-3 border-b border-slate-100">
+      <button class="tasks-tab is-active" data-tasks-tab="all" type="button">All</button>
+      <button class="tasks-tab" data-tasks-tab="recurring" type="button">Recurring</button>
+      <button class="tasks-tab" data-tasks-tab="auto" type="button">Auto-assignment</button>
+      <button class="tasks-tab" data-tasks-tab="notifications" type="button">Notifications</button>
     </div>
-  </div>
 
-  <div id="tasksListHost" class="mt-5"></div>
+    <!-- Toolbar -->
+    <div class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+      <div class="flex-1 flex items-center gap-3">
+        <div class="relative w-full max-w-2xl">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
+          <input
+            id="tasksSearch"
+            type="search"
+            placeholder="Search tasks..."
+            class="w-full h-11 rounded-2xl border border-slate-200 bg-white pl-10 pr-4 text-sm outline-none focus:ring-2 focus:ring-slate-200"
+          />
+        </div>
 
-  <!-- Drawer -->
-  <div id="taskDrawer" style="display:none;" class="fixed inset-0 z-50">
-    <div id="taskDrawerBackdrop" class="absolute inset-0 bg-black/40"></div>
-
-    <div class="absolute right-0 top-0 h-full w-full max-w-xl bg-white shadow-xl p-5 overflow-y-auto">
-      <div class="flex items-center justify-between">
-        <h2 id="drawerTitle" class="text-lg font-semibold">Task</h2>
-        <button id="taskDrawerClose" class="px-3 py-1 rounded-lg border">✕</button>
-      </div>
-
-      <div id="drawerMeta" class="mt-3 text-sm text-slate-600"></div>
-
-      <div class="mt-4">
-        <label class="text-sm font-medium">Status</label>
-        <select id="drawerStatus" class="mt-1 w-full rounded-xl border border-slate-200 px-3 py-2"></select>
-      </div>
-
-      <div class="mt-4">
-        <label class="text-sm font-medium">Description</label>
-        <div id="drawerDescription" class="mt-1 text-slate-700 whitespace-pre-wrap"></div>
-      </div>
-
-      <div class="mt-6">
-        <div class="font-semibold">Attachments</div>
-        <input id="drawerUpload" type="file" class="mt-2" />
-        <div id="drawerAttachments" class="mt-3 grid grid-cols-2 gap-3"></div>
-      </div>
-
-      <div class="mt-6">
-        <div class="font-semibold">Comments</div>
-        <div id="drawerComments" class="mt-2 space-y-2"></div>
-        <textarea id="drawerCommentInput" class="mt-3 w-full rounded-xl border border-slate-200 p-3" placeholder="Add a comment..."></textarea>
-        <button id="drawerCommentBtn" class="mt-2 px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">Post comment</button>
-      </div>
-
-      <div class="mt-6">
-        <div class="font-semibold">Activity log</div>
-        <div id="drawerActivity" class="mt-2 space-y-2 text-sm text-slate-600"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- Create Modal -->
-  <div id="taskModal" style="display:none;" class="fixed inset-0 z-50">
-    <div class="absolute inset-0 bg-black/40"></div>
-    <div class="relative max-w-xl mx-auto mt-24 bg-white rounded-2xl p-5 shadow-xl">
-      <div class="flex items-center justify-between">
-        <h2 class="text-lg font-semibold">New Task</h2>
-        <button id="taskModalClose" class="px-3 py-1 rounded-lg border">✕</button>
-      </div>
-
-      <div class="mt-4 grid grid-cols-2 gap-3">
-        <input id="taskTitle" class="rounded-xl border border-slate-200 px-3 py-2" placeholder="Task title" />
-        <select id="taskCategory" class="rounded-xl border border-slate-200 px-3 py-2">
-          <option>Maintenance</option>
-          <option>Safety</option>
-          <option>Cleaning</option>
-          <option>Operations</option>
-        </select>
-        <input id="taskDueAt" type="date" class="rounded-xl border border-slate-200 px-3 py-2" />
-        <select id="taskStatus" class="rounded-xl border border-slate-200 px-3 py-2">
+        <select
+          id="tasksFilterStatus"
+          class="h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-slate-200"
+        >
+          <option value="">All statuses</option>
           <option value="todo">To-do</option>
           <option value="in_progress">In Progress</option>
           <option value="waiting">Waiting</option>
@@ -665,11 +600,64 @@
         </select>
       </div>
 
-      <textarea id="taskDescription" class="mt-3 w-full rounded-xl border border-slate-200 p-3" placeholder="Description (optional)"></textarea>
+      <div class="flex items-center gap-2 justify-end">
+        <!-- “view mode” buttons are placeholders to match the reference UI -->
+        <button class="icon-btn" type="button" title="List view">≡</button>
+        <button class="icon-btn" type="button" title="Columns view">▥</button>
+        <button class="icon-btn" type="button" title="Filter">⎚</button>
+        <button class="icon-btn" type="button" title="Sort">⇅</button>
+      </div>
+    </div>
+
+    <!-- List -->
+    <div id="tasksListHost" class="mt-6"></div>
+  </div>
+
+  <!-- Batch bar (fixed bottom like the screenshot) -->
+  <div id="tasksBatchBar" class="tasks-batchbar hidden">
+    <div class="tasks-batchbar-inner">
+      <div class="text-sm font-semibold" id="tasksSelectedCount">0 selected</div>
+      <button id="btnBatchComplete" class="batch-btn" type="button">✓ Mark done</button>
+      <button id="btnBatchStatus" class="batch-btn" type="button">⟳ Change status</button>
+      <button id="btnBatchDelete" class="batch-btn-danger" type="button">🗑 Delete</button>
+    </div>
+  </div>
+
+  <!-- Create Modal -->
+  <div id="taskModal" class="hidden fixed inset-0 z-50">
+    <div class="absolute inset-0 bg-black/40"></div>
+
+    <div class="relative max-w-xl mx-auto mt-24 bg-white rounded-2xl p-5 shadow-xl border border-slate-200">
+      <div class="flex items-center justify-between">
+        <h2 class="text-lg font-semibold">New Task</h2>
+        <button id="taskModalClose" class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50" type="button">✕</button>
+      </div>
+
+      <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <input id="taskTitle" class="h-11 rounded-2xl border border-slate-200 px-4 text-sm" placeholder="Task title" />
+        <select id="taskCategory" class="h-11 rounded-2xl border border-slate-200 px-4 text-sm bg-white">
+          <option>Maintenance</option>
+          <option>Safety</option>
+          <option>Cleaning</option>
+          <option>Operations</option>
+        </select>
+
+        <input id="taskDueAt" type="date" class="h-11 rounded-2xl border border-slate-200 px-4 text-sm" />
+        <select id="taskStatus" class="h-11 rounded-2xl border border-slate-200 px-4 text-sm bg-white">
+          <option value="todo">To-do</option>
+          <option value="in_progress">In Progress</option>
+          <option value="waiting">Waiting</option>
+          <option value="in_review">In Review</option>
+          <option value="canceled">Canceled</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+
+      <textarea id="taskDescription" class="mt-3 w-full rounded-2xl border border-slate-200 p-4 text-sm" placeholder="Description (optional)"></textarea>
 
       <div class="mt-4 flex justify-end gap-2">
-        <button id="taskModalCancel" class="px-4 py-2 rounded-xl border">Cancel</button>
-        <button id="taskModalSave" class="px-4 py-2 rounded-xl bg-slate-900 text-white hover:bg-slate-800">Create</button>
+        <button id="taskModalCancel" class="btn btn-secondary h-10 px-4 rounded-2xl" type="button">Cancel</button>
+        <button id="taskModalSave" class="btn btn-primary h-10 px-4 rounded-2xl" type="button">Create</button>
       </div>
     </div>
   </div>
