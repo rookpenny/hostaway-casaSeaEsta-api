@@ -577,39 +577,39 @@ class Task(Base):
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
 
-    category = Column(String(50), nullable=False, default="Maintenance")  # Maintenance | Safety | Cleaning | etc.
-    status = Column(String(30), nullable=False, default="todo")  # todo | in_progress | waiting | in_review | canceled | completed
-    priority = Column(String(20), nullable=True)  # low | normal | high | urgent (optional)
+    category = Column(String(50), nullable=False, default="Maintenance")
+    status = Column(String(30), nullable=False, default="todo")  # todo|in_progress|waiting|in_review|canceled|completed
+    priority = Column(String(20), nullable=True)
 
     due_at = Column(DateTime, nullable=True)
 
-    source_type = Column(String(50), nullable=False, default="manual")  # manual | guest_message | issue_report | system
+    source_type = Column(String(50), nullable=False, default="manual")
     source_id = Column(String(255), nullable=True)
 
+    # ✅ define ONCE
     created_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
-    
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
 
-    # fast timestamps for progress tracking
     started_at = Column(DateTime, nullable=True)
     submitted_for_review_at = Column(DateTime, nullable=True)
     completed_at = Column(DateTime, nullable=True)
     canceled_at = Column(DateTime, nullable=True)
 
-    property = relationship("Property")
+    property = relationship("Property", foreign_keys=[property_id])
+    created_by = relationship("PMCUser", foreign_keys=[created_by_user_id])
+
     comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
     attachments = relationship("TaskAttachment", back_populates="task", cascade="all, delete-orphan")
     activities = relationship("TaskActivity", back_populates="task", cascade="all, delete-orphan")
-    
-    created_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
 
-    created_by = relationship("PMCUser", foreign_keys=[created_by_user_id])  # ✅ explicit
 
 class TaskAssignee(Base):
     __tablename__ = "task_assignees"
 
     id = Column(Integer, primary_key=True, index=True)
+
     task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
     user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="CASCADE"), nullable=False, index=True)
 
@@ -618,9 +618,11 @@ class TaskAssignee(Base):
 
     task = relationship("Task", foreign_keys=[task_id])
     user = relationship("PMCUser", foreign_keys=[user_id])  # ✅ fixes ambiguity
-    assigned_by = relationship("PMCUser", foreign_keys=[assigned_by_user_id])  # optional but useful
+    assigned_by = relationship("PMCUser", foreign_keys=[assigned_by_user_id])  # ✅ explicit
 
-    __table_args__ = (UniqueConstraint("task_id", "user_id", name="uq_task_assignees_task_user"),)
+    __table_args__ = (
+        UniqueConstraint("task_id", "user_id", name="uq_task_assignees_task_user"),
+    )
 
 
 class TaskComment(Base):
@@ -633,8 +635,8 @@ class TaskComment(Base):
     body = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    task = relationship("Task", back_populates="comments")
-    user = relationship("PMCUser")
+    task = relationship("Task", back_populates="comments", foreign_keys=[task_id])
+    user = relationship("PMCUser", foreign_keys=[user_id])  # ✅ explicit
 
 
 class TaskAttachment(Base):
@@ -645,14 +647,14 @@ class TaskAttachment(Base):
     uploaded_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
 
     file_url = Column(Text, nullable=False)
-    file_type = Column(String(20), nullable=False, default="photo")
+    file_type = Column(String(20), nullable=False, default="photo")  # photo|video|other
     mime_type = Column(String(100), nullable=True)
     captured_at = Column(DateTime, nullable=True)
+
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    task = relationship("Task", foreign_keys=[task_id])
+    task = relationship("Task", back_populates="attachments", foreign_keys=[task_id])
     uploader = relationship("PMCUser", foreign_keys=[uploaded_by_user_id])  # ✅ explicit
-
 
 
 class TaskActivity(Base):
@@ -666,7 +668,7 @@ class TaskActivity(Base):
     meta = Column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
-    task = relationship("Task", foreign_keys=[task_id])
+    task = relationship("Task", back_populates="activities", foreign_keys=[task_id])
     actor = relationship("PMCUser", foreign_keys=[actor_user_id])  # ✅ explicit
 
 
@@ -681,9 +683,7 @@ class RecurringTaskTemplate(Base):
     description = Column(Text, nullable=True)
     category = Column(String(50), nullable=False, default="Maintenance")
 
-    # store an RFC5545 RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0")
     rrule = Column(String(500), nullable=False)
-
     next_run_at = Column(DateTime, nullable=True)
     is_active = Column(Boolean, default=True, nullable=False)
 
@@ -697,15 +697,13 @@ class TaskAssignmentRule(Base):
     id = Column(Integer, primary_key=True, index=True)
     pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
 
-    # match filters (nullable means "any")
     property_id = Column(Integer, ForeignKey("properties.id", ondelete="CASCADE"), nullable=True, index=True)
     category = Column(String(50), nullable=True)
     source_type = Column(String(50), nullable=True)
-    keyword = Column(String(100), nullable=True)  # simple keyword matching in title/description
+    keyword = Column(String(100), nullable=True)
 
-    # result
     assign_to_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="CASCADE"), nullable=False)
 
-    enabled = Column(Boolean, default=True, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    enabled = Co
+
 
