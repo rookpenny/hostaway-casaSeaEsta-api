@@ -22,7 +22,6 @@ from sqlalchemy.dialects.postgresql import JSONB
 
 from datetime import datetime, timezone
 
-
 # -------------------------------------------------------------------
 # Integrations
 # -------------------------------------------------------------------
@@ -560,3 +559,150 @@ class UpgradePurchase(Base):
         # If you want stronger protection, make guest_session_id non-null for guest flows.
         UniqueConstraint("guest_session_id", "upgrade_id", name="uq_upgrade_purchase_guest_session_upgrade"),
     )
+
+
+
+# -------------------------------------------------------------------
+# TASKS
+# -------------------------------------------------------------------
+
+class Task(Base):
+    __tablename__ = "tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+
+    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+
+    category = Column(String(50), nullable=False, default="Maintenance")  # Maintenance | Safety | Cleaning | etc.
+    status = Column(String(30), nullable=False, default="todo")  # todo | in_progress | waiting | in_review | canceled | completed
+    priority = Column(String(20), nullable=True)  # low | normal | high | urgent (optional)
+
+    due_at = Column(DateTime, nullable=True)
+
+    source_type = Column(String(50), nullable=False, default="manual")  # manual | guest_message | issue_report | system
+    source_id = Column(String(255), nullable=True)
+
+    created_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+    # fast timestamps for progress tracking
+    started_at = Column(DateTime, nullable=True)
+    submitted_for_review_at = Column(DateTime, nullable=True)
+    completed_at = Column(DateTime, nullable=True)
+    canceled_at = Column(DateTime, nullable=True)
+
+    property = relationship("Property")
+    comments = relationship("TaskComment", back_populates="task", cascade="all, delete-orphan")
+    attachments = relationship("TaskAttachment", back_populates="task", cascade="all, delete-orphan")
+    activities = relationship("TaskActivity", back_populates="task", cascade="all, delete-orphan")
+
+
+class TaskAssignee(Base):
+    __tablename__ = "task_assignees"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    assigned_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
+
+    task = relationship("Task")
+    user = relationship("PMCUser")
+
+    __table_args__ = (UniqueConstraint("task_id", "user_id", name="uq_task_assignees_task_user"),)
+
+
+class TaskComment(Base):
+    __tablename__ = "task_comments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
+
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    task = relationship("Task", back_populates="comments")
+    user = relationship("PMCUser")
+
+
+class TaskAttachment(Base):
+    __tablename__ = "task_attachments"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    uploaded_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
+
+    file_url = Column(Text, nullable=False)  # e.g. /static/uploads/tasks/<pmc>/<uuid>.jpg
+    file_type = Column(String(20), nullable=False, default="photo")  # photo | video | other
+    mime_type = Column(String(100), nullable=True)
+    captured_at = Column(DateTime, nullable=True)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    task = relationship("Task", back_populates="attachments")
+    uploader = relationship("PMCUser")
+
+
+class TaskActivity(Base):
+    __tablename__ = "task_activity"
+
+    id = Column(Integer, primary_key=True, index=True)
+    task_id = Column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), nullable=False, index=True)
+    actor_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
+
+    event_type = Column(String(50), nullable=False)  # created | status_changed | assigned | unassigned | comment_added | attachment_added | due_changed
+    meta = Column(JSONB, nullable=False, server_default=sa.text("'{}'::jsonb"))
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
+    task = relationship("Task", back_populates="activities")
+    actor = relationship("PMCUser")
+
+
+class RecurringTaskTemplate(Base):
+    __tablename__ = "recurring_task_templates"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+    property_id = Column(Integer, ForeignKey("properties.id", ondelete="SET NULL"), nullable=True, index=True)
+
+    title = Column(String(255), nullable=False)
+    description = Column(Text, nullable=True)
+    category = Column(String(50), nullable=False, default="Maintenance")
+
+    # store an RFC5545 RRULE string (e.g. "FREQ=WEEKLY;BYDAY=MO;BYHOUR=9;BYMINUTE=0")
+    rrule = Column(String(500), nullable=False)
+
+    next_run_at = Column(DateTime, nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+
+
+class TaskAssignmentRule(Base):
+    __tablename__ = "task_assignment_rules"
+
+    id = Column(Integer, primary_key=True, index=True)
+    pmc_id = Column(Integer, ForeignKey("pmc.id", ondelete="CASCADE"), nullable=False, index=True)
+
+    # match filters (nullable means "any")
+    property_id = Column(Integer, ForeignKey("properties.id", ondelete="CASCADE"), nullable=True, index=True)
+    category = Column(String(50), nullable=True)
+    source_type = Column(String(50), nullable=True)
+    keyword = Column(String(100), nullable=True)  # simple keyword matching in title/description
+
+    # result
+    assign_to_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="CASCADE"), nullable=False)
+
+    enabled = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+
