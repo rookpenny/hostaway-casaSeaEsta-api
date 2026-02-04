@@ -42,6 +42,55 @@
     .btn-indigo {
       @apply bg-indigo-600 text-white hover:bg-indigo-700;
     }
+  
+
+
+    /* (keep your existing .btn styles) */
+
+    .tasks-tab {
+      @apply px-1 pb-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent;
+    }
+    .tasks-tab.is-active {
+      @apply text-slate-900 border-slate-900;
+    }
+
+    .icon-btn {
+      @apply h-11 w-11 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 grid place-items-center text-slate-600;
+    }
+
+    .tasks-group {
+      @apply mt-6;
+    }
+    .tasks-group-head {
+      @apply flex items-center justify-between gap-3;
+    }
+    .tasks-group-pill {
+      @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold border;
+    }
+
+    .tasks-row {
+      @apply mt-3 bg-white rounded-2xl border border-slate-200 px-4 py-4;
+    }
+    .tasks-row-grid {
+      @apply grid grid-cols-12 gap-3 items-center;
+    }
+
+    .tasks-batchbar {
+      @apply fixed left-0 right-0 bottom-6 z-50 flex justify-center;
+    }
+    .tasks-batchbar-inner {
+      @apply bg-slate-900 text-white rounded-2xl px-5 py-3 flex items-center gap-3 shadow-xl border border-white/10;
+    }
+    .batch-btn {
+      @apply h-9 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-sm font-semibold;
+    }
+    .batch-btn-danger {
+      @apply h-9 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-semibold;
+    }
+
+    .status-select {
+      @apply h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm;
+    }
   }
 </style>
 
