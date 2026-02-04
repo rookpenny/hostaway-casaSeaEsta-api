@@ -616,9 +616,9 @@ class TaskAssignee(Base):
     assigned_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     assigned_by_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="SET NULL"), nullable=True)
 
-    task = relationship("Task", foreign_keys=[task_id])
-    user = relationship("PMCUser", foreign_keys=[user_id])  # ✅ fixes ambiguity
-    assigned_by = relationship("PMCUser", foreign_keys=[assigned_by_user_id])  # ✅ explicit
+    task = relationship("Task", foreign_keys="TaskAssignee.task_id")
+    user = relationship("PMCUser", foreign_keys="TaskAssignee.user_id")
+    assigned_by = relationship("PMCUser", foreign_keys="TaskAssignee.assigned_by_user_id")
 
     __table_args__ = (
         UniqueConstraint("task_id", "user_id", name="uq_task_assignees_task_user"),
@@ -704,6 +704,6 @@ class TaskAssignmentRule(Base):
 
     assign_to_user_id = Column(Integer, ForeignKey("pmc_users.id", ondelete="CASCADE"), nullable=False)
 
-    enabled = Co
-
+    enabled = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
 
