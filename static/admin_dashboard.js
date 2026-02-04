@@ -3965,6 +3965,363 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
+// ----------------------------
+// TASKS MODULE
+// ----------------------------
+window.Tasks = window.Tasks || (function () {
+  const STATUS_ORDER = ["in_review", "in_progress", "waiting", "todo", "completed", "canceled"];
+  const STATUS_LABEL = {
+    todo: "To-do",
+    in_progress: "In Progress",
+    waiting: "Waiting",
+    in_review: "In Review",
+    canceled: "Canceled",
+    completed: "Completed",
+  };
+
+  let selected = new Set();
+  let activeTab = "all";
+
+  const $id = (id) => document.getElementById(id);
+
+  function qs(parent, sel) { return parent.querySelector(sel); }
+  function qsa(parent, sel) { return Array.from(parent.querySelectorAll(sel)); }
+
+  function esc(s) {
+    return String(s ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function isoToPrettyDate(iso) {
+    if (!iso) return "";
+    try {
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    } catch { return ""; }
+  }
+
+  async function apiList({ q, status } = {}) {
+    const params = new URLSearchParams();
+    if (q) params.set("q", q);
+    if (status) params.set("status", status);
+    const res = await fetch(`/admin/api/tasks?${params.toString()}`, { credentials: "include" });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || "Failed to load tasks");
+    return data;
+  }
+
+  async function apiCreate(payload) {
+    const res = await fetch(`/admin/api/tasks`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data?.error || "Create failed");
+    return data.item;
+  }
+
+  async function apiBatch(action, payload) {
+    const res = await fetch(`/admin/api/tasks/batch`, {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...payload }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data?.error || "Batch failed");
+    return data;
+  }
+
+  async function apiUpdate(taskId, payload) {
+    const res = await fetch(`/admin/api/tasks/${taskId}`, {
+      method: "PATCH",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data?.error || "Update failed");
+    return data.item;
+  }
+
+  function setBatchBar() {
+    const bar = $id("tasksBatchBar");
+    const cnt = selected.size;
+    if (!bar) return;
+    bar.style.display = cnt ? "block" : "none";
+    const label = $id("tasksSelectedCount");
+    if (label) label.textContent = `${cnt} selected`;
+  }
+
+  function groupByStatus(items) {
+    const g = {};
+    for (const it of items) {
+      const s = it.status || "todo";
+      (g[s] ||= []).push(it);
+    }
+    return g;
+  }
+
+  function renderList(host, items, counts) {
+    host.innerHTML = "";
+
+    const grouped = groupByStatus(items);
+
+    for (const status of STATUS_ORDER) {
+      const rows = grouped[status] || [];
+      if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
+
+      const section = document.createElement("div");
+      section.className = "tasks-section";
+      section.style.cssText = "border:1px solid #eee; border-radius:14px; padding:10px; margin:12px 0;";
+
+      const head = document.createElement("div");
+      head.style.cssText = "display:flex; justify-content:space-between; align-items:center; gap:10px; padding:6px 8px;";
+
+      const left = document.createElement("div");
+      left.style.cssText = "display:flex; align-items:center; gap:10px;";
+
+      const pill = document.createElement("span");
+      pill.textContent = STATUS_LABEL[status] || status;
+      pill.style.cssText = "font-weight:600; padding:6px 10px; border-radius:999px; background:#f6f6f6;";
+
+      const count = document.createElement("span");
+      const c = (counts && counts[status]) ? counts[status] : rows.length;
+      count.textContent = `${c} task${c === 1 ? "" : "s"}`;
+      count.style.cssText = "font-size:12px; color:#666; padding:4px 8px; border-radius:999px; background:#fafafa; border:1px solid #eee;";
+
+      left.appendChild(pill);
+      left.appendChild(count);
+
+      head.appendChild(left);
+      section.appendChild(head);
+
+      const list = document.createElement("div");
+      list.style.cssText = "display:flex; flex-direction:column; gap:8px; padding:8px;";
+
+      if (rows.length === 0) {
+        const empty = document.createElement("div");
+        empty.textContent = "No tasks";
+        empty.style.cssText = "color:#777; font-size:13px; padding:10px;";
+        list.appendChild(empty);
+      } else {
+        for (const t of rows) {
+          const row = document.createElement("div");
+          row.style.cssText = "display:grid; grid-template-columns: 28px 1fr 130px 120px 180px; gap:10px; align-items:center; padding:10px; border:1px solid #eee; border-radius:12px;";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.checked = selected.has(t.id);
+          cb.addEventListener("change", () => {
+            if (cb.checked) selected.add(t.id);
+            else selected.delete(t.id);
+            setBatchBar();
+          });
+
+          const main = document.createElement("div");
+          main.innerHTML = `
+            <div style="font-weight:600;">${esc(t.title)}</div>
+            <div style="font-size:12px; color:#666; margin-top:2px;">${esc(t.property_name || "")}</div>
+          `;
+
+          const due = document.createElement("div");
+          const pretty = isoToPrettyDate(t.due_at);
+          due.innerHTML = pretty
+            ? `<span style="display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border:1px solid #eee; border-radius:999px; font-size:12px;">📅 ${esc(pretty)}</span>`
+            : `<span style="color:#777; font-size:12px;">—</span>`;
+
+          const cat = document.createElement("div");
+          cat.innerHTML = `<span style="display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border-radius:999px; background:#f6f6ff; border:1px solid #e8e8ff; font-size:12px;">${esc(t.category || "Maintenance")}</span>`;
+
+          const actions = document.createElement("div");
+          actions.style.cssText = "display:flex; justify-content:flex-end; gap:10px; align-items:center;";
+
+          const statusBtn = document.createElement("button");
+          statusBtn.className = "btn";
+          statusBtn.textContent = "Change status";
+          statusBtn.addEventListener("click", async () => {
+            const next = prompt(`Set status: ${Object.keys(STATUS_LABEL).join(", ")}`, t.status);
+            if (!next) return;
+            try {
+              await apiUpdate(t.id, { status: next });
+              await refresh();
+            } catch (e) { alert(e.message || e); }
+          });
+
+          actions.appendChild(statusBtn);
+
+          row.appendChild(cb);
+          row.appendChild(main);
+          row.appendChild(due);
+          row.appendChild(cat);
+          row.appendChild(actions);
+
+          list.appendChild(row);
+        }
+      }
+
+      section.appendChild(list);
+      host.appendChild(section);
+    }
+  }
+
+  function wireTabs() {
+    const host = $id("view-tasks");
+    if (!host) return;
+
+    const tabs = qsa(host, "[data-tasks-tab]");
+    tabs.forEach((b) => {
+      b.addEventListener("click", () => {
+        tabs.forEach((x) => x.classList.remove("is-active"));
+        b.classList.add("is-active");
+        activeTab = b.dataset.tasksTab || "all";
+        refresh();
+      });
+    });
+  }
+
+  function wireModal() {
+    const openBtn = $id("btnCreateTask");
+    const modal = $id("taskModal");
+    const close = $id("taskModalClose");
+    const cancel = $id("taskModalCancel");
+    const save = $id("taskModalSave");
+
+    if (!openBtn || !modal || !close || !cancel || !save) return;
+
+    function open() { modal.style.display = "block"; }
+    function hide() { modal.style.display = "none"; }
+
+    openBtn.addEventListener("click", open);
+    close.addEventListener("click", hide);
+    cancel.addEventListener("click", hide);
+    modal.addEventListener("click", (e) => { if (e.target === modal) hide(); });
+
+    save.addEventListener("click", async () => {
+      try {
+        const title = ($id("taskTitle").value || "").trim();
+        const category = $id("taskCategory").value || "Maintenance";
+        const due = $id("taskDueAt").value || null; // YYYY-MM-DD
+        const status = $id("taskStatus").value || "todo";
+        const description = ($id("taskDescription").value || "").trim() || null;
+
+        if (!title) return alert("Title required");
+
+        await apiCreate({
+          title,
+          category,
+          due_at: due,
+          status,
+          description,
+        });
+
+        hide();
+        $id("taskTitle").value = "";
+        $id("taskDescription").value = "";
+        $id("taskDueAt").value = "";
+        await refresh();
+      } catch (e) {
+        alert(e.message || e);
+      }
+    });
+  }
+
+  function wireBatch() {
+    const btnDone = $id("btnBatchComplete");
+    const btnStatus = $id("btnBatchStatus");
+    const btnDelete = $id("btnBatchDelete");
+
+    if (btnDone) btnDone.addEventListener("click", async () => {
+      try {
+        await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
+        selected.clear();
+        setBatchBar();
+        await refresh();
+      } catch (e) { alert(e.message || e); }
+    });
+
+    if (btnStatus) btnStatus.addEventListener("click", async () => {
+      const next = prompt(`Set status: ${Object.keys(STATUS_LABEL).join(", ")}`, "in_progress");
+      if (!next) return;
+      try {
+        await apiBatch("status", { task_ids: Array.from(selected), status: next });
+        selected.clear();
+        setBatchBar();
+        await refresh();
+      } catch (e) { alert(e.message || e); }
+    });
+
+    if (btnDelete) btnDelete.addEventListener("click", async () => {
+      if (!confirm("Delete selected tasks?")) return;
+      try {
+        await apiBatch("delete", { task_ids: Array.from(selected) });
+        selected.clear();
+        setBatchBar();
+        await refresh();
+      } catch (e) { alert(e.message || e); }
+    });
+  }
+
+  async function refresh() {
+    const host = $id("tasksListHost");
+    if (!host) return;
+
+    // tabs "recurring" and "auto" placeholders for now
+    if (activeTab !== "all") {
+      host.innerHTML = `<div style="padding:14px; color:#666;">${activeTab === "recurring" ? "Recurring tasks UI next (templates + scheduler)." : "Auto-assignment rules UI next."}</div>`;
+      return;
+    }
+
+    const q = ($id("tasksSearch")?.value || "").trim();
+    const st = ($id("tasksFilterStatus")?.value || "").trim();
+
+    host.innerHTML = `<div style="padding:14px; color:#666;">Loading…</div>`;
+    try {
+      const data = await apiList({ q, status: st });
+      renderList(host, data.items || [], data.counts || {});
+    } catch (e) {
+      host.innerHTML = `<div style="padding:14px; color:#b00;">${esc(e.message || e)}</div>`;
+    }
+  }
+
+  function wireSearch() {
+    const s = $id("tasksSearch");
+    const st = $id("tasksFilterStatus");
+    if (s) s.addEventListener("input", () => refresh());
+    if (st) st.addEventListener("change", () => refresh());
+  }
+
+  function init() {
+    const view = document.getElementById("view-tasks");
+    if (!view || view.__tasksInit) return;
+    view.__tasksInit = true;
+
+    wireTabs();
+    wireSearch();
+    wireModal();
+    wireBatch();
+
+    refresh();
+  }
+
+  return { init, refresh };
+})();
+
+// auto-init when tasks view is visible
+document.addEventListener("DOMContentLoaded", () => {
+  const tasksView = document.getElementById("view-tasks");
+  if (tasksView) window.Tasks.init();
+});
+
+
+
 // ------------------------------
 // DOM ready (single, clean)
 // ------------------------------
