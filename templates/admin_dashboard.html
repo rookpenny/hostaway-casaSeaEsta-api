@@ -133,6 +133,12 @@
         </button>
 
 
+        
+
+        <a class="nav-item" href="/admin/dashboard?view=tasks" data-view-link="tasks">Tasks</a>
+
+
+
         {% if user_role == "super" %}
           <!-- PMCs (Super only) -->
           <button data-view="pmcs"
@@ -526,6 +532,81 @@
             </div>
           </div>
         </section>
+
+<!-- Tasks --->
+                    <section id="view-tasks" class="view" style="display:none;">
+  <div class="page-head">
+    <div>
+      <h1 style="margin:0;">Tasks</h1>
+      <div class="muted" style="margin-top:6px;">Track work across properties with statuses, assignments, comments, and proof photos.</div>
+    </div>
+  </div>
+
+  <div class="tasks-tabs" style="display:flex; gap:10px; margin:16px 0;">
+    <button class="chip is-active" data-tasks-tab="all">All</button>
+    <button class="chip" data-tasks-tab="recurring">Recurring</button>
+    <button class="chip" data-tasks-tab="auto">Auto-assignment</button>
+  </div>
+
+  <div class="tasks-toolbar" style="display:flex; gap:10px; align-items:center; margin:12px 0;">
+    <input id="tasksSearch" type="search" placeholder="Search tasks..." style="flex:1; min-width:240px;" />
+    <select id="tasksFilterStatus">
+      <option value="">All statuses</option>
+      <option value="todo">To-do</option>
+      <option value="in_progress">In Progress</option>
+      <option value="waiting">Waiting</option>
+      <option value="in_review">In Review</option>
+      <option value="canceled">Canceled</option>
+      <option value="completed">Completed</option>
+    </select>
+    <button id="btnCreateTask" class="btn primary">Create task</button>
+  </div>
+
+  <div id="tasksListHost"></div>
+
+  <!-- batch bar -->
+  <div id="tasksBatchBar" style="display:none; position:sticky; bottom:14px; margin-top:14px;">
+    <div style="display:flex; gap:10px; align-items:center; background:#111; color:#fff; padding:10px 12px; border-radius:12px; width:fit-content;">
+      <span id="tasksSelectedCount">0 selected</span>
+      <button class="btn" id="btnBatchComplete">Mark done</button>
+      <button class="btn" id="btnBatchStatus">Change status</button>
+      <button class="btn danger" id="btnBatchDelete">Delete</button>
+    </div>
+  </div>
+
+  <!-- simple modal -->
+  <div id="taskModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,.45);">
+    <div style="max-width:720px; margin:60px auto; background:#fff; border-radius:16px; padding:16px;">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="margin:0;">New Task</h2>
+        <button class="btn" id="taskModalClose">✕</button>
+      </div>
+      <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-top:12px;">
+        <input id="taskTitle" placeholder="Task title" />
+        <select id="taskCategory">
+          <option>Maintenance</option>
+          <option>Safety</option>
+          <option>Cleaning</option>
+          <option>Operations</option>
+        </select>
+        <input id="taskDueAt" type="date" />
+        <select id="taskStatus">
+          <option value="todo">To-do</option>
+          <option value="in_progress">In Progress</option>
+          <option value="waiting">Waiting</option>
+          <option value="in_review">In Review</option>
+          <option value="canceled">Canceled</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <textarea id="taskDescription" placeholder="Description (optional)" style="margin-top:10px; min-height:90px;"></textarea>
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:12px;">
+        <button class="btn" id="taskModalCancel">Cancel</button>
+        <button class="btn primary" id="taskModalSave">Create</button>
+      </div>
+    </div>
+  </div>
+</section>
 
                     
 
