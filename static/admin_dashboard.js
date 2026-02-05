@@ -4149,16 +4149,18 @@ window.Tasks = window.Tasks || (function () {
     return data.item;
   }
 
-  function setBatchBar() {
-    const bar = $id("tasksBatchBar");
-    const cnt = selected.size;
-    if (!bar) return;
+function setBatchBar() {
+  const bar = $id("tasksBatchBar");
+  const cnt = selected.size;
+  if (!bar) return;
 
-    bar.classList.toggle("hidden", !cnt);
+  // toggle Tailwind hidden class instead of style.display
+  bar.classList.toggle("hidden", cnt === 0);
 
-    const label = $id("tasksSelectedCount");
-    if (label) label.textContent = `${cnt} selected`;
-  }
+  const label = $id("tasksSelectedCount");
+  if (label) label.textContent = `${cnt} selected`;
+}
+
 
   function groupByStatus(items) {
     const g = {};
@@ -4398,8 +4400,9 @@ window.Tasks = window.Tasks || (function () {
     cancel.addEventListener("click", hide);
 
     modal.addEventListener("click", (e) => {
-      if (e.target === modal) hide();
+      if (e.target === modal || e.target.classList.contains("bg-black/40")) hide();
     });
+
 
     save.addEventListener("click", async () => {
       try {
