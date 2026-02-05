@@ -3967,561 +3967,558 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 // ----------------------------
-// TASKS MODULE (styled)
+// TASKS MODULE (styled + clean)
 // ----------------------------
-window.Tasks = window.Tasks || (function () {
-  const STATUS_ORDER = ["in_review", "in_progress", "waiting", "todo", "completed", "canceled"];
+window.Tasks =
+  window.Tasks ||
+  (function () {
+    const STATUS_ORDER = ["in_review", "in_progress", "waiting", "todo", "completed", "canceled"];
 
-  const STATUS_LABEL = {
-    todo: "To-do",
-    in_progress: "In Progress",
-    waiting: "Waiting",
-    in_review: "In Review",
-    canceled: "Canceled",
-    completed: "Completed",
-  };
+    const STATUS_LABEL = {
+      todo: "To-do",
+      in_progress: "In Progress",
+      waiting: "Waiting",
+      in_review: "In Review",
+      canceled: "Canceled",
+      completed: "Completed",
+    };
 
     const STATUS_MENU = [
-    { key: "todo", label: "To-do", dotClass: "is-todo", glyph: "" },
-    { key: "in_progress", label: "In Progress", dotClass: "is-in_progress", glyph: "" },
-    { key: "waiting", label: "Waiting", dotClass: "is-waiting", glyph: "" },
-    { key: "in_review", label: "In Review", dotClass: "is-in_review", glyph: "" },
-    { key: "canceled", label: "Canceled", dotClass: "is-canceled", glyph: "×" },
-    { key: "completed", label: "Completed", dotClass: "is-completed", glyph: "✓" },
-  ];
+      { key: "todo", label: "To-do", dotClass: "is-todo", glyph: "" },
+      { key: "in_progress", label: "In Progress", dotClass: "is-in_progress", glyph: "" },
+      { key: "waiting", label: "Waiting", dotClass: "is-waiting", glyph: "" },
+      { key: "in_review", label: "In Review", dotClass: "is-in_review", glyph: "" },
+      { key: "canceled", label: "Canceled", dotClass: "is-canceled", glyph: "×" },
+      { key: "completed", label: "Completed", dotClass: "is-completed", glyph: "✓" },
+    ];
 
-  let openMenuEl = null;
-
-  function closeStatusMenu() {
-    if (openMenuEl) {
-      openMenuEl.remove();
-      openMenuEl = null;
-    }
-  }
-
-  function openStatusMenu(anchorEl, { current, onPick }) {
-    closeStatusMenu();
-    if (!anchorEl) return;
-
-    const rect = anchorEl.getBoundingClientRect();
-
-    const menu = document.createElement("div");
-    menu.className = "tasks-status-menu";
-    menu.setAttribute("role", "menu");
-
-    for (const opt of STATUS_MENU) {
-      const item = document.createElement("div");
-      item.className = "tasks-status-item";
-      item.setAttribute("role", "menuitem");
-      item.innerHTML = `
-        <span class="tasks-status-dot ${opt.dotClass}">${esc(opt.glyph || "")}</span>
-        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
-          <span style="font-weight:600; color:#0f172a;">${esc(opt.label)}</span>
-          ${
-            opt.key === current
-              ? `<span style="font-size:12px; color:#64748b;">Selected</span>`
-              : ``
-          }
-        </div>
-      `;
-
-      item.addEventListener("click", () => {
-        try { onPick(opt.key); } finally { closeStatusMenu(); }
-      });
-
-      menu.appendChild(item);
-    }
-
-    document.body.appendChild(menu);
-    openMenuEl = menu;
-
-    // Position (like your screenshot: under/near the button)
-    const menuRect = menu.getBoundingClientRect();
-    let top = rect.bottom + 8;
-    let left = rect.right - menuRect.width; // right aligned
-
-    // Keep on-screen
-    const pad = 10;
-    if (left < pad) left = pad;
-    if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
-    if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
-
-    menu.style.top = `${top}px`;
-    menu.style.left = `${left}px`;
-
-    // Click-away close
-    const onDoc = (e) => {
-      if (!openMenuEl) return;
-      if (openMenuEl.contains(e.target)) return;
-      if (anchorEl.contains(e.target)) return;
-      closeStatusMenu();
-      document.removeEventListener("mousedown", onDoc, true);
-      document.removeEventListener("keydown", onEsc, true);
+    const STATUS_PILL_CLASS = {
+      in_review: "bg-amber-50 text-amber-700 border-amber-200",
+      in_progress: "bg-sky-50 text-sky-700 border-sky-200",
+      waiting: "bg-violet-50 text-violet-700 border-violet-200",
+      todo: "bg-slate-50 text-slate-700 border-slate-200",
+      completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
+      canceled: "bg-rose-50 text-rose-700 border-rose-200",
     };
-    const onEsc = (e) => {
-      if (e.key === "Escape") {
+
+    let selected = new Set();
+    let activeTab = "all";
+
+    const $id = (id) => document.getElementById(id);
+    const qsa = (parent, sel) => Array.from(parent.querySelectorAll(sel));
+
+    function esc(s) {
+      return String(s ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function isoToPrettyDate(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
+    }
+
+    function toDateInputValue(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      const yyyy = d.getFullYear();
+      const mm = String(d.getMonth() + 1).padStart(2, "0");
+      const dd = String(d.getDate()).padStart(2, "0");
+      return `${yyyy}-${mm}-${dd}`;
+    }
+
+    // ----------------------------
+    // Status menu (popover)
+    // ----------------------------
+    let openMenuEl = null;
+    let menuCleanup = null;
+
+    function closeStatusMenu() {
+      if (openMenuEl) openMenuEl.remove();
+      openMenuEl = null;
+      if (menuCleanup) menuCleanup();
+      menuCleanup = null;
+    }
+
+    function openStatusMenu(anchorEl, { current, onPick }) {
+      closeStatusMenu();
+      if (!anchorEl) return;
+
+      const rect = anchorEl.getBoundingClientRect();
+
+      const menu = document.createElement("div");
+      menu.className = "tasks-status-menu";
+      menu.setAttribute("role", "menu");
+
+      for (const opt of STATUS_MENU) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "tasks-status-item";
+        item.setAttribute("role", "menuitem");
+        item.innerHTML = `
+          <span class="tasks-status-dot ${opt.dotClass}">${esc(opt.glyph || "")}</span>
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
+            <span style="font-weight:600; color:#0f172a;">${esc(opt.label)}</span>
+            ${opt.key === current ? `<span style="font-size:12px; color:#64748b;">Selected</span>` : ``}
+          </div>
+        `;
+
+        item.addEventListener("click", async () => {
+          try {
+            await onPick(opt.key);
+          } finally {
+            closeStatusMenu();
+          }
+        });
+
+        menu.appendChild(item);
+      }
+
+      document.body.appendChild(menu);
+      openMenuEl = menu;
+
+      // Position under/right-aligned to the button
+      const menuRect = menu.getBoundingClientRect();
+      let top = rect.bottom + 8;
+      let left = rect.right - menuRect.width;
+
+      const pad = 10;
+      if (left < pad) left = pad;
+      if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
+      if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
+
+      menu.style.top = `${top}px`;
+      menu.style.left = `${left}px`;
+
+      const onDoc = (e) => {
+        if (!openMenuEl) return;
+        if (openMenuEl.contains(e.target)) return;
+        if (anchorEl.contains(e.target)) return;
         closeStatusMenu();
+      };
+
+      const onEsc = (e) => {
+        if (e.key === "Escape") closeStatusMenu();
+      };
+
+      document.addEventListener("mousedown", onDoc, true);
+      document.addEventListener("keydown", onEsc, true);
+
+      menuCleanup = () => {
         document.removeEventListener("mousedown", onDoc, true);
         document.removeEventListener("keydown", onEsc, true);
+      };
+    }
+
+    // ----------------------------
+    // API
+    // ----------------------------
+    async function apiList({ q, status } = {}) {
+      const params = new URLSearchParams();
+      if (q) params.set("q", q);
+      if (status) params.set("status", status);
+
+      const res = await fetch(`/admin/api/tasks?${params.toString()}`, { credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || "Failed to load tasks");
+      return data;
+    }
+
+    async function apiCreate(payload) {
+      const res = await fetch(`/admin/api/tasks`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Create failed");
+      return data.item;
+    }
+
+    async function apiBatch(action, payload) {
+      const res = await fetch(`/admin/api/tasks/batch`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, ...payload }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Batch failed");
+      return data;
+    }
+
+    async function apiUpdate(taskId, payload) {
+      const res = await fetch(`/admin/api/tasks/${taskId}`, {
+        method: "PATCH",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.ok) throw new Error(data?.error || "Update failed");
+      return data.item;
+    }
+
+    // ----------------------------
+    // Batch bar
+    // ----------------------------
+    function setBatchBar() {
+      const bar = $id("tasksBatchBar");
+      const cnt = selected.size;
+      if (!bar) return;
+
+      bar.classList.toggle("hidden", cnt === 0);
+
+      const label = $id("tasksSelectedCount");
+      if (label) label.textContent = `${cnt} selected`;
+    }
+
+    // ----------------------------
+    // Render
+    // ----------------------------
+    function groupByStatus(items) {
+      const g = {};
+      for (const it of items || []) {
+        const s = it.status || "todo";
+        (g[s] ||= []).push(it);
       }
-    };
-
-    document.addEventListener("mousedown", onDoc, true);
-    document.addEventListener("keydown", onEsc, true);
-  }
-
-
-  // pill styling (matches screenshot vibe, still neutral to your dashboard)
-  const STATUS_PILL_CLASS = {
-    in_review: "bg-amber-50 text-amber-700 border-amber-200",
-    in_progress: "bg-sky-50 text-sky-700 border-sky-200",
-    waiting: "bg-violet-50 text-violet-700 border-violet-200",
-    todo: "bg-slate-50 text-slate-700 border-slate-200",
-    completed: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    canceled: "bg-rose-50 text-rose-700 border-rose-200",
-  };
-
-  let selected = new Set();
-  let activeTab = "all";
-
-  const $id = (id) => document.getElementById(id);
-  const qsa = (parent, sel) => Array.from(parent.querySelectorAll(sel));
-
-  function esc(s) {
-    return String(s ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
-  }
-
-  function isoToPrettyDate(iso) {
-    if (!iso) return "";
-    const d = new Date(iso);
-    if (Number.isNaN(d.getTime())) return "";
-    return d.toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
-  }
-
-  async function apiList({ q, status } = {}) {
-    const params = new URLSearchParams();
-    if (q) params.set("q", q);
-    if (status) params.set("status", status);
-    const res = await fetch(`/admin/api/tasks?${params.toString()}`, { credentials: "include" });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data?.error || "Failed to load tasks");
-    return data;
-  }
-
-  async function apiCreate(payload) {
-    const res = await fetch(`/admin/api/tasks`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) throw new Error(data?.error || "Create failed");
-    return data.item;
-  }
-
-  async function apiBatch(action, payload) {
-    const res = await fetch(`/admin/api/tasks/batch`, {
-      method: "POST",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ action, ...payload }),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) throw new Error(data?.error || "Batch failed");
-    return data;
-  }
-
-  async function apiUpdate(taskId, payload) {
-    const res = await fetch(`/admin/api/tasks/${taskId}`, {
-      method: "PATCH",
-      credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok || !data.ok) throw new Error(data?.error || "Update failed");
-    return data.item;
-  }
-
-function setBatchBar() {
-  const bar = $id("tasksBatchBar");
-  const cnt = selected.size;
-  if (!bar) return;
-
-  // toggle Tailwind hidden class instead of style.display
-  bar.classList.toggle("hidden", cnt === 0);
-
-  const label = $id("tasksSelectedCount");
-  if (label) label.textContent = `${cnt} selected`;
-}
-
-
-  function groupByStatus(items) {
-    const g = {};
-    for (const it of items || []) {
-      const s = it.status || "todo";
-      (g[s] ||= []).push(it);
-    }
-    return g;
-  }
-
-  function buildStatusSelect(current, onChange) {
-    const sel = document.createElement("select");
-    sel.className = "status-select";
-    for (const k of Object.keys(STATUS_LABEL)) {
-      const opt = document.createElement("option");
-      opt.value = k;
-      opt.textContent = STATUS_LABEL[k];
-      if (k === current) opt.selected = true;
-      sel.appendChild(opt);
-    }
-    sel.addEventListener("change", () => onChange(sel.value));
-    return sel;
-  }
-
-  function renderList(host, items, counts) {
-  host.innerHTML = "";
-
-  const grouped = groupByStatus(items);
-
-  for (const status of STATUS_ORDER) {
-    const rows = grouped[status] || [];
-
-    // keep empty sections hidden except completed/canceled
-    if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
-
-    const sec = document.createElement("div");
-    sec.className = "tasks-group";
-
-    // Header (pill + count)
-    const head = document.createElement("div");
-    head.className = "tasks-group-head";
-
-    const left = document.createElement("div");
-    left.className = "flex items-center gap-3";
-
-    const pill = document.createElement("span");
-    pill.className = `tasks-group-pill ${
-      (typeof STATUS_PILL_CLASS !== "undefined" && STATUS_PILL_CLASS[status])
-        ? STATUS_PILL_CLASS[status]
-        : "bg-slate-50 text-slate-700 border-slate-200"
-    }`;
-    pill.textContent = STATUS_LABEL[status] || status;
-
-    const cnt = counts && counts[status] ? counts[status] : rows.length;
-    const count = document.createElement("span");
-    count.className = "text-xs text-slate-500";
-    count.textContent = `${cnt} task${cnt === 1 ? "" : "s"}`;
-
-    left.appendChild(pill);
-    left.appendChild(count);
-
-    head.appendChild(left);
-    sec.appendChild(head);
-
-    // Table-like header
-    const cols = document.createElement("div");
-    cols.className = "mt-3 text-xs text-slate-500 px-4";
-    cols.innerHTML = `
-      <div class="grid grid-cols-12 gap-3">
-        <div class="col-span-1"></div>
-        <div class="col-span-5">Name</div>
-        <div class="col-span-2">Due date</div>
-        <div class="col-span-2">Category</div>
-        <div class="col-span-2 text-right">Status</div>
-      </div>
-    `;
-    sec.appendChild(cols);
-
-    if (rows.length === 0) {
-      const empty = document.createElement("div");
-      empty.className = "mt-3 text-sm text-slate-500 px-4";
-      empty.textContent = "No tasks";
-      sec.appendChild(empty);
-      host.appendChild(sec);
-      continue;
+      return g;
     }
 
-    for (const t of rows) {
-      const row = document.createElement("div");
-      row.className = "tasks-row";
+    function renderList(host, items, counts) {
+      host.innerHTML = "";
+      const grouped = groupByStatus(items);
 
-      const grid = document.createElement("div");
-      grid.className = "tasks-row-grid";
+      for (const status of STATUS_ORDER) {
+        const rows = grouped[status] || [];
 
-      // Checkbox
-      const cbWrap = document.createElement("div");
-      cbWrap.className = "col-span-12 sm:col-span-1 flex items-center";
+        // hide empty groups except completed/canceled
+        if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
 
-      const cb = document.createElement("input");
-      cb.type = "checkbox";
-      cb.className = "h-5 w-5 rounded border-slate-300";
-      cb.checked = selected.has(t.id);
-      cb.addEventListener("change", () => {
-        if (cb.checked) selected.add(t.id);
-        else selected.delete(t.id);
-        setBatchBar();
+        const sec = document.createElement("div");
+        sec.className = "tasks-group";
+
+        // header
+        const head = document.createElement("div");
+        head.className = "tasks-group-head";
+
+        const left = document.createElement("div");
+        left.className = "flex items-center gap-3";
+
+        const pill = document.createElement("span");
+        pill.className = `tasks-group-pill ${
+          STATUS_PILL_CLASS[status] || "bg-slate-50 text-slate-700 border-slate-200"
+        }`;
+        pill.textContent = STATUS_LABEL[status] || status;
+
+        const cnt = counts && counts[status] ? counts[status] : rows.length;
+        const count = document.createElement("span");
+        count.className = "text-xs text-slate-500";
+        count.textContent = `${cnt} task${cnt === 1 ? "" : "s"}`;
+
+        left.appendChild(pill);
+        left.appendChild(count);
+
+        head.appendChild(left);
+        sec.appendChild(head);
+
+        // columns
+        const cols = document.createElement("div");
+        cols.className = "mt-3 text-xs text-slate-500 px-4";
+        cols.innerHTML = `
+          <div class="grid grid-cols-12 gap-3">
+            <div class="col-span-1"></div>
+            <div class="col-span-5">Name</div>
+            <div class="col-span-2">Due date</div>
+            <div class="col-span-2">Category</div>
+            <div class="col-span-2 text-right">Status</div>
+          </div>
+        `;
+        sec.appendChild(cols);
+
+        if (rows.length === 0) {
+          const empty = document.createElement("div");
+          empty.className = "mt-3 text-sm text-slate-500 px-4";
+          empty.textContent = "No tasks";
+          sec.appendChild(empty);
+          host.appendChild(sec);
+          continue;
+        }
+
+        for (const t of rows) {
+          const row = document.createElement("div");
+          row.className = "tasks-row";
+
+          const grid = document.createElement("div");
+          grid.className = "tasks-row-grid";
+
+          // checkbox
+          const cbWrap = document.createElement("div");
+          cbWrap.className = "col-span-12 sm:col-span-1 flex items-center";
+
+          const cb = document.createElement("input");
+          cb.type = "checkbox";
+          cb.className = "h-5 w-5 rounded border-slate-300";
+          cb.checked = selected.has(t.id);
+          cb.addEventListener("change", () => {
+            if (cb.checked) selected.add(t.id);
+            else selected.delete(t.id);
+            setBatchBar();
+          });
+
+          cbWrap.appendChild(cb);
+
+          // name
+          const name = document.createElement("div");
+          name.className = "col-span-12 sm:col-span-5";
+          name.innerHTML = `
+            <div class="font-semibold text-slate-900">${esc(t.title)}</div>
+            <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
+          `;
+
+          // due date (edit via date input)
+          const due = document.createElement("div");
+          due.className = "col-span-12 sm:col-span-2 flex items-center";
+
+          const dueBtn = document.createElement("button");
+          dueBtn.type = "button";
+          dueBtn.className =
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50";
+
+          const pretty = isoToPrettyDate(t.due_at);
+          dueBtn.textContent = pretty ? `📅 ${pretty}` : "📅 Set due date";
+
+          const dueInput = document.createElement("input");
+          dueInput.type = "date";
+          dueInput.style.position = "absolute";
+          dueInput.style.left = "-9999px";
+          dueInput.style.width = "1px";
+          dueInput.style.height = "1px";
+          dueInput.value = toDateInputValue(t.due_at);
+
+          dueBtn.addEventListener("click", () => {
+            dueInput.showPicker?.();
+            dueInput.click();
+          });
+
+          dueInput.addEventListener("change", async () => {
+            try {
+              const val = (dueInput.value || "").trim();
+              await apiUpdate(t.id, { due_at: val ? val : null });
+              await refresh();
+            } catch (e) {
+              alert(e.message || e);
+            }
+          });
+
+          due.appendChild(dueBtn);
+          due.appendChild(dueInput);
+
+          // category
+          const cat = document.createElement("div");
+          cat.className = "col-span-12 sm:col-span-2 text-sm";
+          cat.innerHTML = `
+            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700 text-xs font-semibold">
+              ${esc(t.category || "Maintenance")}
+            </span>
+          `;
+
+          // status (popover)
+          const st = document.createElement("div");
+          st.className = "col-span-12 sm:col-span-2 flex justify-end items-center";
+
+          const statusBtn = document.createElement("button");
+          statusBtn.type = "button";
+          statusBtn.className =
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-semibold hover:bg-slate-50";
+          statusBtn.textContent = STATUS_LABEL[t.status] || STATUS_LABEL.todo;
+
+          statusBtn.addEventListener("click", () => {
+            openStatusMenu(statusBtn, {
+              current: t.status || "todo",
+              onPick: async (nextStatus) => {
+                await apiUpdate(t.id, { status: nextStatus });
+                await refresh();
+              },
+            });
+          });
+
+          st.appendChild(statusBtn);
+
+          grid.appendChild(cbWrap);
+          grid.appendChild(name);
+          grid.appendChild(due);
+          grid.appendChild(cat);
+          grid.appendChild(st);
+
+          row.appendChild(grid);
+          sec.appendChild(row);
+        }
+
+        host.appendChild(sec);
+      }
+    }
+
+    // ----------------------------
+    // Wiring
+    // ----------------------------
+    function wireTabs() {
+      const host = $id("view-tasks");
+      if (!host) return;
+
+      const tabs = qsa(host, "[data-tasks-tab]");
+      tabs.forEach((b) => {
+        b.addEventListener("click", () => {
+          tabs.forEach((x) => x.classList.remove("is-active"));
+          b.classList.add("is-active");
+          activeTab = b.dataset.tasksTab || "all";
+          refresh();
+        });
       });
-      cbWrap.appendChild(cb);
+    }
 
-      // Name + property
-      const name = document.createElement("div");
-      name.className = "col-span-12 sm:col-span-5";
-      name.innerHTML = `
-        <div class="font-semibold text-slate-900">${esc(t.title)}</div>
-        <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
-      `;
+    function wireSearch() {
+      const s = $id("tasksSearch");
+      const st = $id("tasksFilterStatus");
+      if (s) s.addEventListener("input", () => refresh());
+      if (st) st.addEventListener("change", () => refresh());
+    }
 
-      // Due date (click pill -> native date picker -> saves)
-      const due = document.createElement("div");
-      due.className = "col-span-12 sm:col-span-2 flex items-center";
+    function wireModal() {
+      const openBtn = $id("btnCreateTask");
+      const modal = $id("taskModal");
+      const close = $id("taskModalClose");
+      const cancel = $id("taskModalCancel");
+      const save = $id("taskModalSave");
+      if (!openBtn || !modal || !close || !cancel || !save) return;
 
-      const dueBtn = document.createElement("button");
-      dueBtn.type = "button";
-      dueBtn.className =
-        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50";
-      const pretty = isoToPrettyDate(t.due_at);
-      dueBtn.textContent = pretty ? `📅 ${pretty}` : "📅 Set due date";
+      const open = () => modal.classList.remove("hidden");
+      const hide = () => modal.classList.add("hidden");
 
-      // hidden input used to open the date picker
-      const dueInput = document.createElement("input");
-      dueInput.type = "date";
-      dueInput.style.position = "absolute";
-      dueInput.style.left = "-9999px";
-      dueInput.style.width = "1px";
-      dueInput.style.height = "1px";
-      dueInput.value = t.due_at ? String(t.due_at).slice(0, 10) : "";
+      openBtn.addEventListener("click", open);
+      close.addEventListener("click", hide);
+      cancel.addEventListener("click", hide);
 
-      dueBtn.addEventListener("click", () => {
-        // showPicker is supported in Chromium; fallback click works elsewhere
-        dueInput.showPicker?.();
-        dueInput.click();
+      modal.addEventListener("click", (e) => {
+        if (e.target === modal || e.target.classList.contains("bg-black/40")) hide();
       });
 
-      dueInput.addEventListener("change", async () => {
+      save.addEventListener("click", async () => {
         try {
-          const val = (dueInput.value || "").trim();
-          await apiUpdate(t.id, { due_at: val ? val : null });
+          const title = ($id("taskTitle")?.value || "").trim();
+          const category = $id("taskCategory")?.value || "Maintenance";
+          const due = $id("taskDueAt")?.value || null;
+          const status = $id("taskStatus")?.value || "todo";
+          const description = ($id("taskDescription")?.value || "").trim() || null;
+
+          if (!title) return alert("Title required");
+
+          await apiCreate({ title, category, due_at: due, status, description });
+
+          hide();
+          if ($id("taskTitle")) $id("taskTitle").value = "";
+          if ($id("taskDescription")) $id("taskDescription").value = "";
+          if ($id("taskDueAt")) $id("taskDueAt").value = "";
+
           await refresh();
         } catch (e) {
           alert(e.message || e);
         }
       });
-
-      due.appendChild(dueBtn);
-      due.appendChild(dueInput);
-
-      // Category
-      const cat = document.createElement("div");
-      cat.className = "col-span-12 sm:col-span-2 text-sm";
-      cat.innerHTML = `
-        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700 text-xs font-semibold">
-          ${esc(t.category || "Maintenance")}
-        </span>
-      `;
-
-      // Status (button -> your little dropdown menu)
-      const st = document.createElement("div");
-      st.className = "col-span-12 sm:col-span-2 flex justify-end items-center";
-
-      const statusBtn = document.createElement("button");
-      statusBtn.type = "button";
-      statusBtn.className =
-        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-semibold hover:bg-slate-50";
-      statusBtn.textContent = STATUS_LABEL[t.status] || STATUS_LABEL.todo;
-
-      statusBtn.addEventListener("click", () => {
-        // openStatusMenu() must exist (the dropdown you added earlier)
-        openStatusMenu(statusBtn, {
-          current: t.status || "todo",
-          onPick: async (nextStatus) => {
-            try {
-              await apiUpdate(t.id, { status: nextStatus });
-              await refresh();
-            } catch (e) {
-              alert(e.message || e);
-            }
-          },
-        });
-      });
-
-      st.appendChild(statusBtn);
-
-      // assemble row
-      grid.appendChild(cbWrap);
-      grid.appendChild(name);
-      grid.appendChild(due);
-      grid.appendChild(cat);
-      grid.appendChild(st);
-
-      row.appendChild(grid);
-      sec.appendChild(row);
     }
 
-    host.appendChild(sec);
-  }
-}
+    function wireBatch() {
+      const btnDone = $id("btnBatchComplete");
+      const btnStatus = $id("btnBatchStatus");
+      const btnDelete = $id("btnBatchDelete");
 
-
-  function wireTabs() {
-    const host = $id("view-tasks");
-    if (!host) return;
-
-    const tabs = qsa(host, "[data-tasks-tab]");
-    tabs.forEach((b) => {
-      b.addEventListener("click", () => {
-        tabs.forEach((x) => x.classList.remove("is-active"));
-        b.classList.add("is-active");
-        activeTab = b.dataset.tasksTab || "all";
-        refresh();
-      });
-    });
-  }
-
-  function wireModal() {
-    const openBtn = $id("btnCreateTask");
-    const modal = $id("taskModal");
-    const close = $id("taskModalClose");
-    const cancel = $id("taskModalCancel");
-    const save = $id("taskModalSave");
-    if (!openBtn || !modal || !close || !cancel || !save) return;
-
-    function open() { modal.classList.remove("hidden"); }
-    function hide() { modal.classList.add("hidden"); }
-
-    openBtn.addEventListener("click", open);
-    close.addEventListener("click", hide);
-    cancel.addEventListener("click", hide);
-
-    modal.addEventListener("click", (e) => {
-      if (e.target === modal || e.target.classList.contains("bg-black/40")) hide();
-    });
-
-
-    save.addEventListener("click", async () => {
-      try {
-        const title = ($id("taskTitle").value || "").trim();
-        const category = $id("taskCategory").value || "Maintenance";
-        const due = $id("taskDueAt").value || null;
-        const status = $id("taskStatus").value || "todo";
-        const description = ($id("taskDescription").value || "").trim() || null;
-
-        if (!title) return alert("Title required");
-
-        await apiCreate({ title, category, due_at: due, status, description });
-
-        hide();
-        $id("taskTitle").value = "";
-        $id("taskDescription").value = "";
-        $id("taskDueAt").value = "";
-
-        await refresh();
-      } catch (e) {
-        alert(e.message || e);
-      }
-    });
-  }
-
-  function wireBatch() {
-    const btnDone = $id("btnBatchComplete");
-    const btnStatus = $id("btnBatchStatus");
-    const btnDelete = $id("btnBatchDelete");
-
-    if (btnDone) btnDone.addEventListener("click", async () => {
-      try {
-        await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
-        selected.clear();
-        setBatchBar();
-        await refresh();
-      } catch (e) { alert(e.message || e); }
-    });
-
-        if (btnStatus) btnStatus.addEventListener("click", async () => {
-      if (!selected.size) return;
-
-      openStatusMenu(btnStatus, {
-        current: null,
-        onPick: async (next) => {
+      if (btnDone)
+        btnDone.addEventListener("click", async () => {
           try {
-            await apiBatch("status", { task_ids: Array.from(selected), status: next });
+            await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
             selected.clear();
             setBatchBar();
             await refresh();
-          } catch (e) { alert(e.message || e); }
-        },
-      });
-    });
+          } catch (e) {
+            alert(e.message || e);
+          }
+        });
 
+      if (btnStatus)
+        btnStatus.addEventListener("click", () => {
+          if (!selected.size) return;
 
-    if (btnDelete) btnDelete.addEventListener("click", async () => {
-      if (!confirm("Delete selected tasks?")) return;
+          openStatusMenu(btnStatus, {
+            current: null,
+            onPick: async (next) => {
+              await apiBatch("status", { task_ids: Array.from(selected), status: next });
+              selected.clear();
+              setBatchBar();
+              await refresh();
+            },
+          });
+        });
+
+      if (btnDelete)
+        btnDelete.addEventListener("click", async () => {
+          if (!selected.size) return;
+          if (!confirm("Delete selected tasks?")) return;
+          try {
+            await apiBatch("delete", { task_ids: Array.from(selected) });
+            selected.clear();
+            setBatchBar();
+            await refresh();
+          } catch (e) {
+            alert(e.message || e);
+          }
+        });
+    }
+
+    async function refresh() {
+      const host = $id("tasksListHost");
+      if (!host) return;
+
+      if (activeTab !== "all") {
+        host.innerHTML = `<div class="text-sm text-slate-500 py-6">Coming next: ${esc(activeTab)}.</div>`;
+        return;
+      }
+
+      const q = ($id("tasksSearch")?.value || "").trim();
+      const st = ($id("tasksFilterStatus")?.value || "").trim();
+
+      host.innerHTML = `<div class="text-sm text-slate-500 py-6">Loading…</div>`;
+
       try {
-        await apiBatch("delete", { task_ids: Array.from(selected) });
-        selected.clear();
-        setBatchBar();
-        await refresh();
-      } catch (e) { alert(e.message || e); }
-    });
-  }
-
-  function wireSearch() {
-    const s = $id("tasksSearch");
-    const st = $id("tasksFilterStatus");
-    if (s) s.addEventListener("input", () => refresh());
-    if (st) st.addEventListener("change", () => refresh());
-  }
-
-  async function refresh() {
-    const host = $id("tasksListHost");
-    if (!host) return;
-
-    if (activeTab !== "all") {
-      host.innerHTML =
-        `<div class="text-sm text-slate-500 py-6">${
-          activeTab === "recurring"
-            ? "Recurring tasks UI next (templates + scheduler)."
-            : activeTab === "auto"
-              ? "Auto-assignment rules UI next."
-              : "Notifications UI next."
-        }</div>`;
-      return;
+        const data = await apiList({ q, status: st });
+        renderList(host, data.items || [], data.counts || {});
+      } catch (e) {
+        host.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">${esc(
+          e.message || e
+        )}</div>`;
+      }
     }
 
-    const q = ($id("tasksSearch")?.value || "").trim();
-    const st = ($id("tasksFilterStatus")?.value || "").trim();
+    function init() {
+      const view = document.getElementById("view-tasks");
+      if (!view || view.__tasksInit) return;
+      view.__tasksInit = true;
 
-    host.innerHTML = `<div class="text-sm text-slate-500 py-6">Loading…</div>`;
-
-    try {
-      const data = await apiList({ q, status: st });
-      renderList(host, data.items || [], data.counts || {});
-    } catch (e) {
-      host.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">${esc(e.message || e)}</div>`;
+      wireTabs();
+      wireSearch();
+      wireModal();
+      wireBatch();
+      refresh();
     }
-  }
 
-  function init() {
-    const view = document.getElementById("view-tasks");
-    if (!view || view.__tasksInit) return;
-    view.__tasksInit = true;
-
-    wireTabs();
-    wireSearch();
-    wireModal();
-    wireBatch();
-    refresh();
-  }
-
-  return { init, refresh };
-})();
-
-
+    return { init, refresh };
+  })();
 
 
 
@@ -4593,66 +4590,35 @@ document.addEventListener("DOMContentLoaded", async () => {
 });
 
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-view-btn]");
+  const btn = e.target.closest(".nav-item[data-view]");
   if (!btn) return;
 
-  const view = btn.getAttribute("data-view-btn");
+  const view = btn.getAttribute("data-view");
   if (!view) return;
 
-  // 1) update URL query param without full reload
+  // update URL param
   const url = new URL(window.location.href);
   url.searchParams.set("view", view);
-  url.searchParams.delete("session_id"); // optional: keep behavior consistent
+  url.searchParams.delete("session_id");
   window.history.pushState({}, "", url.toString());
 
-  // 2) hide all views, show selected
-  document.querySelectorAll("section.view").forEach((el) => {
-    el.style.display = "none";
-  });
+  // hide all views using Tailwind hidden
+  document.querySelectorAll("section.view").forEach((el) => el.classList.add("hidden"));
 
+  // show selected
   const target = document.getElementById(`view-${view}`);
-  if (target) target.style.display = "";
+  if (target) target.classList.remove("hidden");
 
-  // 3) optional: update active styling
+  // nav active UI (optional)
   document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
   btn.classList.add("active");
 
-  // 4) init tasks module if present
+  // init tasks when entering tasks view
   if (view === "tasks" && window.Tasks && typeof window.Tasks.init === "function") {
     window.Tasks.init();
   }
 });
 
-// --- SAFETY NET: ensure Create Task always opens modal ---
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest("#btnCreateTask");
-  if (!btn) return;
 
-  // If Tasks wasn't initialized yet, init it now
-  if (window.Tasks && typeof window.Tasks.init === "function") {
-    window.Tasks.init();
-  }
 
-  const modal = document.getElementById("taskModal");
-  if (!modal) {
-    console.error("Missing #taskModal in DOM");
-    return;
-  }
 
-  modal.classList.remove("hidden");
-});
-// Close modal handlers (works even if init didn't wire it)
-document.addEventListener("click", (e) => {
-  const modal = document.getElementById("taskModal");
-  if (!modal) return;
-
-  if (e.target.closest("#taskModalClose") || e.target.closest("#taskModalCancel")) {
-    modal.classList.add("hidden");
-    return;
-  }
-
-  // Click outside the dialog closes (only if you click the backdrop)
-  if (e.target === modal) {
-    modal.classList.add("hidden");
-  }
-});
