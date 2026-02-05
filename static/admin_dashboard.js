@@ -3967,17 +3967,11 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 // ----------------------------
-// TASKS MODULE (styled + clean + ready)
-// - Status popover (like your screenshot)
-// - Due date inline picker (click pill)
-// - Assignee popover (uses /admin/api/team-members)
-// - Create modal supports assignee <select id="taskAssignee"> (optional)
-// - Batch: status + delete + (optional) assign hook
+// TASKS MODULE (styled + clean + assignees)
 // ----------------------------
 window.Tasks =
   window.Tasks ||
   (function () {
-    // ---------- constants ----------
     const STATUS_ORDER = ["in_review", "in_progress", "waiting", "todo", "completed", "canceled"];
 
     const STATUS_LABEL = {
@@ -4007,12 +4001,11 @@ window.Tasks =
       canceled: "bg-rose-50 text-rose-700 border-rose-200",
     };
 
-    // ---------- state ----------
     let selected = new Set();
     let activeTab = "all";
-    let TEAM = []; // cached team members
 
-    // ---------- dom helpers ----------
+    let TEAM = []; // team members for current PMC
+
     const $id = (id) => document.getElementById(id);
     const qsa = (parent, sel) => Array.from(parent.querySelectorAll(sel));
 
@@ -4047,10 +4040,18 @@ window.Tasks =
       return (u.full_name || "").trim() || (u.email || "").trim() || `User ${u.id}`;
     }
 
+    function findTeamMember(userId) {
+      if (!userId) return null;
+      return TEAM.find((u) => String(u.id) === String(userId)) || null;
+    }
+
     function populateAssigneeSelect(selectEl) {
       if (!selectEl) return;
       selectEl.innerHTML = `<option value="">Unassigned</option>`;
       for (const u of TEAM) {
+        // optional: hide inactive people if your endpoint includes is_active
+        if (u.is_active === false) continue;
+
         const opt = document.createElement("option");
         opt.value = String(u.id);
         opt.textContent = getDisplayName(u);
@@ -4058,41 +4059,24 @@ window.Tasks =
       }
     }
 
-    // ---------- popover base ----------
-    function positionPopover(menu, anchorEl) {
-      const rect = anchorEl.getBoundingClientRect();
-
-      // put on body first to measure
-      document.body.appendChild(menu);
-
-      const menuRect = menu.getBoundingClientRect();
-      let top = rect.bottom + 8;
-      let left = rect.right - menuRect.width; // right align like your screenshot
-
-      const pad = 10;
-      if (left < pad) left = pad;
-      if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
-      if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
-
-      menu.style.top = `${top}px`;
-      menu.style.left = `${left}px`;
-    }
-
-    // ---------- status menu ----------
-    let openStatusMenuEl = null;
-    let statusCleanup = null;
+    // ----------------------------
+    // Popovers
+    // ----------------------------
+    let openMenuEl = null;
+    let menuCleanup = null;
 
     function closeStatusMenu() {
-      if (openStatusMenuEl) openStatusMenuEl.remove();
-      openStatusMenuEl = null;
-      if (statusCleanup) statusCleanup();
-      statusCleanup = null;
+      if (openMenuEl) openMenuEl.remove();
+      openMenuEl = null;
+      if (menuCleanup) menuCleanup();
+      menuCleanup = null;
     }
 
     function openStatusMenu(anchorEl, { current, onPick }) {
       closeStatusMenu();
       if (!anchorEl) return;
 
+      const rect = anchorEl.getBoundingClientRect();
       const menu = document.createElement("div");
       menu.className = "tasks-status-menu";
       menu.setAttribute("role", "menu");
@@ -4119,15 +4103,28 @@ window.Tasks =
         menu.appendChild(item);
       }
 
-      openStatusMenuEl = menu;
-      positionPopover(menu, anchorEl);
+      document.body.appendChild(menu);
+      openMenuEl = menu;
+
+      const menuRect = menu.getBoundingClientRect();
+      let top = rect.bottom + 8;
+      let left = rect.right - menuRect.width;
+
+      const pad = 10;
+      if (left < pad) left = pad;
+      if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
+      if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
+
+      menu.style.top = `${top}px`;
+      menu.style.left = `${left}px`;
 
       const onDoc = (e) => {
-        if (!openStatusMenuEl) return;
-        if (openStatusMenuEl.contains(e.target)) return;
+        if (!openMenuEl) return;
+        if (openMenuEl.contains(e.target)) return;
         if (anchorEl.contains(e.target)) return;
         closeStatusMenu();
       };
+
       const onEsc = (e) => {
         if (e.key === "Escape") closeStatusMenu();
       };
@@ -4135,32 +4132,29 @@ window.Tasks =
       document.addEventListener("mousedown", onDoc, true);
       document.addEventListener("keydown", onEsc, true);
 
-      statusCleanup = () => {
+      menuCleanup = () => {
         document.removeEventListener("mousedown", onDoc, true);
         document.removeEventListener("keydown", onEsc, true);
       };
     }
 
-    // ---------- assignee menu ----------
+    // Assignee popover (reuses your menu styles)
     let openAssigneeMenuEl = null;
-    let assigneeCleanup = null;
 
     function closeAssigneeMenu() {
       if (openAssigneeMenuEl) openAssigneeMenuEl.remove();
       openAssigneeMenuEl = null;
-      if (assigneeCleanup) assigneeCleanup();
-      assigneeCleanup = null;
     }
 
     function openAssigneeMenu(anchorEl, { currentUserId, onPick }) {
       closeAssigneeMenu();
       if (!anchorEl) return;
 
+      const rect = anchorEl.getBoundingClientRect();
       const menu = document.createElement("div");
-      menu.className = "tasks-status-menu"; // reuse same styles
+      menu.className = "tasks-status-menu";
       menu.setAttribute("role", "menu");
 
-      // Unassigned
       const none = document.createElement("button");
       none.type = "button";
       none.className = "tasks-status-item";
@@ -4169,7 +4163,7 @@ window.Tasks =
         <span class="tasks-status-dot" style="background:#e2e8f0;color:#334155;">–</span>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
           <span style="font-weight:600;color:#0f172a;">Unassigned</span>
-          ${!currentUserId ? `<span style="font-size:12px;color:#64748b;">Selected</span>` : ``}
+          ${currentUserId ? "" : `<span style="font-size:12px;color:#64748b;">Selected</span>`}
         </div>
       `;
       none.addEventListener("click", async () => {
@@ -4181,13 +4175,16 @@ window.Tasks =
       });
       menu.appendChild(none);
 
-      // Members
+      // members
       for (const u of TEAM) {
-        const isSel = String(u.id) === String(currentUserId || "");
+        if (u.is_active === false) continue;
+
         const item = document.createElement("button");
         item.type = "button";
         item.className = "tasks-status-item";
         item.setAttribute("role", "menuitem");
+
+        const isSel = String(u.id) === String(currentUserId || "");
         item.innerHTML = `
           <span class="tasks-status-dot" style="background:#f1f5f9;color:#0f172a;">👤</span>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
@@ -4205,32 +4202,48 @@ window.Tasks =
             closeAssigneeMenu();
           }
         });
+
         menu.appendChild(item);
       }
 
+      document.body.appendChild(menu);
       openAssigneeMenuEl = menu;
-      positionPopover(menu, anchorEl);
+
+      const menuRect = menu.getBoundingClientRect();
+      let top = rect.bottom + 8;
+      let left = rect.right - menuRect.width;
+
+      const pad = 10;
+      if (left < pad) left = pad;
+      if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
+      if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
+
+      menu.style.top = `${top}px`;
+      menu.style.left = `${left}px`;
 
       const onDoc = (e) => {
         if (!openAssigneeMenuEl) return;
         if (openAssigneeMenuEl.contains(e.target)) return;
         if (anchorEl.contains(e.target)) return;
         closeAssigneeMenu();
+        document.removeEventListener("mousedown", onDoc, true);
+        document.removeEventListener("keydown", onEsc, true);
       };
       const onEsc = (e) => {
-        if (e.key === "Escape") closeAssigneeMenu();
+        if (e.key === "Escape") {
+          closeAssigneeMenu();
+          document.removeEventListener("mousedown", onDoc, true);
+          document.removeEventListener("keydown", onEsc, true);
+        }
       };
 
       document.addEventListener("mousedown", onDoc, true);
       document.addEventListener("keydown", onEsc, true);
-
-      assigneeCleanup = () => {
-        document.removeEventListener("mousedown", onDoc, true);
-        document.removeEventListener("keydown", onEsc, true);
-      };
     }
 
-    // ---------- API ----------
+    // ----------------------------
+    // API
+    // ----------------------------
     async function apiList({ q, status } = {}) {
       const params = new URLSearchParams();
       if (q) params.set("q", q);
@@ -4279,23 +4292,30 @@ window.Tasks =
     }
 
     async function apiTeamMembers() {
+      // Expected: { ok: true, items: [{id, full_name, email, role, is_active}] }
       const res = await fetch(`/admin/api/team-members`, { credentials: "include" });
       const data = await res.json().catch(() => ({}));
       if (!res.ok || !data.ok) throw new Error(data?.error || "Failed to load team members");
       return data.items || [];
     }
 
-    // ---------- batch bar ----------
+    // ----------------------------
+    // Batch bar
+    // ----------------------------
     function setBatchBar() {
       const bar = $id("tasksBatchBar");
       const cnt = selected.size;
       if (!bar) return;
+
       bar.classList.toggle("hidden", cnt === 0);
+
       const label = $id("tasksSelectedCount");
       if (label) label.textContent = `${cnt} selected`;
     }
 
-    // ---------- render ----------
+    // ----------------------------
+    // Render helpers
+    // ----------------------------
     function groupByStatus(items) {
       const g = {};
       for (const it of items || []) {
@@ -4305,21 +4325,52 @@ window.Tasks =
       return g;
     }
 
+    function renderAssigneeCell(t) {
+      // support either `assigned_user_id` or nested `assigned_user.id`
+      const assignedId =
+        t.assigned_user_id ??
+        t.assignee_id ??
+        t.assigned_to_user_id ??
+        (t.assigned_user ? t.assigned_user.id : null);
+
+      const user = findTeamMember(assignedId) || t.assigned_user || null;
+
+      const label = user ? getDisplayName(user) : "Unassigned";
+
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className =
+        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50";
+      btn.textContent = user ? `👤 ${label}` : `＋ ${label}`;
+
+      btn.addEventListener("click", () => {
+        openAssigneeMenu(btn, {
+          currentUserId: assignedId,
+          onPick: async (nextUserId) => {
+            // send null to unassign
+            await apiUpdate(t.id, { assigned_user_id: nextUserId ? Number(nextUserId) : null });
+            await refresh();
+          },
+        });
+      });
+
+      return btn;
+    }
+
+    // ----------------------------
+    // Render list
+    // ----------------------------
     function renderList(host, items, counts) {
       host.innerHTML = "";
-
       const grouped = groupByStatus(items);
 
       for (const status of STATUS_ORDER) {
         const rows = grouped[status] || [];
-
-        // hide empty groups except completed/canceled
         if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
 
         const sec = document.createElement("div");
         sec.className = "tasks-group";
 
-        // header
         const head = document.createElement("div");
         head.className = "tasks-group-head";
 
@@ -4342,7 +4393,6 @@ window.Tasks =
         head.appendChild(left);
         sec.appendChild(head);
 
-        // columns
         const cols = document.createElement("div");
         cols.className = "mt-3 text-xs text-slate-500 px-4";
         cols.innerHTML = `
@@ -4371,7 +4421,7 @@ window.Tasks =
           row.className = "tasks-row";
 
           const grid = document.createElement("div");
-          grid.className = "tasks-row-grid"; // expects your CSS to be 12-cols grid
+          grid.className = "tasks-row-grid";
 
           // checkbox
           const cbWrap = document.createElement("div");
@@ -4396,7 +4446,7 @@ window.Tasks =
             <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
           `;
 
-          // due date (click pill -> picker -> save)
+          // due
           const due = document.createElement("div");
           due.className = "col-span-12 sm:col-span-2 flex items-center";
 
@@ -4404,6 +4454,7 @@ window.Tasks =
           dueBtn.type = "button";
           dueBtn.className =
             "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50";
+
           const pretty = isoToPrettyDate(t.due_at);
           dueBtn.textContent = pretty ? `📅 ${pretty}` : "📅 Set due date";
 
@@ -4421,13 +4472,9 @@ window.Tasks =
           });
 
           dueInput.addEventListener("change", async () => {
-            try {
-              const val = (dueInput.value || "").trim();
-              await apiUpdate(t.id, { due_at: val ? val : null });
-              await refresh();
-            } catch (e) {
-              alert(e.message || e);
-            }
+            const val = (dueInput.value || "").trim();
+            await apiUpdate(t.id, { due_at: val ? val : null });
+            await refresh();
           });
 
           due.appendChild(dueBtn);
@@ -4442,40 +4489,12 @@ window.Tasks =
             </span>
           `;
 
-          // assignee (popover)
+          // assignee
           const asg = document.createElement("div");
           asg.className = "col-span-12 sm:col-span-1 flex items-center";
+          asg.appendChild(renderAssigneeCell(t));
 
-          const asgBtn = document.createElement("button");
-          asgBtn.type = "button";
-          asgBtn.className =
-            "inline-flex items-center justify-center h-9 w-9 rounded-full border border-slate-200 bg-white hover:bg-slate-50 text-slate-700";
-          asgBtn.title = "Assign";
-          asgBtn.textContent = t.assignee_name ? (t.assignee_name.trim()[0] || "👤") : "+";
-
-          asgBtn.addEventListener("click", async () => {
-            // If TEAM isn't loaded yet, try to load now (safe)
-            if (!TEAM || TEAM.length === 0) {
-              try {
-                TEAM = await apiTeamMembers();
-                populateAssigneeSelect($id("taskAssignee")); // modal select (if present)
-              } catch (e) {
-                console.warn(e);
-              }
-            }
-
-            openAssigneeMenu(asgBtn, {
-              currentUserId: t.assigned_user_id || null,
-              onPick: async (userIdOrNull) => {
-                await apiUpdate(t.id, { assigned_user_id: userIdOrNull });
-                await refresh();
-              },
-            });
-          });
-
-          asg.appendChild(asgBtn);
-
-          // status (popover)
+          // status
           const st = document.createElement("div");
           st.className = "col-span-12 sm:col-span-1 flex justify-end items-center";
 
@@ -4497,7 +4516,6 @@ window.Tasks =
 
           st.appendChild(statusBtn);
 
-          // assemble
           grid.appendChild(cbWrap);
           grid.appendChild(name);
           grid.appendChild(due);
@@ -4513,7 +4531,9 @@ window.Tasks =
       }
     }
 
-    // ---------- wiring ----------
+    // ----------------------------
+    // Wiring
+    // ----------------------------
     function wireTabs() {
       const host = $id("view-tasks");
       if (!host) return;
@@ -4552,36 +4572,31 @@ window.Tasks =
       cancel.addEventListener("click", hide);
 
       modal.addEventListener("click", (e) => {
-        // clicks on backdrop close
+        // backdrop closes
         if (e.target === modal || e.target.classList.contains("bg-black/40")) hide();
       });
 
       save.addEventListener("click", async () => {
-        try {
-          const title = ($id("taskTitle")?.value || "").trim();
-          const category = $id("taskCategory")?.value || "Maintenance";
-          const due_at = $id("taskDueAt")?.value || null;
-          const status = $id("taskStatus")?.value || "todo";
-          const description = ($id("taskDescription")?.value || "").trim() || null;
+        const title = ($id("taskTitle")?.value || "").trim();
+        const category = $id("taskCategory")?.value || "Maintenance";
+        const due = $id("taskDueAt")?.value || null;
+        const status = $id("taskStatus")?.value || "todo";
+        const description = ($id("taskDescription")?.value || "").trim() || null;
+        const assigneeIdRaw = $id("taskAssignee")?.value || "";
+        const assigned_user_id = assigneeIdRaw ? Number(assigneeIdRaw) : null;
 
-          // optional <select id="taskAssignee">
-          const assigneeIdRaw = $id("taskAssignee")?.value || "";
-          const assigned_user_id = assigneeIdRaw ? Number(assigneeIdRaw) : null;
+        if (!title) return alert("Title required");
 
-          if (!title) return alert("Title required");
+        await apiCreate({ title, category, due_at: due, status, description, assigned_user_id });
 
-          await apiCreate({ title, category, due_at, status, description, assigned_user_id });
+        hide();
 
-          hide();
-          if ($id("taskTitle")) $id("taskTitle").value = "";
-          if ($id("taskDescription")) $id("taskDescription").value = "";
-          if ($id("taskDueAt")) $id("taskDueAt").value = "";
-          if ($id("taskAssignee")) $id("taskAssignee").value = "";
+        if ($id("taskTitle")) $id("taskTitle").value = "";
+        if ($id("taskDescription")) $id("taskDescription").value = "";
+        if ($id("taskDueAt")) $id("taskDueAt").value = "";
+        if ($id("taskAssignee")) $id("taskAssignee").value = "";
 
-          await refresh();
-        } catch (e) {
-          alert(e.message || e);
-        }
+        await refresh();
       });
     }
 
@@ -4592,21 +4607,16 @@ window.Tasks =
 
       if (btnDone) {
         btnDone.addEventListener("click", async () => {
-          try {
-            await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
-            selected.clear();
-            setBatchBar();
-            await refresh();
-          } catch (e) {
-            alert(e.message || e);
-          }
+          await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
+          selected.clear();
+          setBatchBar();
+          await refresh();
         });
       }
 
       if (btnStatus) {
         btnStatus.addEventListener("click", () => {
           if (!selected.size) return;
-
           openStatusMenu(btnStatus, {
             current: null,
             onPick: async (next) => {
@@ -4619,33 +4629,15 @@ window.Tasks =
         });
       }
 
-      if (btnDelete) {
-        btnDelete.addEventListener("click", async () => {
-          if (!selected.size) return;
-          if (!confirm("Delete selected tasks?")) return;
-          try {
-            await apiBatch("delete", { task_ids: Array.from(selected) });
-            selected.clear();
-            setBatchBar();
-            await refresh();
-          } catch (e) {
-            alert(e.message || e);
-          }
-        });
-      }
-
-      // OPTIONAL: if you add a batch assign button later:
-      // - add a button with id="btnBatchAssign"
-      // - ensure backend supports: action="assign" with { task_ids, assigned_user_id }
+      // Optional: batch assign (uncomment if you add a button)
       // const btnAssign = $id("btnBatchAssign");
       // if (btnAssign) {
-      //   btnAssign.addEventListener("click", async () => {
+      //   btnAssign.addEventListener("click", () => {
       //     if (!selected.size) return;
-      //     if (!TEAM || TEAM.length === 0) TEAM = await apiTeamMembers();
       //     openAssigneeMenu(btnAssign, {
       //       currentUserId: null,
       //       onPick: async (uid) => {
-      //         await apiBatch("assign", { task_ids: Array.from(selected), assigned_user_id: uid });
+      //         await apiBatch("assign", { task_ids: Array.from(selected), assigned_user_id: uid ? Number(uid) : null });
       //         selected.clear();
       //         setBatchBar();
       //         await refresh();
@@ -4653,9 +4645,19 @@ window.Tasks =
       //     });
       //   });
       // }
+
+      if (btnDelete) {
+        btnDelete.addEventListener("click", async () => {
+          if (!selected.size) return;
+          if (!confirm("Delete selected tasks?")) return;
+          await apiBatch("delete", { task_ids: Array.from(selected) });
+          selected.clear();
+          setBatchBar();
+          await refresh();
+        });
+      }
     }
 
-    // ---------- refresh ----------
     async function refresh() {
       const host = $id("tasksListHost");
       if (!host) return;
@@ -4674,38 +4676,40 @@ window.Tasks =
         const data = await apiList({ q, status: st });
         renderList(host, data.items || [], data.counts || {});
       } catch (e) {
-        host.innerHTML = `
-          <div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">
-            ${esc(e.message || e)}
-          </div>
-        `;
+        host.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">${esc(
+          e.message || e
+        )}</div>`;
       }
     }
 
-    // ---------- init ----------
     async function init() {
       const view = document.getElementById("view-tasks");
       if (!view || view.__tasksInit) return;
       view.__tasksInit = true;
+
+      // 1) Load team first so modal + list can show names
+      try {
+        TEAM = await apiTeamMembers();
+      } catch (e) {
+        console.warn("TEAM load failed:", e);
+        TEAM = [];
+      }
+
+      // 2) Populate create modal assignee dropdown (if present)
+      populateAssigneeSelect($id("taskAssignee"));
 
       wireTabs();
       wireSearch();
       wireModal();
       wireBatch();
 
-      // Load team members once (for assignee menus + modal select)
-      try {
-        TEAM = await apiTeamMembers();
-        populateAssigneeSelect($id("taskAssignee")); // only if your modal has it
-      } catch (e) {
-        console.warn("Team load failed:", e);
-      }
-
-      refresh();
+      // 3) Render tasks immediately on view open
+      await refresh();
     }
 
     return { init, refresh };
   })();
+
 
 
 // ------------------------------
