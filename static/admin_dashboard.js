@@ -4392,8 +4392,8 @@ function setBatchBar() {
     const save = $id("taskModalSave");
     if (!openBtn || !modal || !close || !cancel || !save) return;
 
-    const open = () => modal.classList.remove("hidden");
-    const hide = () => modal.classList.add("hidden");
+    function open() { modal.classList.remove("hidden"); }
+    function hide() { modal.classList.add("hidden"); }
 
     openBtn.addEventListener("click", open);
     close.addEventListener("click", hide);
