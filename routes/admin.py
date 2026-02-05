@@ -2620,6 +2620,27 @@ def assign_chat(
     return {"ok": True, "assigned_to": sess.assigned_to}
 
 
+@router.get("/admin/api/team-members")
+def team_members(user=Depends(require_user), db=Depends(get_db)):
+    # you probably already know the user's pmc_id
+    rows = db.query(PmcUser).filter(
+        PmcUser.pmc_id == user.pmc_id,
+        PmcUser.is_active == True
+    ).order_by(PmcUser.full_name.asc()).all()
+
+    return {
+        "ok": True,
+        "items": [
+            {
+                "id": r.id,
+                "full_name": r.full_name,
+                "email": r.email,
+                "role": r.role,
+            } for r in rows
+        ]
+    }
+
+
 @router.post("/admin/chats/{session_id}/note")
 def set_internal_note(session_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
     s = require_session_in_scope(request, db, session_id)
