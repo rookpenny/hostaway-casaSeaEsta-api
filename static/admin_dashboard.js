@@ -4181,11 +4181,81 @@ window.Tasks = window.Tasks || (function () {
 
           // due
           const due = document.createElement("div");
-          due.className = "col-span-6 sm:col-span-2 text-sm text-slate-700";
+          due.style.cssText = "display:flex; align-items:center; gap:8px;";
+          
+          const dueLabel = document.createElement("span");
+          dueLabel.style.cssText =
+            "display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border:1px solid #eee; border-radius:999px; font-size:12px;";
+          
           const pretty = isoToPrettyDate(t.due_at);
-          due.innerHTML = pretty
-            ? `<span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white">📅 ${esc(pretty)}</span>`
-            : `<span class="text-slate-400">—</span>`;
+          dueLabel.innerHTML = pretty ? `📅 ${esc(pretty)}` : `<span style="color:#777;">No due date</span>`;
+          
+          const editBtn = document.createElement("button");
+          editBtn.className = "btn";
+          editBtn.style.cssText = "padding:6px 10px; font-size:12px;";
+          editBtn.textContent = pretty ? "Edit" : "Add";
+          
+          const input = document.createElement("input");
+          input.type = "date";
+          input.style.cssText =
+            "display:none; height:32px; padding:0 10px; border:1px solid #e5e7eb; border-radius:10px; font-size:12px; background:#fff;";
+          
+          const saveBtn = document.createElement("button");
+          saveBtn.className = "btn";
+          saveBtn.style.cssText = "display:none; padding:6px 10px; font-size:12px;";
+          saveBtn.textContent = "Save";
+          
+          const cancelBtn = document.createElement("button");
+          cancelBtn.className = "btn";
+          cancelBtn.style.cssText = "display:none; padding:6px 10px; font-size:12px;";
+          cancelBtn.textContent = "Cancel";
+          
+          // helper: normalize task due_at -> YYYY-MM-DD for <input type="date">
+          function toDateInputValue(iso) {
+            if (!iso) return "";
+            const d = new Date(iso);
+            if (Number.isNaN(d.getTime())) return "";
+            // local date in YYYY-MM-DD
+            const yyyy = d.getFullYear();
+            const mm = String(d.getMonth() + 1).padStart(2, "0");
+            const dd = String(d.getDate()).padStart(2, "0");
+            return `${yyyy}-${mm}-${dd}`;
+          }
+          
+          function setEditMode(on) {
+            input.style.display = on ? "inline-flex" : "none";
+            saveBtn.style.display = on ? "inline-flex" : "none";
+            cancelBtn.style.display = on ? "inline-flex" : "none";
+            editBtn.style.display = on ? "none" : "inline-flex";
+            dueLabel.style.display = on ? "none" : "inline-flex";
+          }
+          
+          editBtn.addEventListener("click", () => {
+            input.value = toDateInputValue(t.due_at);
+            setEditMode(true);
+            input.focus();
+          });
+          
+          cancelBtn.addEventListener("click", () => setEditMode(false));
+          
+          saveBtn.addEventListener("click", async () => {
+            try {
+              // send null if user cleared date
+              const val = (input.value || "").trim();
+              await apiUpdate(t.id, { due_at: val ? val : null });
+              setEditMode(false);
+              await refresh();
+            } catch (e) {
+              alert(e.message || e);
+            }
+          });
+          
+          due.appendChild(dueLabel);
+          due.appendChild(editBtn);
+          due.appendChild(input);
+          due.appendChild(saveBtn);
+          due.appendChild(cancelBtn);
+
 
           // category
           const cat = document.createElement("div");
