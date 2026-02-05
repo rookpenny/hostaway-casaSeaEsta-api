@@ -3981,6 +3981,96 @@ window.Tasks = window.Tasks || (function () {
     completed: "Completed",
   };
 
+    const STATUS_MENU = [
+    { key: "todo", label: "To-do", dotClass: "is-todo", glyph: "" },
+    { key: "in_progress", label: "In Progress", dotClass: "is-in_progress", glyph: "" },
+    { key: "waiting", label: "Waiting", dotClass: "is-waiting", glyph: "" },
+    { key: "in_review", label: "In Review", dotClass: "is-in_review", glyph: "" },
+    { key: "canceled", label: "Canceled", dotClass: "is-canceled", glyph: "×" },
+    { key: "completed", label: "Completed", dotClass: "is-completed", glyph: "✓" },
+  ];
+
+  let openMenuEl = null;
+
+  function closeStatusMenu() {
+    if (openMenuEl) {
+      openMenuEl.remove();
+      openMenuEl = null;
+    }
+  }
+
+  function openStatusMenu(anchorEl, { current, onPick }) {
+    closeStatusMenu();
+    if (!anchorEl) return;
+
+    const rect = anchorEl.getBoundingClientRect();
+
+    const menu = document.createElement("div");
+    menu.className = "tasks-status-menu";
+    menu.setAttribute("role", "menu");
+
+    for (const opt of STATUS_MENU) {
+      const item = document.createElement("div");
+      item.className = "tasks-status-item";
+      item.setAttribute("role", "menuitem");
+      item.innerHTML = `
+        <span class="tasks-status-dot ${opt.dotClass}">${esc(opt.glyph || "")}</span>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
+          <span style="font-weight:600; color:#0f172a;">${esc(opt.label)}</span>
+          ${
+            opt.key === current
+              ? `<span style="font-size:12px; color:#64748b;">Selected</span>`
+              : ``
+          }
+        </div>
+      `;
+
+      item.addEventListener("click", () => {
+        try { onPick(opt.key); } finally { closeStatusMenu(); }
+      });
+
+      menu.appendChild(item);
+    }
+
+    document.body.appendChild(menu);
+    openMenuEl = menu;
+
+    // Position (like your screenshot: under/near the button)
+    const menuRect = menu.getBoundingClientRect();
+    let top = rect.bottom + 8;
+    let left = rect.right - menuRect.width; // right aligned
+
+    // Keep on-screen
+    const pad = 10;
+    if (left < pad) left = pad;
+    if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
+    if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
+
+    menu.style.top = `${top}px`;
+    menu.style.left = `${left}px`;
+
+    // Click-away close
+    const onDoc = (e) => {
+      if (!openMenuEl) return;
+      if (openMenuEl.contains(e.target)) return;
+      if (anchorEl.contains(e.target)) return;
+      closeStatusMenu();
+      document.removeEventListener("mousedown", onDoc, true);
+      document.removeEventListener("keydown", onEsc, true);
+    };
+    const onEsc = (e) => {
+      if (e.key === "Escape") {
+        closeStatusMenu();
+        document.removeEventListener("mousedown", onDoc, true);
+        document.removeEventListener("keydown", onEsc, true);
+      }
+    };
+
+    document.addEventListener("mousedown", onDoc, true);
+    document.addEventListener("keydown", onEsc, true);
+  }
+
+
   // pill styling (matches screenshot vibe, still neutral to your dashboard)
   const STATUS_PILL_CLASS = {
     in_review: "bg-amber-50 text-amber-700 border-amber-200",
@@ -4094,207 +4184,188 @@ window.Tasks = window.Tasks || (function () {
   }
 
   function renderList(host, items, counts) {
-    host.innerHTML = "";
+  host.innerHTML = "";
 
-    const grouped = groupByStatus(items);
+  const grouped = groupByStatus(items);
 
-    for (const status of STATUS_ORDER) {
-      const rows = grouped[status] || [];
-      // keep empty sections hidden except completed/canceled, like your old logic
-      if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
+  for (const status of STATUS_ORDER) {
+    const rows = grouped[status] || [];
 
-      const sec = document.createElement("div");
-      sec.className = "tasks-group";
+    // keep empty sections hidden except completed/canceled
+    if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
 
-      // Header row: pill + count
-      const head = document.createElement("div");
-      head.className = "tasks-group-head";
+    const sec = document.createElement("div");
+    sec.className = "tasks-group";
 
-      const left = document.createElement("div");
-      left.className = "flex items-center gap-3";
+    // Header (pill + count)
+    const head = document.createElement("div");
+    head.className = "tasks-group-head";
 
-      const pill = document.createElement("span");
-      pill.className = `tasks-group-pill ${STATUS_PILL_CLASS[status] || "bg-slate-50 text-slate-700 border-slate-200"}`;
-      pill.textContent = STATUS_LABEL[status] || status;
+    const left = document.createElement("div");
+    left.className = "flex items-center gap-3";
 
-      const cnt = (counts && counts[status]) ? counts[status] : rows.length;
-      const count = document.createElement("span");
-      count.className = "text-xs text-slate-500";
-      count.textContent = `${cnt} task${cnt === 1 ? "" : "s"}`;
+    const pill = document.createElement("span");
+    pill.className = `tasks-group-pill ${
+      (typeof STATUS_PILL_CLASS !== "undefined" && STATUS_PILL_CLASS[status])
+        ? STATUS_PILL_CLASS[status]
+        : "bg-slate-50 text-slate-700 border-slate-200"
+    }`;
+    pill.textContent = STATUS_LABEL[status] || status;
 
-      left.appendChild(pill);
-      left.appendChild(count);
+    const cnt = counts && counts[status] ? counts[status] : rows.length;
+    const count = document.createElement("span");
+    count.className = "text-xs text-slate-500";
+    count.textContent = `${cnt} task${cnt === 1 ? "" : "s"}`;
 
-      head.appendChild(left);
-      sec.appendChild(head);
+    left.appendChild(pill);
+    left.appendChild(count);
 
-      // Table-like header (Name / Due date / Category / Assignee)
-      const cols = document.createElement("div");
-      cols.className = "mt-3 text-xs text-slate-500 px-4";
-      cols.innerHTML = `
-        <div class="grid grid-cols-12 gap-3">
-          <div class="col-span-1"></div>
-          <div class="col-span-5">Name</div>
-          <div class="col-span-2">Due date</div>
-          <div class="col-span-2">Category</div>
-          <div class="col-span-2 text-right">Status</div>
-        </div>
-      `;
-      sec.appendChild(cols);
+    head.appendChild(left);
+    sec.appendChild(head);
 
-      if (rows.length === 0) {
-        const empty = document.createElement("div");
-        empty.className = "mt-3 text-sm text-slate-500 px-4";
-        empty.textContent = "No tasks";
-        sec.appendChild(empty);
-      } else {
-        for (const t of rows) {
-          const row = document.createElement("div");
-          row.className = "tasks-row";
+    // Table-like header
+    const cols = document.createElement("div");
+    cols.className = "mt-3 text-xs text-slate-500 px-4";
+    cols.innerHTML = `
+      <div class="grid grid-cols-12 gap-3">
+        <div class="col-span-1"></div>
+        <div class="col-span-5">Name</div>
+        <div class="col-span-2">Due date</div>
+        <div class="col-span-2">Category</div>
+        <div class="col-span-2 text-right">Status</div>
+      </div>
+    `;
+    sec.appendChild(cols);
 
-          const grid = document.createElement("div");
-          grid.className = "tasks-row-grid";
-
-          // checkbox
-          const cbWrap = document.createElement("div");
-          cbWrap.className = "col-span-12 sm:col-span-1 flex items-center";
-
-          const cb = document.createElement("input");
-          cb.type = "checkbox";
-          cb.className = "h-5 w-5 rounded border-slate-300";
-          cb.checked = selected.has(t.id);
-          cb.addEventListener("change", () => {
-            if (cb.checked) selected.add(t.id);
-            else selected.delete(t.id);
-            setBatchBar();
-          });
-
-          cbWrap.appendChild(cb);
-
-          // name + property
-          const name = document.createElement("div");
-          name.className = "col-span-12 sm:col-span-5";
-          name.innerHTML = `
-            <div class="font-semibold text-slate-900">${esc(t.title)}</div>
-            <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
-          `;
-
-          // due
-          const due = document.createElement("div");
-          due.style.cssText = "display:flex; align-items:center; gap:8px;";
-          
-          const dueLabel = document.createElement("span");
-          dueLabel.style.cssText =
-            "display:inline-flex; gap:6px; align-items:center; padding:6px 10px; border:1px solid #eee; border-radius:999px; font-size:12px;";
-          
-          const pretty = isoToPrettyDate(t.due_at);
-          dueLabel.innerHTML = pretty ? `📅 ${esc(pretty)}` : `<span style="color:#777;">No due date</span>`;
-          
-          const editBtn = document.createElement("button");
-          editBtn.className = "btn";
-          editBtn.style.cssText = "padding:6px 10px; font-size:12px;";
-          editBtn.textContent = pretty ? "Edit" : "Add";
-          
-          const input = document.createElement("input");
-          input.type = "date";
-          input.style.cssText =
-            "display:none; height:32px; padding:0 10px; border:1px solid #e5e7eb; border-radius:10px; font-size:12px; background:#fff;";
-          
-          const saveBtn = document.createElement("button");
-          saveBtn.className = "btn";
-          saveBtn.style.cssText = "display:none; padding:6px 10px; font-size:12px;";
-          saveBtn.textContent = "Save";
-          
-          const cancelBtn = document.createElement("button");
-          cancelBtn.className = "btn";
-          cancelBtn.style.cssText = "display:none; padding:6px 10px; font-size:12px;";
-          cancelBtn.textContent = "Cancel";
-          
-          // helper: normalize task due_at -> YYYY-MM-DD for <input type="date">
-          function toDateInputValue(iso) {
-            if (!iso) return "";
-            const d = new Date(iso);
-            if (Number.isNaN(d.getTime())) return "";
-            // local date in YYYY-MM-DD
-            const yyyy = d.getFullYear();
-            const mm = String(d.getMonth() + 1).padStart(2, "0");
-            const dd = String(d.getDate()).padStart(2, "0");
-            return `${yyyy}-${mm}-${dd}`;
-          }
-          
-          function setEditMode(on) {
-            input.style.display = on ? "inline-flex" : "none";
-            saveBtn.style.display = on ? "inline-flex" : "none";
-            cancelBtn.style.display = on ? "inline-flex" : "none";
-            editBtn.style.display = on ? "none" : "inline-flex";
-            dueLabel.style.display = on ? "none" : "inline-flex";
-          }
-          
-          editBtn.addEventListener("click", () => {
-            input.value = toDateInputValue(t.due_at);
-            setEditMode(true);
-            input.focus();
-          });
-          
-          cancelBtn.addEventListener("click", () => setEditMode(false));
-          
-          saveBtn.addEventListener("click", async () => {
-            try {
-              // send null if user cleared date
-              const val = (input.value || "").trim();
-              await apiUpdate(t.id, { due_at: val ? val : null });
-              setEditMode(false);
-              await refresh();
-            } catch (e) {
-              alert(e.message || e);
-            }
-          });
-          
-          due.appendChild(dueLabel);
-          due.appendChild(editBtn);
-          due.appendChild(input);
-          due.appendChild(saveBtn);
-          due.appendChild(cancelBtn);
-
-
-          // category
-          const cat = document.createElement("div");
-          cat.className = "col-span-6 sm:col-span-2 text-sm";
-          cat.innerHTML = `
-            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700">
-              ${esc(t.category || "Maintenance")}
-            </span>
-          `;
-
-          // status select (instead of prompt)
-          const st = document.createElement("div");
-          st.className = "col-span-12 sm:col-span-2 flex justify-end";
-
-          const sel = buildStatusSelect(t.status || "todo", async (next) => {
-            try {
-              await apiUpdate(t.id, { status: next });
-              await refresh();
-            } catch (e) {
-              alert(e.message || e);
-            }
-          });
-
-          st.appendChild(sel);
-
-          grid.appendChild(cbWrap);
-          grid.appendChild(name);
-          grid.appendChild(due);
-          grid.appendChild(cat);
-          grid.appendChild(st);
-
-          row.appendChild(grid);
-          sec.appendChild(row);
-        }
-      }
-
+    if (rows.length === 0) {
+      const empty = document.createElement("div");
+      empty.className = "mt-3 text-sm text-slate-500 px-4";
+      empty.textContent = "No tasks";
+      sec.appendChild(empty);
       host.appendChild(sec);
+      continue;
     }
+
+    for (const t of rows) {
+      const row = document.createElement("div");
+      row.className = "tasks-row";
+
+      const grid = document.createElement("div");
+      grid.className = "tasks-row-grid";
+
+      // Checkbox
+      const cbWrap = document.createElement("div");
+      cbWrap.className = "col-span-12 sm:col-span-1 flex items-center";
+
+      const cb = document.createElement("input");
+      cb.type = "checkbox";
+      cb.className = "h-5 w-5 rounded border-slate-300";
+      cb.checked = selected.has(t.id);
+      cb.addEventListener("change", () => {
+        if (cb.checked) selected.add(t.id);
+        else selected.delete(t.id);
+        setBatchBar();
+      });
+      cbWrap.appendChild(cb);
+
+      // Name + property
+      const name = document.createElement("div");
+      name.className = "col-span-12 sm:col-span-5";
+      name.innerHTML = `
+        <div class="font-semibold text-slate-900">${esc(t.title)}</div>
+        <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
+      `;
+
+      // Due date (click pill -> native date picker -> saves)
+      const due = document.createElement("div");
+      due.className = "col-span-12 sm:col-span-2 flex items-center";
+
+      const dueBtn = document.createElement("button");
+      dueBtn.type = "button";
+      dueBtn.className =
+        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold hover:bg-slate-50";
+      const pretty = isoToPrettyDate(t.due_at);
+      dueBtn.textContent = pretty ? `📅 ${pretty}` : "📅 Set due date";
+
+      // hidden input used to open the date picker
+      const dueInput = document.createElement("input");
+      dueInput.type = "date";
+      dueInput.style.position = "absolute";
+      dueInput.style.left = "-9999px";
+      dueInput.style.width = "1px";
+      dueInput.style.height = "1px";
+      dueInput.value = t.due_at ? String(t.due_at).slice(0, 10) : "";
+
+      dueBtn.addEventListener("click", () => {
+        // showPicker is supported in Chromium; fallback click works elsewhere
+        dueInput.showPicker?.();
+        dueInput.click();
+      });
+
+      dueInput.addEventListener("change", async () => {
+        try {
+          const val = (dueInput.value || "").trim();
+          await apiUpdate(t.id, { due_at: val ? val : null });
+          await refresh();
+        } catch (e) {
+          alert(e.message || e);
+        }
+      });
+
+      due.appendChild(dueBtn);
+      due.appendChild(dueInput);
+
+      // Category
+      const cat = document.createElement("div");
+      cat.className = "col-span-12 sm:col-span-2 text-sm";
+      cat.innerHTML = `
+        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700 text-xs font-semibold">
+          ${esc(t.category || "Maintenance")}
+        </span>
+      `;
+
+      // Status (button -> your little dropdown menu)
+      const st = document.createElement("div");
+      st.className = "col-span-12 sm:col-span-2 flex justify-end items-center";
+
+      const statusBtn = document.createElement("button");
+      statusBtn.type = "button";
+      statusBtn.className =
+        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-semibold hover:bg-slate-50";
+      statusBtn.textContent = STATUS_LABEL[t.status] || STATUS_LABEL.todo;
+
+      statusBtn.addEventListener("click", () => {
+        // openStatusMenu() must exist (the dropdown you added earlier)
+        openStatusMenu(statusBtn, {
+          current: t.status || "todo",
+          onPick: async (nextStatus) => {
+            try {
+              await apiUpdate(t.id, { status: nextStatus });
+              await refresh();
+            } catch (e) {
+              alert(e.message || e);
+            }
+          },
+        });
+      });
+
+      st.appendChild(statusBtn);
+
+      // assemble row
+      grid.appendChild(cbWrap);
+      grid.appendChild(name);
+      grid.appendChild(due);
+      grid.appendChild(cat);
+      grid.appendChild(st);
+
+      row.appendChild(grid);
+      sec.appendChild(row);
+    }
+
+    host.appendChild(sec);
   }
+}
+
 
   function wireTabs() {
     const host = $id("view-tasks");
@@ -4368,16 +4439,22 @@ window.Tasks = window.Tasks || (function () {
       } catch (e) { alert(e.message || e); }
     });
 
-    if (btnStatus) btnStatus.addEventListener("click", async () => {
-      const next = prompt(`Set status: ${Object.keys(STATUS_LABEL).join(", ")}`, "in_progress");
-      if (!next) return;
-      try {
-        await apiBatch("status", { task_ids: Array.from(selected), status: next });
-        selected.clear();
-        setBatchBar();
-        await refresh();
-      } catch (e) { alert(e.message || e); }
+        if (btnStatus) btnStatus.addEventListener("click", async () => {
+      if (!selected.size) return;
+
+      openStatusMenu(btnStatus, {
+        current: null,
+        onPick: async (next) => {
+          try {
+            await apiBatch("status", { task_ids: Array.from(selected), status: next });
+            selected.clear();
+            setBatchBar();
+            await refresh();
+          } catch (e) { alert(e.message || e); }
+        },
+      });
     });
+
 
     if (btnDelete) btnDelete.addEventListener("click", async () => {
       if (!confirm("Delete selected tasks?")) return;
