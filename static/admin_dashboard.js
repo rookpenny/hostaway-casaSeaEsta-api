@@ -4473,3 +4473,36 @@ document.addEventListener("click", (e) => {
   }
 });
 
+// --- SAFETY NET: ensure Create Task always opens modal ---
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest("#btnCreateTask");
+  if (!btn) return;
+
+  // If Tasks wasn't initialized yet, init it now
+  if (window.Tasks && typeof window.Tasks.init === "function") {
+    window.Tasks.init();
+  }
+
+  const modal = document.getElementById("taskModal");
+  if (!modal) {
+    console.error("Missing #taskModal in DOM");
+    return;
+  }
+
+  modal.classList.remove("hidden");
+});
+// Close modal handlers (works even if init didn't wire it)
+document.addEventListener("click", (e) => {
+  const modal = document.getElementById("taskModal");
+  if (!modal) return;
+
+  if (e.target.closest("#taskModalClose") || e.target.closest("#taskModalCancel")) {
+    modal.classList.add("hidden");
+    return;
+  }
+
+  // Click outside the dialog closes (only if you click the backdrop)
+  if (e.target === modal) {
+    modal.classList.add("hidden");
+  }
+});
