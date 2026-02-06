@@ -4322,7 +4322,13 @@ window.Tasks =
 
         const pill = document.createElement("span");
         pill.className = `tasks-group-pill ${STATUS_PILL_CLASS[status] || "bg-slate-50 text-slate-700 border-slate-200"}`;
-        pill.textContent = STATUS_LABEL[status] || status;
+        pill.innerHTML = `
+          <span style="display:inline-flex;align-items:center;gap:8px;">
+            ${statusIconHTML(status, { size: 14 })}
+            <span>${esc(STATUS_LABEL[status] || status)}</span>
+          </span>
+        `;
+
 
         const cnt = counts && counts[status] ? counts[status] : rows.length;
         const count = document.createElement("span");
@@ -4360,117 +4366,118 @@ window.Tasks =
           continue;
         }
 
-        for (const t of rows) {
-          const row = document.createElement("div");
-          // hover background + smooth transition
-          row.className = "tasks-row hover:bg-slate-50 transition-colors";
+// ----------------------------
+// ROW
+// ----------------------------
+for (const t of rows) {
+  const row = document.createElement("div");
+  row.className = "tasks-row";
 
-          const grid = document.createElement("div");
-          grid.className = "tasks-row-grid grid grid-cols-12 gap-3 items-center";
+  const grid = document.createElement("div");
+  grid.className = "tasks-row-grid grid grid-cols-12 gap-3 items-center";
 
-          // checkbox
-          const cbWrap = document.createElement("div");
-          cbWrap.className = "col-span-12 sm:col-span-1 flex items-center";
-          const cb = document.createElement("input");
-          cb.type = "checkbox";
-          cb.className = "h-5 w-5 rounded border-slate-300";
-          cb.checked = selected.has(t.id);
-          cb.addEventListener("change", () => {
-            if (cb.checked) selected.add(t.id);
-            else selected.delete(t.id);
-            setBatchBar();
-          });
-          cbWrap.appendChild(cb);
+  // checkbox
+  const cbWrap = document.createElement("div");
+  cbWrap.className = "col-span-12 sm:col-span-1 flex items-center";
+  const cb = document.createElement("input");
+  cb.type = "checkbox";
+  cb.className = "h-5 w-5 rounded border-slate-300";
+  cb.checked = selected.has(t.id);
+  cb.addEventListener("change", () => {
+    if (cb.checked) selected.add(t.id);
+    else selected.delete(t.id);
+    setBatchBar();
+  });
+  cbWrap.appendChild(cb);
 
-          // status icon (NON-clickable, icon only)
-          const st = document.createElement("div");
-          st.className = "col-span-12 sm:col-span-1 flex items-center";
-          st.innerHTML = `
-            <div class="inline-flex items-center" title="${esc(STATUS_LABEL[t.status] || STATUS_LABEL.todo)}">
-              ${statusIconHTML(t.status || "todo")}
-            </div>
-          `;
+  // STATUS (icon only) + NAME (status moved left of name)
+  const name = document.createElement("div");
+  name.className = "col-span-12 sm:col-span-5";
+  const statusKey = t.status || "todo";
+  name.innerHTML = `
+    <div class="font-semibold text-slate-900" style="display:flex;align-items:center;gap:10px;">
+      ${statusIconHTML(statusKey, { size: 18 })}
+      <span>${esc(t.title)}</span>
+    </div>
+    <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
+  `;
 
-          // name
-          const name = document.createElement("div");
-          name.className = "col-span-12 sm:col-span-4";
-          name.innerHTML = `
-            <div class="font-semibold text-slate-900">${esc(t.title)}</div>
-            <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
-          `;
+  // due (NO pill)
+  const due = document.createElement("div");
+  due.className = "col-span-12 sm:col-span-2 flex items-center";
+  const pretty = isoToPrettyDate(t.due_at);
+  due.innerHTML = `
+    <span class="tasks-plain tasks-plain-muted">
+      <span class="tasks-ico" aria-hidden="true">📅</span>
+      <span>${esc(pretty || "No due date")}</span>
+    </span>
+  `;
 
-          // due (NO pill/border)
-          const due = document.createElement("div");
-          due.className = "col-span-12 sm:col-span-2 flex items-center";
-          const pretty = isoToPrettyDate(t.due_at);
-          due.innerHTML = cellInlineHTML(
-            `<span aria-hidden="true">📅</span>`,
-            esc(pretty || "No due date")
-          );
+  // category (NO pill + icon per category)
+  const cat = document.createElement("div");
+  cat.className = "col-span-12 sm:col-span-2 flex items-center";
+  const category = t.category || "Maintenance";
+  cat.innerHTML = `
+    <span class="tasks-plain tasks-plain-muted">
+      <span class="tasks-ico" aria-hidden="true">${categoryIconHTML(category)}</span>
+      <span>${esc(category)}</span>
+    </span>
+  `;
 
-          // category (NO pill/border) + icon
-          const cat = document.createElement("div");
-          cat.className = "col-span-12 sm:col-span-2 flex items-center";
-          const catName = t.category || "Maintenance";
-          cat.innerHTML = cellInlineHTML(categoryIconHTML(catName), esc(catName));
+  // assignee (NON-CLICKABLE + NO pill border)
+  const asg = document.createElement("div");
+  asg.className = "col-span-12 sm:col-span-1 flex items-center";
+  const assigneeObj = resolveAssignee(t);
 
-          // assignee (NON-clickable, NO pill/border)
-          const asg = document.createElement("div");
-          asg.className = "col-span-12 sm:col-span-1 flex items-center";
-          const assigneeObj = resolveAssignee(t);
+  if (assigneeObj) {
+    const nm = getDisplayName(assigneeObj);
+    asg.innerHTML = `
+      <span class="tasks-plain">
+        <span class="tasks-avatar">${esc(initials(nm))}</span>
+        <span class="hidden lg:inline">${esc(nm)}</span>
+      </span>
+    `;
+  } else {
+    asg.innerHTML = `
+      <span class="tasks-plain tasks-plain-muted">
+        <span class="tasks-avatar" style="font-size:14px;">+</span>
+        <span class="hidden lg:inline">Unassigned</span>
+      </span>
+    `;
+  }
 
-          if (assigneeObj) {
-            const nm = getDisplayName(assigneeObj);
-            asg.innerHTML = `
-              <div class="inline-flex items-center gap-2 text-xs text-slate-900">
-                <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
-                  ${esc(initials(nm))}
-                </span>
-                <span class="hidden lg:inline">${esc(nm)}</span>
-              </div>
-            `;
-          } else {
-            asg.innerHTML = `
-              <div class="inline-flex items-center gap-2 text-xs text-slate-500">
-                <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-slate-100 text-slate-700 text-[14px] font-bold">–</span>
-                <span class="hidden lg:inline">Unassigned</span>
-              </div>
-            `;
-          }
+  // actions (remove pill/border look)
+  const actions = document.createElement("div");
+  actions.className = "col-span-12 sm:col-span-1 flex justify-end items-center gap-2";
 
-          // actions (NO pill/border on the container; edit button border removed)
-          const actions = document.createElement("div");
-          actions.className = "col-span-12 sm:col-span-1 flex justify-end items-center";
+  const editBtn = document.createElement("button");
+  editBtn.type = "button";
+  editBtn.className = "tasks-action-btn";
+  editBtn.title = "Edit task";
+  editBtn.textContent = "✎";
+  editBtn.addEventListener("click", async () => {
+    try {
+      await ensureTeamLoaded();
+      openTaskModal({ mode: "edit", task: t });
+    } catch (e) {
+      alert(e.message || e);
+    }
+  });
 
-          const editBtn = document.createElement("button");
-          editBtn.type = "button";
-          editBtn.className =
-            "h-9 w-9 rounded-xl hover:bg-slate-100 inline-flex items-center justify-center text-slate-700";
-          editBtn.title = "Edit task";
-          editBtn.textContent = "✎";
-          editBtn.addEventListener("click", async () => {
-            try {
-              await ensureTeamLoaded();
-              openTaskModal({ mode: "edit", task: t });
-            } catch (e) {
-              alert(e.message || e);
-            }
-          });
+  actions.appendChild(editBtn);
 
-          actions.appendChild(editBtn);
+  // assemble
+  grid.appendChild(cbWrap);
+  grid.appendChild(name);
+  grid.appendChild(due);
+  grid.appendChild(cat);
+  grid.appendChild(asg);
+  grid.appendChild(actions);
 
-          // assemble
-          grid.appendChild(cbWrap);
-          grid.appendChild(st);
-          grid.appendChild(name);
-          grid.appendChild(due);
-          grid.appendChild(cat);
-          grid.appendChild(asg);
-          grid.appendChild(actions);
+  row.appendChild(grid);
+  sec.appendChild(row);
+}
 
-          row.appendChild(grid);
-          sec.appendChild(row);
-        }
 
         host.appendChild(sec);
       }
