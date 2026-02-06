@@ -1333,6 +1333,7 @@ def _task_to_row(db: Session, t: Task) -> dict:
         .filter(TaskAssignee.task_id == t.id)
         .all()
     )
+    primary = assignees[0] if assignees else None
     prop_name = None
     if t.property_id:
         p = db.query(Property.property_name).filter(Property.id == t.property_id).first()
@@ -1349,6 +1350,12 @@ def _task_to_row(db: Session, t: Task) -> dict:
         "property_id": t.property_id,
         "property_name": prop_name,
         "assignees": [{"id": a.id, "name": a.full_name, "email": a.email} for a in assignees],
+        # ✅ what your JS expects
+        "assigned_user_id": int(primary.id) if primary else None,
+        "assigned_user": (
+            {"id": int(primary.id), "full_name": primary.full_name, "email": primary.email}
+            if primary else None
+        ),
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "updated_at": t.updated_at.isoformat() if t.updated_at else None,
     }
@@ -1463,14 +1470,35 @@ async def create_task(request: Request, db: Session = Depends(get_db)):
     db.flush()
 
     _log_task_activity(db, t.id, getattr(pmc_user, "id", None), "created", {})
+    
 
-    # assign optional explicit assignees
-    assignees = payload.get("assignee_ids") or []
-    for uid in assignees:
+    # ✅ UI sends assigned_user_id (single)
+    assigned_user_id = payload.get("assigned_user_id")
+    if assigned_user_id:
+        uid = int(assigned_user_id)
+        db.add(TaskAssignee(
+            task_id=t.id,
+            user_id=uid,
+            assigned_at=_now_utc(),
+            assigned_by_user_id=getattr(pmc_user, "id", None),
+        ))
+        _log_task_activity(db, t.id, getattr(pmc_user, "id", None), "assigned", {"user_id": uid, "by": "manual"})
+
+    # keep backward compat: assignee_ids list
+    for uid in (payload.get("assignee_ids") or []):
         if not uid:
             continue
-        db.add(TaskAssignee(task_id=t.id, user_id=int(uid), assigned_at=_now_utc(), assigned_by_user_id=getattr(pmc_user, "id", None)))
-        _log_task_activity(db, t.id, getattr(pmc_user, "id", None), "assigned", {"user_id": int(uid), "by": "manual"})
+        uid = int(uid)
+        exists = db.query(TaskAssignee).filter(TaskAssignee.task_id == t.id, TaskAssignee.user_id == uid).first()
+        if exists:
+            continue
+        db.add(TaskAssignee(
+            task_id=t.id,
+            user_id=uid,
+            assigned_at=_now_utc(),
+            assigned_by_user_id=getattr(pmc_user, "id", None),
+        ))
+        _log_task_activity(db, t.id, getattr(pmc_user, "id", None), "assigned", {"user_id": uid, "by": "manual"})
 
     # auto-assignment rules
     _apply_auto_assignment(db, pmc_obj.id, t)
@@ -1566,6 +1594,23 @@ async def update_task(task_id: int, request: Request, db: Session = Depends(get_
 
     payload = await request.json()
     actor_id = getattr(pmc_user, "id", None)
+
+    +  # ✅ UI: set/clear single assignee
+    if "assigned_user_id" in payload:
+        new_uid = payload.get("assigned_user_id", None)
+        # clear all current assignees
+        db.query(TaskAssignee).filter(TaskAssignee.task_id == t.id).delete(synchronize_session=False)
+        if new_uid:
+            uid = int(new_uid)
+            db.add(TaskAssignee(
+                task_id=t.id,
+                user_id=uid,
+                assigned_at=_now_utc(),
+                assigned_by_user_id=actor_id,
+            ))
+            _log_task_activity(db, t.id, actor_id, "assigned", {"user_id": uid, "by": "manual"})
+        else:
+            _log_task_activity(db, t.id, actor_id, "unassigned", {"by": "manual"})
 
     # status change
     if "status" in payload:
@@ -2623,10 +2668,10 @@ def assign_chat(
 @router.get("/admin/api/team-members")
 def team_members(user=Depends(require_user), db=Depends(get_db)):
     # you probably already know the user's pmc_id
-    rows = db.query(PmcUser).filter(
-        PmcUser.pmc_id == user.pmc_id,
-        PmcUser.is_active == True
-    ).order_by(PmcUser.full_name.asc()).all()
+    rows = db.query(PMCUser).filter(
+        PMCUser.pmc_id == user.pmc_id,
+        PMCUser.is_active == True
+    ).order_by(PMCUser.full_name.asc()).all()
 
     return {
         "ok": True,
@@ -4808,43 +4853,6 @@ def list_tasks(request: Request, db: Session = Depends(get_db), q: str | None = 
 
     return {"items": items, "counts": counts}
 
-@router.post("/admin/api/tasks")
-async def create_task(request: Request, db: Session = Depends(get_db)):
-    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
-    if user_role != "pmc" or not pmc_obj:
-        raise HTTPException(status_code=403)
-
-    payload = await request.json()
-    title = (payload.get("title") or "").strip()
-    if not title:
-        return JSONResponse({"ok": False, "error": "Missing title"}, status_code=400)
-
-    t = Task(
-        pmc_id=pmc_obj.id,
-        property_id=payload.get("property_id"),
-        title=title,
-        description=(payload.get("description") or "").strip() or None,
-        category=(payload.get("category") or "Maintenance").strip(),
-        status=(payload.get("status") or "todo").strip(),
-        priority=(payload.get("priority") or None),
-        due_at=_parse_iso_dt(payload.get("due_at")),
-        source_type=(payload.get("source_type") or "manual").strip(),
-        source_id=(payload.get("source_id") or None),
-        created_by_user_id=getattr(pmc_user, "id", None),
-    )
-
-    if t.status not in ALLOWED_TASK_STATUSES:
-        t.status = "todo"
-
-    db.add(t)
-    db.flush()
-
-    _log_activity(db, t.id, getattr(pmc_user, "id", None), "created", {})
-    _apply_auto_assignment(db, pmc_obj.id, t)
-
-    db.commit()
-    db.refresh(t)
-    return {"ok": True, "item": _task_to_row(db, t)}
 
 @router.get("/admin/api/tasks/{task_id}")
 def task_detail(task_id: int, request: Request, db: Session = Depends(get_db)):
