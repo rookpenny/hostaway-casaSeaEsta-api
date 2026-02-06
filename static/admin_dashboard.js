@@ -3965,14 +3965,12 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 
-
 // ----------------------------
-// TASKS MODULE (read-only list + edit modal + assignees)
+// TASKS MODULE (UI-matching + clean)
 // ----------------------------
 window.Tasks =
   window.Tasks ||
   (function () {
-    // --- Config ---
     const STATUS_ORDER = ["in_review", "in_progress", "waiting", "todo", "completed", "canceled"];
 
     const STATUS_LABEL = {
@@ -4002,18 +4000,16 @@ window.Tasks =
       canceled: "bg-rose-50 text-rose-700 border-rose-200",
     };
 
-    // --- State ---
+    // State
     let selected = new Set();
     let activeTab = "all";
+    let TEAM = []; // loaded from /admin/api/team-members
+    const TEAM_BY_ID = new Map();
 
-    // team members cache (used to populate modal + show names in list)
-    let TEAM = [];
-    let TEAM_BY_ID = new Map();
-
+    // Utils
     const $id = (id) => document.getElementById(id);
     const qsa = (parent, sel) => Array.from(parent.querySelectorAll(sel));
 
-    // --- Helpers ---
     function esc(s) {
       return String(s ?? "")
         .replaceAll("&", "&amp;")
@@ -4045,98 +4041,12 @@ window.Tasks =
       return (u.full_name || "").trim() || (u.email || "").trim() || `User ${u.id}`;
     }
 
-    function resolveAssigneeName(task) {
-      // Prefer server-provided object if you add it later:
-      // task.assignee = {id, full_name, email, role}
-      if (task?.assignee && (task.assignee.full_name || task.assignee.email)) {
-        return getDisplayName(task.assignee);
-      }
-      const id = task?.assigned_user_id ?? task?.assignee_id ?? null;
-      if (!id) return "";
-      const u = TEAM_BY_ID.get(String(id));
-      return u ? getDisplayName(u) : "";
-    }
-
-    // ----------------------------
-    // Status menu (popover) – used for BATCH change status
-    // ----------------------------
-    let openMenuEl = null;
-    let menuCleanup = null;
-
-    function closeStatusMenu() {
-      if (openMenuEl) openMenuEl.remove();
-      openMenuEl = null;
-      if (menuCleanup) menuCleanup();
-      menuCleanup = null;
-    }
-
-    function openStatusMenu(anchorEl, { current, onPick }) {
-      closeStatusMenu();
-      if (!anchorEl) return;
-
-      const rect = anchorEl.getBoundingClientRect();
-
-      const menu = document.createElement("div");
-      menu.className = "tasks-status-menu";
-      menu.setAttribute("role", "menu");
-
-      for (const opt of STATUS_MENU) {
-        const item = document.createElement("button");
-        item.type = "button";
-        item.className = "tasks-status-item";
-        item.setAttribute("role", "menuitem");
-        item.innerHTML = `
-          <span class="tasks-status-dot ${opt.dotClass}">${esc(opt.glyph || "")}</span>
-          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; width:100%;">
-            <span style="font-weight:600; color:#0f172a;">${esc(opt.label)}</span>
-            ${opt.key === current ? `<span style="font-size:12px; color:#64748b;">Selected</span>` : ``}
-          </div>
-        `;
-
-        item.addEventListener("click", async () => {
-          try {
-            await onPick(opt.key);
-          } finally {
-            closeStatusMenu();
-          }
-        });
-
-        menu.appendChild(item);
-      }
-
-      document.body.appendChild(menu);
-      openMenuEl = menu;
-
-      // position under/right-aligned to anchor
-      const menuRect = menu.getBoundingClientRect();
-      let top = rect.bottom + 8;
-      let left = rect.right - menuRect.width;
-
-      const pad = 10;
-      if (left < pad) left = pad;
-      if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
-      if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
-
-      menu.style.top = `${top}px`;
-      menu.style.left = `${left}px`;
-
-      const onDoc = (e) => {
-        if (!openMenuEl) return;
-        if (openMenuEl.contains(e.target)) return;
-        if (anchorEl.contains(e.target)) return;
-        closeStatusMenu();
-      };
-      const onEsc = (e) => {
-        if (e.key === "Escape") closeStatusMenu();
-      };
-
-      document.addEventListener("mousedown", onDoc, true);
-      document.addEventListener("keydown", onEsc, true);
-
-      menuCleanup = () => {
-        document.removeEventListener("mousedown", onDoc, true);
-        document.removeEventListener("keydown", onEsc, true);
-      };
+    function initials(name) {
+      const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+      if (!parts.length) return "?";
+      const a = parts[0]?.[0] || "";
+      const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
+      return (a + b).toUpperCase();
     }
 
     // ----------------------------
@@ -4196,16 +4106,19 @@ window.Tasks =
       return data.items || [];
     }
 
-    // ----------------------------
-    // Team wiring (modal assignee select + name resolution)
-    // ----------------------------
-    function rebuildTeamIndex(items) {
-      TEAM = Array.isArray(items) ? items.filter((u) => u && (u.is_active === undefined || u.is_active)) : [];
-      TEAM_BY_ID = new Map(TEAM.map((u) => [String(u.id), u]));
+    async function ensureTeamLoaded() {
+      if (TEAM.length) return;
+      TEAM = await apiTeamMembers();
+      TEAM_BY_ID.clear();
+      for (const u of TEAM) TEAM_BY_ID.set(String(u.id), u);
+
+      // populate modal select
+      populateAssigneeSelect($id("taskAssignee"));
     }
 
     function populateAssigneeSelect(selectEl) {
       if (!selectEl) return;
+      const current = selectEl.value;
       selectEl.innerHTML = `<option value="">Unassigned</option>`;
       for (const u of TEAM) {
         const opt = document.createElement("option");
@@ -4213,18 +4126,7 @@ window.Tasks =
         opt.textContent = getDisplayName(u);
         selectEl.appendChild(opt);
       }
-    }
-
-    async function ensureTeamLoaded() {
-      if (TEAM.length) return;
-      try {
-        const items = await apiTeamMembers();
-        rebuildTeamIndex(items);
-        populateAssigneeSelect($id("taskAssignee"));
-      } catch (e) {
-        console.warn("Team members failed to load:", e);
-        // keep UI usable even if team fails
-      }
+      if (current) selectEl.value = current;
     }
 
     // ----------------------------
@@ -4232,15 +4134,191 @@ window.Tasks =
     // ----------------------------
     function setBatchBar() {
       const bar = $id("tasksBatchBar");
-      const cnt = selected.size;
       if (!bar) return;
+      const cnt = selected.size;
       bar.classList.toggle("hidden", cnt === 0);
       const label = $id("tasksSelectedCount");
       if (label) label.textContent = `${cnt} selected`;
     }
 
     // ----------------------------
-    // Render (READ-ONLY pills + Edit button)
+    // Popovers (Status + Assignee)
+    // ----------------------------
+    let openStatusMenuEl = null;
+    let statusMenuCleanup = null;
+
+    function closeStatusMenu() {
+      if (openStatusMenuEl) openStatusMenuEl.remove();
+      openStatusMenuEl = null;
+      if (statusMenuCleanup) statusMenuCleanup();
+      statusMenuCleanup = null;
+    }
+
+    function openStatusMenu(anchorEl, { current, onPick }) {
+      closeStatusMenu();
+      if (!anchorEl) return;
+
+      const rect = anchorEl.getBoundingClientRect();
+      const menu = document.createElement("div");
+      menu.className = "tasks-status-menu";
+      menu.setAttribute("role", "menu");
+
+      for (const opt of STATUS_MENU) {
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "tasks-status-item";
+        item.setAttribute("role", "menuitem");
+        item.innerHTML = `
+          <span class="tasks-status-dot ${opt.dotClass}">${esc(opt.glyph || "")}</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
+            <span style="font-weight:600;color:#0f172a;">${esc(opt.label)}</span>
+            ${opt.key === current ? `<span style="font-size:12px;color:#64748b;">Selected</span>` : ``}
+          </div>
+        `;
+        item.addEventListener("click", async () => {
+          try {
+            await onPick(opt.key);
+          } finally {
+            closeStatusMenu();
+          }
+        });
+        menu.appendChild(item);
+      }
+
+      document.body.appendChild(menu);
+      openStatusMenuEl = menu;
+
+      const menuRect = menu.getBoundingClientRect();
+      let top = rect.bottom + 8;
+      let left = rect.right - menuRect.width;
+
+      const pad = 10;
+      if (left < pad) left = pad;
+      if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
+      if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
+
+      menu.style.top = `${top}px`;
+      menu.style.left = `${left}px`;
+
+      const onDoc = (e) => {
+        if (!openStatusMenuEl) return;
+        if (openStatusMenuEl.contains(e.target)) return;
+        if (anchorEl.contains(e.target)) return;
+        closeStatusMenu();
+      };
+      const onEsc = (e) => {
+        if (e.key === "Escape") closeStatusMenu();
+      };
+
+      document.addEventListener("mousedown", onDoc, true);
+      document.addEventListener("keydown", onEsc, true);
+      statusMenuCleanup = () => {
+        document.removeEventListener("mousedown", onDoc, true);
+        document.removeEventListener("keydown", onEsc, true);
+      };
+    }
+
+    let openAssigneeMenuEl = null;
+    let assigneeMenuCleanup = null;
+
+    function closeAssigneeMenu() {
+      if (openAssigneeMenuEl) openAssigneeMenuEl.remove();
+      openAssigneeMenuEl = null;
+      if (assigneeMenuCleanup) assigneeMenuCleanup();
+      assigneeMenuCleanup = null;
+    }
+
+    function openAssigneeMenu(anchorEl, { currentUserId, onPick }) {
+      closeAssigneeMenu();
+      if (!anchorEl) return;
+
+      const rect = anchorEl.getBoundingClientRect();
+      const menu = document.createElement("div");
+      menu.className = "tasks-status-menu";
+      menu.setAttribute("role", "menu");
+
+      // Unassigned
+      const none = document.createElement("button");
+      none.type = "button";
+      none.className = "tasks-status-item";
+      none.setAttribute("role", "menuitem");
+      none.innerHTML = `
+        <span class="tasks-status-dot" style="background:#e2e8f0;color:#334155;">–</span>
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
+          <span style="font-weight:600;color:#0f172a;">Unassigned</span>
+          ${currentUserId ? "" : `<span style="font-size:12px;color:#64748b;">Selected</span>`}
+        </div>
+      `;
+      none.addEventListener("click", async () => {
+        try {
+          await onPick(null);
+        } finally {
+          closeAssigneeMenu();
+        }
+      });
+      menu.appendChild(none);
+
+      for (const u of TEAM) {
+        const isSel = String(u.id) === String(currentUserId || "");
+        const item = document.createElement("button");
+        item.type = "button";
+        item.className = "tasks-status-item";
+        item.setAttribute("role", "menuitem");
+        item.innerHTML = `
+          <span class="tasks-status-dot" style="background:#f1f5f9;color:#0f172a;">👤</span>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
+            <div>
+              <div style="font-weight:600;color:#0f172a;">${esc(getDisplayName(u))}</div>
+              <div style="font-size:12px;color:#64748b;">${esc(u.role || "")}</div>
+            </div>
+            ${isSel ? `<span style="font-size:12px;color:#64748b;">Selected</span>` : ``}
+          </div>
+        `;
+        item.addEventListener("click", async () => {
+          try {
+            await onPick(u.id);
+          } finally {
+            closeAssigneeMenu();
+          }
+        });
+        menu.appendChild(item);
+      }
+
+      document.body.appendChild(menu);
+      openAssigneeMenuEl = menu;
+
+      const menuRect = menu.getBoundingClientRect();
+      let top = rect.bottom + 8;
+      let left = rect.right - menuRect.width;
+
+      const pad = 10;
+      if (left < pad) left = pad;
+      if (left + menuRect.width > window.innerWidth - pad) left = window.innerWidth - pad - menuRect.width;
+      if (top + menuRect.height > window.innerHeight - pad) top = rect.top - 8 - menuRect.height;
+
+      menu.style.top = `${top}px`;
+      menu.style.left = `${left}px`;
+
+      const onDoc = (e) => {
+        if (!openAssigneeMenuEl) return;
+        if (openAssigneeMenuEl.contains(e.target)) return;
+        if (anchorEl.contains(e.target)) return;
+        closeAssigneeMenu();
+      };
+      const onEsc = (e) => {
+        if (e.key === "Escape") closeAssigneeMenu();
+      };
+
+      document.addEventListener("mousedown", onDoc, true);
+      document.addEventListener("keydown", onEsc, true);
+      assigneeMenuCleanup = () => {
+        document.removeEventListener("mousedown", onDoc, true);
+        document.removeEventListener("keydown", onEsc, true);
+      };
+    }
+
+    // ----------------------------
+    // Render (matches screenshot layout)
     // ----------------------------
     function groupByStatus(items) {
       const g = {};
@@ -4251,68 +4329,23 @@ window.Tasks =
       return g;
     }
 
-    function pillHTML(text, extraClasses = "") {
-      return `
-        <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-800 text-xs font-semibold ${esc(
-          extraClasses
-        )}">
-          ${text}
-        </span>
-      `;
+    function resolveAssignee(task) {
+      // preferred: backend returns assigned_user {id, full_name...}
+      const obj = task.assigned_user || task.assignee || null;
+      if (obj && obj.id != null) return obj;
+
+      const id = task.assigned_user_id ?? task.assignee_id ?? null;
+      if (!id) return null;
+      return TEAM_BY_ID.get(String(id)) || { id, full_name: `User ${id}` };
     }
 
-    function openEditModal(task) {
-      const modal = $id("taskModal");
-      if (!modal) return;
-
-      modal.dataset.mode = "edit";
-      modal.dataset.taskId = String(task?.id ?? "");
-
-      // title
-      if ($id("taskTitle")) $id("taskTitle").value = task?.title || "";
-      // category
-      if ($id("taskCategory")) $id("taskCategory").value = task?.category || "Maintenance";
-      // due
-      if ($id("taskDueAt")) $id("taskDueAt").value = toDateInputValue(task?.due_at);
-      // status
-      if ($id("taskStatus")) $id("taskStatus").value = task?.status || "todo";
-      // description
-      if ($id("taskDescription")) $id("taskDescription").value = task?.description || "";
-
-      // assignee
-      populateAssigneeSelect($id("taskAssignee"));
-      const assignedId = task?.assigned_user_id ?? task?.assignee_id ?? "";
-      if ($id("taskAssignee")) $id("taskAssignee").value = assignedId ? String(assignedId) : "";
-
-      // UI labels
-      const h = modal.querySelector("h2");
-      if (h) h.textContent = "Edit Task";
-      if ($id("taskModalSave")) $id("taskModalSave").textContent = "Save";
-
-      modal.classList.remove("hidden");
-    }
-
-    function openCreateModal() {
-      const modal = $id("taskModal");
-      if (!modal) return;
-
-      modal.dataset.mode = "create";
-      delete modal.dataset.taskId;
-
-      if ($id("taskTitle")) $id("taskTitle").value = "";
-      if ($id("taskCategory")) $id("taskCategory").value = "Maintenance";
-      if ($id("taskDueAt")) $id("taskDueAt").value = "";
-      if ($id("taskStatus")) $id("taskStatus").value = "todo";
-      if ($id("taskDescription")) $id("taskDescription").value = "";
-
-      populateAssigneeSelect($id("taskAssignee"));
-      if ($id("taskAssignee")) $id("taskAssignee").value = "";
-
-      const h = modal.querySelector("h2");
-      if (h) h.textContent = "New Task";
-      if ($id("taskModalSave")) $id("taskModalSave").textContent = "Create";
-
-      modal.classList.remove("hidden");
+    function buildPill(text, extraClass = "") {
+      const s = document.createElement("span");
+      s.className =
+        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold " +
+        extraClass;
+      s.textContent = text;
+      return s;
     }
 
     function renderList(host, items, counts) {
@@ -4328,17 +4361,15 @@ window.Tasks =
         const sec = document.createElement("div");
         sec.className = "tasks-group";
 
-        // header
+        // Group header row (pill + count like screenshot)
         const head = document.createElement("div");
-        head.className = "tasks-group-head";
+        head.className = "tasks-group-head flex items-center justify-between";
 
         const left = document.createElement("div");
         left.className = "flex items-center gap-3";
 
         const pill = document.createElement("span");
-        pill.className = `tasks-group-pill ${
-          STATUS_PILL_CLASS[status] || "bg-slate-50 text-slate-700 border-slate-200"
-        }`;
+        pill.className = `tasks-group-pill ${STATUS_PILL_CLASS[status] || "bg-slate-50 text-slate-700 border-slate-200"}`;
         pill.textContent = STATUS_LABEL[status] || status;
 
         const cnt = counts && counts[status] ? counts[status] : rows.length;
@@ -4352,23 +4383,22 @@ window.Tasks =
         head.appendChild(left);
         sec.appendChild(head);
 
-        // columns (now includes Assignee + Edit at end)
+        // Table header (checkbox + Name + Due + Category + Assignee + actions)
         const cols = document.createElement("div");
-        cols.className = "mt-3 text-xs text-slate-500 px-4";
+        cols.className = "mt-3 text-xs text-slate-400 px-4";
         cols.innerHTML = `
-          <div class="grid grid-cols-12 gap-3">
+          <div class="grid grid-cols-12 gap-3 items-center">
             <div class="col-span-1"></div>
-            <div class="col-span-4">Name</div>
+            <div class="col-span-5">Name</div>
             <div class="col-span-2">Due date</div>
             <div class="col-span-2">Category</div>
-            <div class="col-span-2">Assignee</div>
-            <div class="col-span-1">Status</div>
-            <div class="col-span-0 sm:col-span-0 text-right"></div>
+            <div class="col-span-1">Assignee</div>
+            <div class="col-span-1 text-right">Actions</div>
           </div>
         `;
         sec.appendChild(cols);
 
-        if (rows.length === 0) {
+        if (!rows.length) {
           const empty = document.createElement("div");
           empty.className = "mt-3 text-sm text-slate-500 px-4";
           empty.textContent = "No tasks";
@@ -4382,14 +4412,11 @@ window.Tasks =
           row.className = "tasks-row";
 
           const grid = document.createElement("div");
-          grid.className = "tasks-row-grid";
-          // Your CSS likely already defines 12-col grid; we’re filling it with:
-          // cb(1) + name(4) + due(2) + cat(2) + assignee(2) + status(1) + edit(button floats right in status cell)
+          grid.className = "tasks-row-grid grid grid-cols-12 gap-3 items-center";
 
           // checkbox
           const cbWrap = document.createElement("div");
           cbWrap.className = "col-span-12 sm:col-span-1 flex items-center";
-
           const cb = document.createElement("input");
           cb.type = "checkbox";
           cb.className = "h-5 w-5 rounded border-slate-300";
@@ -4403,74 +4430,111 @@ window.Tasks =
 
           // name
           const name = document.createElement("div");
-          name.className = "col-span-12 sm:col-span-4";
+          name.className = "col-span-12 sm:col-span-5";
           name.innerHTML = `
             <div class="font-semibold text-slate-900">${esc(t.title)}</div>
             <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
           `;
 
-          // due (READ ONLY)
+          // due (display-only)
           const due = document.createElement("div");
           due.className = "col-span-12 sm:col-span-2 flex items-center";
-          {
-            const pretty = isoToPrettyDate(t.due_at);
-            due.innerHTML = pillHTML(pretty ? `📅 ${esc(pretty)}` : `📅 <span class="text-slate-500">No due</span>`);
-          }
+          const pretty = isoToPrettyDate(t.due_at);
+          const duePill = buildPill(pretty ? `📅 ${pretty}` : "📅 No due date", "bg-slate-50");
+          due.appendChild(duePill);
 
-          // category (READ ONLY)
+          // category (display-only)
           const cat = document.createElement("div");
           cat.className = "col-span-12 sm:col-span-2 flex items-center";
-          cat.innerHTML = `
-            <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-700 text-xs font-semibold">
-              ${esc(t.category || "Maintenance")}
-            </span>
-          `;
+          const catPill = buildPill(t.category || "Maintenance", "bg-slate-50");
+          cat.appendChild(catPill);
 
-          // assignee (READ ONLY)
+          // assignee (popover, but not “inline form”)
           const asg = document.createElement("div");
-          asg.className = "col-span-12 sm:col-span-2 flex items-center";
-          {
-            const nm = resolveAssigneeName(t);
-            asg.innerHTML = `
-              <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-semibold">
-                ${nm ? `👤 ${esc(nm)}` : `+ <span class="text-slate-600">Unassigned</span>`}
+          asg.className = "col-span-12 sm:col-span-1 flex items-center";
+          const assigneeObj = resolveAssignee(t);
+
+          const assigneeBtn = document.createElement("button");
+          assigneeBtn.type = "button";
+          assigneeBtn.className =
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-semibold hover:bg-slate-50";
+
+          if (assigneeObj) {
+            const nm = getDisplayName(assigneeObj);
+            assigneeBtn.innerHTML = `
+              <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
+                ${esc(initials(nm))}
               </span>
+              <span class="hidden lg:inline">${esc(nm)}</span>
+            `;
+          } else {
+            assigneeBtn.innerHTML = `
+              <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-slate-100 text-slate-700 text-[14px] font-bold">+</span>
+              <span class="hidden lg:inline text-slate-600">Unassigned</span>
             `;
           }
 
-          // status (READ ONLY) + Edit button (opens modal)
-          const st = document.createElement("div");
-          st.className = "col-span-12 sm:col-span-1 flex items-center justify-between gap-2";
-          {
-            const s = t.status || "todo";
-            st.innerHTML = `
-              <span class="inline-flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-semibold ${
-                STATUS_PILL_CLASS[s] || "bg-slate-50 text-slate-700 border-slate-200"
-              }">
-                ${esc(STATUS_LABEL[s] || "To-do")}
-              </span>
-            `;
-
-            const editBtn = document.createElement("button");
-            editBtn.type = "button";
-            editBtn.className =
-              "h-9 w-9 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 flex items-center justify-center";
-            editBtn.title = "Edit task";
-            editBtn.innerHTML = "✎";
-            editBtn.addEventListener("click", async () => {
+          assigneeBtn.addEventListener("click", async () => {
+            try {
               await ensureTeamLoaded();
-              openEditModal(t);
+              openAssigneeMenu(assigneeBtn, {
+                currentUserId: assigneeObj?.id || t.assigned_user_id || null,
+                onPick: async (userId) => {
+                  await apiUpdate(t.id, { assigned_user_id: userId ? Number(userId) : null });
+                  await refresh();
+                },
+              });
+            } catch (e) {
+              alert(e.message || e);
+            }
+          });
+
+          asg.appendChild(assigneeBtn);
+
+          // actions (Status pill + Edit button)
+          const actions = document.createElement("div");
+          actions.className = "col-span-12 sm:col-span-1 flex justify-end items-center gap-2";
+
+          const statusBtn = document.createElement("button");
+          statusBtn.type = "button";
+          statusBtn.className =
+            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-semibold hover:bg-slate-50";
+          statusBtn.innerHTML = `<span class="hidden md:inline">${esc(STATUS_LABEL[t.status] || STATUS_LABEL.todo)}</span><span class="md:hidden">⋯</span>`;
+          statusBtn.addEventListener("click", () => {
+            openStatusMenu(statusBtn, {
+              current: t.status || "todo",
+              onPick: async (next) => {
+                await apiUpdate(t.id, { status: next });
+                await refresh();
+              },
             });
+          });
 
-            st.appendChild(editBtn);
-          }
+          const editBtn = document.createElement("button");
+          editBtn.type = "button";
+          editBtn.className =
+            "h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50 inline-flex items-center justify-center";
+          editBtn.title = "Edit task";
+          editBtn.textContent = "✎";
+          editBtn.addEventListener("click", async () => {
+            try {
+              await ensureTeamLoaded();
+              openTaskModal({ mode: "edit", task: t });
+            } catch (e) {
+              alert(e.message || e);
+            }
+          });
 
+          actions.appendChild(statusBtn);
+          actions.appendChild(editBtn);
+
+          // assemble
           grid.appendChild(cbWrap);
           grid.appendChild(name);
           grid.appendChild(due);
           grid.appendChild(cat);
           grid.appendChild(asg);
-          grid.appendChild(st);
+          grid.appendChild(actions);
 
           row.appendChild(grid);
           sec.appendChild(row);
@@ -4478,6 +4542,40 @@ window.Tasks =
 
         host.appendChild(sec);
       }
+    }
+
+    // ----------------------------
+    // Modal (Create/Edit)
+    // ----------------------------
+    function openTaskModal({ mode, task } = {}) {
+      const modal = $id("taskModal");
+      if (!modal) return;
+
+      const isEdit = mode === "edit";
+      const titleEl = $id("taskModalTitle");
+      const saveBtn = $id("taskModalSave");
+
+      if (titleEl) titleEl.textContent = isEdit ? "Edit Task" : "New Task";
+      if (saveBtn) saveBtn.textContent = isEdit ? "Save" : "Create";
+
+      // fill fields
+      $id("taskId").value = isEdit ? String(task.id) : "";
+      $id("taskTitle").value = isEdit ? (task.title || "") : "";
+      $id("taskCategory").value = isEdit ? (task.category || "Maintenance") : "Maintenance";
+      $id("taskDueAt").value = isEdit ? toDateInputValue(task.due_at) : "";
+      $id("taskStatus").value = isEdit ? (task.status || "todo") : "todo";
+      $id("taskDescription").value = isEdit ? (task.description || "") : "";
+
+      const assigneeId = task?.assigned_user_id ?? task?.assignee_id ?? "";
+      if ($id("taskAssignee")) $id("taskAssignee").value = assigneeId ? String(assigneeId) : "";
+
+      modal.classList.remove("hidden");
+    }
+
+    function closeTaskModal() {
+      const modal = $id("taskModal");
+      if (!modal) return;
+      modal.classList.add("hidden");
     }
 
     // ----------------------------
@@ -4514,47 +4612,45 @@ window.Tasks =
 
       if (!modal || !close || !cancel || !save) return;
 
-      const hide = () => modal.classList.add("hidden");
-
-      // open create
-      if (openBtn) {
-        openBtn.addEventListener("click", async () => {
+      openBtn?.addEventListener("click", async () => {
+        try {
           await ensureTeamLoaded();
-          openCreateModal();
-        });
-      }
+          openTaskModal({ mode: "create" });
+        } catch (e) {
+          alert(e.message || e);
+        }
+      });
 
-      close.addEventListener("click", hide);
-      cancel.addEventListener("click", hide);
+      close.addEventListener("click", closeTaskModal);
+      cancel.addEventListener("click", closeTaskModal);
 
       modal.addEventListener("click", (e) => {
-        if (e.target === modal || e.target.classList.contains("bg-black/40")) hide();
+        if (e.target === modal || e.target.classList.contains("bg-black/40")) closeTaskModal();
       });
 
       save.addEventListener("click", async () => {
         try {
-          const mode = modal.dataset.mode || "create";
-          const taskId = modal.dataset.taskId || "";
+          const id = ($id("taskId").value || "").trim();
+          const isEdit = !!id;
 
-          const title = ($id("taskTitle")?.value || "").trim();
-          const category = $id("taskCategory")?.value || "Maintenance";
-          const due = ($id("taskDueAt")?.value || "").trim() || null;
-          const status = $id("taskStatus")?.value || "todo";
-          const description = ($id("taskDescription")?.value || "").trim() || null;
+          const title = ($id("taskTitle").value || "").trim();
+          const category = $id("taskCategory").value || "Maintenance";
+          const due_at = ($id("taskDueAt").value || "").trim() || null;
+          const status = $id("taskStatus").value || "todo";
+          const description = ($id("taskDescription").value || "").trim() || null;
 
-          const assigneeIdRaw = ($id("taskAssignee")?.value || "").trim();
-          const assigned_user_id = assigneeIdRaw ? Number(assigneeIdRaw) : null;
+          const assigneeRaw = ($id("taskAssignee").value || "").trim();
+          const assigned_user_id = assigneeRaw ? Number(assigneeRaw) : null;
 
           if (!title) return alert("Title required");
 
-          if (mode === "edit") {
-            if (!taskId) throw new Error("Missing task id for edit");
-            await apiUpdate(taskId, { title, category, due_at: due, status, description, assigned_user_id });
+          if (isEdit) {
+            await apiUpdate(id, { title, category, due_at, status, description, assigned_user_id });
           } else {
-            await apiCreate({ title, category, due_at: due, status, description, assigned_user_id });
+            await apiCreate({ title, category, due_at, status, description, assigned_user_id });
           }
 
-          hide();
+          closeTaskModal();
           await refresh();
         } catch (e) {
           alert(e.message || e);
@@ -4567,49 +4663,42 @@ window.Tasks =
       const btnStatus = $id("btnBatchStatus");
       const btnDelete = $id("btnBatchDelete");
 
-      if (btnDone) {
-        btnDone.addEventListener("click", async () => {
-          try {
-            await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
+      btnDone?.addEventListener("click", async () => {
+        try {
+          await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
+          selected.clear();
+          setBatchBar();
+          await refresh();
+        } catch (e) {
+          alert(e.message || e);
+        }
+      });
+
+      btnStatus?.addEventListener("click", () => {
+        if (!selected.size) return;
+        openStatusMenu(btnStatus, {
+          current: null,
+          onPick: async (next) => {
+            await apiBatch("status", { task_ids: Array.from(selected), status: next });
             selected.clear();
             setBatchBar();
             await refresh();
-          } catch (e) {
-            alert(e.message || e);
-          }
+          },
         });
-      }
+      });
 
-      if (btnStatus) {
-        btnStatus.addEventListener("click", () => {
-          if (!selected.size) return;
-
-          openStatusMenu(btnStatus, {
-            current: null,
-            onPick: async (next) => {
-              await apiBatch("status", { task_ids: Array.from(selected), status: next });
-              selected.clear();
-              setBatchBar();
-              await refresh();
-            },
-          });
-        });
-      }
-
-      if (btnDelete) {
-        btnDelete.addEventListener("click", async () => {
-          if (!selected.size) return;
-          if (!confirm("Delete selected tasks?")) return;
-          try {
-            await apiBatch("delete", { task_ids: Array.from(selected) });
-            selected.clear();
-            setBatchBar();
-            await refresh();
-          } catch (e) {
-            alert(e.message || e);
-          }
-        });
-      }
+      btnDelete?.addEventListener("click", async () => {
+        if (!selected.size) return;
+        if (!confirm("Delete selected tasks?")) return;
+        try {
+          await apiBatch("delete", { task_ids: Array.from(selected) });
+          selected.clear();
+          setBatchBar();
+          await refresh();
+        } catch (e) {
+          alert(e.message || e);
+        }
+      });
     }
 
     // ----------------------------
@@ -4630,6 +4719,9 @@ window.Tasks =
       host.innerHTML = `<div class="text-sm text-slate-500 py-6">Loading…</div>`;
 
       try {
+        // load team first so assignee mapping works immediately
+        await ensureTeamLoaded();
+
         const data = await apiList({ q, status: st });
         renderList(host, data.items || [], data.counts || {});
       } catch (e) {
@@ -4642,7 +4734,7 @@ window.Tasks =
     // ----------------------------
     // Init
     // ----------------------------
-    async function init() {
+    function init() {
       const view = document.getElementById("view-tasks");
       if (!view || view.__tasksInit) return;
       view.__tasksInit = true;
@@ -4651,12 +4743,7 @@ window.Tasks =
       wireSearch();
       wireModal();
       wireBatch();
-
-      // Load team for this PMC (for create/edit modal + assignee names)
-      await ensureTeamLoaded();
-
-      // initial list render
-      await refresh();
+      refresh();
     }
 
     return { init, refresh };
