@@ -643,11 +643,6 @@ window.closeInlineConfig = function () {
 
 
 
-// ----------------------------
-// END OF CONFIG PARTIAL (CLEAN)
-// ----------------------------
-
-  
 
 // ----------------------------
 // API route helper (from bootstrap)
@@ -4864,3 +4859,86 @@ document.addEventListener("click", (e) => {
     window.Tasks.init();
   }
 });
+
+
+// ----------------------------
+// STATUS ICONS
+// ----------------------------
+
+  function statusIconSVG(status) {
+  switch ((status || "").toLowerCase()) {
+    case "todo":
+      // gray ring
+      return `
+        <span class="status-ico" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="#9CA3AF" stroke-width="2"/>
+          </svg>
+        </span>`;
+
+    case "in_progress":
+      // blue ring + dot
+      return `
+        <span class="status-ico" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="#3B82F6" stroke-width="2"/>
+            <circle cx="8" cy="8" r="2.2" fill="#3B82F6"/>
+          </svg>
+        </span>`;
+
+    case "waiting":
+      // purple ring + dot
+      return `
+        <span class="status-ico" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="#8B5CF6" stroke-width="2"/>
+            <circle cx="8" cy="8" r="2.2" fill="#8B5CF6"/>
+          </svg>
+        </span>`;
+
+    case "in_review":
+      // amber ring + dot
+      return `
+        <span class="status-ico" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" stroke="#F59E0B" stroke-width="2"/>
+            <circle cx="8" cy="8" r="2.2" fill="#F59E0B"/>
+          </svg>
+        </span>`;
+
+    case "canceled":
+      // gray circle + X
+      return `
+        <span class="status-ico" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" fill="#9CA3AF"/>
+            <path d="M5.6 5.6 L10.4 10.4 M10.4 5.6 L5.6 10.4"
+              stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </span>`;
+
+    case "completed":
+      // green circle + check
+      return `
+        <span class="status-ico" aria-hidden="true">
+          <svg viewBox="0 0 16 16" fill="none">
+            <circle cx="8" cy="8" r="6" fill="#10B981"/>
+            <path d="M5.2 8.3 L7.1 10.2 L11 6.3"
+              stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </span>`;
+
+    default:
+      return "";
+  }
+}
+
+function renderStatusOption(status, label) {
+  return `
+    <div class="status-option" data-status="${status}">
+      ${statusIconSVG(status)}
+      <span>${label}</span>
+    </div>
+  `;
+}
+
