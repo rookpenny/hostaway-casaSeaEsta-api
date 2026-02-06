@@ -4816,56 +4816,35 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadChatAnalytics(days);
     resizeChatAnalyticsChartSoon();
   }
-
-  // 8) IMPORTANT: init Tasks on page load if Tasks view is active/visible
-  const viewParam = new URLSearchParams(window.location.search).get("view");
-  if (viewParam === "tasks") {
-    window.Tasks?.init?.();
-  } else {
-    // fallback: if tasks section is currently visible (server-side initial_view, etc.)
-    const tasksView = document.getElementById("view-tasks");
-    const isVisible =
-      tasksView &&
-      !tasksView.classList.contains("hidden") &&
-      tasksView.style.display !== "none";
-    if (isVisible) window.Tasks?.init?.();
-  }
+ // applyChatsFilters();
 });
 
-// ------------------------------
-// View switching (keeps Tasks init when clicking Tasks)
-// ------------------------------
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-view-btn]");
+  const btn = e.target.closest(".nav-item[data-view]");
   if (!btn) return;
 
-  const view = btn.getAttribute("data-view-btn");
+  const view = btn.getAttribute("data-view");
   if (!view) return;
 
-  // 1) update URL query param without full reload
+  // update URL param
   const url = new URL(window.location.href);
   url.searchParams.set("view", view);
   url.searchParams.delete("session_id");
   window.history.pushState({}, "", url.toString());
 
-  // 2) hide all views, show selected
-  document.querySelectorAll("section.view").forEach((el) => {
-    el.style.display = "none";
-  });
+  // hide all views using Tailwind hidden
+  document.querySelectorAll("section.view").forEach((el) => el.classList.add("hidden"));
 
+  // show selected
   const target = document.getElementById(`view-${view}`);
-  if (target) target.style.display = "";
+  if (target) target.classList.remove("hidden");
 
-  // 3) optional: update active styling
+  // nav active UI (optional)
   document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
   btn.classList.add("active");
 
-  // 4) init tasks module if present
-  if (view === "tasks" && window.Tasks?.init) {
+  // init tasks when entering tasks view
+  if (view === "tasks" && window.Tasks && typeof window.Tasks.init === "function") {
     window.Tasks.init();
   }
 });
-
-
-
-
