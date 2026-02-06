@@ -135,6 +135,16 @@ window.initConfigUI = function initConfigUI(hostEl) {
   let dirty = false;
   let saving = false;
   let editingRaw = false;
+  // State
+let selected = new Set();
+let activeTab = "all";
+let TEAM = [];
+const TEAM_BY_ID = new Map();
+// Categories (synced from /admin/api/tasks)
+let CATEGORIES = [];
+
+
+  
 
   function ensureShape() {
     cfg.assistant = cfg.assistant || {};
@@ -4001,6 +4011,9 @@ window.Tasks =
     let TEAM = [];
     const TEAM_BY_ID = new Map();
 
+    // Categories (synced from /admin/api/tasks)
+    let CATEGORIES = [];
+
     // Utils
     const $id = (id) => document.getElementById(id);
     const qsa = (parent, sel) => Array.from(parent.querySelectorAll(sel));
@@ -4050,8 +4063,8 @@ window.Tasks =
     function statusIconHTML(statusKey) {
       const s = (statusKey || "todo").toLowerCase();
 
-      // ring-only + dot statuses should already be styled via tasks-status-dot CSS classes
-      if (s === "todo") return `<span class="tasks-status-dot is-todo" style="width:12px;height:12px;border-width:2px;"></span>`;
+      if (s === "todo")
+        return `<span class="tasks-status-dot is-todo" style="width:12px;height:12px;border-width:2px;"></span>`;
       if (s === "in_progress")
         return `<span class="tasks-status-dot is-in_progress" style="width:12px;height:12px;border-width:2px;"></span>`;
       if (s === "waiting")
@@ -4178,6 +4191,51 @@ window.Tasks =
         selectEl.appendChild(opt);
       }
       if (current) selectEl.value = current;
+    }
+
+    // ----------------------------
+    // Categories (sync modal list with page list)
+    // ----------------------------
+    function uniq(arr) {
+      return Array.from(new Set((arr || []).map((x) => String(x || "").trim()).filter(Boolean)));
+    }
+
+    function extractCategoriesFromTasksData(data) {
+      // Preferred: backend returns a categories list
+      if (Array.isArray(data?.categories) && data.categories.length) {
+        const raw = data.categories
+          .map((c) => (typeof c === "string" ? c : c?.name))
+          .filter(Boolean);
+        return uniq(raw);
+      }
+
+      // Fallback: derive from tasks list
+      return uniq((data?.items || []).map((t) => t.category).filter(Boolean));
+    }
+
+    function populateCategorySelect(selectEl) {
+      if (!selectEl) return;
+
+      const current = selectEl.value;
+      const cats = CATEGORIES.length ? CATEGORIES : ["Maintenance"];
+
+      selectEl.innerHTML = "";
+      for (const c of cats) {
+        const opt = document.createElement("option");
+        opt.value = c;
+        opt.textContent = c;
+        selectEl.appendChild(opt);
+      }
+
+      if (current && cats.includes(current)) selectEl.value = current;
+      else selectEl.value = cats[0] || "Maintenance";
+    }
+
+    async function ensureCategoriesLoaded() {
+      if (CATEGORIES.length) return;
+      const data = await apiList({});
+      CATEGORIES = extractCategoriesFromTasksData(data);
+      populateCategorySelect($id("taskCategory"));
     }
 
     // ----------------------------
@@ -4402,10 +4460,7 @@ window.Tasks =
           const due = document.createElement("div");
           due.className = "col-span-12 sm:col-span-2 flex items-center";
           const pretty = isoToPrettyDate(t.due_at);
-          due.innerHTML = cellInlineHTML(
-            `<span aria-hidden="true">📅</span>`,
-            esc(pretty || "No due date")
-          );
+          due.innerHTML = cellInlineHTML(`<span aria-hidden="true">📅</span>`, esc(pretty || "No due date"));
 
           // category (NO pill/border) + icon
           const cat = document.createElement("div");
@@ -4450,7 +4505,7 @@ window.Tasks =
           editBtn.addEventListener("click", async () => {
             try {
               await ensureTeamLoaded();
-              openTaskModal({ mode: "edit", task: t });
+              await openTaskModal({ mode: "edit", task: t });
             } catch (e) {
               alert(e.message || e);
             }
@@ -4478,9 +4533,13 @@ window.Tasks =
     // ----------------------------
     // Modal (Create/Edit)
     // ----------------------------
-    function openTaskModal({ mode, task } = {}) {
+    async function openTaskModal({ mode, task } = {}) {
       const modal = $id("taskModal");
       if (!modal) return;
+
+      // ensure category options match page list
+      await ensureCategoriesLoaded();
+      populateCategorySelect($id("taskCategory"));
 
       const isEdit = mode === "edit";
       const titleEl = $id("taskModalTitle");
@@ -4491,10 +4550,20 @@ window.Tasks =
 
       $id("taskId").value = isEdit ? String(task.id) : "";
       $id("taskTitle").value = isEdit ? (task.title || "") : "";
-      $id("taskCategory").value = isEdit ? (task.category || "Maintenance") : "Maintenance";
       $id("taskDueAt").value = isEdit ? toDateInputValue(task.due_at) : "";
       $id("taskStatus").value = isEdit ? (task.status || "todo") : "todo";
       $id("taskDescription").value = isEdit ? (task.description || "") : "";
+
+      // set category safely from populated options
+      const catEl = $id("taskCategory");
+      const desiredCat = isEdit ? (task?.category || "") : "";
+      if (catEl) {
+        if (desiredCat && Array.from(catEl.options).some((o) => o.value === desiredCat)) {
+          catEl.value = desiredCat;
+        } else {
+          catEl.value = catEl.options[0]?.value || "Maintenance";
+        }
+      }
 
       const assigneeId = task?.assigned_user_id ?? task?.assignee_id ?? "";
       if ($id("taskAssignee")) $id("taskAssignee").value = assigneeId ? String(assigneeId) : "";
@@ -4545,7 +4614,7 @@ window.Tasks =
       openBtn?.addEventListener("click", async () => {
         try {
           await ensureTeamLoaded();
-          openTaskModal({ mode: "create" });
+          await openTaskModal({ mode: "create" });
         } catch (e) {
           alert(e.message || e);
         }
@@ -4652,6 +4721,11 @@ window.Tasks =
       try {
         await ensureTeamLoaded();
         const data = await apiList({ q, status: st });
+
+        // keep categories synced from same payload the page uses
+        CATEGORIES = extractCategoriesFromTasksData(data);
+        populateCategorySelect($id("taskCategory"));
+
         renderList(host, data.items || [], data.counts || {});
       } catch (e) {
         host.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">${esc(
@@ -4793,3 +4867,4 @@ document.addEventListener("click", (e) => {
     window.Tasks.init();
   }
 });
+
