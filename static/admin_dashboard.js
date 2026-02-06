@@ -3961,7 +3961,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 
 // ----------------------------
-// TASKS MODULE (UI-matching + clean)
+// TASKS MODULE (clean + status icons + stable routing hook)
 // ----------------------------
 window.Tasks =
   window.Tasks ||
@@ -3977,15 +3977,6 @@ window.Tasks =
       completed: "Completed",
     };
 
-    const STATUS_MENU = [
-      { key: "todo", label: "To-do", dotClass: "is-todo", glyph: "" },
-      { key: "in_progress", label: "In Progress", dotClass: "is-in_progress", glyph: "" },
-      { key: "waiting", label: "Waiting", dotClass: "is-waiting", glyph: "" },
-      { key: "in_review", label: "In Review", dotClass: "is-in_review", glyph: "" },
-      { key: "canceled", label: "Canceled", dotClass: "is-canceled", glyph: "×" },
-      { key: "completed", label: "Completed", dotClass: "is-completed", glyph: "✓" },
-    ];
-
     const STATUS_PILL_CLASS = {
       in_review: "bg-amber-50 text-amber-700 border-amber-200",
       in_progress: "bg-sky-50 text-sky-700 border-sky-200",
@@ -3995,8 +3986,17 @@ window.Tasks =
       canceled: "bg-rose-50 text-rose-700 border-rose-200",
     };
 
+    const STATUS_MENU = [
+      { key: "todo", label: STATUS_LABEL.todo },
+      { key: "in_progress", label: STATUS_LABEL.in_progress },
+      { key: "waiting", label: STATUS_LABEL.waiting },
+      { key: "in_review", label: STATUS_LABEL.in_review },
+      { key: "canceled", label: STATUS_LABEL.canceled },
+      { key: "completed", label: STATUS_LABEL.completed },
+    ];
+
     // State
-    let selected = new Set();
+    let selected = new Set(); // store STRING ids
     let activeTab = "all";
     let TEAM = []; // loaded from /admin/api/team-members
     const TEAM_BY_ID = new Map();
@@ -4042,6 +4042,45 @@ window.Tasks =
       const a = parts[0]?.[0] || "";
       const b = parts.length > 1 ? parts[parts.length - 1][0] : "";
       return (a + b).toUpperCase();
+    }
+
+    function tidOf(task) {
+      return String(task?.id ?? "");
+    }
+
+    // ----------------------------
+    // Status dot renderer (single source of truth)
+    // ----------------------------
+    function statusDotHTML(statusKey, { size = 18, border = 2 } = {}) {
+      const cls =
+        statusKey === "in_progress"
+          ? "is-in_progress"
+          : statusKey === "in_review"
+          ? "is-in_review"
+          : statusKey === "waiting"
+          ? "is-waiting"
+          : statusKey === "completed"
+          ? "is-completed"
+          : statusKey === "canceled"
+          ? "is-canceled"
+          : "is-todo";
+
+      const innerSize = Math.max(10, size - 8);
+
+      const inner =
+        statusKey === "canceled"
+          ? `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true" style="width:${innerSize}px;height:${innerSize}px;display:block;">
+               <path d="M5.2 5.2 L10.8 10.8 M10.8 5.2 L5.2 10.8"
+                     stroke="white" stroke-width="2" stroke-linecap="round"/>
+             </svg>`
+          : statusKey === "completed"
+          ? `<svg viewBox="0 0 16 16" fill="none" aria-hidden="true" style="width:${innerSize}px;height:${innerSize}px;display:block;">
+               <path d="M4.4 8.2 L6.9 10.7 L11.8 5.8"
+                     stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+             </svg>`
+          : "";
+
+      return `<span class="tasks-status-dot ${cls}" style="width:${size}px;height:${size}px;border-width:${border}px;">${inner}</span>`;
     }
 
     // ----------------------------
@@ -4106,8 +4145,6 @@ window.Tasks =
       TEAM = await apiTeamMembers();
       TEAM_BY_ID.clear();
       for (const u of TEAM) TEAM_BY_ID.set(String(u.id), u);
-
-      // populate modal select
       populateAssigneeSelect($id("taskAssignee"));
     }
 
@@ -4137,7 +4174,7 @@ window.Tasks =
     }
 
     // ----------------------------
-    // Popovers (Status + Assignee)
+    // Popover: Status menu
     // ----------------------------
     let openStatusMenuEl = null;
     let statusMenuCleanup = null;
@@ -4163,13 +4200,15 @@ window.Tasks =
         item.type = "button";
         item.className = "tasks-status-item";
         item.setAttribute("role", "menuitem");
+
         item.innerHTML = `
-          <span class="tasks-status-dot ${opt.dotClass}">${esc(opt.glyph || "")}</span>
+          ${statusDotHTML(opt.key, { size: 18 })}
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
             <span style="font-weight:600;color:#0f172a;">${esc(opt.label)}</span>
             ${opt.key === current ? `<span style="font-size:12px;color:#64748b;">Selected</span>` : ``}
           </div>
         `;
+
         item.addEventListener("click", async () => {
           try {
             await onPick(opt.key);
@@ -4177,6 +4216,7 @@ window.Tasks =
             closeStatusMenu();
           }
         });
+
         menu.appendChild(item);
       }
 
@@ -4213,6 +4253,9 @@ window.Tasks =
       };
     }
 
+    // ----------------------------
+    // Popover: Assignee menu
+    // ----------------------------
     let openAssigneeMenuEl = null;
     let assigneeMenuCleanup = null;
 
@@ -4238,7 +4281,7 @@ window.Tasks =
       none.className = "tasks-status-item";
       none.setAttribute("role", "menuitem");
       none.innerHTML = `
-        <span class="tasks-status-dot" style="background:#e2e8f0;color:#334155;">–</span>
+        <span class="tasks-status-dot" style="background:#e2e8f0;color:#334155;width:18px;height:18px;border-width:2px;">–</span>
         <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
           <span style="font-weight:600;color:#0f172a;">Unassigned</span>
           ${currentUserId ? "" : `<span style="font-size:12px;color:#64748b;">Selected</span>`}
@@ -4260,7 +4303,7 @@ window.Tasks =
         item.className = "tasks-status-item";
         item.setAttribute("role", "menuitem");
         item.innerHTML = `
-          <span class="tasks-status-dot" style="background:#f1f5f9;color:#0f172a;">👤</span>
+          <span class="tasks-status-dot" style="background:#f1f5f9;color:#0f172a;width:18px;height:18px;border-width:2px;">👤</span>
           <div style="display:flex;align-items:center;justify-content:space-between;gap:10px;width:100%;">
             <div>
               <div style="font-weight:600;color:#0f172a;">${esc(getDisplayName(u))}</div>
@@ -4313,7 +4356,7 @@ window.Tasks =
     }
 
     // ----------------------------
-    // Render (matches screenshot layout)
+    // Render
     // ----------------------------
     function groupByStatus(items) {
       const g = {};
@@ -4325,7 +4368,6 @@ window.Tasks =
     }
 
     function resolveAssignee(task) {
-      // preferred: backend returns assigned_user {id, full_name...}
       const obj = task.assigned_user || task.assignee || null;
       if (obj && obj.id != null) return obj;
 
@@ -4350,13 +4392,11 @@ window.Tasks =
       for (const status of STATUS_ORDER) {
         const rows = grouped[status] || [];
 
-        // hide empty groups except completed/canceled
         if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
 
         const sec = document.createElement("div");
         sec.className = "tasks-group";
 
-        // Group header row (pill + count like screenshot)
         const head = document.createElement("div");
         head.className = "tasks-group-head flex items-center justify-between";
 
@@ -4378,7 +4418,6 @@ window.Tasks =
         head.appendChild(left);
         sec.appendChild(head);
 
-        // Table header (checkbox + Name + Due + Category + Assignee + actions)
         const cols = document.createElement("div");
         cols.className = "mt-3 text-xs text-slate-400 px-4";
         cols.innerHTML = `
@@ -4403,6 +4442,8 @@ window.Tasks =
         }
 
         for (const t of rows) {
+          const tid = tidOf(t);
+
           const row = document.createElement("div");
           row.className = "tasks-row";
 
@@ -4415,10 +4456,10 @@ window.Tasks =
           const cb = document.createElement("input");
           cb.type = "checkbox";
           cb.className = "h-5 w-5 rounded border-slate-300";
-          cb.checked = selected.has(t.id);
+          cb.checked = selected.has(tid);
           cb.addEventListener("change", () => {
-            if (cb.checked) selected.add(t.id);
-            else selected.delete(t.id);
+            if (cb.checked) selected.add(tid);
+            else selected.delete(tid);
             setBatchBar();
           });
           cbWrap.appendChild(cb);
@@ -4431,20 +4472,18 @@ window.Tasks =
             <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
           `;
 
-          // due (display-only)
+          // due
           const due = document.createElement("div");
           due.className = "col-span-12 sm:col-span-2 flex items-center";
           const pretty = isoToPrettyDate(t.due_at);
-          const duePill = buildPill(pretty ? `📅 ${pretty}` : "📅 No due date", "bg-slate-50");
-          due.appendChild(duePill);
+          due.appendChild(buildPill(pretty ? `📅 ${pretty}` : "📅 No due date", "bg-slate-50"));
 
-          // category (display-only)
+          // category
           const cat = document.createElement("div");
           cat.className = "col-span-12 sm:col-span-2 flex items-center";
-          const catPill = buildPill(t.category || "Maintenance", "bg-slate-50");
-          cat.appendChild(catPill);
+          cat.appendChild(buildPill(t.category || "Maintenance", "bg-slate-50"));
 
-          // assignee (popover, but not “inline form”)
+          // assignee
           const asg = document.createElement("div");
           asg.className = "col-span-12 sm:col-span-1 flex items-center";
           const assigneeObj = resolveAssignee(t);
@@ -4475,7 +4514,7 @@ window.Tasks =
               openAssigneeMenu(assigneeBtn, {
                 currentUserId: assigneeObj?.id || t.assigned_user_id || null,
                 onPick: async (userId) => {
-                  await apiUpdate(t.id, { assigned_user_id: userId ? Number(userId) : null });
+                  await apiUpdate(tid, { assigned_user_id: userId ? Number(userId) : null });
                   await refresh();
                 },
               });
@@ -4486,7 +4525,7 @@ window.Tasks =
 
           asg.appendChild(assigneeBtn);
 
-          // actions (Status pill + Edit button)
+          // actions
           const actions = document.createElement("div");
           actions.className = "col-span-12 sm:col-span-1 flex justify-end items-center gap-2";
 
@@ -4494,12 +4533,21 @@ window.Tasks =
           statusBtn.type = "button";
           statusBtn.className =
             "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-900 text-xs font-semibold hover:bg-slate-50";
-          statusBtn.innerHTML = `<span class="hidden md:inline">${esc(STATUS_LABEL[t.status] || STATUS_LABEL.todo)}</span><span class="md:hidden">⋯</span>`;
+
+          const statusKey = t.status || "todo";
+          const statusLabel = STATUS_LABEL[statusKey] || STATUS_LABEL.todo;
+
+          statusBtn.innerHTML = `
+            ${statusDotHTML(statusKey, { size: 12 })}
+            <span class="hidden md:inline">${esc(statusLabel)}</span>
+            <span class="md:hidden">⋯</span>
+          `;
+
           statusBtn.addEventListener("click", () => {
             openStatusMenu(statusBtn, {
-              current: t.status || "todo",
+              current: statusKey,
               onPick: async (next) => {
-                await apiUpdate(t.id, { status: next });
+                await apiUpdate(tid, { status: next });
                 await refresh();
               },
             });
@@ -4523,7 +4571,6 @@ window.Tasks =
           actions.appendChild(statusBtn);
           actions.appendChild(editBtn);
 
-          // assemble
           grid.appendChild(cbWrap);
           grid.appendChild(name);
           grid.appendChild(due);
@@ -4553,13 +4600,12 @@ window.Tasks =
       if (titleEl) titleEl.textContent = isEdit ? "Edit Task" : "New Task";
       if (saveBtn) saveBtn.textContent = isEdit ? "Save" : "Create";
 
-      // fill fields
       $id("taskId").value = isEdit ? String(task.id) : "";
-      $id("taskTitle").value = isEdit ? (task.title || "") : "";
-      $id("taskCategory").value = isEdit ? (task.category || "Maintenance") : "Maintenance";
+      $id("taskTitle").value = isEdit ? task.title || "" : "";
+      $id("taskCategory").value = isEdit ? task.category || "Maintenance" : "Maintenance";
       $id("taskDueAt").value = isEdit ? toDateInputValue(task.due_at) : "";
-      $id("taskStatus").value = isEdit ? (task.status || "todo") : "todo";
-      $id("taskDescription").value = isEdit ? (task.description || "") : "";
+      $id("taskStatus").value = isEdit ? task.status || "todo" : "todo";
+      $id("taskDescription").value = isEdit ? task.description || "" : "";
 
       const assigneeId = task?.assigned_user_id ?? task?.assignee_id ?? "";
       if ($id("taskAssignee")) $id("taskAssignee").value = assigneeId ? String(assigneeId) : "";
@@ -4660,7 +4706,7 @@ window.Tasks =
 
       btnDone?.addEventListener("click", async () => {
         try {
-          await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
+          await apiBatch("status", { task_ids: Array.from(selected).map(Number), status: "completed" });
           selected.clear();
           setBatchBar();
           await refresh();
@@ -4674,7 +4720,7 @@ window.Tasks =
         openStatusMenu(btnStatus, {
           current: null,
           onPick: async (next) => {
-            await apiBatch("status", { task_ids: Array.from(selected), status: next });
+            await apiBatch("status", { task_ids: Array.from(selected).map(Number), status: next });
             selected.clear();
             setBatchBar();
             await refresh();
@@ -4686,7 +4732,7 @@ window.Tasks =
         if (!selected.size) return;
         if (!confirm("Delete selected tasks?")) return;
         try {
-          await apiBatch("delete", { task_ids: Array.from(selected) });
+          await apiBatch("delete", { task_ids: Array.from(selected).map(Number) });
           selected.clear();
           setBatchBar();
           await refresh();
@@ -4714,9 +4760,7 @@ window.Tasks =
       host.innerHTML = `<div class="text-sm text-slate-500 py-6">Loading…</div>`;
 
       try {
-        // load team first so assignee mapping works immediately
         await ensureTeamLoaded();
-
         const data = await apiList({ q, status: st });
         renderList(host, data.items || [], data.counts || {});
       } catch (e) {
@@ -4745,200 +4789,48 @@ window.Tasks =
   })();
 
 
-
 // ------------------------------
-// DOM ready (single, clean)
+// DOM ready: init Tasks if tasks view visible
 // ------------------------------
-document.addEventListener("DOMContentLoaded", async () => {
-  // 1) Core shell
-  initSidebar();
-  initRouting();
-
-  window.Messages?.refreshUnreadBadge?.();
-  window.rerenderAllMoodBadges?.();
-  window.applyMoodConfidenceHints?.(document);
-
-  // 2) Property filters
-  document.getElementById("searchInput")?.addEventListener("input", filterProperties);
-  document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
-
-  // 3) Guides / Upgrades dropdowns
-  document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
-  document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
-    Upgrades.closeEditor();
-    Upgrades.refresh();
-  });
-
-  // 4) Overview chart init (after DOM exists)
-  const statusCanvas = document.getElementById("statusChart");
-  if (statusCanvas && window.Chart) {
-    statusChartInstance = new Chart(statusCanvas, {
-      type: "bar",
-      data: {
-        labels: ["LIVE", "OFFLINE"],
-        datasets: [
-          {
-            label: "Properties",
-            data: [Number(BOOT.live_props || 0), Number(BOOT.offline_props || 0)],
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
-      },
-    });
-  }
-
-  // 5) Render overview counters immediately
-  updateOverviewUI();
-
-  // 6) If URL has session_id, open inline chat detail
-  const params = new URLSearchParams(window.location.search);
-  const sid = params.get("session_id");
-  if (sid) {
-    setInlineDetailOpen(true);
-    await loadChatDetail(sid);
-  } else {
-    setInlineDetailOpen(false);
-  }
-
-  // 7) (Optional) If analytics view is currently visible on load, render it once
-  if (typeof isAnalyticsVisible === "function" && isAnalyticsVisible()) {
-    const days = document.getElementById("analyticsRange")?.value || 30;
-    loadChatAnalytics(days);
-    resizeChatAnalyticsChartSoon();
-  }
-
-  // 8) IMPORTANT: init Tasks on page load if Tasks view is active/visible
+document.addEventListener("DOMContentLoaded", () => {
   const viewParam = new URLSearchParams(window.location.search).get("view");
   if (viewParam === "tasks") {
     window.Tasks?.init?.();
-  } else {
-    // fallback: if tasks section is currently visible (server-side initial_view, etc.)
-    const tasksView = document.getElementById("view-tasks");
-    const isVisible =
-      tasksView &&
-      !tasksView.classList.contains("hidden") &&
-      tasksView.style.display !== "none";
-    if (isVisible) window.Tasks?.init?.();
+    return;
   }
+
+  const tasksView = document.getElementById("view-tasks");
+  const isVisible =
+    tasksView &&
+    !tasksView.classList.contains("hidden") &&
+    tasksView.style.display !== "none";
+  if (isVisible) window.Tasks?.init?.();
 });
 
+
 // ------------------------------
-// View switching (keeps Tasks init when clicking Tasks)
+// View switching: works with HTML buttons using data-view="tasks"
+// (If you already have routing elsewhere, you can delete this block.)
 // ------------------------------
 document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-view-btn]");
+  const btn = e.target.closest("[data-view]");
   if (!btn) return;
 
-  const view = btn.getAttribute("data-view-btn");
+  const view = btn.getAttribute("data-view");
   if (!view) return;
 
-  // 1) update URL query param without full reload
   const url = new URL(window.location.href);
   url.searchParams.set("view", view);
   url.searchParams.delete("session_id");
   window.history.pushState({}, "", url.toString());
 
-  // 2) hide all views, show selected
-  document.querySelectorAll("section.view").forEach((el) => {
-    el.style.display = "none";
-  });
-
+  document.querySelectorAll("section.view").forEach((el) => el.classList.add("hidden"));
   const target = document.getElementById(`view-${view}`);
-  if (target) target.style.display = "";
+  if (target) target.classList.remove("hidden");
 
-  // 3) optional: update active styling
   document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
   btn.classList.add("active");
 
-  // 4) init tasks module if present
-  if (view === "tasks" && window.Tasks?.init) {
-    window.Tasks.init();
-  }
+  if (view === "tasks") window.Tasks?.init?.();
 });
-
-
-// ----------------------------
-// STATUS ICONS
-// ----------------------------
-
-  function statusIconSVG(status) {
-  switch ((status || "").toLowerCase()) {
-    case "todo":
-      // gray ring
-      return `
-        <span class="status-ico" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="#9CA3AF" stroke-width="2"/>
-          </svg>
-        </span>`;
-
-    case "in_progress":
-      // blue ring + dot
-      return `
-        <span class="status-ico" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="#3B82F6" stroke-width="2"/>
-            <circle cx="8" cy="8" r="2.2" fill="#3B82F6"/>
-          </svg>
-        </span>`;
-
-    case "waiting":
-      // purple ring + dot
-      return `
-        <span class="status-ico" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="#8B5CF6" stroke-width="2"/>
-            <circle cx="8" cy="8" r="2.2" fill="#8B5CF6"/>
-          </svg>
-        </span>`;
-
-    case "in_review":
-      // amber ring + dot
-      return `
-        <span class="status-ico" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" stroke="#F59E0B" stroke-width="2"/>
-            <circle cx="8" cy="8" r="2.2" fill="#F59E0B"/>
-          </svg>
-        </span>`;
-
-    case "canceled":
-      // gray circle + X
-      return `
-        <span class="status-ico" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" fill="#9CA3AF"/>
-            <path d="M5.6 5.6 L10.4 10.4 M10.4 5.6 L5.6 10.4"
-              stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
-          </svg>
-        </span>`;
-
-    case "completed":
-      // green circle + check
-      return `
-        <span class="status-ico" aria-hidden="true">
-          <svg viewBox="0 0 16 16" fill="none">
-            <circle cx="8" cy="8" r="6" fill="#10B981"/>
-            <path d="M5.2 8.3 L7.1 10.2 L11 6.3"
-              stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-        </span>`;
-
-    default:
-      return "";
-  }
-}
-
-function renderStatusOption(status, label) {
-  return `
-    <div class="status-option" data-status="${status}">
-      ${statusIconSVG(status)}
-      <span>${label}</span>
-    </div>
-  `;
-}
 
