@@ -4132,30 +4132,7 @@ def delete_pmc(pmc_id: int, request: Request, db: Session = Depends(get_db)):
         db.rollback()
         return JSONResponse(status_code=500, content={"error": str(e)})
 
-'''
-@router.post("/admin/update-properties")
-def update_properties(request: Request, payload: list[dict] = Body(...), db: Session = Depends(get_db)):
-    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
-    require_pmc_linked(user_role, pmc_obj)
 
-    try:
-        for item in payload:
-            prop_id = int(item["id"])
-            prop = db.query(Property).filter(Property.id == prop_id).first()
-            if not prop:
-                continue
-
-            if user_role == "pmc" and prop.pmc_id != pmc_obj.id:
-                raise HTTPException(status_code=403, detail="Forbidden property update")
-
-            prop.sandy_enabled = bool(item.get("sandy_enabled", False))
-
-        db.commit()
-        return {"success": True}
-    except Exception as e:
-        db.rollback()
-        return JSONResponse(status_code=500, content={"error": str(e)})
-'''
 
 def require_login(request: Request):
     if not request.session.get("user"):
@@ -4238,8 +4215,11 @@ TASK_UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 ALLOWED_TASK_STATUSES = {"todo", "in_progress", "waiting", "in_review", "canceled", "completed"}
 
+
 def _now():
+    # keep naive UTC to match the rest of your codebase
     return datetime.utcnow()
+
 
 def _parse_iso_dt(v):
     if not v:
@@ -4251,6 +4231,48 @@ def _parse_iso_dt(v):
         return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
     except Exception:
         return None
+
+
+def _extract_assignee_id(payload: dict):
+    """
+    Accept multiple frontend payload shapes:
+      - assigned_user_id
+      - assignedUserId
+      - assignee_id
+      - assigned_to_user_id
+      - assigned_to
+      - assigned_user: {id: ...}
+    Return:
+      - int user_id if assigned
+      - 0 if explicitly unassigned (key present but empty)
+      - None if no assignment change requested
+    """
+    keys = ("assigned_user_id", "assignedUserId", "assignee_id", "assigned_to_user_id", "assigned_to")
+    touched = any(k in payload for k in keys) or ("assigned_user" in payload)
+
+    for k in keys:
+        v = payload.get(k, None)
+        if v not in (None, "", 0, "0"):
+            try:
+                return int(v)
+            except Exception:
+                pass
+
+    au = payload.get("assigned_user")
+    if isinstance(au, dict):
+        v = au.get("id")
+        if v not in (None, "", 0, "0"):
+            try:
+                return int(v)
+            except Exception:
+                pass
+
+    # if any assignment key was provided but empty -> unassign
+    if touched:
+        return 0
+
+    return None
+
 
 def _task_to_row(db: Session, t: Task) -> dict:
     prop_name = None
@@ -4265,6 +4287,8 @@ def _task_to_row(db: Session, t: Task) -> dict:
         .all()
     )
 
+    primary = assignees[0] if assignees else None
+
     return {
         "id": t.id,
         "title": t.title,
@@ -4275,31 +4299,48 @@ def _task_to_row(db: Session, t: Task) -> dict:
         "due_at": t.due_at.isoformat() if t.due_at else None,
         "property_id": t.property_id,
         "property_name": prop_name,
+
+        # existing list (keep)
         "assignees": [{"id": a.id, "name": a.full_name, "email": a.email} for a in assignees],
+
+        # ✅ UI-friendly single assignee fields (what makes “Assign” stick)
+        "assigned_user_id": int(primary.id) if primary else None,
+        "assigned_user": (
+            {"id": int(primary.id), "full_name": primary.full_name, "email": primary.email}
+            if primary else None
+        ),
+
         "created_at": t.created_at.isoformat() if t.created_at else None,
         "updated_at": t.updated_at.isoformat() if t.updated_at else None,
     }
 
+
 def _log_activity(db: Session, task_id: int, actor_user_id: int | None, event_type: str, meta: dict | None = None):
-    db.add(TaskActivity(
-        task_id=task_id,
-        actor_user_id=actor_user_id,
-        event_type=event_type,
-        meta=meta or {},
-        created_at=_now(),
-    ))
+    db.add(
+        TaskActivity(
+            task_id=task_id,
+            actor_user_id=actor_user_id,
+            event_type=event_type,
+            meta=meta or {},
+            created_at=_now(),
+        )
+    )
+
 
 def _notify(db: Session, pmc_id: int, user_id: int | None, ntype: str, title: str, body: str | None = None, meta: dict | None = None):
-    db.add(Notification(
-        pmc_id=pmc_id,
-        user_id=user_id,
-        type=ntype,
-        title=title,
-        body=body,
-        meta=meta or {},
-        is_read=False,
-        created_at=_now(),
-    ))
+    db.add(
+        Notification(
+            pmc_id=pmc_id,
+            user_id=user_id,
+            type=ntype,
+            title=title,
+            body=body,
+            meta=meta or {},
+            is_read=False,
+            created_at=_now(),
+        )
+    )
+
 
 def _apply_auto_assignment(db: Session, pmc_id: int, task: Task):
     rules = (
@@ -4309,6 +4350,7 @@ def _apply_auto_assignment(db: Session, pmc_id: int, task: Task):
         .all()
     )
     hay = f"{task.title or ''}\n{task.description or ''}".lower()
+
     for r in rules:
         if r.property_id and r.property_id != task.property_id:
             continue
@@ -4319,12 +4361,17 @@ def _apply_auto_assignment(db: Session, pmc_id: int, task: Task):
         if r.keyword and r.keyword.lower() not in hay:
             continue
 
-        exists = db.query(TaskAssignee).filter(TaskAssignee.task_id == task.id, TaskAssignee.user_id == r.assign_to_user_id).first()
+        exists = (
+            db.query(TaskAssignee)
+            .filter(TaskAssignee.task_id == task.id, TaskAssignee.user_id == r.assign_to_user_id)
+            .first()
+        )
         if not exists:
             db.add(TaskAssignee(task_id=task.id, user_id=r.assign_to_user_id, assigned_at=_now()))
             _log_activity(db, task.id, None, "assigned", {"user_id": r.assign_to_user_id, "by": "auto_rule"})
             _notify(db, pmc_id, r.assign_to_user_id, "task_assigned", "New task assigned", task.title, {"task_id": task.id})
         break
+
 
 def _rrule_next_run(rrule: str, from_dt: datetime | None = None) -> datetime | None:
     """
@@ -4345,14 +4392,12 @@ def _rrule_next_run(rrule: str, from_dt: datetime | None = None) -> datetime | N
         return base + timedelta(days=interval)
 
     if freq == "WEEKLY":
-        # if BYDAY missing -> just + interval weeks
         byday = parts.get("BYDAY")
         if not byday:
             return base + timedelta(weeks=interval)
 
-        # move forward day by day until we hit allowed weekday
         allowed = set(byday.split(","))
-        map_wd = {0:"MO",1:"TU",2:"WE",3:"TH",4:"FR",5:"SA",6:"SU"}
+        map_wd = {0: "MO", 1: "TU", 2: "WE", 3: "TH", 4: "FR", 5: "SA", 6: "SU"}
         dt = base + timedelta(days=1)
         for _ in range(14 * interval + 14):
             if map_wd[dt.weekday()] in allowed:
@@ -4361,10 +4406,10 @@ def _rrule_next_run(rrule: str, from_dt: datetime | None = None) -> datetime | N
         return base + timedelta(weeks=interval)
 
     if freq == "MONTHLY":
-        # simplest: add 30*interval days (good enough for MVP)
         return base + timedelta(days=30 * interval)
 
     return None
+
 
 # -------------------
 # Tasks CRUD
@@ -4388,14 +4433,66 @@ def list_tasks(request: Request, db: Session = Depends(get_db), q: str | None = 
     tasks = qry.order_by(Task.updated_at.desc(), Task.id.desc()).limit(500).all()
     items = [_task_to_row(db, t) for t in tasks]
 
-    counts = dict(
+    counts_raw = dict(
         db.query(Task.status, func.count(Task.id))
         .filter(Task.pmc_id == pmc_obj.id)
         .group_by(Task.status)
         .all()
     )
+    # include zeros for UI
+    counts = {s: int(counts_raw.get(s, 0)) for s in sorted(ALLOWED_TASK_STATUSES)}
 
-    return {"items": items, "counts": counts}
+    return {"ok": True, "items": items, "counts": counts}
+
+
+@router.post("/admin/api/tasks")
+async def create_task(request: Request, db: Session = Depends(get_db)):
+    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
+    if user_role != "pmc" or not pmc_obj:
+        raise HTTPException(status_code=403)
+
+    payload = await request.json()
+    actor_id = getattr(pmc_user, "id", None)
+
+    title = (payload.get("title") or "").strip()
+    if not title:
+        return JSONResponse({"ok": False, "error": "Missing title"}, status_code=400)
+
+    t = Task(
+        pmc_id=pmc_obj.id,
+        property_id=payload.get("property_id"),
+        title=title,
+        description=(payload.get("description") or "").strip() or None,
+        category=(payload.get("category") or "Maintenance").strip(),
+        status=(payload.get("status") or "todo").strip(),
+        priority=(payload.get("priority") or None),
+        due_at=_parse_iso_dt(payload.get("due_at")),
+        source_type=(payload.get("source_type") or "manual").strip(),
+        source_id=(payload.get("source_id") or None),
+        created_by_user_id=actor_id,
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    if t.status not in ALLOWED_TASK_STATUSES:
+        t.status = "todo"
+
+    db.add(t)
+    db.flush()
+
+    _log_activity(db, t.id, actor_id, "created", {})
+
+    # ✅ save assignee if provided
+    uid = _extract_assignee_id(payload)
+    if uid and uid > 0:
+        db.add(TaskAssignee(task_id=t.id, user_id=uid, assigned_at=_now(), assigned_by_user_id=actor_id))
+        _log_activity(db, t.id, actor_id, "assigned", {"user_id": uid, "by": "manual"})
+
+    # ✅ apply auto rules (won’t overwrite manual assignment, because it checks exists)
+    _apply_auto_assignment(db, pmc_obj.id, t)
+
+    db.commit()
+    db.refresh(t)
+    return {"ok": True, "item": _task_to_row(db, t)}
 
 
 @router.get("/admin/api/tasks/{task_id}")
@@ -4415,7 +4512,12 @@ def task_detail(task_id: int, request: Request, db: Session = Depends(get_db)):
         .order_by(TaskComment.created_at.asc())
         .all()
     )
-    attachments = db.query(TaskAttachment).filter(TaskAttachment.task_id == t.id).order_by(TaskAttachment.created_at.desc()).all()
+    attachments = (
+        db.query(TaskAttachment)
+        .filter(TaskAttachment.task_id == t.id)
+        .order_by(TaskAttachment.created_at.desc())
+        .all()
+    )
     activity = (
         db.query(TaskActivity, PMCUser.full_name)
         .outerjoin(PMCUser, PMCUser.id == TaskActivity.actor_user_id)
@@ -4426,11 +4528,22 @@ def task_detail(task_id: int, request: Request, db: Session = Depends(get_db)):
     )
 
     return {
+        "ok": True,
         "item": _task_to_row(db, t),
-        "comments": [{"id": c.id, "body": c.body, "created_at": c.created_at.isoformat(), "user_name": name} for (c, name) in comments],
-        "attachments": [{"id": a.id, "file_url": a.file_url, "file_type": a.file_type, "created_at": a.created_at.isoformat()} for a in attachments],
-        "activity": [{"id": ev.id, "event_type": ev.event_type, "meta": ev.meta or {}, "created_at": ev.created_at.isoformat(), "actor_name": name} for (ev, name) in activity],
+        "comments": [
+            {"id": c.id, "body": c.body, "created_at": c.created_at.isoformat(), "user_name": name}
+            for (c, name) in comments
+        ],
+        "attachments": [
+            {"id": a.id, "file_url": a.file_url, "file_type": a.file_type, "created_at": a.created_at.isoformat()}
+            for a in attachments
+        ],
+        "activity": [
+            {"id": ev.id, "event_type": ev.event_type, "meta": ev.meta or {}, "created_at": ev.created_at.isoformat(), "actor_name": name}
+            for (ev, name) in activity
+        ],
     }
+
 
 @router.patch("/admin/api/tasks/{task_id}")
 async def update_task(task_id: int, request: Request, db: Session = Depends(get_db)):
@@ -4445,6 +4558,19 @@ async def update_task(task_id: int, request: Request, db: Session = Depends(get_
     payload = await request.json()
     actor_id = getattr(pmc_user, "id", None)
 
+    # ✅ assignment update
+    uid = _extract_assignee_id(payload)
+    if uid is not None:
+        # clear existing assignees
+        db.query(TaskAssignee).filter(TaskAssignee.task_id == t.id).delete(synchronize_session=False)
+
+        if uid > 0:
+            db.add(TaskAssignee(task_id=t.id, user_id=uid, assigned_at=_now(), assigned_by_user_id=actor_id))
+            _log_activity(db, t.id, actor_id, "assigned", {"user_id": uid, "by": "manual"})
+            _notify(db, pmc_obj.id, uid, "task_assigned", "Task assigned", t.title, {"task_id": t.id})
+        else:
+            _log_activity(db, t.id, actor_id, "unassigned", {"by": "manual"})
+
     if "status" in payload:
         new_status = (payload.get("status") or "").strip()
         if new_status not in ALLOWED_TASK_STATUSES:
@@ -4453,7 +4579,7 @@ async def update_task(task_id: int, request: Request, db: Session = Depends(get_
             old = t.status
             t.status = new_status
             now = _now()
-            if new_status == "in_progress" and not t.started_at:
+            if new_status == "in_progress" and not getattr(t, "started_at", None):
                 t.started_at = now
             if new_status == "in_review":
                 t.submitted_for_review_at = now
@@ -4473,9 +4599,14 @@ async def update_task(task_id: int, request: Request, db: Session = Depends(get_
         if k in payload:
             setattr(t, k, payload.get(k))
 
+    # keep updated_at fresh if your model has it
+    if hasattr(t, "updated_at"):
+        t.updated_at = _now()
+
     db.commit()
     db.refresh(t)
     return {"ok": True, "item": _task_to_row(db, t)}
+
 
 @router.post("/admin/api/tasks/batch")
 async def batch_tasks(request: Request, db: Session = Depends(get_db)):
@@ -4502,6 +4633,8 @@ async def batch_tasks(request: Request, db: Session = Depends(get_db)):
                 old = t.status
                 t.status = new_status
                 _log_activity(db, t.id, actor_id, "status_changed", {"from": old, "to": new_status})
+                if hasattr(t, "updated_at"):
+                    t.updated_at = _now()
         db.commit()
         return {"ok": True, "updated": len(tasks)}
 
@@ -4513,6 +4646,7 @@ async def batch_tasks(request: Request, db: Session = Depends(get_db)):
         return {"ok": True, "deleted": len(tasks)}
 
     return JSONResponse({"ok": False, "error": "Unknown action"}, status_code=400)
+
 
 @router.post("/admin/api/tasks/{task_id}/comments")
 async def add_comment(task_id: int, request: Request, db: Session = Depends(get_db)):
@@ -4534,6 +4668,7 @@ async def add_comment(task_id: int, request: Request, db: Session = Depends(get_
     db.commit()
     return {"ok": True}
 
+
 @router.post("/admin/api/tasks/{task_id}/attachments")
 async def upload_attachment(
     task_id: int,
@@ -4551,7 +4686,7 @@ async def upload_attachment(
         raise HTTPException(status_code=404)
 
     ext = os.path.splitext(file.filename or "")[1].lower()
-    if ext not in {".jpg",".jpeg",".png",".webp",".gif",".mp4",".mov",".webm"}:
+    if ext not in {".jpg", ".jpeg", ".png", ".webp", ".gif", ".mp4", ".mov", ".webm"}:
         return JSONResponse({"ok": False, "error": "Unsupported file type"}, status_code=400)
 
     pmc_dir = TASK_UPLOAD_DIR / str(pmc_obj.id)
@@ -4565,20 +4700,23 @@ async def upload_attachment(
 
     url = f"/static/uploads/tasks/{pmc_obj.id}/{name}"
     mime = file.content_type or None
-    ftype = "video" if (mime or "").startswith("video/") or ext in {".mp4",".mov",".webm"} else "photo"
+    ftype = "video" if (mime or "").startswith("video/") or ext in {".mp4", ".mov", ".webm"} else "photo"
 
-    db.add(TaskAttachment(
-        task_id=t.id,
-        uploaded_by_user_id=getattr(pmc_user, "id", None),
-        file_url=url,
-        file_type=ftype,
-        mime_type=mime,
-        captured_at=_parse_iso_dt(captured_at),
-        created_at=_now(),
-    ))
+    db.add(
+        TaskAttachment(
+            task_id=t.id,
+            uploaded_by_user_id=getattr(pmc_user, "id", None),
+            file_url=url,
+            file_type=ftype,
+            mime_type=mime,
+            captured_at=_parse_iso_dt(captured_at),
+            created_at=_now(),
+        )
+    )
     _log_activity(db, t.id, getattr(pmc_user, "id", None), "attachment_added", {"file_url": url, "file_type": ftype})
     db.commit()
     return {"ok": True, "file_url": url}
+
 
 # -------------------
 # Recurring Templates
@@ -4590,8 +4728,14 @@ def list_recurring(request: Request, db: Session = Depends(get_db)):
     if user_role != "pmc" or not pmc_obj:
         raise HTTPException(status_code=403)
 
-    rows = db.query(RecurringTaskTemplate).filter(RecurringTaskTemplate.pmc_id == pmc_obj.id).order_by(RecurringTaskTemplate.id.desc()).all()
+    rows = (
+        db.query(RecurringTaskTemplate)
+        .filter(RecurringTaskTemplate.pmc_id == pmc_obj.id)
+        .order_by(RecurringTaskTemplate.id.desc())
+        .all()
+    )
     return {
+        "ok": True,
         "items": [
             {
                 "id": r.id,
@@ -4602,8 +4746,9 @@ def list_recurring(request: Request, db: Session = Depends(get_db)):
                 "is_active": r.is_active,
             }
             for r in rows
-        ]
+        ],
     }
+
 
 @router.post("/admin/api/recurring_tasks")
 async def create_recurring(request: Request, db: Session = Depends(get_db)):
@@ -4633,18 +4778,23 @@ async def create_recurring(request: Request, db: Session = Depends(get_db)):
     db.commit()
     return {"ok": True}
 
+
 @router.patch("/admin/api/recurring_tasks/{rid}")
 async def update_recurring(rid: int, request: Request, db: Session = Depends(get_db)):
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     if user_role != "pmc" or not pmc_obj:
         raise HTTPException(status_code=403)
 
-    r = db.query(RecurringTaskTemplate).filter(RecurringTaskTemplate.id == rid, RecurringTaskTemplate.pmc_id == pmc_obj.id).first()
+    r = (
+        db.query(RecurringTaskTemplate)
+        .filter(RecurringTaskTemplate.id == rid, RecurringTaskTemplate.pmc_id == pmc_obj.id)
+        .first()
+    )
     if not r:
         raise HTTPException(status_code=404)
 
     payload = await request.json()
-    for k in ("title","description","category","rrule","is_active","property_id"):
+    for k in ("title", "description", "category", "rrule", "is_active", "property_id"):
         if k in payload:
             setattr(r, k, payload.get(k))
 
@@ -4654,6 +4804,7 @@ async def update_recurring(rid: int, request: Request, db: Session = Depends(get
 
     db.commit()
     return {"ok": True}
+
 
 @router.post("/admin/api/recurring_tasks/run")
 def run_recurring_now(request: Request, db: Session = Depends(get_db)):
@@ -4681,6 +4832,8 @@ def run_recurring_now(request: Request, db: Session = Depends(get_db)):
                 source_type="system",
                 source_id=f"recurring:{tpl.id}",
                 created_by_user_id=getattr(pmc_user, "id", None),
+                created_at=_now(),
+                updated_at=_now(),
             )
             db.add(t)
             db.flush()
@@ -4690,6 +4843,7 @@ def run_recurring_now(request: Request, db: Session = Depends(get_db)):
             created += 1
     db.commit()
     return {"ok": True, "created": created}
+
 
 # -------------------
 # Auto-assignment rules
@@ -4701,8 +4855,14 @@ def list_rules(request: Request, db: Session = Depends(get_db)):
     if user_role != "pmc" or not pmc_obj:
         raise HTTPException(status_code=403)
 
-    rows = db.query(TaskAssignmentRule).filter(TaskAssignmentRule.pmc_id == pmc_obj.id).order_by(TaskAssignmentRule.id.desc()).all()
+    rows = (
+        db.query(TaskAssignmentRule)
+        .filter(TaskAssignmentRule.pmc_id == pmc_obj.id)
+        .order_by(TaskAssignmentRule.id.desc())
+        .all()
+    )
     return {
+        "ok": True,
         "items": [
             {
                 "id": r.id,
@@ -4714,8 +4874,9 @@ def list_rules(request: Request, db: Session = Depends(get_db)):
                 "enabled": r.enabled,
             }
             for r in rows
-        ]
+        ],
     }
+
 
 @router.post("/admin/api/task_assignment_rules")
 async def create_rule(request: Request, db: Session = Depends(get_db)):
@@ -4742,23 +4903,29 @@ async def create_rule(request: Request, db: Session = Depends(get_db)):
     db.commit()
     return {"ok": True}
 
+
 @router.patch("/admin/api/task_assignment_rules/{rid}")
 async def update_rule(rid: int, request: Request, db: Session = Depends(get_db)):
     user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
     if user_role != "pmc" or not pmc_obj:
         raise HTTPException(status_code=403)
 
-    r = db.query(TaskAssignmentRule).filter(TaskAssignmentRule.id == rid, TaskAssignmentRule.pmc_id == pmc_obj.id).first()
+    r = (
+        db.query(TaskAssignmentRule)
+        .filter(TaskAssignmentRule.id == rid, TaskAssignmentRule.pmc_id == pmc_obj.id)
+        .first()
+    )
     if not r:
         raise HTTPException(status_code=404)
 
     payload = await request.json()
-    for k in ("property_id","category","source_type","keyword","assign_to_user_id","enabled"):
+    for k in ("property_id", "category", "source_type", "keyword", "assign_to_user_id", "enabled"):
         if k in payload:
             setattr(r, k, payload.get(k))
 
     db.commit()
     return {"ok": True}
+
 
 # -------------------
 # Notifications
@@ -4778,9 +4945,15 @@ def list_notifications(request: Request, db: Session = Depends(get_db)):
         .all()
     )
 
-    unread = db.query(func.count(Notification.id)).filter(Notification.pmc_id == pmc_obj.id, Notification.is_read == False).scalar() or 0
+    unread = (
+        db.query(func.count(Notification.id))
+        .filter(Notification.pmc_id == pmc_obj.id, Notification.is_read == False)
+        .scalar()
+        or 0
+    )
 
     return {
+        "ok": True,
         "unread": unread,
         "items": [
             {
@@ -4793,8 +4966,9 @@ def list_notifications(request: Request, db: Session = Depends(get_db)):
                 "created_at": n.created_at.isoformat() if n.created_at else None,
             }
             for n in rows
-        ]
+        ],
     }
+
 
 @router.post("/admin/api/notifications/{nid}/read")
 def mark_read(nid: int, request: Request, db: Session = Depends(get_db)):
