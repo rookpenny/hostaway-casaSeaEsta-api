@@ -1595,7 +1595,7 @@ async def update_task(task_id: int, request: Request, db: Session = Depends(get_
     payload = await request.json()
     actor_id = getattr(pmc_user, "id", None)
 
-    +  # ✅ UI: set/clear single assignee
+    # ✅ UI: set/clear single assignee
     if "assigned_user_id" in payload:
         new_uid = payload.get("assigned_user_id", None)
         # clear all current assignees
