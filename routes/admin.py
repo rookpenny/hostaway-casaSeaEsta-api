@@ -2666,12 +2666,21 @@ def assign_chat(
 
 
 @router.get("/admin/api/team-members")
-def team_members(user=Depends(require_user), db=Depends(get_db)):
-    # you probably already know the user's pmc_id
-    rows = db.query(PMCUser).filter(
-        PMCUser.pmc_id == user.pmc_id,
-        PMCUser.is_active == True
-    ).order_by(PMCUser.full_name.asc()).all()
+def team_members(request: Request, db: Session = Depends(get_db)):
+    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
+
+    if user_role != "pmc" or not pmc_obj:
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    rows = (
+        db.query(PMCUser)
+        .filter(
+            PMCUser.pmc_id == pmc_obj.id,
+            PMCUser.is_active == True,
+        )
+        .order_by(PMCUser.full_name.asc())
+        .all()
+    )
 
     return {
         "ok": True,
@@ -2681,9 +2690,11 @@ def team_members(user=Depends(require_user), db=Depends(get_db)):
                 "full_name": r.full_name,
                 "email": r.email,
                 "role": r.role,
-            } for r in rows
-        ]
+            }
+            for r in rows
+        ],
     }
+
 
 
 @router.post("/admin/chats/{session_id}/note")
