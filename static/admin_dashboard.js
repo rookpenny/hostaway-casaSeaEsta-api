@@ -4816,57 +4816,64 @@ document.addEventListener("DOMContentLoaded", async () => {
     resizeChatAnalyticsChartSoon();
   }
 
-  // 8) init Tasks on page load if Tasks view is active/visible
-  const viewParam = new URLSearchParams(window.location.search).get("view");
+  // 8) Ensure correct view on load (URL param wins)
+  const viewParam = new URLSearchParams(window.location.search).get("view") || "overview";
+  document.querySelectorAll("section.view").forEach((el) => el.classList.add("hidden"));
+  document.getElementById(`view-${viewParam}`)?.classList.remove("hidden");
+
+  // Init tasks if landing on tasks
   if (viewParam === "tasks") {
     window.Tasks?.init?.();
     window.Tasks?.refresh?.();
-  } else {
-    const tasksView = document.getElementById("view-tasks");
-    const isVisible =
-      tasksView &&
-      !tasksView.classList.contains("hidden") &&
-      tasksView.style.display !== "none";
-    if (isVisible) {
-      window.Tasks?.init?.();
-      window.Tasks?.refresh?.();
-    }
   }
 });
 
 // ------------------------------
-// View switching (keeps Tasks init + ALWAYS refresh on click)
+// View switching (matches HTML: data-view)
+// Uses "hidden" class (matches template)
+// Keeps Tasks init + ALWAYS refresh
 // ------------------------------
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest("[data-view-btn]");
-  if (!btn) return;
-
-  const view = btn.getAttribute("data-view-btn");
+function showDashboardView(view) {
   if (!view) return;
 
-  // 1) update URL query param without full reload
+  // Update URL query param without full reload
   const url = new URL(window.location.href);
   url.searchParams.set("view", view);
   url.searchParams.delete("session_id");
   window.history.pushState({}, "", url.toString());
 
-  // 2) hide all views, show selected
-  document.querySelectorAll("section.view").forEach((el) => {
-    el.style.display = "none";
-  });
+  // Hide all views
+  document.querySelectorAll("section.view").forEach((el) => el.classList.add("hidden"));
 
-  const target = document.getElementById(`view-${view}`);
-  if (target) target.style.display = "";
+  // Show selected view
+  document.getElementById(`view-${view}`)?.classList.remove("hidden");
 
-  // 3) optional: update active styling
+  // Update nav active styling
   document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
-  btn.classList.add("active");
+  const activeBtn = document.querySelector(`.nav-item[data-view="${CSS.escape(view)}"]`);
+  if (activeBtn) activeBtn.classList.add("active");
 
-  // 4) ✅ init once, refresh always
-  if (view === "tasks" && window.Tasks) {
-    window.Tasks.init?.();
-    window.Tasks.refresh?.();
+  // Tasks: init once, refresh always
+  if (view === "tasks") {
+    window.Tasks?.init?.();
+    window.Tasks?.refresh?.();
   }
+}
+
+// Click handler for sidebar nav (your HTML uses: .nav-item[data-view])
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest(".nav-item[data-view]");
+  if (!btn) return;
+
+  const view = btn.getAttribute("data-view");
+  if (!view) return;
+
+  showDashboardView(view);
 });
 
+// Handle browser back/forward
+window.addEventListener("popstate", () => {
+  const view = new URLSearchParams(window.location.search).get("view") || "overview";
+  showDashboardView(view);
+});
 
