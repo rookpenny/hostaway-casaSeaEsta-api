@@ -4107,6 +4107,23 @@ window.Tasks =
       Inspection: "🔍",
     };
 
+    // Master defaults (always available even if no tasks yet)
+    const DEFAULT_CATEGORIES = [
+      "Maintenance",
+      "Safety",
+      "Cleaning",
+      "Operations",
+      "Repairs",
+      "Supplies",
+      "Admin",
+      "Inspection",
+    ];
+    
+    // Merge helper that NEVER shrinks categories
+    function setCategories(nextCats) {
+      CATEGORIES = uniq([...(CATEGORIES || []), ...(nextCats || []), ...DEFAULT_CATEGORIES]);
+    }
+
     function categoryIconHTML(category) {
       const key = String(category || "").trim();
       const ico = CATEGORY_ICON[key] || "🏷️";
@@ -4208,30 +4225,35 @@ window.Tasks =
       return uniq((data?.items || []).map((t) => t.category).filter(Boolean));
     }
 
-    function populateCategorySelect(selectEl) {
-      if (!selectEl) return;
+   function populateCategorySelect(selectEl) {
+  if (!selectEl) return;
 
-      const current = selectEl.value;
-      const cats = CATEGORIES.length ? CATEGORIES : ["Maintenance"];
+  const current = selectEl.value;
+  const cats = uniq([...(CATEGORIES || []), ...DEFAULT_CATEGORIES]);
 
-      selectEl.innerHTML = "";
-      for (const c of cats) {
-        const opt = document.createElement("option");
-        opt.value = c;
-        opt.textContent = c;
-        selectEl.appendChild(opt);
-      }
+  selectEl.innerHTML = "";
+  for (const c of cats) {
+    const opt = document.createElement("option");
+    opt.value = c;
+    opt.textContent = c;
+    selectEl.appendChild(opt);
+  }
 
-      if (current && cats.includes(current)) selectEl.value = current;
-      else selectEl.value = cats[0] || "Maintenance";
-    }
+  // restore selection if still valid
+  if (current && cats.includes(current)) selectEl.value = current;
+  else selectEl.value = cats[0] || "Maintenance";
+}
 
-    async function ensureCategoriesLoaded() {
-      if (CATEGORIES.length) return;
-      const data = await apiList({});
-      CATEGORIES = extractCategoriesFromTasksData(data);
-      populateCategorySelect($id("taskCategory"));
-    }
+
+  async function ensureCategoriesLoaded() {
+  if (CATEGORIES.length) return;
+
+  const data = await apiList({}); // unfiltered list
+  const next = extractCategoriesFromTasksData(data);
+  setCategories(next);
+  populateCategorySelect($id("taskCategory"));
+}
+
 
     // ----------------------------
     // Batch bar
@@ -4720,8 +4742,12 @@ window.Tasks =
         await ensureTeamLoaded();
         const data = await apiList({ q, status: st });
 
-        CATEGORIES = extractCategoriesFromTasksData(data);
-        populateCategorySelect($id("taskCategory"));
+        // If backend provides a categories list, merge it.
+// If not, DO NOT shrink categories from filtered results — only merge.
+const nextCats = extractCategoriesFromTasksData(data);
+setCategories(nextCats);
+populateCategorySelect($id("taskCategory"));
+
 
         renderList(host, data.items || [], data.counts || {});
       } catch (e) {
