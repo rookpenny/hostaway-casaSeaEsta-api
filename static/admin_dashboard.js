@@ -4799,5 +4799,3 @@ document.addEventListener("click", (e) => {
     window.Tasks.init();
   }
 });
-
-
