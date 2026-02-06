@@ -3986,7 +3986,6 @@ window.Tasks =
       completed: "Completed",
     };
 
-    // If you still use batch status change, keep this menu.
     const STATUS_MENU = [
       { key: "todo", label: "To-do", dotClass: "is-todo", glyph: "" },
       { key: "in_progress", label: "In Progress", dotClass: "is-in_progress", glyph: "" },
@@ -4006,7 +4005,7 @@ window.Tasks =
     };
 
     // State
-    let selected = new Set();
+    let selected = new Set(); // ALWAYS store string IDs
     let activeTab = "all";
     let TEAM = [];
     const TEAM_BY_ID = new Map();
@@ -4097,7 +4096,6 @@ window.Tasks =
       return `<span class="tasks-status-dot is-todo" style="width:12px;height:12px;border-width:2px;"></span>`;
     }
 
-    // Customize these however you want
     const CATEGORY_ICON = {
       Maintenance: "🧰",
       Operations: "⚙️",
@@ -4194,22 +4192,19 @@ window.Tasks =
     }
 
     // ----------------------------
-    // Categories (sync modal list with page list)
+    // Categories
     // ----------------------------
     function uniq(arr) {
       return Array.from(new Set((arr || []).map((x) => String(x || "").trim()).filter(Boolean)));
     }
 
     function extractCategoriesFromTasksData(data) {
-      // Preferred: backend returns a categories list
       if (Array.isArray(data?.categories) && data.categories.length) {
         const raw = data.categories
           .map((c) => (typeof c === "string" ? c : c?.name))
           .filter(Boolean);
         return uniq(raw);
       }
-
-      // Fallback: derive from tasks list
       return uniq((data?.items || []).map((t) => t.category).filter(Boolean));
     }
 
@@ -4251,7 +4246,7 @@ window.Tasks =
     }
 
     // ----------------------------
-    // Popover (Status) — kept for batch status change (optional)
+    // Status popover (batch status)
     // ----------------------------
     let openStatusMenuEl = null;
     let statusMenuCleanup = null;
@@ -4348,7 +4343,6 @@ window.Tasks =
       return TEAM_BY_ID.get(String(id)) || { id, full_name: `User ${id}` };
     }
 
-    // small, borderless “cell” style
     function cellInlineHTML(iconHtml, textHtml) {
       return `
         <div class="inline-flex items-center gap-2 text-xs text-slate-700">
@@ -4370,7 +4364,6 @@ window.Tasks =
         const sec = document.createElement("div");
         sec.className = "tasks-group";
 
-        // Group header row (keep as-is)
         const head = document.createElement("div");
         head.className = "tasks-group-head flex items-center justify-between";
 
@@ -4392,7 +4385,6 @@ window.Tasks =
         head.appendChild(left);
         sec.appendChild(head);
 
-        // Table header (STATUS moved left of name)
         const cols = document.createElement("div");
         cols.className = "mt-3 text-xs text-slate-400 px-4";
         cols.innerHTML = `
@@ -4418,8 +4410,9 @@ window.Tasks =
         }
 
         for (const t of rows) {
+          const tid = String(t.id); // ✅ normalize ID
+
           const row = document.createElement("div");
-          // hover background + smooth transition
           row.className = "tasks-row hover:bg-slate-50 transition-colors";
 
           const grid = document.createElement("div");
@@ -4431,15 +4424,15 @@ window.Tasks =
           const cb = document.createElement("input");
           cb.type = "checkbox";
           cb.className = "h-5 w-5 rounded border-slate-300";
-          cb.checked = selected.has(t.id);
+          cb.checked = selected.has(tid);
           cb.addEventListener("change", () => {
-            if (cb.checked) selected.add(t.id);
-            else selected.delete(t.id);
+            if (cb.checked) selected.add(tid);
+            else selected.delete(tid);
             setBatchBar();
           });
           cbWrap.appendChild(cb);
 
-          // status icon (NON-clickable, icon only)
+          // status icon
           const st = document.createElement("div");
           st.className = "col-span-12 sm:col-span-1 flex items-center";
           st.innerHTML = `
@@ -4456,19 +4449,19 @@ window.Tasks =
             <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
           `;
 
-          // due (NO pill/border)
+          // due
           const due = document.createElement("div");
           due.className = "col-span-12 sm:col-span-2 flex items-center";
           const pretty = isoToPrettyDate(t.due_at);
           due.innerHTML = cellInlineHTML(`<span aria-hidden="true">📅</span>`, esc(pretty || "No due date"));
 
-          // category (NO pill/border) + icon
+          // category
           const cat = document.createElement("div");
           cat.className = "col-span-12 sm:col-span-2 flex items-center";
           const catName = t.category || "Maintenance";
           cat.innerHTML = cellInlineHTML(categoryIconHTML(catName), esc(catName));
 
-          // assignee (NON-clickable, NO pill/border)
+          // assignee
           const asg = document.createElement("div");
           asg.className = "col-span-12 sm:col-span-1 flex items-center";
           const assigneeObj = resolveAssignee(t);
@@ -4492,7 +4485,7 @@ window.Tasks =
             `;
           }
 
-          // actions (NO pill/border on the container; edit button border removed)
+          // actions
           const actions = document.createElement("div");
           actions.className = "col-span-12 sm:col-span-1 flex justify-end items-center";
 
@@ -4537,7 +4530,6 @@ window.Tasks =
       const modal = $id("taskModal");
       if (!modal) return;
 
-      // ensure category options match page list
       await ensureCategoriesLoaded();
       populateCategorySelect($id("taskCategory"));
 
@@ -4554,7 +4546,6 @@ window.Tasks =
       $id("taskStatus").value = isEdit ? (task.status || "todo") : "todo";
       $id("taskDescription").value = isEdit ? (task.description || "") : "";
 
-      // set category safely from populated options
       const catEl = $id("taskCategory");
       const desiredCat = isEdit ? (task?.category || "") : "";
       if (catEl) {
@@ -4634,7 +4625,7 @@ window.Tasks =
 
           const title = ($id("taskTitle").value || "").trim();
           const category = $id("taskCategory").value || "Maintenance";
-          const due_at = ($id("taskDueAt").value || "").trim() || null;
+          const due_at = ($id("taskDueAt").value || "").trim() || null; // keep as YYYY-MM-DD unless backend wants ISO
           const status = $id("taskStatus").value || "todo";
           const description = ($id("taskDescription").value || "").trim() || null;
 
@@ -4664,7 +4655,9 @@ window.Tasks =
 
       btnDone?.addEventListener("click", async () => {
         try {
-          await apiBatch("status", { task_ids: Array.from(selected), status: "completed" });
+          const ids = Array.from(selected).map(String); // ✅ normalize
+          if (!ids.length) return;
+          await apiBatch("status", { task_ids: ids, status: "completed" });
           selected.clear();
           setBatchBar();
           await refresh();
@@ -4673,13 +4666,13 @@ window.Tasks =
         }
       });
 
-      // batch status picker can still use the popover
       btnStatus?.addEventListener("click", () => {
-        if (!selected.size) return;
+        const ids = Array.from(selected).map(String);
+        if (!ids.length) return;
         openStatusMenu(btnStatus, {
           current: null,
           onPick: async (next) => {
-            await apiBatch("status", { task_ids: Array.from(selected), status: next });
+            await apiBatch("status", { task_ids: ids, status: next });
             selected.clear();
             setBatchBar();
             await refresh();
@@ -4688,10 +4681,11 @@ window.Tasks =
       });
 
       btnDelete?.addEventListener("click", async () => {
-        if (!selected.size) return;
+        const ids = Array.from(selected).map(String);
+        if (!ids.length) return;
         if (!confirm("Delete selected tasks?")) return;
         try {
-          await apiBatch("delete", { task_ids: Array.from(selected) });
+          await apiBatch("delete", { task_ids: ids });
           selected.clear();
           setBatchBar();
           await refresh();
@@ -4708,6 +4702,10 @@ window.Tasks =
       const host = $id("tasksListHost");
       if (!host) return;
 
+      // ✅ prevent “sticky selections” after refresh/filtering
+      selected.clear();
+      setBatchBar();
+
       if (activeTab !== "all") {
         host.innerHTML = `<div class="text-sm text-slate-500 py-6">Coming next: ${esc(activeTab)}.</div>`;
         return;
@@ -4722,7 +4720,6 @@ window.Tasks =
         await ensureTeamLoaded();
         const data = await apiList({ q, status: st });
 
-        // keep categories synced from same payload the page uses
         CATEGORIES = extractCategoriesFromTasksData(data);
         populateCategorySelect($id("taskCategory"));
 
@@ -4739,7 +4736,8 @@ window.Tasks =
     // ----------------------------
     function init() {
       const view = document.getElementById("view-tasks");
-      if (!view || view.__tasksInit) return;
+      if (!view) return;
+      if (view.__tasksInit) return; // wires once
       view.__tasksInit = true;
 
       wireTabs();
@@ -4751,7 +4749,6 @@ window.Tasks =
 
     return { init, refresh };
   })();
-
 
 
 // ------------------------------
@@ -4819,23 +4816,26 @@ document.addEventListener("DOMContentLoaded", async () => {
     resizeChatAnalyticsChartSoon();
   }
 
-  // 8) IMPORTANT: init Tasks on page load if Tasks view is active/visible
+  // 8) init Tasks on page load if Tasks view is active/visible
   const viewParam = new URLSearchParams(window.location.search).get("view");
   if (viewParam === "tasks") {
     window.Tasks?.init?.();
+    window.Tasks?.refresh?.();
   } else {
-    // fallback: if tasks section is currently visible (server-side initial_view, etc.)
     const tasksView = document.getElementById("view-tasks");
     const isVisible =
       tasksView &&
       !tasksView.classList.contains("hidden") &&
       tasksView.style.display !== "none";
-    if (isVisible) window.Tasks?.init?.();
+    if (isVisible) {
+      window.Tasks?.init?.();
+      window.Tasks?.refresh?.();
+    }
   }
 });
 
 // ------------------------------
-// View switching (keeps Tasks init when clicking Tasks)
+// View switching (keeps Tasks init + ALWAYS refresh on click)
 // ------------------------------
 document.addEventListener("click", (e) => {
   const btn = e.target.closest("[data-view-btn]");
@@ -4862,9 +4862,10 @@ document.addEventListener("click", (e) => {
   document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
   btn.classList.add("active");
 
-  // 4) init tasks module if present
-  if (view === "tasks" && window.Tasks?.init) {
-    window.Tasks.init();
+  // 4) ✅ init once, refresh always
+  if (view === "tasks" && window.Tasks) {
+    window.Tasks.init?.();
+    window.Tasks.refresh?.();
   }
 });
 
