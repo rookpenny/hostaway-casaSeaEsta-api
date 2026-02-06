@@ -3977,6 +3977,7 @@ window.Tasks =
       completed: "Completed",
     };
 
+    // If you still use batch status change, keep this menu.
     const STATUS_MENU = [
       { key: "todo", label: "To-do", dotClass: "is-todo", glyph: "" },
       { key: "in_progress", label: "In Progress", dotClass: "is-in_progress", glyph: "" },
@@ -3998,7 +3999,7 @@ window.Tasks =
     // State
     let selected = new Set();
     let activeTab = "all";
-    let TEAM = []; // loaded from /admin/api/team-members
+    let TEAM = [];
     const TEAM_BY_ID = new Map();
 
     // Utils
@@ -4045,68 +4046,61 @@ window.Tasks =
     }
 
     // ----------------------------
-    // STATUS ICONS (tiny, inline)
+    // Icons (Status + Category)
     // ----------------------------
-    function statusIconSVG(status) {
-      switch ((status || "").toLowerCase()) {
-        case "todo":
-          return `
-            <span class="status-ico" aria-hidden="true" style="display:inline-flex;align-items:center;">
-              <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;display:block;">
-                <circle cx="8" cy="8" r="6" stroke="#9CA3AF" stroke-width="2"/>
-              </svg>
-            </span>`;
+    function statusIconHTML(statusKey) {
+      const s = (statusKey || "todo").toLowerCase();
 
-        case "in_progress":
-          return `
-            <span class="status-ico" aria-hidden="true" style="display:inline-flex;align-items:center;">
-              <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;display:block;">
-                <circle cx="8" cy="8" r="6" stroke="#3B82F6" stroke-width="2"/>
-                <circle cx="8" cy="8" r="2.2" fill="#3B82F6"/>
-              </svg>
-            </span>`;
+      // ring-only + dot statuses should already be styled via tasks-status-dot CSS classes
+      if (s === "todo") return `<span class="tasks-status-dot is-todo" style="width:12px;height:12px;border-width:2px;"></span>`;
+      if (s === "in_progress")
+        return `<span class="tasks-status-dot is-in_progress" style="width:12px;height:12px;border-width:2px;"></span>`;
+      if (s === "waiting")
+        return `<span class="tasks-status-dot is-waiting" style="width:12px;height:12px;border-width:2px;"></span>`;
+      if (s === "in_review")
+        return `<span class="tasks-status-dot is-in_review" style="width:12px;height:12px;border-width:2px;"></span>`;
 
-        case "waiting":
-          return `
-            <span class="status-ico" aria-hidden="true" style="display:inline-flex;align-items:center;">
-              <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;display:block;">
-                <circle cx="8" cy="8" r="6" stroke="#8B5CF6" stroke-width="2"/>
-                <circle cx="8" cy="8" r="2.2" fill="#8B5CF6"/>
-              </svg>
-            </span>`;
-
-        case "in_review":
-          return `
-            <span class="status-ico" aria-hidden="true" style="display:inline-flex;align-items:center;">
-              <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;display:block;">
-                <circle cx="8" cy="8" r="6" stroke="#F59E0B" stroke-width="2"/>
-                <circle cx="8" cy="8" r="2.2" fill="#F59E0B"/>
-              </svg>
-            </span>`;
-
-        case "canceled":
-          return `
-            <span class="status-ico" aria-hidden="true" style="display:inline-flex;align-items:center;">
-              <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;display:block;">
-                <circle cx="8" cy="8" r="6" fill="#9CA3AF"/>
-                <path d="M5.6 5.6 L10.4 10.4 M10.4 5.6 L5.6 10.4"
-                  stroke="#FFFFFF" stroke-width="2" stroke-linecap="round"/>
-              </svg>
-            </span>`;
-
-        case "completed":
-          return `
-            <span class="status-ico" aria-hidden="true" style="display:inline-flex;align-items:center;">
-              <svg viewBox="0 0 16 16" fill="none" style="width:14px;height:14px;display:block;">
-                <circle cx="8" cy="8" r="6" fill="#10B981"/>
-                <path d="M5.2 8.3 L7.1 10.2 L11 6.3"
-                  stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </span>`;
-
-        default:
-          return "";
+      if (s === "canceled") {
+        return `
+          <span class="tasks-status-dot is-canceled" style="width:12px;height:12px;border-width:2px;">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" style="width:10px;height:10px;display:block;">
+              <path d="M5.2 5.2 L10.8 10.8 M10.8 5.2 L5.2 10.8"
+                    stroke="white" stroke-width="2" stroke-linecap="round"/>
+            </svg>
+          </span>
+        `;
       }
+
+      if (s === "completed") {
+        return `
+          <span class="tasks-status-dot is-completed" style="width:12px;height:12px;border-width:2px;">
+            <svg viewBox="0 0 16 16" fill="none" aria-hidden="true" style="width:10px;height:10px;display:block;">
+              <path d="M4.4 8.2 L6.9 10.7 L11.8 5.8"
+                    stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        `;
+      }
+
+      return `<span class="tasks-status-dot is-todo" style="width:12px;height:12px;border-width:2px;"></span>`;
+    }
+
+    // Customize these however you want
+    const CATEGORY_ICON = {
+      Maintenance: "🧰",
+      Operations: "⚙️",
+      Cleaning: "🧹",
+      Repairs: "🔧",
+      Supplies: "📦",
+      Admin: "🗂️",
+      Safety: "🛡️",
+      Inspection: "🔍",
+    };
+
+    function categoryIconHTML(category) {
+      const key = String(category || "").trim();
+      const ico = CATEGORY_ICON[key] || "🏷️";
+      return `<span aria-hidden="true" style="font-size:14px;line-height:1;">${esc(ico)}</span>`;
     }
 
     // ----------------------------
@@ -4200,7 +4194,7 @@ window.Tasks =
     }
 
     // ----------------------------
-    // Status menu (kept for batch actions)
+    // Popover (Status) — kept for batch status change (optional)
     // ----------------------------
     let openStatusMenuEl = null;
     let statusMenuCleanup = null;
@@ -4297,13 +4291,14 @@ window.Tasks =
       return TEAM_BY_ID.get(String(id)) || { id, full_name: `User ${id}` };
     }
 
-    function buildPill(text, extraClass = "") {
-      const s = document.createElement("span");
-      s.className =
-        "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-white text-slate-700 text-xs font-semibold " +
-        extraClass;
-      s.textContent = text;
-      return s;
+    // small, borderless “cell” style
+    function cellInlineHTML(iconHtml, textHtml) {
+      return `
+        <div class="inline-flex items-center gap-2 text-xs text-slate-700">
+          ${iconHtml || ""}
+          <span class="whitespace-nowrap">${textHtml || ""}</span>
+        </div>
+      `;
     }
 
     function renderList(host, items, counts) {
@@ -4312,12 +4307,13 @@ window.Tasks =
 
       for (const status of STATUS_ORDER) {
         const rows = grouped[status] || [];
+
         if (status !== "completed" && status !== "canceled" && rows.length === 0) continue;
 
         const sec = document.createElement("div");
         sec.className = "tasks-group";
 
-        // Group header (pill + icon + count)
+        // Group header row (keep as-is)
         const head = document.createElement("div");
         head.className = "tasks-group-head flex items-center justify-between";
 
@@ -4326,12 +4322,7 @@ window.Tasks =
 
         const pill = document.createElement("span");
         pill.className = `tasks-group-pill ${STATUS_PILL_CLASS[status] || "bg-slate-50 text-slate-700 border-slate-200"}`;
-        pill.innerHTML = `
-          <span style="display:inline-flex;align-items:center;gap:8px;">
-            ${statusIconSVG(status)}
-            <span>${esc(STATUS_LABEL[status] || status)}</span>
-          </span>
-        `;
+        pill.textContent = STATUS_LABEL[status] || status;
 
         const cnt = counts && counts[status] ? counts[status] : rows.length;
         const count = document.createElement("span");
@@ -4344,12 +4335,14 @@ window.Tasks =
         head.appendChild(left);
         sec.appendChild(head);
 
+        // Table header (STATUS moved left of name)
         const cols = document.createElement("div");
         cols.className = "mt-3 text-xs text-slate-400 px-4";
         cols.innerHTML = `
           <div class="grid grid-cols-12 gap-3 items-center">
             <div class="col-span-1"></div>
-            <div class="col-span-5">Name</div>
+            <div class="col-span-1">Status</div>
+            <div class="col-span-4">Name</div>
             <div class="col-span-2">Due date</div>
             <div class="col-span-2">Category</div>
             <div class="col-span-1">Assignee</div>
@@ -4369,7 +4362,8 @@ window.Tasks =
 
         for (const t of rows) {
           const row = document.createElement("div");
-          row.className = "tasks-row";
+          // hover background + smooth transition
+          row.className = "tasks-row hover:bg-slate-50 transition-colors";
 
           const grid = document.createElement("div");
           grid.className = "tasks-row-grid grid grid-cols-12 gap-3 items-center";
@@ -4388,72 +4382,70 @@ window.Tasks =
           });
           cbWrap.appendChild(cb);
 
+          // status icon (NON-clickable, icon only)
+          const st = document.createElement("div");
+          st.className = "col-span-12 sm:col-span-1 flex items-center";
+          st.innerHTML = `
+            <div class="inline-flex items-center" title="${esc(STATUS_LABEL[t.status] || STATUS_LABEL.todo)}">
+              ${statusIconHTML(t.status || "todo")}
+            </div>
+          `;
+
           // name
           const name = document.createElement("div");
-          name.className = "col-span-12 sm:col-span-5";
+          name.className = "col-span-12 sm:col-span-4";
           name.innerHTML = `
             <div class="font-semibold text-slate-900">${esc(t.title)}</div>
             <div class="text-sm text-slate-500 mt-0.5">${esc(t.property_name || "")}</div>
           `;
 
-          // due
+          // due (NO pill/border)
           const due = document.createElement("div");
           due.className = "col-span-12 sm:col-span-2 flex items-center";
           const pretty = isoToPrettyDate(t.due_at);
-          const duePill = buildPill(pretty ? `📅 ${pretty}` : "📅 No due date", "bg-slate-50");
-          due.appendChild(duePill);
+          due.innerHTML = cellInlineHTML(
+            `<span aria-hidden="true">📅</span>`,
+            esc(pretty || "No due date")
+          );
 
-          // category
+          // category (NO pill/border) + icon
           const cat = document.createElement("div");
           cat.className = "col-span-12 sm:col-span-2 flex items-center";
-          const catPill = buildPill(t.category || "Maintenance", "bg-slate-50");
-          cat.appendChild(catPill);
+          const catName = t.category || "Maintenance";
+          cat.innerHTML = cellInlineHTML(categoryIconHTML(catName), esc(catName));
 
-          // assignee (NON-clickable)
+          // assignee (NON-clickable, NO pill/border)
           const asg = document.createElement("div");
           asg.className = "col-span-12 sm:col-span-1 flex items-center";
           const assigneeObj = resolveAssignee(t);
 
-          const assigneePill = document.createElement("span");
-          assigneePill.className =
-            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-900 text-xs font-semibold";
-
           if (assigneeObj) {
             const nm = getDisplayName(assigneeObj);
-            assigneePill.innerHTML = `
-              <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
-                ${esc(initials(nm))}
-              </span>
-              <span class="hidden lg:inline">${esc(nm)}</span>
+            asg.innerHTML = `
+              <div class="inline-flex items-center gap-2 text-xs text-slate-900">
+                <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-slate-100 text-slate-700 text-[11px] font-bold">
+                  ${esc(initials(nm))}
+                </span>
+                <span class="hidden lg:inline">${esc(nm)}</span>
+              </div>
             `;
           } else {
-            assigneePill.innerHTML = `
-              <span class="inline-flex items-center justify-center h-6 w-6 rounded-full bg-slate-100 text-slate-700 text-[14px] font-bold">–</span>
-              <span class="hidden lg:inline text-slate-600">Unassigned</span>
+            asg.innerHTML = `
+              <div class="inline-flex items-center gap-2 text-xs text-slate-500">
+                <span class="inline-flex items-center justify-center h-7 w-7 rounded-full bg-slate-100 text-slate-700 text-[14px] font-bold">–</span>
+                <span class="hidden lg:inline">Unassigned</span>
+              </div>
             `;
           }
-          asg.appendChild(assigneePill);
 
-          // actions (Status pill NON-clickable + Edit)
+          // actions (NO pill/border on the container; edit button border removed)
           const actions = document.createElement("div");
-          actions.className = "col-span-12 sm:col-span-1 flex justify-end items-center gap-2";
-
-          const statusKey = t.status || "todo";
-          const statusLabel = STATUS_LABEL[statusKey] || STATUS_LABEL.todo;
-
-          const statusPill = document.createElement("span");
-          statusPill.className =
-            "inline-flex items-center gap-2 px-3 py-1.5 rounded-full border border-slate-200 bg-slate-50 text-slate-900 text-xs font-semibold";
-          statusPill.innerHTML = `
-            ${statusIconSVG(statusKey)}
-            <span class="hidden md:inline">${esc(statusLabel)}</span>
-            <span class="md:hidden">⋯</span>
-          `;
+          actions.className = "col-span-12 sm:col-span-1 flex justify-end items-center";
 
           const editBtn = document.createElement("button");
           editBtn.type = "button";
           editBtn.className =
-            "h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50 inline-flex items-center justify-center";
+            "h-9 w-9 rounded-xl hover:bg-slate-100 inline-flex items-center justify-center text-slate-700";
           editBtn.title = "Edit task";
           editBtn.textContent = "✎";
           editBtn.addEventListener("click", async () => {
@@ -4465,10 +4457,11 @@ window.Tasks =
             }
           });
 
-          actions.appendChild(statusPill);
           actions.appendChild(editBtn);
 
+          // assemble
           grid.appendChild(cbWrap);
+          grid.appendChild(st);
           grid.appendChild(name);
           grid.appendChild(due);
           grid.appendChild(cat);
@@ -4612,6 +4605,7 @@ window.Tasks =
         }
       });
 
+      // batch status picker can still use the popover
       btnStatus?.addEventListener("click", () => {
         if (!selected.size) return;
         openStatusMenu(btnStatus, {
@@ -4684,7 +4678,6 @@ window.Tasks =
 
     return { init, refresh };
   })();
-
 
 // ------------------------------
 // DOM ready (single, clean)
