@@ -1311,6 +1311,59 @@ def get_user_role_and_scope(request: Request, db: Session):
     return "pmc", pmc, pmc_user, billing_status, needs_payment
 
 
+# routes/admin.py
+
+@router.get("/admin/api/team")
+def api_team_users(
+    request: Request,
+    session_id: int | None = Query(default=None),
+    pmc_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
+    target_pmc_id: int | None = None
+
+    if user_role == "super":
+        # Super can request by explicit pmc_id OR by session_id (best for chat detail)
+        if pmc_id is not None:
+            target_pmc_id = int(pmc_id)
+        elif session_id is not None:
+            sess = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
+            if not sess:
+                raise HTTPException(status_code=404, detail="Chat not found")
+            prop = db.query(Property).filter(Property.id == int(sess.property_id)).first()
+            if not prop:
+                raise HTTPException(status_code=404, detail="Property not found")
+            target_pmc_id = int(prop.pmc_id)
+        else:
+            raise HTTPException(status_code=400, detail="Provide pmc_id or session_id")
+    else:
+        # PMC users only see their own team
+        require_pmc_linked(user_role, pmc_obj)
+        target_pmc_id = int(pmc_obj.id)
+
+    rows = (
+        db.query(PMCUser)
+        .filter(PMCUser.pmc_id == target_pmc_id)
+        .filter(PMCUser.is_active == True)
+        .order_by(func.lower(PMCUser.email).asc())
+        .all()
+    )
+
+    return {
+        "items": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "full_name": u.full_name,
+                "role": u.role,
+            }
+            for u in rows
+        ]
+    }
+
+
 @router.get("/admin/settings/team/table", response_class=HTMLResponse)
 def team_table_rows(request: Request, db: Session = Depends(get_db)):
     user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
