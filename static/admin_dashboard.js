@@ -1204,6 +1204,10 @@ async function loadChatDetail(sessionId) {
 
     // Bind buttons etc
     initChatDetailHandlers(sessionId, panel);
+    
+    // NEW: swap "Assign to (email)" with a dropdown (still uses existing assign button)
+    await hydrateAssigneeDropdown(sessionId, panel);
+
 
     // --- Sync row state back into the table (DO NOT sync signals from detail) ---
     if (chatRoot && typeof updateChatListRow === "function") {
@@ -1967,6 +1971,71 @@ async function safeReadJson(res) {
 }
 
 
+// static/admin_dashboard.js
+
+async function fetchTeamUsersForChat(sessionId) {
+  const res = await fetch(`/admin/api/team?session_id=${encodeURIComponent(sessionId)}`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+  if (res.status === 401 || res.status === 403) return loginRedirect();
+  if (!res.ok) throw new Error(`Failed to load team users (${res.status})`);
+  return res.json();
+}
+
+function buildAssigneeLabel(u) {
+  const name = (u.full_name || "").trim();
+  const email = (u.email || "").trim();
+  if (name && email) return `${name} — ${email}`;
+  return email || name || "Unknown";
+}
+
+async function hydrateAssigneeDropdown(sessionId, panelEl) {
+  const input = panelEl.querySelector('[data-role="assigned-input"]');
+  const assignBtn = panelEl.querySelector('[data-role="assign-btn"]');
+  if (!input || !assignBtn) return;
+
+  // Avoid duplicating if user reopens the same chat
+  if (panelEl.querySelector('[data-role="assigned-select"]')) return;
+
+  // Create select
+  const sel = document.createElement("select");
+  sel.setAttribute("data-role", "assigned-select");
+  sel.className =
+    input.className ||
+    "w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm";
+
+  // First option: unassigned
+  sel.appendChild(new Option("Unassigned", ""));
+
+  let data;
+  try {
+    data = await fetchTeamUsersForChat(sessionId);
+  } catch (e) {
+    console.error("Could not load team users:", e);
+    return; // Keep fallback input
+  }
+
+  const items = Array.isArray(data?.items) ? data.items : [];
+  for (const u of items) {
+    const email = (u.email || "").trim();
+    if (!email) continue;
+    sel.appendChild(new Option(buildAssigneeLabel(u), email));
+  }
+
+  // Sync current value
+  const current = (input.value || "").trim();
+  sel.value = current;
+
+  // Keep input as the actual submitted value (so existing assign click logic works)
+  input.style.display = "none";
+  input.insertAdjacentElement("beforebegin", sel);
+
+  sel.addEventListener("change", () => {
+    input.value = sel.value || "";
+    assignBtn.click();
+  });
+}
 
 
 
