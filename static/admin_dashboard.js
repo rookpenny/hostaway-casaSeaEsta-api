@@ -1065,6 +1065,19 @@ async function chatPostRoute(routeKey, params, body) {
   function initChatDetailHandlers(sessionId, panelEl) {
   const q = (sel) => panelEl.querySelector(sel);
 
+  // ✅ Assignee dropdown -> hidden input sync (keeps existing assign flow)
+  const assignedSelect = q('[data-role="assigned-select"]');
+  const assignedInput  = q('[data-role="assigned-input"]');
+
+  if (assignedSelect && assignedInput) {
+    // Ensure hidden input matches initial dropdown value
+    assignedInput.value = assignedSelect.value || "";
+
+    assignedSelect.addEventListener("change", () => {
+      assignedInput.value = assignedSelect.value || "";
+    });
+  }
+
   // Resolve
   q('[data-role="resolve-btn"]')?.addEventListener("click", async () => {
     await chatPostRoute("chat_resolve", { session_id: sessionId }, {});
@@ -1082,7 +1095,6 @@ async function chatPostRoute(routeKey, params, body) {
   // Escalation
   q('[data-role="escalation-select"]')?.addEventListener("change", async (e) => {
     const escalation_level = e.target.value || "";
-    //await chatPostRoute("chat_escalate", { session_id: sessionId }, { escalation_level });
     await chatPostRoute("chat_escalate", { session_id: sessionId }, { level: escalation_level });
     updateChatListRow(sessionId, { escalation_level: escalation_level || null });
     await loadChatDetail(sessionId);
@@ -1110,6 +1122,7 @@ async function chatPostRoute(routeKey, params, body) {
 
   // Summary is handled globally by window.Chats.refreshSummary click binding
 }
+
 
 
 
