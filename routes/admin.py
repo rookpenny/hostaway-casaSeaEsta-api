@@ -1032,6 +1032,9 @@ def chat_detail_partial(
 
     property_obj = db.query(Property).filter(Property.id == sess.property_id).first()
 
+    # ✅ NEW: determine PMC scope and load team users
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
     messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == sess.id)
@@ -1170,6 +1173,8 @@ def chat_detail_partial(
             "property_name_by_id": (
                 {property_obj.id: property_obj.property_name} if property_obj else {}
             ),
+            # ✅ NEW: required by your dropdown loop
+            "team_members": team_members,
         },
     )
 
