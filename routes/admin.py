@@ -1262,58 +1262,69 @@ async def upgrades_delete_temp_image(payload: dict):
     delete_temp_upgrade_image(tmp_key)
     return {"ok": True}
 
-def get_user_role_and_scope(request: Request, db: Session):
-    """
-    Returns:
-      (user_role, pmc_obj, pmc_user, billing_status, needs_payment)
 
-    - user_role: "super" | "pmc"
-    - pmc_obj: PMC | None
-    - pmc_user: PMCUser | None
-    - billing_status: "active" | "pending" | "past_due" | ... | None
-    - needs_payment: bool (True if PMC exists but is not allowed to "begin")
-    """
-    email = get_current_admin_identity(request)
+@router.get("/admin/chats/partial/detail", response_class=HTMLResponse)
+def chat_detail_partial(
+    request: Request,
+    session_id: int,
+    db: Session = Depends(get_db),
+):
+    # Load session + property first
+    sess = db.query(ChatSession).filter(ChatSession.id == session_id).first()
+    if not sess:
+        raise HTTPException(status_code=404, detail="Chat not found")
 
-    if is_super_admin(email):
-        return "super", None, None, None, False
+    property_obj = db.query(Property).filter(Property.id == sess.property_id).first()
+    if not property_obj:
+        raise HTTPException(status_code=404, detail="Property not found")
 
-    if not email:
-        return "pmc", None, None, None, False
+    # Who is viewing?
+    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
 
-    email_l = (email or "").strip().lower()
-
-    # 1) Prefer explicit PMCUser membership
-    pmc_user = (
-        db.query(PMCUser)
-        .filter(func.lower(PMCUser.email) == email_l, PMCUser.is_active == True)
-        .first()
-    )
-    
-    # ✅ NEW: DB-driven superuser override
-    if pmc_user and bool(getattr(pmc_user, "is_superuser", False)):
-        return "super", None, pmc_user, None, False
-
-    pmc = None
-    if pmc_user:
-        pmc = db.query(PMC).filter(PMC.id == pmc_user.pmc_id).first()
+    # ✅ decide which PMC to pull users for
+    if user_role == "super":
+        target_pmc_id = int(property_obj.pmc_id) if property_obj.pmc_id else None
     else:
-        # 2) Fallback: PMC owner email on PMC table
-        pmc = db.query(PMC).filter(func.lower(PMC.email) == email_l).first()
+        # pmc role must be linked to a PMC to have a team
+        if not pmc_obj:
+            target_pmc_id = None
+        else:
+            target_pmc_id = int(pmc_obj.id)
 
-    if not pmc:
-        return "pmc", None, None, None, False
+            # ✅ enforce that a PMC can only view chats for their own PMC
+            if property_obj.pmc_id and int(property_obj.pmc_id) != target_pmc_id:
+                raise HTTPException(status_code=403, detail="Forbidden")
 
-    # --- Billing gating ---
-    billing_status = (getattr(pmc, "billing_status", None) or "pending").strip().lower()
+    team_members = []
+    if target_pmc_id:
+        team_members = (
+            db.query(PMCUser)
+            .filter(PMCUser.pmc_id == target_pmc_id, PMCUser.is_active == True)
+            .order_by(func.lower(PMCUser.email).asc())
+            .all()
+        )
 
-    # "Begin" requires both:
-    # - billing_status == active
-    # - pmc.active == True
-    is_paid_and_active = (billing_status == "active") and bool(getattr(pmc, "active", False))
-    needs_payment = not is_paid_and_active
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == sess.id)
+        .order_by(ChatMessage.created_at.asc())
+        .all()
+    )
 
-    return "pmc", pmc, pmc_user, billing_status, needs_payment
+    # (whatever you currently use for `session_vm`)
+    session_vm = sess  # replace with your existing mapping if needed
+
+    return templates.TemplateResponse(
+        "partials/chat_detail_panel.html",
+        {
+            "request": request,
+            "session": session_vm,
+            "property": property_obj,
+            "messages": messages,
+            "team_members": team_members,  # ✅ THIS is what your dropdown uses
+            "property_name_by_id": {property_obj.id: property_obj.property_name},
+        },
+    )
 
 
 # routes/admin.py
