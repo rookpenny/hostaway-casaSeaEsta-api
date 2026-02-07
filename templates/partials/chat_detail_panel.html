@@ -174,21 +174,41 @@
           </div>
 
           <div class="flex flex-wrap items-center gap-2">
-            <input
-              data-role="assigned-input"
-              value="{{ assigned|e }}"
-              class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white w-full sm:w-[320px]"
-              placeholder="Assign to (email)"
-              autocomplete="off"
-            />
-            <button
-              data-role="assign-btn"
-              class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
-              type="button"
-            >
-              Assign
-            </button>
-          </div>
+
+  {# Visible dropdown #}
+  <select
+    data-role="assigned-select"
+    class="h-10 border border-slate-200 rounded-xl px-3 text-sm bg-white w-full sm:w-[320px]"
+    {% if session.is_resolved %}disabled{% endif %}
+  >
+    <option value="" {% if not assigned %}selected{% endif %}>Unassigned</option>
+
+    {% for u in (team_members or []) %}
+      {% set email = (u.email or '') %}
+      {% set label = (u.full_name ~ ' — ' ~ email) if (u.full_name and email) else (email or u.full_name or 'User') %}
+      <option value="{{ email|e }}" {% if assigned == email %}selected{% endif %}>
+        {{ label }}
+      </option>
+    {% endfor %}
+  </select>
+
+  {# Hidden input kept for backward compatibility with existing JS assign handler #}
+  <input
+    type="hidden"
+    data-role="assigned-input"
+    value="{{ assigned|e }}"
+  />
+
+  <button
+    data-role="assign-btn"
+    class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-slate-800"
+    type="button"
+    {% if session.is_resolved %}disabled{% endif %}
+  >
+    Assign
+  </button>
+</div>
+
 
         </div>
 
