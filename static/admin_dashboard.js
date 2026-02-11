@@ -4685,6 +4685,7 @@ window.Tasks =
           tabs.forEach((x) => x.classList.remove("is-active"));
           b.classList.add("is-active");
           activeTab = b.dataset.tasksTab || "all";
+          window.Notifications?.showInTasks?.(activeTab === "notifications");
           refresh();
         });
       });
@@ -4805,6 +4806,17 @@ window.Tasks =
     async function refresh() {
       const host = $id("tasksListHost");
       if (!host) return;
+
+      // If user is on Tasks → Notifications, show notifications panel and hide task list
+      if (activeTab === "notifications") {
+        host.classList.add("hidden");
+        window.Notifications?.showInTasks?.(true);
+        return;
+      } else {
+        host.classList.remove("hidden");
+        window.Notifications?.showInTasks?.(false);
+      }
+
 
       // ✅ prevent “sticky selections” after refresh/filtering
       selected.clear();
