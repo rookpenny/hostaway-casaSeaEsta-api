@@ -4822,10 +4822,28 @@ window.Tasks =
       selected.clear();
       setBatchBar();
 
+      // Handle tabs that are not the main list
+      if (activeTab === "notifications") {
+        // handled above (hide list + show notifications panel)
+        return;
+      }
+      
+      if (activeTab === "recurring") {
+        host.innerHTML = `<div class="text-sm text-slate-500 py-6">Recurring tasks view coming next.</div>`;
+        return;
+      }
+      
+      if (activeTab === "auto") {
+        host.innerHTML = `<div class="text-sm text-slate-500 py-6">Auto-assignment view coming next.</div>`;
+        return;
+      }
+      
+      // default
       if (activeTab !== "all") {
         host.innerHTML = `<div class="text-sm text-slate-500 py-6">Coming next: ${esc(activeTab)}.</div>`;
         return;
       }
+
 
       const q = ($id("tasksSearch")?.value || "").trim();
       const st = ($id("tasksFilterStatus")?.value || "").trim();
