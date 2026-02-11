@@ -228,7 +228,7 @@
         </button>
 
 
-        <!-- Messages -->
+        <!-- Messages >
         <button data-view="messages"
           class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
           aria-current="{{ 'page' if initial_view == 'messages' else 'false' }}"
@@ -241,13 +241,13 @@
         
           <span class="sidebar-label font-medium">Messages</span>
         
-          <!-- Unread badge (JS will show/hide) -->
+          <!-- Unread badge (JS will show/hide) >
           <span id="messages-unread-badge"
                 class="hidden text-[11px] font-semibold px-2 py-0.5 rounded-full bg-rose-100 text-rose-800 border border-rose-200">
             0
           </span>
         </button>
-
+-->
 
         
 
@@ -587,7 +587,7 @@
         </section>
 
         <!-- MESSAGES -->
-        <section id="view-messages" class="view space-y-4 {% if initial_view != 'messages' %}hidden{% endif %}">
+        <section id="view-messages" class="view space-y-4 {% if initial_view != 'messages' %}hidden{% endif %}" style="display:none">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
             <div class="flex items-start justify-between gap-3">
               <div>
@@ -727,7 +727,38 @@
 
     <!-- List -->
     <div id="tasksListHost" class="mt-6"></div>
+
+
+<!-- TASKS → NOTIFICATIONS PANEL -->
+<div id="tasksNotificationsPanel" style="display:none; margin-top:12px;">
+  <div style="display:flex; gap:10px; align-items:center; justify-content:space-between;">
+    <div style="display:flex; gap:10px; align-items:center;">
+      <strong>Notifications</strong>
+      <span id="tasksNotifUnreadBadge" style="display:none; font-size:12px; padding:2px 8px; border-radius:999px; background:#111; color:#fff;">0</span>
+    </div>
+
+    <div style="display:flex; gap:8px; align-items:center;">
+      <button type="button" id="tasksNotifRefreshBtn">Refresh</button>
+      <button type="button" id="tasksNotifMarkAllReadBtn">Mark all read</button>
+    </div>
   </div>
+
+  <div style="display:flex; gap:8px; margin-top:10px; flex-wrap:wrap;">
+    <button type="button" class="tasksNotifFilterBtn" data-filter="all">All</button>
+    <button type="button" class="tasksNotifFilterBtn" data-filter="unread">Unread</button>
+    <button type="button" class="tasksNotifFilterBtn" data-filter="chat_assigned">Chat assigned</button>
+    <button type="button" class="tasksNotifFilterBtn" data-filter="upgrade_purchased">Upgrade purchased</button>
+  </div>
+
+  <div id="tasksNotifList" style="margin-top:12px;">
+    <div style="opacity:.7;">Loading…</div>
+  </div>
+</div>
+
+    
+  </div>
+
+  
 
   <!-- Batch bar -->
   <div id="tasksBatchBar" class="tasks-batchbar hidden">
@@ -2368,7 +2399,196 @@
 
   // Optional: auto-run when user lands on those tabs (works with your nav JS that toggles views)
   // You can also call these in your existing "setView()" logic if you have one.
+
+/* ------------------------------
+   TASKS → NOTIFICATIONS (in-app)
+-------------------------------- */
+
+let __tasksNotifAll = [];
+let __tasksNotifFilter = "all";
+
+function __fmtTime(iso) {
+  if (!iso) return "";
+  try {
+    const d = new Date(iso);
+    return d.toLocaleString();
+  } catch {
+    return "";
+  }
+}
+
+function __setUnreadBadge() {
+  const unread = __tasksNotifAll.filter(n => !n.is_read).length;
+  const badge = document.getElementById("tasksNotifUnreadBadge");
+  if (!badge) return;
+  if (unread > 0) {
+    badge.style.display = "inline-block";
+    badge.textContent = String(unread);
+  } else {
+    badge.style.display = "none";
+  }
+}
+
+function __applyNotifFilter(items) {
+  if (__tasksNotifFilter === "all") return items;
+  if (__tasksNotifFilter === "unread") return items.filter(n => !n.is_read);
+  return items.filter(n => (n.type || "") === __tasksNotifFilter);
+}
+
+function __notifPrimaryAction(n) {
+  // Deep links based on meta (these are set in routes/admin.py + stripe_webhook.py additions)
+  const t = (n.type || "");
+  const meta = n.meta || {};
+
+  if (t === "chat_assigned" && meta.chat_session_id) {
+    // open chats view focused on the session
+    window.location.href = `/admin/dashboard?view=chats&session_id=${encodeURIComponent(meta.chat_session_id)}`;
+    return;
+  }
+
+  if (t === "upgrade_purchased") {
+    // open upgrades page
+    window.location.href = `/admin/dashboard?view=upgrades`;
+    return;
+  }
+
+  // fallback
+  window.location.href = `/admin/dashboard?view=tasks`;
+}
+
+async function loadTaskNotifications() {
+  const list = document.getElementById("tasksNotifList");
+  if (list) list.innerHTML = `<div style="opacity:.7;">Loading…</div>`;
+
+  const res = await fetch(`/admin/notifications?limit=200`, { credentials: "same-origin" });
+  if (!res.ok) {
+    if (list) list.innerHTML = `<div style="color:#b00;">Failed to load notifications (${res.status})</div>`;
+    return;
+  }
+
+  const data = await res.json();
+  __tasksNotifAll = Array.isArray(data.items) ? data.items : [];
+  __setUnreadBadge();
+  renderTaskNotifications();
+}
+
+function renderTaskNotifications() {
+  const list = document.getElementById("tasksNotifList");
+  if (!list) return;
+
+  const items = __applyNotifFilter(__tasksNotifAll);
+
+  if (!items.length) {
+    list.innerHTML = `<div style="opacity:.7;">No notifications.</div>`;
+    return;
+  }
+
+  list.innerHTML = items.map(n => {
+    const unreadDot = n.is_read ? "" : `<span style="display:inline-block;width:8px;height:8px;border-radius:999px;background:#0a0; margin-right:8px;"></span>`;
+    const title = (n.title || "Notification");
+    const body = (n.body || "");
+    const time = __fmtTime(n.created_at);
+
+    return `
+      <div
+        class="tasksNotifRow"
+        data-id="${n.id}"
+        style="border:1px solid #ddd; border-radius:10px; padding:10px 12px; margin-bottom:10px; cursor:pointer;"
+        title="Click to open"
+      >
+        <div style="display:flex; justify-content:space-between; gap:12px;">
+          <div style="min-width:0;">
+            <div style="font-weight:600; display:flex; align-items:center;">
+              ${unreadDot}
+              <span style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${title}</span>
+            </div>
+            ${body ? `<div style="opacity:.8; margin-top:4px;">${body}</div>` : ""}
+          </div>
+          <div style="opacity:.6; font-size:12px; white-space:nowrap;">${time}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // click handlers
+  document.querySelectorAll(".tasksNotifRow").forEach(el => {
+    el.addEventListener("click", async () => {
+      const id = el.getAttribute("data-id");
+      const n = __tasksNotifAll.find(x => String(x.id) === String(id));
+      if (!n) return;
+
+      // mark read (best-effort)
+      if (!n.is_read) {
+        try {
+          await fetch(`/admin/notifications/${encodeURIComponent(id)}/read`, {
+            method: "POST",
+            credentials: "same-origin",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({})
+          });
+          n.is_read = true;
+          __setUnreadBadge();
+        } catch {}
+      }
+
+      __notifPrimaryAction(n);
+    });
+  });
+}
+
+async function markAllTaskNotificationsRead() {
+  const unread = __tasksNotifAll.filter(n => !n.is_read);
+  if (!unread.length) return;
+
+  await Promise.allSettled(
+    unread.map(n =>
+      fetch(`/admin/notifications/${encodeURIComponent(n.id)}/read`, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({})
+      })
+    )
+  );
+
+  __tasksNotifAll.forEach(n => (n.is_read = true));
+  __setUnreadBadge();
+  renderTaskNotifications();
+}
+
+function wireTaskNotificationsUI() {
+  const refreshBtn = document.getElementById("tasksNotifRefreshBtn");
+  const markAllBtn = document.getElementById("tasksNotifMarkAllReadBtn");
+
+  if (refreshBtn) refreshBtn.addEventListener("click", loadTaskNotifications);
+  if (markAllBtn) markAllBtn.addEventListener("click", markAllTaskNotificationsRead);
+
+  document.querySelectorAll(".tasksNotifFilterBtn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      __tasksNotifFilter = btn.getAttribute("data-filter") || "all";
+      renderTaskNotifications();
+    });
+  });
+}
+
+/**
+ * Call this when user switches Tasks subtab.
+ * You likely already have a "setTasksTab(...)" or similar;
+ * just call showTasksNotificationsPanel() when tab === "notifications".
+ */
+function showTasksNotificationsPanel(show) {
+  const panel = document.getElementById("tasksNotificationsPanel");
+  if (!panel) return;
+
+  panel.style.display = show ? "block" : "none";
+
+  if (show) {
+    wireTaskNotificationsUI();
+    loadTaskNotifications();
+  }
+}
 </script>
+
 
 
 </body>
