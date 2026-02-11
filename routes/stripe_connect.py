@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 
 from database import get_db
 from models import PMCIntegration
-from routes.admin import get_user_role_and_scope
+from utils.admin_scope import get_user_role_and_scope
 
 router = APIRouter()
 
