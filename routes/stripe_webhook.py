@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from database import SessionLocal
 
-from models import PMC, UpgradePurchase, Property, Upgrade, ChatSession, PMCUser, PMCMessage
+from models import PMC, UpgradePurchase, Property, Upgrade, ChatSession, PMCUser, PMCMessage, Notification
 from utils.emailer import send_upgrade_purchase_email
 
 
@@ -282,6 +282,64 @@ def _notify_pmc_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None
                 # best-effort only
                 pass
 
+def _notify_inapp_upgrade_purchase(db: Session, purchase: UpgradePurchase) -> None:
+    """
+    Creates in-app Notifications (NOT PMCMessage) for upgrade purchases.
+    Goes to active owner/admin (and superusers) on the PMC team.
+    Idempotency is handled by the webhook logic (status + last_stripe_event_id).
+    """
+    pmc = db.query(PMC).filter(PMC.id == int(purchase.pmc_id)).first()
+    if not pmc:
+        return
+
+    prop = db.query(Property).filter(Property.id == int(purchase.property_id)).first()
+    upgrade = db.query(Upgrade).filter(Upgrade.id == int(purchase.upgrade_id)).first()
+    sess = None
+    if getattr(purchase, "guest_session_id", None):
+        sess = db.query(ChatSession).filter(ChatSession.id == int(purchase.guest_session_id)).first()
+
+    property_name = (getattr(prop, "property_name", "") or f"Property {purchase.property_id}").strip()
+    upgrade_title = (getattr(upgrade, "title", "") or "Upgrade").strip()
+    guest_name = ((getattr(sess, "guest_name", None) or "").strip() if sess else "")
+
+    amount_cents = int(getattr(purchase, "amount_cents", 0) or 0)
+    currency = (getattr(purchase, "currency", None) or "usd").strip().upper()
+
+    title = "Upgrade purchased"
+    body = f"{upgrade_title} • {property_name} • {amount_cents/100:.2f} {currency}"
+    if guest_name:
+        body = f"{guest_name} • {body}"
+
+    # Notify active owner/admin + superusers
+    users = (
+        db.query(PMCUser)
+        .filter(PMCUser.pmc_id == int(pmc.id), PMCUser.is_active == True)  # noqa: E712
+        .all()
+    )
+
+    for u in users:
+        role = (getattr(u, "role", "") or "").lower().strip()
+        is_super = bool(getattr(u, "is_superuser", False))
+        if not (is_super or role in {"owner", "admin"}):
+            continue
+
+        db.add(
+            Notification(
+                pmc_id=int(pmc.id),
+                user_id=int(u.id),
+                type="upgrade_purchased",
+                title=title,
+                body=body,
+                meta={
+                    "upgrade_purchase_id": int(purchase.id),
+                    "property_id": int(getattr(purchase, "property_id", 0) or 0) or None,
+                    "upgrade_id": int(getattr(purchase, "upgrade_id", 0) or 0) or None,
+                    "guest_session_id": int(getattr(purchase, "guest_session_id", 0) or 0) or None,
+                },
+                is_read=False,
+                created_at=datetime.utcnow(),  # keep naive UTC consistent with the rest of the app
+            )
+        )
 
 
 def _find_pmc_from_event(db: Session, obj: Dict[str, Any], metadata: Dict[str, Any]) -> Optional[PMC]:
@@ -503,6 +561,8 @@ async def stripe_webhook(request: Request):
                 # notify best-effort
                 try:
                     _notify_pmc_upgrade_purchase(db, purchase)
+                    _notify_inapp_upgrade_purchase(db, purchase) # ✅ NEW in-app Notification
+                    
                 except Exception:
                     pass
 
