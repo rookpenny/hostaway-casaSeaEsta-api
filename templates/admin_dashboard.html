@@ -2396,6 +2396,195 @@
 </script>
 
 
+                <script>
+  // ------------------------------
+  // Tasks → Notifications panel (in-app)
+  // ------------------------------
+  window.Notifications = window.Notifications || (function () {
+    let all = [];
+    let filter = "all";
+    let wired = false;
+
+    const $id = (id) => document.getElementById(id);
+
+    function fmtTime(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString();
+    }
+
+    function setUnreadBadge() {
+      const badge = $id("tasksNotifUnreadBadge");
+      if (!badge) return;
+      const unread = all.filter((n) => !n.is_read).length;
+      if (unread > 0) {
+        badge.classList.remove("hidden");
+        badge.textContent = String(unread);
+      } else {
+        badge.classList.add("hidden");
+        badge.textContent = "0";
+      }
+    }
+
+    function applyFilter(items) {
+      if (filter === "all") return items;
+      if (filter === "unread") return items.filter((n) => !n.is_read);
+      return items.filter((n) => String(n.type || "") === filter);
+    }
+
+    function openNotification(n) {
+      const t = String(n.type || "");
+      const meta = n.meta || {};
+
+      // If chat assigned, jump to chat
+      if (t === "chat_assigned" && meta.chat_session_id) {
+        window.location.href =
+          `/admin/dashboard?view=chats&session_id=${encodeURIComponent(meta.chat_session_id)}`;
+        return;
+      }
+
+      // If upgrade, jump to upgrades page (or whatever you prefer)
+      if (t === "upgrade_purchased") {
+        window.location.href = `/admin/dashboard?view=upgrades`;
+        return;
+      }
+
+      // default fallback
+      window.location.href = `/admin/dashboard?view=tasks`;
+    }
+
+    async function markRead(id) {
+      const res = await fetch(`/admin/notifications/${encodeURIComponent(id)}/read`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      // even if it errors, we won't hard-fail UI
+      return res.ok;
+    }
+
+    function render() {
+      const list = $id("tasksNotifList");
+      if (!list) return;
+
+      const items = applyFilter(all);
+
+      if (!items.length) {
+        list.innerHTML = `<div class="text-slate-500 text-sm">No notifications.</div>`;
+        return;
+      }
+
+      list.innerHTML = items
+        .map((n) => {
+          const unreadDot = n.is_read
+            ? ""
+            : `<span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>`;
+
+          return `
+            <div class="border border-slate-200 bg-white rounded-2xl p-4 mb-3 cursor-pointer hover:bg-slate-50"
+                 data-notif-id="${n.id}">
+              <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <div class="font-semibold text-slate-900 flex items-center">
+                    ${unreadDot}
+                    <span class="truncate">${(n.title || "Notification")}</span>
+                  </div>
+                  ${n.body ? `<div class="text-sm text-slate-600 mt-1">${n.body}</div>` : ""}
+                  <div class="text-xs text-slate-400 mt-2">${n.type || ""}</div>
+                </div>
+                <div class="text-xs text-slate-400 whitespace-nowrap">${fmtTime(n.created_at)}</div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      // click handlers
+      document.querySelectorAll("[data-notif-id]").forEach((row) => {
+        row.addEventListener("click", async () => {
+          const id = row.getAttribute("data-notif-id");
+          const n = all.find((x) => String(x.id) === String(id));
+          if (!n) return;
+
+          if (!n.is_read) {
+            await markRead(id);
+            n.is_read = true;
+            setUnreadBadge();
+          }
+
+          openNotification(n);
+        });
+      });
+    }
+
+    async function load() {
+      const list = $id("tasksNotifList");
+      if (list) list.innerHTML = `<div class="text-slate-500 text-sm">Loading…</div>`;
+
+      const res = await fetch(`/admin/notifications?limit=200`, { credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (list) {
+          list.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">
+            Failed to load notifications.
+          </div>`;
+        }
+        return;
+      }
+
+      all = Array.isArray(data.items) ? data.items : [];
+      setUnreadBadge();
+      render();
+    }
+
+    async function markAllRead() {
+      const unread = all.filter((n) => !n.is_read);
+      if (!unread.length) return;
+
+      await Promise.allSettled(unread.map((n) => markRead(n.id)));
+      all.forEach((n) => (n.is_read = true));
+      setUnreadBadge();
+      render();
+    }
+
+    function wireUIOnce() {
+      if (wired) return;
+      wired = true;
+
+      $id("tasksNotifRefreshBtn")?.addEventListener("click", load);
+      $id("tasksNotifMarkAllReadBtn")?.addEventListener("click", markAllRead);
+
+      document.querySelectorAll(".tasksNotifFilterBtn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          filter = btn.getAttribute("data-filter") || "all";
+          render();
+        });
+      });
+    }
+
+    // ✅ Tasks.refresh() calls this
+    function showInTasks(show) {
+      const panel = $id("tasksNotificationsPanel");
+      if (!panel) return;
+
+      if (show) {
+        panel.classList.remove("hidden");
+        wireUIOnce();
+        load();
+      } else {
+        panel.classList.add("hidden");
+      }
+    }
+
+    return { showInTasks };
+  })();
+</script>
+
+
+
 
 </body>
 </html>
