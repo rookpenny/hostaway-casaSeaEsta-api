@@ -26,7 +26,7 @@ from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy import func, case, and_, or_, text
-
+from utils.admin_scope import get_user_role_and_scope, get_current_admin_identity, is_super_admin
 
 from pydantic import BaseModel
 from typing import Optional, Dict
@@ -56,7 +56,6 @@ logging.basicConfig(level=logging.INFO)
 
 ADMIN_JOB_TOKEN = os.getenv("ADMIN_JOB_TOKEN", "")
 SUMMARY_MODEL = os.getenv("OPENAI_SUMMARY_MODEL", "gpt-4o-mini")
-ADMIN_IDENTITY_SESSION_KEY = os.getenv("ADMIN_IDENTITY_SESSION_KEY", "admin_email")
 
 ESCALATE_LOW_HEAT = int(os.getenv("ESCALATE_LOW_HEAT", "35"))
 ESCALATE_MEDIUM_HEAT = int(os.getenv("ESCALATE_MEDIUM_HEAT", "60"))
@@ -1184,58 +1183,7 @@ def chat_detail_partial(
 # ----------------------------
 # Auth / scope helpers
 # ----------------------------
-def get_current_admin_identity(request: Request) -> Optional[str]:
-    # 1) Auth middleware scope user
-    try:
-        user = request.scope.get("user")
-        if user and getattr(user, "is_authenticated", False):
-            for attr in ("email", "username", "name"):
-                val = getattr(user, attr, None)
-                if val and str(val).strip():
-                    return str(val).strip().lower()
-    except Exception:
-        pass
 
-    # 2) Explicit session key
-    try:
-        sess_val = request.session.get(ADMIN_IDENTITY_SESSION_KEY)
-        if sess_val and str(sess_val).strip():
-            return str(sess_val).strip().lower()
-    except Exception:
-        pass
-
-    # 3) Existing Google login flow: session["user"]["email"]
-    try:
-        sess_user = request.session.get("user")
-        if isinstance(sess_user, dict):
-            email = (sess_user.get("email") or "").strip()
-            if email:
-                return email.lower()
-    except Exception:
-        pass
-
-    # 4) Header fallback
-    try:
-        hdr = request.headers.get("x-admin-email") or request.headers.get("x-admin-user")
-        if hdr and hdr.strip():
-            return hdr.strip().lower()
-    except Exception:
-        pass
-
-    return None
-
-
-def is_super_admin(email: Optional[str]) -> bool:
-    if not email:
-        return False
-
-    allow = os.getenv("ADMIN_EMAILS", "")
-    if allow.strip():
-        allowed = {e.strip().lower() for e in allow.split(",") if e.strip()}
-        return email.lower() in allowed
-
-    # fallback (set ADMIN_EMAILS in env and remove this once stable)
-    return email.lower() in {"corbett.jarrod@gmail.com"}
 
 def delete_temp_upgrade_image(tmp_key: str) -> None:
     """
