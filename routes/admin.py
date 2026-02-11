@@ -4535,6 +4535,22 @@ def _current_pmc_user(request: Request, db: Session) -> PMCUser:
         raise HTTPException(status_code=403, detail="Forbidden")
     return pmc_user
 
+def _create_chat_assigned_notification(db: Session, pmc_id: int, assignee_user_id: int, session_id: int, property_id: int | None = None, guest_name: str | None = None):
+    db.add(Notification(
+        pmc_id=int(pmc_id),
+        user_id=int(assignee_user_id),
+        type="chat_assigned",
+        title="Chat assigned to you",
+        body=f"{(guest_name or 'Guest')} • Chat #{session_id}",
+        meta={
+            "chat_session_id": int(session_id),
+            "property_id": int(property_id) if property_id else None,
+        },
+        is_read=False,
+        created_at=datetime.utcnow(),
+    ))
+
+
 
 @router.get("/admin/notifications")
 def api_notifications(
