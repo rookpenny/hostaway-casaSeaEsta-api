@@ -1300,7 +1300,97 @@ def chat_detail_partial(
     )
 
 
-# routes/admin.py
+# -------------------------------------------------------------------
+# CHAT ASSIGNMENT (creates notification for the assigned teammate)
+# -------------------------------------------------------------------
+
+@router.post("/admin/chats/ajax/assign")
+def chat_assign_ajax(
+    request: Request,
+    db: Session = Depends(get_db),
+    payload: dict = Body(...),
+):
+    """
+    Payload:
+      {
+        "session_id": 123,
+        "assigned_to": "teammate@company.com"  # "" or null to unassign
+      }
+    Writes:
+      - chat_sessions.assigned_to (email string)
+      - Notification(type="chat_assigned") for the assigned PMCUser (if found)
+    """
+    # must be logged in (same as other admin routes)
+    if not request.session.get("user"):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    session_id = payload.get("session_id")
+    assigned_to = (payload.get("assigned_to") or "").strip().lower()
+
+    if not session_id:
+        return JSONResponse({"ok": False, "error": "Missing session_id"}, status_code=400)
+
+    sess = require_session_in_scope(request, db, int(session_id))
+
+    # enforce that assignee email is on the PMC team (PMC role only)
+    if assigned_to:
+        enforce_assignee_in_pmc(request, db, assigned_to)
+
+    # figure out which PMC owns this chat (via the Property)
+    prop = db.query(Property).filter(Property.id == int(sess.property_id)).first()
+    if not prop:
+        raise HTTPException(status_code=404, detail="Property not found")
+    pmc_id = int(prop.pmc_id) if prop.pmc_id else None
+    if not pmc_id:
+        raise HTTPException(status_code=400, detail="Chat has no PMC")
+
+    old_assigned = (sess.assigned_to or "").strip().lower()
+    new_assigned = assigned_to or None
+
+    # no-op if unchanged
+    if (old_assigned or None) == new_assigned:
+        return {"ok": True, "assigned_to": sess.assigned_to}
+
+    sess.assigned_to = new_assigned
+    if hasattr(sess, "updated_at"):
+        sess.updated_at = datetime.utcnow()
+    db.add(sess)
+
+    # create notification ONLY when assigning (not unassigning)
+    if new_assigned:
+        assignee = (
+            db.query(PMCUser)
+            .filter(
+                PMCUser.pmc_id == pmc_id,
+                func.lower(PMCUser.email) == new_assigned,
+                PMCUser.is_active == True,
+            )
+            .first()
+        )
+
+        if assignee:
+            guest = (sess.guest_name or "Guest").strip()
+            title = "Chat assigned to you"
+            body = f"{guest} • {prop.property_name or 'Property'}"
+            _notify(
+                db,
+                pmc_id=pmc_id,
+                user_id=int(assignee.id),
+                ntype="chat_assigned",
+                title=title,
+                body=body,
+                meta={
+                    "chat_session_id": int(sess.id),
+                    "property_id": int(prop.id),
+                    "property_name": prop.property_name,
+                    "guest_name": sess.guest_name,
+                    "assigned_to": new_assigned,
+                },
+            )
+
+    db.commit()
+    return {"ok": True, "assigned_to": sess.assigned_to}
+
 
 @router.get("/admin/api/team")
 def api_team_users(
@@ -4382,6 +4472,128 @@ def _notify(db: Session, pmc_id: int, user_id: int | None, ntype: str, title: st
             created_at=_now(),
         )
     )
+
+def notify_upgrade_purchased(
+    db: Session,
+    *,
+    pmc_id: int,
+    purchased_by_user_id: int | None,
+    upgrade_purchase_id: int,
+    title: str,
+    amount_cents: int | None = None,
+    currency: str | None = None,
+    meta: dict | None = None,
+):
+    """
+    Sends an upgrade purchase notification to all active OWNER/ADMIN users in the PMC.
+    Call this when Stripe payment is confirmed.
+    """
+    admins = (
+        db.query(PMCUser)
+        .filter(
+            PMCUser.pmc_id == pmc_id,
+            PMCUser.is_active == True,
+            func.lower(func.coalesce(PMCUser.role, "")) .in_(("owner", "admin")),
+        )
+        .all()
+    )
+
+    price_txt = ""
+    if amount_cents is not None:
+        try:
+            price_txt = f" • {(int(amount_cents) / 100.0):.2f} {str(currency or '').upper()}".strip()
+        except Exception:
+            price_txt = ""
+
+    for u in admins:
+        _notify(
+            db,
+            pmc_id=pmc_id,
+            user_id=int(u.id),
+            ntype="upgrade_purchased",
+            title=title,
+            body=f"Upgrade purchase confirmed{price_txt}",
+            meta={
+                "upgrade_purchase_id": int(upgrade_purchase_id),
+                "purchased_by_user_id": purchased_by_user_id,
+                **(meta or {}),
+            },
+        )
+
+
+# -------------------------------------------------------------------
+# NOTIFICATIONS API (used by Tasks UI)
+# -------------------------------------------------------------------
+
+def _current_pmc_user(request: Request, db: Session) -> PMCUser:
+    """
+    Returns the logged-in PMCUser row (not just the PMC org).
+    Uses the same identity source your dashboard uses.
+    """
+    user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
+    if user_role != "pmc" or not pmc_obj or not pmc_user:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    return pmc_user
+
+
+@router.get("/admin/notifications")
+def api_notifications(
+    request: Request,
+    db: Session = Depends(get_db),
+    limit: int = Query(100, ge=1, le=500),
+):
+    pmc_user = _current_pmc_user(request, db)
+
+    rows = (
+        db.query(Notification)
+        .filter(Notification.pmc_id == pmc_user.pmc_id)
+        .filter(Notification.user_id == pmc_user.id)
+        .order_by(Notification.created_at.desc())
+        .limit(int(limit))
+        .all()
+    )
+
+    return {
+        "items": [
+            {
+                "id": n.id,
+                "type": n.type,
+                "title": n.title,
+                "body": n.body,
+                "meta": n.meta or {},
+                "is_read": bool(n.is_read),
+                "created_at": n.created_at.isoformat() if n.created_at else None,
+            }
+            for n in rows
+        ]
+    }
+
+
+@router.post("/admin/notifications/{notification_id}/read")
+def api_notification_mark_read(
+    notification_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    pmc_user = _current_pmc_user(request, db)
+
+    n = (
+        db.query(Notification)
+        .filter(
+            Notification.id == int(notification_id),
+            Notification.pmc_id == pmc_user.pmc_id,
+            Notification.user_id == pmc_user.id,
+        )
+        .first()
+    )
+    if not n:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    n.is_read = True
+    db.add(n)
+    db.commit()
+    return {"ok": True}
+
 
 
 def _apply_auto_assignment(db: Session, pmc_id: int, task: Task):
