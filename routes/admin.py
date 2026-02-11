@@ -1014,7 +1014,7 @@ def compute_action_priority(
 # ----------------------------
 # Flask-ish example
 # ----------------------------
-
+'''
 @router.get("/admin/chats/partial/detail", response_class=HTMLResponse)
 def chat_detail_partial(
     request: Request,
@@ -1179,7 +1179,7 @@ def chat_detail_partial(
     )
 
 
-
+'''
 
 # ----------------------------
 # Auth / scope helpers
@@ -1269,7 +1269,12 @@ def chat_detail_partial(
     session_id: int,
     db: Session = Depends(get_db),
 ):
-    # Load session + property first
+    # Require logged-in session (matches how your dashboard gate works)
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=401)
+
+    # --- Load session + property ---
     sess = db.query(ChatSession).filter(ChatSession.id == session_id).first()
     if not sess:
         raise HTTPException(status_code=404, detail="Chat not found")
@@ -1278,32 +1283,33 @@ def chat_detail_partial(
     if not property_obj:
         raise HTTPException(status_code=404, detail="Property not found")
 
-    # Who is viewing?
+    # --- Scope: who is viewing? ---
     user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
 
-    # ✅ decide which PMC to pull users for
+    # Decide which PMC team to show
+    target_pmc_id = None
     if user_role == "super":
         target_pmc_id = int(property_obj.pmc_id) if property_obj.pmc_id else None
     else:
         # pmc role must be linked to a PMC to have a team
-        if not pmc_obj:
-            target_pmc_id = None
-        else:
+        if pmc_obj:
             target_pmc_id = int(pmc_obj.id)
 
-            # ✅ enforce that a PMC can only view chats for their own PMC
+            # Enforce PMC can only view chats for their own PMC
             if property_obj.pmc_id and int(property_obj.pmc_id) != target_pmc_id:
                 raise HTTPException(status_code=403, detail="Forbidden")
 
-    team_members = []
+    # --- Team members (LIST, not the 'team_members' function) ---
+    pmc_team_members = []
     if target_pmc_id:
-        team_members = (
+        pmc_team_members = (
             db.query(PMCUser)
             .filter(PMCUser.pmc_id == target_pmc_id, PMCUser.is_active == True)
             .order_by(func.lower(PMCUser.email).asc())
             .all()
         )
 
+    # --- Messages ---
     messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == sess.id)
@@ -1311,8 +1317,27 @@ def chat_detail_partial(
         .all()
     )
 
-    # (whatever you currently use for `session_vm`)
-    session_vm = sess  # replace with your existing mapping if needed
+    # --- Build a VM that matches what the template expects ---
+    session_vm = {
+        "id": sess.id,
+        "property_id": sess.property_id,
+        "guest_name": sess.guest_name,
+        "assigned_to": sess.assigned_to,
+        "reservation_status": sess.reservation_status,
+        "escalation_level": sess.escalation_level,
+        "is_resolved": bool(sess.is_resolved),
+        "action_priority": getattr(sess, "action_priority", None),
+        "emotional_signals": getattr(sess, "emotional_signals", None) or [],
+        "guest_mood": getattr(sess, "guest_mood", None),
+        "internal_note": getattr(sess, "internal_note", None),
+        "ai_summary": getattr(sess, "ai_summary", None),
+        "ai_summary_updated_at": getattr(sess, "ai_summary_updated_at", None),
+        "reservation_id": getattr(sess, "reservation_id", None),
+        "booking_id": getattr(sess, "booking_id", None),
+        "confirmation_code": getattr(sess, "confirmation_code", None),
+        "pms_reservation_id": getattr(sess, "pms_reservation_id", None),
+        "reservation_confirmed": getattr(sess, "reservation_confirmed", None),
+    }
 
     return templates.TemplateResponse(
         "partials/chat_detail_panel.html",
@@ -1321,7 +1346,7 @@ def chat_detail_partial(
             "session": session_vm,
             "property": property_obj,
             "messages": messages,
-            "team_members": team_members,  # ✅ THIS is what your dropdown uses
+            "team_members": pmc_team_members,  # ✅ iterable list for the dropdown
             "property_name_by_id": {property_obj.id: property_obj.property_name},
         },
     )
