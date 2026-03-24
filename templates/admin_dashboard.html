@@ -1816,13 +1816,13 @@
                         data-settings="profile" type="button">
                   Profile
                 </button>
-
+{% if user_role == "super" %}
                 <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
                         data-settings="team" type="button">
                   Team
                 </button>
 
-                {% if user_role == "super" %}
+                
                 <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
                         data-settings="roles" type="button">
                   Roles & Permissions
@@ -1832,7 +1832,7 @@
                         data-settings="pmcs" type="button">
                   PMCs
                 </button>
-                {% endif %}
+                
 
                 <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
                         data-settings="notifications" type="button">
@@ -1842,7 +1842,7 @@
                 <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
                         data-settings="integrations" type="button">
                   Integrations
-                </button>
+                </button>{% endif %}
               </div>
             </aside>
 
