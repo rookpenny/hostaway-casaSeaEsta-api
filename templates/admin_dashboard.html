@@ -339,7 +339,7 @@
 
 
 
-        {% if user_role != "super" %}
+        {% if user_role == "super" %}
         <!-- PMC Payouts (PMC only) -->
         <button data-view="payouts"
           class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
@@ -352,9 +352,7 @@
           </span>
           <span class="sidebar-label font-medium">Payouts</span>
         </button>
-        {% endif %}
-
-        {% if user_role == "super" %}
+        
         <!-- HostScout Revenue (Super only) -->
         <button data-view="admin_payouts"
           class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
