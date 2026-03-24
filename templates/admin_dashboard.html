@@ -787,17 +787,33 @@
                             {{ s.last_snippet or "No recent message" }}
                           </div>
         
-                          <div class="mt-3 flex flex-wrap items-center gap-2">
-                            <span class="conv-badge conv-badge-stage">
-                              {{ s.reservation_status|replace('_',' ')|title }}
+                          <div class="mt-3 space-y-2 text-sm">
+
+                          <!-- Guest Mood -->
+                          {% if s.emotional_signals %}
+                          <div class="flex items-start gap-2 flex-wrap">
+                            <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
+                              Guest Mood:
                             </span>
-        
-                            {% for mood in s.emotional_signals or [] %}
+                            {% for mood in s.emotional_signals %}
                               <span class="conv-badge bg-slate-100 text-slate-700">
                                 {{ mood|replace('_',' ')|title }}
                               </span>
                             {% endfor %}
                           </div>
+                          {% endif %}
+                        
+                          <!-- Reservation Stage -->
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
+                              Stage:
+                            </span>
+                            <span class="conv-badge conv-badge-stage">
+                              {{ s.reservation_status|replace('_',' ')|title }}
+                            </span>
+                          </div>
+                        
+                        </div>
                         </div>
         
                         <!-- Right -->
