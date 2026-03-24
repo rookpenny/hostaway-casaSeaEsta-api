@@ -115,7 +115,7 @@
     }
 
     .conversations-row {
-      @apply mt-3 bg-white rounded-2xl border border-slate-200 px-4 py-4 hover:bg-slate-50 transition cursor-pointer;
+      @apply mt-3 bg-white rounded-2xl border border-slate-200 px-4 py-4 hover:bg-slate-50 transition;
     }
 
     .conversations-grid {
@@ -153,20 +153,36 @@
     .conv-badge-stage {
       @apply bg-indigo-100 text-indigo-700;
     }
-   .conversations-batchbar {
+
+    .conversations-batchbar {
       @apply fixed left-0 right-0 bottom-6 z-50 flex justify-center;
     }
-    
+
     .conversations-batchbar-inner {
       @apply bg-slate-900 text-white rounded-2xl px-5 py-3 flex items-center gap-3 shadow-xl border border-white/10;
     }
-    
+
     .conversations-check {
       @apply h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-300;
     }
+
+    .conversation-open {
+      @apply cursor-pointer;
+    }
+
+    .conversations-section-sticky {
+      @apply sticky top-20 z-10 bg-slate-50/95 backdrop-blur py-2;
+    }
+
+    .conversations-live-pill {
+      @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border border-emerald-200 bg-emerald-50 text-emerald-700;
+    }
+
+    .conversations-muted-pill {
+      @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border border-slate-200 bg-slate-50 text-slate-600;
+    }
   }
 
-  /* Tasks dropdown (status picker) */
   .tasks-status-menu {
     position: fixed;
     z-index: 9999;
@@ -201,21 +217,10 @@
     border: 2px solid rgb(148 163 184);
   }
 
-  .tasks-status-dot.is-todo {
-    border-color: rgb(148 163 184);
-  }
-
-  .tasks-status-dot.is-in_progress {
-    border-color: rgb(59 130 246);
-  }
-
-  .tasks-status-dot.is-waiting {
-    border-color: rgb(99 102 241);
-  }
-
-  .tasks-status-dot.is-in_review {
-    border-color: rgb(234 179 8);
-  }
+  .tasks-status-dot.is-todo { border-color: rgb(148 163 184); }
+  .tasks-status-dot.is-in_progress { border-color: rgb(59 130 246); }
+  .tasks-status-dot.is-waiting { border-color: rgb(99 102 241); }
+  .tasks-status-dot.is-in_review { border-color: rgb(234 179 8); }
 
   .tasks-status-dot.is-canceled {
     border-color: rgb(148 163 184);
@@ -669,140 +674,162 @@
 
 
 
-        <!-- START CONVERSATIONS -->
-        <section id="view-conversations"
-          class="view space-y-4 {% if initial_view != 'conversations' %}hidden{% endif %}">
-        
-          <div class="bg-white border border-slate-200 rounded-2xl p-5 card">
-            <!-- Header -->
-            <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div>
-                <div class="text-2xl font-semibold">Conversations</div>
-                <div class="mt-1 text-slate-500">
-                  Track guest messages, urgency, assignments, and stay stage across properties.
+      <!-- START CONVERSATIONS -->
+<section id="view-conversations"
+  class="view space-y-4 {% if initial_view != 'conversations' %}hidden{% endif %}">
+
+  <div class="bg-white border border-slate-200 rounded-2xl p-5 card">
+    <!-- Header -->
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+      <div>
+        <div class="text-2xl font-semibold">Conversations</div>
+        <div class="mt-1 text-slate-500">
+          Track guest messages, urgency, assignments, and stay stage across properties.
+        </div>
+      </div>
+
+      <div class="flex flex-wrap items-center gap-2">
+        <span id="conversationsLiveStatus" class="conversations-live-pill">
+          <span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+          Live updates on
+        </span>
+
+        <button id="toggleConversationsAutoRefresh"
+          type="button"
+          class="btn btn-secondary h-11 px-4 rounded-2xl">
+          Pause live updates
+        </button>
+
+        <a href="/admin/dashboard?view=conversations"
+           class="btn btn-secondary h-11 px-5 rounded-2xl">
+          Refresh
+        </a>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <form method="get"
+      class="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+
+      <input type="hidden" name="view" value="conversations" />
+
+      <div class="flex-1 flex flex-col gap-3 lg:flex-row lg:items-center">
+        <div class="relative w-full max-w-2xl">
+          <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
+          <input
+            name="q"
+            value="{{ filters.q or '' }}"
+            type="search"
+            placeholder="Search guest, property, or message..."
+            class="conversations-toolbar-input pl-10 pr-4"
+          />
+        </div>
+
+        <select name="property_id" class="conversations-toolbar-select">
+          <option value="">All Properties</option>
+          {% for pr in properties %}
+            <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+              {{ pr.property_name }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <select name="action_priority" class="conversations-toolbar-select">
+          <option value="">All priorities</option>
+          <option value="urgent" {% if filters.action_priority == "urgent" %}selected{% endif %}>Urgent</option>
+          <option value="high" {% if filters.action_priority == "high" %}selected{% endif %}>High</option>
+          <option value="normal" {% if filters.action_priority == "normal" %}selected{% endif %}>Normal</option>
+          <option value="low" {% if filters.action_priority == "low" %}selected{% endif %}>Low</option>
+        </select>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <button class="btn btn-primary h-11 px-5 rounded-2xl" type="submit">
+          Filter
+        </button>
+        <a href="/admin/dashboard?view=conversations"
+           class="btn btn-secondary h-11 px-5 rounded-2xl">
+          Reset
+        </a>
+      </div>
+    </form>
+
+    <!-- Rows -->
+    <div class="mt-6">
+      {% if sessions %}
+
+        {% set stage_order = [
+          ("pre_booking", "Pre-Booking"),
+          ("active", "Active"),
+          ("post_booking", "Post-Booking"),
+          ("post_stay", "Post-Stay")
+        ] %}
+
+        {% set urgent_sessions = sessions | selectattr("action_priority", "equalto", "urgent") | list %}
+
+        {% if urgent_sessions %}
+          <div class="tasks-group">
+            <div class="conversations-section-sticky">
+              <div class="tasks-group-head border-b border-rose-100 pb-3">
+                <div class="flex items-center gap-3">
+                  <div class="text-sm font-semibold text-rose-700">Urgent</div>
+                  <span class="tasks-group-pill border-rose-200 bg-rose-50 text-rose-700">
+                    {{ urgent_sessions|length }}
+                  </span>
                 </div>
-              </div>
-        
-              <div class="flex items-center gap-2">
-                <a href="/admin/dashboard?view=conversations"
-                   class="btn btn-secondary h-11 px-5 rounded-2xl">
-                  Refresh
-                </a>
+                <div class="text-xs text-slate-500">Pinned at the top for immediate attention</div>
               </div>
             </div>
-        
-            <!-- Filters -->
-            <form method="get"
-              class="mt-5 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        
-              <input type="hidden" name="view" value="conversations" />
-        
-              <div class="flex-1 flex flex-col gap-3 lg:flex-row lg:items-center">
-                <div class="relative w-full max-w-2xl">
-                  <span class="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400">⌕</span>
-                  <input
-                    name="q"
-                    value="{{ filters.q or '' }}"
-                    type="search"
-                    placeholder="Search guest, property, or message..."
-                    class="conversations-toolbar-input pl-10 pr-4"
-                  />
-                </div>
-        
-                <select name="property_id" class="conversations-toolbar-select">
-                  <option value="">All Properties</option>
-                  {% for pr in properties %}
-                    <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
-                      {{ pr.property_name }}
-                    </option>
-                  {% endfor %}
-                </select>
-        
-                <select name="action_priority" class="conversations-toolbar-select">
-                  <option value="">All priorities</option>
-                  <option value="urgent" {% if filters.action_priority == "urgent" %}selected{% endif %}>Urgent</option>
-                  <option value="high" {% if filters.action_priority == "high" %}selected{% endif %}>High</option>
-                  <option value="normal" {% if filters.action_priority == "normal" %}selected{% endif %}>Normal</option>
-                  <option value="low" {% if filters.action_priority == "low" %}selected{% endif %}>Low</option>
-                </select>
-              </div>
-        
-              <div class="flex items-center gap-2">
-                <button class="btn btn-primary h-11 px-5 rounded-2xl" type="submit">
-                  Filter
-                </button>
-                <a href="/admin/dashboard?view=conversations"
-                   class="btn btn-secondary h-11 px-5 rounded-2xl">
-                  Reset
-                </a>
-              </div>
-            </form>
-        
-            <!-- Rows -->
-            <div class="mt-6">
-              {% if sessions %}
-                <div class="space-y-3">
-                  {% for s in sessions %}
-                    {% set conv_priority = s.action_priority or 'low' %}
-        
-                    <div class="conversations-row" data-conversation-row data-session-id="{{ s.id }}">
-                      <div class="conversations-grid">
-                        <!-- Checkbox -->
-                        <div class="col-span-12 lg:col-span-1 flex items-start lg:items-center">
-                          <input
-                            type="checkbox"
-                            class="conversations-check conversation-select"
-                            value="{{ s.id }}"
-                            aria-label="Select conversation {{ s.id }}"
-                          />
+
+            <div class="space-y-3 mt-3">
+              {% for s in urgent_sessions %}
+                <div class="conversations-row" data-conversation-row data-session-id="{{ s.id }}">
+                  <div class="conversations-grid">
+
+                    <div class="col-span-12 lg:col-span-1 flex items-start lg:items-center">
+                      <input
+                        type="checkbox"
+                        class="conversations-check conversation-select"
+                        value="{{ s.id }}"
+                        aria-label="Select conversation {{ s.id }}"
+                      />
+                    </div>
+
+                    <div class="col-span-12 lg:col-span-3 conversation-open">
+                      <div class="space-y-3">
+                        <div class="flex gap-2 flex-wrap">
+                          {% if s.is_resolved %}
+                            <span class="conv-badge conv-badge-closed">Closed</span>
+                          {% else %}
+                            <span class="conv-badge conv-badge-open">Open</span>
+                          {% endif %}
                         </div>
-        
-                        <!-- Left -->
-                        <div class="col-span-12 lg:col-span-3 cursor-pointer conversation-open">
-                          <div class="space-y-2">
 
-  <!-- Status -->
-  <div class="flex gap-2 flex-wrap">
-    {% if s.is_resolved %}
-      <span class="conv-badge conv-badge-closed">Closed</span>
-    {% else %}
-      <span class="conv-badge conv-badge-open">Open</span>
-    {% endif %}
-  </div>
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
+                            Action Priority:
+                          </span>
+                          <span class="conv-badge conv-badge-urgent">Urgent</span>
+                        </div>
 
-  <!-- Action Priority -->
-  {% set conv_priority = s.action_priority or 'low' %}
-  <div class="flex items-center gap-2 flex-wrap">
-    <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
-      Action Priority:
-    </span>
-    <span class="conv-badge conv-badge-{{ conv_priority }}">
-      {{ conv_priority|title }}
-    </span>
-  </div>
-
-</div>
-        
-                          <div class="mt-3">
-                            <div class="font-semibold text-slate-900">
-                              {{ s.guest_name or "Guest" }}
-                            </div>
-                            <div class="text-sm text-slate-500">
-                              {{ s.property_name or "Unknown property" }}
-                            </div>
+                        <div>
+                          <div class="font-semibold text-slate-900">
+                            {{ s.guest_name or "Guest" }}
+                          </div>
+                          <div class="text-sm text-slate-500">
+                            {{ s.property_name or "Unknown property" }}
                           </div>
                         </div>
-        
-                        <!-- Middle -->
-                        <div class="col-span-12 lg:col-span-5 cursor-pointer conversation-open">
-                          <div class="text-sm text-slate-700 leading-6 truncate">
-                            {{ s.last_snippet or "No recent message" }}
-                          </div>
-        
-                          <div class="mt-3 space-y-2 text-sm">
+                      </div>
+                    </div>
 
-                          <!-- Guest Mood -->
-                          {% if s.emotional_signals %}
+                    <div class="col-span-12 lg:col-span-5 conversation-open">
+                      <div class="text-sm text-slate-700 leading-6 truncate">
+                        {{ s.last_snippet or "No recent message" }}
+                      </div>
+
+                      <div class="mt-3 space-y-2 text-sm">
+                        {% if s.emotional_signals %}
                           <div class="flex items-start gap-2 flex-wrap">
                             <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
                               Guest Mood:
@@ -813,9 +840,116 @@
                               </span>
                             {% endfor %}
                           </div>
+                        {% endif %}
+
+                        <div class="flex items-center gap-2 flex-wrap">
+                          <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
+                            Stage:
+                          </span>
+                          <span class="conv-badge conv-badge-stage">
+                            {{ s.reservation_status|replace('_',' ')|title }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="col-span-12 lg:col-span-3 conversation-open">
+                      <div class="space-y-2 text-sm">
+                        <div>
+                          <span class="text-slate-500">Last:</span>
+                          <span class="font-medium text-slate-900">
+                            {{ s.last_activity_at.strftime("%b %d · %I:%M %p") if s.last_activity_at else "—" }}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+
+        {% for stage_key, stage_label in stage_order %}
+          {% set stage_sessions = sessions | selectattr("reservation_status", "equalto", stage_key) | rejectattr("action_priority", "equalto", "urgent") | list %}
+
+          {% if stage_sessions %}
+            <div class="tasks-group">
+              <div class="tasks-group-head border-b border-slate-100 pb-3">
+                <div class="flex items-center gap-3">
+                  <div class="text-sm font-semibold text-slate-900">{{ stage_label }}</div>
+                  <span class="tasks-group-pill border-slate-200 bg-slate-50 text-slate-700">
+                    {{ stage_sessions|length }}
+                  </span>
+                </div>
+              </div>
+
+              <div class="space-y-3 mt-3">
+                {% for s in stage_sessions %}
+                  {% set conv_priority = s.action_priority or 'low' %}
+
+                  <div class="conversations-row" data-conversation-row data-session-id="{{ s.id }}">
+                    <div class="conversations-grid">
+
+                      <div class="col-span-12 lg:col-span-1 flex items-start lg:items-center">
+                        <input
+                          type="checkbox"
+                          class="conversations-check conversation-select"
+                          value="{{ s.id }}"
+                          aria-label="Select conversation {{ s.id }}"
+                        />
+                      </div>
+
+                      <div class="col-span-12 lg:col-span-3 conversation-open">
+                        <div class="space-y-3">
+                          <div class="flex gap-2 flex-wrap">
+                            {% if s.is_resolved %}
+                              <span class="conv-badge conv-badge-closed">Closed</span>
+                            {% else %}
+                              <span class="conv-badge conv-badge-open">Open</span>
+                            {% endif %}
+                          </div>
+
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
+                              Action Priority:
+                            </span>
+                            <span class="conv-badge conv-badge-{{ conv_priority }}">
+                              {{ conv_priority|title }}
+                            </span>
+                          </div>
+
+                          <div>
+                            <div class="font-semibold text-slate-900">
+                              {{ s.guest_name or "Guest" }}
+                            </div>
+                            <div class="text-sm text-slate-500">
+                              {{ s.property_name or "Unknown property" }}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div class="col-span-12 lg:col-span-5 conversation-open">
+                        <div class="text-sm text-slate-700 leading-6 truncate">
+                          {{ s.last_snippet or "No recent message" }}
+                        </div>
+
+                        <div class="mt-3 space-y-2 text-sm">
+                          {% if s.emotional_signals %}
+                            <div class="flex items-start gap-2 flex-wrap">
+                              <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
+                                Guest Mood:
+                              </span>
+                              {% for mood in s.emotional_signals %}
+                                <span class="conv-badge bg-slate-100 text-slate-700">
+                                  {{ mood|replace('_',' ')|title }}
+                                </span>
+                              {% endfor %}
+                            </div>
                           {% endif %}
-                        
-                          <!-- Reservation Stage -->
+
                           <div class="flex items-center gap-2 flex-wrap">
                             <span class="text-slate-500 text-xs font-semibold uppercase tracking-wide">
                               Stage:
@@ -824,47 +958,49 @@
                               {{ s.reservation_status|replace('_',' ')|title }}
                             </span>
                           </div>
-                        
                         </div>
-                        </div>
-        
-                        <!-- Right -->
-                        <div class="col-span-12 lg:col-span-3 cursor-pointer conversation-open">
-                          <div class="space-y-2 text-sm">
-                                   
-                            <div>
-                              <span class="text-slate-500">Last:</span>
-                              <span class="font-medium text-slate-900">
-                                {{ s.last_activity_at.strftime("%b %d · %I:%M %p") if s.last_activity_at else "—" }}
-                              </span>
-                            </div>
+                      </div>
+
+                      <div class="col-span-12 lg:col-span-3 conversation-open">
+                        <div class="space-y-2 text-sm">
+                          <div>
+                            <span class="text-slate-500">Last:</span>
+                            <span class="font-medium text-slate-900">
+                              {{ s.last_activity_at.strftime("%b %d · %I:%M %p") if s.last_activity_at else "—" }}
+                            </span>
                           </div>
                         </div>
                       </div>
+
                     </div>
-                  {% endfor %}
-                </div>
-              {% else %}
-                <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
-                  <div class="text-sm font-semibold text-slate-700">No conversations yet</div>
-                  <div class="mt-1 text-sm text-slate-500">
-                    Try adjusting your filters or check back when new guest activity comes in.
                   </div>
-                </div>
-              {% endif %}
+                {% endfor %}
+              </div>
             </div>
+          {% endif %}
+        {% endfor %}
+
+      {% else %}
+        <div class="rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
+          <div class="text-sm font-semibold text-slate-700">No conversations yet</div>
+          <div class="mt-1 text-sm text-slate-500">
+            Try adjusting your filters or check back when new guest activity comes in.
           </div>
-        
-          <!-- Batch bar -->
-          <div id="conversationsBatchBar" class="conversations-batchbar hidden">
-            <div class="conversations-batchbar-inner">
-              <div class="text-sm font-semibold" id="conversationsSelectedCount">0 selected</div>
-              <button id="btnConversationMarkDone" class="batch-btn" type="button">✓ Mark done</button>
-              <button id="btnConversationChangeStatus" class="batch-btn" type="button">⟳ Change status</button>
-              <button id="btnConversationDelete" class="batch-btn-danger" type="button">🗑 Delete</button>
-            </div>
-          </div>
-        </section>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Batch bar -->
+  <div id="conversationsBatchBar" class="conversations-batchbar hidden">
+    <div class="conversations-batchbar-inner">
+      <div class="text-sm font-semibold" id="conversationsSelectedCount">0 selected</div>
+      <button id="btnConversationMarkDone" class="batch-btn" type="button">✓ Mark done</button>
+      <button id="btnConversationChangeStatus" class="batch-btn" type="button">⟳ Change status</button>
+      <button id="btnConversationDelete" class="batch-btn-danger" type="button">🗑 Delete</button>
+    </div>
+  </div>
+</section>
 
 
                     
@@ -2541,6 +2677,12 @@
   (function () {
     const batchBar = document.getElementById("conversationsBatchBar");
     const selectedCount = document.getElementById("conversationsSelectedCount");
+    const autoRefreshBtn = document.getElementById("toggleConversationsAutoRefresh");
+    const liveStatus = document.getElementById("conversationsLiveStatus");
+
+    let autoRefreshEnabled = true;
+    let refreshTimer = null;
+    const REFRESH_MS = 30000;
 
     function getSelectedConversationIds() {
       return Array.from(document.querySelectorAll(".conversation-select:checked"))
@@ -2560,18 +2702,69 @@
       }
     }
 
-    document.querySelectorAll(".conversation-select").forEach((checkbox) => {
-      checkbox.addEventListener("change", updateConversationBatchBar);
-    });
+    function bindConversationRows() {
+      document.querySelectorAll(".conversation-select").forEach((checkbox) => {
+        checkbox.addEventListener("change", updateConversationBatchBar);
+      });
 
-    document.querySelectorAll("[data-conversation-row]").forEach((row) => {
-      const sessionId = row.getAttribute("data-session-id");
+      document.querySelectorAll("[data-conversation-row]").forEach((row) => {
+        const sessionId = row.getAttribute("data-session-id");
 
-      row.querySelectorAll(".conversation-open").forEach((clickArea) => {
-        clickArea.addEventListener("click", () => {
-          window.location.href = `/admin/dashboard?view=conversations&session_id=${sessionId}`;
+        row.querySelectorAll(".conversation-open").forEach((clickArea) => {
+          clickArea.addEventListener("click", () => {
+            window.location.href = `/admin/dashboard?view=conversations&session_id=${sessionId}`;
+          });
         });
       });
+    }
+
+    function refreshConversationsView() {
+      const currentView = new URLSearchParams(window.location.search).get("view") || "overview";
+      if (currentView !== "conversations") return;
+      if (document.hidden) return;
+      if (!autoRefreshEnabled) return;
+      if (getSelectedConversationIds().length > 0) return;
+
+      const url = new URL(window.location.href);
+      url.searchParams.set("_ts", Date.now().toString());
+      window.location.href = url.toString();
+    }
+
+    function startAutoRefresh() {
+      stopAutoRefresh();
+      refreshTimer = window.setInterval(refreshConversationsView, REFRESH_MS);
+    }
+
+    function stopAutoRefresh() {
+      if (refreshTimer) {
+        window.clearInterval(refreshTimer);
+        refreshTimer = null;
+      }
+    }
+
+    function syncAutoRefreshUi() {
+      if (!autoRefreshBtn || !liveStatus) return;
+
+      if (autoRefreshEnabled) {
+        autoRefreshBtn.textContent = "Pause live updates";
+        liveStatus.className = "conversations-live-pill";
+        liveStatus.innerHTML = '<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>Live updates on';
+      } else {
+        autoRefreshBtn.textContent = "Resume live updates";
+        liveStatus.className = "conversations-muted-pill";
+        liveStatus.innerHTML = '<span class="inline-block h-2 w-2 rounded-full bg-slate-400"></span>Live updates paused';
+      }
+    }
+
+    autoRefreshBtn?.addEventListener("click", () => {
+      autoRefreshEnabled = !autoRefreshEnabled;
+      syncAutoRefreshUi();
+
+      if (autoRefreshEnabled) {
+        startAutoRefresh();
+      } else {
+        stopAutoRefresh();
+      }
     });
 
     document.getElementById("btnConversationDelete")?.addEventListener("click", () => {
@@ -2592,7 +2785,10 @@
       alert("Change status for conversations: " + ids.join(", "));
     });
 
+    bindConversationRows();
     updateConversationBatchBar();
+    syncAutoRefreshUi();
+    startAutoRefresh();
   })();
 </script>
 
