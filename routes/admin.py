@@ -3345,7 +3345,7 @@ def admin_dashboard(
     user = request.session.get("user")
     if not user:
         request.session["post_login_redirect"] = "/admin/dashboard"
-        return templates.TemplateResponse("admin_login.html", {"request": request, "next": "/admin/dashboard"})
+        return templates.TemplateResponse(request, "admin_login.html", {"request": request, "next": "/admin/dashboard"})
 
     user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
 
@@ -3929,7 +3929,7 @@ def edit_file(
     data = response.json()
     content = base64.b64decode(data["content"]).decode("utf-8")
 
-    return templates.TemplateResponse("editor.html", {"request": request, "file_path": file, "content": content})
+    return templates.TemplateResponse(request, "editor.html", {"request": request, "file_path": file, "content": content})
 
 
 @router.post("/admin/save-config")
@@ -4061,7 +4061,7 @@ def pmc_properties(request: Request, pmc_id: int, db: Session = Depends(get_db))
             raise HTTPException(status_code=403, detail="Forbidden")
 
     properties = db.query(Property).filter(Property.pmc_id == pmc_id).all()
-    return templates.TemplateResponse("pmc_properties.html", {"request": request, "properties": properties, "pmc_id": pmc_id})
+    return templates.TemplateResponse(request, "pmc_properties.html", {"request": request, "properties": properties, "pmc_id": pmc_id})
 
 
 @router.get("/admin/new-pmc", response_class=HTMLResponse)
@@ -4139,7 +4139,7 @@ def admin_sync_properties_for_pmc(account_id: str, request: Request, db: Session
 # ----------------------------
 @router.get("/chat-ui", response_class=HTMLResponse)
 def chat_ui(request: Request):
-    return templates.TemplateResponse("chat.html", {"request": request})
+    return templates.TemplateResponse(request, "chat.html", {"request": request})
 
 
 @router.api_route("/admin/chat", methods=["GET", "POST"])
@@ -4147,7 +4147,7 @@ async def chat_combined(request: Request, db: Session = Depends(get_db)):
     require_super(request, db)
 
     if request.method == "GET":
-        return templates.TemplateResponse("chat.html", {"request": request})
+        return templates.TemplateResponse(request, "chat.html", {"request": request})
 
     data = await request.json()
     user_message = (data.get("message") or "").strip()
