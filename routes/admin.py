@@ -153,6 +153,7 @@ def admin_manual_ui(
     raw = _read_repo_file_text(file)
 
     return templates.TemplateResponse(
+        request,
         "partials/admin_manual_ui_partial.html",
         {
             "request": request,
@@ -1163,6 +1164,7 @@ def chat_detail_partial(
     }
 
     return templates.TemplateResponse(
+        request,
         "partials/chat_detail_panel.html",
         {
             "request": request,
@@ -1288,6 +1290,7 @@ def chat_detail_partial(
     }
 
     return templates.TemplateResponse(
+        request,
         "partials/chat_detail_panel.html",
         {
             "request": request,
@@ -1458,6 +1461,7 @@ def team_table_rows(request: Request, db: Session = Depends(get_db)):
     )
 
     return templates.TemplateResponse(
+        request,
         "admin/_team_table_rows.html",
         {
             "request": request,
@@ -1566,6 +1570,7 @@ def get_team_table(request: Request, db: Session = Depends(get_db)):
 
     # Return the same rows partial your UI already uses
     return templates.TemplateResponse(
+        request,
         "admin/_team_table_rows.html",
         {
             "request": request,
@@ -2037,6 +2042,7 @@ def admin_chats(
     session_ids = [int(s.id) for (s, _) in rows]
     if not session_ids:
         return templates.TemplateResponse(
+            request,
             "admin_chats.html",
             {
                 "request": request,
@@ -2209,6 +2215,7 @@ def admin_chats(
     )
 
     return templates.TemplateResponse(
+        request,
         "admin_chats.html",
         {
             "request": request,
@@ -2767,6 +2774,7 @@ def guides_partial_list(
     ]
 
     return templates.TemplateResponse(
+        request,
         "admin/_guides_list.html",
         {"request": request, "guides": rows},
     )
@@ -2796,6 +2804,7 @@ def guides_partial_form(
         require_property_in_scope(request, db, int(guide.property_id))
 
     return templates.TemplateResponse(
+        request,
         "admin/_guides_form.html",
         {"request": request, "guide": guide, "properties": properties},
     )
@@ -2944,6 +2953,7 @@ def upgrades_partial_list(
     ]
 
     return templates.TemplateResponse(
+        request,
         "admin/_upgrades_list.html",
         {"request": request, "upgrades": rows},
     )
@@ -3016,6 +3026,7 @@ def upgrades_partial_form(
         require_property_in_scope(request, db, int(upgrade.property_id))
 
     return templates.TemplateResponse(
+        request,
         "admin/_upgrades_form.html",
         {"request": request, "upgrade": upgrade, "properties": properties},
     )
@@ -3267,6 +3278,7 @@ def admin_chat_detail(session_id: int, request: Request, db: Session = Depends(g
     user_role, *_ = get_user_role_and_scope(request, db)
 
     return templates.TemplateResponse(
+        request,
         "admin_chat_detail.html",
         {"request": request, "session": session, "property": prop, "messages": messages, "user_role": user_role},
     )
@@ -3351,6 +3363,7 @@ def admin_dashboard(
 
     if user_role == "pmc" and not pmc_obj:
         return templates.TemplateResponse(
+            request,
             "admin_login.html",
             {
                 "request": request,
@@ -4067,6 +4080,7 @@ def pmc_properties(request: Request, pmc_id: int, db: Session = Depends(get_db))
 @router.get("/admin/new-pmc", response_class=HTMLResponse)
 def new_pmc_form(request: Request):
     return templates.TemplateResponse(
+        request,
         "pmc_form.html",
         {"request": request, "pms_integrations": ["Hostaway", "Guesty", "Lodgify", "Other"], "subscription_plans": ["Free", "Pro", "Enterprise"]},
     )
