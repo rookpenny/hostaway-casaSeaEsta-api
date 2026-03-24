@@ -134,35 +134,7 @@
 .tasks-status-dot.is-canceled { border-color: rgb(148 163 184); background: rgb(148 163 184); color: white; }
 .tasks-status-dot.is-completed { border-color: rgb(34 197 94); background: rgb(34 197 94); color: white; }
 
-  }
 
-
-      /* status icon */
-.status-ico {
-  width: 14px;
-  height: 14px;
-  display: inline-block;
-  vertical-align: -2px;
-  margin-right: 8px;
-}
-.status-ico svg { width: 14px; height: 14px; display: block; }
-
-      .tasks-status-label {
-  font-size: 14px;
-  font-weight: 600;
-  color: rgb(15 23 42); /* slate-900 */
-}
-
-.tasks-status-dot svg {
-  width: 12px;
-  height: 12px;
-  display: block;
-}
-
-
-
-
-      @layer components {
   .conversations-tab { @apply tasks-tab; }
   .conversations-tab.is-active { @apply tasks-tab is-active; }
 
@@ -195,7 +167,37 @@
   .conv-badge-low { @apply bg-slate-100 text-slate-700; }
 
   .conv-badge-stage { @apply bg-indigo-100 text-indigo-700; }
+
+      
+  }
+
+
+      /* status icon */
+.status-ico {
+  width: 14px;
+  height: 14px;
+  display: inline-block;
+  vertical-align: -2px;
+  margin-right: 8px;
 }
+.status-ico svg { width: 14px; height: 14px; display: block; }
+a
+      .tasks-status-label {
+  font-size: 14px;
+  font-weight: 600;
+  color: rgb(15 23 42); /* slate-900 */
+}
+
+.tasks-status-dot svg {
+  width: 12px;
+  height: 12px;
+  display: block;
+}
+
+
+
+
+   
 
 
 </style>
@@ -204,7 +206,7 @@
 
 <body class="bg-slate-50 text-slate-900">
   <div class="min-h-screen flex">
-{% set initial_view = request.query_params.get('view') or ('chats' if request.query_params.get('session_id') else 'overview') %}
+{% set initial_view = request.query_params.get('view') or ('conversations' if request.query_params.get('session_id') else 'overview') %}
 
     <!-- Sidebar -->
     <aside id="sidebar"
@@ -629,39 +631,42 @@
         
           <!-- Filters -->
           <form method="get"
-                class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
         
-            <input type="hidden" name="view" value="conversations" />
+          <input type="hidden" name="view" value="conversations" />
         
-            <div class="flex flex-wrap items-center gap-3 flex-1">
+          <div class="flex flex-wrap items-center gap-3 flex-1">
         
-              <select name="property_id" class="conversations-toolbar-select">
-                <option value="">All Properties</option>
-                {% for pr in properties %}
-                  <option value="{{ pr.id }}">{{ pr.property_name }}</option>
-                {% endfor %}
-              </select>
+            <select name="property_id" class="conversations-toolbar-select">
+              <option value="">All Properties</option>
+              {% for pr in properties %}
+                <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+                  {{ pr.property_name }}
+                </option>
+              {% endfor %}
+            </select>
         
-              <select name="action_priority" class="conversations-toolbar-select">
-                <option value="">All priorities</option>
-                <option value="urgent">Urgent</option>
-                <option value="high">High</option>
-                <option value="normal">Normal</option>
-                <option value="low">Low</option>
-              </select>
+            <select name="action_priority" class="conversations-toolbar-select">
+              <option value="">All priorities</option>
+              <option value="urgent" {% if filters.action_priority == "urgent" %}selected{% endif %}>Urgent</option>
+              <option value="high" {% if filters.action_priority == "high" %}selected{% endif %}>High</option>
+              <option value="normal" {% if filters.action_priority == "normal" %}selected{% endif %}>Normal</option>
+              <option value="low" {% if filters.action_priority == "low" %}selected{% endif %}>Low</option>
+            </select>
         
-              <input
-                name="q"
-                class="conversations-toolbar-input max-w-xl"
-                placeholder="Search guest or message..."
-              />
-            </div>
+            <input
+              name="q"
+              value="{{ filters.q or '' }}"
+              class="conversations-toolbar-input max-w-xl"
+              placeholder="Search guest or message..."
+            />
+          </div>
         
-            <div class="flex gap-2">
-              <button class="btn btn-primary" type="submit">Filter</button>
-              <a href="/admin/dashboard?view=conversations" class="btn btn-secondary">Reset</a>
-            </div>
-          </form>
+          <div class="flex gap-2">
+            <button class="btn btn-primary" type="submit">Filter</button>
+            <a href="/admin/dashboard?view=conversations" class="btn btn-secondary">Reset</a>
+          </div>
+        </form>
         
           <!-- Rows -->
           <div class="mt-6">
@@ -681,8 +686,9 @@
                           <span class="conv-badge conv-badge-open">Open</span>
                         {% endif %}
         
-                        <span class="conv-badge conv-badge-{{ s.action_priority }}">
-                          {{ s.action_priority|title }}
+                        {% set conv_priority = s.action_priority or 'low' %}
+                        <span class="conv-badge conv-badge-{{ conv_priority }}">
+                          {{ conv_priority|title }}
                         </span>
                       </div>
         
