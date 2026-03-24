@@ -3686,48 +3686,41 @@ def admin_dashboard(
             stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
 
-    return templates.TemplateResponse(
-        "admin_dashboard.html",
-        {
-            "request": request,
-            "user_role": user_role,
-            "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
-            "properties": properties,
-            "property_name_by_id": property_name_by_id,
-            "now": datetime.utcnow(),
-
-            "pmcs": pmc_list,
-
-            "billing_status": billing_status,
-            "is_paid": is_paid,
-            "needs_payment": needs_payment,
-            "billing_banner_title": billing_banner_title,
-            "billing_banner_body": billing_banner_body,
-
-            "user_timezone": (pmc_user.timezone if pmc_user else None),
-            "pmc_user_role": (pmc_user.role if pmc_user else None),
-
-            "user_email": me_email,
-            "user_full_name": (me_user.full_name if me_user else None),
-            "team_members": team_members,
-            "notif_prefs": notif_prefs,
-
-            "stripe_connected": stripe_connected,
-            "stripe_charges_enabled": stripe_charges_enabled,
-            "stripe_payouts_enabled": stripe_payouts_enabled,
-            "stripe_account_id": stripe_account_id,
-
-
-            "sessions": sessions,
-            "analytics": analytics,
-            "filters": filters,
-            "selected_session": selected_session,
-            "selected_property": selected_property,
-            "selected_messages": selected_messages,
-
-            "pmc_id": (pmc_obj.id if pmc_obj else None),
-        },
-    )
+        return templates.TemplateResponse(
+            request,
+            "admin_dashboard.html",
+            {
+                "request": request,
+                "user_role": user_role,
+                "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
+                "properties": properties,
+                "property_name_by_id": property_name_by_id,
+                "now": datetime.utcnow(),
+                "pmcs": pmc_list,
+                "billing_status": billing_status,
+                "is_paid": is_paid,
+                "needs_payment": needs_payment,
+                "billing_banner_title": billing_banner_title,
+                "billing_banner_body": billing_banner_body,
+                "user_timezone": (pmc_user.timezone if pmc_user else None),
+                "pmc_user_role": (pmc_user.role if pmc_user else None),
+                "user_email": me_email,
+                "user_full_name": (me_user.full_name if me_user else None),
+                "team_members": team_members,
+                "notif_prefs": notif_prefs,
+                "stripe_connected": stripe_connected,
+                "stripe_charges_enabled": stripe_charges_enabled,
+                "stripe_payouts_enabled": stripe_payouts_enabled,
+                "stripe_account_id": stripe_account_id,
+                "sessions": sessions,
+                "analytics": analytics,
+                "filters": filters,
+                "selected_session": selected_session,
+                "selected_property": selected_property,
+                "selected_messages": selected_messages,
+                "pmc_id": (pmc_obj.id if pmc_obj else None),
+            },
+        )
 
 
 
