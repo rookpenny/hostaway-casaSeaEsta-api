@@ -160,6 +160,44 @@
 }
 
 
+
+
+      @layer components {
+  .conversations-tab { @apply tasks-tab; }
+  .conversations-tab.is-active { @apply tasks-tab is-active; }
+
+  .conversations-toolbar-input {
+    @apply w-full h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-slate-200;
+  }
+
+  .conversations-toolbar-select {
+    @apply h-11 rounded-2xl border border-slate-200 bg-white px-4 text-sm outline-none focus:ring-2 focus:ring-slate-200;
+  }
+
+  .conversations-row {
+    @apply mt-3 bg-white rounded-2xl border border-slate-200 px-4 py-4 hover:bg-slate-50 transition cursor-pointer;
+  }
+
+  .conversations-grid {
+    @apply grid grid-cols-12 gap-3 items-center;
+  }
+
+  .conv-badge {
+    @apply inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold;
+  }
+
+  .conv-badge-open { @apply bg-emerald-100 text-emerald-700; }
+  .conv-badge-closed { @apply bg-slate-200 text-slate-700; }
+
+  .conv-badge-urgent { @apply bg-rose-100 text-rose-800; }
+  .conv-badge-high { @apply bg-orange-100 text-orange-800; }
+  .conv-badge-normal { @apply bg-blue-100 text-blue-800; }
+  .conv-badge-low { @apply bg-slate-100 text-slate-700; }
+
+  .conv-badge-stage { @apply bg-indigo-100 text-indigo-700; }
+}
+
+
 </style>
 
 </head>
@@ -228,7 +266,17 @@
         </button>
 
 
+        <button data-view="conversations"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          type="button"
+          aria-current="{{ 'page' if initial_view == 'conversations' else 'false' }}">
+          
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            💬
+          </span>
         
+          <span class="sidebar-label font-medium">Conversations</span>
+        </button>
 
         <!-- Tasks -->
         <button
@@ -562,6 +610,133 @@
           </div>
           {% endif %}
         </section>
+
+
+
+        <!--START CONVERSATION-->
+        <section id="view-conversations"
+          class="view space-y-4 {% if initial_view != 'conversations' %}hidden{% endif %}">
+          
+          <div class="bg-white border border-slate-200 rounded-2xl p-5 card">
+
+          <!-- Header -->
+          <div>
+            <div class="text-2xl font-semibold">Conversations</div>
+            <div class="mt-1 text-slate-500">
+              Track guest messages, urgency, and assignments across properties.
+            </div>
+          </div>
+        
+          <!-- Filters -->
+          <form method="get"
+                class="mt-4 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        
+            <input type="hidden" name="view" value="conversations" />
+        
+            <div class="flex flex-wrap items-center gap-3 flex-1">
+        
+              <select name="property_id" class="conversations-toolbar-select">
+                <option value="">All Properties</option>
+                {% for pr in properties %}
+                  <option value="{{ pr.id }}">{{ pr.property_name }}</option>
+                {% endfor %}
+              </select>
+        
+              <select name="action_priority" class="conversations-toolbar-select">
+                <option value="">All priorities</option>
+                <option value="urgent">Urgent</option>
+                <option value="high">High</option>
+                <option value="normal">Normal</option>
+                <option value="low">Low</option>
+              </select>
+        
+              <input
+                name="q"
+                class="conversations-toolbar-input max-w-xl"
+                placeholder="Search guest or message..."
+              />
+            </div>
+        
+            <div class="flex gap-2">
+              <button class="btn btn-primary" type="submit">Filter</button>
+              <a href="/admin/dashboard?view=conversations" class="btn btn-secondary">Reset</a>
+            </div>
+          </form>
+        
+          <!-- Rows -->
+          <div class="mt-6">
+            {% if sessions %}
+              {% for s in sessions %}
+                <div class="conversations-row"
+                     onclick="window.location.href='/admin/dashboard?view=conversations&session_id={{ s.id }}'">
+        
+                  <div class="conversations-grid">
+        
+                    <!-- LEFT -->
+                    <div class="col-span-12 lg:col-span-4">
+                      <div class="flex gap-2 flex-wrap">
+                        {% if s.is_resolved %}
+                          <span class="conv-badge conv-badge-closed">Closed</span>
+                        {% else %}
+                          <span class="conv-badge conv-badge-open">Open</span>
+                        {% endif %}
+        
+                        <span class="conv-badge conv-badge-{{ s.action_priority }}">
+                          {{ s.action_priority|title }}
+                        </span>
+                      </div>
+        
+                      <div class="mt-2 font-semibold">{{ s.guest_name or "Guest" }}</div>
+                      <div class="text-sm text-slate-500">{{ s.property_name }}</div>
+                    </div>
+        
+                    <!-- MIDDLE -->
+                    <div class="col-span-12 lg:col-span-5">
+                      <div class="text-sm text-slate-700 truncate">
+                        {{ s.last_snippet or "No recent message" }}
+                      </div>
+        
+                      <div class="mt-2 flex gap-2 flex-wrap">
+                        <span class="conv-badge conv-badge-stage">
+                          {{ s.reservation_status|replace('_',' ')|title }}
+                        </span>
+        
+                        {% for mood in s.emotional_signals or [] %}
+                          <span class="conv-badge bg-slate-100 text-slate-700">
+                            {{ mood|replace('_',' ')|title }}
+                          </span>
+                        {% endfor %}
+                      </div>
+                    </div>
+        
+                    <!-- RIGHT -->
+                    <div class="col-span-12 lg:col-span-3">
+                      <div class="text-sm">
+                        <span class="text-slate-500">Assigned:</span>
+                        <span class="font-medium">{{ s.assigned_to or "Unassigned" }}</span>
+                      </div>
+        
+                      <div class="text-sm mt-1">
+                        <span class="text-slate-500">Last:</span>
+                        <span class="font-medium">
+                          {{ s.last_activity_at.strftime("%b %d · %I:%M %p") if s.last_activity_at else "—" }}
+                        </span>
+                      </div>
+                    </div>
+        
+                  </div>
+                </div>
+              {% endfor %}
+            {% else %}
+              <div class="text-slate-500 text-sm">No conversations yet.</div>
+            {% endif %}
+          </div>
+        </div>
+        
+        </section>
+
+
+                    
 
         <!-- MESSAGES -->
         <section id="view-messages" class="view space-y-4 {% if initial_view != 'messages' %}hidden{% endif %}" style="display:none">
