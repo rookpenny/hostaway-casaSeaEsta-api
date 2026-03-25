@@ -1528,7 +1528,7 @@
                       <th class="px-4 py-3 text-left">Guest</th>
 
                       <th class="px-4 py-3 text-left">Stage</th>
-                      <th class="px-4 py-3 text-left">Status</th>
+  
                       <th class="px-4 py-3 text-left">Last</th>
                     </tr>
                   </thead>
@@ -1652,16 +1652,7 @@
                           {% endif %}
                         </td>
                   
-                        <!-- Status -->
-                        <td class="px-4 py-3 text-xs">
-                          <span data-status-badge data-is-resolved="{{ 'true' if s.is_resolved else 'false' }}">
-                            {% if s.is_resolved %}
-                              <span class="px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold">✅ Closed</span>
-                            {% else %}
-                              <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">🟢 Open</span>
-                            {% endif %}
-                          </span>
-                        </td>
+                       
                   
                         <!-- Last -->
                         <td class="px-4 py-3 text-xs text-slate-600">
