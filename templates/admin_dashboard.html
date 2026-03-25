@@ -2699,7 +2699,49 @@
   })();
 </script>
 
+<script>
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest('[data-role="delete-chat-btn"]');
+    if (!btn) return;
 
+    const panel = document.querySelector("[data-chat-panel]");
+    const sessionId = panel?.getAttribute("data-session-id");
+
+    if (!sessionId) {
+      alert("Could not find chat ID.");
+      return;
+    }
+
+    const ok = confirm("Delete this chat?");
+    if (!ok) return;
+
+    btn.disabled = true;
+
+    try {
+      const res = await fetch("/admin/chats/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ session_ids: [sessionId] }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.detail || "Failed to delete chat.");
+        return;
+      }
+
+      window.location.href = "/admin/dashboard?view=chats";
+    } catch (err) {
+      alert("Something went wrong while deleting the chat.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
 
 
 </body>
