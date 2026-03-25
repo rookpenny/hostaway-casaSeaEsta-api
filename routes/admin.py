@@ -2261,6 +2261,45 @@ def unresolve_chat(session_id: int, request: Request, db: Session = Depends(get_
     return {"ok": True, "is_resolved": False}
 
 
+
+
+class ChatDeletePayload(BaseModel):
+    session_ids: list[int]
+
+@router.post("/admin/chats/delete")
+def delete_chats(
+    payload: ChatDeletePayload,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    if not payload.session_ids:
+        raise HTTPException(status_code=400, detail="No session ids provided.")
+
+    # Optional: permission check here
+    # user = get_current_user(request, db)
+
+    sessions = (
+        db.query(ChatSession)
+        .filter(ChatSession.id.in_(payload.session_ids))
+        .all()
+    )
+
+    if not sessions:
+        raise HTTPException(status_code=404, detail="No chats found.")
+
+    for session in sessions:
+        # delete messages first if needed
+        db.query(ChatMessage).filter(ChatMessage.session_id == session.id).delete()
+
+        # delete notes / summaries / related records if you have them
+        # db.query(ChatNote).filter(ChatNote.session_id == session.id).delete()
+
+        db.delete(session)
+
+    db.commit()
+
+    return {"ok": True, "deleted_count": len(sessions)}
+
 @router.post("/admin/chats/{session_id}/escalate")
 def escalate_chat(session_id: int, request: Request, payload: dict = Body(...), db: Session = Depends(get_db)):
     s = require_session_in_scope(request, db, session_id)
