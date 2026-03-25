@@ -94,38 +94,7 @@
               data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
             ></span>
 
-            {# Resolved/Open pill #}
-            <span
-              data-role="resolved-pill"
-              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if session.is_resolved %}
-                  bg-slate-200 text-slate-700
-                {% else %}
-                  bg-emerald-100 text-emerald-800
-                {% endif %}
-              ">
-              {% if session.is_resolved %}✅ Closed{% else %}🟢 Open{% endif %}
-            </span>
-
-            {# Escalation pill (normalized) #}
-            <span
-              data-role="escalation-pill"
-              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if esc == 'high' %}
-                  bg-rose-100 text-rose-800
-                {% elif esc == 'medium' %}
-                  bg-amber-100 text-amber-800
-                {% elif esc == 'low' %}
-                  bg-slate-100 text-slate-700
-                {% else %}
-                  bg-slate-100 text-slate-500
-                {% endif %}
-              ">
-              {% if esc == 'high' %}🔴 Escalation: High
-              {% elif esc == 'medium' %}🟡 Escalation: Medium
-              {% elif esc == 'low' %}⚪ Escalation: Low
-              {% else %}No escalation{% endif %}
-            </span>
+                  
 
           </div>
 
