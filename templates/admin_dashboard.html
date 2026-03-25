@@ -1505,6 +1505,14 @@
                 <table class="min-w-full text-sm">
                   <thead class="bg-slate-50">
                     <tr>
+                      <th class="px-4 py-3 text-left w-12">
+                        <input
+                          type="checkbox"
+                          id="chat-select-all"
+                          class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                          aria-label="Select all chats"
+                        />
+                      </th>
 
                       <th class="px-4 py-3 text-left">Action Priority</th>
                       <th class="px-4 py-3 text-left">Guest Mood</th>
@@ -1530,6 +1538,14 @@
                       data-session-row="{{ s.id }}"
                       data-emotional-signals='{{ row_signals | tojson | e }}'
                     >
+                      <td class="px-4 py-3" onclick="event.stopPropagation()">
+                        <input
+                          type="checkbox"
+                          class="chat-select h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                          value="{{ s.id }}"
+                          aria-label="Select chat {{ s.id }}"
+                        />
+                      </td>
 
 
 
@@ -1666,6 +1682,17 @@
           </script>
 
         </section>
+
+
+
+                <div id="chatBatchBar" class="tasks-batchbar hidden">
+  <div class="tasks-batchbar-inner">
+    <div class="text-sm font-semibold" id="chatSelectedCount">0 selected</div>
+    <button id="btnChatDelete" class="batch-btn-danger" type="button">🗑 Delete</button>
+  </div>
+</div>
+
+                
 
         <section id="view-pmcs" class="view hidden">
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
@@ -2219,7 +2246,109 @@
 </script>
 
                 
+<script>
+  (function () {
+    const selectAll = document.getElementById("chat-select-all");
+    const batchBar = document.getElementById("chatBatchBar");
+    const selectedCount = document.getElementById("chatSelectedCount");
+    const deleteBtn = document.getElementById("btnChatDelete");
 
+    function getChatCheckboxes() {
+      return Array.from(document.querySelectorAll(".chat-select"));
+    }
+
+    function getSelectedIds() {
+      return getChatCheckboxes()
+        .filter((cb) => cb.checked)
+        .map((cb) => cb.value);
+    }
+
+    function updateBatchBar() {
+      const ids = getSelectedIds();
+
+      if (selectedCount) {
+        selectedCount.textContent = `${ids.length} selected`;
+      }
+
+      if (batchBar) {
+        batchBar.classList.toggle("hidden", ids.length === 0);
+      }
+
+      if (selectAll) {
+        const all = getChatCheckboxes();
+        const checked = all.filter((cb) => cb.checked);
+        selectAll.checked = all.length > 0 && checked.length === all.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+      }
+    }
+
+    selectAll?.addEventListener("change", () => {
+      const checked = selectAll.checked;
+      getChatCheckboxes().forEach((cb) => {
+        cb.checked = checked;
+      });
+      updateBatchBar();
+    });
+
+    document.addEventListener("change", (e) => {
+      if (e.target.matches(".chat-select")) {
+        updateBatchBar();
+      }
+    });
+
+    document.addEventListener("click", (e) => {
+      const row = e.target.closest("[data-session-row]");
+      if (!row) return;
+
+      if (e.target.closest(".chat-select")) return;
+
+      const sessionId = row.getAttribute("data-session-row");
+      if (sessionId) {
+        window.location.href = `/admin/dashboard?view=chats&session_id=${sessionId}`;
+      }
+    });
+
+    deleteBtn?.addEventListener("click", async () => {
+      const ids = getSelectedIds();
+      if (!ids.length) return;
+
+      const ok = confirm(
+        ids.length === 1
+          ? "Delete this chat?"
+          : `Delete ${ids.length} chats?`
+      );
+      if (!ok) return;
+
+      deleteBtn.disabled = true;
+
+      try {
+        const res = await fetch("/admin/chats/delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ session_ids: ids }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          alert(data.detail || "Failed to delete chats.");
+          return;
+        }
+
+        window.location.reload();
+      } catch (err) {
+        alert("Something went wrong while deleting chats.");
+      } finally {
+        deleteBtn.disabled = false;
+      }
+    });
+
+    updateBatchBar();
+  })();
+</script>
 
 <script>
   function centsToUsd(cents) {
