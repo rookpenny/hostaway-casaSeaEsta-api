@@ -845,11 +845,18 @@ function setInlineDetailOpen(open) {
 
 
 function pushChatUrl(sessionId) {
+  const id = String(sessionId);
   const url = new URL(window.location.href);
+
   url.searchParams.set("view", "chats");
-  url.searchParams.set("session_id", String(sessionId));
+  url.searchParams.set("session_id", id);
   url.hash = "#chats";
-  history.pushState({ session_id: String(sessionId) }, "", url.toString());
+
+  if (window.location.search.includes(`session_id=${id}`)) {
+    history.replaceState({ session_id: id }, "", url.toString());
+  } else {
+    history.pushState({ session_id: id }, "", url.toString());
+  }
 }
 
 function clearChatUrl() {
