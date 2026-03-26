@@ -2295,17 +2295,6 @@
       }
     });
 
-    document.addEventListener("click", (e) => {
-      const row = e.target.closest("[data-session-row]");
-      if (!row) return;
-
-      if (e.target.closest(".chat-select")) return;
-
-      const sessionId = row.getAttribute("data-session-row");
-      if (sessionId) {
-        window.location.href = `/admin/dashboard?view=chats&session_id=${sessionId}`;
-      }
-    });
 
     deleteBtn?.addEventListener("click", async () => {
       const ids = getSelectedIds();
