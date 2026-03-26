@@ -847,12 +847,13 @@ function setInlineDetailOpen(open) {
 function pushChatUrl(sessionId) {
   const id = String(sessionId);
   const url = new URL(window.location.href);
+  const currentId = url.searchParams.get("session_id");
 
   url.searchParams.set("view", "chats");
   url.searchParams.set("session_id", id);
-  url.hash = "#chats";
+  url.hash = "";
 
-  if (window.location.search.includes(`session_id=${id}`)) {
+  if (currentId === id) {
     history.replaceState({ session_id: id }, "", url.toString());
   } else {
     history.pushState({ session_id: id }, "", url.toString());
@@ -1134,27 +1135,29 @@ async function chatPostRoute(routeKey, params, body) {
 
 
 let chatDetailAbort = null;
+let chatDetailRequestToken = 0;
 
 async function loadChatDetail(sessionId) {
   const panel = document.getElementById("chat-detail-panel");
   if (!panel) return;
 
+  const token = ++chatDetailRequestToken;
+
   if (chatDetailAbort) chatDetailAbort.abort();
   chatDetailAbort = new AbortController();
 
-  panel.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+  panel.classList.add("opacity-60", "pointer-events-none");
 
   try {
     const url =
-    apiRoute("chat_detail_partial", { session_id: sessionId }) ||
-    `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`;
-  
-  const res = await fetch(url, {
-    credentials: "include",
-    headers: { "X-Requested-With": "fetch" },
-    signal: chatDetailAbort.signal,
-  });
+      apiRoute("chat_detail_partial", { session_id: sessionId }) ||
+      `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`;
 
+    const res = await fetch(url, {
+      credentials: "include",
+      headers: { "X-Requested-With": "fetch" },
+      signal: chatDetailAbort.signal,
+    });
 
     if (res.status === 401 || res.status === 403) {
       loginRedirect();
@@ -1162,35 +1165,36 @@ async function loadChatDetail(sessionId) {
     }
 
     if (!res.ok) {
+      if (token !== chatDetailRequestToken) return;
       panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
       return;
     }
 
-    // Inject HTML
-    panel.innerHTML = await res.text();
+    const html = await res.text();
+
+    if (token !== chatDetailRequestToken) return;
+
+    panel.innerHTML = html;
     panel.setAttribute("data-session-id", String(sessionId));
 
-    // Find injected chatRoot (panel wrapper)
     const chatRoot =
       panel.querySelector(`[data-chat-panel="${sessionId}"]`) ||
       panel.querySelector("[data-chat-panel]");
 
-    // ✅ Restore per-chat note/summary open/closed state (localStorage)
     window.restoreAdminChatPanelState?.(panel);
 
-
-    // --- Guest Mood: hydrate detail mood from list row (source of truth) ---
     const listMoodEl = document.querySelector(
       `[data-session-row="${sessionId}"] [data-mood-badge]`
     );
+
     const listRawMood =
       (listMoodEl?.getAttribute("data-emotional-signals") || "").trim() ||
-      JSON.stringify([ (listMoodEl?.getAttribute("data-guest-mood") || "").trim().toLowerCase() ].filter(Boolean));
+      JSON.stringify(
+        [(listMoodEl?.getAttribute("data-guest-mood") || "").trim().toLowerCase()].filter(Boolean)
+      );
 
-    
-    // Detail badge element (inside injected partial)
     const detailMoodEl = panel.querySelector("[data-mood-badge]");
-    
+
     const isEmptyAttr = (raw) => {
       const s = String(raw || "").trim();
       if (!s) return true;
@@ -1199,37 +1203,27 @@ async function loadChatDetail(sessionId) {
       if (s === "[]") return true;
       return false;
     };
-    
-    // If detail badge exists but has empty/missing mood, copy from list
+
     if (detailMoodEl && listRawMood) {
       const current = detailMoodEl.getAttribute("data-emotional-signals");
       if (isEmptyAttr(current)) {
         detailMoodEl.setAttribute("data-emotional-signals", listRawMood);
       }
     }
-    
-    // Also ensure chatRoot carries mood if empty (helps other logic)
+
     if (chatRoot && listRawMood) {
       const rootMood = chatRoot.getAttribute("data-emotional-signals");
       if (isEmptyAttr(rootMood)) {
         chatRoot.setAttribute("data-emotional-signals", listRawMood);
       }
     }
-    
-    // Render mood badges after hydration
+
     window.rerenderAllMoodBadges?.(panel);
     window.applyMoodConfidenceHints?.(panel);
 
-
-
-    // Bind buttons etc
     initChatDetailHandlers(sessionId, panel);
-    
-    // NEW: swap "Assign to (email)" with a dropdown (still uses existing assign button)
     await hydrateAssigneeDropdown(sessionId, panel);
 
-
-    // --- Sync row state back into the table (DO NOT sync signals from detail) ---
     if (chatRoot && typeof updateChatListRow === "function") {
       const esc = (chatRoot.getAttribute("data-escalation-level") || "").trim();
       const assigned = (chatRoot.getAttribute("data-assigned-to") || "").trim();
@@ -1239,13 +1233,18 @@ async function loadChatDetail(sessionId) {
         escalation_level: esc || null,
         is_resolved: isResolved,
         assigned_to: assigned || null,
-        // 🚫 intentionally NOT syncing signals from detail
       });
     }
   } catch (err) {
     if (err?.name === "AbortError") return;
     console.error("loadChatDetail error:", err);
-    panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
+    if (token === chatDetailRequestToken) {
+      panel.innerHTML = `<div class="text-sm text-rose-700">Could not load chat.</div>`;
+    }
+  } finally {
+    if (token === chatDetailRequestToken) {
+      panel.classList.remove("opacity-60", "pointer-events-none");
+    }
   }
 }
 
