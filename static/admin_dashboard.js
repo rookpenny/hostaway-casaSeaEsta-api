@@ -1401,10 +1401,21 @@ function updateChatListEscalation(sessionId, level) {
 }
 
 function closeChatDetail() {
+  if (chatDetailAbort) chatDetailAbort.abort();
+
   setInlineDetailOpen(false);
   clearChatUrl();
+
   const panel = document.getElementById("chat-detail-panel");
-  if (panel) panel.innerHTML = "";
+
+  if (panel) {
+    panel.innerHTML = `
+      <div id="chat-detail-empty" class="text-sm text-slate-500">
+        Select a chat session to view details.
+      </div>
+    `;
+    panel.removeAttribute("data-session-id");
+  }
 }
 
 window.openChatDetail = openChatDetail;
@@ -3886,40 +3897,48 @@ function initRouting() {
   }
 
   function route() {
-    const params = new URLSearchParams(window.location.search);
+  const params = new URLSearchParams(window.location.search);
+  const sessionId = params.get("session_id");
 
-    // If a session is selected, ALWAYS show chats
-    if (params.has("session_id")) {
-      showView("chats");
-      return;
-    }
-
-    const keyFromHash = (location.hash || "").slice(1).split("?")[0].toLowerCase();
-    const keyFromView = (params.get("view") || "").toLowerCase();
-
-    showView(keyFromHash || keyFromView || "overview");
+  // If a session is selected, ALWAYS show chats
+  if (sessionId) {
+    showView("chats");
+    return;
   }
 
-  // nav clicks
-  navItems.forEach(btn => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-      const key = (btn.dataset.view || "overview").toLowerCase();
+  // No session selected anymore, make sure detail is closed
+  closeChatDetail();
 
-      const url = new URL(window.location.href);
-      url.searchParams.delete("session_id");
-      url.searchParams.set("view", key);
-      url.hash = `#${key}`;
+  const keyFromHash = (location.hash || "").slice(1).split("?")[0].toLowerCase();
+  const keyFromView = (params.get("view") || "").toLowerCase();
 
-      history.pushState(null, "", url.toString());
-      showView(key);
-    });
+  showView(keyFromHash || keyFromView || "overview");
+}
+
+// nav clicks
+navItems.forEach(btn => {
+  btn.addEventListener("click", (e) => {
+    e.preventDefault();
+    const key = (btn.dataset.view || "overview").toLowerCase();
+
+    const url = new URL(window.location.href);
+    url.searchParams.delete("session_id");
+    url.searchParams.set("view", key);
+    url.hash = `#${key}`;
+
+    if (key !== "chats") {
+      closeChatDetail();
+    }
+
+    history.pushState(null, "", url.toString());
+    showView(key);
   });
+});
 
-  window.addEventListener("popstate", route);
-  window.addEventListener("hashchange", route);
+window.addEventListener("popstate", route);
+window.addEventListener("hashchange", route);
 
-  route();
+route();
 }
 
 
