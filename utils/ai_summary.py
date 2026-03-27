@@ -43,7 +43,10 @@ def maybe_autosummarize_on_new_guest_message(db: Session, session_id: int) -> No
     generate_and_store_summary(db=db, session_id=session_id, force=False)
 
 def _build_system_prompt(session: ChatSession, prop: Optional[Property]) -> str:
-    # Booking context (as available)
+    now = datetime.utcnow()
+    today_str = now.strftime("%Y-%m-%d")
+    current_time = now.strftime("%H:%M UTC")
+
     guest_name = _safe_str(getattr(session, "guest_name", None))
     reservation_status = _safe_str(getattr(session, "reservation_status", None)) or "unknown"
     source = _safe_str(getattr(session, "source", None))
@@ -57,6 +60,8 @@ def _build_system_prompt(session: ChatSession, prop: Optional[Property]) -> str:
         "You are an operations assistant for a short-term rental host.",
         "",
         "Context (booking + account):",
+        f"- Current date: {today_str}",
+        f"- Current time: {current_time}",
         f"- Property: {property_name} (property_id={property_id})",
         f"- Guest name: {guest_name or '(unknown)'}",
         f"- Reservation stage: {reservation_status}",
@@ -76,10 +81,10 @@ def _build_system_prompt(session: ChatSession, prop: Optional[Property]) -> str:
         "Rules:",
         "- Keep it short, scannable, and operational.",
         "- If dates/times are mentioned, repeat them clearly.",
+        "- Use the current date above for any time-based reasoning.",
         "- If missing info blocks action, say what to ask the guest for.",
     ]
     return "\n".join(ctx_lines)
-
 
 def _conversation_text(msgs: List[ChatMessage]) -> str:
     lines = []
