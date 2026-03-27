@@ -14,12 +14,13 @@ def _require_admin(request: Request) -> bool:
 @router.get("/admin/analytics", response_class=HTMLResponse)
 def admin_analytics_page(request: Request):
     if not _require_admin(request):
-        return templates.TemplateResponse("access_denied.html", {"request": request})
+        return templates.TemplateResponse(request, "access_denied.html", {"request": request})
 
     role = (request.session.get("role") or "").strip().lower()
     pmc_id = request.session.get("pmc_id")
 
     return templates.TemplateResponse(
+        request,
         "admin/admin_analytics.html",
         {
             "request": request,
