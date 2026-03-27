@@ -1556,19 +1556,30 @@
 
 
 <td class="px-4 py-3 text-xs">
+  {% set now_ts = now %}
+  {% set check_in = s.check_in_date if s.check_in_date is defined else none %}
+  {% set check_out = s.check_out_date if s.check_out_date is defined else none %}
   {% set stay_status = (s.reservation_status or "")|lower %}
 
-  {% if stay_status == "active" %}
+  {% set is_currently_staying = false %}
+  {% if check_in and check_out %}
+    {% if check_in <= now_ts and now_ts < check_out %}
+      {% set is_currently_staying = true %}
+    {% endif %}
+  {% elif stay_status == "active" %}
+    {% set is_currently_staying = true %}
+  {% endif %}
+
+  {% if is_currently_staying %}
     <span class="px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold">
       🏠 On property
     </span>
   {% else %}
     <span class="px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold">
-      — Not staying
+      Not staying
     </span>
   {% endif %}
-</td>
-                  
+</td> 
                         
                   
                         <!-- Action Priority (supports action_priority OR priority_level OR priority) -->
