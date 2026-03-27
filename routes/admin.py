@@ -3391,7 +3391,6 @@ def _parse_optional_int(v) -> int | None:
         return None
 
 
-
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
@@ -3446,7 +3445,11 @@ def admin_dashboard(
     user = request.session.get("user")
     if not user:
         request.session["post_login_redirect"] = "/admin/dashboard"
-        return templates.TemplateResponse(request, "admin_login.html", {"request": request, "next": "/admin/dashboard"})
+        return templates.TemplateResponse(
+            request,
+            "admin_login.html",
+            {"request": request, "next": "/admin/dashboard"},
+        )
 
     user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
 
@@ -3542,22 +3545,18 @@ def admin_dashboard(
     # ----------------------------
     # Load sessions list from SQL
     # ----------------------------
-    # PMCs cannot use pmc filter
     if user_role != "super":
         pmc_id_int = None
 
-    # property filter must respect PMC scope
     if allowed_property_ids is not None and prop_id_int and prop_id_int not in set(allowed_property_ids):
         raise HTTPException(status_code=403)
 
-    # mine -> effective assignee
     effective_assignee = None
     if mine and me_email:
         effective_assignee = me_email
     elif assigned_to:
         effective_assignee = assigned_to
 
-    # NOTE: if you want assigned_to filtering at SQL level, add it into fetch_dashboard_chat_sessions.
     rows = fetch_dashboard_chat_sessions(
         db,
         pmc_id=(pmc_id_int if user_role == "super" else None),
@@ -3569,7 +3568,6 @@ def admin_dashboard(
         q=q,
         limit=200,
     )
-
 
     session_ids = [int(r["id"]) for r in rows]
     signals_by_sid = batch_message_signals(db, session_ids) if session_ids else {}
@@ -3607,7 +3605,7 @@ def admin_dashboard(
             for s in db.query(ChatSession).filter(ChatSession.id.in_(session_ids)).all()
         }
 
-        # ----------------------------
+    # ----------------------------
     # Build final sessions list (fresh stay status from dates)
     # ----------------------------
     sessions: list[dict] = []
@@ -3651,7 +3649,7 @@ def admin_dashboard(
             status_val = compute_reservation_stage(
                 r.get("arrival_date"),
                 r.get("departure_date"),
-                fallback=raw_status
+                fallback=raw_status,
             )
 
         heat_score = int(r.get("heat_score") or 0)
@@ -3705,47 +3703,42 @@ def admin_dashboard(
         last_snip = (r.get("last_message") or "") or ((last_msg.content or "") if last_msg else "")
         last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
 
-        sessions.append({
-            "id": sid,
-            "property_id": prop_id,
-            "property_name": (
-                r.get("property_name")
-                or (property_name_by_id.get(prop_id) if prop_id else "")
-                or "Unknown property"
-            ),
-            "guest_name": r.get("guest_name"),
-            "assigned_to": r.get("assigned_to"),
-            "reservation_status": status_val,
-            "is_currently_staying": status_val == "active",
-            "source": r.get("source"),
-            "last_activity_at": r.get("last_activity_at"),
-            "last_snippet": last_snip,
-
-            "action_priority": action_priority_val,
-            "guest_mood": guest_mood_val,
-            "emotional_signals": emotional_signals,
-
-            "is_resolved": bool(r.get("is_resolved")),
-            "escalation_level": r.get("escalation_level"),
-
-            "has_urgent": has_urgent,
-            "has_negative": has_negative,
-            "last_sentiment": last_sentiment,
-            "msg_24h": cnt24,
-            "msg_7d": cnt7,
-
-            "heat": heat_score,
-            "heat_raw": heat_score,
-
-            "pms_reservation_id": r.get("pms_reservation_id"),
-            "arrival_date": arrival_date_raw,
-            "departure_date": departure_date_raw,
-        })
+        sessions.append(
+            {
+                "id": sid,
+                "property_id": prop_id,
+                "property_name": (
+                    r.get("property_name")
+                    or (property_name_by_id.get(prop_id) if prop_id else "")
+                    or "Unknown property"
+                ),
+                "guest_name": r.get("guest_name"),
+                "assigned_to": r.get("assigned_to"),
+                "reservation_status": status_val,
+                "is_currently_staying": status_val == "active",
+                "source": r.get("source"),
+                "last_activity_at": r.get("last_activity_at"),
+                "last_snippet": last_snip,
+                "action_priority": action_priority_val,
+                "guest_mood": guest_mood_val,
+                "emotional_signals": emotional_signals,
+                "is_resolved": bool(r.get("is_resolved")),
+                "escalation_level": r.get("escalation_level"),
+                "has_urgent": has_urgent,
+                "has_negative": has_negative,
+                "last_sentiment": last_sentiment,
+                "msg_24h": cnt24,
+                "msg_7d": cnt7,
+                "heat": heat_score,
+                "heat_raw": heat_score,
+                "pms_reservation_id": r.get("pms_reservation_id"),
+                "arrival_date": arrival_date_raw,
+                "departure_date": departure_date_raw,
+            }
+        )
 
     if dirty_any:
         db.commit()
-
-    
 
     # ----------------------------
     # Analytics from the final rendered list (no mismatches)
@@ -3797,67 +3790,65 @@ def admin_dashboard(
             .all()
         )
 
-     # 🔒 Stripe Connect status (for locking upgrades UI)
-        stripe_connected = False
-        stripe_charges_enabled = False
-        stripe_payouts_enabled = False
-        stripe_account_id = None
-    
-        if user_role == "pmc" and pmc_obj:
-            from models import PMCIntegration
-    
-            integ = (
-                db.query(PMCIntegration)
-                .filter(
-                    PMCIntegration.pmc_id == pmc_obj.id,
-                    PMCIntegration.provider == "stripe_connect",
-                )
-                .first()
+    # 🔒 Stripe Connect status (for locking upgrades UI)
+    stripe_connected = False
+    stripe_charges_enabled = False
+    stripe_payouts_enabled = False
+    stripe_account_id = None
+
+    if user_role == "pmc" and pmc_obj:
+        from models import PMCIntegration
+
+        integ = (
+            db.query(PMCIntegration)
+            .filter(
+                PMCIntegration.pmc_id == pmc_obj.id,
+                PMCIntegration.provider == "stripe_connect",
             )
-    
-            if integ and integ.account_id and bool(getattr(integ, "is_connected", False)):
-                stripe_connected = True
-                stripe_account_id = integ.account_id
-                stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
-                stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
-    
-        return templates.TemplateResponse(
-            request,
-            "admin_dashboard.html",
-            {
-                "request": request,
-                "user_role": user_role,
-                "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
-                "properties": properties,
-                "property_name_by_id": property_name_by_id,
-                "now": datetime.utcnow(),
-                "pmcs": pmc_list,
-                "billing_status": billing_status,
-                "is_paid": is_paid,
-                "needs_payment": needs_payment,
-                "billing_banner_title": billing_banner_title,
-                "billing_banner_body": billing_banner_body,
-                "user_timezone": (pmc_user.timezone if pmc_user else None),
-                "pmc_user_role": (pmc_user.role if pmc_user else None),
-                "user_email": me_email,
-                "user_full_name": (me_user.full_name if me_user else None),
-                "team_members": team_members,
-                "notif_prefs": notif_prefs,
-                "stripe_connected": stripe_connected,
-                "stripe_charges_enabled": stripe_charges_enabled,
-                "stripe_payouts_enabled": stripe_payouts_enabled,
-                "stripe_account_id": stripe_account_id,
-                "sessions": sessions,
-                "analytics": analytics,
-                "filters": filters,
-                "selected_session": selected_session,
-                "selected_property": selected_property,
-                "selected_messages": selected_messages,
-                "pmc_id": (pmc_obj.id if pmc_obj else None),
-            },
+            .first()
         )
 
+        if integ and integ.account_id and bool(getattr(integ, "is_connected", False)):
+            stripe_connected = True
+            stripe_account_id = integ.account_id
+            stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
+            stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
+    return templates.TemplateResponse(
+        request,
+        "admin_dashboard.html",
+        {
+            "request": request,
+            "user_role": user_role,
+            "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
+            "properties": properties,
+            "property_name_by_id": property_name_by_id,
+            "now": datetime.utcnow(),
+            "pmcs": pmc_list,
+            "billing_status": billing_status,
+            "is_paid": is_paid,
+            "needs_payment": needs_payment,
+            "billing_banner_title": billing_banner_title,
+            "billing_banner_body": billing_banner_body,
+            "user_timezone": (pmc_user.timezone if pmc_user else None),
+            "pmc_user_role": (pmc_user.role if pmc_user else None),
+            "user_email": me_email,
+            "user_full_name": (me_user.full_name if me_user else None),
+            "team_members": team_members,
+            "notif_prefs": notif_prefs,
+            "stripe_connected": stripe_connected,
+            "stripe_charges_enabled": stripe_charges_enabled,
+            "stripe_payouts_enabled": stripe_payouts_enabled,
+            "stripe_account_id": stripe_account_id,
+            "sessions": sessions,
+            "analytics": analytics,
+            "filters": filters,
+            "selected_session": selected_session,
+            "selected_property": selected_property,
+            "selected_messages": selected_messages,
+            "pmc_id": (pmc_obj.id if pmc_obj else None),
+        },
+    )
 
 
 @router.post("/admin/jobs/refresh-session-status")
