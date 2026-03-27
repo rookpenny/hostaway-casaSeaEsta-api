@@ -282,6 +282,7 @@ async def auth_callback(request: Request):
                 return RedirectResponse(url=next_url, status_code=302)
 
             return templates.TemplateResponse(
+                request, 
                 "access_denied.html",
                 {"request": request, "error": scope.get("error") or "Unauthorized email", "email": email_l},
                 status_code=403,
