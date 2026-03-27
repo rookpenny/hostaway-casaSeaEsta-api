@@ -185,7 +185,7 @@ async def login_with_email(
 
     background_tasks.add_task(send_magic_email, to=email_l, magic_url=magic_url)
 
-    return templates.TemplateResponse("login_email_sent.html", {"request": request, "email": email_l})
+    return templates.TemplateResponse(request, "login_email_sent.html", {"request": request, "email": email_l})
 
 
 @router.get("/email-callback")
@@ -223,7 +223,7 @@ def login_page(request: Request):
             "<h2>OAuth not configured</h2><p>Missing GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET</p>",
             status_code=500,
         )
-    return templates.TemplateResponse("login.html", {"request": request})
+    return templates.TemplateResponse(request, "login.html", {"request": request})
 
 
 @router.get("/login/google")
