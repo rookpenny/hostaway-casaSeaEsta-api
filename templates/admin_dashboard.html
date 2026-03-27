@@ -1447,6 +1447,26 @@
     </div>
   </div>
 
+  <div>
+  <div class="font-medium text-slate-900">Suggestions</div>
+
+  <div class="mt-2 space-y-3">
+    {% for s in suggestions %}
+      <div class="p-3 rounded-xl bg-slate-50 border border-slate-200">
+        <div class="font-medium text-slate-900">
+          {{ s.title }}
+        </div>
+        <div class="text-xs text-slate-500 mt-1">
+          {{ s.reason }}
+        </div>
+        <div class="text-xs text-slate-600 mt-2">
+          👉 {{ s.action }}
+        </div>
+      </div>
+    {% endfor %}
+  </div>
+</div>
+
   <!-- Filters -->
   <form id="chatFilters"
         class="bg-white rounded-2xl border border-slate-200 p-4 card"
