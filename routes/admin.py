@@ -3326,6 +3326,75 @@ def build_signal_detail(session_row: dict) -> str:
     return "Guest is mainly exploring information right now."
 
 
+def build_suggestions(sessions: list[dict]) -> list[dict]:
+    suggestions = []
+
+    topic_counts = {}
+    repeat_question_counts = {}
+
+    for s in sessions:
+        snippet = (s.get("last_snippet") or "").lower()
+
+        # Detect topics
+        if any(k in snippet for k in ["check-in", "check in", "arrival", "access", "door", "entry"]):
+            topic = "checkin"
+        elif any(k in snippet for k in ["wifi", "wi-fi", "internet", "password"]):
+            topic = "wifi"
+        elif "parking" in snippet:
+            topic = "parking"
+        elif any(k in snippet for k in ["late checkout", "late check-out"]):
+            topic = "late_checkout"
+        else:
+            topic = "general"
+
+        topic_counts[topic] = topic_counts.get(topic, 0) + 1
+
+        # Detect repeated questions (simple heuristic)
+        if s.get("msg_24h", 0) >= 3:
+            repeat_question_counts[topic] = repeat_question_counts.get(topic, 0) + 1
+
+    # 🔥 Turn patterns into suggestions
+
+    for topic, count in topic_counts.items():
+        if topic == "checkin" and count >= 2:
+            suggestions.append({
+                "title": "Improve check-in instructions",
+                "reason": f"{count} guests asked about arrival or access",
+                "action": "Add step-by-step entry instructions and photos"
+            })
+
+        if topic == "wifi" and count >= 2:
+            suggestions.append({
+                "title": "Make WiFi details easier to find",
+                "reason": f"{count} guests asked about WiFi",
+                "action": "Include WiFi name + password in your guide and arrival message"
+            })
+
+        if topic == "parking" and count >= 2:
+            suggestions.append({
+                "title": "Clarify parking instructions",
+                "reason": f"{count} guests asked about parking",
+                "action": "Add parking location, rules, and photos"
+            })
+
+        if topic == "late_checkout" and count >= 2:
+            suggestions.append({
+                "title": "Set expectations for checkout",
+                "reason": f"{count} guests asked about late checkout",
+                "action": "Clearly state checkout policy in your guide"
+            })
+
+    # Repeated confusion = higher priority suggestion
+    for topic, count in repeat_question_counts.items():
+        if count >= 1:
+            suggestions.append({
+                "title": "Guests are asking multiple times",
+                "reason": f"Repeated questions detected ({count} sessions)",
+                "action": "Information may be unclear — simplify or make it more visible"
+            })
+
+    return suggestions
+
 def build_stay_pulse(sessions: list[dict]) -> dict:
     if not sessions:
         return {
@@ -3776,6 +3845,7 @@ def admin_dashboard(
         if row.get("has_negative"):
             analytics["unhappy_sessions"] += 1
 
+    suggestions = build_suggestions(sessions)
     stay_pulse = build_stay_pulse(sessions)
 
     # ----------------------------
@@ -3860,6 +3930,7 @@ def admin_dashboard(
             "sessions": sessions,
             "analytics": analytics,
             "stay_pulse": stay_pulse,
+            "suggestions": suggestions,
             "filters": filters,
             "selected_session": selected_session,
             "selected_property": selected_property,
