@@ -31,7 +31,7 @@ from sqlalchemy.inspection import inspect as sa_inspect
 from routes.admin_messages import router as admin_messages_router
 
 from fastapi import FastAPI, Request, HTTPException, Depends, status
-from fastapi.responses import JSONResponse, HTMLResponse, Response, StreamingResponse
+from fastapi.responses import JSONResponse, HTMLResponse, Response, StreamingResponse, RedirectResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
@@ -904,6 +904,15 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "turnover_on_departure": turnover_on_departure,
         },
     )
+
+
+
+@app.get("/guest/{property_id}/reset")
+def guest_reset(property_id: int, request: Request):
+    request.session.pop(f"guest_verified_{property_id}", None)
+    request.session.pop(f"guest_session_{property_id}", None)
+    request.session.pop(f"guest_name_{property_id}", None)  # optional if you store it
+    return RedirectResponse(url=f"/guest/{property_id}", status_code=302)
 
 def _is_early_checkin_upgrade(up: Upgrade) -> bool:
     slug = (getattr(up, "slug", "") or "").strip().lower()
