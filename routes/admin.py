@@ -995,20 +995,36 @@ def compute_action_priority(
     signals: list[str],
     has_urgent: bool,
     has_negative: bool,
+    status_val: str | None = None,
 ) -> str:
     """
     Canonical output: urgent/high/normal/low
-    Max of heat priority and signal priority.
+    Max of heat priority and signal priority, with extra weight for active stays.
     """
     ap = action_priority_from_heat(int(heat or 0))
 
-    if has_urgent or ("panicked" in (signals or [])):
+    signals = [str(s).lower().strip() for s in (signals or []) if str(s).strip()]
+    status_val = (status_val or "").lower().strip()
+
+    # strongest case
+    if has_urgent or ("panicked" in signals):
         ap = bump_priority(ap, "urgent")
-    elif has_negative or ("angry" in (signals or [])) or ("upset" in (signals or [])):
+
+    # guest currently staying + negative emotion = urgent
+    elif status_val == "active" and (
+        has_negative or any(s in signals for s in ["angry", "upset", "worried"])
+    ):
+        ap = bump_priority(ap, "urgent")
+
+    # non-active but clearly negative
+    elif has_negative or ("angry" in signals) or ("upset" in signals):
+        ap = bump_priority(ap, "high")
+
+    # active stays should generally get extra weight
+    elif status_val == "active":
         ap = bump_priority(ap, "high")
 
     return ap
-
 
 
 # ----------------------------
@@ -1124,10 +1140,11 @@ def chat_detail_partial(
     heat = decay_heat(min(100, boosted), sess.last_activity_at)
 
     action_priority_val = compute_action_priority(
-        heat=heat,
+        heat=heat_score,
         signals=emotional_signals,
         has_urgent=has_urgent,
         has_negative=has_negative,
+        status_val=status_val,
     )
 
     # 5) Persist triage fields AFTER compute
