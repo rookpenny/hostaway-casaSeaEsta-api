@@ -874,9 +874,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     )
 
     return templates.TemplateResponse(
-    request,
         "guest_app.html",
         {
+            "request": request,
             "property_id": prop.id,
             "property_name": prop.property_name,
             "reservation_name": reservation_name,
@@ -906,6 +906,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     )
 
 
+
 @app.get("/guest/{property_id}/logout")
 def guest_logout(property_id: int, request: Request):
     request.session.pop(f"guest_verified_{property_id}", None)
@@ -915,7 +916,7 @@ def guest_logout(property_id: int, request: Request):
     request.session.pop(f"guest_phone_{property_id}", None)
     request.session.pop(f"guest_reservation_{property_id}", None)
 
-    return RedirectResponse(url=f"/guest/{property_id}", status_code=302)
+    return RedirectResponse(url=f"/guest/{property_id}", status_code=303)
 
 
 def _is_early_checkin_upgrade(up: Upgrade) -> bool:
