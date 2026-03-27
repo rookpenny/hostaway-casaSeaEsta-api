@@ -1523,10 +1523,10 @@
     </th>
 
     <th class="px-4 py-3 text-left">Stay</th>
-    <th class="px-4 py-3 text-left">Action Priority</th>
-    <th class="px-4 py-3 text-left">Guest Mood</th>
     <th class="px-4 py-3 text-left">Property</th>
     <th class="px-4 py-3 text-left">Guest</th>
+    <th class="px-4 py-3 text-left">Guest Mood</th>
+    <th class="px-4 py-3 text-left">Action Priority</th>
     <th class="px-4 py-3 text-left">Last</th>
   </tr>
 </thead>
@@ -1572,6 +1572,27 @@
       {% endif %}
     </td>
 
+    
+
+    <td class="px-4 py-3">
+      <div class="font-semibold">{{ s.property_name or "Unknown property" }}</div>
+      <div class="text-xs text-slate-500">ID: {{ s.property_id }}</div>
+    </td>
+
+    <td class="px-4 py-3">
+      <div class="font-medium">{{ s.guest_name or "—" }}</div>
+    </td>
+
+
+    <td class="px-4 py-3 text-xs">
+      <span
+        data-mood-badge
+        data-emotional-signals='{{ row_signals | tojson }}'
+        data-guest-mood-confidence="{{ s.guest_mood_confidence or 0 }}"
+      ></span>
+    </td>
+    
+
     <td class="px-4 py-3 text-xs">
       {% set ap_raw = (s.action_priority or s.priority_level or s.priority or "")|lower %}
       {% set ap = "urgent" if ap_raw in ["urgent","critical"] else ("high" if ap_raw in ["high","attention"] else ("normal" if ap_raw in ["normal","medium"] else ("low" if ap_raw in ["low"] else ""))) %}
@@ -1590,22 +1611,7 @@
       </span>
     </td>
 
-    <td class="px-4 py-3 text-xs">
-      <span
-        data-mood-badge
-        data-emotional-signals='{{ row_signals | tojson }}'
-        data-guest-mood-confidence="{{ s.guest_mood_confidence or 0 }}"
-      ></span>
-    </td>
-
-    <td class="px-4 py-3">
-      <div class="font-semibold">{{ s.property_name or "Unknown property" }}</div>
-      <div class="text-xs text-slate-500">ID: {{ s.property_id }}</div>
-    </td>
-
-    <td class="px-4 py-3">
-      <div class="font-medium">{{ s.guest_name or "—" }}</div>
-    </td>
+    
 
     <td class="px-4 py-3 text-xs text-slate-600">
       {% if s.last_activity_at %}
