@@ -3308,7 +3308,7 @@ def admin_dashboard(
     mood = normalize_guest_mood(raw_mood)
 
     ap_filter = _clean_str(action_priority)
-    legacy_priority = _clean_str(priority)
+    '''legacy_priority = _clean_str(priority)'''
 
     # ----------------------------
     # Auth
