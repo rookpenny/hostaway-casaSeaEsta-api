@@ -3262,6 +3262,117 @@ def _parse_optional_int(v) -> int | None:
         return None
 
 
+
+def derive_signal_label(action_priority: str | None, guest_mood: str | None, stay_cycle: str | None = None) -> str:
+    ap = (action_priority or "").strip().lower()
+    mood = (guest_mood or "").strip().lower()
+    cycle = (stay_cycle or "").strip().lower()
+
+    if ap == "urgent" or mood in {"panicked", "angry", "upset", "stressed"}:
+        return "friction_detected"
+
+    if mood in {"confused", "worried"}:
+        return "needs_clarity"
+
+    if mood == "calm" and cycle == "current":
+        return "smooth_stay"
+
+    return "exploring"
+
+
+def signal_meta(signal: str) -> dict:
+    mapping = {
+        "friction_detected": {
+            "label": "Friction detected",
+            "tone": "danger",
+        },
+        "needs_clarity": {
+            "label": "Needs clarity",
+            "tone": "warning",
+        },
+        "smooth_stay": {
+            "label": "Smooth stay",
+            "tone": "success",
+        },
+        "exploring": {
+            "label": "Exploring",
+            "tone": "info",
+        },
+    }
+    return mapping.get(signal, {
+        "label": "Exploring",
+        "tone": "info",
+    })
+
+
+def build_signal_detail(session_row: dict) -> str:
+    stay_cycle = (session_row.get("stay_cycle") or "").lower()
+    msg_24h = int(session_row.get("msg_24h") or 0)
+    has_urgent = bool(session_row.get("has_urgent"))
+    has_negative = bool(session_row.get("has_negative"))
+
+    if has_urgent:
+        return "Urgent language detected in the conversation."
+
+    if has_negative:
+        return "Guest sentiment suggests friction or dissatisfaction."
+
+    if msg_24h >= 3 and stay_cycle == "current":
+        return "Multiple recent questions suggest the stay experience may need clarification."
+
+    if msg_24h >= 2:
+        return "Recent questions suggest some information could be clearer."
+
+    return "Guest is mainly exploring information right now."
+
+
+def build_stay_pulse(sessions: list[dict]) -> dict:
+    if not sessions:
+        return {
+            "eyebrow": "Stay Pulse",
+            "headline": "No guest conversations yet",
+            "body": "Signals will appear here as guests begin asking questions.",
+        }
+
+    topic_counts = {}
+    signal_counts = {}
+
+    for s in sessions:
+        signal = s.get("signal") or "exploring"
+        signal_counts[signal] = signal_counts.get(signal, 0) + 1
+
+        snippet = (s.get("last_snippet") or "").lower()
+        if "check-in" in snippet or "check in" in snippet or "arrival" in snippet:
+            topic = "check-in details"
+        elif "wifi" in snippet or "wi-fi" in snippet:
+            topic = "WiFi help"
+        elif "parking" in snippet:
+            topic = "parking"
+        elif "late checkout" in snippet or "late check-out" in snippet:
+            topic = "late checkout"
+        else:
+            topic = "stay details"
+
+        topic_counts[topic] = topic_counts.get(topic, 0) + 1
+
+    top_topic = max(topic_counts.items(), key=lambda x: x[1])[0]
+    needs_clarity_count = signal_counts.get("needs_clarity", 0)
+    friction_count = signal_counts.get("friction_detected", 0)
+
+    if friction_count > 0:
+        body = f"{friction_count} conversation{'s' if friction_count != 1 else ''} may need closer attention."
+    elif needs_clarity_count > 0:
+        body = f"{needs_clarity_count} recent conversation{'s' if needs_clarity_count != 1 else ''} suggest some information could be clearer."
+    else:
+        body = "Guest conversations are running smoothly right now."
+
+    return {
+        "eyebrow": "Stay Pulse",
+        "headline": f"Guests are mostly looking for {top_topic}",
+        "body": body,
+    }
+
+
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
@@ -3579,41 +3690,53 @@ def admin_dashboard(
         last_snip = (r.get("last_message") or "") or ((last_msg.content or "") if last_msg else "")
         last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
 
-        sessions.append(
-            {
-                "id": sid,
-                "property_id": prop_id,
-                "property_name": (
-                    r.get("property_name")
-                    or (property_name_by_id.get(prop_id) if prop_id else "")
-                    or "Unknown property"
-                ),
-                "guest_name": r.get("guest_name"),
-                "assigned_to": r.get("assigned_to"),
-                "reservation_status": status_val,
-                "stay_cycle": stay_cycle,
-                "is_currently_staying": stay_cycle == "current",
-                "source": r.get("source"),
-                "last_activity_at": r.get("last_activity_at"),
-                "last_snippet": last_snip,
-                "action_priority": action_priority_val,
-                "guest_mood": guest_mood_val,
-                "emotional_signals": emotional_signals,
-                "is_resolved": bool(r.get("is_resolved")),
-                "escalation_level": r.get("escalation_level"),
-                "has_urgent": has_urgent,
-                "has_negative": has_negative,
-                "last_sentiment": last_sentiment,
-                "msg_24h": cnt24,
-                "msg_7d": cnt7,
-                "heat": heat_score,
-                "heat_raw": heat_score,
-                "pms_reservation_id": r.get("pms_reservation_id"),
-                "arrival_date": arrival_date_raw,
-                "departure_date": departure_date_raw,
-            }
-        )
+        row_payload = {
+            "id": sid,
+            "property_id": prop_id,
+            "property_name": (
+                r.get("property_name")
+                or (property_name_by_id.get(prop_id) if prop_id else "")
+                or "Unknown property"
+            ),
+            "guest_name": r.get("guest_name"),
+            "assigned_to": r.get("assigned_to"),
+            "reservation_status": status_val,
+            "stay_cycle": stay_cycle,
+            "is_currently_staying": stay_cycle == "current",
+            "source": r.get("source"),
+            "last_activity_at": r.get("last_activity_at"),
+            "last_snippet": last_snip,
+            "action_priority": action_priority_val,
+            "guest_mood": guest_mood_val,
+            "emotional_signals": emotional_signals,
+            "is_resolved": bool(r.get("is_resolved")),
+            "escalation_level": r.get("escalation_level"),
+            "has_urgent": has_urgent,
+            "has_negative": has_negative,
+            "last_sentiment": last_sentiment,
+            "msg_24h": cnt24,
+            "msg_7d": cnt7,
+            "heat": heat_score,
+            "heat_raw": heat_score,
+            "pms_reservation_id": r.get("pms_reservation_id"),
+            "arrival_date": arrival_date_raw,
+            "departure_date": departure_date_raw,
+        }
 
+        signal_key = derive_signal_label(
+            action_priority=row_payload.get("action_priority"),
+            guest_mood=row_payload.get("guest_mood"),
+            stay_cycle=row_payload.get("stay_cycle"),
+        )
+        signal_info = signal_meta(signal_key)
+
+        row_payload["signal"] = signal_key
+        row_payload["signal_label"] = signal_info["label"]
+        row_payload["signal_tone"] = signal_info["tone"]
+        row_payload["signal_detail"] = build_signal_detail(row_payload)
+
+        sessions.append(row_payload)
+        
     if dirty_any:
         db.commit()
 
@@ -4677,6 +4800,51 @@ def _rrule_next_run(rrule: str, from_dt: datetime | None = None) -> datetime | N
         return base + timedelta(days=30 * interval)
 
     return None
+
+
+
+def derive_signal_label(action_priority: str | None, guest_mood: str | None, stay_cycle: str | None = None) -> str:
+    ap = (action_priority or "").strip().lower()
+    mood = (guest_mood or "").strip().lower()
+    cycle = (stay_cycle or "").strip().lower()
+
+    if ap == "urgent" or mood in {"panicked", "angry", "upset", "stressed"}:
+        return "friction_detected"
+
+    if mood in {"confused", "worried"}:
+        return "needs_clarity"
+
+    if mood == "calm" and cycle == "current":
+        return "smooth_stay"
+
+    return "exploring"
+
+
+def signal_meta(signal: str) -> dict:
+    mapping = {
+        "friction_detected": {
+            "label": "Friction detected",
+            "tone": "danger",
+        },
+        "needs_clarity": {
+            "label": "Needs clarity",
+            "tone": "warning",
+        },
+        "smooth_stay": {
+            "label": "Smooth stay",
+            "tone": "success",
+        },
+        "exploring": {
+            "label": "Exploring",
+            "tone": "info",
+        },
+    }
+    return mapping.get(signal, {
+        "label": "Exploring",
+        "tone": "info",
+    })
+
+
 
 
 # -------------------
