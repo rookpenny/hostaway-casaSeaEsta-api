@@ -2262,28 +2262,28 @@ items.sort(
     reverse=True,
 )
 
-    return templates.TemplateResponse(
-        request,
-        "admin_chats.html",
-        {
-            "request": request,
-            "sessions": items,
-            "filters": {
-                "status": status,
-                "priority": priority,
-                "q": q,
-                "pmc_id": (str(pmc_obj.id) if user_role == "pmc" else (pmc_id or "")),
-                "property_id": property_id or "",
-                "mine": bool(mine),
-                "assigned_to": effective_assignee,
-                "guest_mood": mood,
-            },
-            "guest_mood_choices": GUEST_MOOD_CHOICES,
-            "pmcs": pmcs,
-            "properties": properties,
-            "user_role": user_role,
+return templates.TemplateResponse(
+    request,
+    "admin_chats.html",
+    {
+        "request": request,
+        "sessions": items,
+        "filters": {
+            "status": status,
+            "priority": priority,
+            "q": q,
+            "pmc_id": (str(pmc_obj.id) if user_role == "pmc" else (pmc_id or "")),
+            "property_id": property_id or "",
+            "mine": bool(mine),
+            "assigned_to": effective_assignee,
+            "guest_mood": mood,
         },
-    )
+        "guest_mood_choices": GUEST_MOOD_CHOICES,
+        "pmcs": pmcs,
+        "properties": properties,
+        "user_role": user_role,
+    },
+)
 
 
 
