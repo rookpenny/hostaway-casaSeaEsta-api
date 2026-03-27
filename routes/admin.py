@@ -3342,36 +3342,51 @@ def build_stay_pulse(sessions: list[dict]) -> dict:
         signal_counts[signal] = signal_counts.get(signal, 0) + 1
 
         snippet = (s.get("last_snippet") or "").lower()
-        if "check-in" in snippet or "check in" in snippet or "arrival" in snippet:
+
+        # Topic detection (simple but effective)
+        if any(k in snippet for k in ["check-in", "check in", "arrival", "access"]):
             topic = "check-in details"
-        elif "wifi" in snippet or "wi-fi" in snippet:
+        elif any(k in snippet for k in ["wifi", "wi-fi", "internet"]):
             topic = "WiFi help"
         elif "parking" in snippet:
             topic = "parking"
-        elif "late checkout" in snippet or "late check-out" in snippet:
+        elif any(k in snippet for k in ["late checkout", "late check-out"]):
             topic = "late checkout"
+        elif any(k in snippet for k in ["recommend", "things to do", "restaurant"]):
+            topic = "local recommendations"
         else:
             topic = "stay details"
 
         topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
-    top_topic = max(topic_counts.items(), key=lambda x: x[1])[0]
+    # Safe fallback
+    if topic_counts:
+        top_topic = max(topic_counts.items(), key=lambda x: x[1])[0]
+    else:
+        top_topic = "stay details"
+
     needs_clarity_count = signal_counts.get("needs_clarity", 0)
     friction_count = signal_counts.get("friction_detected", 0)
 
+    # Better product-style messaging
     if friction_count > 0:
-        body = f"{friction_count} conversation{'s' if friction_count != 1 else ''} may need closer attention."
+        body = (
+            f"{friction_count} conversation{'s' if friction_count != 1 else ''} "
+            f"may need closer attention."
+        )
     elif needs_clarity_count > 0:
-        body = f"{needs_clarity_count} recent conversation{'s' if needs_clarity_count != 1 else ''} suggest some information could be clearer."
+        body = (
+            f"{needs_clarity_count} conversation{'s' if needs_clarity_count != 1 else ''} "
+            f"suggest guests are looking for clearer information."
+        )
     else:
-        body = "Guest conversations are running smoothly right now."
+        body = "Guest conversations are running smoothly."
 
     return {
         "eyebrow": "Stay Pulse",
         "headline": f"Guests are mostly looking for {top_topic}",
         "body": body,
     }
-
 
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
