@@ -1357,15 +1357,14 @@ def dynamic_manifest(property_id: int, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=404, detail="Property not found")
 
     return templates.TemplateResponse(
+        request,
         "manifest.webmanifest",
         {
-            "request": request,
             "property_id": property_id,
             "property_name": prop.property_name,
         },
         media_type="application/manifest+json",
     )
-
 
 class UpgradeCheckoutRequest(BaseModel):
     guest_email: Optional[str] = None
