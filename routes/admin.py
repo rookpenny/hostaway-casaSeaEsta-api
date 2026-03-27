@@ -4029,6 +4029,7 @@ def edit_config(
     tpl = "partials/editor_partial.html" if (embed or partial) else "editor.html"
 
     return templates.TemplateResponse(
+        request,
         tpl,
         {
             "request": request,
