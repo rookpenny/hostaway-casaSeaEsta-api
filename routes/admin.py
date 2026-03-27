@@ -2133,126 +2133,133 @@ def admin_chats(
     last_msg_map = {int(m.session_id): m for m in latest_msgs}
 
     # --------------------------------------------------
-    # Build rows
-    # --------------------------------------------------
-    items = []
-    q_lower = (q or "").strip().lower()
-    auto_escalated = 0
+# Build rows
+# --------------------------------------------------
+items = []
+q_lower = (q or "").strip().lower()
+auto_escalated = 0
 
-    for sess, prop in rows:
-        sid = int(sess.id)
+for sess, prop in rows:
+    sid = int(sess.id)
 
-        sdata = signals_by_sid.get(sid, {})
-        cnt24 = int(sdata.get("cnt24", 0) or 0)
-        cnt7 = int(sdata.get("cnt7", 0) or 0)
-        has_urgent = bool(sdata.get("has_urgent", False))
-        has_negative = bool(sdata.get("has_negative", False))
-        last_guest_text = sdata.get("last_guest_text")
+    sdata = signals_by_sid.get(sid, {})
+    cnt24 = int(sdata.get("cnt24", 0) or 0)
+    cnt7 = int(sdata.get("cnt7", 0) or 0)
+    has_urgent = bool(sdata.get("has_urgent", False))
+    has_negative = bool(sdata.get("has_negative", False))
+    last_guest_text = sdata.get("last_guest_text")
 
-        # legacy priority filters
-        
+    # latest message snippet
+    last_msg = last_msg_map.get(sid)
+    last_text = (last_msg.content or "") if last_msg else ""
+    snippet = (last_text[:120] + "…") if len(last_text) > 120 else last_text
 
-        # latest message snippet
-        last_msg = last_msg_map.get(sid)
-        last_text = (last_msg.content or "") if last_msg else ""
-        snippet = (last_text[:120] + "…") if len(last_text) > 120 else last_text
-
-        # search filter
-        if q_lower:
-            hay = f"{prop.property_name} {sess.guest_name or ''} {snippet}".lower()
-            if q_lower not in hay:
-                continue
-
-        status_val = (sess.reservation_status or "pre_booking").strip().lower() or "pre_booking"
-
-        emotional_signals = derive_guest_mood(
-            has_urgent=has_urgent,
-            has_negative=has_negative,
-            cnt24=cnt24,
-            cnt7=cnt7,
-            status_val=status_val,
-            last_guest_text=last_guest_text,
-        )
-        guest_mood_val = emotional_signals[0] if emotional_signals else None
-
-        # mood filter
-        if mood and mood not in {s.lower() for s in (emotional_signals or [])}:
+    # search filter
+    if q_lower:
+        hay = f"{prop.property_name} {sess.guest_name or ''} {snippet}".lower()
+        if q_lower not in hay:
             continue
 
-        raw_heat = (
-            (50 if has_urgent else 0)
-            + (25 if has_negative else 0)
-            + min(25, cnt24 * 5)
-            + min(10, cnt7)
-        )
-        raw_heat = min(100, raw_heat)
+    raw_status = (getattr(sess, "reservation_status", None) or "pre_booking").strip().lower()
 
-        boosted = raw_heat
-        if has_urgent:
-            boosted = int(boosted * 1.3)
-        if has_negative:
-            boosted = int(boosted * 1.15)
-        if status_val == "active":
-            boosted = int(boosted * 1.1)
-
-        heat = decay_heat(min(100, boosted), sess.last_activity_at)
-
-        action_priority_val = compute_action_priority(
-            heat=heat,
-            signals=emotional_signals,
-            has_urgent=has_urgent,
-            has_negative=has_negative,
-        )
-
-        # auto escalation
-        desired = desired_escalation_level(heat)
-        current = (sess.escalation_level or "").lower() or None
-
-        if not sess.is_resolved and escalation_rank(desired) > escalation_rank(current):
-            sess.escalation_level = desired
-            sess.updated_at = datetime.utcnow()
-            db.add(sess)
-            auto_escalated += 1
-
-        items.append(
-            {
-                "id": sess.id,
-                "property_id": sess.property_id,
-                "property_name": prop.property_name or "Unknown",
-                "guest_name": sess.guest_name,
-                "reservation_status": status_val,
-                "last_activity_at": sess.last_activity_at,
-                "last_snippet": snippet,
-
-                "emotional_signals": emotional_signals,
-                "guest_mood": guest_mood_val,
-
-                "has_urgent": has_urgent,
-                "has_negative": has_negative,
-
-                "msg_24h": cnt24,
-                "msg_7d": cnt7,
-
-                "heat": heat,
-                "heat_raw": raw_heat,
-
-                "priority_level": action_priority_val,
-                "action_priority": action_priority_val,
-
-                "assigned_to": sess.assigned_to,
-                "escalation_level": sess.escalation_level,
-                "is_resolved": bool(sess.is_resolved),
-                "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
-            }
-        )
-
-    if auto_escalated:
-        db.commit()
-
-    items.sort(
-        key=lambda x: (x["heat"], x["last_activity_at"] or datetime.min),
-        reverse=True,
+    status_val = compute_reservation_stage(
+        getattr(sess, "arrival_date", None),
+        getattr(sess, "departure_date", None),
+        fallback=raw_status,
     )
+
+    emotional_signals = derive_guest_mood(
+        has_urgent=has_urgent,
+        has_negative=has_negative,
+        cnt24=cnt24,
+        cnt7=cnt7,
+        status_val=status_val,
+        last_guest_text=last_guest_text,
+    )
+
+    guest_mood_val = emotional_signals[0] if emotional_signals else None
+
+    # mood filter
+    if mood and mood not in {s.lower() for s in (emotional_signals or [])}:
+        continue
+
+    raw_heat = (
+        (50 if has_urgent else 0)
+        + (25 if has_negative else 0)
+        + min(25, cnt24 * 5)
+        + min(10, cnt7)
+    )
+    raw_heat = min(100, raw_heat)
+
+    boosted = raw_heat
+    if has_urgent:
+        boosted = int(boosted * 1.3)
+    if has_negative:
+        boosted = int(boosted * 1.15)
+    if status_val == "active":
+        boosted = int(boosted * 1.1)
+
+    heat = decay_heat(min(100, boosted), sess.last_activity_at)
+
+    action_priority_val = compute_action_priority(
+        heat=heat,
+        signals=emotional_signals,
+        has_urgent=has_urgent,
+        has_negative=has_negative,
+    )
+
+    # auto escalation
+    desired = desired_escalation_level(heat)
+    current = (sess.escalation_level or "").lower() or None
+
+    if not sess.is_resolved and escalation_rank(desired) > escalation_rank(current):
+        sess.escalation_level = desired
+        sess.updated_at = datetime.utcnow()
+        db.add(sess)
+        auto_escalated += 1
+
+    items.append(
+        {
+            "id": sess.id,
+            "property_id": sess.property_id,
+            "property_name": prop.property_name or "Unknown",
+            "guest_name": sess.guest_name,
+            "reservation_status": status_val,
+            "is_currently_staying": status_val == "active",
+            "arrival_date": getattr(sess, "arrival_date", None),
+            "departure_date": getattr(sess, "departure_date", None),
+            "last_activity_at": sess.last_activity_at,
+            "last_snippet": snippet,
+
+            "emotional_signals": emotional_signals,
+            "guest_mood": guest_mood_val,
+
+            "has_urgent": has_urgent,
+            "has_negative": has_negative,
+
+            "msg_24h": cnt24,
+            "msg_7d": cnt7,
+
+            "heat": heat,
+            "heat_raw": raw_heat,
+
+            "priority_level": action_priority_val,
+            "action_priority": action_priority_val,
+
+            "assigned_to": sess.assigned_to,
+            "escalation_level": sess.escalation_level,
+            "is_resolved": bool(sess.is_resolved),
+            "needs_attention": (sess.escalation_level == "high" and not sess.is_resolved),
+        }
+    )
+
+if auto_escalated:
+    db.commit()
+
+items.sort(
+    key=lambda x: (x["heat"], x["last_activity_at"] or datetime.min),
+    reverse=True,
+)
 
     return templates.TemplateResponse(
         request,
@@ -3706,6 +3713,7 @@ def admin_dashboard(
             "guest_name": r.get("guest_name"),
             "assigned_to": r.get("assigned_to"),
             "reservation_status": status_val,
+            "is_currently_staying": status_val == "active",
             "source": r.get("source"),
             "last_activity_at": r.get("last_activity_at"),
             "last_snippet": last_snip,
