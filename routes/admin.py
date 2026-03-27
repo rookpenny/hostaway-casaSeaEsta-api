@@ -1051,177 +1051,7 @@ def compute_reservation_stage(arrival_date, departure_date, fallback="pre_bookin
         pass
 
     return fallback
-# ----------------------------
-# Flask-ish example
-# ----------------------------
-'''
-@router.get("/admin/chats/partial/detail", response_class=HTMLResponse)
-def chat_detail_partial(
-    request: Request,
-    session_id: int,
-    db: Session = Depends(get_db),
-):
-    user = request.session.get("user")
-    if not user:
-        raise HTTPException(status_code=401)
 
-    # 1) Load session first (so sess exists)
-    sess = db.query(ChatSession).filter(ChatSession.id == session_id).first()
-    if not sess:
-        raise HTTPException(status_code=404, detail="Chat not found")
-
-    property_obj = db.query(Property).filter(Property.id == sess.property_id).first()
-
-    # ✅ NEW: determine PMC scope and load team users
-    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
-
-    messages = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.session_id == sess.id)
-        .order_by(ChatMessage.created_at.asc())
-        .all()
-    )
-
-    # 2) Compute message-derived facts
-    now = datetime.utcnow()
-    cutoff_7d = now - timedelta(days=7)
-    since_24h = now - timedelta(hours=24)
-
-    has_urgent = (
-        db.query(ChatMessage.id)
-        .filter(
-            ChatMessage.session_id == sess.id,
-            ChatMessage.sender.in_(("guest", "user")),
-            ChatMessage.category == "urgent",
-        )
-        .first()
-        is not None
-    )
-
-    has_negative = (
-        db.query(ChatMessage.id)
-        .filter(
-            ChatMessage.session_id == sess.id,
-            ChatMessage.sender.in_(("guest", "user")),
-            ChatMessage.created_at >= cutoff_7d,
-            func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
-        )
-        .first()
-        is not None
-    )
-
-    cnt24 = int(
-        db.query(func.count(ChatMessage.id))
-        .filter(ChatMessage.session_id == sess.id, ChatMessage.created_at >= since_24h)
-        .scalar()
-        or 0
-    )
-
-    cnt7 = int(
-        db.query(func.count(ChatMessage.id))
-        .filter(ChatMessage.session_id == sess.id, ChatMessage.created_at >= cutoff_7d)
-        .scalar()
-        or 0
-    )
-
-    status_val = (sess.reservation_status or "pre_booking").strip().lower() or "pre_booking"
-
-    # last guest text (positivity override)
-    last_guest_text = None
-    for m in reversed(messages):
-        if m.sender in ("guest", "user") and (m.content or "").strip():
-            last_guest_text = m.content
-            break
-
-    # 3) Derive emotional_signals + guest_mood
-    emotional_signals = derive_guest_mood(
-        has_urgent=has_urgent,
-        has_negative=has_negative,
-        cnt24=cnt24,
-        cnt7=cnt7,
-        status_val=status_val,
-        last_guest_text=last_guest_text,
-    )
-    guest_mood_val = emotional_signals[0] if emotional_signals else None
-
-    # 4) Heat + action priority
-    raw_heat = (
-        (50 if has_urgent else 0)
-        + (25 if has_negative else 0)
-        + min(25, cnt24 * 5)
-        + min(10, cnt7)
-    )
-    raw_heat = min(100, raw_heat)
-
-    boosted = raw_heat
-    if has_urgent:
-        boosted = int(boosted * 1.3)
-    if has_negative:
-        boosted = int(boosted * 1.15)
-    if status_val == "active":
-        boosted = int(boosted * 1.1)
-
-    heat = decay_heat(min(100, boosted), sess.last_activity_at)
-
-    action_priority_val = compute_action_priority(
-        heat=heat_score,
-        signals=emotional_signals,
-        has_urgent=has_urgent,
-        has_negative=has_negative,
-        status_val=status_val,
-    )
-
-    # 5) Persist triage fields AFTER compute
-    dirty = persist_session_triage_fields(
-        db,
-        sess,
-        emotional_signals=emotional_signals,
-        action_priority=action_priority_val,
-        guest_mood=guest_mood_val,
-    )
-    if dirty:
-        db.commit()
-
-    # 6) Template VM (unchanged)
-    session_vm = {
-        "id": sess.id,
-        "property_id": sess.property_id,
-        "guest_name": sess.guest_name,
-        "assigned_to": sess.assigned_to,
-        "reservation_status": sess.reservation_status,
-        "escalation_level": sess.escalation_level,
-        "is_resolved": bool(sess.is_resolved),
-        "action_priority": action_priority_val,
-        "emotional_signals": emotional_signals,
-        "guest_mood": guest_mood_val,
-        "internal_note": getattr(sess, "internal_note", None),
-        "ai_summary": getattr(sess, "ai_summary", None),
-        "ai_summary_updated_at": getattr(sess, "ai_summary_updated_at", None),
-        "reservation_id": getattr(sess, "reservation_id", None),
-        "booking_id": getattr(sess, "booking_id", None),
-        "confirmation_code": getattr(sess, "confirmation_code", None),
-        "pms_reservation_id": getattr(sess, "pms_reservation_id", None),
-        "reservation_confirmed": getattr(sess, "reservation_confirmed", None),
-    }
-
-    return templates.TemplateResponse(
-        request,
-        "partials/chat_detail_panel.html",
-        {
-            "request": request,
-            "session": session_vm,
-            "property": property_obj,
-            "messages": messages,
-            "property_name_by_id": (
-                {property_obj.id: property_obj.property_name} if property_obj else {}
-            ),
-            # ✅ NEW: required by your dropdown loop
-            "team_members": team_members,
-        },
-    )
-
-
-'''
 
 # ----------------------------
 # Auth / scope helpers
@@ -1260,7 +1090,7 @@ def chat_detail_partial(
     session_id: int,
     db: Session = Depends(get_db),
 ):
-    # Require logged-in session (matches how your dashboard gate works)
+    # Require logged-in session
     user = request.session.get("user")
     if not user:
         raise HTTPException(status_code=401)
@@ -1277,12 +1107,10 @@ def chat_detail_partial(
     # --- Scope: who is viewing? ---
     user_role, pmc_obj, pmc_user, *_ = get_user_role_and_scope(request, db)
 
-    # Decide which PMC team to show
     target_pmc_id = None
     if user_role == "super":
         target_pmc_id = int(property_obj.pmc_id) if property_obj.pmc_id else None
     else:
-        # pmc role must be linked to a PMC to have a team
         if pmc_obj:
             target_pmc_id = int(pmc_obj.id)
 
@@ -1290,7 +1118,7 @@ def chat_detail_partial(
             if property_obj.pmc_id and int(property_obj.pmc_id) != target_pmc_id:
                 raise HTTPException(status_code=403, detail="Forbidden")
 
-    # --- Team members (LIST, not the 'team_members' function) ---
+    # --- Team members ---
     pmc_team_members = []
     if target_pmc_id:
         pmc_team_members = (
@@ -1308,32 +1136,62 @@ def chat_detail_partial(
         .all()
     )
 
-    # --- Recompute reservation stage from dates, not stale DB field ---
-    raw_status = (getattr(sess, "reservation_status", None) or "pre_booking").strip().lower()
-    status_val = compute_reservation_stage(
-        getattr(sess, "arrival_date", None),
-        getattr(sess, "departure_date", None),
-        fallback=raw_status,
-    )
+    # ----------------------------
+    # Stay cycle logic (🔥 NEW)
+    # ----------------------------
+    def _to_date(v):
+        if not v:
+            return None
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, date):
+            return v
+        try:
+            return datetime.fromisoformat(str(v)[:10]).date()
+        except Exception:
+            return None
 
-    # --- Build a VM that matches what the template expects ---
+    arrival = _to_date(getattr(sess, "arrival_date", None))
+    departure = _to_date(getattr(sess, "departure_date", None))
+    today = datetime.utcnow().date()
+
+    if arrival and departure:
+        if today < arrival:
+            stay_cycle = "upcoming"
+        elif arrival <= today <= departure:
+            stay_cycle = "current"
+        else:
+            stay_cycle = "checked_out"
+    else:
+        stay_cycle = "inquiry"
+
+    # ----------------------------
+    # View model
+    # ----------------------------
     session_vm = {
         "id": sess.id,
         "property_id": sess.property_id,
         "guest_name": sess.guest_name,
         "assigned_to": sess.assigned_to,
-        "reservation_status": status_val,  # ✅ computed live status
-        "is_currently_staying": status_val == "active",
+
+        # ✅ New canonical field
+        "stay_cycle": stay_cycle,
+        "is_currently_staying": stay_cycle == "current",
+
         "arrival_date": getattr(sess, "arrival_date", None),
         "departure_date": getattr(sess, "departure_date", None),
+
         "escalation_level": sess.escalation_level,
         "is_resolved": bool(sess.is_resolved),
         "action_priority": getattr(sess, "action_priority", None),
+
         "emotional_signals": getattr(sess, "emotional_signals", None) or [],
         "guest_mood": getattr(sess, "guest_mood", None),
+
         "internal_note": getattr(sess, "internal_note", None),
         "ai_summary": getattr(sess, "ai_summary", None),
         "ai_summary_updated_at": getattr(sess, "ai_summary_updated_at", None),
+
         "reservation_id": getattr(sess, "reservation_id", None),
         "booking_id": getattr(sess, "booking_id", None),
         "confirmation_code": getattr(sess, "confirmation_code", None),
@@ -1350,7 +1208,9 @@ def chat_detail_partial(
             "property": property_obj,
             "messages": messages,
             "team_members": pmc_team_members,
-            "property_name_by_id": {property_obj.id: property_obj.property_name},
+            "property_name_by_id": {
+                property_obj.id: property_obj.property_name
+            },
         },
     )
 
