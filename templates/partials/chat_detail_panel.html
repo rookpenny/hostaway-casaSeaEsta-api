@@ -1,37 +1,12 @@
 {# partials/chat_detail_panel.html #}
 
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
-{% set rs = (session.reservation_status or '')|lower %}
 {% set ap = (session.action_priority or '')|lower %}
+{% set stay_cycle = (session.stay_cycle or 'inquiry')|lower %}
 
 {# Normalize escalation to low/medium/high #}
 {% set esc_raw = (session.escalation_level or '')|lower %}
 {% set esc = 'high' if esc_raw in ['critical','high'] else ('medium' if esc_raw in ['attention','medium'] else ('low' if esc_raw == 'low' else '')) %}
-
-{# Treat “pre_booking” as post-booking when booking identifiers exist #}
-{% set has_booking = (
-  session.reservation_id
-  or session.booking_id
-  or session.confirmation_code
-  or session.pms_reservation_id
-  or session.reservation_confirmed
-) %}
-{% set rs_effective = rs %}
-{% if rs in ['post_booking','booked','confirmed'] %}
-  {% set rs_effective = 'post_booking' %}
-{% elif rs == 'pre_booking' and has_booking %}
-  {% set rs_effective = 'post_booking' %}
-{% endif %}
-
-{# Stay status: prefer backend boolean if available, fallback to active stage #}
-{% set staying_now = false %}
-{% if session.is_currently_staying is defined and session.is_currently_staying %}
-  {% set staying_now = true %}
-{% elif session.currently_staying is defined and session.currently_staying %}
-  {% set staying_now = true %}
-{% elif rs_effective == 'active' %}
-  {% set staying_now = true %}
-{% endif %}
 
 <div
   class="space-y-4"
@@ -68,37 +43,22 @@
           <!-- Pills row -->
           <div class="flex flex-wrap items-center gap-1">
 
-            {# Reservation status pill #}
-            {% if rs_effective == "active" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-700 font-semibold text-xs">
-                🏖 Active
-              </span>
-            {% elif rs_effective == "post_booking" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold text-xs">
-                ✅ Post-booking
-              </span>
-            {% elif rs_effective == "post_stay" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">
-                📬 Post-stay
-              </span>
-            {% elif rs_effective == "pre_booking" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
-                💬 Pre-booking
-              </span>
-            {% else %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-600 font-semibold text-xs">
-                Unknown
-              </span>
-            {% endif %}
-
-            {# Stay status pill #}
-            {% if staying_now %}
+            {# Stay cycle pill #}
+            {% if stay_cycle == "current" %}
               <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-xs">
-                🏠 On property
+                🏡 Currently staying
+              </span>
+            {% elif stay_cycle == "upcoming" %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold text-xs">
+                🗓️ Upcoming stay
+              </span>
+            {% elif stay_cycle == "checked_out" %}
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">
+                ✅ Checked out
               </span>
             {% else %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-100 text-slate-700 font-semibold text-xs">
-                🧳 Not on property
+              <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
+                💬 Inquiry
               </span>
             {% endif %}
 
