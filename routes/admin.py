@@ -3613,7 +3613,13 @@ def admin_dashboard(
             else:
                 status_val = "pre_booking"
         else:
-            status_val = (r.get("reservation_status") or "pre_booking").strip().lower() or "pre_booking"
+            raw_status = (r.get("reservation_status") or "pre_booking").strip().lower()
+
+            status_val = compute_reservation_stage(
+                r.get("arrival_date"),
+                r.get("departure_date"),
+                fallback=raw_status
+            )
 
         heat_score = int(r.get("heat_score") or 0)
 
