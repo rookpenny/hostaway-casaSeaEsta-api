@@ -467,6 +467,7 @@ def admin_config_ui(
     tpl = "partials/admin_config_ui_partial.html"
 
     return templates.TemplateResponse(
+        request,
         tpl,
         {
             "request": request,
