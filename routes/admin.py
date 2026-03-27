@@ -3557,19 +3557,49 @@ def admin_dashboard(
             for s in db.query(ChatSession).filter(ChatSession.id.in_(session_ids)).all()
         }
 
-    # ----------------------------
-    # Build final sessions list (persisted-first, compute only if missing)
+        # ----------------------------
+    # Build final sessions list (fresh stay status from dates)
     # ----------------------------
     sessions: list[dict] = []
     dirty_any = False
-    
+    today = datetime.utcnow().date()
+
+    def _to_date(v):
+        if not v:
+            return None
+        if isinstance(v, datetime):
+            return v.date()
+        if isinstance(v, date):
+            return v
+        try:
+            return datetime.fromisoformat(str(v)[:10]).date()
+        except Exception:
+            return None
+
     for r in rows:
         sid = int(r["id"])
         prop_id = int(r.get("property_id") or 0) or None
-    
-        status_val = (r.get("reservation_status") or "pre_booking").strip().lower() or "pre_booking"
+
+        arrival_date_raw = r.get("arrival_date")
+        departure_date_raw = r.get("departure_date")
+        arrival_date_obj = _to_date(arrival_date_raw)
+        departure_date_obj = _to_date(departure_date_raw)
+
+        # Fresh stage logic from dates, not stale DB status
+        if arrival_date_obj and departure_date_obj:
+            if today < arrival_date_obj:
+                status_val = "post_booking"
+            elif arrival_date_obj <= today <= departure_date_obj:
+                status_val = "active"
+            elif today > departure_date_obj:
+                status_val = "post_stay"
+            else:
+                status_val = "pre_booking"
+        else:
+            status_val = (r.get("reservation_status") or "pre_booking").strip().lower() or "pre_booking"
+
         heat_score = int(r.get("heat_score") or 0)
-    
+
         # message-derived inputs (for UI indicators only; not used for SQL filters)
         sdata = signals_by_sid.get(sid, {})
         has_urgent = bool(sdata.get("has_urgent", False))
@@ -3577,17 +3607,16 @@ def admin_dashboard(
         cnt24 = int(sdata.get("cnt24", 0) or 0)
         cnt7 = int(sdata.get("cnt7", 0) or 0)
         last_guest_text = sdata.get("last_guest_text")
-    
+
         # last message (snippet + sentiment badge)
         last_msg = last_msg_by_session.get(sid)
         last_sentiment = (getattr(last_msg, "sentiment", None) or "").strip().lower() if last_msg else ""
-    
+
         # persisted triage
         emotional_signals = (r.get("emotional_signals") or [])
         guest_mood_val = (r.get("guest_mood") or (emotional_signals[0] if emotional_signals else None))
         action_priority_val = (r.get("action_priority") or None)
-    
-        # ✅ Compute+persist only if missing (rare)
+
         if (not guest_mood_val) or (not action_priority_val) or (not emotional_signals):
             emotional_signals = derive_guest_mood(
                 has_urgent=has_urgent,
@@ -3598,15 +3627,14 @@ def admin_dashboard(
                 last_guest_text=last_guest_text,
             )
             guest_mood_val = emotional_signals[0] if emotional_signals else None
-    
-            # if you want action_priority derived from heat_score only (fast):
+
             action_priority_val = compute_action_priority(
                 heat=heat_score,
                 signals=emotional_signals,
                 has_urgent=has_urgent,
                 has_negative=has_negative,
             )
-    
+
             sess_obj = sess_map.get(sid)
             if sess_obj:
                 dirty = persist_session_triage_fields(
@@ -3617,10 +3645,10 @@ def admin_dashboard(
                     guest_mood=guest_mood_val,
                 )
                 dirty_any = dirty_any or dirty
-    
+
         last_snip = (r.get("last_message") or "") or ((last_msg.content or "") if last_msg else "")
         last_snip = (last_snip[:120] + "…") if last_snip and len(last_snip) > 120 else (last_snip or "")
-    
+
         sessions.append({
             "id": sid,
             "property_id": prop_id,
@@ -3635,31 +3663,30 @@ def admin_dashboard(
             "source": r.get("source"),
             "last_activity_at": r.get("last_activity_at"),
             "last_snippet": last_snip,
-    
+
             "action_priority": action_priority_val,
             "guest_mood": guest_mood_val,
             "emotional_signals": emotional_signals,
-    
+
             "is_resolved": bool(r.get("is_resolved")),
             "escalation_level": r.get("escalation_level"),
-    
+
             "has_urgent": has_urgent,
             "has_negative": has_negative,
             "last_sentiment": last_sentiment,
             "msg_24h": cnt24,
             "msg_7d": cnt7,
-    
+
             "heat": heat_score,
             "heat_raw": heat_score,
-    
+
             "pms_reservation_id": r.get("pms_reservation_id"),
-            "arrival_date": r.get("arrival_date"),
-            "departure_date": r.get("departure_date"),
+            "arrival_date": arrival_date_raw,
+            "departure_date": departure_date_raw,
         })
-    
+
     if dirty_any:
         db.commit()
-
 
     
 
@@ -3714,14 +3741,14 @@ def admin_dashboard(
         )
 
      # 🔒 Stripe Connect status (for locking upgrades UI)
-    stripe_connected = False
+        stripe_connected = False
     stripe_charges_enabled = False
     stripe_payouts_enabled = False
     stripe_account_id = None
-    
+
     if user_role == "pmc" and pmc_obj:
-        from models import PMCIntegration  # move to top imports if you want
-    
+        from models import PMCIntegration
+
         integ = (
             db.query(PMCIntegration)
             .filter(
@@ -3730,49 +3757,48 @@ def admin_dashboard(
             )
             .first()
         )
-    
+
         if integ and integ.account_id and bool(getattr(integ, "is_connected", False)):
             stripe_connected = True
             stripe_account_id = integ.account_id
             stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
             stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
-
-        return templates.TemplateResponse(
-            request,
-            "admin_dashboard.html",
-            {
-                "request": request,
-                "user_role": user_role,
-                "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
-                "properties": properties,
-                "property_name_by_id": property_name_by_id,
-                "now": datetime.utcnow(),
-                "pmcs": pmc_list,
-                "billing_status": billing_status,
-                "is_paid": is_paid,
-                "needs_payment": needs_payment,
-                "billing_banner_title": billing_banner_title,
-                "billing_banner_body": billing_banner_body,
-                "user_timezone": (pmc_user.timezone if pmc_user else None),
-                "pmc_user_role": (pmc_user.role if pmc_user else None),
-                "user_email": me_email,
-                "user_full_name": (me_user.full_name if me_user else None),
-                "team_members": team_members,
-                "notif_prefs": notif_prefs,
-                "stripe_connected": stripe_connected,
-                "stripe_charges_enabled": stripe_charges_enabled,
-                "stripe_payouts_enabled": stripe_payouts_enabled,
-                "stripe_account_id": stripe_account_id,
-                "sessions": sessions,
-                "analytics": analytics,
-                "filters": filters,
-                "selected_session": selected_session,
-                "selected_property": selected_property,
-                "selected_messages": selected_messages,
-                "pmc_id": (pmc_obj.id if pmc_obj else None),
-            },
-        )
+    return templates.TemplateResponse(
+        request,
+        "admin_dashboard.html",
+        {
+            "request": request,
+            "user_role": user_role,
+            "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
+            "properties": properties,
+            "property_name_by_id": property_name_by_id,
+            "now": datetime.utcnow(),
+            "pmcs": pmc_list,
+            "billing_status": billing_status,
+            "is_paid": is_paid,
+            "needs_payment": needs_payment,
+            "billing_banner_title": billing_banner_title,
+            "billing_banner_body": billing_banner_body,
+            "user_timezone": (pmc_user.timezone if pmc_user else None),
+            "pmc_user_role": (pmc_user.role if pmc_user else None),
+            "user_email": me_email,
+            "user_full_name": (me_user.full_name if me_user else None),
+            "team_members": team_members,
+            "notif_prefs": notif_prefs,
+            "stripe_connected": stripe_connected,
+            "stripe_charges_enabled": stripe_charges_enabled,
+            "stripe_payouts_enabled": stripe_payouts_enabled,
+            "stripe_account_id": stripe_account_id,
+            "sessions": sessions,
+            "analytics": analytics,
+            "filters": filters,
+            "selected_session": selected_session,
+            "selected_property": selected_property,
+            "selected_messages": selected_messages,
+            "pmc_id": (pmc_obj.id if pmc_obj else None),
+        },
+    )
 
 
 
