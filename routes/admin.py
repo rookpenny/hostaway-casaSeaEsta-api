@@ -3508,12 +3508,16 @@ def admin_dashboard(
         if arrival_date_obj and departure_date_obj:
             if today < arrival_date_obj:
                 status_val = "post_booking"
+                stay_cycle = "upcoming"
             elif arrival_date_obj <= today <= departure_date_obj:
                 status_val = "active"
+                stay_cycle = "current"
             elif today > departure_date_obj:
                 status_val = "post_stay"
+                stay_cycle = "checked_out"
             else:
                 status_val = "pre_booking"
+                stay_cycle = "inquiry"
         else:
             raw_status = (r.get("reservation_status") or "pre_booking").strip().lower()
 
@@ -3522,6 +3526,7 @@ def admin_dashboard(
                 r.get("departure_date"),
                 fallback=raw_status,
             )
+            stay_cycle = "inquiry"
 
         heat_score = int(r.get("heat_score") or 0)
 
