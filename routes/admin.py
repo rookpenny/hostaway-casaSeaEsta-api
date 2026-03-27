@@ -3335,7 +3335,6 @@ def build_suggestions(sessions: list[dict]) -> list[dict]:
     for s in sessions:
         snippet = (s.get("last_snippet") or "").lower()
 
-        # Detect topics
         if any(k in snippet for k in ["check-in", "check in", "arrival", "access", "door", "entry"]):
             topic = "checkin"
         elif any(k in snippet for k in ["wifi", "wi-fi", "internet", "password"]):
@@ -3349,51 +3348,111 @@ def build_suggestions(sessions: list[dict]) -> list[dict]:
 
         topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
-        # Detect repeated questions (simple heuristic)
-        if s.get("msg_24h", 0) >= 3:
+        if int(s.get("msg_24h", 0) or 0) >= 3:
             repeat_question_counts[topic] = repeat_question_counts.get(topic, 0) + 1
 
-    # 🔥 Turn patterns into suggestions
+    if topic_counts.get("checkin", 0) >= 2:
+        suggestions.append({
+            "id": "checkin_instructions",
+            "title": "Improve check-in instructions",
+            "reason": f"{topic_counts['checkin']} guests asked about arrival or access",
+            "action": "Add step-by-step entry instructions and photos",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "checkin",
+        })
 
-    for topic, count in topic_counts.items():
-        if topic == "checkin" and count >= 2:
-            suggestions.append({
-                "title": "Improve check-in instructions",
-                "reason": f"{count} guests asked about arrival or access",
-                "action": "Add step-by-step entry instructions and photos"
-            })
+    if topic_counts.get("wifi", 0) >= 2:
+        suggestions.append({
+            "id": "wifi_visibility",
+            "title": "Make WiFi details easier to find",
+            "reason": f"{topic_counts['wifi']} guests asked about WiFi",
+            "action": "Include WiFi name and password in your guide and arrival message",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "wifi",
+        })
 
-        if topic == "wifi" and count >= 2:
-            suggestions.append({
-                "title": "Make WiFi details easier to find",
-                "reason": f"{count} guests asked about WiFi",
-                "action": "Include WiFi name + password in your guide and arrival message"
-            })
+    if topic_counts.get("parking", 0) >= 2:
+        suggestions.append({
+            "id": "parking_instructions",
+            "title": "Clarify parking instructions",
+            "reason": f"{topic_counts['parking']} guests asked about parking",
+            "action": "Add parking location, rules, and photos",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "parking",
+        })
 
-        if topic == "parking" and count >= 2:
-            suggestions.append({
-                "title": "Clarify parking instructions",
-                "reason": f"{count} guests asked about parking",
-                "action": "Add parking location, rules, and photos"
-            })
+    if topic_counts.get("late_checkout", 0) >= 2:
+        suggestions.append({
+            "id": "checkout_expectations",
+            "title": "Set expectations for checkout",
+            "reason": f"{topic_counts['late_checkout']} guests asked about late checkout",
+            "action": "Clearly state checkout policy in your guide",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "checkout",
+        })
 
-        if topic == "late_checkout" and count >= 2:
-            suggestions.append({
-                "title": "Set expectations for checkout",
-                "reason": f"{count} guests asked about late checkout",
-                "action": "Clearly state checkout policy in your guide"
-            })
-
-    # Repeated confusion = higher priority suggestion
-    for topic, count in repeat_question_counts.items():
-        if count >= 1:
-            suggestions.append({
-                "title": "Guests are asking multiple times",
-                "reason": f"Repeated questions detected ({count} sessions)",
-                "action": "Information may be unclear — simplify or make it more visible"
-            })
+    repeated_total = sum(repeat_question_counts.values())
+    if repeated_total >= 1:
+        suggestions.append({
+            "id": "repeated_questions",
+            "title": "Guests are asking multiple times",
+            "reason": f"Repeated questions detected across {repeated_total} session{'s' if repeated_total != 1 else ''}",
+            "action": "Simplify key information or make it more visible earlier in the stay",
+            "cta_primary": "View chats",
+            "cta_secondary": "",
+            "target": "chats",
+        })
 
     return suggestions
+
+
+def build_suggestion_draft(target: str) -> dict:
+    drafts = {
+        "checkin": {
+            "title": "Suggested check-in instructions",
+            "body": (
+                "Check-in is from 4:00 PM.\n\n"
+                "1. Park in the designated area.\n"
+                "2. Go to the main entrance.\n"
+                "3. Enter the door code sent before arrival.\n"
+                "4. Inside, you'll find your welcome guide and WiFi details.\n\n"
+                "If you have trouble entering, message us and we'll help right away."
+            ),
+        },
+        "wifi": {
+            "title": "Suggested WiFi section",
+            "body": (
+                "WiFi Network: [ADD NETWORK NAME]\n"
+                "WiFi Password: [ADD PASSWORD]\n\n"
+                "If you have trouble connecting, restart WiFi on your device and try again."
+            ),
+        },
+        "parking": {
+            "title": "Suggested parking instructions",
+            "body": (
+                "Parking is available in the designated area only.\n\n"
+                "- Please park in [ADD LOCATION]\n"
+                "- Do not block neighboring driveways\n"
+                "- If arriving late, use the marked guest space closest to the entrance"
+            ),
+        },
+        "checkout": {
+            "title": "Suggested checkout policy",
+            "body": (
+                "Checkout is at 10:00 AM unless otherwise approved.\n\n"
+                "Before leaving:\n"
+                "- Lock all doors\n"
+                "- Place used towels in the bathroom\n"
+                "- Start the dishwasher if needed\n"
+                "- Message us once you've checked out"
+            ),
+        },
+    }
+    return drafts.get(target, {"title": "Suggested update", "body": ""})
 
 def build_stay_pulse(sessions: list[dict]) -> dict:
     if not sessions:
