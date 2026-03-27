@@ -874,9 +874,9 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     )
 
     return templates.TemplateResponse(
+        request,
         "guest_app.html",
         {
-            "request": request,
             "property_id": prop.id,
             "property_name": prop.property_name,
             "reservation_name": reservation_name,
