@@ -3898,16 +3898,13 @@ function initRouting() {
 
   function route() {
   const params = new URLSearchParams(window.location.search);
-  const sessionId = params.get("session_id");
 
-  // If a session is selected, ALWAYS show chats
-  if (sessionId) {
+  if (params.has("session_id")) {
     showView("chats");
     return;
   }
 
-  // No session selected anymore, make sure detail is closed
-  closeChatDetail();
+  closeChatDetail(); // ✅ no session_id means detail must be closed
 
   const keyFromHash = (location.hash || "").slice(1).split("?")[0].toLowerCase();
   const keyFromView = (params.get("view") || "").toLowerCase();
@@ -3924,10 +3921,12 @@ navItems.forEach(btn => {
     const url = new URL(window.location.href);
     url.searchParams.delete("session_id");
     url.searchParams.set("view", key);
-    url.hash = `#${key}`;
 
-    if (key !== "chats") {
-      closeChatDetail();
+    if (key === "chats") {
+      url.hash = "";
+      closeChatDetail();   // ✅ force chat detail closed
+    } else {
+      url.hash = `#${key}`;
     }
 
     history.pushState(null, "", url.toString());
