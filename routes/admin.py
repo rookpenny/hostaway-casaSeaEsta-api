@@ -1308,13 +1308,24 @@ def chat_detail_partial(
         .all()
     )
 
+    # --- Recompute reservation stage from dates, not stale DB field ---
+    raw_status = (getattr(sess, "reservation_status", None) or "pre_booking").strip().lower()
+    status_val = compute_reservation_stage(
+        getattr(sess, "arrival_date", None),
+        getattr(sess, "departure_date", None),
+        fallback=raw_status,
+    )
+
     # --- Build a VM that matches what the template expects ---
     session_vm = {
         "id": sess.id,
         "property_id": sess.property_id,
         "guest_name": sess.guest_name,
         "assigned_to": sess.assigned_to,
-        "reservation_status": sess.reservation_status,
+        "reservation_status": status_val,  # ✅ computed live status
+        "is_currently_staying": status_val == "active",
+        "arrival_date": getattr(sess, "arrival_date", None),
+        "departure_date": getattr(sess, "departure_date", None),
         "escalation_level": sess.escalation_level,
         "is_resolved": bool(sess.is_resolved),
         "action_priority": getattr(sess, "action_priority", None),
@@ -1338,7 +1349,7 @@ def chat_detail_partial(
             "session": session_vm,
             "property": property_obj,
             "messages": messages,
-            "team_members": pmc_team_members,  # ✅ iterable list for the dropdown
+            "team_members": pmc_team_members,
             "property_name_by_id": {property_obj.id: property_obj.property_name},
         },
     )
