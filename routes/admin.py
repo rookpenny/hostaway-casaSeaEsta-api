@@ -3776,6 +3776,8 @@ def admin_dashboard(
         if row.get("has_negative"):
             analytics["unhappy_sessions"] += 1
 
+    stay_pulse = build_stay_pulse(sessions)
+
     # ----------------------------
     # Selected session detail (unchanged behavior)
     # ----------------------------
@@ -3857,6 +3859,7 @@ def admin_dashboard(
             "stripe_account_id": stripe_account_id,
             "sessions": sessions,
             "analytics": analytics,
+            "stay_pulse": stay_pulse,
             "filters": filters,
             "selected_session": selected_session,
             "selected_property": selected_property,
