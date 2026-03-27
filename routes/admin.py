@@ -1026,7 +1026,30 @@ def compute_action_priority(
 
     return ap
 
+# ----------------------------
+# Helpers
+# ----------------------------
 
+from datetime import datetime
+
+def compute_reservation_stage(arrival_date, departure_date, fallback="pre_booking"):
+    today = datetime.utcnow().date()
+
+    try:
+        if arrival_date and departure_date:
+            a = arrival_date if isinstance(arrival_date, datetime) else datetime.fromisoformat(str(arrival_date)).date()
+            d = departure_date if isinstance(departure_date, datetime) else datetime.fromisoformat(str(departure_date)).date()
+
+            if a <= today <= d:
+                return "active"
+            elif today < a:
+                return "pre_booking"
+            elif today > d:
+                return "post_stay"
+    except Exception:
+        pass
+
+    return fallback
 # ----------------------------
 # Flask-ish example
 # ----------------------------
