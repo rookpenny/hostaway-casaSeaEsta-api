@@ -24,14 +24,41 @@
   <link rel="stylesheet" href="/static/css/admin_config_ui.css">
 
  <style type="text/tailwindcss">
+ <style type="text/tailwindcss">
+  @layer base {
+    html {
+      font-size: 14px;
+    }
+
+    body {
+      @apply bg-[#f5f7fb] text-slate-900 antialiased;
+    }
+  }
+
   @layer components {
+    /* ---------------------------------
+       Core surfaces
+    --------------------------------- */
+    .card {
+      @apply rounded-[24px] border border-slate-200/70 bg-white shadow-[0_8px_30px_rgba(15,23,42,0.04)];
+    }
+
+    .card-soft {
+      @apply rounded-[24px] border border-slate-200/60 bg-white shadow-sm;
+    }
+
+    .hairline {
+      box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.05);
+    }
+
+    /* ---------------------------------
+       Buttons
+    --------------------------------- */
     .btn {
-      @apply inline-flex items-center justify-center gap-2 select-none
-             h-9 px-3 rounded-xl text-sm font-semibold
-             border border-transparent shadow-sm
-             transition-colors
-             focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2
-             disabled:opacity-50 disabled:cursor-not-allowed;
+      @apply inline-flex h-9 select-none items-center justify-center gap-2 rounded-xl
+             border border-transparent px-3 text-[13px] font-semibold shadow-sm
+             transition-colors focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2
+             disabled:cursor-not-allowed disabled:opacity-50;
     }
 
     .btn-primary {
@@ -39,23 +66,86 @@
     }
 
     .btn-secondary {
-      @apply bg-white text-slate-800 border-slate-200 hover:bg-slate-50;
+      @apply border-slate-200 bg-white text-slate-700 hover:bg-slate-50;
     }
 
     .btn-indigo {
-      @apply bg-indigo-600 text-white hover:bg-indigo-700;
-    }
-
-    .tasks-tab {
-      @apply px-1 pb-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent;
-    }
-
-    .tasks-tab.is-active {
-      @apply text-slate-900 border-slate-900;
+      @apply bg-[#356cf6] text-white hover:bg-[#2457d9];
     }
 
     .icon-btn {
-      @apply h-11 w-11 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 grid place-items-center text-slate-600;
+      @apply grid h-10 w-10 place-items-center rounded-2xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50;
+    }
+
+    /* ---------------------------------
+       Sidebar
+    --------------------------------- */
+    .nav-item {
+      @apply relative flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-medium text-slate-600 transition-all duration-200;
+    }
+
+    .nav-item::before {
+      content: "";
+      @apply absolute left-0 top-1/2 h-7 w-[3px] -translate-y-1/2 rounded-r-full bg-transparent transition-all duration-200;
+    }
+
+    .nav-item:hover {
+      @apply bg-slate-100/80 text-slate-900;
+    }
+
+    .nav-item.active {
+      @apply bg-[#eef3ff] text-[#356cf6];
+    }
+
+    .nav-item.active::before {
+      @apply bg-[#356cf6];
+    }
+
+    .nav-icon-wrap {
+      @apply grid h-10 w-10 shrink-0 place-items-center rounded-2xl bg-slate-100 text-slate-600 transition-all duration-200;
+    }
+
+    .nav-item:hover .nav-icon-wrap {
+      @apply bg-white text-slate-900 shadow-sm;
+    }
+
+    .nav-item.active .nav-icon-wrap {
+      @apply bg-white text-[#356cf6] shadow-sm ring-1 ring-[#d9e4ff];
+    }
+
+    .nav-item-logout {
+      @apply text-rose-700;
+    }
+
+    .nav-item-logout .nav-icon-wrap {
+      @apply text-rose-600 bg-slate-100;
+    }
+
+    .nav-item-logout:hover {
+      @apply bg-rose-50 text-rose-700;
+    }
+
+    .nav-item-logout:hover .nav-icon-wrap {
+      @apply bg-white text-rose-600 ring-1 ring-rose-100;
+    }
+
+    .sidebar-footer-card {
+      @apply border border-slate-200/80 bg-slate-50 shadow-sm transition-all duration-200;
+    }
+
+    .sidebar-footer-card:hover {
+      @apply border-slate-300 shadow-md;
+    }
+
+    /* ---------------------------------
+       Tasks
+    --------------------------------- */
+    .tasks-tab {
+      @apply border-b-2 border-transparent px-1 pb-3 text-sm font-semibold text-slate-500;
+    }
+
+    .tasks-tab.is-active {
+      @apply border-slate-900 text-slate-900;
     }
 
     .tasks-group {
@@ -67,123 +157,57 @@
     }
 
     .tasks-group-pill {
-      @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold border;
+      @apply inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold;
     }
 
     .tasks-row {
-      @apply mt-3 bg-white rounded-2xl border border-slate-200 px-4 py-4;
+      @apply mt-3 rounded-2xl border border-slate-200 bg-white px-4 py-4;
     }
 
     .tasks-row-grid {
-      @apply grid grid-cols-12 gap-3 items-center;
+      @apply grid grid-cols-12 items-center gap-3;
     }
 
     .tasks-batchbar {
-      @apply fixed left-0 right-0 bottom-6 z-50 flex justify-center;
+      @apply fixed bottom-6 left-0 right-0 z-50 flex justify-center;
     }
 
     .tasks-batchbar-inner {
-      @apply bg-slate-900 text-white rounded-2xl px-5 py-3 flex items-center gap-3 shadow-xl border border-white/10;
+      @apply flex items-center gap-3 rounded-2xl border border-white/10 bg-slate-900 px-5 py-3 text-white shadow-xl;
     }
 
     .batch-btn {
-      @apply h-9 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-sm font-semibold;
+      @apply h-9 rounded-xl bg-white/10 px-3 text-sm font-semibold hover:bg-white/15;
     }
 
     .batch-btn-danger {
-      @apply h-9 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-semibold;
+      @apply h-9 rounded-xl bg-rose-600 px-3 text-sm font-semibold hover:bg-rose-500;
     }
 
     .status-select {
       @apply h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm;
     }
-
-   .card {
-    @apply shadow-[0_10px_30px_rgba(15,23,42,0.04)];
   }
 
-  .hairline {
-    box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.04);
-  }
-       .nav-item {
-      @apply relative flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-medium text-slate-600 transition-all duration-200;
-    }
-
-    .nav-item::before {
-      content: "";
-      @apply absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-transparent transition-all duration-200;
-    }
-
-    .nav-item:hover {
-      @apply bg-slate-100 text-slate-950;
-    }
-
-    .nav-item.active {
-      @apply bg-[#eef4ff] text-[#356cf6] shadow-[0_6px_20px_rgba(53,108,246,0.10)];
-    }
-
-    .nav-item.active::before {
-      @apply bg-[#356cf6];
-      box-shadow: 0 0 16px rgba(53, 108, 246, 0.35);
-    }
-
-    .nav-icon-wrap {
-      @apply grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-600 transition-all duration-200;
-    }
-
-    .nav-item:hover .nav-icon-wrap {
-      @apply border-slate-300 bg-white text-slate-900;
-    }
-
-    .nav-item.active .nav-icon-wrap {
-      @apply border-[#cddcff] bg-white text-[#356cf6];
-      box-shadow: 0 8px 24px rgba(53, 108, 246, 0.10);
-    }
-
-    .nav-item-logout {
-      @apply text-rose-700;
-    }
-
-    .nav-item-logout .nav-icon-wrap {
-      @apply text-rose-600;
-    }
-
-    .nav-item-logout:hover {
-      @apply bg-rose-50 text-rose-700;
-    }
-
-    .nav-item-logout:hover .nav-icon-wrap {
-      @apply border-rose-200 bg-white text-rose-600;
-    }
-
-   .sidebar-footer-card {
-      @apply transition-all duration-200;
-    }
-
-    .sidebar-footer-card:hover {
-      @apply shadow-md border-slate-300;
-    }
-
-   
-    
-  }
-
+  /* ---------------------------------
+     Non-tailwind utility styles
+  --------------------------------- */
   .tasks-status-menu {
     position: fixed;
     z-index: 9999;
-    background: white;
-    border: 1px solid rgb(226 232 240);
-    border-radius: 16px;
-    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
-    padding: 10px;
     min-width: 240px;
+    padding: 10px;
+    background: white;
+    border: 1px solid rgb(226 232 240 / 0.95);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.16);
   }
 
   .tasks-status-item {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 10px 10px;
+    padding: 10px;
     border-radius: 12px;
     cursor: pointer;
     user-select: none;
@@ -245,7 +269,21 @@
     display: block;
   }
 
-  
+  .fade-in {
+    animation: fadeIn 0.22s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+</style> 
 </style>
 
 </head>
@@ -255,9 +293,9 @@
 {% set initial_view = request.query_params.get('view') or ('chats' if request.query_params.get('session_id') else 'overview') %}
 
     <!-- Sidebar -->
-    <aside id="sidebar"
-      class="sticky top-0 h-screen bg-white border-r border-slate-200 flex flex-col
-             w-72 transition-[width] duration-200 ease-out">
+<aside id="sidebar"
+  class="sticky top-0 h-screen bg-white border-r border-slate-200/70 flex flex-col
+         w-72 transition-[width] duration-200 ease-out">
 
 <!-- Brand -->
 <div class="h-24 px-6 flex items-center justify-between border-b border-slate-200">
@@ -584,8 +622,7 @@
 
       <!-- Sidebar Footer -->
 <div class="mt-auto p-4">
-  <div class="sidebar-footer-card flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-    
+  <div class="sidebar-footer-card flex items-center gap-3 rounded-2xl p-3.5">    
     <!-- Avatar -->
     <div class="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-200">
       {% if user_avatar_url %}
@@ -639,10 +676,10 @@
     <main class="flex-1 min-w-0">
 
       <!-- Topbar -->
-<header class="sticky top-0 z-30 border-b border-slate-200/80 bg-white/80 backdrop-blur-xl">
-  <div class="h-[92px] px-8 flex items-center gap-6">
+<header class="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
+  <div class="h-[92px] px-8 flex items-center gap-5">
     <div class="min-w-0">
-      <div id="page-title" class="text-[28px] font-semibold tracking-tight text-slate-950 truncate">Overview</div>
+      <div id="page-title" class="text-[24px] font-semibold tracking-tight text-slate-950 truncate">Overview</div>
       <div id="page-subtitle" class="mt-1 text-sm text-slate-500 truncate">
         {% if user_role == "super" %}System health & activity{% else %}Your portfolio at a glance{% endif %}
       </div>
@@ -652,7 +689,7 @@
 
     <!-- Search -->
     <div class="hidden lg:flex items-center">
-      <label class="group flex h-14 w-[360px] items-center gap-3 rounded-full border border-slate-200 bg-white px-5 shadow-sm transition hover:border-slate-300">
+      <label class="group flex h-14 w-[320px] items-center gap-3 rounded-full border border-slate-200/80 bg-white px-5 shadow-sm transition hover:border-slate-300">
         <svg class="h-5 w-5 text-slate-400 group-focus-within:text-slate-600" viewBox="0 0 24 24" fill="none">
           <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"/>
           <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.9"/>
@@ -700,7 +737,7 @@
 </header>
 
       <!-- Content -->
-      <div class="p-6">
+      <div class="p-5">
 
         {% set is_locked = (user_role == "pmc" and needs_payment) %}
 
@@ -746,16 +783,16 @@
   {% set urgent_issues = offline_props if offline_props > 0 else 1 %}
   {% set total_chats_est = (total_props * 240) + (live_props * 120) + 53 %}
 
-  <div class="grid grid-cols-12 gap-6">
+  <div class="grid grid-cols-12 gap-5">
     <!-- Main left column -->
     <div class="col-span-12 xl:col-span-8 space-y-6">
       <!-- Hero -->
-      <div class="relative overflow-hidden rounded-[28px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-8 text-white shadow-[0_20px_60px_rgba(40,50,160,0.20)]">
+      <div class="relative overflow-hidden rounded-[24px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-7 text-white shadow-[0_20px_60px_rgba(40,50,160,0.20)]">
         <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,190,150,0.18),transparent_28%)]"></div>
         <div class="absolute right-0 bottom-0 h-40 w-56 translate-x-10 translate-y-10 rotate-[-18deg] rounded-[40px] bg-gradient-to-br from-[#ffd3c1] via-[#f8b9b8] to-[#ffffff00] opacity-90"></div>
 
         <div class="relative z-10">
-          <div class="flex items-center gap-3 text-[15px] font-medium text-white/90">
+          <div class="flex items-center gap-3 text-[13px] font-medium text-white/85">
             <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15">
               <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
                 <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
@@ -766,14 +803,14 @@
             <span>Since your last login</span>
           </div>
 
-          <div class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+          <div class="mt-6 grid grid-cols-1 gap-5 md:grid-cols-3">
             <div class="md:border-r md:border-white/15 md:pr-6">
-              <div class="text-5xl font-semibold tracking-tight">{{ total_chats_est }}</div>
-              <div class="mt-2 text-lg text-white/80">guest questions asked</div>
+              <div class="text-[38px] font-semibold tracking-tight">{{ total_chats_est }}</div>
+              <div class="mt-1.5 text-[14px] text-white/72">guest questions asked</div>
               <button
                 type="button"
                 onclick="window.DashboardOverview?.jumpTo('chats')"
-                class="mt-5 inline-flex items-center gap-2 text-base font-medium text-[#9fd0ff] hover:text-white"
+                class="mt-4 inline-flex items-center gap-2 text-[14px] font-medium text-[#9fd0ff] hover:text-white"
               >
                 View chats
                 <span>→</span>
@@ -781,12 +818,12 @@
             </div>
 
             <div class="md:border-r md:border-white/15 md:px-6">
-              <div class="text-5xl font-semibold tracking-tight">{{ booking_count }}</div>
-              <div class="mt-2 text-lg text-white/80">bookings made</div>
+              <div class="text-[38px] font-semibold tracking-tight">{{ booking_count }}</div>
+              <div class="mt-1.5 text-[14px] text-white/72">bookings made</div>
               <button
                 type="button"
                 onclick="window.DashboardOverview?.jumpTo('analytics')"
-                class="mt-5 inline-flex items-center gap-2 text-base font-medium text-[#9fd0ff] hover:text-white"
+                class="mt-4 inline-flex items-center gap-2 text-[14px] font-medium text-[#9fd0ff] hover:text-white"
               >
                 View bookings
                 <span>→</span>
@@ -794,12 +831,12 @@
             </div>
 
             <div class="md:pl-6">
-              <div class="text-5xl font-semibold tracking-tight">{{ urgent_issues }}</div>
-              <div class="mt-2 text-lg text-white/80">new urgent issues</div>
+              <div class="text-[38px] font-semibold tracking-tight">{{ urgent_issues }}</div>
+              <div class="mt-1.5 text-[14px] text-white/72">new urgent issues</div>
               <button
                 type="button"
                 onclick="window.DashboardOverview?.jumpTo('chats')"
-                class="mt-5 inline-flex items-center gap-2 text-base font-medium text-[#9fd0ff] hover:text-white"
+                class="mt-4 inline-flex items-center gap-2 text-[14px] font-medium text-[#9fd0ff] hover:text-white"
               >
                 View issues
                 <span>→</span>
@@ -819,7 +856,7 @@
       </div>
 
       <!-- Guest Intelligence -->
-      <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
         <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div class="flex items-start gap-4">
             <div class="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#dce6ff] to-[#7aa2ff] shadow-sm">
@@ -829,13 +866,13 @@
               </svg>
             </div>
             <div>
-              <div class="text-[31px] leading-none font-semibold tracking-tight text-slate-950">Guest Intelligence</div>
-              <div class="mt-2 text-base text-slate-500">How guests are using your AI across all channels</div>
+              <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">Guest Intelligence</div>
+              <div class="mt-2 text-[14px] text-slate-500">How guests are using your AI across all channels</div>
             </div>
           </div>
 
           <div>
-            <button class="inline-flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm">
+            <button class="inline-flex h-10 items-center gap-2 rounded-full border border-slate-200/80 bg-white px-4 text-[13px] font-semibold text-slate-700 shadow-sm">
               Last 7 days
               <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none">
                 <path d="m5 7 5 5 5-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
@@ -844,25 +881,25 @@
           </div>
         </div>
 
-        <div class="mt-8 grid grid-cols-12 gap-6">
+        <div class="mt-6 grid grid-cols-12 gap-5">
           <div class="col-span-12 lg:col-span-4">
             <div class="flex items-end gap-3">
-              <div class="text-6xl font-semibold tracking-tight text-slate-950">+18%</div>
+              <div class="text-[42px] font-semibold tracking-tight text-slate-950">+18%</div>
             </div>
-            <div class="mt-2 text-base text-slate-400">vs. previous 7 days</div>
+            <div class="mt-1.5 text-[13px] text-slate-400">vs. previous 7 days</div>
 
-            <div class="mt-8 text-5xl font-semibold tracking-tight text-slate-950">{{ total_chats_est }}</div>
-            <div class="mt-2 text-base text-slate-400">Total chats</div>
+            <div class="mt-7 text-[36px] font-semibold tracking-tight text-slate-950">{{ total_chats_est }}</div>
+            <div class="mt-1.5 text-[13px] text-slate-400">Total chats</div>
 
-            <div class="mt-8 rounded-[24px] border border-slate-200 bg-slate-50/70 p-5">
+            <div class="mt-6 rounded-[24px] border border-slate-200 bg-slate-50/70 p-4">
               <div class="space-y-5">
                 <div>
                   <div class="flex items-center justify-between gap-3">
                     <div class="flex items-center gap-3">
                       <span class="grid h-9 w-9 place-items-center rounded-xl bg-[#e8efff] text-[#3c6fff]">✈</span>
                       <div>
-                        <div class="text-lg font-semibold text-slate-900">Pre-stay</div>
-                        <div class="text-sm text-slate-500">Before check-in</div>
+                        <div class="text-[15px] font-semibold text-slate-900">Pre-stay</div>
+                        <div class="text-[12px] text-slate-500">Before check-in</div>
                       </div>
                     </div>
                     <div class="text-lg font-semibold text-slate-700">42%</div>
@@ -908,7 +945,7 @@
           </div>
 
           <div class="col-span-12 lg:col-span-8">
-            <div class="text-2xl font-semibold tracking-tight text-slate-950">Chats by property</div>
+            <div class="text-[20px] font-semibold tracking-tight text-slate-950">Chats by property</div>
 
             <div class="mt-6 space-y-5">
               {% for prop in properties[:4] %}
@@ -932,7 +969,7 @@
 
                   <div class="min-w-0">
                     <div class="flex items-center gap-4">
-                      <div class="min-w-0 text-[28px] leading-none font-semibold tracking-tight text-slate-950 truncate">
+                      <div class="min-w-0 text-[18px] leading-none font-semibold tracking-tight text-slate-950 truncate">
                         {{ prop.property_name }}
                       </div>
                       <div class="hidden flex-1 md:block">
@@ -943,10 +980,10 @@
                     </div>
                   </div>
 
-                  <div class="text-2xl font-medium text-slate-400">{{ property_chat_count }}</div>
+                  <div class="text-[18px] font-medium text-slate-400">{{ property_chat_count }}</div>
                 </div>
               {% else %}
-                <div class="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+                <div class="rounded-2xl border border-dashed border-slate-200 p-5 text-sm text-slate-500">
                   No properties yet.
                 </div>
               {% endfor %}
@@ -955,7 +992,7 @@
             <button
               type="button"
               onclick="window.DashboardOverview?.jumpTo('analytics')"
-              class="mt-8 inline-flex items-center gap-2 text-lg font-medium text-[#356cf6] hover:text-[#244fd1]"
+              <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">Needs Attention</div>
             >
               View all analytics
               <span>→</span>
@@ -965,20 +1002,20 @@
       </div>
 
       <!-- Needs Attention -->
-      <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
         <div class="flex items-center justify-between gap-4">
           <div>
             <div class="flex items-center gap-3">
               <span class="inline-block h-3 w-3 rounded-full bg-rose-500"></span>
               <div class="text-[34px] leading-none font-semibold tracking-tight text-slate-950">Needs Attention</div>
             </div>
-            <div class="mt-3 text-base text-slate-500">Issues that need your response</div>
+            <div class="mt-2 text-[14px] text-slate-500">Issues that need your response</div>
           </div>
 
           <button
             type="button"
             onclick="window.DashboardOverview?.jumpTo('chats')"
-            class="hidden items-center gap-2 text-lg font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
+            class="hidden items-center gap-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
           >
             View all chats
             <span>→</span>
@@ -1007,13 +1044,13 @@
               </div>
 
               <div>
-                <span class="inline-flex rounded-full px-3 py-1 text-sm font-semibold {{ row.tag_class }}">
+                <span class="inline-flex rounded-full px-3 py-1 text-[12px] font-semibold {{ row.tag_class }}">
                   {{ row.tag }}
                 </span>
               </div>
 
-              <div class="text-sm font-medium text-slate-500">{{ row.property }}</div>
-              <div class="text-sm text-slate-400">{{ row.time }}</div>
+              <div class="text-[12px] font-medium text-slate-500">{{ row.property }}</div>
+<div class="text-[12px] text-slate-400">{{ row.time }}</div>
             </div>
           {% endfor %}
         </div>
@@ -1023,7 +1060,7 @@
     <!-- Right column -->
     <div class="col-span-12 xl:col-span-4 space-y-6">
       <!-- Suggestions -->
-      <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+      <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
         <div class="flex items-start gap-4">
           <div class="grid h-12 w-12 place-items-center rounded-2xl bg-[#fff4df] text-[#f2b233]">
             <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none">
@@ -1031,13 +1068,13 @@
             </svg>
           </div>
           <div>
-            <div class="text-[34px] leading-none font-semibold tracking-tight text-slate-950">Suggestions from AI</div>
-            <div class="mt-3 text-base text-slate-500">AI scans guest conversations to help you improve</div>
+            <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">Suggestions from AI</div>
+            <div class="mt-2 text-[14px] text-slate-500">AI scans guest conversations to help you improve</div>
           </div>
         </div>
 
         <div class="mt-6 space-y-4">
-          <div class="rounded-[24px] border border-slate-200 p-5">
+          <div class="rounded-[24px] border border-slate-200 p-4">
             <div class="flex items-center gap-3">
               <div class="grid h-10 w-10 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                 {% if properties|length > 0 and properties[0].hero_image_url %}
@@ -1054,10 +1091,10 @@
             <div class="mt-4 text-[32px] leading-[1.1] font-semibold tracking-tight text-slate-950">
               Add clearer key code instructions
             </div>
-            <div class="mt-4 text-base leading-7 text-slate-700">
+            <div class="mt-3 text-[14px] leading-6 text-slate-700">
               Guests are asking for key codes early in 27 pre-stay chats this week.
             </div>
-            <div class="mt-4 text-base leading-7 text-slate-400">
+            <div class="mt-3 text-[14px] leading-6 text-slate-400">
               Add step-by-step key code details to your check-in guide to reduce repetitive questions.
             </div>
 
@@ -1079,7 +1116,7 @@
             </div>
           </div>
 
-          <div class="rounded-[24px] border border-slate-200 p-5">
+          <div class="rounded-[24px] border border-slate-200 p-4">
             <div class="flex items-center gap-3">
               <div class="grid h-10 w-10 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
                 {% if properties|length > 1 and properties[1].hero_image_url %}
@@ -1096,10 +1133,10 @@
             <div class="mt-4 text-[32px] leading-[1.1] font-semibold tracking-tight text-slate-950">
               Create a hot tub guide
             </div>
-            <div class="mt-4 text-base leading-7 text-slate-700">
+            <div class="mt-3 text-[14px] leading-6 text-slate-700">
               Multiple post-stay guests asked about hot tub usage and hours.
             </div>
-            <div class="mt-4 text-base leading-7 text-slate-400">
+            <div class="mt-3 text-[14px] leading-6 text-slate-400">
               Adding a quick guide can improve the post-stay experience and reduce messages.
             </div>
 
@@ -1124,10 +1161,10 @@
       </div>
 
       <!-- Portfolio Status -->
-      <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="text-[36px] leading-none font-semibold tracking-tight text-slate-950">Portfolio Status</div>
+      <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">Portfolio Status</div>
 
-        <div class="mt-6 grid grid-cols-[150px,1fr] items-center gap-6">
+        <div class="mt-6 grid grid-cols-[150px,1fr] items-center gap-5">
           <div class="relative">
             <canvas id="overviewPortfolioChart" height="150"></canvas>
           </div>
@@ -1136,9 +1173,9 @@
             <div class="flex items-center justify-between gap-4">
               <div class="flex items-center gap-3">
                 <span class="inline-block h-3.5 w-3.5 rounded-full bg-[#356cf6]"></span>
-                <span class="text-[22px] font-semibold tracking-tight text-slate-950">{{ live_props }} Live</span>
+                <span class="text-[16px] font-semibold tracking-tight text-slate-950">{{ live_props }} Live</span>
               </div>
-              <span class="text-xl text-slate-400">
+              <span class="text-[14px] text-slate-400">
                 {{ ((live_props / total_props) * 100)|round|int if total_props > 0 else 0 }}%
               </span>
             </div>
@@ -1148,7 +1185,7 @@
                 <span class="inline-block h-3.5 w-3.5 rounded-full bg-[#47c5c9]"></span>
                 <span class="text-[22px] font-semibold tracking-tight text-slate-950">{{ offline_props }} Offline</span>
               </div>
-              <span class="text-xl text-slate-400">
+              <span class="text-[14px] text-slate-400">
                 {{ ((offline_props / total_props) * 100)|round|int if total_props > 0 else 0 }}%
               </span>
             </div>
@@ -1156,7 +1193,7 @@
             <button
               type="button"
               onclick="window.DashboardOverview?.jumpTo('properties')"
-              class="inline-flex items-center gap-2 pt-2 text-lg font-medium text-[#356cf6] hover:text-[#244fd1]"
+              class="inline-flex items-center gap-2 pt-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1]"
             >
               Manage Properties
               <span>→</span>
@@ -2059,7 +2096,7 @@
           </tbody>
         </table>
       {% else %}
-        <div class="p-6 text-sm text-slate-500">No chat sessions yet.</div>
+        <div class="p-5 text-sm text-slate-500">No chat sessions yet.</div>
       {% endif %}
     </div>
   </div>
@@ -2621,7 +2658,7 @@
       </button>
     </div>
 
-    <div class="flex-1 space-y-5 overflow-auto p-5">
+    <div class="flex-1 space-y-5 overflow-auto p-4">
       <div>
         <div class="text-sm font-semibold text-slate-900">Stay Pulse</div>
         <div class="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
