@@ -1,0 +1,2685 @@
+<!doctype html>
+<html lang="en">
+  <head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>HostScout Dashboard</title>
+
+  <script src="https://cdn.tailwindcss.com"></script>
+
+  <!-- Quill -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.snow.css">
+  <script src="https://cdn.jsdelivr.net/npm/quill@1.3.7/dist/quill.min.js" defer></script>
+
+  <!-- HTMX (optional) -->
+  <script src="https://unpkg.com/htmx.org@1.9.12" defer></script>
+
+  <!-- Must be present before admin_dashboard.js runs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
+
+  <!-- Your dashboard JS LAST -->
+  <script src="/static/admin_dashboard.js" defer></script>
+  <script src="/static/stripe_connect.js" defer></script>
+  <link rel="stylesheet" href="/static/css/admin_config_ui.css">
+
+ <style type="text/tailwindcss">
+  @layer components {
+    .btn {
+      @apply inline-flex items-center justify-center gap-2 select-none
+             h-9 px-3 rounded-xl text-sm font-semibold
+             border border-transparent shadow-sm
+             transition-colors
+             focus:outline-none focus:ring-2 focus:ring-slate-300 focus:ring-offset-2
+             disabled:opacity-50 disabled:cursor-not-allowed;
+    }
+
+    .btn-primary {
+      @apply bg-slate-900 text-white hover:bg-slate-800;
+    }
+
+    .btn-secondary {
+      @apply bg-white text-slate-800 border-slate-200 hover:bg-slate-50;
+    }
+
+    .btn-indigo {
+      @apply bg-indigo-600 text-white hover:bg-indigo-700;
+    }
+
+    .tasks-tab {
+      @apply px-1 pb-3 text-sm font-semibold text-slate-500 border-b-2 border-transparent;
+    }
+
+    .tasks-tab.is-active {
+      @apply text-slate-900 border-slate-900;
+    }
+
+    .icon-btn {
+      @apply h-11 w-11 rounded-2xl border border-slate-200 bg-white hover:bg-slate-50 grid place-items-center text-slate-600;
+    }
+
+    .tasks-group {
+      @apply mt-6;
+    }
+
+    .tasks-group-head {
+      @apply flex items-center justify-between gap-3;
+    }
+
+    .tasks-group-pill {
+      @apply inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-sm font-semibold border;
+    }
+
+    .tasks-row {
+      @apply mt-3 bg-white rounded-2xl border border-slate-200 px-4 py-4;
+    }
+
+    .tasks-row-grid {
+      @apply grid grid-cols-12 gap-3 items-center;
+    }
+
+    .tasks-batchbar {
+      @apply fixed left-0 right-0 bottom-6 z-50 flex justify-center;
+    }
+
+    .tasks-batchbar-inner {
+      @apply bg-slate-900 text-white rounded-2xl px-5 py-3 flex items-center gap-3 shadow-xl border border-white/10;
+    }
+
+    .batch-btn {
+      @apply h-9 px-3 rounded-xl bg-white/10 hover:bg-white/15 text-sm font-semibold;
+    }
+
+    .batch-btn-danger {
+      @apply h-9 px-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-sm font-semibold;
+    }
+
+    .status-select {
+      @apply h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm;
+    }
+
+    
+  }
+
+  .tasks-status-menu {
+    position: fixed;
+    z-index: 9999;
+    background: white;
+    border: 1px solid rgb(226 232 240);
+    border-radius: 16px;
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.18);
+    padding: 10px;
+    min-width: 240px;
+  }
+
+  .tasks-status-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 10px;
+    border-radius: 12px;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .tasks-status-item:hover {
+    background: rgb(248 250 252);
+  }
+
+  .tasks-status-dot {
+    width: 18px;
+    height: 18px;
+    border-radius: 999px;
+    display: inline-grid;
+    place-items: center;
+    border: 2px solid rgb(148 163 184);
+  }
+
+  .tasks-status-dot.is-todo { border-color: rgb(148 163 184); }
+  .tasks-status-dot.is-in_progress { border-color: rgb(59 130 246); }
+  .tasks-status-dot.is-waiting { border-color: rgb(99 102 241); }
+  .tasks-status-dot.is-in_review { border-color: rgb(234 179 8); }
+
+  .tasks-status-dot.is-canceled {
+    border-color: rgb(148 163 184);
+    background: rgb(148 163 184);
+    color: white;
+  }
+
+  .tasks-status-dot.is-completed {
+    border-color: rgb(34 197 94);
+    background: rgb(34 197 94);
+    color: white;
+  }
+
+  .status-ico {
+    width: 14px;
+    height: 14px;
+    display: inline-block;
+    vertical-align: -2px;
+    margin-right: 8px;
+  }
+
+  .status-ico svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+  }
+
+  .tasks-status-label {
+    font-size: 14px;
+    font-weight: 600;
+    color: rgb(15 23 42);
+  }
+
+  .tasks-status-dot svg {
+    width: 12px;
+    height: 12px;
+    display: block;
+  }
+</style>
+
+</head>
+
+<body class="bg-slate-50 text-slate-900">
+  <div class="min-h-screen flex">
+{% set initial_view = request.query_params.get('view') or ('chats' if request.query_params.get('session_id') else 'overview') %}
+
+    <!-- Sidebar -->
+    <aside id="sidebar"
+      class="sticky top-0 h-screen bg-white border-r border-slate-200 flex flex-col
+             w-72 transition-[width] duration-200 ease-out">
+
+      <!-- Brand -->
+      <div class="h-16 px-4 flex items-center justify-between border-b border-slate-200">
+        <a href="#" class="flex items-center gap-2 overflow-hidden">
+          <div class="w-9 h-9 rounded-xl bg-slate-900 text-white grid place-items-center font-semibold">
+            H
+          </div>
+          <div class="sidebar-label whitespace-nowrap">
+            <div class="text-sm font-semibold leading-4">HostScout</div>
+            <div class="text-xs text-slate-500">
+              {% if user_role == "super" %}Super Admin{% else %}PMC Dashboard{% endif %}
+            </div>
+          </div>
+        </a>
+
+        <button id="sidebar-toggle"
+          class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50 grid place-items-center"
+          aria-label="Toggle sidebar"
+          type="button">
+          <svg class="h-5 w-5 text-slate-600" viewBox="0 0 24 24" fill="none">
+            <path d="M15 6l-6 6 6 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Nav -->
+      <nav class="p-3 space-y-1">
+
+        <!-- Overview -->
+        <button data-view="overview"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'overview' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-18v6h8V3h-8z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Overview</span>
+        </button>
+
+        <!-- Chats -->
+        <button data-view="chats"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Chats</span>
+        </button>
+
+
+      
+
+
+        {% if user_role == "super" %}
+          <!-- PMCs (Super only) -->
+          <button data-view="pmcs"
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+            aria-current="{{ 'page' if initial_view == 'pmcs' else 'false' }}"
+            type="button">
+            <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+              <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+                <path d="M4 21V3h10v18M14 9h6v12M8 7h2M8 11h2M8 15h2M18 13h2M18 17h2"
+                  stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="sidebar-label font-medium">PMCs</span>
+          </button>
+
+          <!-- Files (Super only) -->
+          <button data-view="files"
+            class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+            aria-current="{{ 'page' if initial_view == 'files' else 'false' }}"
+            type="button">
+            <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+              <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6z"
+                  stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+                <path d="M14 2v6h6" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+              </svg>
+            </span>
+            <span class="sidebar-label font-medium">Configs & Manuals</span>
+          </button>
+        {% endif %}
+
+        <!-- Analytics -->
+        <button data-view="analytics"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'analytics' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5M4 19h16M8 15v-6M12 19V9M16 13v-4M20 19V7"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Analytics</span>
+        </button>
+
+        <!-- Properties -->
+        <button data-view="properties"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'properties' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1V10.5z"
+                stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Properties</span>
+        </button>
+
+        <!-- Guides -->
+        <button data-view="guides"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'guides' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z" stroke="currentColor" stroke-width="1.7"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Guides</span>
+        </button>
+
+        <!-- Upgrades -->
+        <button data-view="upgrades"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'upgrades' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M7 7h10M7 11h10M7 15h6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              <path d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
+                stroke="currentColor" stroke-width="1.2"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Upgrades</span>
+        </button>
+
+
+
+        {% if user_role == "super" %}
+        <!-- PMC Payouts (PMC only) -->
+        <button data-view="payouts"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'payouts' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M12 1v22M7 6h10M7 18h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Payouts</span>
+        </button>
+        
+        <!-- HostScout Revenue (Super only) -->
+        <button data-view="admin_payouts"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'admin_payouts' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M4 19V5M4 19h16M8 15v-4M12 19V9M16 13v-2" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Revenue</span>
+        </button>
+        {% endif %}
+
+        
+                
+
+        <!-- Settings -->
+        <button data-view="settings"
+          class="nav-item w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-slate-50 text-slate-700"
+          aria-current="{{ 'page' if initial_view == 'settings' else 'false' }}"
+          type="button">
+          <span class="nav-icon-wrap h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M12 15.5a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7z" stroke="currentColor" stroke-width="1.7"/>
+              <path d="M19.4 15a7.8 7.8 0 0 0 .1-2l2-1.3-2-3.4-2.3.6a8 8 0 0 0-1.7-1L15 3h-6l-.5 2.9a8 8 0 0 0-1.7 1L4.5 6.3l-2 3.4 2 1.3a7.8 7.8 0 0 0 0 2l-2 1.3 2 3.4 2.3-.6a8 8 0 0 0 1.7 1L9 21h6l.5-2.9a8 8 0 0 0 1.7-1l2.3.6 2-3.4-2-1.3z"
+                stroke="currentColor" stroke-width="1.2" stroke-linejoin="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium">Settings</span>
+        </button>
+
+        <!-- Logout -->
+        <a href="/auth/logout"
+           class="w-full flex items-center gap-3 px-3 py-2 rounded-xl hover:bg-rose-50 text-slate-700">
+          <span class="h-9 w-9 rounded-xl bg-slate-100 grid place-items-center border border-slate-200">
+            <svg class="h-5 w-5 text-slate-700" viewBox="0 0 24 24" fill="none">
+              <path d="M10 17l-1 0a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4h1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+              <path d="M14 7l5 5-5 5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M19 12H10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+            </svg>
+          </span>
+          <span class="sidebar-label font-medium text-rose-700">Logout</span>
+        </a>
+
+      </nav>
+
+      <!-- Footer -->
+      <div class="mt-auto p-3 border-t border-slate-200">
+        <div class="flex items-center gap-3 px-2">
+          <div class="h-10 w-10 rounded-xl bg-slate-900 text-white grid place-items-center font-semibold">
+            {{ (pmc_name[0] if pmc_name else "U") }}
+          </div>
+          <div class="sidebar-label overflow-hidden">
+            <div class="text-sm font-semibold leading-4 truncate">
+              {{ pmc_name if pmc_name else "User" }}
+            </div>
+            <div class="text-xs text-slate-500 truncate">
+              {% if user_role == "super" %}Super User{% else %}PMC{% endif %}
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main -->
+    <main class="flex-1 min-w-0">
+
+      <!-- Topbar -->
+      <header class="sticky top-0 z-30 bg-white/80 backdrop-blur border-b border-slate-200 hairline">
+        <div class="h-16 px-6 flex items-center gap-4">
+          <div class="min-w-0">
+            <div id="page-title" class="text-sm font-semibold truncate">Overview</div>
+            <div id="page-subtitle" class="text-xs text-slate-500 truncate">
+              {% if user_role == "super" %}System health & activity{% else %}Your portfolio at a glance{% endif %}
+            </div>
+          </div>
+
+          <div class="flex-1"></div>
+
+          
+
+          {% if user_role == "super" %}
+          <div class="flex items-center gap-2">
+            <a href="/admin/chats"
+              class="h-10 px-3 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm grid place-items-center">
+              Chats
+            </a>
+            <a href="/admin/new-pmc"
+              class="h-10 px-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm grid place-items-center">
+              New PMC
+            </a>
+          </div>
+          {% endif %}
+        </div>
+      </header>
+
+      <!-- Content -->
+      <div class="p-6">
+
+        {% set is_locked = (user_role == "pmc" and needs_payment) %}
+
+        {% if is_locked %}
+        <!-- Billing Banner -->
+        <div class="mb-6 rounded-2xl border border-amber-300/60 bg-amber-50 p-4 card">
+          <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+            <div>
+              <div class="text-sm font-semibold text-amber-900">
+                {{ billing_banner_title or "Complete payment to activate your account" }}
+              </div>
+              <div class="text-sm text-amber-900/80 mt-1">
+                {{ billing_banner_body or "Your account is pending. Once payment is confirmed, you can sync properties and enable Sandy." }}
+              </div>
+            </div>
+            <div class="flex items-center gap-2">
+              <a href="/pmc/signup"
+                 class="h-10 px-4 rounded-xl bg-amber-500 hover:bg-amber-600 text-black font-semibold grid place-items-center">
+                Complete setup & payment
+              </a>
+              <a href="/auth/login/google"
+                 class="h-10 px-4 rounded-xl border border-amber-300 bg-white hover:bg-amber-50 text-amber-900 font-semibold grid place-items-center">
+                Refresh login
+              </a>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+
+        <!-- OVERVIEW -->
+        <section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
+          {% set total_props = properties|length %}
+
+          {% if is_locked %}
+            {% set live_props = 0 %}
+            {% set offline_props = total_props %}
+          {% else %}
+            {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
+            {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
+          {% endif %}
+
+          <div class="grid grid-cols-12 gap-4">
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Properties</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-total">{{ total_props }}</div>
+              <div class="mt-2 text-xs text-slate-500">Portfolio size</div>
+            </div>
+
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Live</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-live">{{ live_props }}</div>
+              <div class="mt-2 text-xs text-emerald-600">Sandy enabled</div>
+            </div>
+
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Offline</div>
+              <div class="mt-2 text-3xl font-semibold" id="stat-offline">{{ offline_props }}</div>
+              <div class="mt-2 text-xs text-rose-600">Needs attention</div>
+            </div>
+
+            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-xs text-slate-500">Last Sync</div>
+              <div class="mt-2 text-lg font-semibold">
+                {% if properties and properties[0].last_synced %}
+                  {% set seconds = (now - properties[0].last_synced).total_seconds() %}
+                  {% if seconds < 60 %} just now
+                  {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+                  {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+                  {% else %} {{ (seconds // 86400)|int }} days ago
+                  {% endif %}
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+              <div class="mt-2 text-xs text-slate-500">Most recent property record</div>
+            </div>
+          </div>
+
+         <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+                        
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold">Status Overview</div>
+                <div class="text-xs text-slate-500">LIVE vs OFFLINE</div>
+              </div>
+              <div class="text-xs text-slate-500">Auto-updates with your data</div>
+            </div>
+            <div class="mt-4">
+              <canvas id="statusChart" height="90"></canvas>
+            </div>
+          </div>
+
+          {% if user_role == "super" %}
+          <div class="grid grid-cols-12 gap-4">
+            <div class="col-span-12 xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-sm font-semibold">Chat Volume</div>
+              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
+                Chart placeholder
+              </div>
+            </div>
+            <div class="col-span-12 xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="text-sm font-semibold">Priority Inbox</div>
+              <div class="mt-2 text-xs text-slate-500">Escalations & time-sensitive issues</div>
+              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
+                Queue placeholder
+              </div>
+            </div>
+          </div>
+          {% endif %}
+        </section>
+
+
+
+                    
+
+        <!-- MESSAGES -->
+        <section id="view-messages" class="view space-y-4 {% if initial_view != 'messages' %}hidden{% endif %}" style="display:none">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold">Messages</div>
+                <div class="mt-1 text-sm text-slate-500">
+                  Upgrade purchases and other system notifications for your team.
+                </div>
+              </div>
+        
+              <div class="flex items-center gap-2">
+                <button id="messages-refresh"
+                  class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold"
+                  type="button">
+                  Refresh
+                </button>
+        
+                <button id="messages-mark-all-read"
+                  class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
+                  type="button">
+                  Mark all read
+                </button>
+              </div>
+            </div>
+        
+            <div class="mt-4 grid grid-cols-12 gap-4">
+              <!-- Left: list -->
+              <div class="col-span-12 xl:col-span-5">
+                <div class="flex items-center gap-2 mb-2">
+                  <select id="messages-filter"
+                    class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-56">
+                    <option value="all" selected>All</option>
+                    <option value="unread">Unread</option>
+                    <option value="upgrade_purchase">Upgrade purchases</option>
+                    <option value="upgrade_request">Upgrade requests</option>
+                  </select>
+        
+                  <input id="messages-search"
+                    class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full"
+                    placeholder="Search subject/body…"
+                  />
+                </div>
+        
+                <div id="messages-list"
+                  class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
+                  <div class="p-4 text-sm text-slate-500">Loading…</div>
+                </div>
+        
+                <div class="mt-2 flex items-center justify-between text-xs text-slate-500">
+                  <div id="messages-paging-label">—</div>
+                  <div class="flex items-center gap-2">
+                    <button id="messages-prev"
+                      class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold"
+                      type="button">
+                      Prev
+                    </button>
+                    <button id="messages-next"
+                      class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold"
+                      type="button">
+                      Next
+                    </button>
+                  </div>
+                </div>
+              </div>
+        
+              <!-- Right: detail -->
+              <div class="col-span-12 xl:col-span-7">
+                <div id="messages-detail"
+                  class="rounded-2xl border border-slate-200 bg-slate-50 p-4 min-h-[240px]">
+                  <div class="text-sm text-slate-500">
+                    Select a message on the left.
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+             
+
+        <!-- PROPERTIES -->
+        <section id="view-properties" class="view space-y-4 {% if initial_view != 'properties' %}hidden{% endif %}">
+
+          <div id="propertiesHeaderCard" class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
+              <div>
+                <div class="text-sm font-semibold">Properties</div>
+                <div class="text-xs text-slate-500">Search and manage your portfolio</div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
+                <input
+                  type="text"
+                  id="searchInput"
+                  placeholder="Search properties…"
+                  class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72"
+                />
+                <select
+                  id="statusFilter"
+                  class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-48"
+                >
+                  <option value="all">All statuses</option>
+                  <option value="live">LIVE</option>
+                  <option value="offline">OFFLINE</option>
+                </select>
+                <button
+                  id="sync-all-properties-btn"
+                  type="button"
+                  class="px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 transition"
+                >
+                  Sync all
+                </button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Inline Assistant Config Panel -->
+          <div id="configPanelWrap" class="hidden">
+            <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <div class="text-sm font-semibold">Assistant Config</div>
+                  <div class="text-xs text-slate-500" id="configScopeLabel">Editing…</div>
+                </div>
+
+                <button
+                  type="button"
+                  class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+                  onclick="closeInlineConfig()"
+                >
+                  Close
+                </button>
+              </div>
+
+             <div class="mt-4">
+  <div id="configInlineContainer" class="config-ui-scope">
+    <!-- injected config UI goes here -->
+  </div>
+</div>
+
+            </div>
+          </div>
+
+          <!-- Property cards -->
+<div id="propertiesGridWrap" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+  {% for prop in properties %}
+    <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
+         data-property-card
+         data-name="{{ prop.property_name }}"
+         data-live="{{ 'true' if prop.sandy_enabled else 'false' }}">
+
+      <!-- NEW: left photo + right content layout -->
+      <div class="flex gap-4">
+
+        <!-- Left: Property profile photo -->
+        <div class="shrink-0">
+          {% if prop.hero_image_url %}
+            <img
+              src="{{ prop.hero_image_url }}"
+              alt="{{ prop.property_name|e }} photo"
+              class="h-20 w-20 rounded-xl object-cover border border-slate-200 bg-slate-100"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+            />
+          {% else %}
+            <div class="h-20 w-20 rounded-xl border border-slate-200 bg-slate-100 grid place-items-center text-[11px] font-semibold text-slate-500">
+              No photo
+            </div>
+          {% endif %}
+        </div>
+
+        <!-- Right: Everything else -->
+        <div class="min-w-0 flex-1">
+
+          <div class="flex items-start justify-between gap-3">
+            <div class="min-w-0">
+              <div class="text-lg font-semibold truncate">{{ prop.property_name }}</div>
+              <div class="mt-1 text-xs text-slate-500">
+                ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %} • UNLOCK = 4242
+              </div>
+            </div>
+
+            {% if is_locked %}
+              <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
+                LOCKED
+              </span>
+            {% else %}
+              {% if prop.sandy_enabled %}
+                <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold">
+                  <a href="https://hostaway-casaseaesta-api.onrender.com/guest/{{ prop.id }}" target="_blank">LIVE</a>
+                </span>
+              {% else %}
+                <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
+                  OFFLINE
+                </span>
+              {% endif %}
+            {% endif %}
+          </div>
+
+          <div class="mt-3 text-xs text-slate-500">
+            <span class="font-semibold text-slate-700">Last synced:</span>
+            {% if prop.last_synced %}
+              {% set seconds = (now - prop.last_synced).total_seconds() %}
+              {% if seconds < 60 %} just now
+              {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+              {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+              {% else %} {{ (seconds // 86400)|int }} days ago
+              {% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </div>
+
+          <div class="mt-4 flex gap-2 flex-wrap items-center">
+            {% if prop.data_folder_path %}
+              <a
+                href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
+                onclick="openInlineConfig(event, '{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
+                class="btn btn-primary"
+              >
+                Assistant Config
+              </a>
+
+              <a
+                href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+                class="btn btn-secondary {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt')"
+              >
+                House Manual
+              </a>
+            {% endif %}
+
+            <button
+              onclick="syncProperty({{ prop.id }}, this)"
+              class="btn btn-secondary"
+              type="button"
+              {% if is_locked %}disabled{% endif %}
+            >
+              Sync
+            </button>
+            
+
+            <button
+              onclick="toggleProperty({{ prop.id }}, this)"
+              class="btn btn-indigo"
+              type="button"
+              {% if is_locked %}disabled{% endif %}
+            >
+              {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
+            </button>
+
+            {% if is_locked %}
+              <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
+                Unlock →
+              </a>
+            {% endif %}
+          </div>
+
+        </div>
+      </div>
+    </div>
+  {% endfor %}
+</div>
+
+
+
+        </section>
+
+        <!--script>
+          // Opens the full Config UI in an iframe (keeps its CSS intact),
+          // and hides the properties list until Close is pressed.
+          window.openInlineConfig = async function (filePath, propertyName) {
+            const wrap = document.getElementById("configPanelWrap");
+            const container = document.getElementById("configInlineContainer");
+            const label = document.getElementById("configScopeLabel");
+          
+            const grid = document.getElementById("propertiesGridWrap");
+            const header = document.getElementById("propertiesHeaderCard");
+          
+            if (!wrap || !container) return false;
+          
+            if (label) label.textContent = `Editing: ${propertyName || ""}`.trim();
+          
+            // fetch partial HTML
+            const res = await fetch(
+              `/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`
+            );
+          
+            if (!res.ok) {
+              container.innerHTML =
+                `<div class="p-4 text-rose-700">Failed to load config</div>`;
+            } else {
+              container.innerHTML = await res.text();
+            }
+          
+            wrap.classList.remove("hidden");
+            grid?.classList.add("hidden");
+            header?.classList.add("hidden");
+          
+            wrap.scrollIntoView({ behavior: "smooth", block: "start" });
+          
+            return false;
+          };
+
+
+          window.closeInlineConfig = function () {
+            const wrap = document.getElementById("configPanelWrap");
+            const iframe = document.getElementById("configIframe");
+            const label = document.getElementById("configScopeLabel");
+
+            const grid = document.getElementById("propertiesGridWrap");
+            const header = document.getElementById("propertiesHeaderCard");
+
+            if (iframe) iframe.src = "about:blank";
+            if (label) label.textContent = "Select a property to edit its config.";
+
+            if (wrap) wrap.classList.add("hidden");
+            if (grid) grid.classList.remove("hidden");
+            if (header) header.classList.remove("hidden");
+
+            header?.scrollIntoView({ behavior: "smooth", block: "start" });
+          };
+              </script-->
+
+        <section id="view-guides" class="view hidden space-y-4">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold">Guides</div>
+                <div class="mt-1 text-sm text-slate-500">Create and manage guest guides per property.</div>
+              </div>
+              <select id="guidesPropertyFilter"
+                class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72">
+                <option value="">All properties</option>
+                {% for p in properties %}
+                  <option value="{{ p.id }}">{{ p.property_name }}</option>
+                {% endfor %}
+              </select>
+              <button
+                type="button"
+                onclick="Guides.openNew()"
+                class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold {% if is_locked %}opacity-50 cursor-not-allowed{% endif %}"
+                {% if is_locked %}disabled{% endif %}
+              >
+                New Guide
+              </button>
+            </div>
+
+            {% if is_locked %}
+              <div class="mt-3 rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                Content editing is locked until payment is complete.
+              </div>
+            {% endif %}
+
+            <div id="guides-flash" class="mt-3"></div>
+
+            <div class="mt-4 grid grid-cols-12 gap-4">
+              <div class="col-span-12 xl:col-span-7">
+                <div id="guides-list" class="text-sm text-slate-500">Loading…</div>
+              </div>
+
+              <div class="col-span-12 xl:col-span-5">
+                <div id="guides-editor" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                  <div class="flex items-center justify-between">
+                    <div id="guides-editor-title" class="text-sm font-semibold">Editor</div>
+                    <button class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+                      type="button" onclick="Guides.closeEditor()">Close</button>
+                  </div>
+                  <div id="guides-editor-body" class="mt-3"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-upgrades" class="view hidden space-y-4">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-start justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold">Upgrades</div>
+                <div class="mt-1 text-sm text-slate-500">Create and manage paid add-ons per property.</div>
+              </div>
+              <select id="upgradesPropertyFilter"
+                class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72">
+                <option value="">All properties</option>
+                {% for p in properties %}
+                  <option value="{{ p.id }}">{{ p.property_name }}</option>
+                {% endfor %}
+              </select>
+            <button
+              type="button"
+              onclick="{{ 'Upgrades.openNew()' if stripe_connected else 'null' }}"
+              class="h-10 px-4 rounded-xl text-sm font-semibold
+                {{ 'bg-slate-900 hover:bg-slate-800 text-white'
+                   if stripe_connected
+                   else 'bg-slate-200 text-slate-500 cursor-not-allowed' }}"
+              {{ 'disabled' if not stripe_connected }}
+            >
+              New Upgrade
+            </button>
+
+
+
+            </div>
+
+            {% if not stripe_connected %}
+              <div class="mt-2 text-xs text-amber-700">
+                Connect Stripe in <b>Settings → Integrations</b> to sell upgrades.
+              </div>
+            {% endif %}
+
+            <div id="upgrades-flash" class="mt-3"></div>
+
+            <div class="mt-4 grid grid-cols-12 gap-4">
+              <div class="col-span-12 xl:col-span-7">
+                <div id="upgrades-list" class="text-sm text-slate-500">Loading…</div>
+              </div>
+
+              <div class="col-span-12 xl:col-span-5">
+                <div id="upgrades-editor" class="hidden bg-slate-50 border border-slate-200 rounded-2xl p-4">
+                  <div class="flex items-center justify-between">
+                    <div id="upgrades-editor-title" class="text-sm font-semibold">Editor</div>
+                    <button class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+                      type="button" onclick="Upgrades.closeEditor()">Close</button>
+                  </div>
+                  <div id="upgrades-editor-body" class="mt-3"></div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+                <!-- PAYOUTS --->
+
+        {% if user_role != "super" %}
+<section id="view-payouts" class="view hidden space-y-4">
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div>
+        <div class="text-sm font-semibold">Your Payouts</div>
+        <div class="text-xs text-slate-500">Upgrade revenue paid to your Stripe account (net of HostScout fee).</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input id="pmc-pay-start" type="date" class="border rounded-xl px-3 py-2 text-sm" />
+        <input id="pmc-pay-end" type="date" class="border rounded-xl px-3 py-2 text-sm" />
+        <button id="pmc-pay-run" class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+          Run
+        </button>
+        <button id="pmc-pay-csv" class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold">
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Gross</div>
+        <div class="text-lg font-semibold" id="pmc-gross">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">HostScout fee</div>
+        <div class="text-lg font-semibold" id="pmc-fee">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Net to you</div>
+        <div class="text-lg font-semibold" id="pmc-net">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Orders (paid / refunded)</div>
+        <div class="text-lg font-semibold" id="pmc-count">0 / 0</div>
+      </div>
+    </div>
+
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-slate-500">
+            <th class="py-2 pr-3">Paid at</th>
+            <th class="py-2 pr-3">Property</th>
+            <th class="py-2 pr-3">Upgrade</th>
+            <th class="py-2 pr-3">Gross</th>
+            <th class="py-2 pr-3">Fee</th>
+            <th class="py-2 pr-3">Net</th>
+            <th class="py-2 pr-3">Status</th>
+          </tr>
+        </thead>
+        <tbody id="pmc-pay-rows" class="text-slate-900"></tbody>
+      </table>
+    </div>
+
+    <div class="mt-3 text-xs text-slate-500">
+      Note: this page is secured by your PMC login. If you’re not a PMC, the endpoint returns 403.
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
+                {% if user_role == "super" %}
+<section id="view-admin_payouts" class="view hidden space-y-4">
+  <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+    <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div>
+        <div class="text-sm font-semibold">HostScout Revenue</div>
+        <div class="text-xs text-slate-500">Platform fee totals across all PMCs (net of refunds).</div>
+      </div>
+
+      <div class="flex items-center gap-2">
+        <input id="hs-rev-start" type="date" class="border rounded-xl px-3 py-2 text-sm" />
+        <input id="hs-rev-end" type="date" class="border rounded-xl px-3 py-2 text-sm" />
+        <button id="hs-rev-run" class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+          Run
+        </button>
+        <button id="hs-rev-csv" class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold">
+          Export CSV
+        </button>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mt-4">
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Gross</div>
+        <div class="text-lg font-semibold" id="hs-gross">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">HostScout fee</div>
+        <div class="text-lg font-semibold" id="hs-fee">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Net to PMCs</div>
+        <div class="text-lg font-semibold" id="hs-net">$0.00</div>
+      </div>
+      <div class="rounded-xl border p-3">
+        <div class="text-xs text-slate-500">Orders (paid / refunded)</div>
+        <div class="text-lg font-semibold" id="hs-count">0 / 0</div>
+      </div>
+    </div>
+
+    <div class="mt-4 overflow-x-auto">
+      <table class="min-w-full text-sm">
+        <thead>
+          <tr class="text-left text-slate-500">
+            <th class="py-2 pr-3">PMC</th>
+            <th class="py-2 pr-3">Gross</th>
+            <th class="py-2 pr-3">HostScout fee</th>
+            <th class="py-2 pr-3">Net to PMC</th>
+            <th class="py-2 pr-3">Paid</th>
+            <th class="py-2 pr-3">Refunded</th>
+          </tr>
+        </thead>
+        <tbody id="hs-rows" class="text-slate-900"></tbody>
+      </table>
+    </div>
+
+    <div class="mt-3 text-xs text-slate-500">
+      Note: this page is secured by super login. Non-super gets 403 from the endpoint.
+    </div>
+  </div>
+</section>
+{% endif %}
+
+
+
+
+
+                
+
+        <section id="view-chats" class="view space-y-4 {% if initial_view != 'chats' %}hidden{% endif %}">
+  <div id="chat-flash" class="hidden"></div>
+
+  <!-- Inline chat detail -->
+  <div id="chat-detail-inline" class="hidden rounded-2xl border border-slate-200 bg-white card">
+    <div class="flex items-center justify-between border-b border-slate-200 p-3">
+      <div class="text-sm font-semibold text-slate-800">Chat Detail</div>
+
+      <div class="flex items-center gap-2">
+        <button
+          data-role="delete-chat-btn"
+          class="h-10 rounded-xl bg-rose-600 px-4 text-sm font-semibold text-white hover:bg-rose-700"
+          type="button"
+        >
+          Delete chat
+        </button>
+
+        <button
+          type="button"
+          id="chat-detail-back"
+          class="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm hover:bg-slate-50"
+        >
+          ← Back to chats
+        </button>
+      </div>
+    </div>
+
+    <div id="chat-detail-panel" class="p-4">
+      <div id="chat-detail-empty" class="text-sm text-slate-500">
+        Select a chat session to view details.
+      </div>
+
+      <div id="chat-detail-loading" class="hidden">
+        <div class="animate-pulse space-y-3">
+          <div class="h-4 w-48 rounded bg-slate-200"></div>
+          <div class="h-3 w-72 rounded bg-slate-200"></div>
+          <div class="h-3 w-64 rounded bg-slate-200"></div>
+          <div class="h-24 w-full rounded-xl bg-slate-200"></div>
+        </div>
+      </div>
+
+      <div id="chat-detail-error" class="hidden rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700"></div>
+    </div>
+  </div>
+
+  {% if not selected_session %}
+  <!-- Page intro -->
+  <div class="mb-1">
+    <div class="text-3xl font-semibold tracking-tight text-slate-950">Chats</div>
+    <div class="mt-1 text-sm text-slate-500">Understand what guests need and where the stay experience can improve.</div>
+  </div>
+
+  <!-- Analytics strip -->
+  <div id="chat-analytics-strip" class="grid grid-cols-2 gap-3 xl:grid-cols-5">
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 card">
+      <div class="text-sm font-medium text-slate-500">Pre-booking</div>
+      <div class="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
+        {{ analytics.pre_booking }}
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 card">
+      <div class="text-sm font-medium text-slate-500">Active</div>
+      <div class="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
+        {{ analytics.active }}
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 bg-white p-4 card">
+      <div class="text-sm font-medium text-slate-500">After stay</div>
+      <div class="mt-2 text-4xl font-semibold tracking-tight text-slate-950">
+        {{ analytics.post_stay }}
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-amber-200 bg-amber-50 p-4 card">
+      <div class="text-sm font-medium text-amber-700">Needs clarity</div>
+      <div class="mt-2 text-4xl font-semibold tracking-tight text-amber-900">
+        {{ sessions | selectattr('signal', 'equalto', 'needs_clarity') | list | length }}
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-rose-200 bg-rose-50 p-4 card">
+      <div class="text-sm font-medium text-rose-700">Friction detected</div>
+      <div class="mt-2 text-4xl font-semibold tracking-tight text-rose-900">
+        {{ sessions | selectattr('signal', 'equalto', 'friction_detected') | list | length }}
+      </div>
+    </div>
+  </div>
+  {% endif %}
+
+  <div id="chat-list-wrap" class="space-y-4">
+    {% if not selected_session %}
+    <!-- Stay Pulse -->
+    <div class="rounded-3xl border border-sky-100 bg-gradient-to-r from-sky-50 via-white to-indigo-50 px-6 py-4 shadow-sm card">
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+        <div class="min-w-0 space-y-2">
+          <div class="text-sm font-semibold uppercase tracking-[0.14em] text-indigo-600">
+            {{ stay_pulse.eyebrow if stay_pulse else "Stay Pulse" }}
+          </div>
+
+          <div class="text-3xl font-semibold tracking-tight text-slate-950">
+            {{ stay_pulse.headline if stay_pulse else "Guest conversations are running smoothly" }}
+          </div>
+
+          <div class="text-base text-slate-600">
+            {{ stay_pulse.body if stay_pulse else "Insights will appear here as guest conversations come in." }}
+          </div>
+        </div>
+
+        <div class="flex shrink-0 flex-wrap gap-3">
+          <button
+            type="button"
+            onclick="openInsights()"
+            class="h-12 rounded-2xl bg-slate-900 px-6 text-sm font-semibold text-white hover:bg-slate-800">
+            View insights
+          </button>
+
+          <button
+            type="button"
+            onclick="openGuideSuggestion('general')"
+            class="h-12 rounded-2xl border border-slate-200 bg-white px-6 text-sm font-semibold text-slate-800 hover:bg-slate-50">
+            Review guide
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <form id="chatFilters"
+          class="rounded-2xl border border-slate-200 bg-white p-4 card"
+          method="get">
+      <input type="hidden" name="view" value="chats" />
+
+      <div class="flex flex-wrap items-center gap-3">
+        {% if user_role == "super" %}
+          <select name="pmc_id" class="h-12 rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-800">
+            <option value="">All PMCs</option>
+            {% for p in pmcs %}
+              <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
+                {{ p.pmc_name }}
+              </option>
+            {% endfor %}
+          </select>
+        {% endif %}
+
+        <select name="property_id" class="h-12 min-w-[220px] rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="">All properties</option>
+          {% for pr in properties %}
+            <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+              {{ pr.property_name }}
+            </option>
+          {% endfor %}
+        </select>
+
+        <select name="status" class="h-12 min-w-[180px] rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="">Stay status</option>
+          <option value="pre_booking" {% if filters.status=="pre_booking" %}selected{% endif %}>Pre-booking</option>
+          <option value="post_booking" {% if filters.status=="post_booking" %}selected{% endif %}>Booked</option>
+          <option value="active" {% if filters.status=="active" %}selected{% endif %}>Active</option>
+          <option value="post_stay" {% if filters.status=="post_stay" %}selected{% endif %}>After stay</option>
+        </select>
+
+        <select name="action_priority" class="h-12 min-w-[160px] rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="">Priority</option>
+          <option value="urgent" {% if filters.action_priority=="urgent" %}selected{% endif %}>Urgent</option>
+          <option value="high" {% if filters.action_priority=="high" %}selected{% endif %}>High</option>
+          <option value="normal" {% if filters.action_priority=="normal" %}selected{% endif %}>Normal</option>
+          <option value="low" {% if filters.action_priority=="low" %}selected{% endif %}>Low</option>
+        </select>
+
+        <select id="moodFilter" name="emotional_signals_filter" class="h-12 min-w-[160px] rounded-2xl border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>Signal</option>
+          <option value="panicked" {% if filters.emotional_signals_filter=="panicked" %}selected{% endif %}>Panicked</option>
+          <option value="angry" {% if filters.emotional_signals_filter=="angry" %}selected{% endif %}>Angry</option>
+          <option value="upset" {% if filters.emotional_signals_filter=="upset" %}selected{% endif %}>Upset</option>
+          <option value="confused" {% if filters.emotional_signals_filter=="confused" %}selected{% endif %}>Confused</option>
+          <option value="worried" {% if filters.emotional_signals_filter=="worried" %}selected{% endif %}>Worried</option>
+          <option value="calm" {% if filters.emotional_signals_filter=="calm" %}selected{% endif %}>Calm</option>
+        </select>
+      </div>
+
+      <div class="mt-3 flex items-center gap-3">
+        <input
+          name="q"
+          value="{{ filters.q or '' }}"
+          class="h-12 flex-1 rounded-2xl border border-slate-200 px-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+          placeholder="Search guest, property, topic, or message..."
+        />
+
+        <button class="h-12 rounded-2xl bg-slate-900 px-6 text-sm font-semibold text-white hover:bg-slate-800">
+          Filter
+        </button>
+
+        <a href="/admin/dashboard?view=chats"
+           class="inline-flex h-12 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
+          Reset
+        </a>
+      </div>
+    </form>
+    {% endif %}
+
+    <script>
+      document.getElementById("chatFilters")?.addEventListener("submit", (e) => {
+        const form = e.currentTarget;
+        const url = new URL(form.action || window.location.pathname, window.location.origin);
+        const fd = new FormData(form);
+
+        for (const [k, v] of fd.entries()) {
+          if (String(v).trim() !== "") url.searchParams.set(k, String(v));
+        }
+
+        e.preventDefault();
+        window.location.href = url.toString();
+      });
+    </script>
+
+    <!-- Table -->
+    <div id="chat-table" class="overflow-hidden rounded-2xl border border-slate-200 bg-white card">
+      {% if sessions %}
+        <table class="min-w-full text-sm">
+          <thead class="bg-slate-50">
+            <tr>
+              <th class="w-12 px-4 py-3 text-left">
+                <input
+                  type="checkbox"
+                  id="chat-select-all"
+                  class="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                  aria-label="Select all chats"
+                />
+              </th>
+              <th class="px-4 py-3 text-left">Status</th>
+              <th class="px-4 py-3 text-left">Guest</th>
+              <th class="px-4 py-3 text-left">Signal</th>
+              <th class="px-4 py-3 text-left">Property</th>
+              <th class="px-4 py-3 text-left">Last activity</th>
+            </tr>
+          </thead>
+
+          <tbody>
+            {% for s in sessions %}
+            {% set row_signals = s.emotional_signals or [] %}
+            {% if row_signals is none %}{% set row_signals = [] %}{% endif %}
+
+            <tr
+              class="cursor-pointer border-t hover:bg-slate-50"
+              data-session-row="{{ s.id }}"
+              data-emotional-signals='{{ row_signals | tojson | e }}'
+            >
+              <td class="px-4 py-3" onclick="event.stopPropagation()">
+                <input
+                  type="checkbox"
+                  class="chat-select h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-300"
+                  value="{{ s.id }}"
+                  aria-label="Select chat {{ s.id }}"
+                />
+              </td>
+
+              <td class="px-4 py-3 align-middle">
+                {% set stay_cycle = (s.stay_cycle or '')|lower %}
+                {% if stay_cycle == 'current' %}
+                  <span class="inline-flex items-center rounded-full bg-emerald-100 px-3 py-1 text-sm font-semibold text-emerald-800">
+                    🏡 Currently staying
+                  </span>
+                {% elif stay_cycle == 'upcoming' %}
+                  <span class="inline-flex items-center rounded-full bg-indigo-100 px-3 py-1 text-sm font-semibold text-indigo-700">
+                    🗓️ Upcoming stay
+                  </span>
+                {% elif stay_cycle == 'checked_out' %}
+                  <span class="inline-flex items-center rounded-full bg-slate-200 px-3 py-1 text-sm font-semibold text-slate-700">
+                    ✅ Checked out
+                  </span>
+                {% else %}
+                  <span class="inline-flex items-center rounded-full bg-blue-100 px-3 py-1 text-sm font-semibold text-blue-700">
+                    💬 Inquiry
+                  </span>
+                {% endif %}
+              </td>
+
+              <td class="px-4 py-3">
+                <div class="font-medium">{{ s.guest_name or "—" }}</div>
+              </td>
+
+              <td class="px-4 py-3 text-xs">
+                <div class="space-y-2">
+                  <span class="inline-flex items-center rounded-full px-3 py-1.5 font-semibold ring-1 ring-inset
+                    {% if s.signal_tone == 'danger' %}bg-rose-50 text-rose-700 ring-rose-200
+                    {% elif s.signal_tone == 'warning' %}bg-amber-50 text-amber-700 ring-amber-200
+                    {% elif s.signal_tone == 'success' %}bg-emerald-50 text-emerald-700 ring-emerald-200
+                    {% else %}bg-blue-50 text-blue-700 ring-blue-200{% endif %}">
+                    {{ s.signal_label }}
+                  </span>
+
+                  <div class="max-w-sm text-xs leading-5 text-slate-500">
+                    {{ s.signal_detail }}
+                  </div>
+                </div>
+              </td>
+
+              <td class="px-4 py-3">
+                <div class="font-semibold">{{ s.property_name or "Unknown property" }}</div>
+                <div class="text-xs text-slate-500">ID: {{ s.property_id }}</div>
+              </td>
+
+              <td class="px-4 py-3 text-xs text-slate-600">
+                {% if s.last_activity_at %}
+                  <span class="js-rel-time" data-ts="{{ s.last_activity_at.isoformat() }}">
+                    {{ s.last_activity_at.strftime("%b %d · %I:%M %p") }}
+                  </span>
+                {% else %}
+                  —
+                {% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      {% else %}
+        <div class="p-6 text-sm text-slate-500">No chat sessions yet.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <script>
+    // Inline detail helpers placeholder
+  </script>
+</section>
+
+
+
+                <div id="chatBatchBar" class="tasks-batchbar hidden">
+  <div class="tasks-batchbar-inner">
+    <div class="text-sm font-semibold" id="chatSelectedCount">0 selected</div>
+    <button id="btnChatDelete" class="batch-btn-danger" type="button">🗑 Delete</button>
+  </div>
+</div>
+
+                
+
+        <section id="view-pmcs" class="view hidden">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="text-sm font-semibold">PMCs</div>
+            <div class="mt-2 text-sm text-slate-500">Create/manage PMCs, integrations, permissions.</div>
+          </div>
+        </section>
+
+        <section id="view-files" class="view hidden">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="text-sm font-semibold">Configs & Manuals</div>
+            <div class="mt-2 text-sm text-slate-500">Central file management.</div>
+          </div>
+        </section>
+
+        <section id="view-analytics" class="view hidden space-y-4">
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div>
+                <div class="text-sm font-semibold">Chat Analytics</div>
+                <div class="text-xs text-slate-500">Trends & performance</div>
+              </div>
+
+              <div class="flex flex-col sm:flex-row gap-2">
+                <select id="analyticsRange" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+                  <option value="7">Last 7 days</option>
+                  <option value="30" selected>Last 30 days</option>
+                  <option value="90">Last 90 days</option>
+                </select>
+
+                {% if user_role == "super" %}
+                  <select id="analyticsPmcFilter" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+                    <option value="">All PMCs</option>
+                    {% for p in pmcs %}
+                      <option value="{{ p.id }}">{{ p.pmc_name }}</option>
+                    {% endfor %}
+                  </select>
+                {% endif %}
+
+                <select id="analyticsPropertyFilter" class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+                  <option value="">All Properties</option>
+                  {% for pr in properties %}
+                    <option value="{{ pr.id }}">{{ pr.property_name }}</option>
+                  {% endfor %}
+                </select>
+              </div>
+            </div>
+
+            <div class="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2" id="analyticsCards">
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Sessions</div>
+                <div class="text-xl font-semibold" data-kpi="sessions_total">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">User msgs</div>
+                <div class="text-xl font-semibold" data-kpi="user_messages">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Assistant msgs</div>
+                <div class="text-xl font-semibold" data-kpi="assistant_messages">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Response rate</div>
+                <div class="text-xl font-semibold" data-kpi="response_rate">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Followup clicks</div>
+                <div class="text-xl font-semibold" data-kpi="followup_clicks">—</div>
+              </div>
+              <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
+                <div class="text-xs text-slate-500">Errors</div>
+                <div class="text-xl font-semibold" data-kpi="chat_errors">—</div>
+              </div>
+            </div>
+
+            <div class="mt-4">
+              <canvas id="chatAnalyticsChart" height="100"></canvas>
+            </div>
+          </div>
+
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-center justify-between">
+              <div>
+                <div class="text-sm font-semibold">Top Properties</div>
+                <div class="text-xs text-slate-500">Most active in selected range</div>
+              </div>
+              <div class="text-xs text-slate-500">Sorted by sessions</div>
+            </div>
+
+            <div class="mt-3 overflow-x-auto">
+              <table class="min-w-full text-sm">
+                <thead class="bg-slate-50">
+                  <tr>
+                    <th class="px-4 py-3 text-left">Property</th>
+                    <th class="px-4 py-3 text-left">Sessions</th>
+                    <th class="px-4 py-3 text-left">Messages</th>
+                    <th class="px-4 py-3 text-left">Followup CTR</th>
+                    <th class="px-4 py-3 text-left">Errors</th>
+                    <th class="px-4 py-3 text-left">Escalations</th>
+                  </tr>
+                </thead>
+                <tbody id="analyticsTopPropsBody">
+                  <tr><td class="px-4 py-4 text-slate-500" colspan="6">Loading…</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <section id="view-settings" class="view hidden space-y-4">
+
+          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <div class="text-sm font-semibold">Settings</div>
+                <div class="mt-1 text-sm text-slate-500">
+                  {% if user_role == "super" %}
+                    Manage your profile, PMCs, roles, and platform notifications.
+                  {% else %}
+                    Manage your profile, team, and notifications for your PMC.
+                  {% endif %}
+                </div>
+              </div>
+
+              <div class="text-xs text-slate-500">
+                Signed in as <span class="font-semibold text-slate-700">{{ user_email }}</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="grid grid-cols-12 gap-4">
+
+            <aside class="col-span-12 lg:col-span-3">
+              <div class="bg-white border border-slate-200 rounded-2xl p-2 card">
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="profile" type="button">
+                  Profile
+                </button>
+{% if user_role == "super" %}
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="team" type="button">
+                  Team
+                </button>
+
+                
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="roles" type="button">
+                  Roles & Permissions
+                </button>
+
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="pmcs" type="button">
+                  PMCs
+                </button>
+                
+
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="notifications" type="button">
+                  Notifications
+                </button>
+
+                <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
+                        data-settings="integrations" type="button">
+                  Integrations
+                </button>{% endif %}
+              </div>
+            </aside>
+
+            <div class="col-span-12 lg:col-span-9 space-y-4">
+
+              <div id="settings-profile" class="settings-panel bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">Profile</div>
+                <div class="mt-1 text-sm text-slate-500">Update your personal preferences.</div>
+
+                <form id="profileForm" class="mt-4 grid grid-cols-12 gap-3">
+                  <div class="col-span-12 md:col-span-6">
+                    <label class="text-xs font-semibold text-slate-600">Full name</label>
+                    <input name="full_name" value="{{ user_full_name or '' }}"
+                           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm" />
+                  </div>
+
+                  <div class="col-span-12 md:col-span-6">
+                    <label class="text-xs font-semibold text-slate-600">Email</label>
+                    <input value="{{ user_email }}" disabled
+                           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-500" />
+                    <div class="mt-1 text-xs text-slate-500">Managed by Google OAuth.</div>
+                  </div>
+
+                  <div class="col-span-12 md:col-span-6">
+                    <label class="text-xs font-semibold text-slate-600">Timezone</label>
+                    <select name="timezone" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
+                      <option value="">Select…</option>
+                      {% for tz in ["America/Los_Angeles","America/Denver","America/Chicago","America/New_York"] %}
+                        <option value="{{ tz }}" {% if user_timezone == tz %}selected{% endif %}>{{ tz }}</option>
+                      {% endfor %}
+                    </select>
+                    <div class="mt-1 text-xs text-slate-500">We’ll use this for scheduling + notifications.</div>
+                  </div>
+
+                  <div class="col-span-12 md:col-span-6 flex items-end justify-end">
+                    <button type="submit"
+                      class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                      Save Profile
+                    </button>
+                  </div>
+                </form>
+              </div>
+
+              <!-- Team -->
+              <div id="settings-team" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold">Team</div>
+                    <div class="mt-1 text-sm text-slate-500">
+                      Invite cleaners, maintenance, and internal staff. Owners/Admins can edit roles and enable/disable users.
+                    </div>
+                  </div>
+
+                  <button id="openInvite"
+                    class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                    Invite Member
+                  </button>
+                </div>
+
+                <div class="mt-4 overflow-x-auto">
+                  <table class="w-full text-sm">
+                    <thead class="text-xs text-slate-500">
+                      <tr class="border-b border-slate-200">
+                        <th class="text-left py-2">Name</th>
+                        <th class="text-left py-2">Email</th>
+                        <th class="text-left py-2">Role</th>
+                        <th class="text-left py-2">Status</th>
+                        <th class="text-right py-2">Actions</th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {% for m in team_members %}
+                      <tr class="border-b border-slate-100" data-member-row="{{ m.id }}">
+                        <td class="py-2 font-medium">{{ m.full_name or "—" }}</td>
+
+                        <td class="py-2 text-slate-600">
+                          <div class="flex items-center gap-2">
+                            <span>{{ m.email }}</span>
+                            {% if not m.last_login_at %}
+                              <span class="text-[11px] px-2 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-600 font-semibold">
+                                Invite pending
+                              </span>
+                            {% endif %}
+                          </div>
+                        </td>
+
+                        <td class="py-2">
+                          <div class="flex items-center gap-2">
+                            <select
+                              class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm"
+                              data-member-role
+                              data-member-id="{{ m.id }}"
+                              data-original-role="{{ m.role or 'staff' }}"
+                              {% if m.email == user_email %}disabled title="You can't change your own role here."{% endif %}
+                            >
+                              {% for r in ["owner","admin","staff","ops_manager","maintenance","cleaner","read_only"] %}
+                                <option value="{{ r }}" {% if (m.role or '') == r %}selected{% endif %}>{{ r }}</option>
+                              {% endfor %}
+                            </select>
+
+                            {% if m.email != user_email %}
+                            <button
+                              class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-xs font-semibold"
+                              data-member-save-role
+                              data-member-id="{{ m.id }}"
+                              type="button"
+                              title="Save role change"
+                            >
+                              Save
+                            </button>
+                            {% else %}
+                            <span class="text-xs text-slate-400">—</span>
+                            {% endif %}
+                          </div>
+                        </td>
+
+                        <td class="py-2">
+                          {% if m.is_active %}
+                            <span class="text-xs font-semibold text-emerald-700" data-member-status>Active</span>
+                          {% else %}
+                            <span class="text-xs font-semibold text-rose-700" data-member-status>Disabled</span>
+                          {% endif %}
+                        </td>
+
+                        <td class="py-2 text-right">
+                          {% if m.email != user_email %}
+                          <div class="flex items-center justify-end gap-3">
+                            <button
+                              class="text-xs font-semibold hover:underline"
+                              data-member-toggle
+                              data-member-id="{{ m.id }}"
+                              data-next-active="{{ 'false' if m.is_active else 'true' }}"
+                              type="button"
+                            >
+                              {% if m.is_active %}Disable{% else %}Enable{% endif %}
+                            </button>
+
+                            <button
+                              class="text-xs font-semibold hover:underline text-rose-700"
+                              data-member-delete
+                              data-member-id="{{ m.id }}"
+                              data-delete-label="{% if not m.last_login_at %}Delete invite{% else %}Remove{% endif %}"
+                              type="button"
+                            >
+                              {% if not m.last_login_at %}Delete invite{% else %}Remove{% endif %}
+                            </button>
+                          </div>
+                          {% else %}
+                            <span class="text-xs text-slate-400">—</span>
+                          {% endif %}
+                        </td>
+                      </tr>
+                      {% endfor %}
+
+                      {% if not team_members %}
+                      <tr>
+                        <td colspan="5" class="py-6 text-center text-slate-500">No team members yet.</td>
+                      </tr>
+                      {% endif %}
+                    </tbody>
+                  </table>
+                </div>
+
+                <!-- Invite modal -->
+                <div id="inviteModal" class="hidden fixed inset-0 z-[9999] bg-black/30 p-4">
+                  <div class="max-w-lg mx-auto mt-24 bg-white rounded-2xl border border-slate-200 p-4 card">
+                    <div class="flex items-center justify-between">
+                      <div class="text-sm font-semibold">Invite team member</div>
+                      <button id="closeInvite" class="h-9 w-9 rounded-xl border border-slate-200 hover:bg-slate-50" type="button">✕</button>
+                    </div>
+
+                    <div class="mt-2 text-xs text-slate-500">
+                      We use Google OAuth. Invited users will be able to sign in with this email.
+                    </div>
+
+                    <form id="inviteForm" class="mt-4 space-y-3">
+                      <div>
+                        <label class="text-xs font-semibold text-slate-600">Email</label>
+                        <input name="email" type="email" required
+                               class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm" />
+                      </div>
+
+                      <div>
+                        <label class="text-xs font-semibold text-slate-600">Role</label>
+                        <select name="role" class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
+                          <option value="staff">Staff</option>
+                          <option value="ops_manager">Ops Manager</option>
+                          <option value="maintenance">Maintenance</option>
+                          <option value="cleaner">Cleaner</option>
+                          <option value="read_only">Read-only</option>
+                          <option value="admin">Admin</option>
+                          <option value="owner">Owner</option>
+                        </select>
+                      </div>
+
+                      <div class="flex justify-end gap-2 pt-2">
+                        <button type="button" id="cancelInvite"
+                                class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold">
+                          Cancel
+                        </button>
+                        <button type="submit"
+                                class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                          Send Invite
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+              </div>
+              
+
+              {% if user_role == "super" %}
+              <div id="settings-roles" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">Roles & Permissions</div>
+                <div class="mt-1 text-sm text-slate-500">
+                  Define roles (cleaner, maintenance, staff) and what they can access.
+                </div>
+
+                <div class="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
+                  MVP suggestion: start with fixed roles + hardcoded permissions, then move to DB-driven roles.
+                </div>
+              </div>
+
+              <div id="settings-pmcs" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">PMCs</div>
+                <div class="mt-1 text-sm text-slate-500">Activate/deactivate PMCs, billing status, support tools.</div>
+              </div>
+              {% endif %}
+
+              <div id="settings-notifications" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="text-sm font-semibold">Notifications</div>
+                <div class="mt-1 text-sm text-slate-500">
+                  Choose what you get notified about. Slack settings will live here later.
+                </div>
+
+                {% set prefs = notif_prefs or {} %}
+
+                <form id="notifForm" class="mt-4 space-y-3">
+
+                  <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <div class="text-sm font-semibold">Guest messages</div>
+                      <div class="text-xs text-slate-500">Notify when a new guest message arrives.</div>
+                    </div>
+                    <input name="guest_messages" type="checkbox" class="h-5 w-5"
+                           {% if prefs.get("guest_messages") %}checked{% endif %} />
+                  </label>
+
+                  <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <div class="text-sm font-semibold">Maintenance assigned</div>
+                      <div class="text-xs text-slate-500">Notify when a maintenance request is assigned.</div>
+                    </div>
+                    <input name="maintenance_assigned" type="checkbox" class="h-5 w-5"
+                           {% if prefs.get("maintenance_assigned") %}checked{% endif %} />
+                  </label>
+
+                  <label class="flex items-center justify-between gap-3 p-3 rounded-xl border border-slate-200">
+                    <div>
+                      <div class="text-sm font-semibold">Turnover due soon</div>
+                      <div class="text-xs text-slate-500">Notify when a cleaner task is due soon.</div>
+                    </div>
+                    <input name="turnover_due" type="checkbox" class="h-5 w-5"
+                           {% if prefs.get("turnover_due") %}checked{% endif %} />
+                  </label>
+
+                  <div class="flex justify-end pt-2">
+                    <button type="submit"
+                      class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+                      Save Notifications
+                    </button>
+                  </div>
+                </form>
+
+                <div class="mt-4 p-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-700">
+                  Slack (coming soon): connect workspace, pick channel per event, and map properties → channels.
+                </div>
+              </div>
+
+              <div id="settings-integrations" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold">Integrations</div>
+                    <div class="mt-1 text-sm text-slate-500">Connect Stripe so guests can pay for upgrades.</div>
+                  </div>
+                </div>
+              
+                <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div class="text-sm font-semibold">Stripe Connect</div>
+                      <div class="text-xs text-slate-500" id="stripe-connect-status">Checking status…</div>
+                    </div>
+              
+                    <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      id="stripe-connect-btn"
+                      onclick="stripeConnectStart()"
+                      class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
+                    >
+                      Connect Stripe
+                    </button>
+                  
+                    {% if stripe_connected %}
+                    <button
+                      type="button"
+                      onclick="stripeDisconnect()"
+                      class="h-10 px-4 rounded-xl border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold"
+                    >
+                      Remove connection
+                    </button>
+                    {% endif %}
+                  </div>
+
+                  </div>
+              
+                  <div class="mt-3 text-xs text-slate-500">
+                    Connect your Stripe account to receive payouts for upgrade purchases. HostScout can apply a small platform fee.
+                  </div>
+                </div>
+              </div>
+
+          </div>
+        </section>
+
+      </div>
+
+      <!-- Assistant Config Drawer -->
+      <div id="configDrawer" class="fixed inset-0 z-[9999] hidden">
+        <div class="absolute inset-0 bg-black/30" onclick="closeAssistantConfig()" aria-hidden="true"></div>
+
+        <div class="absolute right-0 top-0 h-full w-full sm:max-w-[720px] bg-white border-l border-slate-200 shadow-2xl flex flex-col">
+          <div class="h-16 px-5 flex items-center justify-between border-b border-slate-200">
+            <div class="min-w-0">
+              <div class="text-sm font-semibold">Assistant Config</div>
+              <div id="configDrawerLabel" class="text-xs text-slate-500 truncate">Select a property</div>
+            </div>
+
+            <button
+              type="button"
+              class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
+              onclick="closeAssistantConfig()"
+            >
+              Close
+            </button>
+          </div>
+
+          <div id="configDrawerBody" class="flex-1 overflow-auto p-4 bg-slate-50">
+            <div class="text-sm text-slate-500">Select a property to edit its config.</div>
+          </div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+
+                <div id="insightsPanel" class="fixed inset-0 z-[9999] hidden">
+  <div class="absolute inset-0 bg-black/30" onclick="closeInsights()" aria-hidden="true"></div>
+
+  <div class="absolute right-0 top-0 flex h-full w-full flex-col border-l border-slate-200 bg-white shadow-2xl sm:max-w-[520px]">
+    <div class="flex h-16 items-center justify-between border-b border-slate-200 px-5">
+      <div>
+        <div class="text-sm font-semibold">Guest insights</div>
+        <div class="text-xs text-slate-500">Patterns and suggested improvements</div>
+      </div>
+
+      <button
+        type="button"
+        class="h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm hover:bg-slate-50"
+        onclick="closeInsights()"
+      >
+        Close
+      </button>
+    </div>
+
+    <div class="flex-1 space-y-5 overflow-auto p-5">
+      <div>
+        <div class="text-sm font-semibold text-slate-900">Stay Pulse</div>
+        <div class="mt-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+          <div class="text-sm font-medium text-slate-900">
+            {{ stay_pulse.headline if stay_pulse else "Guest conversations are running smoothly" }}
+          </div>
+          <div class="mt-1 text-sm text-slate-600">
+            {{ stay_pulse.body if stay_pulse else "Insights will appear here as guest conversations come in." }}
+          </div>
+        </div>
+      </div>
+
+      <div>
+        <div class="text-sm font-semibold text-slate-900">Suggestions</div>
+
+        <div class="mt-3 space-y-3">
+          {% for s in suggestions %}
+            <div class="rounded-2xl border border-slate-200 bg-white p-4">
+              <div class="text-sm font-semibold text-slate-900">{{ s.title }}</div>
+              <div class="mt-1 text-xs text-slate-500">{{ s.reason }}</div>
+              <div class="mt-2 text-sm text-slate-600">{{ s.action }}</div>
+
+              <div class="mt-4 flex flex-wrap gap-2">
+                {% if s.target == "chats" %}
+                  <button
+                    type="button"
+                    onclick="closeInsights(); document.getElementById('chat-table')?.scrollIntoView({ behavior: 'smooth' })"
+                    class="h-10 rounded-xl bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
+                  >
+                    {{ s.cta_primary }}
+                  </button>
+                {% else %}
+                  <button
+                    type="button"
+                    onclick="openGuideSuggestion('{{ s.target }}')"
+                    class="h-10 rounded-xl bg-slate-900 px-4 text-sm font-medium text-white hover:bg-slate-800"
+                  >
+                    {{ s.cta_primary }}
+                  </button>
+
+                  {% if s.cta_secondary %}
+                  <button
+                    type="button"
+                    onclick="openDraftSuggestion('{{ s.target }}')"
+                    class="h-10 rounded-xl border border-slate-200 bg-white px-4 text-sm font-medium text-slate-800 hover:bg-slate-50"
+                  >
+                    {{ s.cta_secondary }}
+                  </button>
+                  {% endif %}
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+
+          {% if not suggestions %}
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+              No suggestions yet. As more guest conversations come in, HostScout will surface opportunities to improve the stay experience.
+            </div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  function openInsights() {
+    document.getElementById("insightsPanel")?.classList.remove("hidden");
+  }
+
+  function closeInsights() {
+    document.getElementById("insightsPanel")?.classList.add("hidden");
+  }
+
+  function openGuideSuggestion(target) {
+    closeInsights();
+
+    const guidesViewBtn = document.querySelector('[data-view="guides"]');
+    if (guidesViewBtn) guidesViewBtn.click();
+
+    setTimeout(() => {
+      if (typeof Guides !== "undefined" && typeof Guides.openNew === "function") {
+        Guides.openNew();
+      } else {
+        alert("Guide editor coming soon.");
+      }
+    }, 150);
+  }
+
+  function openDraftSuggestion(target) {
+    const drafts = {
+      checkin: {
+        title: "Suggested check-in instructions",
+        body:
+`Check-in is from 4:00 PM.
+
+1. Park in the designated area.
+2. Go to the main entrance.
+3. Enter the door code sent before arrival.
+4. Inside, you'll find your welcome guide and WiFi details.
+
+If you have trouble entering, message us and we'll help right away.`
+      },
+      wifi: {
+        title: "Suggested WiFi section",
+        body:
+`WiFi Network: [ADD NETWORK NAME]
+WiFi Password: [ADD PASSWORD]
+
+If you have trouble connecting, restart WiFi on your device and try again.`
+      },
+      parking: {
+        title: "Suggested parking instructions",
+        body:
+`Parking is available in the designated area only.
+
+- Please park in [ADD LOCATION]
+- Do not block neighboring driveways
+- If arriving late, use the marked guest space closest to the entrance`
+      },
+      checkout: {
+        title: "Suggested checkout policy",
+        body:
+`Checkout is at 10:00 AM unless otherwise approved.
+
+Before leaving:
+- Lock all doors
+- Place used towels in the bathroom
+- Start the dishwasher if needed
+- Message us once you've checked out`
+      },
+      general: {
+        title: "Suggested guide update",
+        body:
+`Review the areas guests ask about most often and make key information easier to find in your guide.`
+      }
+    };
+
+    const draft = drafts[target];
+    if (!draft) {
+      alert("Draft generator coming soon.");
+      return;
+    }
+
+    alert(draft.title + "\\n\\n" + draft.body);
+  }
+</script>
+
+<script>
+  window.PMC_STRIPE_CONNECTED = {{ stripe_connected | tojson }};
+</script>
+
+<script id="dashboard-bootstrap" type="application/json">
+{
+  "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
+  "live_props": {{ live_props | tojson }},
+  "offline_props": {{ offline_props | tojson }},
+  "user_role": {{ user_role | tojson }},
+  "api": {
+    "chat_detail_partial": "/admin/chats/partial/detail?session_id={session_id}",
+    "chat_summarize": "/admin/chats/{session_id}/summarize",
+    "chat_resolve": "/admin/chats/{session_id}/resolve",
+    "chat_unresolve": "/admin/chats/{session_id}/unresolve",
+    "chat_escalate": "/admin/chats/{session_id}/escalate",
+    "chat_assign": "/admin/chats/{session_id}/assign",
+    "chat_note": "/admin/chats/{session_id}/note",
+    "messages_list": "/admin/messages?status={status}&type={type}&q={q}&limit={limit}&offset={offset}",
+    "messages_unread_count": "/admin/messages/unread-count",
+    "messages_mark_read": "/admin/messages/{message_id}/read",
+    "messages_mark_all_read": "/admin/messages/mark-all-read",
+    "notifications_list": "/admin/notifications?limit={limit}",
+    "notifications_mark_read": "/admin/notifications/{notification_id}/read"
+
+  }
+}
+</script>
+
+                
+<script>
+  (function () {
+    const selectAll = document.getElementById("chat-select-all");
+    const batchBar = document.getElementById("chatBatchBar");
+    const selectedCount = document.getElementById("chatSelectedCount");
+    const deleteBtn = document.getElementById("btnChatDelete");
+
+    function getChatCheckboxes() {
+      return Array.from(document.querySelectorAll(".chat-select"));
+    }
+
+    function getSelectedIds() {
+      return getChatCheckboxes()
+        .filter((cb) => cb.checked)
+        .map((cb) => cb.value);
+    }
+
+    function updateBatchBar() {
+      const ids = getSelectedIds();
+
+      if (selectedCount) {
+        selectedCount.textContent = `${ids.length} selected`;
+      }
+
+      if (batchBar) {
+        batchBar.classList.toggle("hidden", ids.length === 0);
+      }
+
+      if (selectAll) {
+        const all = getChatCheckboxes();
+        const checked = all.filter((cb) => cb.checked);
+        selectAll.checked = all.length > 0 && checked.length === all.length;
+        selectAll.indeterminate = checked.length > 0 && checked.length < all.length;
+      }
+    }
+
+    selectAll?.addEventListener("change", () => {
+      const checked = selectAll.checked;
+      getChatCheckboxes().forEach((cb) => {
+        cb.checked = checked;
+      });
+      updateBatchBar();
+    });
+
+    document.addEventListener("change", (e) => {
+      if (e.target.matches(".chat-select")) {
+        updateBatchBar();
+      }
+    });
+
+
+    deleteBtn?.addEventListener("click", async () => {
+      const ids = getSelectedIds();
+      if (!ids.length) return;
+
+      const ok = confirm(
+        ids.length === 1
+          ? "Delete this chat?"
+          : `Delete ${ids.length} chats?`
+      );
+      if (!ok) return;
+
+      deleteBtn.disabled = true;
+
+      try {
+        const res = await fetch("/admin/chats/delete", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          credentials: "include",
+          body: JSON.stringify({ session_ids: ids }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+
+        if (!res.ok) {
+          alert(data.detail || "Failed to delete chats.");
+          return;
+        }
+
+        window.location.reload();
+      } catch (err) {
+        alert("Something went wrong while deleting chats.");
+      } finally {
+        deleteBtn.disabled = false;
+      }
+    });
+
+    updateBatchBar();
+  })();
+</script>
+
+<script>
+  function centsToUsd(cents) {
+    const n = Number(cents || 0) / 100;
+    return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
+  }
+
+  function downloadCSV(filename, csvText) {
+    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---------------------------
+  // SUPER: HostScout revenue
+  // ---------------------------
+  async function runHostScoutRevenue() {
+    const start = document.getElementById("hs-rev-start")?.value || "";
+    const end = document.getElementById("hs-rev-end")?.value || "";
+
+    const qs = new URLSearchParams();
+    if (start) qs.set("start", start);
+    if (end) qs.set("end", end);
+
+    const res = await fetch(`/admin/reports/hostscout-revenue?${qs.toString()}`, {
+      credentials: "include",
+      headers: { "Accept": "application/json" }
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(data?.detail || "Revenue report failed"); return; }
+
+    document.getElementById("hs-gross").textContent = centsToUsd(data.summary.gross_cents);
+    document.getElementById("hs-fee").textContent = centsToUsd(data.summary.hostscout_fee_cents);
+    document.getElementById("hs-net").textContent = centsToUsd(data.summary.net_to_pmc_cents);
+    document.getElementById("hs-count").textContent = `${data.summary.paid_count} / ${data.summary.refunded_count}`;
+
+    const tbody = document.getElementById("hs-rows");
+    tbody.innerHTML = "";
+
+    for (const r of data.by_pmc || []) {
+      const name = (r.pmc && (r.pmc.name || r.pmc.email)) ? (r.pmc.name || r.pmc.email) : `PMC ${r.pmc_id}`;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="py-2 pr-3 font-semibold">${name}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.gross_cents)}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.hostscout_fee_cents)}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.net_to_pmc_cents)}</td>
+        <td class="py-2 pr-3">${r.paid_count}</td>
+        <td class="py-2 pr-3">${r.refunded_count}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    window.__hs_rev_latest = data;
+  }
+
+  document.getElementById("hs-rev-run")?.addEventListener("click", runHostScoutRevenue);
+  document.getElementById("hs-rev-csv")?.addEventListener("click", () => {
+    const data = window.__hs_rev_latest;
+    if (!data?.by_pmc) return alert("Run the report first.");
+
+    const header = ["pmc_id","pmc_name","gross_cents","hostscout_fee_cents","net_to_pmc_cents","paid_count","refunded_count"];
+    const lines = [header.join(",")];
+
+    for (const r of data.by_pmc) {
+      const pmcName = (r.pmc && (r.pmc.name || r.pmc.email)) ? String(r.pmc.name || r.pmc.email).replaceAll('"','""') : "";
+      lines.push([
+        r.pmc_id ?? "",
+        `"${pmcName}"`,
+        r.gross_cents ?? 0,
+        r.hostscout_fee_cents ?? 0,
+        r.net_to_pmc_cents ?? 0,
+        r.paid_count ?? 0,
+        r.refunded_count ?? 0
+      ].join(","));
+    }
+
+    downloadCSV(`hostscout_revenue_${data.range.start}_to_${data.range.end}.csv`, lines.join("\n"));
+  });
+
+  // ---------------------------
+  // PMC: payouts (PMC only)
+  // NOTE: endpoint name below — see note at bottom
+  // ---------------------------
+  async function runPmcPayouts() {
+    const start = document.getElementById("pmc-pay-start")?.value || "";
+    const end = document.getElementById("pmc-pay-end")?.value || "";
+
+    const qs = new URLSearchParams();
+    if (start) qs.set("start", start);
+    if (end) qs.set("end", end);
+
+    const res = await fetch(`/admin/reports/pmc-payouts?${qs.toString()}`, {
+      credentials: "include",
+      headers: { "Accept": "application/json" }
+    });
+
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) { alert(data?.detail || "PMC payouts report failed"); return; }
+
+    document.getElementById("pmc-gross").textContent = centsToUsd(data.summary.gross_cents);
+    document.getElementById("pmc-fee").textContent = centsToUsd(data.summary.hostscout_fee_cents);
+    document.getElementById("pmc-net").textContent = centsToUsd(data.summary.net_to_pmc_cents);
+    document.getElementById("pmc-count").textContent = `${data.summary.paid_count} / ${data.summary.refunded_count}`;
+
+    const tbody = document.getElementById("pmc-pay-rows");
+    tbody.innerHTML = "";
+
+    for (const r of data.rows || []) {
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+        <td class="py-2 pr-3">${r.paid_at || "—"}</td>
+        <td class="py-2 pr-3">${r.property_name || ("Property " + (r.property_id ?? ""))}</td>
+        <td class="py-2 pr-3">${r.upgrade_title || ("Upgrade " + (r.upgrade_id ?? ""))}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.amount_cents)}</td>
+        <td class="py-2 pr-3">${centsToUsd(r.platform_fee_cents)}</td>
+        <td class="py-2 pr-3">${centsToUsd((r.amount_cents || 0) - (r.platform_fee_cents || 0))}</td>
+        <td class="py-2 pr-3">${r.status || "—"}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+
+    window.__pmc_pay_latest = data;
+  }
+
+  document.getElementById("pmc-pay-run")?.addEventListener("click", runPmcPayouts);
+  document.getElementById("pmc-pay-csv")?.addEventListener("click", () => {
+    const data = window.__pmc_pay_latest;
+    if (!data?.rows) return alert("Run the report first.");
+
+    const header = ["paid_at","property_id","property_name","upgrade_id","upgrade_title","amount_cents","platform_fee_cents","net_cents","status"];
+    const lines = [header.join(",")];
+
+    for (const r of data.rows) {
+      const propName = String(r.property_name || "").replaceAll('"','""');
+      const upName = String(r.upgrade_title || "").replaceAll('"','""');
+      lines.push([
+        r.paid_at || "",
+        r.property_id ?? "",
+        `"${propName}"`,
+        r.upgrade_id ?? "",
+        `"${upName}"`,
+        r.amount_cents ?? 0,
+        r.platform_fee_cents ?? 0,
+        (r.amount_cents || 0) - (r.platform_fee_cents || 0),
+        r.status || ""
+      ].join(","));
+    }
+
+    downloadCSV(`pmc_payouts_${data.range.start}_to_${data.range.end}.csv`, lines.join("\n"));
+  });
+
+  // Optional: auto-run when user lands on those tabs (works with your nav JS that toggles views)
+  // You can also call these in your existing "setView()" logic if you have one.
+
+
+</script>
+
+
+                <script>
+  // ------------------------------
+  // Tasks → Notifications panel (in-app)
+  // ------------------------------
+  window.Notifications = window.Notifications || (function () {
+    let all = [];
+    let filter = "all";
+    let wired = false;
+
+    const $id = (id) => document.getElementById(id);
+
+    function fmtTime(iso) {
+      if (!iso) return "";
+      const d = new Date(iso);
+      if (Number.isNaN(d.getTime())) return "";
+      return d.toLocaleString();
+    }
+
+    function setUnreadBadge() {
+      const badge = $id("tasksNotifUnreadBadge");
+      if (!badge) return;
+      const unread = all.filter((n) => !n.is_read).length;
+      if (unread > 0) {
+        badge.classList.remove("hidden");
+        badge.textContent = String(unread);
+      } else {
+        badge.classList.add("hidden");
+        badge.textContent = "0";
+      }
+    }
+
+    function applyFilter(items) {
+      if (filter === "all") return items;
+      if (filter === "unread") return items.filter((n) => !n.is_read);
+      return items.filter((n) => String(n.type || "") === filter);
+    }
+
+    function openNotification(n) {
+      const t = String(n.type || "");
+      const meta = n.meta || {};
+
+      // If chat assigned, jump to chat
+      if (t === "chat_assigned" && meta.chat_session_id) {
+        window.location.href =
+          `/admin/dashboard?view=chats&session_id=${encodeURIComponent(meta.chat_session_id)}`;
+        return;
+      }
+
+      // If upgrade, jump to upgrades page (or whatever you prefer)
+      if (t === "upgrade_purchased") {
+        window.location.href = `/admin/dashboard?view=upgrades`;
+        return;
+      }
+
+      // default fallback
+      window.location.href = `/admin/dashboard?view=tasks`;
+    }
+
+    async function markRead(id) {
+      const res = await fetch(`/admin/notifications/${encodeURIComponent(id)}/read`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      // even if it errors, we won't hard-fail UI
+      return res.ok;
+    }
+
+    function render() {
+      const list = $id("tasksNotifList");
+      if (!list) return;
+
+      const items = applyFilter(all);
+
+      if (!items.length) {
+        list.innerHTML = `<div class="text-slate-500 text-sm">No notifications.</div>`;
+        return;
+      }
+
+      list.innerHTML = items
+        .map((n) => {
+          const unreadDot = n.is_read
+            ? ""
+            : `<span class="inline-block w-2 h-2 rounded-full bg-emerald-500 mr-2"></span>`;
+
+          return `
+            <div class="border border-slate-200 bg-white rounded-2xl p-4 mb-3 cursor-pointer hover:bg-slate-50"
+                 data-notif-id="${n.id}">
+              <div class="flex items-start justify-between gap-4">
+                <div class="min-w-0">
+                  <div class="font-semibold text-slate-900 flex items-center">
+                    ${unreadDot}
+                    <span class="truncate">${(n.title || "Notification")}</span>
+                  </div>
+                  ${n.body ? `<div class="text-sm text-slate-600 mt-1">${n.body}</div>` : ""}
+                  <div class="text-xs text-slate-400 mt-2">${n.type || ""}</div>
+                </div>
+                <div class="text-xs text-slate-400 whitespace-nowrap">${fmtTime(n.created_at)}</div>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+
+      // click handlers
+      document.querySelectorAll("[data-notif-id]").forEach((row) => {
+        row.addEventListener("click", async () => {
+          const id = row.getAttribute("data-notif-id");
+          const n = all.find((x) => String(x.id) === String(id));
+          if (!n) return;
+
+          if (!n.is_read) {
+            await markRead(id);
+            n.is_read = true;
+            setUnreadBadge();
+          }
+
+          openNotification(n);
+        });
+      });
+    }
+
+    async function load() {
+      const list = $id("tasksNotifList");
+      if (list) list.innerHTML = `<div class="text-slate-500 text-sm">Loading…</div>`;
+
+      const res = await fetch(`/admin/notifications?limit=200`, { credentials: "include" });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (list) {
+          list.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">
+            Failed to load notifications.
+          </div>`;
+        }
+        return;
+      }
+
+      all = Array.isArray(data.items) ? data.items : [];
+      setUnreadBadge();
+      render();
+    }
+
+    async function markAllRead() {
+      const unread = all.filter((n) => !n.is_read);
+      if (!unread.length) return;
+
+      await Promise.allSettled(unread.map((n) => markRead(n.id)));
+      all.forEach((n) => (n.is_read = true));
+      setUnreadBadge();
+      render();
+    }
+
+    function wireUIOnce() {
+      if (wired) return;
+      wired = true;
+
+      $id("tasksNotifRefreshBtn")?.addEventListener("click", load);
+      $id("tasksNotifMarkAllReadBtn")?.addEventListener("click", markAllRead);
+
+      document.querySelectorAll(".tasksNotifFilterBtn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          filter = btn.getAttribute("data-filter") || "all";
+          render();
+        });
+      });
+    }
+
+    // ✅ Tasks.refresh() calls this
+    function showInTasks(show) {
+      const panel = $id("tasksNotificationsPanel");
+      if (!panel) return;
+
+      if (show) {
+        panel.classList.remove("hidden");
+        wireUIOnce();
+        load();
+      } else {
+        panel.classList.add("hidden");
+      }
+    }
+
+    return { showInTasks };
+  })();
+</script>
+
+<script>
+  document.addEventListener("click", async (e) => {
+    const btn = e.target.closest('[data-role="delete-chat-btn"]');
+    if (!btn) return;
+
+    const panel = document.querySelector("[data-chat-panel]");
+    const sessionId = panel?.getAttribute("data-session-id");
+
+    if (!sessionId) {
+      alert("Could not find chat ID.");
+      return;
+    }
+
+    const ok = confirm("Delete this chat?");
+    if (!ok) return;
+
+    btn.disabled = true;
+
+    try {
+      const res = await fetch("/admin/chats/delete", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        credentials: "include",
+        body: JSON.stringify({ session_ids: [sessionId] }),
+      });
+
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        alert(data.detail || "Failed to delete chat.");
+        return;
+      }
+
+      window.location.href = "/admin/dashboard?view=chats";
+    } catch (err) {
+      alert("Something went wrong while deleting the chat.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+</script>
+
+
+</body>
+</html>
