@@ -1,4 +1,4 @@
-<script>
+
   function openInsights() {
     document.getElementById("insightsPanel")?.classList.remove("hidden");
   }
@@ -79,39 +79,8 @@ Before leaving:
 
     alert(draft.title + "\\n\\n" + draft.body);
   }
-</script>
 
-<script>
-  window.PMC_STRIPE_CONNECTED = {{ stripe_connected | tojson }};
-</script>
 
-<script id="dashboard-bootstrap" type="application/json">
-{
-  "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
-  "live_props": {{ live_props | tojson }},
-  "offline_props": {{ offline_props | tojson }},
-  "user_role": {{ user_role | tojson }},
-  "api": {
-    "chat_detail_partial": "/admin/chats/partial/detail?session_id={session_id}",
-    "chat_summarize": "/admin/chats/{session_id}/summarize",
-    "chat_resolve": "/admin/chats/{session_id}/resolve",
-    "chat_unresolve": "/admin/chats/{session_id}/unresolve",
-    "chat_escalate": "/admin/chats/{session_id}/escalate",
-    "chat_assign": "/admin/chats/{session_id}/assign",
-    "chat_note": "/admin/chats/{session_id}/note",
-    "messages_list": "/admin/messages?status={status}&type={type}&q={q}&limit={limit}&offset={offset}",
-    "messages_unread_count": "/admin/messages/unread-count",
-    "messages_mark_read": "/admin/messages/{message_id}/read",
-    "messages_mark_all_read": "/admin/messages/mark-all-read",
-    "notifications_list": "/admin/notifications?limit={limit}",
-    "notifications_mark_read": "/admin/notifications/{notification_id}/read"
-
-  }
-}
-</script>
-
-                
-<script>
   (function () {
     const selectAll = document.getElementById("chat-select-all");
     const batchBar = document.getElementById("chatBatchBar");
@@ -202,9 +171,7 @@ Before leaving:
 
     updateBatchBar();
   })();
-</script>
 
-<script>
   function centsToUsd(cents) {
     const n = Number(cents || 0) / 100;
     return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
@@ -364,10 +331,7 @@ Before leaving:
   // You can also call these in your existing "setView()" logic if you have one.
 
 
-</script>
 
-
-                <script>
   // ------------------------------
   // Tasks → Notifications panel (in-app)
   // ------------------------------
@@ -556,9 +520,7 @@ Before leaving:
 
     return { showInTasks };
   })();
-</script>
 
-<script>
   document.addEventListener("click", async (e) => {
     const btn = e.target.closest('[data-role="delete-chat-btn"]');
     if (!btn) return;
@@ -681,4 +643,4 @@ Before leaving:
   badge.textContent = String(n);
   badge.classList.toggle("hidden", n <= 0);
 }
-</script>
+
