@@ -2488,22 +2488,27 @@ window.Messages = {
     return { total, live, offline: total - live };
   }
 
-  function updateOverviewUI() {
-    const { total, live, offline } = recomputeLiveOffline();
+function updateOverviewUI() {
+  const { total, live, offline } = recomputeLiveOffline();
 
-    const totalEl = document.getElementById("stat-total");
-    const liveEl = document.getElementById("stat-live");
-    const offEl = document.getElementById("stat-offline");
+  const totalEl = document.getElementById("stat-total");
+  const liveEl = document.getElementById("stat-live");
+  const offEl = document.getElementById("stat-offline");
 
-    if (totalEl) totalEl.textContent = String(total);
-    if (liveEl) liveEl.textContent = String(live);
-    if (offEl) offEl.textContent = String(offline);
+  if (totalEl) totalEl.textContent = String(total);
+  if (liveEl) liveEl.textContent = String(live);
+  if (offEl) offEl.textContent = String(offline);
 
-    if (statusChartInstance) {
-      statusChartInstance.data.datasets[0].data = [live, offline];
-      statusChartInstance.update();
-    }
+  if (statusChartInstance) {
+    statusChartInstance.data.datasets[0].data = [live, offline];
+    statusChartInstance.update();
   }
+
+  if (window.__overviewPortfolioChart) {
+    window.__overviewPortfolioChart.data.datasets[0].data = [live, offline];
+    window.__overviewPortfolioChart.update();
+  }
+}
 
 
 // ----------------------------
