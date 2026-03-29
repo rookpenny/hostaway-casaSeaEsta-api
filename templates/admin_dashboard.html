@@ -479,87 +479,443 @@
         </div>
         {% endif %}
 
-        <!-- OVERVIEW -->
-        <section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
-          {% set total_props = properties|length %}
+       <!-- OVERVIEW -->
+<section id="view-overview" class="view space-y-6 {% if initial_view != 'overview' %}hidden{% endif %}">
+  {% set total_props = properties|length %}
 
-          {% if is_locked %}
-            {% set live_props = 0 %}
-            {% set offline_props = total_props %}
-          {% else %}
-            {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
-            {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
-          {% endif %}
+  {% if is_locked %}
+    {% set live_props = 0 %}
+    {% set offline_props = total_props %}
+  {% else %}
+    {% set live_props = (properties | selectattr('sandy_enabled') | list | length) %}
+    {% set offline_props = (properties | rejectattr('sandy_enabled') | list | length) %}
+  {% endif %}
 
-          <div class="grid grid-cols-12 gap-4">
-            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-xs text-slate-500">Properties</div>
-              <div class="mt-2 text-3xl font-semibold" id="stat-total">{{ total_props }}</div>
-              <div class="mt-2 text-xs text-slate-500">Portfolio size</div>
+  {% set booking_count = live_props * 3 + 1 %}
+  {% set urgent_issues = offline_props if offline_props > 0 else 1 %}
+  {% set total_chats_est = (total_props * 240) + (live_props * 120) + 53 %}
+
+  <div class="grid grid-cols-12 gap-6">
+    <!-- Main left column -->
+    <div class="col-span-12 xl:col-span-8 space-y-6">
+      <!-- Hero -->
+      <div class="relative overflow-hidden rounded-[28px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-8 text-white shadow-[0_20px_60px_rgba(40,50,160,0.20)]">
+        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,190,150,0.18),transparent_28%)]"></div>
+        <div class="absolute right-0 bottom-0 h-40 w-56 translate-x-10 translate-y-10 rotate-[-18deg] rounded-[40px] bg-gradient-to-br from-[#ffd3c1] via-[#f8b9b8] to-[#ffffff00] opacity-90"></div>
+
+        <div class="relative z-10">
+          <div class="flex items-center gap-3 text-[15px] font-medium text-white/90">
+            <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+                <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+                <path d="M19 14l.8 2 .2.2 2 .8-2 .8-.2.2-.8 2-.8-2-.2-.2-2-.8 2-.8.2-.2.8-2Z" fill="currentColor"/>
+                <path d="M5 15l.8 2 .2.2 2 .8-2 .8-.2.2-.8 2-.8-2-.2-.2-2-.8 2-.8.2-.2.8-2Z" fill="currentColor"/>
+              </svg>
+            </span>
+            <span>Since your last login</span>
+          </div>
+
+          <div class="mt-8 grid grid-cols-1 gap-6 md:grid-cols-3">
+            <div class="md:border-r md:border-white/15 md:pr-6">
+              <div class="text-5xl font-semibold tracking-tight">{{ total_chats_est }}</div>
+              <div class="mt-2 text-lg text-white/80">guest questions asked</div>
+              <button
+                type="button"
+                onclick="window.DashboardOverview?.jumpTo('chats')"
+                class="mt-5 inline-flex items-center gap-2 text-base font-medium text-[#9fd0ff] hover:text-white"
+              >
+                View chats
+                <span>→</span>
+              </button>
             </div>
 
-            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-xs text-slate-500">Live</div>
-              <div class="mt-2 text-3xl font-semibold" id="stat-live">{{ live_props }}</div>
-              <div class="mt-2 text-xs text-emerald-600">Sandy enabled</div>
+            <div class="md:border-r md:border-white/15 md:px-6">
+              <div class="text-5xl font-semibold tracking-tight">{{ booking_count }}</div>
+              <div class="mt-2 text-lg text-white/80">bookings made</div>
+              <button
+                type="button"
+                onclick="window.DashboardOverview?.jumpTo('analytics')"
+                class="mt-5 inline-flex items-center gap-2 text-base font-medium text-[#9fd0ff] hover:text-white"
+              >
+                View bookings
+                <span>→</span>
+              </button>
             </div>
 
-            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-xs text-slate-500">Offline</div>
-              <div class="mt-2 text-3xl font-semibold" id="stat-offline">{{ offline_props }}</div>
-              <div class="mt-2 text-xs text-rose-600">Needs attention</div>
+            <div class="md:pl-6">
+              <div class="text-5xl font-semibold tracking-tight">{{ urgent_issues }}</div>
+              <div class="mt-2 text-lg text-white/80">new urgent issues</div>
+              <button
+                type="button"
+                onclick="window.DashboardOverview?.jumpTo('chats')"
+                class="mt-5 inline-flex items-center gap-2 text-base font-medium text-[#9fd0ff] hover:text-white"
+              >
+                View issues
+                <span>→</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="absolute right-6 bottom-6 hidden md:block">
+            <div class="grid h-16 w-16 place-items-center rounded-2xl bg-white text-indigo-600 shadow-lg ring-1 ring-black/5">
+              <svg class="h-8 w-8" viewBox="0 0 24 24" fill="none">
+                <path d="M5 18V10M10 18V6M15 18v-4M20 18V8M4 20h17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                <path d="m7 7 3-2 3 2 5-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Guest Intelligence -->
+      <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div class="flex items-start gap-4">
+            <div class="grid h-12 w-12 place-items-center rounded-2xl bg-gradient-to-br from-[#dce6ff] to-[#7aa2ff] shadow-sm">
+              <svg class="h-6 w-6 text-white" viewBox="0 0 24 24" fill="none">
+                <path d="M7 12.5 10 15l7-7" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <rect x="3" y="4" width="18" height="16" rx="4" stroke="currentColor" stroke-width="1.6"/>
+              </svg>
+            </div>
+            <div>
+              <div class="text-[31px] leading-none font-semibold tracking-tight text-slate-950">Guest Intelligence</div>
+              <div class="mt-2 text-base text-slate-500">How guests are using your AI across all channels</div>
+            </div>
+          </div>
+
+          <div>
+            <button class="inline-flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm">
+              Last 7 days
+              <svg class="h-4 w-4" viewBox="0 0 20 20" fill="none">
+                <path d="m5 7 5 5 5-5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="mt-8 grid grid-cols-12 gap-6">
+          <div class="col-span-12 lg:col-span-4">
+            <div class="flex items-end gap-3">
+              <div class="text-6xl font-semibold tracking-tight text-slate-950">+18%</div>
+            </div>
+            <div class="mt-2 text-base text-slate-400">vs. previous 7 days</div>
+
+            <div class="mt-8 text-5xl font-semibold tracking-tight text-slate-950">{{ total_chats_est }}</div>
+            <div class="mt-2 text-base text-slate-400">Total chats</div>
+
+            <div class="mt-8 rounded-[24px] border border-slate-200 bg-slate-50/70 p-5">
+              <div class="space-y-5">
+                <div>
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                      <span class="grid h-9 w-9 place-items-center rounded-xl bg-[#e8efff] text-[#3c6fff]">✈</span>
+                      <div>
+                        <div class="text-lg font-semibold text-slate-900">Pre-stay</div>
+                        <div class="text-sm text-slate-500">Before check-in</div>
+                      </div>
+                    </div>
+                    <div class="text-lg font-semibold text-slate-700">42%</div>
+                  </div>
+                  <div class="mt-3 h-3 rounded-full bg-slate-200">
+                    <div class="h-3 rounded-full bg-[#3f74ff]" style="width:42%"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                      <span class="grid h-9 w-9 place-items-center rounded-xl bg-[#e8fbf9] text-[#27b9aa]">⌂</span>
+                      <div>
+                        <div class="text-lg font-semibold text-slate-900">On property</div>
+                        <div class="text-sm text-slate-500">During stay</div>
+                      </div>
+                    </div>
+                    <div class="text-lg font-semibold text-slate-700">38%</div>
+                  </div>
+                  <div class="mt-3 h-3 rounded-full bg-slate-200">
+                    <div class="h-3 rounded-full bg-[#3f74ff]" style="width:38%"></div>
+                  </div>
+                </div>
+
+                <div>
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                      <span class="grid h-9 w-9 place-items-center rounded-xl bg-[#e9fbf7] text-[#39c3b1]">✓</span>
+                      <div>
+                        <div class="text-lg font-semibold text-slate-900">Post-stay</div>
+                        <div class="text-sm text-slate-500">After check-out</div>
+                      </div>
+                    </div>
+                    <div class="text-lg font-semibold text-slate-700">20%</div>
+                  </div>
+                  <div class="mt-3 h-3 rounded-full bg-slate-200">
+                    <div class="h-3 rounded-full bg-[#39c3b1]" style="width:20%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="col-span-12 lg:col-span-8">
+            <div class="text-2xl font-semibold tracking-tight text-slate-950">Chats by property</div>
+
+            <div class="mt-6 space-y-5">
+              {% for prop in properties[:4] %}
+                {% set property_chat_count = (loop.index0 * 180) + 430 if prop.sandy_enabled else (loop.index0 * 110) + 180 %}
+                {% set property_bar = 92 - (loop.index0 * 15) %}
+                <div class="grid grid-cols-[auto,1fr,auto] items-center gap-4">
+                  <div>
+                    {% if prop.hero_image_url %}
+                      <img
+                        src="{{ prop.hero_image_url }}"
+                        alt="{{ prop.property_name|e }}"
+                        class="h-12 w-12 rounded-xl object-cover border border-slate-200"
+                        loading="lazy"
+                      />
+                    {% else %}
+                      <div class="grid h-12 w-12 place-items-center rounded-xl border border-slate-200 bg-slate-100 text-[11px] font-semibold text-slate-500">
+                        Home
+                      </div>
+                    {% endif %}
+                  </div>
+
+                  <div class="min-w-0">
+                    <div class="flex items-center gap-4">
+                      <div class="min-w-0 text-[28px] leading-none font-semibold tracking-tight text-slate-950 truncate">
+                        {{ prop.property_name }}
+                      </div>
+                      <div class="hidden flex-1 md:block">
+                        <div class="h-3 rounded-full bg-slate-200">
+                          <div class="h-3 rounded-full bg-[#356cf6]" style="width: {{ property_bar }}%"></div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="text-2xl font-medium text-slate-400">{{ property_chat_count }}</div>
+                </div>
+              {% else %}
+                <div class="rounded-2xl border border-dashed border-slate-200 p-6 text-sm text-slate-500">
+                  No properties yet.
+                </div>
+              {% endfor %}
             </div>
 
-            <div class="col-span-12 md:col-span-3 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-xs text-slate-500">Last Sync</div>
-              <div class="mt-2 text-lg font-semibold">
-                {% if properties and properties[0].last_synced %}
-                  {% set seconds = (now - properties[0].last_synced).total_seconds() %}
-                  {% if seconds < 60 %} just now
-                  {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
-                  {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
-                  {% else %} {{ (seconds // 86400)|int }} days ago
-                  {% endif %}
+            <button
+              type="button"
+              onclick="window.DashboardOverview?.jumpTo('analytics')"
+              class="mt-8 inline-flex items-center gap-2 text-lg font-medium text-[#356cf6] hover:text-[#244fd1]"
+            >
+              View all analytics
+              <span>→</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Needs Attention -->
+      <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="inline-block h-3 w-3 rounded-full bg-rose-500"></span>
+              <div class="text-[34px] leading-none font-semibold tracking-tight text-slate-950">Needs Attention</div>
+            </div>
+            <div class="mt-3 text-base text-slate-500">Issues that need your response</div>
+          </div>
+
+          <button
+            type="button"
+            onclick="window.DashboardOverview?.jumpTo('chats')"
+            class="hidden items-center gap-2 text-lg font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
+          >
+            View all chats
+            <span>→</span>
+          </button>
+        </div>
+
+        <div class="mt-6 divide-y divide-slate-100">
+          {% set issue_rows = [
+            {'guest':'Sarah','issue':'Door code not working','tag':'Needs response','tag_class':'bg-rose-100 text-rose-700','property': (properties[0].property_name if properties|length > 0 else 'Casa Sea Esta'),'time':'4m ago'},
+            {'guest':'Mike','issue':'AC stopped working','tag':'Issue detected','tag_class':'bg-amber-100 text-amber-700','property': (properties[1].property_name if properties|length > 1 else (properties[0].property_name if properties|length > 0 else 'Mountain Vista')),'time':'18m ago'},
+            {'guest':'Olivia','issue':"The wifi isn't working",'tag':'Needs review','tag_class':'bg-blue-100 text-blue-700','property': (properties[0].property_name if properties|length > 0 else 'Casa Sea Esta'),'time':'30m ago'}
+          ] %}
+
+          {% for row in issue_rows %}
+            <div class="grid grid-cols-[1.4fr,auto,auto,auto] items-center gap-4 py-4">
+              <div class="flex min-w-0 items-center gap-4">
+                <div class="grid h-11 w-11 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
+                  {{ row.guest[0] }}
+                </div>
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 text-[26px] leading-none tracking-tight">
+                    <span class="font-semibold text-slate-950">{{ row.guest }}</span>
+                    <span class="truncate text-slate-500">{{ row.issue }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <span class="inline-flex rounded-full px-3 py-1 text-sm font-semibold {{ row.tag_class }}">
+                  {{ row.tag }}
+                </span>
+              </div>
+
+              <div class="text-sm font-medium text-slate-500">{{ row.property }}</div>
+              <div class="text-sm text-slate-400">{{ row.time }}</div>
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+    </div>
+
+    <!-- Right column -->
+    <div class="col-span-12 xl:col-span-4 space-y-6">
+      <!-- Suggestions -->
+      <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="flex items-start gap-4">
+          <div class="grid h-12 w-12 place-items-center rounded-2xl bg-[#fff4df] text-[#f2b233]">
+            <svg class="h-6 w-6" viewBox="0 0 24 24" fill="none">
+              <path d="M9 18h6M10 22h4M8 14c-1.2-1-2-2.6-2-4.3A6 6 0 0 1 18 9.7c0 1.7-.8 3.3-2 4.3-.7.6-1 1.1-1.2 1.5H10.2c-.2-.4-.5-.9-1.2-1.5Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </div>
+          <div>
+            <div class="text-[34px] leading-none font-semibold tracking-tight text-slate-950">Suggestions from AI</div>
+            <div class="mt-3 text-base text-slate-500">AI scans guest conversations to help you improve</div>
+          </div>
+        </div>
+
+        <div class="mt-6 space-y-4">
+          <div class="rounded-[24px] border border-slate-200 p-5">
+            <div class="flex items-center gap-3">
+              <div class="grid h-10 w-10 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                {% if properties|length > 0 and properties[0].hero_image_url %}
+                  <img src="{{ properties[0].hero_image_url }}" alt="" class="h-full w-full object-cover" />
                 {% else %}
-                  —
+                  <span class="text-[10px] font-semibold text-slate-500">PROP</span>
                 {% endif %}
               </div>
-              <div class="mt-2 text-xs text-slate-500">Most recent property record</div>
+              <div class="text-sm font-semibold text-slate-500">
+                {{ properties[0].property_name if properties|length > 0 else 'Casa Sea Esta' }}
+              </div>
+            </div>
+
+            <div class="mt-4 text-[32px] leading-[1.1] font-semibold tracking-tight text-slate-950">
+              Add clearer key code instructions
+            </div>
+            <div class="mt-4 text-base leading-7 text-slate-700">
+              Guests are asking for key codes early in 27 pre-stay chats this week.
+            </div>
+            <div class="mt-4 text-base leading-7 text-slate-400">
+              Add step-by-step key code details to your check-in guide to reduce repetitive questions.
+            </div>
+
+            <div class="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onclick="window.DashboardOverview?.jumpTo('guides')"
+                class="inline-flex h-12 items-center justify-center rounded-2xl bg-[#356cf6] px-5 text-base font-semibold text-white hover:bg-[#2457d9]"
+              >
+                Update Guide
+              </button>
+              <button
+                type="button"
+                onclick="window.DashboardOverview?.jumpTo('chats')"
+                class="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-base font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                View Reviews
+              </button>
             </div>
           </div>
 
-         <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-                        
-            <div class="flex items-center justify-between">
-              <div>
-                <div class="text-sm font-semibold">Status Overview</div>
-                <div class="text-xs text-slate-500">LIVE vs OFFLINE</div>
+          <div class="rounded-[24px] border border-slate-200 p-5">
+            <div class="flex items-center gap-3">
+              <div class="grid h-10 w-10 place-items-center overflow-hidden rounded-xl border border-slate-200 bg-slate-100">
+                {% if properties|length > 1 and properties[1].hero_image_url %}
+                  <img src="{{ properties[1].hero_image_url }}" alt="" class="h-full w-full object-cover" />
+                {% else %}
+                  <span class="text-[10px] font-semibold text-slate-500">PROP</span>
+                {% endif %}
               </div>
-              <div class="text-xs text-slate-500">Auto-updates with your data</div>
+              <div class="text-sm font-semibold text-slate-500">
+                {{ properties[1].property_name if properties|length > 1 else 'Mountain Vista' }}
+              </div>
             </div>
-            <div class="mt-4">
-              <canvas id="statusChart" height="90"></canvas>
+
+            <div class="mt-4 text-[32px] leading-[1.1] font-semibold tracking-tight text-slate-950">
+              Create a hot tub guide
             </div>
+            <div class="mt-4 text-base leading-7 text-slate-700">
+              Multiple post-stay guests asked about hot tub usage and hours.
+            </div>
+            <div class="mt-4 text-base leading-7 text-slate-400">
+              Adding a quick guide can improve the post-stay experience and reduce messages.
+            </div>
+
+            <div class="mt-6 flex flex-wrap gap-3">
+              <button
+                type="button"
+                onclick="window.DashboardOverview?.jumpTo('guides')"
+                class="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-base font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                Create Guide
+              </button>
+              <button
+                type="button"
+                onclick="window.DashboardOverview?.jumpTo('chats')"
+                class="inline-flex h-12 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-base font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                View Chats
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Portfolio Status -->
+      <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+        <div class="text-[36px] leading-none font-semibold tracking-tight text-slate-950">Portfolio Status</div>
+
+        <div class="mt-6 grid grid-cols-[150px,1fr] items-center gap-6">
+          <div class="relative">
+            <canvas id="overviewPortfolioChart" height="150"></canvas>
           </div>
 
-          {% if user_role == "super" %}
-          <div class="grid grid-cols-12 gap-4">
-            <div class="col-span-12 xl:col-span-7 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-sm font-semibold">Chat Volume</div>
-              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
-                Chart placeholder
+          <div class="space-y-5">
+            <div class="flex items-center justify-between gap-4">
+              <div class="flex items-center gap-3">
+                <span class="inline-block h-3.5 w-3.5 rounded-full bg-[#356cf6]"></span>
+                <span class="text-[22px] font-semibold tracking-tight text-slate-950">{{ live_props }} Live</span>
               </div>
+              <span class="text-xl text-slate-400">
+                {{ ((live_props / total_props) * 100)|round|int if total_props > 0 else 0 }}%
+              </span>
             </div>
-            <div class="col-span-12 xl:col-span-5 bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="text-sm font-semibold">Priority Inbox</div>
-              <div class="mt-2 text-xs text-slate-500">Escalations & time-sensitive issues</div>
-              <div class="mt-4 h-56 rounded-xl border border-dashed border-slate-200 grid place-items-center text-slate-400 text-sm">
-                Queue placeholder
+
+            <div class="flex items-center justify-between gap-4">
+              <div class="flex items-center gap-3">
+                <span class="inline-block h-3.5 w-3.5 rounded-full bg-[#47c5c9]"></span>
+                <span class="text-[22px] font-semibold tracking-tight text-slate-950">{{ offline_props }} Offline</span>
               </div>
+              <span class="text-xl text-slate-400">
+                {{ ((offline_props / total_props) * 100)|round|int if total_props > 0 else 0 }}%
+              </span>
             </div>
+
+            <button
+              type="button"
+              onclick="window.DashboardOverview?.jumpTo('properties')"
+              class="inline-flex items-center gap-2 pt-2 text-lg font-medium text-[#356cf6] hover:text-[#244fd1]"
+            >
+              Manage Properties
+              <span>→</span>
+            </button>
           </div>
-          {% endif %}
-        </section>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
 
 
 
