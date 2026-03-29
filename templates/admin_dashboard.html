@@ -98,6 +98,72 @@
       @apply h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm;
     }
 
+   .card {
+    @apply shadow-[0_10px_30px_rgba(15,23,42,0.04)];
+  }
+
+  .hairline {
+    box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.04);
+  }
+       .nav-item {
+      @apply relative flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-medium text-slate-600 transition-all duration-200;
+    }
+
+    .nav-item::before {
+      content: "";
+      @apply absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-transparent transition-all duration-200;
+    }
+
+    .nav-item:hover {
+      @apply bg-slate-100 text-slate-950;
+    }
+
+    .nav-item.active {
+      @apply bg-[#eef4ff] text-[#356cf6] shadow-[0_6px_20px_rgba(53,108,246,0.10)];
+    }
+
+    .nav-item.active::before {
+      @apply bg-[#356cf6];
+      box-shadow: 0 0 16px rgba(53, 108, 246, 0.35);
+    }
+
+    .nav-icon-wrap {
+      @apply grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-600 transition-all duration-200;
+    }
+
+    .nav-item:hover .nav-icon-wrap {
+      @apply border-slate-300 bg-white text-slate-900;
+    }
+
+    .nav-item.active .nav-icon-wrap {
+      @apply border-[#cddcff] bg-white text-[#356cf6];
+      box-shadow: 0 8px 24px rgba(53, 108, 246, 0.10);
+    }
+
+    .nav-item-logout {
+      @apply text-rose-700;
+    }
+
+    .nav-item-logout .nav-icon-wrap {
+      @apply text-rose-600;
+    }
+
+    .nav-item-logout:hover {
+      @apply bg-rose-50 text-rose-700;
+    }
+
+    .nav-item-logout:hover .nav-icon-wrap {
+      @apply border-rose-200 bg-white text-rose-600;
+    }
+
+   .sidebar-footer-card {
+      @apply transition-all duration-200;
+    }
+
+    .sidebar-footer-card:hover {
+      @apply shadow-md border-slate-300;
+    }
+
    
     
   }
@@ -179,73 +245,7 @@
     display: block;
   }
 
-   @layer components {
-  .card {
-    @apply shadow-[0_10px_30px_rgba(15,23,42,0.04)];
-  }
-
-  .hairline {
-    box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.04);
-  }
-       .nav-item {
-      @apply relative flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-medium text-slate-600 transition-all duration-200;
-    }
-
-    .nav-item::before {
-      content: "";
-      @apply absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-transparent transition-all duration-200;
-    }
-
-    .nav-item:hover {
-      @apply bg-slate-100 text-slate-950;
-    }
-
-    .nav-item.active {
-      @apply bg-[#eef4ff] text-[#356cf6] shadow-[0_6px_20px_rgba(53,108,246,0.10)];
-    }
-
-    .nav-item.active::before {
-      @apply bg-[#356cf6];
-      box-shadow: 0 0 16px rgba(53, 108, 246, 0.35);
-    }
-
-    .nav-icon-wrap {
-      @apply grid h-10 w-10 shrink-0 place-items-center rounded-2xl border border-slate-200 bg-slate-100 text-slate-600 transition-all duration-200;
-    }
-
-    .nav-item:hover .nav-icon-wrap {
-      @apply border-slate-300 bg-white text-slate-900;
-    }
-
-    .nav-item.active .nav-icon-wrap {
-      @apply border-[#cddcff] bg-white text-[#356cf6];
-      box-shadow: 0 8px 24px rgba(53, 108, 246, 0.10);
-    }
-
-    .nav-item-logout {
-      @apply text-rose-700;
-    }
-
-    .nav-item-logout .nav-icon-wrap {
-      @apply text-rose-600;
-    }
-
-    .nav-item-logout:hover {
-      @apply bg-rose-50 text-rose-700;
-    }
-
-    .nav-item-logout:hover .nav-icon-wrap {
-      @apply border-rose-200 bg-white text-rose-600;
-    }
-
-   .sidebar-footer-card {
-      @apply transition-all duration-200;
-    }
-
-    .sidebar-footer-card:hover {
-      @apply shadow-md border-slate-300;
-    }
-}
+  
 </style>
 
 </head>
