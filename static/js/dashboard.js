@@ -1,94 +1,269 @@
+(function () {
+  "use strict";
 
-  function openInsights() {
-    document.getElementById("insightsPanel")?.classList.remove("hidden");
+  // -----------------------------------
+  // Bootstrap / config
+  // -----------------------------------
+  function getBoot() {
+    const el = document.getElementById("dashboard-bootstrap");
+    if (!el) return {};
+    try {
+      return JSON.parse(el.textContent || "{}");
+    } catch (err) {
+      console.error("Invalid dashboard bootstrap JSON", err);
+      return {};
+    }
   }
 
-  function closeInsights() {
-    document.getElementById("insightsPanel")?.classList.add("hidden");
+  const BOOT = getBoot();
+
+  // -----------------------------------
+  // Small helpers
+  // -----------------------------------
+  function $(id) {
+    return document.getElementById(id);
   }
 
-  function openGuideSuggestion(target) {
-    closeInsights();
+  function qs(selector, root = document) {
+    return root.querySelector(selector);
+  }
 
-    const guidesViewBtn = document.querySelector('[data-view="guides"]');
-    if (guidesViewBtn) guidesViewBtn.click();
+  function qsa(selector, root = document) {
+    return Array.from(root.querySelectorAll(selector));
+  }
 
-    setTimeout(() => {
-      if (typeof Guides !== "undefined" && typeof Guides.openNew === "function") {
-        Guides.openNew();
+  function safeJson(response) {
+    return response.json().catch(() => ({}));
+  }
+
+  function centsToUsd(cents) {
+    const n = Number(cents || 0) / 100;
+    return n.toLocaleString(undefined, {
+      style: "currency",
+      currency: "USD",
+    });
+  }
+
+  function downloadCSV(filename, csvText) {
+    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
+
+  function escapeHtml(value) {
+    return String(value ?? "").replace(/[&<>"']/g, (char) => {
+      const map = {
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      };
+      return map[char];
+    });
+  }
+
+  // -----------------------------------
+  // Global functions used by inline HTML
+  // -----------------------------------
+  window.openInsights = function openInsights() {
+    $("insightsPanel")?.classList.remove("hidden");
+  };
+
+  window.closeInsights = function closeInsights() {
+    $("insightsPanel")?.classList.add("hidden");
+  };
+
+  window.openGuideSuggestion = function openGuideSuggestion(target) {
+    window.closeInsights();
+
+    const guidesBtn = qs('[data-view="guides"]');
+    if (guidesBtn) guidesBtn.click();
+
+    window.setTimeout(() => {
+      if (window.Guides && typeof window.Guides.openNew === "function") {
+        window.Guides.openNew();
       } else {
-        alert("Guide editor coming soon.");
+        window.alert("Guide editor coming soon.");
       }
     }, 150);
-  }
+  };
 
-  function openDraftSuggestion(target) {
+  window.openDraftSuggestion = function openDraftSuggestion(target) {
     const drafts = {
       checkin: {
         title: "Suggested check-in instructions",
-        body:
-`Check-in is from 4:00 PM.
+        body: `Check-in is from 4:00 PM.
 
 1. Park in the designated area.
 2. Go to the main entrance.
 3. Enter the door code sent before arrival.
 4. Inside, you'll find your welcome guide and WiFi details.
 
-If you have trouble entering, message us and we'll help right away.`
+If you have trouble entering, message us and we'll help right away.`,
       },
       wifi: {
         title: "Suggested WiFi section",
-        body:
-`WiFi Network: [ADD NETWORK NAME]
+        body: `WiFi Network: [ADD NETWORK NAME]
 WiFi Password: [ADD PASSWORD]
 
-If you have trouble connecting, restart WiFi on your device and try again.`
+If you have trouble connecting, restart WiFi on your device and try again.`,
       },
       parking: {
         title: "Suggested parking instructions",
-        body:
-`Parking is available in the designated area only.
+        body: `Parking is available in the designated area only.
 
 - Please park in [ADD LOCATION]
 - Do not block neighboring driveways
-- If arriving late, use the marked guest space closest to the entrance`
+- If arriving late, use the marked guest space closest to the entrance`,
       },
       checkout: {
         title: "Suggested checkout policy",
-        body:
-`Checkout is at 10:00 AM unless otherwise approved.
+        body: `Checkout is at 10:00 AM unless otherwise approved.
 
 Before leaving:
 - Lock all doors
 - Place used towels in the bathroom
 - Start the dishwasher if needed
-- Message us once you've checked out`
+- Message us once you've checked out`,
       },
       general: {
         title: "Suggested guide update",
-        body:
-`Review the areas guests ask about most often and make key information easier to find in your guide.`
-      }
+        body: `Review the areas guests ask about most often and make key information easier to find in your guide.`,
+      },
     };
 
     const draft = drafts[target];
     if (!draft) {
-      alert("Draft generator coming soon.");
+      window.alert("Draft generator coming soon.");
       return;
     }
 
-    alert(draft.title + "\\n\\n" + draft.body);
+    window.alert(`${draft.title}\n\n${draft.body}`);
+  };
+
+  window.updateChatsNavBadge = function updateChatsNavBadge(count) {
+    const badge = $("chats-nav-badge");
+    if (!badge) return;
+
+    const n = Number(count) || 0;
+    badge.textContent = String(n);
+    badge.classList.toggle("hidden", n <= 0);
+  };
+
+  // -----------------------------------
+  // View navigation
+  // -----------------------------------
+  function initViewNavigation() {
+    const pageTitle = $("page-title");
+    const pageSubtitle = $("page-subtitle");
+
+    const titles = {
+      overview: ["Overview", "Your portfolio at a glance"],
+      chats: ["Chats", "Guest conversations and issues"],
+      analytics: ["Analytics", "Performance across your portfolio"],
+      properties: ["Properties", "Manage listing status and configuration"],
+      guides: ["Guides", "Guest-facing content and instructions"],
+      upgrades: ["Upgrades", "Manage paid add-ons and offerings"],
+      pmcs: ["PMCs", "Property management companies"],
+      files: ["Configs & Manuals", "Central file management"],
+      payouts: ["Payouts", "Revenue and transfers"],
+      admin_payouts: ["Revenue", "HostScout platform revenue"],
+      settings: ["Settings", "Workspace and account controls"],
+    };
+
+    qsa("[data-view]").forEach((btn) => {
+      btn.addEventListener("click", () => {
+        const view = btn.getAttribute("data-view");
+        if (!view) return;
+
+        qsa("[data-view]").forEach((item) => {
+          item.classList.remove("active");
+          item.setAttribute("aria-current", "false");
+        });
+
+        btn.classList.add("active");
+        btn.setAttribute("aria-current", "page");
+
+        qsa(".view").forEach((panel) => {
+          panel.classList.add("hidden");
+          panel.classList.remove("fade-in");
+        });
+
+        const activePanel = $(`view-${view}`);
+        if (activePanel) {
+          activePanel.classList.remove("hidden");
+          activePanel.classList.add("fade-in");
+        }
+
+        if (pageTitle && titles[view]) pageTitle.textContent = titles[view][0];
+        if (pageSubtitle && titles[view]) pageSubtitle.textContent = titles[view][1];
+      });
+    });
   }
 
+  // -----------------------------------
+  // Sidebar collapse
+  // -----------------------------------
+  function initSidebar() {
+    const sidebar = $("sidebar");
+    const toggleBtn = $("sidebar-toggle");
+    if (!sidebar || !toggleBtn) return;
 
-  (function () {
-    const selectAll = document.getElementById("chat-select-all");
-    const batchBar = document.getElementById("chatBatchBar");
-    const selectedCount = document.getElementById("chatSelectedCount");
-    const deleteBtn = document.getElementById("btnChatDelete");
+    function setCollapsed(isCollapsed) {
+      sidebar.classList.toggle("w-72", !isCollapsed);
+      sidebar.classList.toggle("w-20", isCollapsed);
+
+      qsa(".sidebar-label").forEach((el) => {
+        el.classList.toggle("hidden", isCollapsed);
+      });
+
+      qsa(".nav-item").forEach((item) => {
+        item.classList.toggle("justify-center", isCollapsed);
+        item.classList.toggle("px-4", !isCollapsed);
+        item.classList.toggle("px-0", isCollapsed);
+      });
+
+      qsa(".nav-icon-wrap").forEach((icon) => {
+        icon.classList.toggle("mx-auto", isCollapsed);
+      });
+
+      const svg = toggleBtn.querySelector("svg");
+      if (svg) {
+        svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
+        svg.style.transition = "transform 200ms ease";
+      }
+
+      window.localStorage.setItem(
+        "dashboard_sidebar_collapsed",
+        isCollapsed ? "1" : "0"
+      );
+    }
+
+    const saved = window.localStorage.getItem("dashboard_sidebar_collapsed") === "1";
+    setCollapsed(saved);
+
+    toggleBtn.addEventListener("click", () => {
+      const isCollapsed = sidebar.classList.contains("w-20");
+      setCollapsed(!isCollapsed);
+    });
+  }
+
+  // -----------------------------------
+  // Chat batch actions
+  // -----------------------------------
+  function initChatBatchActions() {
+    const selectAll = $("chat-select-all");
+    const batchBar = $("chatBatchBar");
+    const selectedCount = $("chatSelectedCount");
+    const deleteBtn = $("btnChatDelete");
 
     function getChatCheckboxes() {
-      return Array.from(document.querySelectorAll(".chat-select"));
+      return qsa(".chat-select");
     }
 
     function getSelectedIds() {
@@ -125,20 +300,17 @@ Before leaving:
     });
 
     document.addEventListener("change", (e) => {
-      if (e.target.matches(".chat-select")) {
+      if (e.target instanceof Element && e.target.matches(".chat-select")) {
         updateBatchBar();
       }
     });
-
 
     deleteBtn?.addEventListener("click", async () => {
       const ids = getSelectedIds();
       if (!ids.length) return;
 
-      const ok = confirm(
-        ids.length === 1
-          ? "Delete this chat?"
-          : `Delete ${ids.length} chats?`
+      const ok = window.confirm(
+        ids.length === 1 ? "Delete this chat?" : `Delete ${ids.length} chats?`
       );
       if (!ok) return;
 
@@ -147,200 +319,281 @@ Before leaving:
       try {
         const res = await fetch("/admin/chats/delete", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           credentials: "include",
           body: JSON.stringify({ session_ids: ids }),
         });
 
-        const data = await res.json().catch(() => ({}));
+        const data = await safeJson(res);
 
         if (!res.ok) {
-          alert(data.detail || "Failed to delete chats.");
+          window.alert(data.detail || "Failed to delete chats.");
           return;
         }
 
         window.location.reload();
       } catch (err) {
-        alert("Something went wrong while deleting chats.");
+        console.error(err);
+        window.alert("Something went wrong while deleting chats.");
       } finally {
         deleteBtn.disabled = false;
       }
     });
 
     updateBatchBar();
-  })();
-
-  function centsToUsd(cents) {
-    const n = Number(cents || 0) / 100;
-    return n.toLocaleString(undefined, { style: "currency", currency: "USD" });
   }
 
-  function downloadCSV(filename, csvText) {
-    const blob = new Blob([csvText], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(url);
+  // -----------------------------------
+  // Single chat delete
+  // -----------------------------------
+  function initChatDetailDelete() {
+    document.addEventListener("click", async (e) => {
+      const btn = e.target instanceof Element
+        ? e.target.closest('[data-role="delete-chat-btn"]')
+        : null;
+      if (!btn) return;
+
+      const panel = qs("[data-chat-panel]");
+      const sessionId =
+        panel?.getAttribute("data-session-id") ||
+        panel?.getAttribute("data-chat-panel");
+
+      if (!sessionId) {
+        window.alert("Could not find chat ID.");
+        return;
+      }
+
+      const ok = window.confirm("Delete this chat?");
+      if (!ok) return;
+
+      btn.disabled = true;
+
+      try {
+        const res = await fetch("/admin/chats/delete", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ session_ids: [sessionId] }),
+        });
+
+        const data = await safeJson(res);
+
+        if (!res.ok) {
+          window.alert(data.detail || "Failed to delete chat.");
+          return;
+        }
+
+        window.location.href = "/admin/dashboard?view=chats";
+      } catch (err) {
+        console.error(err);
+        window.alert("Something went wrong while deleting the chat.");
+      } finally {
+        btn.disabled = false;
+      }
+    });
   }
 
-  // ---------------------------
-  // SUPER: HostScout revenue
-  // ---------------------------
-  async function runHostScoutRevenue() {
-    const start = document.getElementById("hs-rev-start")?.value || "";
-    const end = document.getElementById("hs-rev-end")?.value || "";
+  // -----------------------------------
+  // Revenue reports
+  // -----------------------------------
+  function initRevenueReports() {
+    const hsRunBtn = $("hs-rev-run");
+    const hsCsvBtn = $("hs-rev-csv");
+    const pmcRunBtn = $("pmc-pay-run");
+    const pmcCsvBtn = $("pmc-pay-csv");
 
-    const qs = new URLSearchParams();
-    if (start) qs.set("start", start);
-    if (end) qs.set("end", end);
+    async function runHostScoutRevenue() {
+      const start = $("hs-rev-start")?.value || "";
+      const end = $("hs-rev-end")?.value || "";
 
-    const res = await fetch(`/admin/reports/hostscout-revenue?${qs.toString()}`, {
-      credentials: "include",
-      headers: { "Accept": "application/json" }
+      const qsObj = new URLSearchParams();
+      if (start) qsObj.set("start", start);
+      if (end) qsObj.set("end", end);
+
+      const res = await fetch(`/admin/reports/hostscout-revenue?${qsObj.toString()}`, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+
+      const data = await safeJson(res);
+      if (!res.ok) {
+        window.alert(data?.detail || "Revenue report failed");
+        return;
+      }
+
+      $("hs-gross").textContent = centsToUsd(data.summary.gross_cents);
+      $("hs-fee").textContent = centsToUsd(data.summary.hostscout_fee_cents);
+      $("hs-net").textContent = centsToUsd(data.summary.net_to_pmc_cents);
+      $("hs-count").textContent = `${data.summary.paid_count} / ${data.summary.refunded_count}`;
+
+      const tbody = $("hs-rows");
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+
+      for (const r of data.by_pmc || []) {
+        const name =
+          r.pmc && (r.pmc.name || r.pmc.email)
+            ? r.pmc.name || r.pmc.email
+            : `PMC ${r.pmc_id}`;
+
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="py-2 pr-3 font-semibold">${escapeHtml(name)}</td>
+          <td class="py-2 pr-3">${centsToUsd(r.gross_cents)}</td>
+          <td class="py-2 pr-3">${centsToUsd(r.hostscout_fee_cents)}</td>
+          <td class="py-2 pr-3">${centsToUsd(r.net_to_pmc_cents)}</td>
+          <td class="py-2 pr-3">${Number(r.paid_count || 0)}</td>
+          <td class="py-2 pr-3">${Number(r.refunded_count || 0)}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      window.__hs_rev_latest = data;
+    }
+
+    async function runPmcPayouts() {
+      const start = $("pmc-pay-start")?.value || "";
+      const end = $("pmc-pay-end")?.value || "";
+
+      const qsObj = new URLSearchParams();
+      if (start) qsObj.set("start", start);
+      if (end) qsObj.set("end", end);
+
+      const res = await fetch(`/admin/reports/pmc-payouts?${qsObj.toString()}`, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      });
+
+      const data = await safeJson(res);
+      if (!res.ok) {
+        window.alert(data?.detail || "PMC payouts report failed");
+        return;
+      }
+
+      $("pmc-gross").textContent = centsToUsd(data.summary.gross_cents);
+      $("pmc-fee").textContent = centsToUsd(data.summary.hostscout_fee_cents);
+      $("pmc-net").textContent = centsToUsd(data.summary.net_to_pmc_cents);
+      $("pmc-count").textContent = `${data.summary.paid_count} / ${data.summary.refunded_count}`;
+
+      const tbody = $("pmc-pay-rows");
+      if (!tbody) return;
+
+      tbody.innerHTML = "";
+
+      for (const r of data.rows || []) {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+          <td class="py-2 pr-3">${escapeHtml(r.paid_at || "—")}</td>
+          <td class="py-2 pr-3">${escapeHtml(r.property_name || `Property ${r.property_id ?? ""}`)}</td>
+          <td class="py-2 pr-3">${escapeHtml(r.upgrade_title || `Upgrade ${r.upgrade_id ?? ""}`)}</td>
+          <td class="py-2 pr-3">${centsToUsd(r.amount_cents)}</td>
+          <td class="py-2 pr-3">${centsToUsd(r.platform_fee_cents)}</td>
+          <td class="py-2 pr-3">${centsToUsd((r.amount_cents || 0) - (r.platform_fee_cents || 0))}</td>
+          <td class="py-2 pr-3">${escapeHtml(r.status || "—")}</td>
+        `;
+        tbody.appendChild(tr);
+      }
+
+      window.__pmc_pay_latest = data;
+    }
+
+    hsRunBtn?.addEventListener("click", runHostScoutRevenue);
+
+    hsCsvBtn?.addEventListener("click", () => {
+      const data = window.__hs_rev_latest;
+      if (!data?.by_pmc) {
+        window.alert("Run the report first.");
+        return;
+      }
+
+      const header = [
+        "pmc_id",
+        "pmc_name",
+        "gross_cents",
+        "hostscout_fee_cents",
+        "net_to_pmc_cents",
+        "paid_count",
+        "refunded_count",
+      ];
+      const lines = [header.join(",")];
+
+      for (const r of data.by_pmc) {
+        const pmcName =
+          r.pmc && (r.pmc.name || r.pmc.email)
+            ? String(r.pmc.name || r.pmc.email).replaceAll('"', '""')
+            : "";
+
+        lines.push([
+          r.pmc_id ?? "",
+          `"${pmcName}"`,
+          r.gross_cents ?? 0,
+          r.hostscout_fee_cents ?? 0,
+          r.net_to_pmc_cents ?? 0,
+          r.paid_count ?? 0,
+          r.refunded_count ?? 0,
+        ].join(","));
+      }
+
+      downloadCSV(
+        `hostscout_revenue_${data.range.start}_to_${data.range.end}.csv`,
+        lines.join("\n")
+      );
     });
 
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { alert(data?.detail || "Revenue report failed"); return; }
+    pmcRunBtn?.addEventListener("click", runPmcPayouts);
 
-    document.getElementById("hs-gross").textContent = centsToUsd(data.summary.gross_cents);
-    document.getElementById("hs-fee").textContent = centsToUsd(data.summary.hostscout_fee_cents);
-    document.getElementById("hs-net").textContent = centsToUsd(data.summary.net_to_pmc_cents);
-    document.getElementById("hs-count").textContent = `${data.summary.paid_count} / ${data.summary.refunded_count}`;
+    pmcCsvBtn?.addEventListener("click", () => {
+      const data = window.__pmc_pay_latest;
+      if (!data?.rows) {
+        window.alert("Run the report first.");
+        return;
+      }
 
-    const tbody = document.getElementById("hs-rows");
-    tbody.innerHTML = "";
+      const header = [
+        "paid_at",
+        "property_id",
+        "property_name",
+        "upgrade_id",
+        "upgrade_title",
+        "amount_cents",
+        "platform_fee_cents",
+        "net_cents",
+        "status",
+      ];
+      const lines = [header.join(",")];
 
-    for (const r of data.by_pmc || []) {
-      const name = (r.pmc && (r.pmc.name || r.pmc.email)) ? (r.pmc.name || r.pmc.email) : `PMC ${r.pmc_id}`;
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="py-2 pr-3 font-semibold">${name}</td>
-        <td class="py-2 pr-3">${centsToUsd(r.gross_cents)}</td>
-        <td class="py-2 pr-3">${centsToUsd(r.hostscout_fee_cents)}</td>
-        <td class="py-2 pr-3">${centsToUsd(r.net_to_pmc_cents)}</td>
-        <td class="py-2 pr-3">${r.paid_count}</td>
-        <td class="py-2 pr-3">${r.refunded_count}</td>
-      `;
-      tbody.appendChild(tr);
-    }
+      for (const r of data.rows) {
+        const propName = String(r.property_name || "").replaceAll('"', '""');
+        const upName = String(r.upgrade_title || "").replaceAll('"', '""');
 
-    window.__hs_rev_latest = data;
-  }
+        lines.push([
+          r.paid_at || "",
+          r.property_id ?? "",
+          `"${propName}"`,
+          r.upgrade_id ?? "",
+          `"${upName}"`,
+          r.amount_cents ?? 0,
+          r.platform_fee_cents ?? 0,
+          (r.amount_cents || 0) - (r.platform_fee_cents || 0),
+          r.status || "",
+        ].join(","));
+      }
 
-  document.getElementById("hs-rev-run")?.addEventListener("click", runHostScoutRevenue);
-  document.getElementById("hs-rev-csv")?.addEventListener("click", () => {
-    const data = window.__hs_rev_latest;
-    if (!data?.by_pmc) return alert("Run the report first.");
-
-    const header = ["pmc_id","pmc_name","gross_cents","hostscout_fee_cents","net_to_pmc_cents","paid_count","refunded_count"];
-    const lines = [header.join(",")];
-
-    for (const r of data.by_pmc) {
-      const pmcName = (r.pmc && (r.pmc.name || r.pmc.email)) ? String(r.pmc.name || r.pmc.email).replaceAll('"','""') : "";
-      lines.push([
-        r.pmc_id ?? "",
-        `"${pmcName}"`,
-        r.gross_cents ?? 0,
-        r.hostscout_fee_cents ?? 0,
-        r.net_to_pmc_cents ?? 0,
-        r.paid_count ?? 0,
-        r.refunded_count ?? 0
-      ].join(","));
-    }
-
-    downloadCSV(`hostscout_revenue_${data.range.start}_to_${data.range.end}.csv`, lines.join("\n"));
-  });
-
-  // ---------------------------
-  // PMC: payouts (PMC only)
-  // NOTE: endpoint name below — see note at bottom
-  // ---------------------------
-  async function runPmcPayouts() {
-    const start = document.getElementById("pmc-pay-start")?.value || "";
-    const end = document.getElementById("pmc-pay-end")?.value || "";
-
-    const qs = new URLSearchParams();
-    if (start) qs.set("start", start);
-    if (end) qs.set("end", end);
-
-    const res = await fetch(`/admin/reports/pmc-payouts?${qs.toString()}`, {
-      credentials: "include",
-      headers: { "Accept": "application/json" }
+      downloadCSV(
+        `pmc_payouts_${data.range.start}_to_${data.range.end}.csv`,
+        lines.join("\n")
+      );
     });
-
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) { alert(data?.detail || "PMC payouts report failed"); return; }
-
-    document.getElementById("pmc-gross").textContent = centsToUsd(data.summary.gross_cents);
-    document.getElementById("pmc-fee").textContent = centsToUsd(data.summary.hostscout_fee_cents);
-    document.getElementById("pmc-net").textContent = centsToUsd(data.summary.net_to_pmc_cents);
-    document.getElementById("pmc-count").textContent = `${data.summary.paid_count} / ${data.summary.refunded_count}`;
-
-    const tbody = document.getElementById("pmc-pay-rows");
-    tbody.innerHTML = "";
-
-    for (const r of data.rows || []) {
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td class="py-2 pr-3">${r.paid_at || "—"}</td>
-        <td class="py-2 pr-3">${r.property_name || ("Property " + (r.property_id ?? ""))}</td>
-        <td class="py-2 pr-3">${r.upgrade_title || ("Upgrade " + (r.upgrade_id ?? ""))}</td>
-        <td class="py-2 pr-3">${centsToUsd(r.amount_cents)}</td>
-        <td class="py-2 pr-3">${centsToUsd(r.platform_fee_cents)}</td>
-        <td class="py-2 pr-3">${centsToUsd((r.amount_cents || 0) - (r.platform_fee_cents || 0))}</td>
-        <td class="py-2 pr-3">${r.status || "—"}</td>
-      `;
-      tbody.appendChild(tr);
-    }
-
-    window.__pmc_pay_latest = data;
   }
 
-  document.getElementById("pmc-pay-run")?.addEventListener("click", runPmcPayouts);
-  document.getElementById("pmc-pay-csv")?.addEventListener("click", () => {
-    const data = window.__pmc_pay_latest;
-    if (!data?.rows) return alert("Run the report first.");
-
-    const header = ["paid_at","property_id","property_name","upgrade_id","upgrade_title","amount_cents","platform_fee_cents","net_cents","status"];
-    const lines = [header.join(",")];
-
-    for (const r of data.rows) {
-      const propName = String(r.property_name || "").replaceAll('"','""');
-      const upName = String(r.upgrade_title || "").replaceAll('"','""');
-      lines.push([
-        r.paid_at || "",
-        r.property_id ?? "",
-        `"${propName}"`,
-        r.upgrade_id ?? "",
-        `"${upName}"`,
-        r.amount_cents ?? 0,
-        r.platform_fee_cents ?? 0,
-        (r.amount_cents || 0) - (r.platform_fee_cents || 0),
-        r.status || ""
-      ].join(","));
-    }
-
-    downloadCSV(`pmc_payouts_${data.range.start}_to_${data.range.end}.csv`, lines.join("\n"));
-  });
-
-  // Optional: auto-run when user lands on those tabs (works with your nav JS that toggles views)
-  // You can also call these in your existing "setView()" logic if you have one.
-
-
-
-  // ------------------------------
-  // Tasks → Notifications panel (in-app)
-  // ------------------------------
+  // -----------------------------------
+  // Notifications
+  // -----------------------------------
   window.Notifications = window.Notifications || (function () {
     let all = [];
     let filter = "all";
     let wired = false;
-
-    const $id = (id) => document.getElementById(id);
 
     function fmtTime(iso) {
       if (!iso) return "";
@@ -350,8 +603,9 @@ Before leaving:
     }
 
     function setUnreadBadge() {
-      const badge = $id("tasksNotifUnreadBadge");
+      const badge = $("tasksNotifUnreadBadge");
       if (!badge) return;
+
       const unread = all.filter((n) => !n.is_read).length;
       if (unread > 0) {
         badge.classList.remove("hidden");
@@ -372,21 +626,17 @@ Before leaving:
       const t = String(n.type || "");
       const meta = n.meta || {};
 
-      // If chat assigned, jump to chat
       if (t === "chat_assigned" && meta.chat_session_id) {
-        window.location.href =
-          `/admin/dashboard?view=chats&session_id=${encodeURIComponent(meta.chat_session_id)}`;
+        window.location.href = `/admin/dashboard?view=chats&session_id=${encodeURIComponent(meta.chat_session_id)}`;
         return;
       }
 
-      // If upgrade, jump to upgrades page (or whatever you prefer)
       if (t === "upgrade_purchased") {
-        window.location.href = `/admin/dashboard?view=upgrades`;
+        window.location.href = "/admin/dashboard?view=upgrades";
         return;
       }
 
-      // default fallback
-      window.location.href = `/admin/dashboard?view=tasks`;
+      window.location.href = "/admin/dashboard?view=tasks";
     }
 
     async function markRead(id) {
@@ -396,12 +646,11 @@ Before leaving:
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({}),
       });
-      // even if it errors, we won't hard-fail UI
       return res.ok;
     }
 
     function render() {
-      const list = $id("tasksNotifList");
+      const list = $("tasksNotifList");
       if (!list) return;
 
       const items = applyFilter(all);
@@ -419,29 +668,24 @@ Before leaving:
 
           return `
             <div class="border border-slate-200 bg-white rounded-2xl p-4 mb-3 cursor-pointer hover:bg-slate-50"
-                 data-notif-id="${n.id}">
+                 data-notif-id="${escapeHtml(n.id)}">
               <div class="flex items-start justify-between gap-4">
                 <div class="min-w-0">
                   <div class="font-semibold text-slate-900 flex items-center">
                     ${unreadDot}
-                    <span class="truncate">${(n.title || "Notification")}</span>
+                    <span class="truncate">${escapeHtml(n.title || "Notification")}</span>
                   </div>
-                  ${n.body ? `<div class="text-sm text-slate-600 mt-1">${n.body}</div>` : ""}
-                  <div class="text-xs text-slate-400 mt-2">${n.type || ""}</div>
+                  ${n.body ? `<div class="text-sm text-slate-600 mt-1">${escapeHtml(n.body)}</div>` : ""}
+                  <div class="text-xs text-slate-400 mt-2">${escapeHtml(n.type || "")}</div>
                 </div>
-                <div class="text-xs text-slate-400 whitespace-nowrap">${fmtTime(n.created_at)}</div>
+                <div class="text-xs text-slate-400 whitespace-nowrap">${escapeHtml(fmtTime(n.created_at))}</div>
               </div>
             </div>
           `;
         })
         .join("");
 
-      document.querySelectorAll(".sidebar-label").forEach((el) => {
-  el.classList.toggle("hidden", isCollapsed);
-});
-
-      // click handlers
-      document.querySelectorAll("[data-notif-id]").forEach((row) => {
+      qsa("[data-notif-id]", list).forEach((row) => {
         row.addEventListener("click", async () => {
           const id = row.getAttribute("data-notif-id");
           const n = all.find((x) => String(x.id) === String(id));
@@ -459,17 +703,24 @@ Before leaving:
     }
 
     async function load() {
-      const list = $id("tasksNotifList");
-      if (list) list.innerHTML = `<div class="text-slate-500 text-sm">Loading…</div>`;
+      const list = $("tasksNotifList");
+      if (list) {
+        list.innerHTML = `<div class="text-slate-500 text-sm">Loading…</div>`;
+      }
 
-      const res = await fetch(`/admin/notifications?limit=200`, { credentials: "include" });
-      const data = await res.json().catch(() => ({}));
+      const res = await fetch("/admin/notifications?limit=200", {
+        credentials: "include",
+      });
+
+      const data = await safeJson(res);
 
       if (!res.ok) {
         if (list) {
-          list.innerHTML = `<div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">
-            Failed to load notifications.
-          </div>`;
+          list.innerHTML = `
+            <div class="text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl p-4">
+              Failed to load notifications.
+            </div>
+          `;
         }
         return;
       }
@@ -484,7 +735,10 @@ Before leaving:
       if (!unread.length) return;
 
       await Promise.allSettled(unread.map((n) => markRead(n.id)));
-      all.forEach((n) => (n.is_read = true));
+      all.forEach((n) => {
+        n.is_read = true;
+      });
+
       setUnreadBadge();
       render();
     }
@@ -493,10 +747,10 @@ Before leaving:
       if (wired) return;
       wired = true;
 
-      $id("tasksNotifRefreshBtn")?.addEventListener("click", load);
-      $id("tasksNotifMarkAllReadBtn")?.addEventListener("click", markAllRead);
+      $("tasksNotifRefreshBtn")?.addEventListener("click", load);
+      $("tasksNotifMarkAllReadBtn")?.addEventListener("click", markAllRead);
 
-      document.querySelectorAll(".tasksNotifFilterBtn").forEach((btn) => {
+      qsa(".tasksNotifFilterBtn").forEach((btn) => {
         btn.addEventListener("click", () => {
           filter = btn.getAttribute("data-filter") || "all";
           render();
@@ -504,9 +758,8 @@ Before leaving:
       });
     }
 
-    // ✅ Tasks.refresh() calls this
     function showInTasks(show) {
-      const panel = $id("tasksNotificationsPanel");
+      const panel = $("tasksNotificationsPanel");
       if (!panel) return;
 
       if (show) {
@@ -521,126 +774,18 @@ Before leaving:
     return { showInTasks };
   })();
 
-  document.addEventListener("click", async (e) => {
-    const btn = e.target.closest('[data-role="delete-chat-btn"]');
-    if (!btn) return;
+  // -----------------------------------
+  // DOM ready
+  // -----------------------------------
+  document.addEventListener("DOMContentLoaded", () => {
+    initViewNavigation();
+    initSidebar();
+    initChatBatchActions();
+    initChatDetailDelete();
+    initRevenueReports();
 
-    const panel = document.querySelector("[data-chat-panel]");
-    const sessionId = panel?.getAttribute("data-session-id");
-
-    if (!sessionId) {
-      alert("Could not find chat ID.");
-      return;
-    }
-
-    const ok = confirm("Delete this chat?");
-    if (!ok) return;
-
-    btn.disabled = true;
-
-    try {
-      const res = await fetch("/admin/chats/delete", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        credentials: "include",
-        body: JSON.stringify({ session_ids: [sessionId] }),
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        alert(data.detail || "Failed to delete chat.");
-        return;
-      }
-
-      window.location.href = "/admin/dashboard?view=chats";
-    } catch (err) {
-      alert("Something went wrong while deleting the chat.");
-    } finally {
-      btn.disabled = false;
+    if (BOOT && BOOT.user_role) {
+      window.CONTENT_LOCKED = !!BOOT.is_locked;
     }
   });
-
-  document.querySelectorAll("[data-view]").forEach((btn) => {
-  btn.addEventListener("click", () => {
-    const view = btn.getAttribute("data-view");
-
-    document.querySelectorAll("[data-view]").forEach((item) => {
-      item.classList.remove("active");
-      item.setAttribute("aria-current", "false");
-    });
-
-    btn.classList.add("active");
-    btn.setAttribute("aria-current", "page");
-
-    document.querySelectorAll(".view").forEach((panel) => {
-      panel.classList.add("hidden");
-    });
-
-    const activePanel = document.getElementById(`view-${view}`);
-    if (activePanel) {
-      activePanel.classList.remove("hidden");
-      activePanel.classList.add("fade-in");
-    }
-
-    const pageTitle = document.getElementById("page-title");
-    const pageSubtitle = document.getElementById("page-subtitle");
-
-    const titles = {
-      overview: ["Overview", "Your portfolio at a glance"],
-      chats: ["Chats", "Guest conversations and issues"],
-      analytics: ["Analytics", "Performance across your portfolio"],
-      properties: ["Properties", "Manage listing status and configuration"],
-      guides: ["Guides", "Guest-facing content and instructions"],
-      upgrades: ["Upgrades", "Manage paid add-ons and offerings"],
-      pmcs: ["PMCs", "Property management companies"],
-      files: ["Configs & Manuals", "Central file management"],
-      payouts: ["Payouts", "Revenue and transfers"],
-      admin_payouts: ["Revenue", "HostScout platform revenue"],
-      settings: ["Settings", "Workspace and account controls"]
-    };
-
-    if (pageTitle && titles[view]) pageTitle.textContent = titles[view][0];
-    if (pageSubtitle && titles[view]) pageSubtitle.textContent = titles[view][1];
-  });
-});
-
-  function setCollapsed(isCollapsed) {
-  sidebar.classList.toggle("w-72", !isCollapsed);
-  sidebar.classList.toggle("w-20", isCollapsed);
-
-  labelEls().forEach((el) => el.classList.toggle("hidden", isCollapsed));
-
-  document.querySelectorAll(".nav-item").forEach((item) => {
-    item.classList.toggle("justify-center", isCollapsed);
-    item.classList.toggle("px-4", !isCollapsed);
-    item.classList.toggle("px-0", isCollapsed);
-  });
-
-  document.querySelectorAll(".nav-icon-wrap").forEach((icon) => {
-    icon.classList.toggle("mx-auto", isCollapsed);
-  });
-
-  const svg = toggleBtn.querySelector("svg");
-  if (svg) {
-    svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
-    svg.style.transition = "transform 200ms ease";
-  }
-
-  localStorage.setItem(
-    "dashboard_sidebar_collapsed",
-    isCollapsed ? "1" : "0"
-  );
-}
-
-  function updateChatsNavBadge(count) {
-  const badge = document.getElementById("chats-nav-badge");
-  if (!badge) return;
-
-  const n = Number(count) || 0;
-  badge.textContent = String(n);
-  badge.classList.toggle("hidden", n <= 0);
-}
-
+})();
