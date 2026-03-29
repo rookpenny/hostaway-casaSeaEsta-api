@@ -187,11 +187,13 @@
   .hairline {
     box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.04);
   }
+       .nav-item {
+      @apply relative flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-medium text-slate-600 transition-all duration-200;
+    }
 
-
-
-   .nav-item {
-      @apply flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-medium text-slate-600 transition-all duration-200;
+    .nav-item::before {
+      content: "";
+      @apply absolute left-0 top-1/2 h-8 w-1 -translate-y-1/2 rounded-r-full bg-transparent transition-all duration-200;
     }
 
     .nav-item:hover {
@@ -199,7 +201,12 @@
     }
 
     .nav-item.active {
-      @apply bg-[#eef4ff] text-[#356cf6] shadow-[0_4px_14px_rgba(53,108,246,0.10)];
+      @apply bg-[#eef4ff] text-[#356cf6] shadow-[0_6px_20px_rgba(53,108,246,0.10)];
+    }
+
+    .nav-item.active::before {
+      @apply bg-[#356cf6];
+      box-shadow: 0 0 16px rgba(53, 108, 246, 0.35);
     }
 
     .nav-icon-wrap {
@@ -212,6 +219,7 @@
 
     .nav-item.active .nav-icon-wrap {
       @apply border-[#cddcff] bg-white text-[#356cf6];
+      box-shadow: 0 8px 24px rgba(53, 108, 246, 0.10);
     }
 
     .nav-item-logout {
@@ -285,24 +293,41 @@
       <span class="sidebar-label">Overview</span>
     </button>
 
-    <!-- Chats -->
-    <button
-      data-view="chats"
-      type="button"
-      aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}"
-      class="nav-item {{ 'active' if initial_view == 'chats' else '' }} w-full"
+  <!-- Chats -->
+<button
+  data-view="chats"
+  type="button"
+  aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}"
+  class="nav-item {{ 'active' if initial_view == 'chats' else '' }} w-full"
+>
+  <span class="nav-icon-wrap">
+    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M7 18.5H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v10.5a2 2 0 0 1-2 2h-7l-4 3v-3Z"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M8 9h8M8 13h5"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+      />
+    </svg>
+  </span>
+
+  <span class="sidebar-label flex min-w-0 flex-1 items-center justify-between gap-2">
+    <span class="truncate">Chats</span>
+
+    <span
+      id="chats-nav-badge"
+      class="inline-flex h-5 min-w-[20px] items-center justify-center rounded-full bg-[#356cf6] px-1.5 text-[11px] font-semibold text-white"
     >
-      <span class="nav-icon-wrap">
-        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"
-            stroke="currentColor"
-            stroke-width="1.7"
-          />
-        </svg>
-      </span>
-      <span class="sidebar-label">Chats</span>
-    </button>
+      12
+    </span>
+  </span>
+</button>
 
     {% if user_role == "super" %}
     <!-- PMCs -->
@@ -394,48 +419,50 @@
     </button>
 
     <!-- Guides -->
-    <button
-      data-view="guides"
-      type="button"
-      aria-current="{{ 'page' if initial_view == 'guides' else 'false' }}"
-      class="nav-item {{ 'active' if initial_view == 'guides' else '' }} w-full"
-    >
-      <span class="nav-icon-wrap">
-        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M4 19V5a2 2 0 0 1 2-2h12v18H6a2 2 0 0 1-2-2z"
-            stroke="currentColor"
-            stroke-width="1.7"
-          />
-        </svg>
-      </span>
-      <span class="sidebar-label">Guides</span>
-    </button>
+<button
+  data-view="guides"
+  type="button"
+  aria-current="{{ 'page' if initial_view == 'guides' else 'false' }}"
+  class="nav-item {{ 'active' if initial_view == 'guides' else '' }} w-full"
+>
+  <span class="nav-icon-wrap">
+    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M6 4.5h9.5A2.5 2.5 0 0 1 18 7v12.5a.5.5 0 0 1-.8.4L14 17.5H6A2.5 2.5 0 0 1 3.5 15V7A2.5 2.5 0 0 1 6 4.5Z"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linejoin="round"
+      />
+      <path
+        d="M7.5 9h6M7.5 12h7M7.5 15h4"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linecap="round"
+      />
+    </svg>
+  </span>
+  <span class="sidebar-label">Guides</span>
+</button>
 
     <!-- Upgrades -->
-    <button
-      data-view="upgrades"
-      type="button"
-      aria-current="{{ 'page' if initial_view == 'upgrades' else 'false' }}"
-      class="nav-item {{ 'active' if initial_view == 'upgrades' else '' }} w-full"
-    >
-      <span class="nav-icon-wrap">
-        <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
-          <path
-            d="M7 7h10M7 11h10M7 15h6"
-            stroke="currentColor"
-            stroke-width="1.7"
-            stroke-linecap="round"
-          />
-          <path
-            d="M5 3h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2z"
-            stroke="currentColor"
-            stroke-width="1.2"
-          />
-        </svg>
-      </span>
-      <span class="sidebar-label">Upgrades</span>
-    </button>
+<button
+  data-view="upgrades"
+  type="button"
+  aria-current="{{ 'page' if initial_view == 'upgrades' else 'false' }}"
+  class="nav-item {{ 'active' if initial_view == 'upgrades' else '' }} w-full"
+>
+  <span class="nav-icon-wrap">
+    <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M12 3l2.1 4.7L19 9l-3.5 3.4.8 5.1L12 15.8 7.7 17.5l.8-5.1L5 9l4.9-1.3L12 3Z"
+        stroke="currentColor"
+        stroke-width="1.7"
+        stroke-linejoin="round"
+      />
+    </svg>
+  </span>
+  <span class="sidebar-label">Upgrades</span>
+</button>
 
     {% if user_role == "super" %}
     <!-- Payouts -->
@@ -3259,6 +3286,43 @@ Before leaving:
     if (pageSubtitle && titles[view]) pageSubtitle.textContent = titles[view][1];
   });
 });
+
+  function setCollapsed(isCollapsed) {
+  sidebar.classList.toggle("w-72", !isCollapsed);
+  sidebar.classList.toggle("w-20", isCollapsed);
+
+  labelEls().forEach((el) => el.classList.toggle("hidden", isCollapsed));
+
+  document.querySelectorAll(".nav-item").forEach((item) => {
+    item.classList.toggle("justify-center", isCollapsed);
+    item.classList.toggle("px-4", !isCollapsed);
+    item.classList.toggle("px-0", isCollapsed);
+  });
+
+  document.querySelectorAll(".nav-icon-wrap").forEach((icon) => {
+    icon.classList.toggle("mx-auto", isCollapsed);
+  });
+
+  const svg = toggleBtn.querySelector("svg");
+  if (svg) {
+    svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
+    svg.style.transition = "transform 200ms ease";
+  }
+
+  localStorage.setItem(
+    "dashboard_sidebar_collapsed",
+    isCollapsed ? "1" : "0"
+  );
+}
+
+  function updateChatsNavBadge(count) {
+  const badge = document.getElementById("chats-nav-badge");
+  if (!badge) return;
+
+  const n = Number(count) || 0;
+  badge.textContent = String(n);
+  badge.classList.toggle("hidden", n <= 0);
+}
 </script>
 
 
