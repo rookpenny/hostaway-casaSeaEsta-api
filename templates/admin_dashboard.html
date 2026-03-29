@@ -237,6 +237,14 @@
     .nav-item-logout:hover .nav-icon-wrap {
       @apply border-rose-200 bg-white text-rose-600;
     }
+
+   .sidebar-footer-card {
+      @apply transition-all duration-200;
+    }
+
+    .sidebar-footer-card:hover {
+      @apply shadow-md border-slate-300;
+    }
 }
 </style>
 
@@ -573,6 +581,41 @@
     </a>
   </div>
 </nav>
+
+      <!-- Sidebar Footer -->
+<div class="mt-auto p-4">
+  <div class="sidebar-footer-card flex items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
+    
+    <!-- Avatar -->
+    <div class="grid h-11 w-11 place-items-center overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-200">
+      {% if user_avatar_url %}
+        <img src="{{ user_avatar_url }}" alt="{{ user_full_name or user_email }}" class="h-full w-full object-cover" />
+      {% else %}
+        <span class="text-sm font-semibold text-slate-700">
+          {{ (user_full_name[0] if user_full_name else (user_email[0] if user_email else "U"))|upper }}
+        </span>
+      {% endif %}
+    </div>
+
+    <!-- User Info -->
+    <div class="min-w-0 flex-1 sidebar-label">
+      <div class="truncate text-[15px] font-semibold text-slate-900">
+        {{ user_full_name or "User" }}
+      </div>
+      <div class="truncate text-xs text-slate-500">
+        {{ user_email or "user@email.com" }}
+      </div>
+    </div>
+
+    <!-- Optional badge -->
+    <div class="sidebar-label">
+      <span class="inline-flex items-center rounded-full bg-[#eef4ff] px-2 py-1 text-[10px] font-semibold text-[#356cf6]">
+        Pro
+      </span>
+    </div>
+
+  </div>
+</div>
 
       <!-- Footer -->
       <div class="mt-auto p-3 border-t border-slate-200">
@@ -3117,6 +3160,10 @@ Before leaving:
           `;
         })
         .join("");
+
+      document.querySelectorAll(".sidebar-label").forEach((el) => {
+  el.classList.toggle("hidden", isCollapsed);
+});
 
       // click handlers
       document.querySelectorAll("[data-notif-id]").forEach((row) => {
