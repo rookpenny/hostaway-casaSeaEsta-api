@@ -164,7 +164,9 @@
       @apply shadow-md border-slate-300;
     }
 
-   
+   header {
+  backdrop-filter: blur(12px);
+}
     
   }
   
@@ -561,13 +563,15 @@
     <main class="flex-1 min-w-0">
 
       <!-- Topbar -->
-      <header class="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
-  <div class="flex h-[68px] items-center gap-4 px-6">
+     <header class="sticky top-0 z-30 border-b border-slate-200/70 bg-white/85 backdrop-blur-xl">
+  <div class="flex h-24 items-center gap-6 px-8">
+
+    <!-- Title -->
     <div class="min-w-0">
-      <div id="page-title" class="truncate text-[22px] font-semibold tracking-tight text-slate-950">
+      <div id="page-title" class="truncate text-[20px] font-semibold tracking-tight text-slate-950">
         Overview
       </div>
-      <div id="page-subtitle" class="mt-0.5 truncate text-[13px] text-slate-500">
+      <div id="page-subtitle" class="mt-1 truncate text-[12px] text-slate-500">
         {% if user_role == "super" %}System health & activity{% else %}Your portfolio at a glance{% endif %}
       </div>
     </div>
@@ -576,7 +580,7 @@
 
     <!-- Search -->
     <div class="hidden lg:flex items-center">
-      <label class="group flex h-10 w-[300px] items-center gap-3 rounded-full border border-slate-200/80 bg-white px-4 shadow-sm transition hover:border-slate-300">
+      <label class="group flex h-11 w-[320px] items-center gap-3 rounded-full border border-slate-200/80 bg-white px-4 shadow-sm transition hover:border-slate-300">
         <svg class="h-4 w-4 text-slate-400 group-focus-within:text-slate-600" viewBox="0 0 24 24" fill="none">
           <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
           <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.8"/>
@@ -591,25 +595,29 @@
     </div>
 
     <!-- Right actions -->
-    <div class="flex items-center gap-2">
+    <div class="flex items-center gap-3">
+      
+      <!-- Notifications -->
       <button
         type="button"
         class="relative grid h-10 w-10 place-items-center rounded-full border border-slate-200 bg-white text-slate-600 shadow-sm transition hover:bg-slate-50"
         aria-label="Notifications"
       >
-        <svg class="h-4.5 w-4.5" viewBox="0 0 24 24" fill="none">
-          <path d="M15 17H5.5a1.5 1.5 0 0 1-1.2-2.4l1.1-1.5c.4-.5.6-1.1.6-1.8V9a6 6 0 1 1 12 0v2.3c0 .7.2 1.3.6 1.8l1.1 1.5A1.5 1.5 0 0 1 18.5 17H15Zm0 0a3 3 0 0 1-6 0h6Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
+        <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
+          <path d="M15 17H5.5a1.5 1.5 0 0 1-1.2-2.4l1.1-1.5c.4-.5.6-1.1.6-1.8V9a6 6 0 1 1 12 0v2.3c0 .7.2 1.3.6 1.8l1.1 1.5A1.5 1.5 0 0 1 18.5 17H15Zm0 0a3 3 0 0 1-6 0h6Z"
+                stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
         <span class="absolute -right-1 -top-1 inline-flex h-4 min-w-[16px] items-center justify-center rounded-full bg-[#356cf6] px-1 text-[10px] font-semibold text-white shadow-sm">
           3
         </span>
       </button>
 
+      <!-- Avatar -->
       <button
         type="button"
         class="flex items-center gap-2 rounded-full border border-transparent bg-transparent p-0.5 transition hover:bg-slate-50"
       >
-        <div class="grid h-9 w-9 place-items-center overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-200">
+        <div class="grid h-10 w-10 place-items-center overflow-hidden rounded-full bg-slate-200 ring-1 ring-slate-200">
           {% if user_avatar_url %}
             <img src="{{ user_avatar_url }}" alt="{{ user_full_name or user_email }}" class="h-full w-full object-cover" />
           {% else %}
@@ -619,6 +627,7 @@
           {% endif %}
         </div>
       </button>
+
     </div>
   </div>
 </header>
