@@ -599,72 +599,85 @@
 
       <div class="mt-7 rounded-[22px] border border-[#D9E0EA] bg-[#F4F7FB] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
         <div class="space-y-5">
-          <!-- Pre-stay -->
-          <div>
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <div class="grid h-11 w-11 place-items-center rounded-[14px] bg-[#E7EEFF] text-[#3F6FF6]">
-                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M5 12h8" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                    <path d="M11 7l5 5-5 5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-[15px] leading-none font-semibold text-[#1E293B]">Pre-stay</div>
-                  <div class="mt-1 text-[13px] leading-none text-[#64748B]">Before check-in</div>
-                </div>
-              </div>
-              <div class="text-[15px] font-semibold text-[#334155]">42%</div>
-            </div>
+          <!-- Upcoming stay -->
+<div>
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-11 w-11 place-items-center rounded-[14px] bg-[#E7EEFF] text-[#3F6FF6]">
+        🗓️
+      </div>
+      <div>
+        <div class="text-[15px] leading-none font-semibold text-[#1E293B]">Upcoming stay</div>
+        <div class="mt-1 text-[13px] leading-none text-[#64748B]">Before check-in</div>
+      </div>
+    </div>
+    <div class="text-[15px] font-semibold text-[#334155]">42%</div>
+  </div>
 
-            <div class="mt-3 h-[8px] rounded-full bg-[#E2E8F0]">
-              <div class="h-[10px] rounded-full bg-[#3F6FF6]" style="width:42%"></div>
-            </div>
-          </div>
+  <div class="mt-3 h-[8px] rounded-full bg-[#E2E8F0]">
+    <div class="h-[10px] rounded-full bg-[#3F6FF6]" style="width:42%"></div>
+  </div>
+</div>
 
-          <!-- On property -->
-          <div>
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <div class="grid h-11 w-11 place-items-center rounded-[14px] bg-[#DDF4F1] text-[#39B8B0]">
-                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M8 18v-7h8v7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                    <path d="M5 12l7-6 7 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-[15px] leading-none font-semibold text-[#1E293B]">On property</div>
-                  <div class="mt-1 text-[13px] leading-none text-[#64748B]">During stay</div>
-                </div>
-              </div>
-              <div class="text-[15px] font-semibold text-[#334155]">38%</div>
-            </div>
+<!-- Currently staying -->
+<div>
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-11 w-11 place-items-center rounded-[14px] bg-[#DDF4F1] text-[#39B8B0]">
+        🏡
+      </div>
+      <div>
+        <div class="text-[15px] leading-none font-semibold text-[#1E293B]">Currently staying</div>
+        <div class="mt-1 text-[13px] leading-none text-[#64748B]">During stay</div>
+      </div>
+    </div>
+    <div class="text-[15px] font-semibold text-[#334155]">38%</div>
+  </div>
 
-            <div class="mt-3 h-[8px] rounded-full bg-[#E2E8F0]">
-              <div class="h-[10px] rounded-full bg-[#3F6FF6]" style="width:38%"></div>
-            </div>
-          </div>
+  <div class="mt-3 h-[8px] rounded-full bg-[#E2E8F0]">
+    <div class="h-[10px] rounded-full bg-[#3F6FF6]" style="width:38%"></div>
+  </div>
+</div>
 
-          <!-- Post-stay -->
-          <div>
-            <div class="flex items-center justify-between gap-3">
-              <div class="flex items-center gap-3">
-                <div class="grid h-11 w-11 place-items-center rounded-[14px] bg-[#DDF4F1] text-[#34C3AE]">
-                  <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none">
-                    <path d="M7 12.5 10 15.5 17 8.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-                  </svg>
-                </div>
-                <div>
-                  <div class="text-[15px] leading-none font-semibold text-[#1E293B]">Post-stay</div>
-                  <div class="mt-1 text-[13px] leading-none text-[#64748B]">After check-out</div>
-                </div>
-              </div>
-              <div class="text-[15px] font-semibold text-[#334155]">20%</div>
-            </div>
+<!-- Checked out -->
+<div>
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-11 w-11 place-items-center rounded-[14px] bg-[#DDF4F1] text-[#34C3AE]">
+        ✅
+      </div>
+      <div>
+        <div class="text-[15px] leading-none font-semibold text-[#1E293B]">Checked out</div>
+        <div class="mt-1 text-[13px] leading-none text-[#64748B]">After check-out</div>
+      </div>
+    </div>
+    <div class="text-[15px] font-semibold text-[#334155]">20%</div>
+  </div>
 
-            <div class="mt-3 h-[8px] rounded-full bg-[#E2E8F0]">
-              <div class="h-[10px] rounded-full bg-[#34C3AE]" style="width:20%"></div>
-            </div>
+  <div class="mt-3 h-[8px] rounded-full bg-[#E2E8F0]">
+    <div class="h-[10px] rounded-full bg-[#3F6FF6]" style="width:20%"></div>
+  </div>
+</div>
+
+<!-- Inquiry (NEW) -->
+<div>
+  <div class="flex items-center justify-between gap-3">
+    <div class="flex items-center gap-3">
+      <div class="grid h-11 w-11 place-items-center rounded-[14px] bg-[#F1F5F9] text-[#64748B]">
+        💬
+      </div>
+      <div>
+        <div class="text-[15px] leading-none font-semibold text-[#1E293B]">Inquiry</div>
+        <div class="mt-1 text-[13px] leading-none text-[#64748B]">Before booking</div>
+      </div>
+    </div>
+    <div class="text-[15px] font-semibold text-[#334155]">10%</div>
+  </div>
+
+  <div class="mt-3 h-[8px] rounded-full bg-[#E2E8F0]">
+    <div class="h-[10px] rounded-full bg-[#3F6FF6]" style="width:10%"></div>
+  </div>
+</div>
           </div>
         </div>
       </div>
