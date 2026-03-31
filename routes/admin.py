@@ -1306,7 +1306,94 @@ def chat_assign_ajax(
     return {"ok": True, "assigned_to": sess.assigned_to}
 
 
+# ----------------------------
+# Guest intelligence metrics (REAL DATA)
+# ----------------------------
+now_utc = datetime.utcnow()
+current_start = now_utc - timedelta(days=7)
+previous_start = now_utc - timedelta(days=14)
 
+guest_base_q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
+
+# Respect existing scope rules
+if allowed_property_ids is not None:
+    guest_base_q = guest_base_q.filter(ChatSession.property_id.in_(allowed_property_ids))
+
+if user_role == "super" and pmc_id:
+    guest_base_q = guest_base_q.filter(Property.pmc_id == pmc_id)
+
+if property_id:
+    guest_base_q = guest_base_q.filter(ChatSession.property_id == property_id)
+
+# Current 7 days
+current_7d_chats = int(
+    guest_base_q.filter(ChatSession.last_activity_at >= current_start).count()
+)
+
+# Previous 7 days
+previous_7d_chats = int(
+    guest_base_q
+    .filter(ChatSession.last_activity_at >= previous_start)
+    .filter(ChatSession.last_activity_at < current_start)
+    .count()
+)
+
+# Delta %
+if previous_7d_chats > 0:
+    chats_delta_pct = round(((current_7d_chats - previous_7d_chats) / previous_7d_chats) * 100)
+else:
+    chats_delta_pct = 100 if current_7d_chats > 0 else 0
+    
+
+@router.get("/admin/api/team")
+def api_team_users(
+    request: Request,
+    session_id: int | None = Query(default=None),
+    pmc_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+
+    target_pmc_id: int | None = None
+
+    if user_role == "super":
+        # Super can request by explicit pmc_id OR by session_id (best for chat detail)
+        if pmc_id is not None:
+            target_pmc_id = int(pmc_id)
+        elif session_id is not None:
+            sess = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
+            if not sess:
+                raise HTTPException(status_code=404, detail="Chat not found")
+            prop = db.query(Property).filter(Property.id == int(sess.property_id)).first()
+            if not prop:
+                raise HTTPException(status_code=404, detail="Property not found")
+            target_pmc_id = int(prop.pmc_id)
+        else:
+            raise HTTPException(status_code=400, detail="Provide pmc_id or session_id")
+    else:
+        # PMC users only see their own team
+        require_pmc_linked(user_role, pmc_obj)
+        target_pmc_id = int(pmc_obj.id)
+
+    rows = (
+        db.query(PMCUser)
+        .filter(PMCUser.pmc_id == target_pmc_id)
+        .filter(PMCUser.is_active == True)
+        .order_by(func.lower(PMCUser.email).asc())
+        .all()
+    )
+
+    return {
+        "items": [
+            {
+                "id": u.id,
+                "email": u.email,
+                "full_name": u.full_name,
+                "role": u.role,
+            }
+            for u in rows
+        ]
+    }
 
 
 @router.get("/admin/settings/team/table", response_class=HTMLResponse)
@@ -3911,46 +3998,6 @@ def admin_dashboard(
             stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
             stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
-
-        # ----------------------------
-    # Guest intelligence metrics (REAL DATA)
-    # ----------------------------
-    now_utc = datetime.utcnow()
-    current_start = now_utc - timedelta(days=7)
-    previous_start = now_utc - timedelta(days=14)
-
-    guest_base_q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
-
-    # Respect existing scope rules
-    if allowed_property_ids is not None:
-        guest_base_q = guest_base_q.filter(ChatSession.property_id.in_(allowed_property_ids))
-
-    if user_role == "super" and pmc_id_int:
-        guest_base_q = guest_base_q.filter(Property.pmc_id == pmc_id_int)
-
-    if prop_id_int:
-        guest_base_q = guest_base_q.filter(ChatSession.property_id == prop_id_int)
-
-    current_7d_chats = int(
-        guest_base_q.filter(ChatSession.last_activity_at >= current_start).count()
-    )
-
-    previous_7d_chats = int(
-        guest_base_q
-        .filter(ChatSession.last_activity_at >= previous_start)
-        .filter(ChatSession.last_activity_at < current_start)
-        .count()
-    )
-
-    if previous_7d_chats > 0:
-        chats_delta_pct = round(
-            ((current_7d_chats - previous_7d_chats) / previous_7d_chats) * 100
-        )
-    else:
-        chats_delta_pct = 100 if current_7d_chats > 0 else 0  
-    
-    
-
     return templates.TemplateResponse(
         request,
         "admin_dashboard.html",
@@ -3989,63 +4036,8 @@ def admin_dashboard(
             "selected_property": selected_property,
             "selected_messages": selected_messages,
             "pmc_id": (pmc_obj.id if pmc_obj else None),
-
-            # Guest intelligence stats
-            "current_7d_chats": current_7d_chats,
-            "previous_7d_chats": previous_7d_chats,
-            "chats_delta_pct": chats_delta_pct,
         },
     )
-
-@router.get("/admin/api/team")
-    def api_team_users(
-        request: Request,
-        session_id: int | None = Query(default=None),
-        pmc_id: int | None = Query(default=None),
-        db: Session = Depends(get_db),
-    ):
-        user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
-    
-        target_pmc_id: int | None = None
-    
-        if user_role == "super":
-            # Super can request by explicit pmc_id OR by session_id (best for chat detail)
-            if pmc_id is not None:
-                target_pmc_id = int(pmc_id)
-            elif session_id is not None:
-                sess = db.query(ChatSession).filter(ChatSession.id == int(session_id)).first()
-                if not sess:
-                    raise HTTPException(status_code=404, detail="Chat not found")
-                prop = db.query(Property).filter(Property.id == int(sess.property_id)).first()
-                if not prop:
-                    raise HTTPException(status_code=404, detail="Property not found")
-                target_pmc_id = int(prop.pmc_id)
-            else:
-                raise HTTPException(status_code=400, detail="Provide pmc_id or session_id")
-        else:
-            # PMC users only see their own team
-            require_pmc_linked(user_role, pmc_obj)
-            target_pmc_id = int(pmc_obj.id)
-    
-        rows = (
-            db.query(PMCUser)
-            .filter(PMCUser.pmc_id == target_pmc_id)
-            .filter(PMCUser.is_active == True)
-            .order_by(func.lower(PMCUser.email).asc())
-            .all()
-        )
-    
-        return {
-            "items": [
-                {
-                    "id": u.id,
-                    "email": u.email,
-                    "full_name": u.full_name,
-                    "role": u.role,
-                }
-                for u in rows
-            ]
-        }
 
 
 @router.post("/admin/jobs/refresh-session-status")
@@ -5615,4 +5607,3 @@ def mark_read(nid: int, request: Request, db: Session = Depends(get_db)):
     n.is_read = True
     db.commit()
     return {"ok": True}
-
