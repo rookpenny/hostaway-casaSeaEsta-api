@@ -3998,6 +3998,46 @@ def admin_dashboard(
             stripe_charges_enabled = bool(getattr(integ, "charges_enabled", False))
             stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
+
+    
+    # ----------------------------
+    # Guest intelligence metrics (REAL DATA)
+    # ----------------------------
+    now_utc = datetime.utcnow()
+    current_start = now_utc - timedelta(days=7)
+    previous_start = now_utc - timedelta(days=14)
+    
+    guest_base_q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
+    
+    # Respect existing scope rules
+    if allowed_property_ids is not None:
+        guest_base_q = guest_base_q.filter(ChatSession.property_id.in_(allowed_property_ids))
+    
+    if user_role == "super" and pmc_id:
+        guest_base_q = guest_base_q.filter(Property.pmc_id == pmc_id)
+    
+    if property_id:
+        guest_base_q = guest_base_q.filter(ChatSession.property_id == property_id)
+    
+    # Current 7 days
+    current_7d_chats = int(
+        guest_base_q.filter(ChatSession.last_activity_at >= current_start).count()
+    )
+    
+    # Previous 7 days
+    previous_7d_chats = int(
+        guest_base_q
+        .filter(ChatSession.last_activity_at >= previous_start)
+        .filter(ChatSession.last_activity_at < current_start)
+        .count()
+    )
+    
+    # Delta %
+    if previous_7d_chats > 0:
+        chats_delta_pct = round(((current_7d_chats - previous_7d_chats) / previous_7d_chats) * 100)
+    else:
+        chats_delta_pct = 100 if current_7d_chats > 0 else 0
+
     return templates.TemplateResponse(
         request,
         "admin_dashboard.html",
