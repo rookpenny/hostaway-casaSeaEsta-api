@@ -4076,6 +4076,11 @@ def admin_dashboard(
             "selected_property": selected_property,
             "selected_messages": selected_messages,
             "pmc_id": (pmc_obj.id if pmc_obj else None),
+
+            # 👇 ADD THESE
+            "current_7d_chats": current_7d_chats,
+            "previous_7d_chats": previous_7d_chats,
+            "chats_delta_pct": chats_delta_pct,
         },
     )
 
