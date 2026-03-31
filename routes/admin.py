@@ -3912,46 +3912,92 @@ def admin_dashboard(
             stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
 
-    # ----------------------------
+        # ----------------------------
     # Guest intelligence metrics (REAL DATA)
     # ----------------------------
     now_utc = datetime.utcnow()
     current_start = now_utc - timedelta(days=7)
     previous_start = now_utc - timedelta(days=14)
-    
+
     guest_base_q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
-    
+
     # Respect existing scope rules
     if allowed_property_ids is not None:
         guest_base_q = guest_base_q.filter(ChatSession.property_id.in_(allowed_property_ids))
-    
-    if user_role == "super" and pmc_id:
-        guest_base_q = guest_base_q.filter(Property.pmc_id == pmc_id)
-    
-    if property_id:
-        guest_base_q = guest_base_q.filter(ChatSession.property_id == property_id)
-    
-    # Current 7 days
+
+    if user_role == "super" and pmc_id_int:
+        guest_base_q = guest_base_q.filter(Property.pmc_id == pmc_id_int)
+
+    if prop_id_int:
+        guest_base_q = guest_base_q.filter(ChatSession.property_id == prop_id_int)
+
     current_7d_chats = int(
         guest_base_q.filter(ChatSession.last_activity_at >= current_start).count()
     )
-    
-    # Previous 7 days
+
     previous_7d_chats = int(
         guest_base_q
         .filter(ChatSession.last_activity_at >= previous_start)
         .filter(ChatSession.last_activity_at < current_start)
         .count()
     )
-    
-    # Delta %
+
     if previous_7d_chats > 0:
-        chats_delta_pct = round(((current_7d_chats - previous_7d_chats) / previous_7d_chats) * 100)
+        chats_delta_pct = round(
+            ((current_7d_chats - previous_7d_chats) / previous_7d_chats) * 100
+        )
     else:
-        chats_delta_pct = 100 if current_7d_chats > 0 else 0
-        
+        chats_delta_pct = 100 if current_7d_chats > 0 else 0  
     
-    @router.get("/admin/api/team")
+    
+
+    return templates.TemplateResponse(
+        request,
+        "admin_dashboard.html",
+        {
+            "request": request,
+            "user_role": user_role,
+            "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
+            "properties": properties,
+            "property_name_by_id": property_name_by_id,
+            "now": datetime.utcnow(),
+            "pmcs": pmc_list,
+            "billing_status": billing_status,
+            "is_paid": is_paid,
+            "needs_payment": needs_payment,
+            "billing_banner_title": billing_banner_title,
+            "billing_banner_body": billing_banner_body,
+            "user_timezone": (pmc_user.timezone if pmc_user else None),
+            "pmc_user_role": (pmc_user.role if pmc_user else None),
+            "user_email": me_email,
+            "user_full_name": (me_user.full_name if me_user else None),
+            "team_members": team_members,
+            "notif_prefs": notif_prefs,
+            "stripe_connected": stripe_connected,
+            "stripe_charges_enabled": stripe_charges_enabled,
+            "stripe_payouts_enabled": stripe_payouts_enabled,
+            "stripe_account_id": stripe_account_id,
+            "sessions": sessions,
+            "analytics": analytics,
+            "stay_pulse": stay_pulse,
+            "request": request,
+            "sessions": sessions,
+            "analytics": analytics,
+            "suggestions": suggestions,
+            "filters": filters,
+            "selected_session": selected_session,
+            "selected_property": selected_property,
+            "selected_messages": selected_messages,
+            "pmc_id": (pmc_obj.id if pmc_obj else None),
+
+            # Guest intelligence stats
+            "current_7d_chats": current_7d_chats,
+            "previous_7d_chats": previous_7d_chats,
+            "chats_delta_pct": chats_delta_pct,
+        },
+    )
+
+@router.get("/admin/api/team")
     def api_team_users(
         request: Request,
         session_id: int | None = Query(default=None),
@@ -4000,47 +4046,6 @@ def admin_dashboard(
                 for u in rows
             ]
         }
-
-    return templates.TemplateResponse(
-        request,
-        "admin_dashboard.html",
-        {
-            "request": request,
-            "user_role": user_role,
-            "pmc_name": (pmc_obj.pmc_name if pmc_obj else "HostScout"),
-            "properties": properties,
-            "property_name_by_id": property_name_by_id,
-            "now": datetime.utcnow(),
-            "pmcs": pmc_list,
-            "billing_status": billing_status,
-            "is_paid": is_paid,
-            "needs_payment": needs_payment,
-            "billing_banner_title": billing_banner_title,
-            "billing_banner_body": billing_banner_body,
-            "user_timezone": (pmc_user.timezone if pmc_user else None),
-            "pmc_user_role": (pmc_user.role if pmc_user else None),
-            "user_email": me_email,
-            "user_full_name": (me_user.full_name if me_user else None),
-            "team_members": team_members,
-            "notif_prefs": notif_prefs,
-            "stripe_connected": stripe_connected,
-            "stripe_charges_enabled": stripe_charges_enabled,
-            "stripe_payouts_enabled": stripe_payouts_enabled,
-            "stripe_account_id": stripe_account_id,
-            "sessions": sessions,
-            "analytics": analytics,
-            "stay_pulse": stay_pulse,
-            "request": request,
-            "sessions": sessions,
-            "analytics": analytics,
-            "suggestions": suggestions,
-            "filters": filters,
-            "selected_session": selected_session,
-            "selected_property": selected_property,
-            "selected_messages": selected_messages,
-            "pmc_id": (pmc_obj.id if pmc_obj else None),
-        },
-    )
 
 
 @router.post("/admin/jobs/refresh-session-status")
