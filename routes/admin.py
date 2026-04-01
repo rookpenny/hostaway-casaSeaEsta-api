@@ -3972,11 +3972,6 @@ def admin_dashboard(
     current_start = now_utc - timedelta(days=selected_range_days)
     previous_start = now_utc - timedelta(days=selected_range_days * 2)
 
-    filtered_sessions_for_range = [
-        s for s in sessions
-        if getattr(s, "last_activity_at", None) and s.last_activity_at >= current_start
-    ]
-
     guest_base_q = db.query(ChatSession).join(
         Property, Property.id == ChatSession.property_id
     )
@@ -3993,10 +3988,14 @@ def admin_dashboard(
     if prop_id_int:
         guest_base_q = guest_base_q.filter(ChatSession.property_id == prop_id_int)
 
+    # Current selected period
     current_period_chats = int(
-        guest_base_q.filter(ChatSession.last_activity_at >= current_start).count()
+        guest_base_q
+        .filter(ChatSession.last_activity_at >= current_start)
+        .count()
     )
 
+    # Previous matching period
     previous_period_chats = int(
         guest_base_q
         .filter(ChatSession.last_activity_at >= previous_start)
@@ -4011,6 +4010,13 @@ def admin_dashboard(
     else:
         chats_delta_pct = 100 if current_period_chats > 0 else 0
 
+    # Filter rendered session payloads to the selected range
+    filtered_sessions_for_range = [
+        s for s in sessions
+        if s.get("last_activity_at") and s["last_activity_at"] >= current_start
+    ]
+
+    # Chats by property for selected range
     property_chat_stats = []
     for prop in properties:
         prop_chat_count = int(
@@ -4019,22 +4025,22 @@ def admin_dashboard(
             .filter(ChatSession.last_activity_at >= current_start)
             .count()
         )
-    
+
         property_chat_stats.append({
             "id": prop.id,
             "name": prop.property_name,
             "hero_image_url": getattr(prop, "hero_image_url", None),
             "chat_count": prop_chat_count,
         })
-    
+
     property_chat_stats.sort(key=lambda x: x["chat_count"], reverse=True)
     property_chat_stats = property_chat_stats[:4]
-    
+
     max_property_chat_count = max(
         [item["chat_count"] for item in property_chat_stats],
         default=0,
     )
-    
+
     return templates.TemplateResponse(
         request,
         "admin_dashboard.html",
@@ -4064,9 +4070,6 @@ def admin_dashboard(
             "sessions": sessions,
             "analytics": analytics,
             "stay_pulse": stay_pulse,
-            "request": request,
-            "sessions": sessions,
-            "analytics": analytics,
             "suggestions": suggestions,
             "filters": filters,
             "selected_session": selected_session,
@@ -4074,7 +4077,7 @@ def admin_dashboard(
             "selected_messages": selected_messages,
             "pmc_id": (pmc_obj.id if pmc_obj else None),
 
-            # 👇 ADD THESE
+            # Guest intelligence range data
             "selected_range_days": selected_range_days,
             "current_period_chats": current_period_chats,
             "previous_period_chats": previous_period_chats,
@@ -4082,12 +4085,8 @@ def admin_dashboard(
             "property_chat_stats": property_chat_stats,
             "max_property_chat_count": max_property_chat_count,
             "filtered_sessions_for_range": filtered_sessions_for_range,
-            
-            "property_chat_stats": property_chat_stats,
-            "max_property_chat_count": max_property_chat_count,
         },
     )
-
 
 @router.post("/admin/jobs/refresh-session-status")
 def refresh_session_status(request: Request, db: Session = Depends(get_db)):
