@@ -460,7 +460,7 @@
   {% set total_chats_est = (total_props * 240) + (live_props * 120) + 53 %}
   {% set sessions = sessions or [] %}
   {% set chats_delta_pct = chats_delta_pct or 0 %}
-  {% set current_7d_chats = current_7d_chats or 0 %}
+  {% set current_period_chats = current_period_chats or 0 %}
 
   <div class="grid grid-cols-12 gap-5">
     <!-- Main left column -->
@@ -555,15 +555,44 @@
             </div>
           </div>
 
-          <button
-            type="button"
-            class="inline-flex h-11 shrink-0 items-center gap-2 rounded-full border-2 border-[#2F6BFF] bg-white px-5 text-[14px] font-semibold text-[#334155] shadow-sm"
-          >
-            Last 7 days
-            <svg class="h-4 w-4 text-[#475569]" viewBox="0 0 20 20" fill="none">
-              <path d="m5 7 5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-            </svg>
-          </button>
+         <form id="guest-intelligence-range-form" method="get" class="shrink-0">
+  <input type="hidden" name="view" value="overview" />
+
+  {% if request.query_params.get('pmc_id') %}
+    <input type="hidden" name="pmc_id" value="{{ request.query_params.get('pmc_id') }}">
+  {% endif %}
+  {% if request.query_params.get('property_id') %}
+    <input type="hidden" name="property_id" value="{{ request.query_params.get('property_id') }}">
+  {% endif %}
+  {% if request.query_params.get('status') %}
+    <input type="hidden" name="status" value="{{ request.query_params.get('status') }}">
+  {% endif %}
+  {% if request.query_params.get('action_priority') %}
+    <input type="hidden" name="action_priority" value="{{ request.query_params.get('action_priority') }}">
+  {% endif %}
+  {% if request.query_params.get('emotional_signals_filter') %}
+    <input type="hidden" name="emotional_signals_filter" value="{{ request.query_params.get('emotional_signals_filter') }}">
+  {% endif %}
+  {% if request.query_params.get('q') %}
+    <input type="hidden" name="q" value="{{ request.query_params.get('q') }}">
+  {% endif %}
+
+  <div class="relative">
+    <select
+      name="range_days"
+      onchange="this.form.submit()"
+      class="h-11 appearance-none rounded-full border-2 border-[#2F6BFF] bg-white px-5 pr-10 text-[14px] font-semibold text-[#334155] shadow-sm focus:outline-none"
+    >
+      <option value="7" {% if selected_range_days == 7 %}selected{% endif %}>Last 7 days</option>
+      <option value="30" {% if selected_range_days == 30 %}selected{% endif %}>Last 30 days</option>
+      <option value="90" {% if selected_range_days == 90 %}selected{% endif %}>Last 90 days</option>
+    </select>
+
+    <svg class="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-[#475569]" viewBox="0 0 20 20" fill="none">
+      <path d="m5 7 5 5 5-5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+  </div>
+</form>
         </div>
 
         <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -581,10 +610,10 @@
 
               <div class="h-full">
                 <div class="mb-2 text-[32px] sm:text-[46px] font-semibold tracking-[-0.04em] text-[#020617] leading-none">
-                  {{ current_7d_chats }}
+                  {{ current_period_chats }}
                 </div>
                 <div class="mt-2 text-[13px] text-slate-400">
-                  Total chats
+                  Chats in range
                 </div>
               </div>
             </div>
