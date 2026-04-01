@@ -604,7 +604,7 @@
                   {% if chats_delta_pct > 0 %}+{% endif %}{{ chats_delta_pct }}<span class="ml-1 text-[0.5em] align-top">%</span>
                 </div>
                 <div class="text-[13px] text-slate-400">
-                  vs. prev 7 days
+                  vs previous {{ selected_range_days or 7 }} days
                 </div>
               </div>
 
@@ -613,7 +613,7 @@
                   {{ current_period_chats }}
                 </div>
                 <div class="mt-2 text-[13px] text-slate-400">
-                  Chats in range
+                  Chats in last {{ selected_range_days or 7 }} days
                 </div>
               </div>
             </div>
