@@ -796,82 +796,100 @@
       </div>
 
       <!-- Needs Attention -->
-<div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-  <div class="flex items-center justify-between gap-4">
-    <div>
-      <div class="flex items-center gap-3">
-        <span class="inline-block h-2.5 w-2.5 rounded-full bg-[#356cf6]"></span>
-        <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">Needs Attention</div>
-      </div>
-      <div class="mt-2 text-[14px] text-slate-500">Issues that need your response</div>
-    </div>
-
-    <button
-      type="button"
-      onclick="window.DashboardOverview?.jumpTo('chats')"
-      class="hidden items-center gap-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
-    >
-      View all chats
-      <span>→</span>
-    </button>
-  </div>
-
-  <div class="mt-5 divide-y divide-slate-100">
-    {% for row in needs_attention_rows %}
-      {% set guest_initial = (row.guest_name[0] if row.guest_name else '?') %}
-      {% set issue_text = row.signal_detail or row.last_snippet or "Needs review" %}
-
-      {% if row.signal_tone == 'danger' %}
-        {% set tag_class = 'bg-rose-100 text-rose-700' %}
-      {% elif row.signal_tone == 'warning' %}
-        {% set tag_class = 'bg-amber-100 text-amber-700' %}
-      {% elif row.signal_tone == 'success' %}
-        {% set tag_class = 'bg-emerald-100 text-emerald-700' %}
-      {% else %}
-        {% set tag_class = 'bg-blue-100 text-blue-700' %}
-      {% endif %}
-
-      <div class="grid grid-cols-[1.4fr,auto,auto,auto] items-center gap-4 py-4">
-        <div class="flex min-w-0 items-center gap-4">
-          <div class="grid h-10 w-10 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
-            {{ guest_initial }}
-          </div>
-
-          <div class="min-w-0">
-            <div class="flex flex-wrap items-center gap-2 text-[16px] leading-none tracking-tight">
-              <span class="font-semibold text-slate-950">{{ row.guest_name or "Unknown guest" }}</span>
-              <span class="truncate text-left text-slate-500">{{ issue_text }}</span>
+      <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-center justify-between gap-4">
+          <div>
+            <div class="flex items-center gap-3">
+              <span class="inline-block h-2.5 w-2.5 rounded-full bg-[#356cf6]"></span>
+              <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">Needs Attention</div>
             </div>
+            <div class="mt-2 text-[14px] text-slate-500">Issues that need your response</div>
           </div>
+      
+          <button
+            type="button"
+            onclick="window.DashboardOverview?.jumpTo('chats')"
+            class="hidden items-center gap-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
+          >
+            View all chats
+            <span>→</span>
+          </button>
         </div>
-
-        <div>
-          <span class="inline-flex rounded-full px-3 py-1 text-[12px] font-semibold {{ tag_class }}">
-            {{ row.signal_label or "Needs review" }}
-          </span>
-        </div>
-
-        <div class="text-[12px] font-medium text-slate-500">
-          {{ row.property_name or "Unknown property" }}
-        </div>
-
-        <div class="text-[12px] text-slate-400">
-          {% if row.last_activity_at %}
-            <span class="js-rel-time" data-ts="{{ row.last_activity_at.isoformat() }}">
-              {{ row.last_activity_at.strftime("%b %d") }}
-            </span>
+      
+        <div class="mt-5 divide-y divide-slate-100">
+          {% for row in needs_attention_rows %}
+            {% set guest_initial = (row.guest_name[0] if row.guest_name else '?') %}
+            {% set issue_text = row.signal_detail or row.last_snippet or "Needs review" %}
+      
+            {% if row.signal_tone == 'danger' %}
+              {% set tag_class = 'bg-rose-100 text-rose-700' %}
+            {% elif row.signal_tone == 'warning' %}
+              {% set tag_class = 'bg-amber-100 text-amber-700' %}
+            {% elif row.signal_tone == 'success' %}
+              {% set tag_class = 'bg-emerald-100 text-emerald-700' %}
+            {% else %}
+              {% set tag_class = 'bg-blue-100 text-blue-700' %}
+            {% endif %}
+      
+            <a
+              href="/admin/dashboard?view=chats&session_id={{ row.id }}"
+              class="grid grid-cols-[1.4fr,auto,auto] items-center gap-4 py-4 transition hover:bg-slate-50"
+            >
+              <div class="flex min-w-0 items-center gap-4">
+                <div class="grid h-10 w-10 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
+                  {{ guest_initial }}
+                </div>
+      
+                <div class="min-w-0">
+                  <div class="flex flex-wrap items-center gap-2 text-[16px] leading-none tracking-tight">
+                    <span class="font-semibold text-slate-950">{{ row.guest_name or "Unknown guest" }}</span>
+                    <span class="truncate text-left text-slate-500">{{ issue_text }}</span>
+                  </div>
+      
+                  <div class="mt-2 flex items-center gap-2">
+                    {% if row.property_image_url %}
+                      <img
+                        src="{{ row.property_image_url }}"
+                        alt="{{ row.property_name or 'Property' }}"
+                        class="h-7 w-7 rounded-[8px] border border-slate-200 object-cover"
+                        loading="lazy"
+                      />
+                    {% else %}
+                      <div class="grid h-7 w-7 place-items-center rounded-[8px] border border-slate-200 bg-slate-100 text-[9px] font-semibold text-slate-500">
+                        H
+                      </div>
+                    {% endif %}
+      
+                    <span class="truncate text-[13px] font-medium text-slate-500">
+                      {{ row.property_name or "Unknown property" }}
+                    </span>
+                  </div>
+                </div>
+              </div>
+      
+              <div>
+                <span class="inline-flex rounded-full px-3 py-1 text-[12px] font-semibold {{ tag_class }}">
+                  {{ row.signal_label or "Needs review" }}
+                </span>
+              </div>
+      
+              <div class="text-right text-[12px] text-slate-400">
+                {% if row.last_activity_at %}
+                  <span class="js-rel-time" data-ts="{{ row.last_activity_at.isoformat() }}">
+                    {{ row.last_activity_at.strftime("%b %d") }}
+                  </span>
+                {% else %}
+                  —
+                {% endif %}
+              </div>
+            </a>
           {% else %}
-            —
-          {% endif %}
+            <div class="py-8 text-sm text-slate-500">
+              No issues need attention right now.
+            </div>
+          {% endfor %}
         </div>
       </div>
-    {% else %}
-      <div class="py-8 text-sm text-slate-500">
-        No issues need attention right now.
-      </div>
-    {% endfor %}
-  </div>
-</div>
     </div>
 
     <!-- Right column -->
