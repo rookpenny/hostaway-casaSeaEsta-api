@@ -4074,7 +4074,7 @@ def admin_dashboard(
             "current_period_chats": current_period_chats,
             "previous_period_chats": previous_period_chats,
             "chats_delta_pct": chats_delta_pct,
-            "property_chat_stats": top_property_chat_stats,
+            "property_chat_stats": property_chat_stats,
             "max_property_chat_count": max_property_chat_count,
             
             "property_chat_stats": property_chat_stats,
