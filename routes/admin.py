@@ -3541,6 +3541,8 @@ def admin_dashboard(
     priority: str | None = Query(default=None),       # legacy: "urgent" | "unhappy"
     guest_mood: str | None = Query(default=None),     # legacy alias for mood
     signals_filter: str | None = Query(default=None), # legacy alias for mood
+
+    range_days: int | None = Query(default=7),
 ):
     # ----------------------------
     # Helpers
@@ -3960,45 +3962,70 @@ def admin_dashboard(
             stripe_payouts_enabled = bool(getattr(integ, "payouts_enabled", False))
 
 
-    
     # ----------------------------
     # Guest intelligence metrics (REAL DATA)
     # ----------------------------
+    valid_ranges = {7, 30, 90}
+    selected_range_days = range_days if range_days in valid_ranges else 7
+
     now_utc = datetime.utcnow()
-    current_start = now_utc - timedelta(days=7)
-    previous_start = now_utc - timedelta(days=14)
-    
-    guest_base_q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
-    
+    current_start = now_utc - timedelta(days=selected_range_days)
+    previous_start = now_utc - timedelta(days=selected_range_days * 2)
+
+    guest_base_q = db.query(ChatSession).join(
+        Property, Property.id == ChatSession.property_id
+    )
+
     # Respect existing scope rules
     if allowed_property_ids is not None:
-        guest_base_q = guest_base_q.filter(ChatSession.property_id.in_(allowed_property_ids))
-    
-    if user_role == "super" and pmc_id:
-        guest_base_q = guest_base_q.filter(Property.pmc_id == pmc_id)
-    
-    if property_id:
-        guest_base_q = guest_base_q.filter(ChatSession.property_id == property_id)
-    
-    # Current 7 days
-    current_7d_chats = int(
+        guest_base_q = guest_base_q.filter(
+            ChatSession.property_id.in_(allowed_property_ids)
+        )
+
+    if user_role == "super" and pmc_id_int:
+        guest_base_q = guest_base_q.filter(Property.pmc_id == pmc_id_int)
+
+    if prop_id_int:
+        guest_base_q = guest_base_q.filter(ChatSession.property_id == prop_id_int)
+
+    current_period_chats = int(
         guest_base_q.filter(ChatSession.last_activity_at >= current_start).count()
     )
-    
-    # Previous 7 days
-    previous_7d_chats = int(
+
+    previous_period_chats = int(
         guest_base_q
         .filter(ChatSession.last_activity_at >= previous_start)
         .filter(ChatSession.last_activity_at < current_start)
         .count()
     )
-    
-    # Delta %
-    if previous_7d_chats > 0:
-        chats_delta_pct = round(((current_7d_chats - previous_7d_chats) / previous_7d_chats) * 100)
-    else:
-        chats_delta_pct = 100 if current_7d_chats > 0 else 0
 
+    if previous_period_chats > 0:
+        chats_delta_pct = round(
+            ((current_period_chats - previous_period_chats) / previous_period_chats) * 100
+        )
+    else:
+        chats_delta_pct = 100 if current_period_chats > 0 else 0
+
+    property_chat_stats = []
+    for prop in properties:
+        prop_q = guest_base_q.filter(ChatSession.property_id == prop.id)
+        prop_chat_count = int(
+            prop_q.filter(ChatSession.last_activity_at >= current_start).count()
+        )
+        property_chat_stats.append({
+            "id": prop.id,
+            "name": prop.property_name,
+            "hero_image_url": getattr(prop, "hero_image_url", None),
+            "chat_count": prop_chat_count,
+        })
+
+    property_chat_stats.sort(key=lambda x: x["chat_count"], reverse=True)
+    top_property_chat_stats = property_chat_stats[:4]
+    max_property_chat_count = max(
+        [p["chat_count"] for p in top_property_chat_stats],
+        default=0,
+    )
+    
     return templates.TemplateResponse(
         request,
         "admin_dashboard.html",
@@ -4039,9 +4066,12 @@ def admin_dashboard(
             "pmc_id": (pmc_obj.id if pmc_obj else None),
 
             # 👇 ADD THESE
-            "current_7d_chats": current_7d_chats,
-            "previous_7d_chats": previous_7d_chats,
+            "selected_range_days": selected_range_days,
+            "current_period_chats": current_period_chats,
+            "previous_period_chats": previous_period_chats,
             "chats_delta_pct": chats_delta_pct,
+            "property_chat_stats": top_property_chat_stats,
+            "max_property_chat_count": max_property_chat_count,
         },
     )
 
