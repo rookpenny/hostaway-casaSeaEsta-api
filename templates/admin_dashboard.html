@@ -836,16 +836,16 @@
               class="grid grid-cols-[1.4fr,auto,auto] items-center gap-4 py-4 transition hover:bg-slate-50"
             >
               <div class="flex min-w-0 items-center gap-4">
-                <div class="grid h-10 w-10 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
+                <!--div class="grid h-10 w-10 place-items-center rounded-full bg-slate-200 text-sm font-semibold text-slate-700">
                   {{ guest_initial }}
-                </div>
+              </div-->
       
                 <div class="flex flex-wrap items-center gap-2 text-[16px] leading-none tracking-tight">
                   <span class="font-semibold text-slate-950">
                     {{ row.guest_name or "Unknown guest" }}
                   </span>
                 
-                  <span class="text-slate-500 truncate w-1/2 block">
+                  <span class="text-slate-500 truncate max-w-[300px]">
                     {{ issue_text }}
                   </span>
                 
