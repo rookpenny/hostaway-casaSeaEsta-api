@@ -849,8 +849,11 @@
                     {{ issue_text }}
                   </span>
                 
-                  <!-- 👇 PROPERTY INLINE -->
-                  <div class="flex items-center gap-2 ml-2 shrink-0">
+                </div>
+              </div>
+
+              <!-- 👇 PROPERTY INLINE -->
+                  <div class="inline-flex items-center gap-2 ml-2 shrink-0">
                     {% if row.property_image_url %}
                       <img
                         src="{{ row.property_image_url }}"
@@ -863,8 +866,6 @@
                       {{ row.property_name }}
                     </span>
                   </div>
-                </div>
-              </div>
       
               <div>
                 <span class="inline-flex rounded-full px-3 py-1 text-[12px] font-semibold {{ tag_class }}">
