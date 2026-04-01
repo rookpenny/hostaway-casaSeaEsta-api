@@ -619,11 +619,12 @@
             </div>
 
             <div class="mt-7 rounded-[22px] border border-[#D9E0EA] bg-[#F4F7FB] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.7)]">
-              {% set total_sessions = sessions|length %}
-              {% set inquiry_count = sessions | selectattr('stay_cycle', 'equalto', 'inquiry') | list | length %}
-              {% set upcoming_count = sessions | selectattr('stay_cycle', 'equalto', 'upcoming') | list | length %}
-              {% set current_count = sessions | selectattr('stay_cycle', 'equalto', 'current') | list | length %}
-              {% set checked_out_count = sessions | selectattr('stay_cycle', 'equalto', 'checked_out') | list | length %}
+              {% set range_sessions = filtered_sessions_for_range or [] %}
+              {% set total_sessions = range_sessions|length %}
+              {% set inquiry_count = range_sessions | selectattr('stay_cycle', 'equalto', 'inquiry') | list | length %}
+              {% set upcoming_count = range_sessions | selectattr('stay_cycle', 'equalto', 'upcoming') | list | length %}
+              {% set current_count = range_sessions | selectattr('stay_cycle', 'equalto', 'current') | list | length %}
+              {% set checked_out_count = range_sessions | selectattr('stay_cycle', 'equalto', 'checked_out') | list | length %}
 
               {% if total_sessions > 0 %}
                 {% set inquiry_pct = ((inquiry_count / total_sessions) * 100) | round(0, 'common') | int %}
