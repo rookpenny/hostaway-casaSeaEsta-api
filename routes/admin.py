@@ -4041,6 +4041,46 @@ def admin_dashboard(
         default=0,
     )
 
+    # ----------------------------
+    # Needs Attention rows (REAL DATA)
+    # ----------------------------
+    attention_source = filtered_sessions_for_range if filtered_sessions_for_range else sessions
+
+    def _attention_rank(row: dict) -> tuple:
+        priority_order = {
+            "urgent": 0,
+            "high": 1,
+            "normal": 2,
+            "low": 3,
+            None: 4,
+        }
+        tone_order = {
+            "danger": 0,
+            "warning": 1,
+            "info": 2,
+            "success": 3,
+            None: 4,
+        }
+
+        priority_rank = priority_order.get(row.get("action_priority"), 4)
+        tone_rank = tone_order.get(row.get("signal_tone"), 4)
+
+        has_negative_rank = 0 if row.get("has_negative") else 1
+        has_urgent_rank = 0 if row.get("has_urgent") else 1
+
+        last_activity = row.get("last_activity_at")
+        ts_rank = -(last_activity.timestamp()) if last_activity else float("inf")
+
+        return (
+            priority_rank,
+            tone_rank,
+            has_urgent_rank,
+            has_negative_rank,
+            ts_rank,
+        )
+
+    needs_attention_rows = sorted(attention_source, key=_attention_rank)[:3]
+
     return templates.TemplateResponse(
         request,
         "admin_dashboard.html",
@@ -4085,6 +4125,9 @@ def admin_dashboard(
             "property_chat_stats": property_chat_stats,
             "max_property_chat_count": max_property_chat_count,
             "filtered_sessions_for_range": filtered_sessions_for_range,
+
+            # Needs attention data
+            "needs_attention_rows": needs_attention_rows,
         },
     )
 
