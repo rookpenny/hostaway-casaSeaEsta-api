@@ -3625,6 +3625,7 @@ def admin_dashboard(
         allowed_property_ids = [p.id for p in properties]
 
     property_name_by_id = {p.id: (p.property_name or "") for p in (properties or [])}
+    property_image_by_id = {p.id: getattr(p, "hero_image_url", None) for p in (properties or [])}
 
     # Superuser-only PMC list
     pmc_list = []
@@ -3842,6 +3843,7 @@ def admin_dashboard(
                 or (property_name_by_id.get(prop_id) if prop_id else "")
                 or "Unknown property"
             ),
+            "property_hero_image_url": (property_image_by_id.get(prop_id) if prop_id else None),
             "guest_name": r.get("guest_name"),
             "assigned_to": r.get("assigned_to"),
             "reservation_status": status_val,
