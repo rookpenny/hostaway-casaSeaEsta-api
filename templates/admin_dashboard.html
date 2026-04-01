@@ -845,7 +845,7 @@
                     {{ row.guest_name or "Unknown guest" }}
                   </span>
                 
-                  <span class="text-slate-500 truncate max-w-[140px]">
+                  <span class="text-slate-500 truncate w-1/2 block">
                     {{ issue_text }}
                   </span>
                 
@@ -855,7 +855,7 @@
                       <img
                         src="{{ row.property_image_url }}"
                         alt="{{ row.property_name }}"
-                        class="h-6 w-6 rounded-full border border-slate-200 object-cover"
+                        class="h-10 w-10 rounded-full border border-slate-200 object-cover"
                       />
                     {% endif %}
                 
