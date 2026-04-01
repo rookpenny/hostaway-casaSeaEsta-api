@@ -568,30 +568,28 @@
   <div class="mt-6 grid grid-cols-1 gap-0 lg:grid-cols-[280px_minmax(0,1fr)]">
     <!-- Left side -->
     <div class="pr-0 lg:pr-6">
-
+      <div class="grid grid-cols-2 gap-2 w-full">
+      <!-- Left stat -->
+      <div>
+        <div class="mb-2 text-[32px] sm:text-[46px] font-semibold tracking-[-0.04em] text-[#020617] leading-none">
+          {% if chats_delta_pct > 0 %}+{% endif %}{{ chats_delta_pct }}<span class="text-[0.5em] align-top">%</span>
+        </div>
+        <div class="text-[13px] text-slate-400">
+          vs. prev 7 days
+        </div>
+      </div>
     
-    <div class="grid grid-cols-2 gap-2 w-full">
-  <!-- Left stat -->
-  <div>
-    <div class="mb-2 text-[32px] sm:text-[46px] font-semibold tracking-[-0.04em] text-[#020617] leading-none">
-      {% if chats_delta_pct > 0 %}+{% endif %}{{ chats_delta_pct }}<span class="text-[0.5em] align-top">%</span>
+      <!-- Right stat -->
+      <div class="h-full">
+        <div class="mb-2 text-[32px] sm:text-[46px] font-semibold tracking-[-0.04em] text-[#020617] leading-none">
+          {{ current_7d_chats }}
+        </div>
+        <div class="mt-2 text-[13px] text-slate-400">
+          Total chats
+        </div>
+      </div>
     </div>
-    <div class="text-[13px] text-slate-400">
-      vs. prev 7 days
-    </div>
-  </div>
-
-  <!-- Right stat -->
-  <div class="h-full">
-    <div class="mb-2 text-[32px] sm:text-[46px] font-semibold tracking-[-0.04em] text-[#020617] leading-none">
-      {{ current_7d_chats }}
-    </div>
-    <div class="mt-2 text-[13px] text-slate-400">
-      Total chats
-    </div>
-  </div>
 </div>
-
 </div>
 
       
@@ -693,6 +691,7 @@
       <div class="mt-3 h-[8px] rounded-full bg-[#E2E8F0]">
         <div class="h-[10px] rounded-full bg-[#34C3AE]" style="width:{{ checked_out_pct }}%"></div>
       </div>
+      
     </div>
   </div>
 </div>
