@@ -840,28 +840,27 @@
                   {{ guest_initial }}
                 </div>
       
-                <div class="min-w-0">
-                  <div class="flex flex-wrap items-center gap-2 text-[16px] leading-none tracking-tight">
-                    <span class="font-semibold text-slate-950">{{ row.guest_name or "Unknown guest" }}</span>
-                    <span class="truncate text-left text-slate-500">{{ issue_text }}</span>
-                  </div>
-      
-                  <div class="mt-2 flex items-center gap-2">
+                <div class="flex flex-wrap items-center gap-2 text-[16px] leading-none tracking-tight">
+                  <span class="font-semibold text-slate-950">
+                    {{ row.guest_name or "Unknown guest" }}
+                  </span>
+                
+                  <span class="text-slate-500 truncate">
+                    {{ issue_text }}
+                  </span>
+                
+                  <!-- 👇 PROPERTY INLINE -->
+                  <div class="flex items-center gap-2 ml-2 shrink-0">
                     {% if row.property_image_url %}
                       <img
                         src="{{ row.property_image_url }}"
-                        alt="{{ row.property_name or 'Property' }}"
-                        class="h-7 w-7 rounded-[8px] border border-slate-200 object-cover"
-                        loading="lazy"
+                        alt="{{ row.property_name }}"
+                        class="h-6 w-6 rounded-[6px] border border-slate-200 object-cover"
                       />
-                    {% else %}
-                      <div class="grid h-7 w-7 place-items-center rounded-[8px] border border-slate-200 bg-slate-100 text-[9px] font-semibold text-slate-500">
-                        H
-                      </div>
                     {% endif %}
-      
-                    <span class="truncate text-[13px] font-medium text-slate-500">
-                      {{ row.property_name or "Unknown property" }}
+                
+                    <span class="text-[14px] font-medium text-slate-500">
+                      {{ row.property_name }}
                     </span>
                   </div>
                 </div>
