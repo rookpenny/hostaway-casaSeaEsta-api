@@ -816,17 +816,8 @@
     </button>
   </div>
 
-  {% set attention_source = filtered_sessions_for_range if filtered_sessions_for_range is defined and filtered_sessions_for_range else sessions %}
-  {% set urgent_rows = attention_source
-      | selectattr('action_priority', 'equalto', 'urgent')
-      | list %}
-  {% set high_rows = attention_source
-      | selectattr('action_priority', 'equalto', 'high')
-      | list %}
-  {% set attention_rows = (urgent_rows + high_rows)[:3] %}
-
   <div class="mt-5 divide-y divide-slate-100">
-    {% for row in attention_rows %}
+    {% for row in needs_attention_rows %}
       {% set guest_initial = (row.guest_name[0] if row.guest_name else '?') %}
       {% set issue_text = row.signal_detail or row.last_snippet or "Needs review" %}
 
