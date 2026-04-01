@@ -990,34 +990,53 @@
 
       <!-- Portfolio Status -->
       <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">Portfolio Status</div>
-
+        <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">
+          Portfolio Status
+        </div>
+      
         <div class="mt-5 grid grid-cols-[140px,1fr] items-center gap-5">
-          <div class="relative">
-            <canvas id="overviewPortfolioChart" height="140"></canvas>
+          
+          <!-- Chart -->
+          <div class="relative h-[140px] w-[140px]">
+            <canvas id="overviewPortfolioChart"></canvas>
+      
+            <!-- Center label -->
+            <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <div class="text-center">
+                <div class="text-[22px] font-semibold text-slate-900">
+                  {{ total_props }}
+                </div>
+                <div class="text-[11px] text-slate-400">properties</div>
+              </div>
+            </div>
           </div>
-
+      
+          <!-- Legend -->
           <div class="space-y-4">
             <div class="flex items-center justify-between gap-4">
               <div class="flex items-center gap-3">
                 <span class="inline-block h-3.5 w-3.5 rounded-full bg-[#356cf6]"></span>
-                <span class="text-[16px] font-semibold tracking-tight text-slate-950">{{ live_props }} Live</span>
+                <span class="text-[16px] font-semibold tracking-tight text-slate-950">
+                  {{ live_props }} Live
+                </span>
               </div>
               <span class="text-[14px] text-slate-400">
                 {{ ((live_props / total_props) * 100)|round|int if total_props > 0 else 0 }}%
               </span>
             </div>
-
+      
             <div class="flex items-center justify-between gap-4">
               <div class="flex items-center gap-3">
                 <span class="inline-block h-3.5 w-3.5 rounded-full bg-[#47c5c9]"></span>
-                <span class="text-[16px] font-semibold tracking-tight text-slate-950">{{ offline_props }} Offline</span>
+                <span class="text-[16px] font-semibold tracking-tight text-slate-950">
+                  {{ offline_props }} Offline
+                </span>
               </div>
               <span class="text-[14px] text-slate-400">
                 {{ ((offline_props / total_props) * 100)|round|int if total_props > 0 else 0 }}%
               </span>
             </div>
-
+      
             <button
               type="button"
               onclick="window.DashboardOverview?.jumpTo('properties')"
@@ -2550,6 +2569,52 @@
     </div>
   </div>
 </div>
+
+                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<script>
+  document.addEventListener("DOMContentLoaded", function () {
+    const ctx = document.getElementById("overviewPortfolioChart");
+    if (!ctx) return;
+
+    const live = {{ live_props or 0 }};
+    const offline = {{ offline_props or 0 }};
+
+    new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["Live", "Offline"],
+        datasets: [{
+          data: [live, offline],
+          backgroundColor: [
+            "#356cf6", // Live
+            "#47c5c9"  // Offline
+          ],
+          borderWidth: 0,
+          hoverOffset: 4
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "72%",   // donut thickness
+        animation: {
+          animateRotate: true,
+          duration: 800
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "#0f172a",
+            titleColor: "#fff",
+            bodyColor: "#cbd5f5",
+            padding: 10
+          }
+        }
+      }
+    });
+  });
+</script>
 
 <script>
   window.PMC_STRIPE_CONNECTED = {{ stripe_connected | tojson }};
