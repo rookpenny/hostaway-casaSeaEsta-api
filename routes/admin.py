@@ -3972,6 +3972,11 @@ def admin_dashboard(
     current_start = now_utc - timedelta(days=selected_range_days)
     previous_start = now_utc - timedelta(days=selected_range_days * 2)
 
+    filtered_sessions_for_range = [
+        s for s in sessions
+        if getattr(s, "last_activity_at", None) and s.last_activity_at >= current_start
+    ]
+
     guest_base_q = db.query(ChatSession).join(
         Property, Property.id == ChatSession.property_id
     )
@@ -4076,6 +4081,7 @@ def admin_dashboard(
             "chats_delta_pct": chats_delta_pct,
             "property_chat_stats": property_chat_stats,
             "max_property_chat_count": max_property_chat_count,
+            "filtered_sessions_for_range": filtered_sessions_for_range,
             
             "property_chat_stats": property_chat_stats,
             "max_property_chat_count": max_property_chat_count,
