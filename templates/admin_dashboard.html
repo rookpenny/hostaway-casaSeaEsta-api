@@ -733,46 +733,44 @@
             {% set max_chats = (property_ns.items | map(attribute='chat_count') | max) if property_ns.items else 0 %}
           
             <div class="mt-5 space-y-5">
-              {% for item in property_ns.items | sort(attribute='chat_count', reverse=True) %}
-                {% if loop.index <= 4 %}
-                  {% set property_bar = ((item.chat_count / max_chats) * 100) | round(0, 'common') | int if max_chats > 0 else 0 %}
-          
-                  <div class="grid grid-cols-[46px_minmax(0,115px)_1fr_56px] items-center gap-x-4">
-                    <div>
-                      {% if item.hero_image_url %}
-                        <img
-                          src="{{ item.hero_image_url }}"
-                          alt="{{ item.name|e }}"
-                          class="h-12 w-12 rounded-[14px] border border-[#D9E0EA] object-cover"
-                          loading="lazy"
-                        />
-                      {% else %}
-                        <div class="grid h-12 w-12 place-items-center rounded-[14px] border border-[#D9E0EA] bg-white text-[10px] font-semibold text-[#64748B]">
-                          Home
-                        </div>
-                      {% endif %}
-                    </div>
-          
-                    <div class="min-w-0">
-                      <div class="truncate text-[15px] font-semibold tracking-[-0.02em] text-[#0F172A]">
-                        {{ item.name }}
+              {% for item in property_chat_stats %}
+                {% set property_bar = ((item.chat_count / max_property_chat_count) * 100) | round(0, 'common') | int if max_property_chat_count > 0 else 0 %}
+            
+                <div class="grid grid-cols-[46px_minmax(0,115px)_1fr_56px] items-center gap-x-4">
+                  <div>
+                    {% if item.hero_image_url %}
+                      <img
+                        src="{{ item.hero_image_url }}"
+                        alt="{{ item.name|e }}"
+                        class="h-12 w-12 rounded-[14px] border border-[#D9E0EA] object-cover"
+                        loading="lazy"
+                      />
+                    {% else %}
+                      <div class="grid h-12 w-12 place-items-center rounded-[14px] border border-[#D9E0EA] bg-white text-[10px] font-semibold text-[#64748B]">
+                        Home
                       </div>
-                    </div>
-          
-                    <div>
-                      <div class="h-[8px] rounded-full bg-[#E2E8F0]">
-                        <div
-                          class="h-[8px] rounded-full bg-[#3F6FF6]"
-                          style="width: {{ property_bar }}%;"
-                        ></div>
-                      </div>
-                    </div>
-          
-                    <div class="text-right text-[15px] font-semibold text-[#94A3B8]">
-                      {{ item.chat_count }}
+                    {% endif %}
+                  </div>
+            
+                  <div class="min-w-0">
+                    <div class="truncate text-[15px] font-semibold tracking-[-0.02em] text-[#0F172A]">
+                      {{ item.name }}
                     </div>
                   </div>
-                {% endif %}
+            
+                  <div>
+                    <div class="h-[8px] rounded-full bg-[#E2E8F0]">
+                      <div
+                        class="h-[8px] rounded-full bg-[#3F6FF6]"
+                        style="width: {{ property_bar }}%;"
+                      ></div>
+                    </div>
+                  </div>
+            
+                  <div class="text-right text-[15px] font-semibold text-[#94A3B8]">
+                    {{ item.chat_count }}
+                  </div>
+                </div>
               {% else %}
                 <div class="rounded-[18px] border border-dashed border-[#D9E0EA] bg-white/70 p-6 text-sm text-[#64748B]">
                   No properties yet.
