@@ -4008,21 +4008,25 @@ def admin_dashboard(
 
     property_chat_stats = []
     for prop in properties:
-        prop_q = guest_base_q.filter(ChatSession.property_id == prop.id)
         prop_chat_count = int(
-            prop_q.filter(ChatSession.last_activity_at >= current_start).count()
+            guest_base_q
+            .filter(ChatSession.property_id == prop.id)
+            .filter(ChatSession.last_activity_at >= current_start)
+            .count()
         )
+    
         property_chat_stats.append({
             "id": prop.id,
             "name": prop.property_name,
             "hero_image_url": getattr(prop, "hero_image_url", None),
             "chat_count": prop_chat_count,
         })
-
+    
     property_chat_stats.sort(key=lambda x: x["chat_count"], reverse=True)
-    top_property_chat_stats = property_chat_stats[:4]
+    property_chat_stats = property_chat_stats[:4]
+    
     max_property_chat_count = max(
-        [p["chat_count"] for p in top_property_chat_stats],
+        [item["chat_count"] for item in property_chat_stats],
         default=0,
     )
     
@@ -4071,6 +4075,9 @@ def admin_dashboard(
             "previous_period_chats": previous_period_chats,
             "chats_delta_pct": chats_delta_pct,
             "property_chat_stats": top_property_chat_stats,
+            "max_property_chat_count": max_property_chat_count,
+            
+            "property_chat_stats": property_chat_stats,
             "max_property_chat_count": max_property_chat_count,
         },
     )
