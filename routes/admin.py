@@ -4066,7 +4066,6 @@ def admin_dashboard(
 
         priority_rank = priority_order.get(row.get("action_priority"), 4)
         tone_rank = tone_order.get(row.get("signal_tone"), 4)
-
         has_negative_rank = 0 if row.get("has_negative") else 1
         has_urgent_rank = 0 if row.get("has_urgent") else 1
 
@@ -4082,6 +4081,16 @@ def admin_dashboard(
         )
 
     needs_attention_rows = sorted(attention_source, key=_attention_rank)[:3]
+
+    # add property image for UI
+    property_image_by_id = {
+        p.id: getattr(p, "hero_image_url", None)
+        for p in properties
+    }
+
+    for row in needs_attention_rows:
+        row["property_image_url"] = property_image_by_id.get(row.get("property_id"))
+        
 
     return templates.TemplateResponse(
         request,
