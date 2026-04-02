@@ -5045,3 +5045,15 @@ window.addEventListener("popstate", () => {
 });
 
 
+window.DashboardOverview = window.DashboardOverview || {};
+
+window.DashboardOverview.jumpTo = function (view) {
+  const btn = document.querySelector(`[data-view="${view}"]`);
+  if (btn) {
+    btn.click();
+    return;
+  }
+
+  document.querySelectorAll(".view").forEach((el) => el.classList.add("hidden"));
+  document.getElementById(`view-${view}`)?.classList.remove("hidden");
+};
