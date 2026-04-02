@@ -937,15 +937,7 @@
       </div>
 
       <div class="mt-5 flex flex-wrap gap-3">
-        {% if s.target == "guides" %}
-          <button
-            type="button"
-            onclick="window.DashboardOverview?.jumpTo('guides')"
-            class="inline-flex h-11 items-center justify-center rounded-2xl bg-[#356cf6] px-5 text-[14px] font-semibold text-white hover:bg-[#2457d9]"
-          >
-            {{ s.cta_primary or "Open Guide" }}
-          </button>
-        {% else %}
+        {% if s.target == "chats" %}
           <button
             type="button"
             onclick="window.DashboardOverview?.jumpTo('chats')"
@@ -953,16 +945,34 @@
           >
             {{ s.cta_primary or "View Chats" }}
           </button>
+        {% else %}
+          <button
+            type="button"
+            onclick="openGuideSuggestion('{{ s.target }}')"
+            class="inline-flex h-11 items-center justify-center rounded-2xl bg-[#356cf6] px-5 text-[14px] font-semibold text-white hover:bg-[#2457d9]"
+          >
+            {{ s.cta_primary or "Open Guide" }}
+          </button>
         {% endif %}
 
         {% if s.cta_secondary %}
-          <button
-            type="button"
-            onclick="window.DashboardOverview?.jumpTo('chats')"
-            class="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            {{ s.cta_secondary }}
-          </button>
+          {% if s.cta_secondary|lower == "generate draft" %}
+            <button
+              type="button"
+              onclick="openDraftSuggestion('{{ s.target }}')"
+              class="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              {{ s.cta_secondary }}
+            </button>
+          {% else %}
+            <button
+              type="button"
+              onclick="window.DashboardOverview?.jumpTo('chats')"
+              class="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              {{ s.cta_secondary }}
+            </button>
+          {% endif %}
         {% endif %}
       </div>
     </div>
