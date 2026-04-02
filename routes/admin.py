@@ -3325,6 +3325,21 @@ def build_signal_detail(session_row: dict) -> str:
     return "Guest is mainly exploring information right now."
 
 
+@router.get("/admin/suggestions/draft")
+def get_suggestion_draft(
+    request: Request,
+    target: str,
+    db: Session = Depends(get_db),
+):
+    user = request.session.get("user")
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    draft = build_suggestion_draft(target or "general")
+    return JSONResponse(draft)
+
+
+
 def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
     property_meta = {
         p.id: {
