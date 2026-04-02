@@ -313,6 +313,242 @@ document.addEventListener("click", (e) => {
     });
   }*/
 
+
+function initChatFilters() {
+  const form = document.getElementById("chatFilters");
+  if (!form) return;
+
+  const lifecycleButtons = form.querySelectorAll('button[name="lifecycle"]');
+
+  function buildUrl(submitter = null) {
+    const url = new URL(form.action || window.location.pathname, window.location.origin);
+    const fd = new FormData(form);
+
+    for (const [k, v] of fd.entries()) {
+      const value = String(v || "").trim();
+      if (value) url.searchParams.set(k, value);
+    }
+
+    url.searchParams.set("view", "chats");
+
+    if (submitter?.name === "lifecycle") {
+      const lifecycle = String(submitter.value || "").trim();
+      if (lifecycle) url.searchParams.set("lifecycle", lifecycle);
+      else url.searchParams.delete("lifecycle");
+    }
+
+    url.searchParams.delete("session_id");
+    return url;
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    window.location.href = buildUrl().toString();
+  });
+
+  lifecycleButtons.forEach((btn) => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      window.location.href = buildUrl(btn).toString();
+    });
+  });
+
+  form.querySelectorAll("select").forEach((select) => {
+    select.addEventListener("change", () => {
+      window.location.href = buildUrl().toString();
+    });
+  });
+}
+
+function initChatLoadMore() {
+  const table = document.getElementById("chat-table");
+  const btn = document.getElementById("chat-load-more");
+  if (!table || !btn) return;
+
+  const rows = Array.from(table.querySelectorAll("tbody tr[data-session-row]"));
+  if (!rows.length) {
+    btn.classList.add("hidden");
+    return;
+  }
+
+  const pageSize = 12;
+  let visibleCount = pageSize;
+
+  function render() {
+    rows.forEach((row, index) => {
+      row.classList.toggle("hidden", index >= visibleCount);
+    });
+    btn.classList.toggle("hidden", visibleCount >= rows.length);
+  }
+
+  btn.addEventListener("click", () => {
+    visibleCount += pageSize;
+    render();
+  });
+
+  render();
+}
+
+function setInlineDetailOpen(open) {
+  const inline = document.getElementById("chat-detail-inline");
+  const list = document.getElementById("chat-list-wrap");
+  if (!inline || !list) return;
+
+  inline.classList.toggle("hidden", !open);
+  list.classList.toggle("hidden", open);
+
+  if (open) {
+    inline.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+}
+
+function pushChatUrl(sessionId) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", "chats");
+  url.searchParams.set("session_id", String(sessionId));
+  window.history.pushState({}, "", url.toString());
+}
+
+function clearChatUrl() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("session_id");
+  window.history.pushState({}, "", url.toString());
+}
+
+async function openChatDetail(sessionId) {
+  setInlineDetailOpen(true);
+  pushChatUrl(sessionId);
+  await loadChatDetail(String(sessionId));
+}
+
+function closeChatDetail() {
+  setInlineDetailOpen(false);
+  clearChatUrl();
+
+  const panel = document.getElementById("chat-detail-panel");
+  if (panel) {
+    panel.innerHTML = `
+      <div id="chat-detail-empty" class="text-sm text-slate-500">
+        Select a chat session to view details.
+      </div>
+    `;
+    panel.removeAttribute("data-session-id");
+  }
+}
+
+window.openChatDetail = openChatDetail;
+
+function initChatRowNavigation() {
+  document.addEventListener("click", (e) => {
+    const backBtn = e.target.closest("#chat-detail-back");
+    if (backBtn) {
+      e.preventDefault();
+      closeChatDetail();
+      return;
+    }
+
+    const row = e.target.closest("[data-session-row]");
+    if (!row) return;
+
+    if (e.target.closest("a, button, input, textarea, select, label")) return;
+
+    const sid = row.getAttribute("data-session-row");
+    if (!sid) return;
+
+    openChatDetail(sid);
+  });
+
+  window.addEventListener("popstate", () => {
+    const sid = new URLSearchParams(window.location.search).get("session_id");
+    if (sid) {
+      setInlineDetailOpen(true);
+      loadChatDetail(sid);
+    } else {
+      closeChatDetail();
+    }
+  });
+}
+
+function parseTimestamp(ts) {
+  if (!ts) return null;
+  const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
+  const d = new Date(normalized);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function formatRelative(fromDate, now = new Date()) {
+  const diffMs = now - fromDate;
+  if (diffMs < 0) return "just now";
+  const sec = Math.floor(diffMs / 1000);
+  if (sec < 10) return "just now";
+  if (sec < 60) return `${sec}s ago`;
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 14) return `${day}d ago`;
+  const wk = Math.floor(day / 7);
+  if (wk < 8) return `${wk}w ago`;
+  const mo = Math.floor(day / 30);
+  if (mo < 12) return `${mo}mo ago`;
+  const yr = Math.floor(day / 365);
+  return `${yr}y ago`;
+}
+
+function initRelativeTimes() {
+  function updateRelativeTimes() {
+    const now = new Date();
+    document.querySelectorAll(".js-rel-time").forEach((el) => {
+      const ts = el.getAttribute("data-ts");
+      const d = parseTimestamp(ts);
+      if (!d) return;
+      el.textContent = formatRelative(d, now);
+    });
+  }
+
+  updateRelativeTimes();
+  window.setInterval(updateRelativeTimes, 60 * 1000);
+}
+
+window.applyTrendFilter = function applyTrendFilter(tag) {
+  const form = document.getElementById("chatFilters");
+  const url = new URL(form?.action || window.location.pathname, window.location.origin);
+
+  if (form) {
+    const fd = new FormData(form);
+    for (const [k, v] of fd.entries()) {
+      const value = String(v || "").trim();
+      if (value) url.searchParams.set(k, value);
+    }
+  }
+
+  url.searchParams.set("view", "chats");
+  url.searchParams.set("trend", String(tag || "").trim());
+  url.searchParams.delete("session_id");
+
+  window.location.href = url.toString();
+};
+
+window.clearTrendFilter = function clearTrendFilter() {
+  const form = document.getElementById("chatFilters");
+  const url = new URL(form?.action || window.location.pathname, window.location.origin);
+
+  if (form) {
+    const fd = new FormData(form);
+    for (const [k, v] of fd.entries()) {
+      const value = String(v || "").trim();
+      if (value) url.searchParams.set(k, value);
+    }
+  }
+
+  url.searchParams.set("view", "chats");
+  url.searchParams.delete("trend");
+  url.searchParams.delete("session_id");
+
+  window.location.href = url.toString();
+};
+
   // -----------------------------------
   // Portfolio chart
   // -----------------------------------
