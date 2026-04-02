@@ -2557,37 +2557,17 @@
 </div>
 
                 
-                <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
 <script>
+  // ----------------------------
+  // Suggestions → Guides navigation
+  // ----------------------------
   window.openGuideSuggestion = function (target) {
-    // close the insights drawer if it's open
     if (typeof closeInsights === "function") closeInsights();
 
-    // jump to guides view
-    if (window.DashboardOverview?.jumpTo) {
-      window.DashboardOverview.jumpTo("guides");
-    } else {
-      window.location.href = "/admin/dashboard?view=guides";
-      return;
-    }
-
-    // store target so guides UI can use it if needed
     window.pendingGuideSuggestionTarget = target || "general";
 
-    // try to prefill property/topic filter if your guides UI later supports it
-    const guidesSection = document.getElementById("view-guides");
-    if (guidesSection) {
-      setTimeout(() => {
-        guidesSection.scrollIntoView({ behavior: "smooth", block: "start" });
-      }, 100);
-    }
-  };
-
-  window.openDraftSuggestion = function (target) {
-    // close the insights drawer if it's open
-    if (typeof closeInsights === "function") closeInsights();
-
-    // jump to guides view first
     if (window.DashboardOverview?.jumpTo) {
       window.DashboardOverview.jumpTo("guides");
     } else {
@@ -2595,31 +2575,91 @@
       return;
     }
 
-    // save target so a new guide can be drafted from it
-    window.pendingGuideDraftTarget = target || "general";
-
-    // if the Guides module exists, open a new guide editor
     setTimeout(() => {
-      if (window.Guides?.openNew) {
-        window.Guides.openNew();
+      const el = document.getElementById("view-guides");
+      if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 100);
+  };
 
-        // optional: populate a draft if your editor supports a textarea/input
-        const editor = document.getElementById("guides-editor-body");
-        if (editor) {
-          editor.dispatchEvent(new CustomEvent("hostscout:draft-suggestion", {
-            detail: { target: window.pendingGuideDraftTarget }
-          }));
+  // ----------------------------
+  // Suggestions → Generate Draft (REAL)
+  // ----------------------------
+  window.openDraftSuggestion = async function (target) {
+    if (typeof closeInsights === "function") closeInsights();
+
+    const draftTarget = target || "general";
+
+    if (window.DashboardOverview?.jumpTo) {
+      window.DashboardOverview.jumpTo("guides");
+    } else {
+      window.location.href = `/admin/dashboard?view=guides&draft_target=${encodeURIComponent(draftTarget)}`;
+      return;
+    }
+
+    try {
+      const res = await fetch(`/admin/suggestions/draft?target=${encodeURIComponent(draftTarget)}`);
+      if (!res.ok) throw new Error("Failed to load draft");
+
+      const draft = await res.json();
+
+      setTimeout(() => {
+        // open editor
+        if (window.Guides?.openNew) {
+          window.Guides.openNew();
         }
-      } else {
-        const guidesSection = document.getElementById("view-guides");
-        if (guidesSection) {
-          guidesSection.scrollIntoView({ behavior: "smooth", block: "start" });
+
+        // populate fields
+        setTimeout(() => {
+          const titleInput =
+            document.querySelector('#guides-editor input[name="title"]') ||
+            document.querySelector('#guides-editor input[type="text"]');
+
+          const bodyTextarea =
+            document.querySelector('#guides-editor textarea[name="body"]') ||
+            document.querySelector('#guides-editor textarea');
+
+          const quillEditor =
+            document.querySelector('#guides-editor .ql-editor');
+
+          if (titleInput) {
+            titleInput.value = draft.title || "";
+            titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+
+          if (bodyTextarea) {
+            bodyTextarea.value = draft.body || "";
+            bodyTextarea.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+
+          if (quillEditor && draft.body) {
+            quillEditor.innerHTML = "";
+            quillEditor.textContent = draft.body;
+          }
+
+          const editorWrap = document.getElementById("guides-editor");
+          if (editorWrap) {
+            editorWrap.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        }, 250);
+      }, 150);
+
+    } catch (err) {
+      console.error("Draft generation failed:", err);
+
+      // fallback: still open editor
+      setTimeout(() => {
+        if (window.Guides?.openNew) {
+          window.Guides.openNew();
         }
-      }
-    }, 150);
+      }, 150);
+    }
   };
 </script>
+
 <script>
+  // ----------------------------
+  // Portfolio donut chart
+  // ----------------------------
   document.addEventListener("DOMContentLoaded", function () {
     const ctx = document.getElementById("overviewPortfolioChart");
     if (!ctx) return;
@@ -2633,10 +2673,7 @@
         labels: ["Live", "Offline"],
         datasets: [{
           data: [live, offline],
-          backgroundColor: [
-            "#356cf6", // Live
-            "#47c5c9"  // Offline
-          ],
+          backgroundColor: ["#356cf6", "#47c5c9"],
           borderWidth: 0,
           hoverOffset: 4
         }]
@@ -2644,7 +2681,7 @@
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        cutout: "72%",   // donut thickness
+        cutout: "72%",
         animation: {
           animateRotate: true,
           duration: 800
@@ -2664,6 +2701,9 @@
 </script>
 
 <script>
+  // ----------------------------
+  // Stripe state
+  // ----------------------------
   window.PMC_STRIPE_CONNECTED = {{ stripe_connected | tojson }};
 </script>
 
@@ -2687,7 +2727,6 @@
     "messages_mark_all_read": "/admin/messages/mark-all-read",
     "notifications_list": "/admin/notifications?limit={limit}",
     "notifications_mark_read": "/admin/notifications/{notification_id}/read"
-
   }
 }
 </script>
