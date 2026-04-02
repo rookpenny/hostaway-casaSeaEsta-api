@@ -824,7 +824,101 @@ window.rerenderAllMoodBadges = rerenderAllMoodBadges;
 })();
 
 
+document.addEventListener("click", (e) => {
+  const btn = e.target.closest('#chatFilters button[name="lifecycle"]');
+  if (!btn) return;
 
+  e.preventDefault();
+
+  const form = document.getElementById("chatFilters");
+  if (!form) return;
+
+  const url = new URL(form.action || window.location.pathname, window.location.origin);
+  const fd = new FormData(form);
+
+  for (const [k, v] of fd.entries()) {
+    const value = String(v || "").trim();
+    if (value) url.searchParams.set(k, value);
+  }
+
+  url.searchParams.set("view", "chats");
+
+  const lifecycle = String(btn.value || "").trim();
+  if (lifecycle) url.searchParams.set("lifecycle", lifecycle);
+  else url.searchParams.delete("lifecycle");
+
+  url.searchParams.delete("session_id");
+
+  window.location.href = url.toString();
+});
+
+function initChatLoadMore() {
+  const table = document.getElementById("chat-table");
+  const btn = document.getElementById("chat-load-more");
+  if (!table || !btn) return;
+
+  const rows = Array.from(table.querySelectorAll("tbody tr[data-session-row]"));
+  if (!rows.length) {
+    btn.classList.add("hidden");
+    return;
+  }
+
+  const pageSize = 12;
+  let visibleCount = pageSize;
+
+  function render() {
+    rows.forEach((row, index) => {
+      row.classList.toggle("hidden", index >= visibleCount);
+    });
+    btn.classList.toggle("hidden", visibleCount >= rows.length);
+  }
+
+  btn.addEventListener("click", () => {
+    visibleCount += pageSize;
+    render();
+  });
+
+  render();
+}
+
+
+window.applyTrendFilter = function applyTrendFilter(tag) {
+  const form = document.getElementById("chatFilters");
+  const url = new URL(form?.action || window.location.pathname, window.location.origin);
+
+  if (form) {
+    const fd = new FormData(form);
+    for (const [k, v] of fd.entries()) {
+      const value = String(v || "").trim();
+      if (value) url.searchParams.set(k, value);
+    }
+  }
+
+  url.searchParams.set("view", "chats");
+  url.searchParams.set("trend", String(tag || "").trim());
+  url.searchParams.delete("session_id");
+
+  window.location.href = url.toString();
+};
+
+window.clearTrendFilter = function clearTrendFilter() {
+  const form = document.getElementById("chatFilters");
+  const url = new URL(form?.action || window.location.pathname, window.location.origin);
+
+  if (form) {
+    const fd = new FormData(form);
+    for (const [k, v] of fd.entries()) {
+      const value = String(v || "").trim();
+      if (value) url.searchParams.set(k, value);
+    }
+  }
+
+  url.searchParams.set("view", "chats");
+  url.searchParams.delete("trend");
+  url.searchParams.delete("session_id");
+
+  window.location.href = url.toString();
+};
 
 
 function setInlineDetailOpen(open) {
