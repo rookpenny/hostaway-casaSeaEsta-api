@@ -68,6 +68,57 @@
   }
 
   // -----------------------------------
+  // View metadata + single source of truth
+  // -----------------------------------
+  const VIEW_TITLES = {
+    overview: ["Overview", "Your portfolio at a glance"],
+    chats: ["Chats", "Guest conversations and issues"],
+    analytics: ["Analytics", "Performance across your portfolio"],
+    properties: ["Properties", "Manage listing status and configuration"],
+    guides: ["Guides", "Create and manage guest guides per property."],
+    upgrades: ["Upgrades", "Manage paid add-ons and offerings"],
+    pmcs: ["PMCs", "Property management companies"],
+    files: ["Configs & Manuals", "Central file management"],
+    payouts: ["Payouts", "Revenue and transfers"],
+    admin_payouts: ["Revenue", "HostScout platform revenue"],
+    settings: ["Settings", "Workspace and account controls"],
+  };
+
+  function setActiveView(viewName) {
+    const pageTitle = $("page-title");
+    const pageSubtitle = $("page-subtitle");
+
+    qsa("[data-view]").forEach((item) => {
+      const active = item.getAttribute("data-view") === viewName;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-current", active ? "page" : "false");
+    });
+
+    qsa(".view").forEach((panel) => {
+      panel.classList.add("hidden");
+      panel.classList.remove("fade-in");
+    });
+
+    const activePanel = $(`view-${viewName}`);
+    if (activePanel) {
+      activePanel.classList.remove("hidden");
+      activePanel.classList.add("fade-in");
+    }
+
+    if (pageTitle && VIEW_TITLES[viewName]) {
+      pageTitle.textContent = VIEW_TITLES[viewName][0];
+    }
+
+    if (pageSubtitle && VIEW_TITLES[viewName]) {
+      pageSubtitle.textContent = VIEW_TITLES[viewName][1];
+    }
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", viewName);
+    window.history.replaceState({}, "", url.toString());
+  }
+
+  // -----------------------------------
   // Global functions used by inline HTML
   // -----------------------------------
   window.openInsights = function openInsights() {
@@ -77,6 +128,40 @@
   window.closeInsights = function closeInsights() {
     $("insightsPanel")?.classList.add("hidden");
   };
+
+  function waitForGuideEditorFields(maxAttempts = 20, delay = 150) {
+    return new Promise((resolve) => {
+      let attempts = 0;
+
+      const check = () => {
+        const titleInput =
+          document.querySelector('#guides-editor input[name="title"]') ||
+          document.querySelector('#guides-editor input[type="text"]');
+
+        const bodyTextarea =
+          document.querySelector('#guides-editor textarea[name="body"]') ||
+          document.querySelector('#guides-editor textarea');
+
+        const quillEditor =
+          document.querySelector('#guides-editor .ql-editor');
+
+        if (titleInput || bodyTextarea || quillEditor) {
+          resolve({ titleInput, bodyTextarea, quillEditor });
+          return;
+        }
+
+        attempts += 1;
+        if (attempts >= maxAttempts) {
+          resolve({ titleInput: null, bodyTextarea: null, quillEditor: null });
+          return;
+        }
+
+        window.setTimeout(check, delay);
+      };
+
+      check();
+    });
+  }
 
   window.openGuideSuggestion = function openGuideSuggestion(target) {
     window.closeInsights();
@@ -162,52 +247,11 @@
   // View navigation
   // -----------------------------------
   function initViewNavigation() {
-    const pageTitle = $("page-title");
-    const pageSubtitle = $("page-subtitle");
-
-    const titles = {
-      overview: ["Overview", "Your portfolio at a glance"],
-      chats: ["Chats", "Guest conversations and issues"],
-      analytics: ["Analytics", "Performance across your portfolio"],
-      properties: ["Properties", "Manage listing status and configuration"],
-      guides: ["Guides", "Guest-facing content and instructions"],
-      upgrades: ["Upgrades", "Manage paid add-ons and offerings"],
-      pmcs: ["PMCs", "Property management companies"],
-      files: ["Configs & Manuals", "Central file management"],
-      payouts: ["Payouts", "Revenue and transfers"],
-      admin_payouts: ["Revenue", "HostScout platform revenue"],
-      settings: ["Settings", "Workspace and account controls"],
-    };
-
     qsa("[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const view = btn.getAttribute("data-view");
-        if (!view) return; 
+        if (!view) return;
         setActiveView(view);
-      });
-        
-
-        qsa("[data-view]").forEach((item) => {
-          item.classList.remove("active");
-          item.setAttribute("aria-current", "false");
-        });
-
-        btn.classList.add("active");
-        btn.setAttribute("aria-current", "page");
-
-        qsa(".view").forEach((panel) => {
-          panel.classList.add("hidden");
-          panel.classList.remove("fade-in");
-        });
-
-        const activePanel = $(`view-${view}`);
-        if (activePanel) {
-          activePanel.classList.remove("hidden");
-          activePanel.classList.add("fade-in");
-        }
-
-        if (pageTitle && titles[view]) pageTitle.textContent = titles[view][0];
-        if (pageSubtitle && titles[view]) pageSubtitle.textContent = titles[view][1];
       });
     });
   }
@@ -256,6 +300,48 @@
     toggleBtn.addEventListener("click", () => {
       const isCollapsed = sidebar.classList.contains("w-20");
       setCollapsed(!isCollapsed);
+    });
+  }
+
+  // -----------------------------------
+  // Portfolio chart
+  // -----------------------------------
+  function initPortfolioChart() {
+    const ctx = $("overviewPortfolioChart");
+    if (!ctx || typeof Chart === "undefined") return;
+
+    const live = Number(BOOT.live_props || 0);
+    const offline = Number(BOOT.offline_props || 0);
+
+    new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["Live", "Offline"],
+        datasets: [{
+          data: [live, offline],
+          backgroundColor: ["#356cf6", "#47c5c9"],
+          borderWidth: 0,
+          hoverOffset: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "72%",
+        animation: {
+          animateRotate: true,
+          duration: 800,
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "#0f172a",
+            titleColor: "#fff",
+            bodyColor: "#cbd5f5",
+            padding: 10,
+          },
+        },
+      },
     });
   }
 
@@ -779,125 +865,6 @@
 
     return { showInTasks };
   })();
-
-
-
-    function setActiveView(viewName) {
-    const pageTitle = $("page-title");
-    const pageSubtitle = $("page-subtitle");
-
-    const titles = {
-      overview: ["Overview", "Your portfolio at a glance"],
-      chats: ["Chats", "Guest conversations and issues"],
-      analytics: ["Analytics", "Performance across your portfolio"],
-      properties: ["Properties", "Manage listing status and configuration"],
-      guides: ["Guides", "Create and manage guest guides per property."],
-      upgrades: ["Upgrades", "Manage paid add-ons and offerings"],
-      pmcs: ["PMCs", "Property management companies"],
-      files: ["Configs & Manuals", "Central file management"],
-      payouts: ["Payouts", "Revenue and transfers"],
-      admin_payouts: ["Revenue", "HostScout platform revenue"],
-      settings: ["Settings", "Workspace and account controls"],
-    };
-
-    qsa("[data-view]").forEach((item) => {
-      const active = item.getAttribute("data-view") === viewName;
-      item.classList.toggle("active", active);
-      item.setAttribute("aria-current", active ? "page" : "false");
-    });
-
-    qsa(".view").forEach((panel) => {
-      panel.classList.add("hidden");
-      panel.classList.remove("fade-in");
-    });
-
-    const activePanel = $(`view-${viewName}`);
-    if (activePanel) {
-      activePanel.classList.remove("hidden");
-      activePanel.classList.add("fade-in");
-    }
-
-    if (pageTitle && titles[viewName]) pageTitle.textContent = titles[viewName][0];
-    if (pageSubtitle && titles[viewName]) pageSubtitle.textContent = titles[viewName][1];
-
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", viewName);
-    window.history.replaceState({}, "", url.toString());
-  }
-
-  function waitForGuideEditorFields(maxAttempts = 20, delay = 150) {
-    return new Promise((resolve) => {
-      let attempts = 0;
-
-      const check = () => {
-        const titleInput =
-          document.querySelector('#guides-editor input[name="title"]') ||
-          document.querySelector('#guides-editor input[type="text"]');
-
-        const bodyTextarea =
-          document.querySelector('#guides-editor textarea[name="body"]') ||
-          document.querySelector('#guides-editor textarea');
-
-        const quillEditor =
-          document.querySelector('#guides-editor .ql-editor');
-
-        if (titleInput || bodyTextarea || quillEditor) {
-          resolve({ titleInput, bodyTextarea, quillEditor });
-          return;
-        }
-
-        attempts += 1;
-        if (attempts >= maxAttempts) {
-          resolve({ titleInput: null, bodyTextarea: null, quillEditor: null });
-          return;
-        }
-
-        window.setTimeout(check, delay);
-      };
-
-      check();
-    });
-  }
-
-  function initPortfolioChart() {
-    const ctx = $("overviewPortfolioChart");
-    if (!ctx || typeof Chart === "undefined") return;
-
-    const live = Number(BOOT.live_props || 0);
-    const offline = Number(BOOT.offline_props || 0);
-
-    new Chart(ctx, {
-      type: "doughnut",
-      data: {
-        labels: ["Live", "Offline"],
-        datasets: [{
-          data: [live, offline],
-          backgroundColor: ["#356cf6", "#47c5c9"],
-          borderWidth: 0,
-          hoverOffset: 4,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: "72%",
-        animation: {
-          animateRotate: true,
-          duration: 800,
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: "#0f172a",
-            titleColor: "#fff",
-            bodyColor: "#cbd5f5",
-            padding: 10,
-          },
-        },
-      },
-    });
-  }
-  
 
   // -----------------------------------
   // DOM ready
