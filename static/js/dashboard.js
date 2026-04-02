@@ -880,6 +880,7 @@
     initChatDetailDelete();
     initRevenueReports();
     initPortfolioChart();
+    initChatLoadMore();
 
     if (BOOT && BOOT.user_role) {
       window.CONTENT_LOCKED = !!BOOT.is_locked;
