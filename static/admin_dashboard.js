@@ -35,24 +35,6 @@ document.addEventListener("click", (e) => {
 });
 
 
-
-
-  // -----------------------------------
-  // Bootstrap / config
-  // -----------------------------------
-  function getBoot() {
-    const el = document.getElementById("dashboard-bootstrap");
-    if (!el) return {};
-    try {
-      return JSON.parse(el.textContent || "{}");
-    } catch (err) {
-      console.error("Invalid dashboard bootstrap JSON", err);
-      return {};
-    }
-  }
-
-  const BOOT = getBoot();
-
   // -----------------------------------
   // Small helpers
   // -----------------------------------
@@ -2266,24 +2248,6 @@ function setAssignedBadge(container, assignedTo) {
   }
   container.innerHTML = `<span class="inline-block px-2 py-1 rounded-xl bg-slate-100 text-slate-800 font-semibold">${escapeHtml(v)}</span>`;
 }
-
-
-// small safety helper
-function escapeHtml(str) {
-  return String(str).replace(/[&<>"']/g, (m) => ({
-    "&": "&amp;",
-    "<": "&lt;",
-    ">": "&gt;",
-    '"': "&quot;",
-    "'": "&#39;"
-  }[m]));
-}
-
-
-
-
-
-
 
 
 
