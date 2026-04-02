@@ -3325,14 +3325,21 @@ def build_signal_detail(session_row: dict) -> str:
     return "Guest is mainly exploring information right now."
 
 
-def build_suggestions(sessions: list[dict]) -> list[dict]:
+def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
     suggestions = []
 
     topic_counts = {}
+    topic_property_counts = {}
     repeat_question_counts = {}
+    priority_counts = {}
+    negative_counts = {}
 
     for s in sessions:
         snippet = (s.get("last_snippet") or "").lower()
+        prop_id = s.get("property_id")
+        action_priority = (s.get("action_priority") or "").lower()
+        has_negative = bool(s.get("has_negative"))
+        msg_24h = int(s.get("msg_24h", 0) or 0)
 
         if any(k in snippet for k in ["check-in", "check in", "arrival", "access", "door", "entry"]):
             topic = "checkin"
@@ -3347,52 +3354,126 @@ def build_suggestions(sessions: list[dict]) -> list[dict]:
 
         topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
-        if int(s.get("msg_24h", 0) or 0) >= 3:
+        if topic not in topic_property_counts:
+            topic_property_counts[topic] = {}
+        if prop_id:
+            topic_property_counts[topic][prop_id] = topic_property_counts[topic].get(prop_id, 0) + 1
+
+        if msg_24h >= 3:
             repeat_question_counts[topic] = repeat_question_counts.get(topic, 0) + 1
 
-    if topic_counts.get("checkin", 0) >= 2:
+        if action_priority in {"urgent", "high"}:
+            priority_counts[topic] = priority_counts.get(topic, 0) + 1
+
+        if has_negative:
+            negative_counts[topic] = negative_counts.get(topic, 0) + 1
+
+    property_meta = {
+        p.id: {
+            "property_id": p.id,
+            "property_name": p.property_name,
+            "property_image_url": getattr(p, "hero_image_url", None),
+        }
+        for p in properties
+    }
+
+    def get_top_property(topic: str) -> dict:
+        prop_counts = topic_property_counts.get(topic, {})
+        if not prop_counts:
+            return {}
+        top_prop_id = max(prop_counts.items(), key=lambda x: x[1])[0]
+        return property_meta.get(top_prop_id, {})
+
+    def compute_impact(topic: str) -> int:
+        return (
+            topic_counts.get(topic, 0) * 3
+            + repeat_question_counts.get(topic, 0) * 4
+            + priority_counts.get(topic, 0) * 5
+            + negative_counts.get(topic, 0) * 3
+        )
+
+    def compute_confidence(topic: str) -> str:
+        count = topic_counts.get(topic, 0)
+        repeats = repeat_question_counts.get(topic, 0)
+        if count >= 5 or repeats >= 2:
+            return "High confidence"
+        if count >= 3:
+            return "Medium confidence"
+        return "Early signal"
+
+    def add_suggestion(
+        *,
+        topic: str,
+        suggestion_id: str,
+        title: str,
+        reason: str,
+        action: str,
+        cta_primary: str,
+        cta_secondary: str,
+        target: str,
+    ) -> None:
+        prop = get_top_property(topic)
         suggestions.append({
-            "id": "checkin_instructions",
-            "title": "Improve check-in instructions",
-            "reason": f"{topic_counts['checkin']} guests asked about arrival or access",
-            "action": "Add step-by-step entry instructions and photos",
-            "cta_primary": "Open guide",
-            "cta_secondary": "Generate draft",
-            "target": "checkin",
+            "id": suggestion_id,
+            "title": title,
+            "reason": reason,
+            "action": action,
+            "cta_primary": cta_primary,
+            "cta_secondary": cta_secondary,
+            "target": target,
+            "impact_score": compute_impact(topic),
+            "confidence": compute_confidence(topic),
+            "topic_count": topic_counts.get(topic, 0),
+            **prop,
         })
+
+    if topic_counts.get("checkin", 0) >= 2:
+        add_suggestion(
+            topic="checkin",
+            suggestion_id="checkin_instructions",
+            title="Improve check-in instructions",
+            reason=f"{topic_counts['checkin']} guests asked about arrival or access",
+            action="Add step-by-step entry instructions and photos.",
+            cta_primary="Open guide",
+            cta_secondary="Generate draft",
+            target="checkin",
+        )
 
     if topic_counts.get("wifi", 0) >= 2:
-        suggestions.append({
-            "id": "wifi_visibility",
-            "title": "Make WiFi details easier to find",
-            "reason": f"{topic_counts['wifi']} guests asked about WiFi",
-            "action": "Include WiFi name and password in your guide and arrival message",
-            "cta_primary": "Open guide",
-            "cta_secondary": "Generate draft",
-            "target": "wifi",
-        })
+        add_suggestion(
+            topic="wifi",
+            suggestion_id="wifi_visibility",
+            title="Make WiFi details easier to find",
+            reason=f"{topic_counts['wifi']} guests asked about WiFi",
+            action="Include WiFi name and password in your guide and arrival message.",
+            cta_primary="Open guide",
+            cta_secondary="Generate draft",
+            target="wifi",
+        )
 
     if topic_counts.get("parking", 0) >= 2:
-        suggestions.append({
-            "id": "parking_instructions",
-            "title": "Clarify parking instructions",
-            "reason": f"{topic_counts['parking']} guests asked about parking",
-            "action": "Add parking location, rules, and photos",
-            "cta_primary": "Open guide",
-            "cta_secondary": "Generate draft",
-            "target": "parking",
-        })
+        add_suggestion(
+            topic="parking",
+            suggestion_id="parking_instructions",
+            title="Clarify parking instructions",
+            reason=f"{topic_counts['parking']} guests asked about parking",
+            action="Add parking location, rules, and photos.",
+            cta_primary="Open guide",
+            cta_secondary="Generate draft",
+            target="parking",
+        )
 
     if topic_counts.get("late_checkout", 0) >= 2:
-        suggestions.append({
-            "id": "checkout_expectations",
-            "title": "Set expectations for checkout",
-            "reason": f"{topic_counts['late_checkout']} guests asked about late checkout",
-            "action": "Clearly state checkout policy in your guide",
-            "cta_primary": "Open guide",
-            "cta_secondary": "Generate draft",
-            "target": "checkout",
-        })
+        add_suggestion(
+            topic="late_checkout",
+            suggestion_id="checkout_expectations",
+            title="Set expectations for checkout",
+            reason=f"{topic_counts['late_checkout']} guests asked about late checkout",
+            action="Clearly state checkout policy in your guide.",
+            cta_primary="Open guide",
+            cta_secondary="Generate draft",
+            target="checkout",
+        )
 
     repeated_total = sum(repeat_question_counts.values())
     if repeated_total >= 1:
@@ -3400,12 +3481,19 @@ def build_suggestions(sessions: list[dict]) -> list[dict]:
             "id": "repeated_questions",
             "title": "Guests are asking multiple times",
             "reason": f"Repeated questions detected across {repeated_total} session{'s' if repeated_total != 1 else ''}",
-            "action": "Simplify key information or make it more visible earlier in the stay",
+            "action": "Simplify key information or make it more visible earlier in the stay.",
             "cta_primary": "View chats",
             "cta_secondary": "",
             "target": "chats",
+            "impact_score": repeated_total * 4,
+            "confidence": "High confidence" if repeated_total >= 2 else "Medium confidence",
+            "topic_count": repeated_total,
+            "property_id": None,
+            "property_name": "Across properties",
+            "property_image_url": None,
         })
 
+    suggestions.sort(key=lambda x: x.get("impact_score", 0), reverse=True)
     return suggestions
 
 
@@ -3907,7 +3995,7 @@ def admin_dashboard(
         if row.get("has_negative"):
             analytics["unhappy_sessions"] += 1
 
-    suggestions = build_suggestions(sessions)
+    suggestions = build_suggestions(sessions, properties)
     stay_pulse = build_stay_pulse(sessions)
 
     # ----------------------------
