@@ -3328,46 +3328,6 @@ def build_signal_detail(session_row: dict) -> str:
 def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
     suggestions = []
 
-    topic_counts = {}
-    topic_property_counts = {}
-    repeat_question_counts = {}
-    priority_counts = {}
-    negative_counts = {}
-
-    for s in sessions:
-        snippet = (s.get("last_snippet") or "").lower()
-        prop_id = s.get("property_id")
-        action_priority = (s.get("action_priority") or "").lower()
-        has_negative = bool(s.get("has_negative"))
-        msg_24h = int(s.get("msg_24h", 0) or 0)
-
-        if any(k in snippet for k in ["check-in", "check in", "arrival", "access", "door", "entry"]):
-            topic = "checkin"
-        elif any(k in snippet for k in ["wifi", "wi-fi", "internet", "password"]):
-            topic = "wifi"
-        elif "parking" in snippet:
-            topic = "parking"
-        elif any(k in snippet for k in ["late checkout", "late check-out"]):
-            topic = "late_checkout"
-        else:
-            topic = "general"
-
-        topic_counts[topic] = topic_counts.get(topic, 0) + 1
-
-        if topic not in topic_property_counts:
-            topic_property_counts[topic] = {}
-        if prop_id:
-            topic_property_counts[topic][prop_id] = topic_property_counts[topic].get(prop_id, 0) + 1
-
-        if msg_24h >= 3:
-            repeat_question_counts[topic] = repeat_question_counts.get(topic, 0) + 1
-
-        if action_priority in {"urgent", "high"}:
-            priority_counts[topic] = priority_counts.get(topic, 0) + 1
-
-        if has_negative:
-            negative_counts[topic] = negative_counts.get(topic, 0) + 1
-
     property_meta = {
         p.id: {
             "property_id": p.id,
@@ -3377,125 +3337,352 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
         for p in properties
     }
 
-    def get_top_property(topic: str) -> dict:
-        prop_counts = topic_property_counts.get(topic, {})
-        if not prop_counts:
-            return {}
-        top_prop_id = max(prop_counts.items(), key=lambda x: x[1])[0]
-        return property_meta.get(top_prop_id, {})
+    topic_stats: dict[str, dict] = {}
+    property_topic_stats: dict[str, dict[int, int]] = {}
 
-    def compute_impact(topic: str) -> int:
-        return (
-            topic_counts.get(topic, 0) * 3
-            + repeat_question_counts.get(topic, 0) * 4
-            + priority_counts.get(topic, 0) * 5
-            + negative_counts.get(topic, 0) * 3
-        )
-
-    def compute_confidence(topic: str) -> str:
-        count = topic_counts.get(topic, 0)
-        repeats = repeat_question_counts.get(topic, 0)
-        if count >= 5 or repeats >= 2:
-            return "High confidence"
-        if count >= 3:
-            return "Medium confidence"
-        return "Early signal"
-
-    def add_suggestion(
-        *,
-        topic: str,
-        suggestion_id: str,
-        title: str,
-        reason: str,
-        action: str,
-        cta_primary: str,
-        cta_secondary: str,
-        target: str,
-    ) -> None:
-        prop = get_top_property(topic)
-        suggestions.append({
-            "id": suggestion_id,
-            "title": title,
-            "reason": reason,
-            "action": action,
-            "cta_primary": cta_primary,
-            "cta_secondary": cta_secondary,
-            "target": target,
-            "impact_score": compute_impact(topic),
-            "confidence": compute_confidence(topic),
-            "topic_count": topic_counts.get(topic, 0),
-            **prop,
-        })
-
-    if topic_counts.get("checkin", 0) >= 2:
-        add_suggestion(
-            topic="checkin",
-            suggestion_id="checkin_instructions",
-            title="Improve check-in instructions",
-            reason=f"{topic_counts['checkin']} guests asked about arrival or access",
-            action="Add step-by-step entry instructions and photos.",
-            cta_primary="Open guide",
-            cta_secondary="Generate draft",
-            target="checkin",
-        )
-
-    if topic_counts.get("wifi", 0) >= 2:
-        add_suggestion(
-            topic="wifi",
-            suggestion_id="wifi_visibility",
-            title="Make WiFi details easier to find",
-            reason=f"{topic_counts['wifi']} guests asked about WiFi",
-            action="Include WiFi name and password in your guide and arrival message.",
-            cta_primary="Open guide",
-            cta_secondary="Generate draft",
-            target="wifi",
-        )
-
-    if topic_counts.get("parking", 0) >= 2:
-        add_suggestion(
-            topic="parking",
-            suggestion_id="parking_instructions",
-            title="Clarify parking instructions",
-            reason=f"{topic_counts['parking']} guests asked about parking",
-            action="Add parking location, rules, and photos.",
-            cta_primary="Open guide",
-            cta_secondary="Generate draft",
-            target="parking",
-        )
-
-    if topic_counts.get("late_checkout", 0) >= 2:
-        add_suggestion(
-            topic="late_checkout",
-            suggestion_id="checkout_expectations",
-            title="Set expectations for checkout",
-            reason=f"{topic_counts['late_checkout']} guests asked about late checkout",
-            action="Clearly state checkout policy in your guide.",
-            cta_primary="Open guide",
-            cta_secondary="Generate draft",
-            target="checkout",
-        )
-
-    repeated_total = sum(repeat_question_counts.values())
-    if repeated_total >= 1:
-        suggestions.append({
-            "id": "repeated_questions",
-            "title": "Guests are asking multiple times",
-            "reason": f"Repeated questions detected across {repeated_total} session{'s' if repeated_total != 1 else ''}",
-            "action": "Simplify key information or make it more visible earlier in the stay.",
+    topic_templates = {
+        "checkin": {
+            "title": "Check-in instructions are creating friction",
+            "action": "Move arrival steps higher, simplify entry directions, and add door or access photos.",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "checkin",
+        },
+        "wifi": {
+            "title": "WiFi information is too hard to find",
+            "action": "Put the WiFi name and password in the guide and arrival message so guests see it sooner.",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "wifi",
+        },
+        "parking": {
+            "title": "Parking instructions need clarification",
+            "action": "Add exact parking location, rules, and a reference photo to reduce arrival confusion.",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "parking",
+        },
+        "late_checkout": {
+            "title": "Checkout expectations are unclear",
+            "action": "Clarify checkout time and late-checkout policy in the guide and pre-departure messaging.",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "checkout",
+        },
+        "noise": {
+            "title": "Quiet-hours guidance may be missing",
+            "action": "Add quiet hours, neighbor expectations, and what guests should do if noise becomes an issue.",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "quiet_hours",
+        },
+        "temperature": {
+            "title": "Guests may need better thermostat guidance",
+            "action": "Add simple AC or thermostat instructions and note expected temperature behavior.",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "thermostat",
+        },
+        "cleanliness": {
+            "title": "Cleanliness concerns may be hurting confidence",
+            "action": "Review turnover quality and clarify how guests can quickly report any issues.",
             "cta_primary": "View chats",
             "cta_secondary": "",
             "target": "chats",
-            "impact_score": repeated_total * 4,
-            "confidence": "High confidence" if repeated_total >= 2 else "Medium confidence",
-            "topic_count": repeated_total,
+        },
+        "safety": {
+            "title": "Guests may need clearer safety or access reassurance",
+            "action": "Strengthen entry, lock, and support instructions so guests feel confident on arrival.",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "checkin",
+        },
+        "recommendations": {
+            "title": "Guests are looking for more local recommendations",
+            "action": "Add a short list of top restaurants, coffee spots, and nearby things to do.",
+            "cta_primary": "Open guide",
+            "cta_secondary": "Generate draft",
+            "target": "local_guide",
+        },
+        "general": {
+            "title": "Guests are looking for information that should be easier to find",
+            "action": "Move key details earlier in the stay journey and make answers easier to scan.",
+            "cta_primary": "View chats",
+            "cta_secondary": "",
+            "target": "chats",
+        },
+    }
+
+    def ensure_topic(topic: str) -> None:
+        if topic not in topic_stats:
+            topic_stats[topic] = {
+                "count": 0,
+                "repeat_count": 0,
+                "urgent_count": 0,
+                "high_count": 0,
+                "negative_count": 0,
+                "current_count": 0,
+                "checked_out_count": 0,
+                "upcoming_count": 0,
+                "inquiry_count": 0,
+                "confused_count": 0,
+                "worried_count": 0,
+                "angry_count": 0,
+                "sample_texts": [],
+            }
+
+    def combined_text(row: dict) -> str:
+        parts = [
+            row.get("last_snippet") or "",
+            row.get("signal_detail") or "",
+        ]
+        return " ".join(parts).strip().lower()
+
+    def classify_topic(row: dict) -> str:
+        text = combined_text(row)
+        signal_detail = (row.get("signal_detail") or "").lower()
+        mood = (row.get("guest_mood") or "").lower()
+
+        if any(k in text for k in ["check-in", "check in", "arrival", "access", "door", "entry", "lock", "code", "keypad"]):
+            return "checkin"
+        if any(k in text for k in ["wifi", "wi-fi", "internet", "password", "router", "connect"]):
+            return "wifi"
+        if any(k in text for k in ["parking", "park", "garage", "driveway", "car"]):
+            return "parking"
+        if any(k in text for k in ["late checkout", "late check-out", "checkout", "check-out", "leave by"]):
+            return "late_checkout"
+        if any(k in text for k in ["noise", "loud", "quiet hours", "neighbor", "music", "party"]):
+            return "noise"
+        if any(k in text for k in ["ac", "a/c", "air conditioning", "thermostat", "heat", "heater", "hot", "cold", "temperature"]):
+            return "temperature"
+        if any(k in text for k in ["dirty", "clean", "smell", "odor", "stain", "mess", "unclean", "filthy"]):
+            return "cleanliness"
+        if any(k in text for k in ["safe", "unsafe", "security", "locked out", "lock", "scared"]):
+            return "safety"
+        if any(k in text for k in ["restaurant", "recommend", "things to do", "coffee", "beach", "food", "nearby"]):
+            return "recommendations"
+
+        if "friction" in signal_detail or mood in {"angry", "worried", "upset", "confused"}:
+            return "general"
+
+        return "general"
+
+    for s in sessions:
+        topic = classify_topic(s)
+        ensure_topic(topic)
+
+        prop_id = s.get("property_id")
+        priority = (s.get("action_priority") or "").lower()
+        stay_cycle = (s.get("stay_cycle") or "").lower()
+        mood = (s.get("guest_mood") or "").lower()
+        has_negative = bool(s.get("has_negative"))
+        has_urgent = bool(s.get("has_urgent"))
+        msg_24h = int(s.get("msg_24h", 0) or 0)
+
+        topic_stats[topic]["count"] += 1
+
+        if msg_24h >= 3:
+            topic_stats[topic]["repeat_count"] += 1
+        if priority == "urgent" or has_urgent:
+            topic_stats[topic]["urgent_count"] += 1
+        if priority == "high":
+            topic_stats[topic]["high_count"] += 1
+        if has_negative:
+            topic_stats[topic]["negative_count"] += 1
+
+        if stay_cycle == "current":
+            topic_stats[topic]["current_count"] += 1
+        elif stay_cycle == "checked_out":
+            topic_stats[topic]["checked_out_count"] += 1
+        elif stay_cycle == "upcoming":
+            topic_stats[topic]["upcoming_count"] += 1
+        else:
+            topic_stats[topic]["inquiry_count"] += 1
+
+        if mood == "confused":
+            topic_stats[topic]["confused_count"] += 1
+        elif mood == "worried":
+            topic_stats[topic]["worried_count"] += 1
+        elif mood == "angry":
+            topic_stats[topic]["angry_count"] += 1
+
+        text = combined_text(s)
+        if text and len(topic_stats[topic]["sample_texts"]) < 3:
+            topic_stats[topic]["sample_texts"].append(text)
+
+        if prop_id:
+            if topic not in property_topic_stats:
+                property_topic_stats[topic] = {}
+            property_topic_stats[topic][prop_id] = property_topic_stats[topic].get(prop_id, 0) + 1
+
+    def top_property_for_topic(topic: str) -> dict:
+        counts = property_topic_stats.get(topic, {})
+        if not counts:
+            return {
+                "property_id": None,
+                "property_name": "Across properties",
+                "property_image_url": None,
+            }
+        top_prop_id = max(counts.items(), key=lambda x: x[1])[0]
+        return property_meta.get(top_prop_id, {
             "property_id": None,
             "property_name": "Across properties",
             "property_image_url": None,
         })
 
-    suggestions.sort(key=lambda x: x.get("impact_score", 0), reverse=True)
-    return suggestions
+    def compute_impact(stats: dict) -> int:
+        return (
+            stats["count"] * 3
+            + stats["repeat_count"] * 5
+            + stats["urgent_count"] * 8
+            + stats["high_count"] * 4
+            + stats["negative_count"] * 4
+            + stats["angry_count"] * 6
+            + stats["worried_count"] * 3
+            + stats["confused_count"] * 3
+            + stats["current_count"] * 2
+        )
 
+    def compute_confidence(stats: dict) -> str:
+        if (
+            stats["count"] >= 5
+            or stats["repeat_count"] >= 2
+            or stats["urgent_count"] >= 1
+            or stats["angry_count"] >= 1
+        ):
+            return "High confidence"
+        if (
+            stats["count"] >= 3
+            or stats["negative_count"] >= 1
+            or stats["confused_count"] >= 1
+            or stats["worried_count"] >= 1
+        ):
+            return "Medium confidence"
+        return "Emerging signal"
+
+    def build_reason(topic: str, stats: dict, property_name: str) -> str:
+        location_part = ""
+        if property_name and property_name != "Across properties":
+            location_part = f" at {property_name}"
+
+        if topic == "checkin":
+            return (
+                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
+                f"point to arrival or access confusion"
+                + (
+                    f", with repeat questions in {stats['repeat_count']} session{'s' if stats['repeat_count'] != 1 else ''}."
+                    if stats["repeat_count"] > 0 else "."
+                )
+            )
+
+        if topic == "wifi":
+            return (
+                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
+                f"focused on WiFi access or connectivity"
+                + (
+                    f", and guests asked multiple times in {stats['repeat_count']} session{'s' if stats['repeat_count'] != 1 else ''}."
+                    if stats["repeat_count"] > 0 else "."
+                )
+            )
+
+        if topic == "parking":
+            return (
+                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
+                f"show confusion around parking or arrival logistics."
+            )
+
+        if topic == "late_checkout":
+            return (
+                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
+                f"show uncertainty around checkout timing or policy."
+            )
+
+        if topic == "noise":
+            return (
+                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
+                f"suggest guests may need clearer quiet-hours or noise expectations."
+            )
+
+        if topic == "temperature":
+            return (
+                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
+                f"indicate guests may be struggling with thermostat or temperature control."
+            )
+
+        if topic == "cleanliness":
+            return (
+                f"{stats['negative_count']} negatively toned conversation{'s' if stats['negative_count'] != 1 else ''}{location_part} "
+                f"may be tied to cleanliness or readiness concerns."
+            )
+
+        if topic == "safety":
+            return (
+                f"{stats['worried_count'] + stats['angry_count'] or stats['count']} guest conversation"
+                f"{'s' if (stats['worried_count'] + stats['angry_count'] or stats['count']) != 1 else ''}{location_part} "
+                f"suggest guests may need more reassurance around access or safety."
+            )
+
+        if topic == "recommendations":
+            return (
+                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
+                f"show demand for local recommendations and stay guidance."
+            )
+
+        return (
+            f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
+            f"suggest guests are looking for information that should be easier to find."
+        )
+
+    def should_emit(stats: dict) -> bool:
+        return (
+            stats["count"] >= 2
+            or stats["repeat_count"] >= 1
+            or stats["urgent_count"] >= 1
+            or stats["negative_count"] >= 1
+        )
+
+    for topic in ["checkin", "wifi", "parking", "late_checkout", "noise", "temperature", "cleanliness", "safety", "recommendations", "general"]:
+        stats = topic_stats.get(topic)
+        if not stats or not should_emit(stats):
+            continue
+
+        template = topic_templates.get(topic, topic_templates["general"])
+        prop = top_property_for_topic(topic)
+
+        suggestions.append({
+            "id": f"suggestion_{topic}",
+            "title": template["title"],
+            "reason": build_reason(topic, stats, prop.get("property_name") or "Across properties"),
+            "action": template["action"],
+            "cta_primary": template["cta_primary"],
+            "cta_secondary": template["cta_secondary"],
+            "target": template["target"],
+            "impact_score": compute_impact(stats),
+            "confidence": compute_confidence(stats),
+            "topic_count": stats["count"],
+            "repeat_count": stats["repeat_count"],
+            "urgent_count": stats["urgent_count"],
+            "negative_count": stats["negative_count"],
+            **prop,
+        })
+
+    suggestions.sort(
+        key=lambda s: (
+            -(s.get("impact_score") or 0),
+            -(s.get("topic_count") or 0),
+            s.get("property_name") or "",
+        )
+    )
+
+    deduped = []
+    seen_titles = set()
+    for s in suggestions:
+        title = (s.get("title") or "").strip().lower()
+        if title and title not in seen_titles:
+            deduped.append(s)
+            seen_titles.add(title)
+
+    return deduped
 
 def build_suggestion_draft(target: str) -> dict:
     drafts = {
