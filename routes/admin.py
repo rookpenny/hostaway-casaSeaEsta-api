@@ -3326,8 +3326,6 @@ def build_signal_detail(session_row: dict) -> str:
 
 
 def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
-    suggestions = []
-
     property_meta = {
         p.id: {
             "property_id": p.id,
@@ -3337,186 +3335,215 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
         for p in properties
     }
 
-    topic_stats: dict[str, dict] = {}
-    property_topic_stats: dict[str, dict[int, int]] = {}
+    suggestions = []
+    issue_stats: dict[str, dict] = {}
+    issue_property_counts: dict[str, dict[int, int]] = {}
 
-    topic_templates = {
-        "checkin": {
-            "title": "Check-in instructions are creating friction",
-            "action": "Move arrival steps higher, simplify entry directions, and add door or access photos.",
+    ISSUE_DEFS = {
+        "checkin_missing_info": {
+            "title": "Check-in guidance is too hard to find",
+            "action": "Move entry steps higher in the guide and arrival message, and add a door or keypad photo.",
             "cta_primary": "Open guide",
             "cta_secondary": "Generate draft",
             "target": "checkin",
+            "kind": "content",
         },
-        "wifi": {
-            "title": "WiFi information is too hard to find",
-            "action": "Put the WiFi name and password in the guide and arrival message so guests see it sooner.",
+        "checkin_access_failure": {
+            "title": "Guests may be failing to enter the property",
+            "action": "Audit door code accuracy, lock instructions, and backup entry steps. This looks operational, not just informational.",
+            "cta_primary": "View chats",
+            "cta_secondary": "",
+            "target": "chats",
+            "kind": "ops",
+        },
+        "wifi_missing_info": {
+            "title": "WiFi details are not visible enough",
+            "action": "Add the WiFi name and password to the guide and arrival message so guests see it before they ask.",
             "cta_primary": "Open guide",
             "cta_secondary": "Generate draft",
             "target": "wifi",
+            "kind": "content",
         },
-        "parking": {
+        "wifi_connectivity_issue": {
+            "title": "Guests may be experiencing a real WiFi problem",
+            "action": "Review network reliability, router placement, and fallback steps before only updating guest instructions.",
+            "cta_primary": "View chats",
+            "cta_secondary": "",
+            "target": "chats",
+            "kind": "ops",
+        },
+        "parking_confusion": {
             "title": "Parking instructions need clarification",
-            "action": "Add exact parking location, rules, and a reference photo to reduce arrival confusion.",
+            "action": "Add exact parking location, rules, and a visual reference photo to reduce arrival confusion.",
             "cta_primary": "Open guide",
             "cta_secondary": "Generate draft",
             "target": "parking",
+            "kind": "content",
         },
-        "late_checkout": {
+        "checkout_policy_confusion": {
             "title": "Checkout expectations are unclear",
-            "action": "Clarify checkout time and late-checkout policy in the guide and pre-departure messaging.",
+            "action": "Clarify checkout time, late checkout policy, and what guests should do before departure.",
             "cta_primary": "Open guide",
             "cta_secondary": "Generate draft",
             "target": "checkout",
+            "kind": "content",
         },
-        "noise": {
-            "title": "Quiet-hours guidance may be missing",
-            "action": "Add quiet hours, neighbor expectations, and what guests should do if noise becomes an issue.",
+        "noise_expectation_gap": {
+            "title": "Quiet-hours expectations may be unclear",
+            "action": "Add quiet-hours guidance and what guests should do if they experience noise.",
             "cta_primary": "Open guide",
             "cta_secondary": "Generate draft",
             "target": "quiet_hours",
+            "kind": "content",
         },
-        "temperature": {
-            "title": "Guests may need better thermostat guidance",
-            "action": "Add simple AC or thermostat instructions and note expected temperature behavior.",
+        "temperature_instruction_gap": {
+            "title": "Thermostat or AC instructions may be unclear",
+            "action": "Add simple HVAC instructions and tell guests what normal temperature behavior to expect.",
             "cta_primary": "Open guide",
             "cta_secondary": "Generate draft",
             "target": "thermostat",
+            "kind": "content",
         },
-        "cleanliness": {
-            "title": "Cleanliness concerns may be hurting confidence",
-            "action": "Review turnover quality and clarify how guests can quickly report any issues.",
+        "cleanliness_risk": {
+            "title": "Cleanliness concerns may be hurting guest confidence",
+            "action": "Review turnover quality and tighten escalation steps for any readiness issues before the next stay.",
             "cta_primary": "View chats",
             "cta_secondary": "",
             "target": "chats",
+            "kind": "ops",
         },
-        "safety": {
-            "title": "Guests may need clearer safety or access reassurance",
-            "action": "Strengthen entry, lock, and support instructions so guests feel confident on arrival.",
-            "cta_primary": "Open guide",
-            "cta_secondary": "Generate draft",
-            "target": "checkin",
-        },
-        "recommendations": {
-            "title": "Guests are looking for more local recommendations",
-            "action": "Add a short list of top restaurants, coffee spots, and nearby things to do.",
+        "local_recommendation_gap": {
+            "title": "Guests want more local recommendations",
+            "action": "Add a short list of favorite restaurants, coffee spots, and nearby things to do.",
             "cta_primary": "Open guide",
             "cta_secondary": "Generate draft",
             "target": "local_guide",
+            "kind": "content",
         },
-        "general": {
-            "title": "Guests are looking for information that should be easier to find",
-            "action": "Move key details earlier in the stay journey and make answers easier to scan.",
+        "general_info_gap": {
+            "title": "Key guest information is not surfacing early enough",
+            "action": "Move the highest-friction details earlier in the stay journey and make them easier to scan.",
             "cta_primary": "View chats",
             "cta_secondary": "",
             "target": "chats",
+            "kind": "content",
         },
     }
 
-    def ensure_topic(topic: str) -> None:
-        if topic not in topic_stats:
-            topic_stats[topic] = {
+    def ensure_issue(issue_key: str) -> None:
+        if issue_key not in issue_stats:
+            issue_stats[issue_key] = {
                 "count": 0,
                 "repeat_count": 0,
                 "urgent_count": 0,
                 "high_count": 0,
                 "negative_count": 0,
-                "current_count": 0,
-                "checked_out_count": 0,
-                "upcoming_count": 0,
-                "inquiry_count": 0,
+                "angry_count": 0,
                 "confused_count": 0,
                 "worried_count": 0,
-                "angry_count": 0,
+                "active_count": 0,
+                "upcoming_count": 0,
+                "checked_out_count": 0,
+                "inquiry_count": 0,
                 "sample_texts": [],
             }
 
-    def combined_text(row: dict) -> str:
-        parts = [
-            row.get("last_snippet") or "",
-            row.get("signal_detail") or "",
-        ]
-        return " ".join(parts).strip().lower()
+    def text_blob(row: dict) -> str:
+        return " ".join([
+            str(row.get("last_snippet") or ""),
+            str(row.get("signal_detail") or ""),
+        ]).lower()
 
-    def classify_topic(row: dict) -> str:
-        text = combined_text(row)
-        signal_detail = (row.get("signal_detail") or "").lower()
+    def classify_issue(row: dict) -> str:
+        text = text_blob(row)
         mood = (row.get("guest_mood") or "").lower()
+        priority = (row.get("action_priority") or "").lower()
+        negative = bool(row.get("has_negative"))
+        urgent = bool(row.get("has_urgent"))
 
-        if any(k in text for k in ["check-in", "check in", "arrival", "access", "door", "entry", "lock", "code", "keypad"]):
-            return "checkin"
+        # check-in
+        if any(k in text for k in ["check-in", "check in", "arrival", "entry", "door", "keypad", "lock", "code"]):
+            if any(k in text for k in ["not working", "doesn't work", "wrong code", "locked out", "cannot enter", "can't enter"]) or urgent:
+                return "checkin_access_failure"
+            return "checkin_missing_info"
+
+        # wifi
         if any(k in text for k in ["wifi", "wi-fi", "internet", "password", "router", "connect"]):
-            return "wifi"
-        if any(k in text for k in ["parking", "park", "garage", "driveway", "car"]):
-            return "parking"
+            if any(k in text for k in ["not working", "down", "can't connect", "cannot connect", "slow", "disconnect"]) or negative:
+                return "wifi_connectivity_issue"
+            return "wifi_missing_info"
+
+        if any(k in text for k in ["parking", "garage", "driveway", "where do i park", "where can i park"]):
+            return "parking_confusion"
+
         if any(k in text for k in ["late checkout", "late check-out", "checkout", "check-out", "leave by"]):
-            return "late_checkout"
-        if any(k in text for k in ["noise", "loud", "quiet hours", "neighbor", "music", "party"]):
-            return "noise"
-        if any(k in text for k in ["ac", "a/c", "air conditioning", "thermostat", "heat", "heater", "hot", "cold", "temperature"]):
-            return "temperature"
-        if any(k in text for k in ["dirty", "clean", "smell", "odor", "stain", "mess", "unclean", "filthy"]):
-            return "cleanliness"
-        if any(k in text for k in ["safe", "unsafe", "security", "locked out", "lock", "scared"]):
-            return "safety"
-        if any(k in text for k in ["restaurant", "recommend", "things to do", "coffee", "beach", "food", "nearby"]):
-            return "recommendations"
+            return "checkout_policy_confusion"
 
-        if "friction" in signal_detail or mood in {"angry", "worried", "upset", "confused"}:
-            return "general"
+        if any(k in text for k in ["noise", "loud", "neighbor", "quiet hours", "music", "party"]):
+            return "noise_expectation_gap"
 
-        return "general"
+        if any(k in text for k in ["ac", "a/c", "air conditioning", "thermostat", "heat", "heater", "temperature", "too hot", "too cold"]):
+            return "temperature_instruction_gap"
 
-    for s in sessions:
-        topic = classify_topic(s)
-        ensure_topic(topic)
+        if any(k in text for k in ["dirty", "unclean", "stain", "mess", "smell", "odor", "filthy"]):
+            return "cleanliness_risk"
 
-        prop_id = s.get("property_id")
-        priority = (s.get("action_priority") or "").lower()
-        stay_cycle = (s.get("stay_cycle") or "").lower()
-        mood = (s.get("guest_mood") or "").lower()
-        has_negative = bool(s.get("has_negative"))
-        has_urgent = bool(s.get("has_urgent"))
-        msg_24h = int(s.get("msg_24h", 0) or 0)
+        if any(k in text for k in ["restaurant", "recommend", "things to do", "coffee", "food", "nearby", "beach"]):
+            return "local_recommendation_gap"
 
-        topic_stats[topic]["count"] += 1
+        if priority in {"urgent", "high"} or mood in {"confused", "worried", "angry"}:
+            return "general_info_gap"
 
+        return "general_info_gap"
+
+    for row in sessions:
+        issue_key = classify_issue(row)
+        ensure_issue(issue_key)
+
+        prop_id = row.get("property_id")
+        priority = (row.get("action_priority") or "").lower()
+        stay_cycle = (row.get("stay_cycle") or "").lower()
+        mood = (row.get("guest_mood") or "").lower()
+        negative = bool(row.get("has_negative"))
+        urgent = bool(row.get("has_urgent"))
+        msg_24h = int(row.get("msg_24h", 0) or 0)
+
+        stats = issue_stats[issue_key]
+        stats["count"] += 1
         if msg_24h >= 3:
-            topic_stats[topic]["repeat_count"] += 1
-        if priority == "urgent" or has_urgent:
-            topic_stats[topic]["urgent_count"] += 1
+            stats["repeat_count"] += 1
+        if priority == "urgent" or urgent:
+            stats["urgent_count"] += 1
         if priority == "high":
-            topic_stats[topic]["high_count"] += 1
-        if has_negative:
-            topic_stats[topic]["negative_count"] += 1
+            stats["high_count"] += 1
+        if negative:
+            stats["negative_count"] += 1
+        if mood == "angry":
+            stats["angry_count"] += 1
+        if mood == "confused":
+            stats["confused_count"] += 1
+        if mood == "worried":
+            stats["worried_count"] += 1
 
         if stay_cycle == "current":
-            topic_stats[topic]["current_count"] += 1
-        elif stay_cycle == "checked_out":
-            topic_stats[topic]["checked_out_count"] += 1
+            stats["active_count"] += 1
         elif stay_cycle == "upcoming":
-            topic_stats[topic]["upcoming_count"] += 1
+            stats["upcoming_count"] += 1
+        elif stay_cycle == "checked_out":
+            stats["checked_out_count"] += 1
         else:
-            topic_stats[topic]["inquiry_count"] += 1
+            stats["inquiry_count"] += 1
 
-        if mood == "confused":
-            topic_stats[topic]["confused_count"] += 1
-        elif mood == "worried":
-            topic_stats[topic]["worried_count"] += 1
-        elif mood == "angry":
-            topic_stats[topic]["angry_count"] += 1
-
-        text = combined_text(s)
-        if text and len(topic_stats[topic]["sample_texts"]) < 3:
-            topic_stats[topic]["sample_texts"].append(text)
+        blob = text_blob(row)
+        if blob and len(stats["sample_texts"]) < 3:
+            stats["sample_texts"].append(blob)
 
         if prop_id:
-            if topic not in property_topic_stats:
-                property_topic_stats[topic] = {}
-            property_topic_stats[topic][prop_id] = property_topic_stats[topic].get(prop_id, 0) + 1
+            issue_property_counts.setdefault(issue_key, {})
+            issue_property_counts[issue_key][prop_id] = issue_property_counts[issue_key].get(prop_id, 0) + 1
 
-    def top_property_for_topic(topic: str) -> dict:
-        counts = property_topic_stats.get(topic, {})
+    def top_property(issue_key: str) -> dict:
+        counts = issue_property_counts.get(issue_key, {})
         if not counts:
             return {
                 "property_id": None,
@@ -3530,108 +3557,55 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
             "property_image_url": None,
         })
 
-    def compute_impact(stats: dict) -> int:
-        return (
-            stats["count"] * 3
-            + stats["repeat_count"] * 5
-            + stats["urgent_count"] * 8
-            + stats["high_count"] * 4
-            + stats["negative_count"] * 4
-            + stats["angry_count"] * 6
-            + stats["worried_count"] * 3
-            + stats["confused_count"] * 3
-            + stats["current_count"] * 2
-        )
-
-    def compute_confidence(stats: dict) -> str:
-        if (
-            stats["count"] >= 5
-            or stats["repeat_count"] >= 2
-            or stats["urgent_count"] >= 1
-            or stats["angry_count"] >= 1
-        ):
+    def confidence(stats: dict) -> str:
+        if stats["urgent_count"] > 0 or stats["angry_count"] > 0 or stats["count"] >= 5:
             return "High confidence"
-        if (
-            stats["count"] >= 3
-            or stats["negative_count"] >= 1
-            or stats["confused_count"] >= 1
-            or stats["worried_count"] >= 1
-        ):
+        if stats["count"] >= 3 or stats["repeat_count"] >= 1 or stats["negative_count"] >= 1:
             return "Medium confidence"
         return "Emerging signal"
 
-    def build_reason(topic: str, stats: dict, property_name: str) -> str:
-        location_part = ""
-        if property_name and property_name != "Across properties":
-            location_part = f" at {property_name}"
-
-        if topic == "checkin":
-            return (
-                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
-                f"point to arrival or access confusion"
-                + (
-                    f", with repeat questions in {stats['repeat_count']} session{'s' if stats['repeat_count'] != 1 else ''}."
-                    if stats["repeat_count"] > 0 else "."
-                )
-            )
-
-        if topic == "wifi":
-            return (
-                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
-                f"focused on WiFi access or connectivity"
-                + (
-                    f", and guests asked multiple times in {stats['repeat_count']} session{'s' if stats['repeat_count'] != 1 else ''}."
-                    if stats["repeat_count"] > 0 else "."
-                )
-            )
-
-        if topic == "parking":
-            return (
-                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
-                f"show confusion around parking or arrival logistics."
-            )
-
-        if topic == "late_checkout":
-            return (
-                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
-                f"show uncertainty around checkout timing or policy."
-            )
-
-        if topic == "noise":
-            return (
-                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
-                f"suggest guests may need clearer quiet-hours or noise expectations."
-            )
-
-        if topic == "temperature":
-            return (
-                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
-                f"indicate guests may be struggling with thermostat or temperature control."
-            )
-
-        if topic == "cleanliness":
-            return (
-                f"{stats['negative_count']} negatively toned conversation{'s' if stats['negative_count'] != 1 else ''}{location_part} "
-                f"may be tied to cleanliness or readiness concerns."
-            )
-
-        if topic == "safety":
-            return (
-                f"{stats['worried_count'] + stats['angry_count'] or stats['count']} guest conversation"
-                f"{'s' if (stats['worried_count'] + stats['angry_count'] or stats['count']) != 1 else ''}{location_part} "
-                f"suggest guests may need more reassurance around access or safety."
-            )
-
-        if topic == "recommendations":
-            return (
-                f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
-                f"show demand for local recommendations and stay guidance."
-            )
-
-        return (
-            f"{stats['count']} guest conversation{'s' if stats['count'] != 1 else ''}{location_part} "
-            f"suggest guests are looking for information that should be easier to find."
+    def impact(stats: dict, kind: str) -> int:
+        base = (
+            stats["count"] * 3
+            + stats["repeat_count"] * 5
+            + stats["high_count"] * 4
+            + stats["urgent_count"] * 8
+            + stats["negative_count"] * 4
+            + stats["angry_count"] * 6
+            + stats["confused_count"] * 3
+            + stats["worried_count"] * 3
+            + stats["active_count"] * 3
+            + stats["upcoming_count"] * 1
+            + stats["checked_out_count"] * 1
         )
+        if kind == "ops":
+            base += 4
+        return base
+
+    def reason(issue_key: str, stats: dict, property_name: str) -> str:
+        loc = f" at {property_name}" if property_name and property_name != "Across properties" else ""
+
+        if issue_key == "checkin_access_failure":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} suggest guests may be struggling to enter the property."
+        if issue_key == "checkin_missing_info":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} point to arrival or access confusion before the stay begins."
+        if issue_key == "wifi_connectivity_issue":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} suggest this may be a real connectivity problem, not just missing instructions."
+        if issue_key == "wifi_missing_info":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} show guests are having trouble finding WiFi details."
+        if issue_key == "parking_confusion":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} show confusion around parking or arrival logistics."
+        if issue_key == "checkout_policy_confusion":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} suggest checkout timing or policy is not clear enough."
+        if issue_key == "noise_expectation_gap":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} suggest guests may need clearer quiet-hours expectations."
+        if issue_key == "temperature_instruction_gap":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} indicate guests may be struggling with AC, heat, or thermostat use."
+        if issue_key == "cleanliness_risk":
+            return f"{stats['negative_count'] or stats['count']} negatively toned conversation{'s' if (stats['negative_count'] or stats['count']) != 1 else ''}{loc} may be tied to cleanliness or readiness concerns."
+        if issue_key == "local_recommendation_gap":
+            return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} show demand for stronger local recommendations."
+        return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} suggest guests are looking for information that should be easier to find."
 
     def should_emit(stats: dict) -> bool:
         return (
@@ -3641,24 +3615,22 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
             or stats["negative_count"] >= 1
         )
 
-    for topic in ["checkin", "wifi", "parking", "late_checkout", "noise", "temperature", "cleanliness", "safety", "recommendations", "general"]:
-        stats = topic_stats.get(topic)
+    for issue_key, template in ISSUE_DEFS.items():
+        stats = issue_stats.get(issue_key)
         if not stats or not should_emit(stats):
             continue
 
-        template = topic_templates.get(topic, topic_templates["general"])
-        prop = top_property_for_topic(topic)
-
+        prop = top_property(issue_key)
         suggestions.append({
-            "id": f"suggestion_{topic}",
+            "id": f"suggestion_{issue_key}",
             "title": template["title"],
-            "reason": build_reason(topic, stats, prop.get("property_name") or "Across properties"),
+            "reason": reason(issue_key, stats, prop.get("property_name") or "Across properties"),
             "action": template["action"],
             "cta_primary": template["cta_primary"],
             "cta_secondary": template["cta_secondary"],
             "target": template["target"],
-            "impact_score": compute_impact(stats),
-            "confidence": compute_confidence(stats),
+            "impact_score": impact(stats, template["kind"]),
+            "confidence": confidence(stats),
             "topic_count": stats["count"],
             "repeat_count": stats["repeat_count"],
             "urgent_count": stats["urgent_count"],
@@ -3669,6 +3641,7 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
     suggestions.sort(
         key=lambda s: (
             -(s.get("impact_score") or 0),
+            -(s.get("urgent_count") or 0),
             -(s.get("topic_count") or 0),
             s.get("property_name") or "",
         )
