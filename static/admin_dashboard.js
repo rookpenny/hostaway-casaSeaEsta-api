@@ -264,15 +264,7 @@ document.addEventListener("click", (e) => {
   // -----------------------------------
   // View navigation
   // -----------------------------------
-  function initViewNavigation() {
-    qsa("[data-view]").forEach((btn) => {
-      btn.addEventListener("click", () => {
-        const view = btn.getAttribute("data-view");
-        if (!view) return;
-        setActiveView(view);
-      });
-    });
-  }
+
 
   // -----------------------------------
   // Sidebar collapse
