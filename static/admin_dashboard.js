@@ -296,7 +296,7 @@ document.addEventListener("click", (e) => {
   // -----------------------------------
   // Sidebar collapse
   // -----------------------------------
-  function initSidebar() {
+  /*function initSidebar() {
     const sidebar = $("sidebar");
     const toggleBtn = $("sidebar-toggle");
     if (!sidebar || !toggleBtn) return;
@@ -338,7 +338,7 @@ document.addEventListener("click", (e) => {
       const isCollapsed = sidebar.classList.contains("w-20");
       setCollapsed(!isCollapsed);
     });
-  }
+  }*/
 
   // -----------------------------------
   // Portfolio chart
@@ -5883,8 +5883,39 @@ populateCategorySelect($id("taskCategory"));
 // ------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
   // 1) Core shell
+  setupViews();
+  initNav();
   initSidebar();
-  initRouting();
+  initGuides();
+
+  // chats
+  initChatBatchActions();
+  initChatDetailDelete();
+  initChatRowNavigation();
+  initChatFilters();
+  initRelativeTimes();
+  initChatLoadMore();
+
+  // dashboard.js features
+  initViewNavigation();
+  initRevenueReports();
+  initPortfolioChart();
+
+  // panels
+  initInsightsPanel();
+  initSuggestionsPanel();
+
+  // upgrades
+  initUpgradeCTA();
+  initUpgradeSelects();
+  initUpgradePurchases();
+
+  // misc
+  initFileViewer();
+  initPayments();
+  initNotifications();
+
+  hydrateFromURL();
 
   window.Messages?.refreshUnreadBadge?.();
   window.rerenderAllMoodBadges?.();
