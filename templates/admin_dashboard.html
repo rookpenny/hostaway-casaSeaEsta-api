@@ -1626,211 +1626,387 @@
 
 
 
-
-
-                
-
-        <section id="view-chats" class="view space-y-6 {% if initial_view != 'chats' %}hidden{% endif %}">
-
+<section id="view-chats" class="view space-y-6 {% if initial_view != 'chats' %}hidden{% endif %}">
   {% if not selected_session %}
-  <!-- Header -->
   <div>
-    <div class="text-3xl font-semibold tracking-tight text-slate-950">Conversations</div>
+    <div class="text-[32px] font-semibold tracking-[-0.04em] text-slate-950">Conversations</div>
     <div class="mt-1 text-sm text-slate-500">
       Monitor how your AI is performing across every stage of the stay lifecycle.
     </div>
   </div>
 
-  <!-- Top Stats + Most affected property -->
   <div class="grid gap-4 lg:grid-cols-4">
-    <div class="rounded-2xl border border-slate-200 bg-white px-6 py-5">
-      <div class="text-[42px] font-semibold tracking-tight text-slate-950">{{ sessions|length }}</div>
-      <div class="mt-2 text-sm text-slate-600">Active conversations</div>
-      <div class="mt-2 text-xs text-slate-400">AI handling guest communication</div>
+    <div class="rounded-[24px] border border-slate-200 bg-white px-6 py-5 shadow-sm">
+      <div class="text-[52px] leading-none font-semibold tracking-[-0.05em] text-slate-950">
+        {{ sessions|length }}
+      </div>
+      <div class="mt-4 text-[15px] font-medium text-slate-700">Active conversations</div>
+      <div class="mt-3 text-[13px] leading-6 text-slate-400">AI handling guest communication</div>
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white px-6 py-5">
-      <div class="text-[42px] font-semibold tracking-tight text-slate-950">
+    <div class="rounded-[24px] border border-slate-200 bg-white px-6 py-5 shadow-sm">
+      <div class="text-[52px] leading-none font-semibold tracking-[-0.05em] text-slate-950">
         {{ sessions | selectattr('signal', 'equalto', 'needs_clarity') | list | length }}
       </div>
-      <div class="mt-2 text-sm text-slate-600">Guest friction points</div>
-      <div class="mt-2 text-xs text-slate-400">Recurring issues detected</div>
+      <div class="mt-4 text-[15px] font-medium text-slate-700">Guest friction points</div>
+      <div class="mt-3 text-[13px] leading-6 text-slate-400">Recurring issues detected</div>
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white px-6 py-5">
-      <div class="text-[42px] font-semibold tracking-tight text-slate-950">
+    <div class="rounded-[24px] border border-slate-200 bg-white px-6 py-5 shadow-sm">
+      <div class="text-[52px] leading-none font-semibold tracking-[-0.05em] text-slate-950">
         {{ sessions | selectattr('action_priority', 'equalto', 'urgent') | list | length }}
       </div>
-      <div class="mt-2 text-sm text-slate-600">Escalations</div>
-      <div class="mt-2 text-xs text-slate-400">Where AI needed human support</div>
+      <div class="mt-4 text-[15px] font-medium text-slate-700">Escalations</div>
+      <div class="mt-3 text-[13px] leading-6 text-slate-400">Where AI needed human support</div>
     </div>
 
-    <div class="rounded-2xl border border-slate-200 bg-white px-6 py-5 bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFD_100%)]">
-      <div class="text-xs uppercase tracking-wide text-slate-400">Most affected property</div>
-      <div class="mt-2 text-lg font-semibold text-slate-950">
-        {{ stay_pulse.property_name if stay_pulse else "Casa Sea Esta" }}
+    <div class="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFD_100%)] px-6 py-5 shadow-sm">
+      <div class="text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-400">Most affected property</div>
+      <div class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
+        {{ stay_pulse.property_name if stay_pulse and stay_pulse.property_name else "Casa Sea Esta" }}
       </div>
-      <div class="mt-1 text-sm text-slate-500">
-        {{ stay_pulse.property_meta if stay_pulse else "5 flagged conversations" }}
+      <div class="mt-2 text-[14px] text-slate-500">
+        {{ stay_pulse.property_meta if stay_pulse and stay_pulse.property_meta else "5 flagged conversations" }}
       </div>
     </div>
   </div>
   {% endif %}
 
-  <!-- Filters -->
-  <form id="chatFilters" method="get" class="rounded-2xl border border-slate-200 bg-white p-4 space-y-4">
-    <input type="hidden" name="view" value="chats" />
+  <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+    <div class="grid xl:grid-cols-[1fr_360px]">
+      <div class="p-6">
+        <form id="chatFilters" method="get" action="/admin/dashboard" class="space-y-4">
+          <input type="hidden" name="view" value="chats" />
 
-    <!-- Lifecycle Pills -->
-    <div class="flex flex-wrap gap-2">
-      {% set lifecycle = filters.lifecycle or '' %}
+          <div class="flex flex-wrap gap-2">
+            {% set lifecycle = filters.lifecycle or '' %}
 
-      {% for val, label in [
-        ("", "All chats"),
-        ("inquiry", "Inquiry"),
-        ("upcoming", "🗓️ Upcoming stay"),
-        ("current", "🏡 Currently staying"),
-        ("checked_out", "✅ Checked out")
-      ] %}
-      <button
-        type="submit"
-        name="lifecycle"
-        value="{{ val }}"
-        class="h-10 rounded-full px-4 text-sm font-medium
-        {% if lifecycle == val %}
-          bg-slate-900 text-white
-        {% else %}
-          border border-slate-200 bg-white text-slate-600
-        {% endif %}">
-        {{ label }}
-      </button>
-      {% endfor %}
-    </div>
+            <button
+              type="button"
+              name="lifecycle"
+              value=""
+              class="h-10 rounded-full px-4 text-sm font-medium {% if not lifecycle %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
+              All chats
+            </button>
 
-    <!-- Search + Filters -->
-    <div class="flex flex-wrap gap-3 items-center">
-      <input
-        name="q"
-        value="{{ filters.q or '' }}"
-        placeholder="Search every chat, guest, issue, or property..."
-        class="h-11 flex-1 min-w-[260px] rounded-full border border-slate-200 px-4 text-sm"
-      />
+            <button
+              type="button"
+              name="lifecycle"
+              value="inquiry"
+              class="h-10 rounded-full px-4 text-sm font-medium {% if lifecycle == 'inquiry' %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
+              Inquiry
+            </button>
 
-      <select name="property_id" class="h-11 rounded-full border border-slate-200 px-4 text-sm">
-        <option value="">All properties</option>
-        {% for pr in properties %}
-        <option value="{{ pr.id }}" {% if filters.property_id == pr.id|string %}selected{% endif %}>
-          {{ pr.property_name }}
-        </option>
-        {% endfor %}
-      </select>
+            <button
+              type="button"
+              name="lifecycle"
+              value="upcoming"
+              class="h-10 rounded-full px-4 text-sm font-medium {% if lifecycle == 'upcoming' %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
+              🗓️ Upcoming stay
+            </button>
 
-      <select name="action_priority" class="h-11 rounded-full border border-slate-200 px-4 text-sm">
-        <option value="">Priority</option>
-        <option value="urgent">Urgent</option>
-        <option value="high">High</option>
-        <option value="normal">Normal</option>
-        <option value="low">Low</option>
-      </select>
+            <button
+              type="button"
+              name="lifecycle"
+              value="current"
+              class="h-10 rounded-full px-4 text-sm font-medium {% if lifecycle == 'current' %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
+              🏡 Currently staying
+            </button>
 
-      <button class="h-11 px-5 rounded-full bg-slate-900 text-white text-sm font-semibold">
-        Filter
-      </button>
+            <button
+              type="button"
+              name="lifecycle"
+              value="checked_out"
+              class="h-10 rounded-full px-4 text-sm font-medium {% if lifecycle == 'checked_out' %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
+              ✅ Checked out
+            </button>
+          </div>
 
-      <a href="/admin/dashboard?view=chats" class="text-sm text-slate-500">Reset</a>
-    </div>
-  </form>
-
-  <!-- Trend Filter Banner -->
-  {% if stay_pulse and stay_pulse.filter_tag %}
-  <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 flex justify-between items-center">
-    <div>
-      <div class="text-xs uppercase text-blue-600 font-semibold">Trend filter active</div>
-      <div class="text-sm font-medium text-slate-900">
-        Showing conversations related to {{ stay_pulse.filter_tag }}
-      </div>
-    </div>
-
-    <a href="/admin/dashboard?view=chats"
-       class="text-sm px-4 py-2 rounded-full border border-blue-300 bg-white text-blue-600">
-      Clear filter
-    </a>
-  </div>
-  {% endif %}
-
-  <!-- Table -->
-  <div class="rounded-2xl border border-slate-200 bg-white overflow-hidden">
-    {% if sessions %}
-    <table class="min-w-full text-sm">
-      <thead class="bg-slate-50">
-        <tr>
-          <th class="px-4 py-3 text-left">Status</th>
-          <th class="px-4 py-3 text-left">Guest</th>
-          <th class="px-4 py-3 text-left">Signal</th>
-          <th class="px-4 py-3 text-left">Property</th>
-          <th class="px-4 py-3 text-left">Last activity</th>
-        </tr>
-      </thead>
-
-      <tbody>
-        {% for s in sessions %}
-        <tr class="border-t hover:bg-slate-50 cursor-pointer">
-          <!-- Status -->
-          <td class="px-4 py-3">
-            {% if s.stay_cycle == 'current' %}
-              <span class="badge bg-emerald-100 text-emerald-700">🏡 Currently staying</span>
-            {% elif s.stay_cycle == 'upcoming' %}
-              <span class="badge bg-indigo-100 text-indigo-700">🗓️ Upcoming stay</span>
-            {% elif s.stay_cycle == 'checked_out' %}
-              <span class="badge bg-slate-200 text-slate-700">✅ Checked out</span>
-            {% else %}
-              <span class="badge bg-blue-100 text-blue-700">Inquiry</span>
+          <div class="flex flex-wrap items-center gap-3">
+            {% if user_role == "super" %}
+            <select name="pmc_id" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="">All PMCs</option>
+              {% for p in pmcs %}
+              <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
+                {{ p.pmc_name }}
+              </option>
+              {% endfor %}
+            </select>
             {% endif %}
-          </td>
 
-          <!-- Guest -->
-          <td class="px-4 py-3 font-medium">{{ s.guest_name }}</td>
+            <select name="property_id" class="h-11 min-w-[220px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="">All properties</option>
+              {% for pr in properties %}
+              <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+                {{ pr.property_name }}
+              </option>
+              {% endfor %}
+            </select>
 
-          <!-- Signal -->
-          <td class="px-4 py-3">
-            <div class="space-y-1">
-              <span class="badge
-                {% if s.signal_tone == 'danger' %}bg-rose-50 text-rose-700
-                {% elif s.signal_tone == 'warning' %}bg-amber-50 text-amber-700
-                {% elif s.signal_tone == 'success' %}bg-emerald-50 text-emerald-700
-                {% else %}bg-blue-50 text-blue-700{% endif %}">
-                {{ s.signal_label }}
-              </span>
-              <div class="text-xs text-slate-500 max-w-xs">
-                {{ s.signal_detail }}
+            <select name="action_priority" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="">Priority</option>
+              <option value="urgent" {% if filters.action_priority == "urgent" %}selected{% endif %}>Urgent</option>
+              <option value="high" {% if filters.action_priority == "high" %}selected{% endif %}>High</option>
+              <option value="normal" {% if filters.action_priority == "normal" %}selected{% endif %}>Normal</option>
+              <option value="low" {% if filters.action_priority == "low" %}selected{% endif %}>Low</option>
+            </select>
+
+            <select id="moodFilter" name="emotional_signals_filter" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>Signal</option>
+              <option value="panicked" {% if filters.emotional_signals_filter == "panicked" %}selected{% endif %}>Panicked</option>
+              <option value="angry" {% if filters.emotional_signals_filter == "angry" %}selected{% endif %}>Angry</option>
+              <option value="upset" {% if filters.emotional_signals_filter == "upset" %}selected{% endif %}>Upset</option>
+              <option value="confused" {% if filters.emotional_signals_filter == "confused" %}selected{% endif %}>Confused</option>
+              <option value="worried" {% if filters.emotional_signals_filter == "worried" %}selected{% endif %}>Worried</option>
+              <option value="calm" {% if filters.emotional_signals_filter == "calm" %}selected{% endif %}>Calm</option>
+            </select>
+
+            <div class="relative min-w-[280px] flex-1">
+              <div class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">⌕</div>
+              <input
+                type="text"
+                name="q"
+                value="{{ filters.q or '' }}"
+                placeholder="Search every chat, guest, issue, or property..."
+                class="h-11 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+              />
+            </div>
+
+            <button type="submit" class="h-11 rounded-full bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800">
+              Filter
+            </button>
+
+            <a href="/admin/dashboard?view=chats" class="inline-flex h-11 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
+              Reset
+            </a>
+          </div>
+        </form>
+
+        {% if stay_pulse and stay_pulse.filter_tag %}
+        <div class="mt-5 rounded-[20px] border border-[#D7E3FF] bg-[#EEF4FF] px-4 py-3">
+          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div>
+              <div class="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#245BFF]">
+                Trend filter active
+              </div>
+              <div class="mt-1 text-[14px] font-medium text-slate-900">
+                Showing conversations related to {{ stay_pulse.filter_tag }}
               </div>
             </div>
-          </td>
 
-          <!-- Property -->
-          <td class="px-4 py-3">
-            <div class="font-semibold">{{ s.property_name }}</div>
-          </td>
+            <div class="flex items-center gap-2">
+              <button
+                type="button"
+                onclick="applyTrendFilter('{{ stay_pulse.filter_tag|e }}')"
+                class="inline-flex h-10 items-center rounded-full border border-[#D7E3FF] bg-[#EEF4FF] px-4 text-[13px] font-semibold text-[#245BFF]">
+                Filter conversations
+              </button>
 
-          <!-- Time -->
-          <td class="px-4 py-3 text-xs text-slate-500">
-            {{ s.last_activity_at.strftime("%b %d · %I:%M %p") if s.last_activity_at else "—" }}
-          </td>
-        </tr>
-        {% endfor %}
-      </tbody>
-    </table>
+              <button
+                type="button"
+                onclick="clearTrendFilter()"
+                class="inline-flex h-10 items-center rounded-full border border-[#C7D8FF] bg-white px-4 text-[13px] font-semibold text-[#245BFF]">
+                Clear filter
+              </button>
+            </div>
+          </div>
+        </div>
+        {% endif %}
 
-    <!-- Load more -->
-    <div class="border-t text-center py-4">
-      <button class="px-5 py-2 rounded-full border text-sm">
-        Load more chats
-      </button>
+        <div id="chat-list-wrap" class="mt-5">
+          <div id="chat-table" class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            {% if sessions %}
+            <table class="min-w-full text-sm">
+              <thead class="bg-[linear-gradient(180deg,#FBFCFE_0%,#F8FAFC_100%)]">
+                <tr>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400">Status</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400">Guest</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400">Signal</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400">Property</th>
+                  <th class="px-4 py-3 text-left text-xs font-semibold text-slate-400">Last activity</th>
+                </tr>
+              </thead>
+
+              <tbody>
+                {% for s in sessions %}
+                <tr
+                  data-session-row="{{ s.id }}"
+                  data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'
+                  class="chat-row cursor-pointer border-t border-slate-100 transition hover:bg-[#FAFBFD]">
+
+                  <td class="px-4 py-4">
+                    {% if s.stay_cycle == 'current' %}
+                    <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                      🏡 Currently staying
+                    </span>
+                    {% elif s.stay_cycle == 'upcoming' %}
+                    <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                      🗓️ Upcoming stay
+                    </span>
+                    {% elif s.stay_cycle == 'checked_out' %}
+                    <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                      ✅ Checked out
+                    </span>
+                    {% else %}
+                    <span class="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700">
+                      Inquiry
+                    </span>
+                    {% endif %}
+                  </td>
+
+                  <td class="px-4 py-4">
+                    <div class="font-medium text-slate-900">{{ s.guest_name or "Guest" }}</div>
+                  </td>
+
+                  <td class="px-4 py-4 text-xs">
+                    <div class="min-w-0 pr-4">
+                      <div class="flex min-w-0 items-center gap-2">
+                        <span class="inline-flex items-center rounded-full px-3 py-1.5 font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-inset
+                          {% if s.signal_tone == 'danger' %}bg-rose-50 text-rose-700 ring-rose-200
+                          {% elif s.signal_tone == 'warning' %}bg-amber-50 text-amber-700 ring-amber-200
+                          {% elif s.signal_tone == 'success' %}bg-emerald-50 text-emerald-700 ring-emerald-200
+                          {% else %}bg-blue-50 text-blue-700 ring-blue-200{% endif %}">
+                          {{ s.signal_label or "Exploring" }}
+                        </span>
+
+                        <span class="text-[12px] font-medium text-slate-400">AI read</span>
+                      </div>
+
+                      <div class="mt-2 max-w-sm text-[13px] leading-5 text-slate-500">
+                        {{ s.signal_detail or "Guest is mainly exploring information right now." }}
+                      </div>
+
+                      <div class="mt-2" data-mood-badge data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'></div>
+                    </div>
+                  </td>
+
+                  <td class="px-4 py-4 text-slate-600">
+                    {{ s.property_name or "—" }}
+                  </td>
+
+                  <td class="px-4 py-4 text-slate-400">
+                    {% if s.last_activity_at %}
+                    <span class="js-rel-time" data-ts="{{ s.last_activity_at.isoformat() if s.last_activity_at.isoformat is defined else s.last_activity_at }}">
+                      {{ s.last_activity_at }}
+                    </span>
+                    {% else %}
+                    —
+                    {% endif %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+
+            <div class="border-t border-slate-100 bg-[#FCFDFE] px-5 py-4 text-center">
+              <button
+                id="chat-load-more"
+                type="button"
+                class="h-11 rounded-full border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-900 shadow-sm">
+                Load more chats
+              </button>
+            </div>
+            {% else %}
+            <div class="p-6 text-sm text-slate-500">No chat sessions yet.</div>
+            {% endif %}
+          </div>
+        </div>
+
+        <div id="chat-detail-inline" class="mt-5 hidden">
+          <div class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
+              <div class="text-[16px] font-semibold text-slate-900">Conversation detail</div>
+              <button
+                id="chat-detail-back"
+                type="button"
+                class="inline-flex h-10 items-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
+                Back to chats
+              </button>
+            </div>
+
+            <div id="chat-detail-panel" class="p-5">
+              <div id="chat-detail-empty" class="text-sm text-slate-500">
+                Select a chat session to view details.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="border-l border-slate-200 bg-slate-50 p-6">
+        <div class="mb-4 text-[18px] font-semibold text-slate-900">Guest Insights</div>
+
+        <div class="space-y-4">
+          <div class="rounded-[24px] border border-[#CFE0FF] bg-white p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+              <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#356CF6]">
+                Trend detected
+              </div>
+              <div class="rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold text-[#356CF6]">
+                Affects 12 conversations
+              </div>
+            </div>
+
+            <div class="mt-4 text-[16px] font-semibold leading-7 text-slate-900">
+              Guests keep asking about early check-in
+            </div>
+
+            <div class="mt-3 text-[14px] leading-7 text-slate-500">
+              Add a pre-arrival note to reduce repetitive questions and lower manual replies.
+            </div>
+
+            <button
+              type="button"
+              onclick="applyTrendFilter('Early check-in')"
+              class="mt-5 inline-flex h-11 items-center rounded-full border border-[#CFE0FF] bg-[#EEF4FF] px-5 text-[14px] font-semibold text-[#245BFF] shadow-sm">
+              Filter conversations
+            </button>
+          </div>
+
+          <div class="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
+            <div class="flex items-start justify-between gap-3">
+              <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#356CF6]">
+                Automation idea
+              </div>
+              <div class="rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold text-[#356CF6]">
+                Seen across 7 stays
+              </div>
+            </div>
+
+            <div class="mt-4 text-[16px] font-semibold leading-7 text-slate-900">
+              Pool heat questions spike after sunset
+            </div>
+
+            <div class="mt-3 text-[14px] leading-7 text-slate-500">
+              Create a fast reply that explains warm-up timing and expected pool temperature.
+            </div>
+
+            <button
+              type="button"
+              class="mt-5 inline-flex h-11 items-center rounded-full border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-900 shadow-sm">
+              Create automation
+            </button>
+          </div>
+
+          <div class="rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,#F3FBF6_0%,#ECFDF3_100%)] p-5 shadow-sm">
+            <div class="flex items-center gap-2">
+              <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+              <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+                Healthy notification
+              </div>
+            </div>
+
+            <div class="mt-4 text-[18px] font-semibold tracking-[-0.03em] text-emerald-900">
+              Portfolio healthy
+            </div>
+
+            <div class="mt-3 text-[14px] leading-7 text-emerald-900/70">
+              Most guests are having smooth AI-guided experiences right now, with no unusual spikes in negative sentiment.
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
-
-    {% else %}
-      <div class="p-6 text-sm text-slate-500">No chat sessions yet.</div>
-    {% endif %}
   </div>
 </section>
 
