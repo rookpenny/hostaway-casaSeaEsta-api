@@ -2556,8 +2556,69 @@
   </div>
 </div>
 
+                
                 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+  window.openGuideSuggestion = function (target) {
+    // close the insights drawer if it's open
+    if (typeof closeInsights === "function") closeInsights();
 
+    // jump to guides view
+    if (window.DashboardOverview?.jumpTo) {
+      window.DashboardOverview.jumpTo("guides");
+    } else {
+      window.location.href = "/admin/dashboard?view=guides";
+      return;
+    }
+
+    // store target so guides UI can use it if needed
+    window.pendingGuideSuggestionTarget = target || "general";
+
+    // try to prefill property/topic filter if your guides UI later supports it
+    const guidesSection = document.getElementById("view-guides");
+    if (guidesSection) {
+      setTimeout(() => {
+        guidesSection.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 100);
+    }
+  };
+
+  window.openDraftSuggestion = function (target) {
+    // close the insights drawer if it's open
+    if (typeof closeInsights === "function") closeInsights();
+
+    // jump to guides view first
+    if (window.DashboardOverview?.jumpTo) {
+      window.DashboardOverview.jumpTo("guides");
+    } else {
+      window.location.href = "/admin/dashboard?view=guides";
+      return;
+    }
+
+    // save target so a new guide can be drafted from it
+    window.pendingGuideDraftTarget = target || "general";
+
+    // if the Guides module exists, open a new guide editor
+    setTimeout(() => {
+      if (window.Guides?.openNew) {
+        window.Guides.openNew();
+
+        // optional: populate a draft if your editor supports a textarea/input
+        const editor = document.getElementById("guides-editor-body");
+        if (editor) {
+          editor.dispatchEvent(new CustomEvent("hostscout:draft-suggestion", {
+            detail: { target: window.pendingGuideDraftTarget }
+          }));
+        }
+      } else {
+        const guidesSection = document.getElementById("view-guides");
+        if (guidesSection) {
+          guidesSection.scrollIntoView({ behavior: "smooth", block: "start" });
+        }
+      }
+    }, 150);
+  };
+</script>
 <script>
   document.addEventListener("DOMContentLoaded", function () {
     const ctx = document.getElementById("overviewPortfolioChart");
