@@ -1,18 +1,17 @@
-function readBootstrap() {
+function getBoot() {
   const el = document.getElementById("dashboard-bootstrap");
   if (!el) return {};
   try {
     return JSON.parse((el.textContent || "{}").trim());
-  } catch (e) {
-    console.error("Invalid dashboard bootstrap JSON", e);
+  } catch (err) {
+    console.error("Invalid dashboard bootstrap JSON", err);
     return {};
   }
 }
 
-const BOOT = readBootstrap();
+const BOOT = getBoot();
 const IS_LOCKED = !!BOOT.is_locked;
-window.CONTENT_LOCKED = IS_LOCKED; // if you want global
-
+window.CONTENT_LOCKED = IS_LOCKED;
 
 // 1) Ensure your module exists
 window.Chats = window.Chats || {};
@@ -2423,12 +2422,7 @@ window.openChatDetail = openChatDetail;
         if (!d) return;
         el.textContent = formatRelative(d, now);
       });
-    }
-
-    document.addEventListener("DOMContentLoaded", () => {
-  updateRelativeTimes();
-  setInterval(updateRelativeTimes, 60 * 1000);
-});
+    });
 
 
 ///----- END OF SECTION
@@ -5006,7 +5000,7 @@ document.addEventListener("change", (e) => {
 // ------------------------------
 // SYNC ALL PROPERTIES PMC SIDE
 // ------------------------------
-
+/*
 document.addEventListener("DOMContentLoaded", () => {
   const btn = document.getElementById("sync-all-properties-btn");
   if (!btn) return;
@@ -5038,7 +5032,40 @@ document.addEventListener("DOMContentLoaded", () => {
       btn.textContent = original;
     }
   });
-});
+});*/
+
+function initSyncAllProperties() {
+  const btn = document.getElementById("sync-all-properties-btn");
+  if (!btn) return;
+
+  btn.addEventListener("click", async () => {
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock property syncing.");
+
+    btn.disabled = true;
+    const original = btn.textContent;
+    btn.textContent = "Syncing…";
+
+    try {
+      const res = await fetch(`/auth/sync-pmc-properties`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+      if (res.status === 402) return (window.location.href = "/pmc/signup");
+
+      if (!res.ok) throw new Error(await res.text());
+
+      window.location.reload();
+    } catch (err) {
+      console.error(err);
+      alert("Failed to sync properties");
+    } finally {
+      btn.disabled = false;
+      btn.textContent = original;
+    }
+  });
+}
 
 // ----------------------------
 // TASKS MODULE (UI-matching + clean)
@@ -5916,6 +5943,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   initNotifications();
 
   hydrateFromURL();
+
+  updateRelativeTimes();
+  setInterval(updateRelativeTimes, 60 * 1000);
+  initSyncAllProperties();
 
   window.Messages?.refreshUnreadBadge?.();
   window.rerenderAllMoodBadges?.();
