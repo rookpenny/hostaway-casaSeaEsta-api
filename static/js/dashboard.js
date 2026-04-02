@@ -81,69 +81,72 @@
   window.openGuideSuggestion = function openGuideSuggestion(target) {
     window.closeInsights();
 
-    const guidesBtn = qs('[data-view="guides"]');
-    if (guidesBtn) guidesBtn.click();
+    window.pendingGuideSuggestionTarget = target || "general";
+    setActiveView("guides");
 
     window.setTimeout(() => {
-      if (window.Guides && typeof window.Guides.openNew === "function") {
-        window.Guides.openNew();
-      } else {
-        window.alert("Guide editor coming soon.");
+      const guidesView = $("view-guides");
+      if (guidesView) {
+        guidesView.scrollIntoView({ behavior: "smooth", block: "start" });
       }
-    }, 150);
+    }, 100);
   };
 
-  window.openDraftSuggestion = function openDraftSuggestion(target) {
-    const drafts = {
-      checkin: {
-        title: "Suggested check-in instructions",
-        body: `Check-in is from 4:00 PM.
+  window.openDraftSuggestion = async function openDraftSuggestion(target) {
+    window.closeInsights();
 
-1. Park in the designated area.
-2. Go to the main entrance.
-3. Enter the door code sent before arrival.
-4. Inside, you'll find your welcome guide and WiFi details.
+    const draftTarget = target || "general";
+    setActiveView("guides");
 
-If you have trouble entering, message us and we'll help right away.`,
-      },
-      wifi: {
-        title: "Suggested WiFi section",
-        body: `WiFi Network: [ADD NETWORK NAME]
-WiFi Password: [ADD PASSWORD]
+    try {
+      const res = await fetch(
+        `/admin/suggestions/draft?target=${encodeURIComponent(draftTarget)}`,
+        { credentials: "include" }
+      );
 
-If you have trouble connecting, restart WiFi on your device and try again.`,
-      },
-      parking: {
-        title: "Suggested parking instructions",
-        body: `Parking is available in the designated area only.
+      if (!res.ok) {
+        const txt = await res.text();
+        console.error("Draft endpoint failed:", res.status, txt);
+        window.alert("Could not load draft.");
+        return;
+      }
 
-- Please park in [ADD LOCATION]
-- Do not block neighboring driveways
-- If arriving late, use the marked guest space closest to the entrance`,
-      },
-      checkout: {
-        title: "Suggested checkout policy",
-        body: `Checkout is at 10:00 AM unless otherwise approved.
+      const draft = await res.json();
 
-Before leaving:
-- Lock all doors
-- Place used towels in the bathroom
-- Start the dishwasher if needed
-- Message us once you've checked out`,
-      },
-      general: {
-        title: "Suggested guide update",
-        body: `Review the areas guests ask about most often and make key information easier to find in your guide.`,
-      },
-    };
+      if (window.Guides && typeof window.Guides.openNew === "function") {
+        window.Guides.openNew();
+      }
 
-    const draft = drafts[target];
-    if (!draft) {
-      window.alert("Draft generator coming soon.");
-      return;
+      const { titleInput, bodyTextarea, quillEditor } =
+        await waitForGuideEditorFields();
+
+      if (titleInput) {
+        titleInput.value = draft.title || "";
+        titleInput.dispatchEvent(new Event("input", { bubbles: true }));
+        titleInput.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      if (bodyTextarea) {
+        bodyTextarea.value = draft.body || "";
+        bodyTextarea.dispatchEvent(new Event("input", { bubbles: true }));
+        bodyTextarea.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+
+      if (quillEditor && draft.body) {
+        quillEditor.innerHTML = "";
+        quillEditor.textContent = draft.body;
+        quillEditor.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+
+      const editorWrap = $("guides-editor");
+      if (editorWrap) {
+        editorWrap.classList.remove("hidden");
+        editorWrap.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
+    } catch (err) {
+      console.error("Draft generation failed:", err);
+      window.alert("Could not generate draft.");
     }
-
-    window.alert(`${draft.title}\n\n${draft.body}`);
   };
 
   window.updateChatsNavBadge = function updateChatsNavBadge(count) {
@@ -179,7 +182,10 @@ Before leaving:
     qsa("[data-view]").forEach((btn) => {
       btn.addEventListener("click", () => {
         const view = btn.getAttribute("data-view");
-        if (!view) return;
+        if (!view) return; 
+        setActiveView(view);
+      });
+        
 
         qsa("[data-view]").forEach((item) => {
           item.classList.remove("active");
@@ -774,6 +780,125 @@ Before leaving:
     return { showInTasks };
   })();
 
+
+
+    function setActiveView(viewName) {
+    const pageTitle = $("page-title");
+    const pageSubtitle = $("page-subtitle");
+
+    const titles = {
+      overview: ["Overview", "Your portfolio at a glance"],
+      chats: ["Chats", "Guest conversations and issues"],
+      analytics: ["Analytics", "Performance across your portfolio"],
+      properties: ["Properties", "Manage listing status and configuration"],
+      guides: ["Guides", "Create and manage guest guides per property."],
+      upgrades: ["Upgrades", "Manage paid add-ons and offerings"],
+      pmcs: ["PMCs", "Property management companies"],
+      files: ["Configs & Manuals", "Central file management"],
+      payouts: ["Payouts", "Revenue and transfers"],
+      admin_payouts: ["Revenue", "HostScout platform revenue"],
+      settings: ["Settings", "Workspace and account controls"],
+    };
+
+    qsa("[data-view]").forEach((item) => {
+      const active = item.getAttribute("data-view") === viewName;
+      item.classList.toggle("active", active);
+      item.setAttribute("aria-current", active ? "page" : "false");
+    });
+
+    qsa(".view").forEach((panel) => {
+      panel.classList.add("hidden");
+      panel.classList.remove("fade-in");
+    });
+
+    const activePanel = $(`view-${viewName}`);
+    if (activePanel) {
+      activePanel.classList.remove("hidden");
+      activePanel.classList.add("fade-in");
+    }
+
+    if (pageTitle && titles[viewName]) pageTitle.textContent = titles[viewName][0];
+    if (pageSubtitle && titles[viewName]) pageSubtitle.textContent = titles[viewName][1];
+
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", viewName);
+    window.history.replaceState({}, "", url.toString());
+  }
+
+  function waitForGuideEditorFields(maxAttempts = 20, delay = 150) {
+    return new Promise((resolve) => {
+      let attempts = 0;
+
+      const check = () => {
+        const titleInput =
+          document.querySelector('#guides-editor input[name="title"]') ||
+          document.querySelector('#guides-editor input[type="text"]');
+
+        const bodyTextarea =
+          document.querySelector('#guides-editor textarea[name="body"]') ||
+          document.querySelector('#guides-editor textarea');
+
+        const quillEditor =
+          document.querySelector('#guides-editor .ql-editor');
+
+        if (titleInput || bodyTextarea || quillEditor) {
+          resolve({ titleInput, bodyTextarea, quillEditor });
+          return;
+        }
+
+        attempts += 1;
+        if (attempts >= maxAttempts) {
+          resolve({ titleInput: null, bodyTextarea: null, quillEditor: null });
+          return;
+        }
+
+        window.setTimeout(check, delay);
+      };
+
+      check();
+    });
+  }
+
+  function initPortfolioChart() {
+    const ctx = $("overviewPortfolioChart");
+    if (!ctx || typeof Chart === "undefined") return;
+
+    const live = Number(BOOT.live_props || 0);
+    const offline = Number(BOOT.offline_props || 0);
+
+    new Chart(ctx, {
+      type: "doughnut",
+      data: {
+        labels: ["Live", "Offline"],
+        datasets: [{
+          data: [live, offline],
+          backgroundColor: ["#356cf6", "#47c5c9"],
+          borderWidth: 0,
+          hoverOffset: 4,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        cutout: "72%",
+        animation: {
+          animateRotate: true,
+          duration: 800,
+        },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "#0f172a",
+            titleColor: "#fff",
+            bodyColor: "#cbd5f5",
+            padding: 10,
+          },
+        },
+      },
+    });
+  }
+  
+
   // -----------------------------------
   // DOM ready
   // -----------------------------------
@@ -783,6 +908,7 @@ Before leaving:
     initChatBatchActions();
     initChatDetailDelete();
     initRevenueReports();
+    initPortfolioChart();
 
     if (BOOT && BOOT.user_role) {
       window.CONTENT_LOCKED = !!BOOT.is_locked;
