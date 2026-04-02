@@ -313,7 +313,11 @@
     const live = Number(BOOT.live_props || 0);
     const offline = Number(BOOT.offline_props || 0);
 
-    new Chart(ctx, {
+    if (window.__overviewPortfolioChart) {
+      window.__overviewPortfolioChart.destroy();
+    }
+
+    window.__overviewPortfolioChart = new Chart(ctx, {
       type: "doughnut",
       data: {
         labels: ["Live", "Offline"],
