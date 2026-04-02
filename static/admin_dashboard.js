@@ -2499,12 +2499,7 @@ function updateOverviewUI() {
   if (liveEl) liveEl.textContent = String(live);
   if (offEl) offEl.textContent = String(offline);
 
-  if (statusChartInstance) {
-    statusChartInstance.data.datasets[0].data = [live, offline];
-    statusChartInstance.update();
-  }
-
-  if (window.__overviewPortfolioChart) {
+   if (window.__overviewPortfolioChart) {
     window.__overviewPortfolioChart.data.datasets[0].data = [live, offline];
     window.__overviewPortfolioChart.update();
   }
