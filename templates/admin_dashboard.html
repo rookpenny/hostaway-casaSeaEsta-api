@@ -801,93 +801,99 @@
       </div>
 
       <!-- Needs Attention -->
-      <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
-        <div class="flex items-center justify-between gap-4">
-          <div>
-            <div class="flex items-center gap-3">
-              <span class="inline-block h-2.5 w-2.5 rounded-full bg-[#356cf6]"></span>
-              <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">Needs Attention</div>
-            </div>
-            <div class="mt-2 text-[14px] text-slate-500">Issues that need your response</div>
-          </div>
-      
-          <button
-            type="button"
-            onclick="window.DashboardOverview?.jumpTo('chats')"
-            class="hidden items-center gap-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
-          >
-            View all chats
-            <span>→</span>
-          </button>
-        </div>
-      
-        <div class="mt-5 divide-y divide-slate-100">
-          {% for row in needs_attention_rows %}
-            {% set issue_text = row.signal_detail or row.last_snippet or "Needs review" %}
-      
-            {% if row.signal_tone == 'danger' %}
-              {% set tag_class = 'bg-rose-100 text-rose-700' %}
-            {% elif row.signal_tone == 'warning' %}
-              {% set tag_class = 'bg-amber-100 text-amber-700' %}
-            {% elif row.signal_tone == 'success' %}
-              {% set tag_class = 'bg-emerald-100 text-emerald-700' %}
-            {% else %}
-              {% set tag_class = 'bg-blue-100 text-blue-700' %}
-            {% endif %}
-      
-            <a
-              href="/admin/dashboard?view=chats&session_id={{ row.id }}"
-              class="grid grid-cols-[minmax(0,1fr),auto,auto] items-center gap-4 py-4 transition hover:bg-slate-50"
-            >
-              <div class="min-w-0 flex items-center gap-3">
-                <div class="min-w-0 flex items-center gap-2 whitespace-nowrap overflow-hidden">
-                  <span class="shrink-0 text-[16px] font-semibold leading-none tracking-tight text-slate-950">
-                    {{ row.guest_name or "Unknown guest" }}
-                  </span>
-      
-                  <span class="text-[16px] leading-none text-slate-500 truncate max-w-[300px] block">
-                    {{ issue_text }}
-                  </span>
-      
-                  <div class="shrink-0 flex items-center gap-2 ml-2">
-                    {% if row.property_image_url %}
-                      <img
-                        src="{{ row.property_image_url }}"
-                        alt="{{ row.property_name }}"
-                        class="h-7 w-7 rounded-full border border-slate-200 object-cover"
-                      />
-                    {% endif %}
-      
-                    <span class="text-[14px] font-medium text-slate-500 whitespace-nowrap">
-                      {{ row.property_name }}
-                    </span>
-                  </div>
-                </div>
-              </div>
-      
-              <div class="shrink-0">
-                <span class="inline-flex whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold {{ tag_class }}">
-                  {{ row.signal_label or "Needs review" }}
-                </span>
-              </div>
-      
-              <div class="shrink-0 text-right text-[12px] text-slate-400 whitespace-nowrap">
-                {% if row.last_activity_at %}
-                  <span class="js-rel-time" data-ts="{{ row.last_activity_at.isoformat() }}">
-                    {{ row.last_activity_at.strftime("%b %d") }}
-                  </span>
-                {% else %}
-                  —
-                {% endif %}
-              </div>
-            </a>
-          {% else %}
-            <div class="py-8 text-sm text-slate-500">
-              No issues need attention right now.
-            </div>
-          {% endfor %}
+<div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-3">
+        <span class="inline-block h-2.5 w-2.5 rounded-full bg-[#356cf6]"></span>
+        <div class="text-[24px] leading-none font-semibold tracking-tight text-slate-950">
+          Needs Attention
         </div>
       </div>
+      <div class="mt-2 text-[14px] text-slate-500">
+        Issues that need your response
+      </div>
+    </div>
+
+    <button
+      type="button"
+      onclick="window.DashboardOverview?.jumpTo('chats')"
+      class="hidden items-center gap-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
+    >
+      View all chats
+      <span>→</span>
+    </button>
+  </div>
+
+  <div class="mt-5 divide-y divide-slate-100">
+    {% for row in needs_attention_rows %}
+      {% set issue_text = row.signal_detail or row.last_snippet or "Needs review" %}
+
+      {% if row.signal_tone == 'danger' %}
+        {% set tag_class = 'bg-rose-100 text-rose-700' %}
+      {% elif row.signal_tone == 'warning' %}
+        {% set tag_class = 'bg-amber-100 text-amber-700' %}
+      {% elif row.signal_tone == 'success' %}
+        {% set tag_class = 'bg-emerald-100 text-emerald-700' %}
+      {% else %}
+        {% set tag_class = 'bg-blue-100 text-blue-700' %}
+      {% endif %}
+
+      <a
+        href="/admin/dashboard?view=chats&session_id={{ row.id }}"
+        class="flex items-center gap-4 py-4 transition hover:bg-slate-50"
+      >
+        <!-- LEFT: Guest + Issue -->
+        <div class="min-w-0 flex flex-1 items-center gap-2 overflow-hidden">
+          <span class="shrink-0 text-[16px] font-semibold leading-none tracking-tight text-slate-950">
+            {{ row.guest_name or "Unknown guest" }}
+          </span>
+
+          <span class="block truncate text-[16px] leading-none text-slate-500">
+            {{ issue_text }}
+          </span>
+        </div>
+
+        <!-- PROPERTY COLUMN (ALIGNED) -->
+        <div class="shrink-0 flex w-[160px] items-center gap-2">
+          {% if row.property_image_url %}
+            <img
+              src="{{ row.property_image_url }}"
+              alt="{{ row.property_name }}"
+              class="h-7 w-7 rounded-full border border-slate-200 object-cover"
+            />
+          {% endif %}
+
+          <span class="truncate whitespace-nowrap text-[14px] font-medium text-slate-500">
+            {{ row.property_name }}
+          </span>
+        </div>
+
+        <!-- STATUS -->
+        <div class="shrink-0">
+          <span class="inline-flex whitespace-nowrap rounded-full px-3 py-1 text-[12px] font-semibold {{ tag_class }}">
+            {{ row.signal_label or "Needs review" }}
+          </span>
+        </div>
+
+        <!-- TIME -->
+        <div class="shrink-0 text-right text-[12px] text-slate-400 whitespace-nowrap">
+          {% if row.last_activity_at %}
+            <span class="js-rel-time" data-ts="{{ row.last_activity_at.isoformat() }}">
+              {{ row.last_activity_at.strftime("%b %d") }}
+            </span>
+          {% else %}
+            —
+          {% endif %}
+        </div>
+      </a>
+    {% else %}
+      <div class="py-8 text-sm text-slate-500">
+        No issues need attention right now.
+      </div>
+    {% endfor %}
+  </div>
+</div>
     </div>
 
     <!-- Right column -->
