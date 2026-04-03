@@ -296,6 +296,8 @@ function initChatFilters() {
   const form = document.getElementById("chatFilters");
   if (!form) return;
 
+  const searchInput = form.querySelector('input[name="q"]');
+
   function buildUrl() {
     const url = new URL(form.action || window.location.pathname, window.location.origin);
     const fd = new FormData(form);
@@ -305,25 +307,36 @@ function initChatFilters() {
 
     for (const [k, v] of fd.entries()) {
       const value = String(v || "").trim();
-      if (value) url.searchParams.set(k, value);
-      else url.searchParams.delete(k);
+      if (value) {
+        url.searchParams.set(k, value);
+      } else {
+        url.searchParams.delete(k);
+      }
     }
 
     return url;
   }
 
+  function go() {
+    window.location.href = buildUrl().toString();
+  }
+
+  form.addEventListener("submit", (e) => {
+    e.preventDefault();
+    go();
+  });
+
   form.querySelectorAll("select").forEach((select) => {
     select.addEventListener("change", () => {
-      window.location.href = buildUrl().toString();
+      go();
     });
   });
 
-  const searchInput = form.querySelector("input[name='q']");
   if (searchInput) {
     searchInput.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
-        window.location.href = buildUrl().toString();
+        go();
       }
     });
   }
@@ -494,11 +507,12 @@ window.applyTrendFilter = function applyTrendFilter(tag) {
     for (const [k, v] of fd.entries()) {
       const value = String(v || "").trim();
       if (value) url.searchParams.set(k, value);
+      else url.searchParams.delete(k);
     }
   }
 
   url.searchParams.set("view", "chats");
-  url.searchParams.set("trend", String(tag || "").trim());
+  url.searchParams.set("q", String(tag || "").trim());
   url.searchParams.delete("session_id");
 
   window.location.href = url.toString();
@@ -512,12 +526,13 @@ window.clearTrendFilter = function clearTrendFilter() {
     const fd = new FormData(form);
     for (const [k, v] of fd.entries()) {
       const value = String(v || "").trim();
-      if (value) url.searchParams.set(k, value);
+      if (value && k !== "q") url.searchParams.set(k, value);
+      else url.searchParams.delete(k);
     }
   }
 
   url.searchParams.set("view", "chats");
-  url.searchParams.delete("trend");
+  url.searchParams.delete("q");
   url.searchParams.delete("session_id");
 
   window.location.href = url.toString();
