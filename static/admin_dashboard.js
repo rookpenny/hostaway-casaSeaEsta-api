@@ -16,24 +16,6 @@ window.CONTENT_LOCKED = IS_LOCKED;
 // 1) Ensure your module exists
 window.Chats = window.Chats || {};
 
-/*// 2) Click handler for the "Generate / Refresh" button
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest('[data-action="summary"]');
-  if (!btn) return;
-
-  const panel = btn.closest("[data-chat-panel]");
-  if (!panel) return;
-
-  const sessionId =
-    Number(panel.getAttribute("data-session-id")) ||
-    Number(panel.getAttribute("data-chat-panel")) ||
-    Number(panel.dataset.sessionId);
-
-  if (!sessionId) return console.error("Missing sessionId on panel", panel);
-
-  window.Chats.refreshSummary(sessionId);
-});*/
-
 
   // -----------------------------------
   // Small helpers
@@ -269,57 +251,7 @@ function goToView(view) {
     badge.classList.toggle("hidden", n <= 0);
   };
 
-  // -----------------------------------
-  // View navigation
-  // -----------------------------------
-
-
-  // -----------------------------------
-  // Sidebar collapse
-  // -----------------------------------
-  /*function initSidebar() {
-    const sidebar = $("sidebar");
-    const toggleBtn = $("sidebar-toggle");
-    if (!sidebar || !toggleBtn) return;
-
-    function setCollapsed(isCollapsed) {
-      sidebar.classList.toggle("w-72", !isCollapsed);
-      sidebar.classList.toggle("w-20", isCollapsed);
-
-      qsa(".sidebar-label").forEach((el) => {
-        el.classList.toggle("hidden", isCollapsed);
-      });
-
-      qsa(".nav-item").forEach((item) => {
-        item.classList.toggle("justify-center", isCollapsed);
-        item.classList.toggle("px-4", !isCollapsed);
-        item.classList.toggle("px-0", isCollapsed);
-      });
-
-      qsa(".nav-icon-wrap").forEach((icon) => {
-        icon.classList.toggle("mx-auto", isCollapsed);
-      });
-
-      const svg = toggleBtn.querySelector("svg");
-      if (svg) {
-        svg.style.transform = isCollapsed ? "rotate(180deg)" : "rotate(0deg)";
-        svg.style.transition = "transform 200ms ease";
-      }
-
-      window.localStorage.setItem(
-        "dashboard_sidebar_collapsed",
-        isCollapsed ? "1" : "0"
-      );
-    }
-
-    const saved = window.localStorage.getItem("dashboard_sidebar_collapsed") === "1";
-    setCollapsed(saved);
-
-    toggleBtn.addEventListener("click", () => {
-      const isCollapsed = sidebar.classList.contains("w-20");
-      setCollapsed(!isCollapsed);
-    });
-  }*/
+  
 
 
 function initChatFilters() {
@@ -1940,35 +1872,6 @@ document.addEventListener("click", (e) => {
   window.location.href = url.toString();
 });
 
-/*function initChatLoadMore() {
-  const table = document.getElementById("chat-table");
-  const btn = document.getElementById("chat-load-more");
-  if (!table || !btn) return;
-
-  const rows = Array.from(table.querySelectorAll("tbody tr[data-session-row]"));
-  if (!rows.length) {
-    btn.classList.add("hidden");
-    return;
-  }
-
-  const pageSize = 12;
-  let visibleCount = pageSize;
-
-  function render() {
-    rows.forEach((row, index) => {
-      row.classList.toggle("hidden", index >= visibleCount);
-    });
-    btn.classList.toggle("hidden", visibleCount >= rows.length);
-  }
-
-  btn.addEventListener("click", () => {
-    visibleCount += pageSize;
-    render();
-  });
-
-  render();
-}*/
-
 
 window.applyTrendFilter = function applyTrendFilter(tag) {
   const form = document.getElementById("chatFilters");
@@ -2009,23 +1912,6 @@ window.clearTrendFilter = function clearTrendFilter() {
 };
 
 
-/*function setInlineDetailOpen(open) {
-  const inline = document.getElementById("chat-detail-inline");
-  const list = document.getElementById("chat-list-wrap");
-  const analytics = document.getElementById("chat-analytics-strip"); // ✅ add
-  if (!inline || !list) return;
-
-  inline.classList.toggle("hidden", !open);
-  list.classList.toggle("hidden", open);
-
-  // ✅ hide analytics while detail is open
-  if (analytics) analytics.classList.toggle("hidden", open);
-
-  if (open) inline.scrollIntoView({ behavior: "smooth", block: "start" });
-}*/
-
-
-
 function pushChatUrl(sessionId) {
   const id = String(sessionId);
   const url = new URL(window.location.href);
@@ -2051,18 +1937,6 @@ function clearChatUrl() {
   history.pushState({}, "", url.toString());
 }
 
-/*
-// Open chat detail from list (delegated)
-// Add data-open-chat="123" to clickable elements (or row)
-document.addEventListener("click", (e) => {
-  const trigger = e.target.closest("[data-open-chat]");
-  if (!trigger) return;
-
-  const sid = (trigger.getAttribute("data-open-chat") || "").trim();
-  if (!sid) return;
-
-  openChatDetail(sid);
-});*/
 
 
 // Back button
@@ -2071,36 +1945,6 @@ document.addEventListener("click", (e) => {
     closeChatDetail();
   }
 });
-
-/*// Back/forward support
-window.addEventListener("popstate", () => {
-  const params = new URLSearchParams(window.location.search);
-  const sid = params.get("session_id");
-  if (sid) {
-    setInlineDetailOpen(true);
-    loadChatDetail(sid);
-  } else {
-    closeChatDetail();
-  }
-});*/
-
-
-
-
-
-
-
-
-
-
-// =====================================================
-// Chat Detail: Notes + Summary collapse (GLOBAL)
-// Works even when chat_detail_panel.html is injected.
-// - Remembers state per chat in localStorage
-// - Default = collapsed (hidden)
-// - Chevron rotates
-// - Keyboard: N = notes, S = summary (when not typing)
-// =====================================================
 
 (function initAdminChatPanelGlobal() {
   if (window.__ADMIN_CHAT_PANEL_GLOBAL_INIT__) return;
@@ -2172,17 +2016,7 @@ window.addEventListener("popstate", () => {
       return;
     }
 
-   /* const actionBtn = e.target.closest("[data-action]");
-    if (!actionBtn) return;
-
-    const panel = actionBtn.closest("[data-chat-panel]");
-    const chatId = panel?.getAttribute("data-chat-panel");
-    if (!chatId) return;
-
-    const action = actionBtn.getAttribute("data-action");
-    if (!action) return;*/
-
-    
+     
   });
 
   // Keyboard shortcuts: N / S (toggle current open detail panel if present)
@@ -2522,67 +2356,12 @@ function updateChatListRow(sessionId, payload = {}) {
 }
 
 
-/*
-function applyEscalationBadge(badgeEl, levelRaw) {
-  if (!badgeEl) return;
-
-  const level = String(levelRaw || "").toLowerCase().trim();
-
-  // Reset classes (keep your pill shape)
-  badgeEl.className = "px-2 py-1 rounded-full font-semibold";
-
-  if (level === "critical" || level === "high") {
-    badgeEl.textContent = "🔴 High";
-    badgeEl.classList.add("bg-rose-100", "text-rose-800");
-  } else if (level === "attention" || level === "medium") {
-    badgeEl.textContent = "🟡 Medium";
-    badgeEl.classList.add("bg-amber-100", "text-amber-800");
-  } else if (level) {
-    badgeEl.textContent = "🟢 Low";
-    badgeEl.classList.add("bg-blue-100", "text-blue-800");
-  } else {
-    badgeEl.textContent = "—";
-    badgeEl.classList.add("text-slate-400");
-  }
-
-  badgeEl.setAttribute("data-escalation-level", level);
-}*/
-
 function updateChatListEscalation(sessionId, level) {
   const row = document.querySelector(`[data-session-row="${sessionId}"]`);
   if (!row) return;
   setEscalationBadge(row.querySelector("[data-escalation-badge]"), level);
 }
 
-
-
-    
-
-   /*async function openChatDetail(sessionId) {
-  setInlineDetailOpen(true);
-  pushChatUrl(sessionId);
-  await loadChatDetail(String(sessionId));
-}
-
-function closeChatDetail() {
-  if (chatDetailAbort) chatDetailAbort.abort();
-
-  setInlineDetailOpen(false);
-  clearChatUrl();
-
-  const panel = document.getElementById("chat-detail-panel");
-
-  if (panel) {
-    panel.innerHTML = `
-      <div id="chat-detail-empty" class="text-sm text-slate-500">
-        Select a chat session to view details.
-      </div>
-    `;
-    panel.removeAttribute("data-session-id");
-  }
-}
-
-window.openChatDetail = openChatDetail;*/
 
     // ----------------------------
     // Relative time updater
@@ -3686,27 +3465,6 @@ function getRowMood(row) {
 }
 
 
-/*
-function applyChatsFilters() {
-  const selected = getSelectedMoodFilter();
-  const rows = document.querySelectorAll("[data-session-row]");
-
-  rows.forEach(row => {
-    if (!selected) {
-      row.style.display = "";
-      return;
-    }
-    const mood = getRowMood(row);
-    row.style.display = mood.includes(selected) ? "" : "none";
-  });
-}
-
-// Optional: instant filtering on change
-document.addEventListener("change", (e) => {
-  if (e.target?.id === "moodFilter") applyChatsFilters();
-});*/
-
-
   // ----------------------------
   // Sidebar collapse/expand
   // ----------------------------
@@ -4011,71 +3769,6 @@ window.Chats.refreshSummary = async function refreshSummary(sessionId) {
 // ✅ global alias so any old code calling refreshSummary(...) still works
 window.refreshSummary = (sessionId) => window.Chats.refreshSummary(sessionId);
 
-/*
-// ✅ click binding for your button
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest('[data-action="summary"]');
-  if (!btn) return;
-
-  const panel = btn.closest("[data-chat-panel]");
-  const sessionId = Number(panel?.dataset?.sessionId);
-  if (!sessionId) return console.error("Missing sessionId on panel", panel);
-
-  window.Chats.refreshSummary(sessionId);
-});
-*/
-
-
-
-
-
-
-
-
-
-   /*function initQuillEditor({ editorId, inputId, placeholder = "" }) {
-  const editorEl = document.getElementById(editorId);
-  const inputEl = document.getElementById(inputId);
-
-  if (!editorEl || !inputEl) {
-    console.warn("Quill init skipped: missing elements", { editorId, inputId });
-    return null;
-  }
-  if (!window.Quill) {
-    console.warn("Quill init skipped: Quill library not loaded");
-    return null;
-  }
-
-  // Prevent double-init if you reopen editor
-  if (editorEl.__quill) return editorEl.__quill;
-
-  const quill = new Quill(editorEl, {
-    theme: "snow",
-    placeholder,
-    modules: {
-      toolbar: [
-        ["bold", "italic", "underline", "strike"],
-        [{ header: [1, 2, 3, false] }],
-        [{ list: "ordered" }, { list: "bullet" }],
-        ["link", "blockquote"],
-        ["clean"]
-      ],
-    },
-  });
-
-  // seed initial content from hidden input
-  quill.root.innerHTML = inputEl.value || "";
-
-  // keep hidden input updated for form submit
-  quill.on("text-change", () => {
-    inputEl.value = quill.root.innerHTML;
-  });
-
-  editorEl.__quill = quill;
-  return quill;
-}
-*/
-
 // ----------------------------
 // Upgrades (single definition + resilient AJAX handling)
 // ----------------------------
@@ -4148,20 +3841,6 @@ async openEditor(id) {
 
     editorBody.innerHTML = await res.text();
 
-   /* // ✅ Don’t let editor init break the modal
-    try {
-      if (typeof initQuillEditor === "function") {
-        initQuillEditor({
-          editorId: "upgrade-longdesc-editor",
-          inputId: "upgrade-longdesc-input",
-          placeholder: "Shown in the upgrade details / guest UI...",
-        });
-      } else {
-        console.warn("initQuillEditor is not defined (Quill init skipped).");
-      }
-    } catch (e) {
-      console.error("Quill init failed (skipped):", e);
-    }*/
   } catch (err) {
     console.error("Fetch failed:", err);
     editorBody.innerHTML = `<div class="text-sm text-rose-700">Network error loading editor.</div>`;
@@ -5125,121 +4804,7 @@ document.addEventListener("change", (e) => {
 
 
 
-// ==================================================
-// Escalation dropdown (detail panel)
-// ==================================================
 
-/*document.addEventListener("change", async (e) => {
-  const sel = e.target.closest('[data-role="escalation-select"]');
-  if (!sel) return;
-
-  const panel = sel.closest("[data-session-id]");
-  const sessionId = panel?.getAttribute("data-session-id");
-  if (!sessionId) {
-    console.warn("Escalation change: no session id");
-    return;
-  }
-
-  const level = (sel.value || "").trim(); // "", low, medium, high
-
-  // bootstrap api
-  const bootEl = document.getElementById("dashboard-bootstrap");
-  const boot = bootEl ? JSON.parse(bootEl.textContent) : null;
-  const tmpl = boot?.api?.chat_escalate;
-  if (!tmpl) {
-    console.warn("Missing api.chat_escalate");
-    return;
-  }
-
-  const url = tmpl.replace("{session_id}", encodeURIComponent(sessionId));
-
-  // optimistic UI update (detail)
-  const pill = panel.querySelector('[data-role="escalation-pill"]');
-  if (pill) {
-    pill.textContent =
-      level === "high" ? "🔴 Escalation: High" :
-      level === "medium" ? "🟡 Escalation: Medium" :
-      level === "low" ? "⚪ Escalation: Low" :
-      "No escalation";
-
-    pill.className =
-      "inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold " +
-      (level === "high" ? "bg-rose-100 text-rose-800" :
-       level === "medium" ? "bg-amber-100 text-amber-800" :
-       level === "low" ? "bg-slate-100 text-slate-700" :
-       "bg-slate-100 text-slate-500");
-  }
-
-  panel.setAttribute("data-escalation-level", level);
-
-  try {
-    await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      credentials: "same-origin",
-      credentials: "include",
-      body: JSON.stringify({ escalation_level: level }) // ⚠️ adjust if needed
-    });
-
-    // update list row badge
-    const row = document.querySelector(`[data-session-row="${sessionId}"]`);
-    const rowBadge = row?.querySelector("[data-escalation-badge]");
-    if (rowBadge) {
-      rowBadge.textContent =
-        level === "high" ? "🔴 High" :
-        level === "medium" ? "🟡 Medium" :
-        level === "low" ? "⚪ Low" : "—";
-
-      rowBadge.className =
-        "px-2 py-1 rounded-full font-semibold " +
-        (level === "high" ? "bg-rose-100 text-rose-800" :
-         level === "medium" ? "bg-amber-100 text-amber-800" :
-         level === "low" ? "bg-slate-100 text-slate-700" :
-         "text-slate-400");
-    }
-  } catch (err) {
-    console.error("Escalation update failed", err);
-  }
-});
-*/
-
-
-// ------------------------------
-// SYNC ALL PROPERTIES PMC SIDE
-// ------------------------------
-/*
-document.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("sync-all-properties-btn");
-  if (!btn) return;
-
-  btn.addEventListener("click", async () => {
-    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock property syncing.");
-
-    btn.disabled = true;
-    const original = btn.textContent;
-    btn.textContent = "Syncing…";
-
-    try {
-      const res = await fetch(`/auth/sync-pmc-properties`, {
-        method: "POST",
-        credentials: "include",
-      });
-
-      if (res.status === 401 || res.status === 403) return loginRedirect();
-      if (res.status === 402) return (window.location.href = "/pmc/signup");
-
-      if (!res.ok) throw new Error(await res.text());
-
-      window.location.reload();
-    } catch (err) {
-      console.error(err);
-      alert("Failed to sync properties");
-    } finally {
-      btn.disabled = false;
-      btn.textContent = original;
-    }
-  });
-});*/
 
 function initSyncAllProperties() {
   const btn = document.getElementById("sync-all-properties-btn");
@@ -6174,32 +5739,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Uses "hidden" class (matches template)
 // Keeps Tasks init + ALWAYS refresh
 // ------------------------------
-/*function showDashboardView(view) {
-  if (!view) return;
 
-  // Update URL query param without full reload
-  const url = new URL(window.location.href);
-  url.searchParams.set("view", view);
-  url.searchParams.delete("session_id");
-  window.history.pushState({}, "", url.toString());
-
-  // Hide all views
-  document.querySelectorAll("section.view").forEach((el) => el.classList.add("hidden"));
-
-  // Show selected view
-  document.getElementById(`view-${view}`)?.classList.remove("hidden");
-
-  // Update nav active styling
-  document.querySelectorAll(".nav-item").forEach((x) => x.classList.remove("active"));
-  const activeBtn = document.querySelector(`.nav-item[data-view="${CSS.escape(view)}"]`);
-  if (activeBtn) activeBtn.classList.add("active");
-
-  // Tasks: init once, refresh always
-  if (view === "tasks") {
-    window.Tasks?.init?.();
-    window.Tasks?.refresh?.();
-  }
-}*/
 
 // Click handler for sidebar nav (your HTML uses: .nav-item[data-view])
 document.addEventListener("click", (e) => {
