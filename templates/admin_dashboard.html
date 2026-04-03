@@ -1657,7 +1657,7 @@
 
         <button
           type="button"
-          data-trend-filter='{{ stay_pulse.filter_payload|tojson }}'
+          data-trend-filter='{{ (stay_pulse.filter_payload | default({})) | tojson }}'
           onclick="applyTrendFilter(this)"
           class="mt-5 inline-flex h-11 items-center rounded-full border border-[#CFE0FF] bg-[#EEF4FF] px-5 text-[14px] font-semibold text-[#245BFF] shadow-sm">
           Filter conversations
