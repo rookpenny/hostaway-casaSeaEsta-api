@@ -3808,6 +3808,7 @@ def admin_dashboard(
 
     lifecycle: str | None = Query(default=None),
     conversation_group: str | None = Query(default=None),
+    trend_filter: str | None = Query(default=None),
 
     # ✅ BACKWARD COMPAT
     priority: str | None = Query(default=None),       # legacy: "urgent" | "unhappy"
@@ -3837,7 +3838,16 @@ def admin_dashboard(
     ap_filter = _clean_str(action_priority)
     lifecycle = _clean_str(lifecycle)
     conversation_group = _clean_str(conversation_group)
-    '''legacy_priority = _clean_str(priority)'''
+    trend_filter = _clean_str(trend_filter)
+
+    parsed_trend_filter = None
+    if trend_filter:
+        try:
+            parsed_trend_filter = json.loads(trend_filter)
+            if not isinstance(parsed_trend_filter, dict):
+                parsed_trend_filter = None
+        except Exception:
+            parsed_trend_filter = None
 
 
     # Validate lifecycle
@@ -3952,6 +3962,7 @@ def admin_dashboard(
         "emotional_signals_filter": mood or "",
         "lifecycle": lifecycle or "",
         "conversation_group": conversation_group or "",
+        "trend_filter": trend_filter or "",
         "mine": bool(mine),
         "assigned_to": assigned_to or "",
         "q": q or "",
@@ -4173,6 +4184,33 @@ def admin_dashboard(
         
     if dirty_any:
         db.commit()
+
+    if parsed_trend_filter:
+        def session_matches_trend(row: dict, payload: dict) -> bool:
+            terms = [str(x).lower().strip() for x in (payload.get("terms") or []) if str(x).strip()]
+            moods = {str(x).lower().strip() for x in (payload.get("moods") or []) if str(x).strip()}
+            stay_cycles = {str(x).lower().strip() for x in (payload.get("stay_cycles") or []) if str(x).strip()}
+            signal_labels = {str(x).lower().strip() for x in (payload.get("signal_labels") or []) if str(x).strip()}
+
+            hay = " ".join([
+                str(row.get("last_snippet") or ""),
+                str(row.get("signal_detail") or ""),
+                str(row.get("guest_name") or ""),
+                str(row.get("property_name") or ""),
+            ]).lower()
+
+            row_moods = {str(x).lower().strip() for x in (row.get("emotional_signals") or []) if str(x).strip()}
+            row_stay_cycle = str(row.get("stay_cycle") or "").lower().strip()
+            row_signal_label = str(row.get("signal_label") or "").lower().strip()
+
+            term_match = True if not terms else any(term in hay for term in terms)
+            mood_match = True if not moods else bool(row_moods & moods)
+            cycle_match = True if not stay_cycles else row_stay_cycle in stay_cycles
+            signal_match = True if not signal_labels else row_signal_label in signal_labels
+
+            return term_match and mood_match and cycle_match and signal_match
+
+        sessions = [s for s in sessions if session_matches_trend(s, parsed_trend_filter)]
 
     # ----------------------------
     # Analytics from the final rendered list (no mismatches)
