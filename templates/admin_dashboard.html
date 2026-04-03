@@ -1626,53 +1626,87 @@
 
 
 <section id="view-chats" class="view space-y-6 {% if initial_view != 'chats' %}hidden{% endif %}">
- <!-- {% if not selected_session %}
+  {% if not selected_session %}
   <div>
     <div class="text-[32px] font-semibold tracking-[-0.04em] text-slate-950">Conversations</div>
     <div class="mt-1 text-sm text-slate-500">
       Monitor how your AI is performing across every stage of the stay lifecycle.
     </div>
   </div>
+  {% endif %}
 
-  <div class="grid gap-4 lg:grid-cols-4">
-    <div class="rounded-[24px] border border-slate-200 bg-white px-6 py-5 shadow-sm">
-      <div class="text-[52px] leading-none font-semibold tracking-[-0.05em] text-slate-950">
-        {{ sessions|length }}
+  <div class="space-y-5">
+    <div class="grid gap-4 xl:grid-cols-3">
+      <div class="rounded-[24px] border border-[#CFE0FF] bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#356CF6]">
+            Trend detected
+          </div>
+          <div class="rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold text-[#356CF6]">
+            Affects 12 conversations
+          </div>
+        </div>
+
+        <div class="mt-4 text-[18px] font-semibold leading-7 text-slate-900">
+          Guests keep asking about early check-in
+        </div>
+
+        <div class="mt-3 text-[14px] leading-7 text-slate-500">
+          Add a pre-arrival note to reduce repetitive questions and lower manual replies.
+        </div>
+
+        <button
+          type="button"
+          onclick="applyTrendFilter('Early check-in')"
+          class="mt-5 inline-flex h-11 items-center rounded-full border border-[#CFE0FF] bg-[#EEF4FF] px-5 text-[14px] font-semibold text-[#245BFF] shadow-sm">
+          Filter conversations
+        </button>
       </div>
-      <div class="mt-4 text-[15px] font-medium text-slate-700">Active conversations</div>
-      <div class="mt-3 text-[13px] leading-6 text-slate-400">AI handling guest communication</div>
+
+      <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-sm">
+        <div class="flex items-start justify-between gap-3">
+          <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#356CF6]">
+            Automation idea
+          </div>
+          <div class="rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold text-[#356CF6]">
+            Seen across 7 stays
+          </div>
+        </div>
+
+        <div class="mt-4 text-[18px] font-semibold leading-7 text-slate-900">
+          Pool heat questions spike after sunset
+        </div>
+
+        <div class="mt-3 text-[14px] leading-7 text-slate-500">
+          Create a fast reply that explains warm-up timing and expected pool temperature.
+        </div>
+
+        <button
+          type="button"
+          class="mt-5 inline-flex h-11 items-center rounded-full border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-900 shadow-sm">
+          Create automation
+        </button>
+      </div>
+
+      <div class="rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,#F3FBF6_0%,#ECFDF3_100%)] p-5 shadow-sm">
+        <div class="flex items-center gap-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
+          <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
+            Healthy notification
+          </div>
+        </div>
+
+        <div class="mt-4 text-[20px] font-semibold tracking-[-0.03em] text-emerald-900">
+          Portfolio healthy
+        </div>
+
+        <div class="mt-3 text-[14px] leading-7 text-emerald-900/70">
+          Most guests are having smooth AI-guided experiences right now, with no unusual spikes in negative sentiment.
+        </div>
+      </div>
     </div>
 
-    <div class="rounded-[24px] border border-slate-200 bg-white px-6 py-5 shadow-sm">
-      <div class="text-[52px] leading-none font-semibold tracking-[-0.05em] text-slate-950">
-        {{ sessions | selectattr('signal', 'equalto', 'needs_clarity') | list | length }}
-      </div>
-      <div class="mt-4 text-[15px] font-medium text-slate-700">Guest friction points</div>
-      <div class="mt-3 text-[13px] leading-6 text-slate-400">Recurring issues detected</div>
-    </div>
-
-    <div class="rounded-[24px] border border-slate-200 bg-white px-6 py-5 shadow-sm">
-      <div class="text-[52px] leading-none font-semibold tracking-[-0.05em] text-slate-950">
-        {{ sessions | selectattr('action_priority', 'equalto', 'urgent') | list | length }}
-      </div>
-      <div class="mt-4 text-[15px] font-medium text-slate-700">Escalations</div>
-      <div class="mt-3 text-[13px] leading-6 text-slate-400">Where AI needed human support</div>
-    </div>
-
-    <div class="rounded-[24px] border border-slate-200 bg-[linear-gradient(180deg,#FFFFFF_0%,#FAFBFD_100%)] px-6 py-5 shadow-sm">
-      <div class="text-[12px] font-semibold uppercase tracking-[0.12em] text-slate-400">Most affected property</div>
-      <div class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
-        {{ stay_pulse.property_name if stay_pulse and stay_pulse.property_name else "Casa Sea Esta" }}
-      </div>
-      <div class="mt-2 text-[14px] text-slate-500">
-        {{ stay_pulse.property_meta if stay_pulse and stay_pulse.property_meta else "5 flagged conversations" }}
-      </div>
-    </div>
-  </div>
-  {% endif %}-->
-
-  <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-    <div class="grid xl:grid-cols-[1fr_360px]">
+    <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div class="p-6">
         <form id="chatFilters" method="get" action="/admin/dashboard" class="space-y-4">
           <input type="hidden" name="view" value="chats" />
@@ -2000,80 +2034,6 @@
               <div id="chat-detail-empty" class="text-sm text-slate-500">
                 Select a chat session to view details.
               </div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="border-l border-slate-200 bg-slate-50 p-6">
-        <div class="mb-4 text-[18px] font-semibold text-slate-900">Guest Insights</div>
-
-        <div class="space-y-4">
-          <div class="rounded-[24px] border border-[#CFE0FF] bg-white p-4 shadow-sm">
-            <div class="flex items-start justify-between gap-3">
-              <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#356CF6]">
-                Trend detected
-              </div>
-              <div class="rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold text-[#356CF6]">
-                Affects 12 conversations
-              </div>
-            </div>
-
-            <div class="mt-4 text-[16px] font-semibold leading-7 text-slate-900">
-              Guests keep asking about early check-in
-            </div>
-
-            <div class="mt-3 text-[14px] leading-7 text-slate-500">
-              Add a pre-arrival note to reduce repetitive questions and lower manual replies.
-            </div>
-
-            <button
-              type="button"
-              onclick="applyTrendFilter('Early check-in')"
-              class="mt-5 inline-flex h-11 items-center rounded-full border border-[#CFE0FF] bg-[#EEF4FF] px-5 text-[14px] font-semibold text-[#245BFF] shadow-sm">
-              Filter conversations
-            </button>
-          </div>
-
-          <div class="rounded-[24px] border border-slate-200 bg-white p-4 shadow-sm">
-            <div class="flex items-start justify-between gap-3">
-              <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-[#356CF6]">
-                Automation idea
-              </div>
-              <div class="rounded-full bg-[#EEF4FF] px-3 py-1 text-[11px] font-semibold text-[#356CF6]">
-                Seen across 7 stays
-              </div>
-            </div>
-
-            <div class="mt-4 text-[16px] font-semibold leading-7 text-slate-900">
-              Pool heat questions spike after sunset
-            </div>
-
-            <div class="mt-3 text-[14px] leading-7 text-slate-500">
-              Create a fast reply that explains warm-up timing and expected pool temperature.
-            </div>
-
-            <button
-              type="button"
-              class="mt-5 inline-flex h-11 items-center rounded-full border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-900 shadow-sm">
-              Create automation
-            </button>
-          </div>
-
-          <div class="rounded-[24px] border border-emerald-200 bg-[linear-gradient(135deg,#F3FBF6_0%,#ECFDF3_100%)] p-5 shadow-sm">
-            <div class="flex items-center gap-2">
-              <span class="h-2.5 w-2.5 rounded-full bg-emerald-500"></span>
-              <div class="text-[12px] font-semibold uppercase tracking-[0.14em] text-emerald-700">
-                Healthy notification
-              </div>
-            </div>
-
-            <div class="mt-4 text-[18px] font-semibold tracking-[-0.03em] text-emerald-900">
-              Portfolio healthy
-            </div>
-
-            <div class="mt-3 text-[14px] leading-7 text-emerald-900/70">
-              Most guests are having smooth AI-guided experiences right now, with no unusual spikes in negative sentiment.
             </div>
           </div>
         </div>
