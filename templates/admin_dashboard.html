@@ -1709,116 +1709,77 @@
     <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div class="p-6">
         <form id="chatFilters" method="get" action="/admin/dashboard" class="space-y-4">
-          <input type="hidden" name="view" value="chats" />
+  <input type="hidden" name="view" value="chats" />
 
-          <div class="flex flex-wrap gap-2">
-            {% set lifecycle = filters.lifecycle or '' %}
+  {% set lifecycle = filters.lifecycle or '' %}
 
-            <button
-              type="button"
-              name="lifecycle"
-              value=""
-              data-lifecycle-target="all"
-              class="h-10 rounded-full px-4 text-sm font-medium {% if not lifecycle %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
-              All chats
-            </button>
+  <div class="relative w-full">
+    <div class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">⌕</div>
+    <input
+      type="text"
+      name="q"
+      value="{{ filters.q or '' }}"
+      placeholder="Search every chat, guest, issue, or property..."
+      class="h-12 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+    />
+  </div>
 
-            <button
-              type="button"
-              name="lifecycle"
-              value="inquiry"
-              data-lifecycle-target="inquiry"
-              class="h-10 rounded-full px-4 text-sm font-medium {% if lifecycle == 'inquiry' %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
-              Inquiry
-            </button>
+  <div class="flex flex-wrap items-center gap-3">
+    <select name="lifecycle" class="h-11 min-w-[210px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+      <option value="" {% if not lifecycle %}selected{% endif %}>Lifecycle</option>
+      <option value="inquiry" {% if lifecycle == 'inquiry' %}selected{% endif %}>Inquiry</option>
+      <option value="upcoming" {% if lifecycle == 'upcoming' %}selected{% endif %}>🗓️ Upcoming stay</option>
+      <option value="current" {% if lifecycle == 'current' %}selected{% endif %}>🏡 Currently staying</option>
+      <option value="checked_out" {% if lifecycle == 'checked_out' %}selected{% endif %}>✅ Checked out</option>
+    </select>
 
-            <button
-              type="button"
-              name="lifecycle"
-              value="upcoming"
-              data-lifecycle-target="upcoming"
-              class="h-10 rounded-full px-4 text-sm font-medium {% if lifecycle == 'upcoming' %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
-              🗓️ Upcoming stay
-            </button>
+    {% if user_role == "super" %}
+    <select name="pmc_id" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+      <option value="">All PMCs</option>
+      {% for p in pmcs %}
+      <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
+        {{ p.pmc_name }}
+      </option>
+      {% endfor %}
+    </select>
+    {% endif %}
 
-            <button
-              type="button"
-              name="lifecycle"
-              value="current"
-              data-lifecycle-target="current"
-              class="h-10 rounded-full px-4 text-sm font-medium {% if lifecycle == 'current' %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
-              🏡 Currently staying
-            </button>
+    <select name="property_id" class="h-11 min-w-[220px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+      <option value="">All properties</option>
+      {% for pr in properties %}
+      <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+        {{ pr.property_name }}
+      </option>
+      {% endfor %}
+    </select>
 
-            <button
-              type="button"
-              name="lifecycle"
-              value="checked_out"
-              data-lifecycle-target="checked_out"
-              class="h-10 rounded-full px-4 text-sm font-medium {% if lifecycle == 'checked_out' %}bg-slate-900 text-white shadow-[0_10px_24px_rgba(15,23,42,0.18)]{% else %}border border-slate-200 bg-white text-slate-600{% endif %}">
-              ✅ Checked out
-            </button>
-          </div>
+    <select name="action_priority" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+      <option value="">Priority</option>
+      <option value="urgent" {% if filters.action_priority == "urgent" %}selected{% endif %}>Urgent</option>
+      <option value="high" {% if filters.action_priority == "high" %}selected{% endif %}>High</option>
+      <option value="normal" {% if filters.action_priority == "normal" %}selected{% endif %}>Normal</option>
+      <option value="low" {% if filters.action_priority == "low" %}selected{% endif %}>Low</option>
+    </select>
 
-          <div class="flex flex-wrap items-center gap-3">
-            {% if user_role == "super" %}
-            <select name="pmc_id" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="">All PMCs</option>
-              {% for p in pmcs %}
-              <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
-                {{ p.pmc_name }}
-              </option>
-              {% endfor %}
-            </select>
-            {% endif %}
+    <select id="moodFilter" name="emotional_signals_filter" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+      <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>Signal</option>
+      <option value="panicked" {% if filters.emotional_signals_filter == "panicked" %}selected{% endif %}>Panicked</option>
+      <option value="angry" {% if filters.emotional_signals_filter == "angry" %}selected{% endif %}>Angry</option>
+      <option value="upset" {% if filters.emotional_signals_filter == "upset" %}selected{% endif %}>Upset</option>
+      <option value="confused" {% if filters.emotional_signals_filter == "confused" %}selected{% endif %}>Confused</option>
+      <option value="worried" {% if filters.emotional_signals_filter == "worried" %}selected{% endif %}>Worried</option>
+      <option value="calm" {% if filters.emotional_signals_filter == "calm" %}selected{% endif %}>Calm</option>
+    </select>
 
-            <select name="property_id" class="h-11 min-w-[220px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="">All properties</option>
-              {% for pr in properties %}
-              <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
-                {{ pr.property_name }}
-              </option>
-              {% endfor %}
-            </select>
+    <button type="submit" class="h-11 rounded-full bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800">
+      Filter
+    </button>
 
-            <select name="action_priority" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="">Priority</option>
-              <option value="urgent" {% if filters.action_priority == "urgent" %}selected{% endif %}>Urgent</option>
-              <option value="high" {% if filters.action_priority == "high" %}selected{% endif %}>High</option>
-              <option value="normal" {% if filters.action_priority == "normal" %}selected{% endif %}>Normal</option>
-              <option value="low" {% if filters.action_priority == "low" %}selected{% endif %}>Low</option>
-            </select>
-
-            <select id="moodFilter" name="emotional_signals_filter" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>Signal</option>
-              <option value="panicked" {% if filters.emotional_signals_filter == "panicked" %}selected{% endif %}>Panicked</option>
-              <option value="angry" {% if filters.emotional_signals_filter == "angry" %}selected{% endif %}>Angry</option>
-              <option value="upset" {% if filters.emotional_signals_filter == "upset" %}selected{% endif %}>Upset</option>
-              <option value="confused" {% if filters.emotional_signals_filter == "confused" %}selected{% endif %}>Confused</option>
-              <option value="worried" {% if filters.emotional_signals_filter == "worried" %}selected{% endif %}>Worried</option>
-              <option value="calm" {% if filters.emotional_signals_filter == "calm" %}selected{% endif %}>Calm</option>
-            </select>
-
-            <div class="relative min-w-[280px] flex-1">
-              <div class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">⌕</div>
-              <input
-                type="text"
-                name="q"
-                value="{{ filters.q or '' }}"
-                placeholder="Search every chat, guest, issue, or property..."
-                class="h-11 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-              />
-            </div>
-
-            <button type="submit" class="h-11 rounded-full bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800">
-              Filter
-            </button>
-
-            <a href="/admin/dashboard?view=chats" class="inline-flex h-11 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
-              Reset
-            </a>
-          </div>
-        </form>
+    <a href="/admin/dashboard?view=chats" class="inline-flex h-11 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
+      Reset
+    </a>
+  </div>
+</form>
 
         {% if stay_pulse and stay_pulse.filter_tag %}
         <div class="mt-5 rounded-[20px] border border-[#D7E3FF] bg-[#EEF4FF] px-4 py-3">
