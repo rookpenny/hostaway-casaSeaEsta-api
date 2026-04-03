@@ -201,9 +201,9 @@
       <span class="truncate">Overview</span>
     </a>
 
-    <button
+    <a
+  href="/admin/dashboard?view=chats"
       data-view="chats"
-      type="button"
       aria-current="{{ 'page' if initial_view == 'chats' else 'false' }}"
       class="nav-item {{ 'active' if initial_view == 'chats' else '' }}"
     >
@@ -217,11 +217,11 @@
         <span class="truncate">Chats</span>
         <span id="chats-nav-badge" class="nav-badge">12</span>
       </span>
-    </button>
+    </a>
 
-    <button
+    <a
+  href="/admin/dashboard?view=analytics"
       data-view="analytics"
-      type="button"
       aria-current="{{ 'page' if initial_view == 'analytics' else 'false' }}"
       class="nav-item {{ 'active' if initial_view == 'analytics' else '' }}"
     >
@@ -231,11 +231,11 @@
         </svg>
       </span>
       <span class="truncate">Analytics</span>
-    </button>
+    </a>
 
-    <button
+    <a
+  href="/admin/dashboard?view=properties"
       data-view="properties"
-      type="button"
       aria-current="{{ 'page' if initial_view == 'properties' else 'false' }}"
       class="nav-item {{ 'active' if initial_view == 'properties' else '' }}"
     >
@@ -245,11 +245,11 @@
         </svg>
       </span>
       <span class="truncate">Properties</span>
-    </button>
+    </a>
 
-    <button
+    <a
+  href="/admin/dashboard?view=guides"
       data-view="guides"
-      type="button"
       aria-current="{{ 'page' if initial_view == 'guides' else 'false' }}"
       class="nav-item {{ 'active' if initial_view == 'guides' else '' }}"
     >
@@ -260,11 +260,11 @@
         </svg>
       </span>
       <span class="truncate">Guides</span>
-    </button>
+    </a>
 
-    <button
+    <a
+  href="/admin/dashboard?view=upgrades"
       data-view="upgrades"
-      type="button"
       aria-current="{{ 'page' if initial_view == 'upgrades' else 'false' }}"
       class="nav-item {{ 'active' if initial_view == 'upgrades' else '' }}"
     >
@@ -274,7 +274,7 @@
         </svg>
       </span>
       <span class="truncate">Upgrades</span>
-    </button>
+    </a>
     
   </div>
 
@@ -282,9 +282,9 @@
 
 
      <div class="mx-6 my-6 h-px"></div>
-    <button
+    <a
+  href="/admin/dashboard?view=settings"
       data-view="settings"
-      type="button"
       aria-current="{{ 'page' if initial_view == 'settings' else 'false' }}"
       class="nav-item {{ 'active' if initial_view == 'settings' else '' }}"
     >
@@ -295,7 +295,7 @@
         </svg>
       </span>
       <span class="truncate">Settings</span>
-    </button>
+    </a>
    </div>
 
   
