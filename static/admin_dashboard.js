@@ -280,12 +280,15 @@ function initChatFilters() {
     });
   });
 
-  form.querySelector("input[name='q']").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      window.location.href = buildUrl().toString();
-    }
-  });
+  const searchInput = form.querySelector("input[name='q']");
+  if (searchInput) {
+    searchInput.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        window.location.href = buildUrl().toString();
+      }
+    });
+  }
 }
 
 function initChatLoadMore() {
