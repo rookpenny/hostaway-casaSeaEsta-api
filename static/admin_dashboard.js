@@ -252,7 +252,45 @@ function goToView(view) {
   };
 
   
+window.applyTrendFilter = function applyTrendFilter(tag) {
+  const form = document.getElementById("chatFilters");
+  const url = new URL(form?.action || window.location.pathname, window.location.origin);
 
+  if (form) {
+    const fd = new FormData(form);
+    for (const [k, v] of fd.entries()) {
+      const value = String(v || "").trim();
+      if (value) url.searchParams.set(k, value);
+      else url.searchParams.delete(k);
+    }
+  }
+
+  url.searchParams.set("view", "chats");
+  url.searchParams.set("q", String(tag || "").trim());
+  url.searchParams.delete("session_id");
+
+  window.location.href = url.toString();
+};
+
+window.clearTrendFilter = function clearTrendFilter() {
+  const form = document.getElementById("chatFilters");
+  const url = new URL(form?.action || window.location.pathname, window.location.origin);
+
+  if (form) {
+    const fd = new FormData(form);
+    for (const [k, v] of fd.entries()) {
+      const value = String(v || "").trim();
+      if (value && k !== "q") url.searchParams.set(k, value);
+      else url.searchParams.delete(k);
+    }
+  }
+
+  url.searchParams.set("view", "chats");
+  url.searchParams.delete("q");
+  url.searchParams.delete("session_id");
+
+  window.location.href = url.toString();
+};
 
 function initChatFilters() {
   const form = document.getElementById("chatFilters");
