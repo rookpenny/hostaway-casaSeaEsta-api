@@ -793,7 +793,13 @@ def fetch_dashboard_chat_sessions(
       AND (
         :q IS NULL
         OR b.property_name ILIKE '%' || :q || '%'
-        OR coalesce(lm.last_message,'') ILIKE '%' || :q || '%'
+        OR coalesce(b.guest_name, '') ILIKE '%' || :q || '%'
+        OR EXISTS (
+          SELECT 1
+          FROM chat_messages cm_search
+          WHERE cm_search.session_id = b.id
+            AND coalesce(cm_search.content, '') ILIKE '%' || :q || '%'
+        )
       )
 
     ORDER BY b.last_activity_at DESC NULLS LAST
