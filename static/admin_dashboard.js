@@ -258,34 +258,19 @@ function initChatFilters() {
   const form = document.getElementById("chatFilters");
   if (!form) return;
 
-  const lifecycleButtons = form.querySelectorAll('button[name="lifecycle"]');
-
-  function buildUrl(submitter = null) {
+  function buildUrl() {
     const url = new URL(form.action || window.location.pathname, window.location.origin);
     const fd = new FormData(form);
 
     for (const [k, v] of fd.entries()) {
       const value = String(v || "").trim();
       if (value) url.searchParams.set(k, value);
+      else url.searchParams.delete(k);
     }
 
     url.searchParams.set("view", "chats");
-
-    if (submitter?.name === "lifecycle") {
-      const lifecycle = String(submitter.value || "").trim();
-      if (lifecycle) url.searchParams.set("lifecycle", lifecycle);
-      else url.searchParams.delete("lifecycle");
-    }
-
     url.searchParams.delete("session_id");
     return url;
-  }
-
-  function scrollToLifecycleGroup(key) {
-    if (!key || key === "all") return;
-    const section = document.getElementById(`chat-group-${key}`);
-    if (!section) return;
-    section.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   form.addEventListener("submit", (e) => {
@@ -293,39 +278,11 @@ function initChatFilters() {
     window.location.href = buildUrl().toString();
   });
 
-  lifecycleButtons.forEach((btn) => {
-    btn.addEventListener("click", (e) => {
-      e.preventDefault();
-
-      const lifecycle = String(btn.value || "").trim();
-      const currentLifecycle =
-        new URLSearchParams(window.location.search).get("lifecycle") || "";
-
-      const sameFilter = lifecycle === currentLifecycle;
-
-      if (sameFilter) {
-        scrollToLifecycleGroup(btn.dataset.lifecycleTarget || lifecycle || "all");
-        return;
-      }
-
-      window.location.href = buildUrl(btn).toString();
-    });
-  });
-
   form.querySelectorAll("select").forEach((select) => {
     select.addEventListener("change", () => {
       window.location.href = buildUrl().toString();
     });
   });
-
-  const activeLifecycle =
-    new URLSearchParams(window.location.search).get("lifecycle") || "";
-
-  if (activeLifecycle) {
-    requestAnimationFrame(() => {
-      scrollToLifecycleGroup(activeLifecycle);
-    });
-  }
 }
 
 function initChatLoadMore() {
