@@ -16,7 +16,7 @@ window.CONTENT_LOCKED = IS_LOCKED;
 // 1) Ensure your module exists
 window.Chats = window.Chats || {};
 
-// 2) Click handler for the "Generate / Refresh" button
+/*// 2) Click handler for the "Generate / Refresh" button
 document.addEventListener("click", (e) => {
   const btn = e.target.closest('[data-action="summary"]');
   if (!btn) return;
@@ -32,7 +32,7 @@ document.addEventListener("click", (e) => {
   if (!sessionId) return console.error("Missing sessionId on panel", panel);
 
   window.Chats.refreshSummary(sessionId);
-});
+});*/
 
 
   // -----------------------------------
@@ -101,6 +101,14 @@ document.addEventListener("click", (e) => {
     admin_payouts: ["Revenue", "HostScout platform revenue"],
     settings: ["Settings", "Workspace and account controls"],
   };
+
+function goToView(view) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", view);
+  if (view !== "chats") url.searchParams.delete("session_id");
+  window.history.pushState({}, "", url.toString());
+  window.dispatchEvent(new PopStateEvent("popstate"));
+}
 
   function setActiveView(viewName) {
     const pageTitle = $("page-title");
@@ -185,7 +193,7 @@ document.addEventListener("click", (e) => {
     window.closeInsights();
 
     window.pendingGuideSuggestionTarget = target || "general";
-    setActiveView("guides");
+    goToView("guides");
 
     window.setTimeout(() => {
       const guidesView = $("view-guides");
@@ -199,7 +207,7 @@ document.addEventListener("click", (e) => {
     window.closeInsights();
 
     const draftTarget = target || "general";
-    setActiveView("guides");
+    goToView("guides");
 
     try {
       const res = await fetch(
@@ -1932,7 +1940,7 @@ document.addEventListener("click", (e) => {
   window.location.href = url.toString();
 });
 
-function initChatLoadMore() {
+/*function initChatLoadMore() {
   const table = document.getElementById("chat-table");
   const btn = document.getElementById("chat-load-more");
   if (!table || !btn) return;
@@ -1959,7 +1967,7 @@ function initChatLoadMore() {
   });
 
   render();
-}
+}*/
 
 
 window.applyTrendFilter = function applyTrendFilter(tag) {
@@ -2001,7 +2009,7 @@ window.clearTrendFilter = function clearTrendFilter() {
 };
 
 
-function setInlineDetailOpen(open) {
+/*function setInlineDetailOpen(open) {
   const inline = document.getElementById("chat-detail-inline");
   const list = document.getElementById("chat-list-wrap");
   const analytics = document.getElementById("chat-analytics-strip"); // ✅ add
@@ -2014,7 +2022,7 @@ function setInlineDetailOpen(open) {
   if (analytics) analytics.classList.toggle("hidden", open);
 
   if (open) inline.scrollIntoView({ behavior: "smooth", block: "start" });
-}
+}*/
 
 
 
@@ -2550,7 +2558,7 @@ function updateChatListEscalation(sessionId, level) {
 
     
 
-   async function openChatDetail(sessionId) {
+   /*async function openChatDetail(sessionId) {
   setInlineDetailOpen(true);
   pushChatUrl(sessionId);
   await loadChatDetail(String(sessionId));
@@ -2574,7 +2582,7 @@ function closeChatDetail() {
   }
 }
 
-window.openChatDetail = openChatDetail;
+window.openChatDetail = openChatDetail;*/
 
     // ----------------------------
     // Relative time updater
@@ -5011,9 +5019,16 @@ function initRouting() {
     document.getElementById(`view-${key}`)?.classList.remove("hidden");
 
     // active nav
-    navItems.forEach(btn => btn.setAttribute("aria-current", "false"));
+    navItems.forEach(btn => {
+      btn.setAttribute("aria-current", "false");
+      btn.classList.remove("active");
+    });
+    
     const activeBtn = navItems.find(b => (b.dataset.view || "").toLowerCase() === key);
-    if (activeBtn) activeBtn.setAttribute("aria-current", "page");
+    if (activeBtn) {
+      activeBtn.setAttribute("aria-current", "page");
+      activeBtn.classList.add("active");
+    }
 
     // titles
     const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
@@ -6101,86 +6116,38 @@ populateCategorySelect($id("taskCategory"));
 // DOM ready (single, clean)
 // ------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
-  // 1) Core shell
-  setupViews();
-  initNav();
+  initRouting();
   initSidebar();
-  initGuides();
+  initPortfolioChart();
+  initRevenueReports();
+  initSyncAllProperties();
 
-  // chats
   initChatBatchActions();
   initChatDetailDelete();
   initChatRowNavigation();
   initChatFilters();
-  initRelativeTimes();
   initChatLoadMore();
+  initRelativeTimes();
 
-  // dashboard.js features
-  initViewNavigation();
-  initRevenueReports();
-  initPortfolioChart();
+  initSettingsUI();
+  initAllReorderTables();
 
-  // panels
-  initInsightsPanel();
-  initSuggestionsPanel();
-
-  // upgrades
-  initUpgradeCTA();
-  initUpgradeSelects();
-  initUpgradePurchases();
-
-  // misc
-  initFileViewer();
-  initPayments();
-  initNotifications();
-
-  hydrateFromURL();
-
-  updateRelativeTimes();
-  setInterval(updateRelativeTimes, 60 * 1000);
-  initSyncAllProperties();
-
-  window.Messages?.refreshUnreadBadge?.();
-  window.rerenderAllMoodBadges?.();
-  window.applyMoodConfidenceHints?.(document);
-
-  // 2) Property filters
   document.getElementById("searchInput")?.addEventListener("input", filterProperties);
   document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
 
-  // 3) Guides / Upgrades dropdowns
   document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
   document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
     Upgrades.closeEditor();
     Upgrades.refresh();
   });
 
-  // 4) Overview chart init (after DOM exists)
-  const statusCanvas = document.getElementById("statusChart");
-  if (statusCanvas && window.Chart) {
-    statusChartInstance = new Chart(statusCanvas, {
-      type: "bar",
-      data: {
-        labels: ["LIVE", "OFFLINE"],
-        datasets: [
-          {
-            label: "Properties",
-            data: [Number(BOOT.live_props || 0), Number(BOOT.offline_props || 0)],
-          },
-        ],
-      },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: false } },
-        scales: { y: { beginAtZero: true, ticks: { stepSize: 1 } } },
-      },
-    });
-  }
+  window.Messages?.refreshUnreadBadge?.();
+  window.rerenderAllMoodBadges?.();
+  window.applyMoodConfidenceHints?.(document);
 
-  // 5) Render overview counters immediately
+  filterProperties();
   updateOverviewUI();
 
-  // 6) If URL has session_id, open inline chat detail
   const params = new URLSearchParams(window.location.search);
   const sid = params.get("session_id");
   if (sid) {
@@ -6190,22 +6157,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     setInlineDetailOpen(false);
   }
 
-  // 7) (Optional) If analytics view is currently visible on load, render it once
-  if (typeof isAnalyticsVisible === "function" && isAnalyticsVisible()) {
+  if ((params.get("view") || "overview") === "tasks") {
+    window.Tasks?.init?.();
+    window.Tasks?.refresh?.();
+  }
+
+  if ((params.get("view") || "overview") === "analytics") {
     const days = document.getElementById("analyticsRange")?.value || 30;
     loadChatAnalytics(days);
     resizeChatAnalyticsChartSoon();
-  }
-
-  // 8) Ensure correct view on load (URL param wins)
-  const viewParam = new URLSearchParams(window.location.search).get("view") || "overview";
-  document.querySelectorAll("section.view").forEach((el) => el.classList.add("hidden"));
-  document.getElementById(`view-${viewParam}`)?.classList.remove("hidden");
-
-  // Init tasks if landing on tasks
-  if (viewParam === "tasks") {
-    window.Tasks?.init?.();
-    window.Tasks?.refresh?.();
   }
 });
 
@@ -6214,7 +6174,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Uses "hidden" class (matches template)
 // Keeps Tasks init + ALWAYS refresh
 // ------------------------------
-function showDashboardView(view) {
+/*function showDashboardView(view) {
   if (!view) return;
 
   // Update URL query param without full reload
@@ -6239,7 +6199,7 @@ function showDashboardView(view) {
     window.Tasks?.init?.();
     window.Tasks?.refresh?.();
   }
-}
+}*/
 
 // Click handler for sidebar nav (your HTML uses: .nav-item[data-view])
 document.addEventListener("click", (e) => {
@@ -6260,13 +6220,9 @@ window.addEventListener("popstate", () => {
 
 
 window.DashboardOverview = window.DashboardOverview || {};
-
 window.DashboardOverview.jumpTo = function (view) {
-  const btn = document.querySelector(`[data-view="${view}"]`);
-  if (btn) {
-    btn.click();
-    return;
-  }
+  goToView(view);
+};
 
   document.querySelectorAll(".view").forEach((el) => el.classList.add("hidden"));
   document.getElementById(`view-${view}`)?.classList.remove("hidden");
