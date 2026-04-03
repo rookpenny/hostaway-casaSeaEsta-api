@@ -19,7 +19,6 @@
   <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js" defer></script>
 
   <!-- Your dashboard JS LAST -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="/static/admin_dashboard.js" defer></script>
   <script src="/static/stripe_connect.js" defer></script>
 
@@ -188,19 +187,19 @@
   <div class="nav-section-label mb-3">Host</div>
 
   <div class="nav-group">
-    <button
-      data-view="overview"
-      type="button"
-      aria-current="{{ 'page' if initial_view == 'overview' else 'false' }}"
-      class="nav-item {{ 'active' if initial_view == 'overview' else '' }}"
-    >
+    <a
+  href="/admin/dashboard?view=overview"
+  data-view="overview"
+  aria-current="{{ 'page' if initial_view == 'overview' else 'false' }}"
+  class="nav-item {{ 'active' if initial_view == 'overview' else '' }}"
+>
       <span class="nav-icon-wrap">
         <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
           <path d="M3 13h8V3H3v10zm10 8h8V11h-8v10zM3 21h8v-6H3v6zm10-18v6h8V3h-8z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/>
         </svg>
       </span>
       <span class="truncate">Overview</span>
-    </button>
+    </a>
 
     <button
       data-view="chats"
