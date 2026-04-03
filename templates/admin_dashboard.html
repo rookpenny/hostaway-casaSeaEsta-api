@@ -1709,77 +1709,75 @@
     <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div class="p-6">
         <form id="chatFilters" method="get" action="/admin/dashboard" class="space-y-4">
-  <input type="hidden" name="view" value="chats" />
+          <input type="hidden" name="view" value="chats" />
+          {% set lifecycle = filters.lifecycle or '' %}
 
-  {% set lifecycle = filters.lifecycle or '' %}
+          <div class="relative w-full">
+            <div class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">⌕</div>
+            <input
+              type="text"
+              name="q"
+              value="{{ filters.q or '' }}"
+              placeholder="Search every chat, guest, issue, or property..."
+              class="h-12 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+            />
+          </div>
 
-  <div class="relative w-full">
-    <div class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">⌕</div>
-    <input
-      type="text"
-      name="q"
-      value="{{ filters.q or '' }}"
-      placeholder="Search every chat, guest, issue, or property..."
-      class="h-12 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-    />
-  </div>
+          <div class="flex flex-wrap items-center gap-3">
+            <select name="lifecycle" class="h-11 min-w-[210px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="" {% if not lifecycle %}selected{% endif %}>Lifecycle</option>
+              <option value="inquiry" {% if lifecycle == 'inquiry' %}selected{% endif %}>Inquiry</option>
+              <option value="upcoming" {% if lifecycle == 'upcoming' %}selected{% endif %}>🗓️ Upcoming stay</option>
+              <option value="current" {% if lifecycle == 'current' %}selected{% endif %}>🏡 Currently staying</option>
+              <option value="checked_out" {% if lifecycle == 'checked_out' %}selected{% endif %}>✅ Checked out</option>
+            </select>
 
-  <div class="flex flex-wrap items-center gap-3">
-    <select name="lifecycle" class="h-11 min-w-[210px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-      <option value="" {% if not lifecycle %}selected{% endif %}>Lifecycle</option>
-      <option value="inquiry" {% if lifecycle == 'inquiry' %}selected{% endif %}>Inquiry</option>
-      <option value="upcoming" {% if lifecycle == 'upcoming' %}selected{% endif %}>🗓️ Upcoming stay</option>
-      <option value="current" {% if lifecycle == 'current' %}selected{% endif %}>🏡 Currently staying</option>
-      <option value="checked_out" {% if lifecycle == 'checked_out' %}selected{% endif %}>✅ Checked out</option>
-    </select>
+            {% if user_role == "super" %}
+            <select name="pmc_id" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="">All PMCs</option>
+              {% for p in pmcs %}
+              <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
+                {{ p.pmc_name }}
+              </option>
+              {% endfor %}
+            </select>
+            {% endif %}
 
-    {% if user_role == "super" %}
-    <select name="pmc_id" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-      <option value="">All PMCs</option>
-      {% for p in pmcs %}
-      <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
-        {{ p.pmc_name }}
-      </option>
-      {% endfor %}
-    </select>
-    {% endif %}
+            <select name="property_id" class="h-11 min-w-[220px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="">All properties</option>
+              {% for pr in properties %}
+              <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+                {{ pr.property_name }}
+              </option>
+              {% endfor %}
+            </select>
 
-    <select name="property_id" class="h-11 min-w-[220px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-      <option value="">All properties</option>
-      {% for pr in properties %}
-      <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
-        {{ pr.property_name }}
-      </option>
-      {% endfor %}
-    </select>
+            <select name="conversation_group" class="h-11 min-w-[180px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="" {% if not filters.conversation_group %}selected{% endif %}>Conversation type</option>
+              <option value="needs_attention" {% if filters.conversation_group == "needs_attention" %}selected{% endif %}>Needs attention</option>
+              <option value="monitor" {% if filters.conversation_group == "monitor" %}selected{% endif %}>Monitor</option>
+              <option value="healthy" {% if filters.conversation_group == "healthy" %}selected{% endif %}>Healthy</option>
+            </select>
 
-    <select name="action_priority" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-      <option value="">Priority</option>
-      <option value="urgent" {% if filters.action_priority == "urgent" %}selected{% endif %}>Urgent</option>
-      <option value="high" {% if filters.action_priority == "high" %}selected{% endif %}>High</option>
-      <option value="normal" {% if filters.action_priority == "normal" %}selected{% endif %}>Normal</option>
-      <option value="low" {% if filters.action_priority == "low" %}selected{% endif %}>Low</option>
-    </select>
+            <select id="moodFilter" name="emotional_signals_filter" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+              <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>Signal</option>
+              <option value="panicked" {% if filters.emotional_signals_filter == "panicked" %}selected{% endif %}>Panicked</option>
+              <option value="angry" {% if filters.emotional_signals_filter == "angry" %}selected{% endif %}>Angry</option>
+              <option value="upset" {% if filters.emotional_signals_filter == "upset" %}selected{% endif %}>Upset</option>
+              <option value="confused" {% if filters.emotional_signals_filter == "confused" %}selected{% endif %}>Confused</option>
+              <option value="worried" {% if filters.emotional_signals_filter == "worried" %}selected{% endif %}>Worried</option>
+              <option value="calm" {% if filters.emotional_signals_filter == "calm" %}selected{% endif %}>Calm</option>
+            </select>
 
-    <select id="moodFilter" name="emotional_signals_filter" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-      <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>Signal</option>
-      <option value="panicked" {% if filters.emotional_signals_filter == "panicked" %}selected{% endif %}>Panicked</option>
-      <option value="angry" {% if filters.emotional_signals_filter == "angry" %}selected{% endif %}>Angry</option>
-      <option value="upset" {% if filters.emotional_signals_filter == "upset" %}selected{% endif %}>Upset</option>
-      <option value="confused" {% if filters.emotional_signals_filter == "confused" %}selected{% endif %}>Confused</option>
-      <option value="worried" {% if filters.emotional_signals_filter == "worried" %}selected{% endif %}>Worried</option>
-      <option value="calm" {% if filters.emotional_signals_filter == "calm" %}selected{% endif %}>Calm</option>
-    </select>
+            <button type="submit" class="h-11 rounded-full bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800">
+              Filter
+            </button>
 
-    <button type="submit" class="h-11 rounded-full bg-slate-900 px-5 text-sm font-semibold text-white hover:bg-slate-800">
-      Filter
-    </button>
-
-    <a href="/admin/dashboard?view=chats" class="inline-flex h-11 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
-      Reset
-    </a>
-  </div>
-</form>
+            <a href="/admin/dashboard?view=chats" class="inline-flex h-11 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
+              Reset
+            </a>
+          </div>
+        </form>
 
         {% if stay_pulse and stay_pulse.filter_tag %}
         <div class="mt-5 rounded-[20px] border border-[#D7E3FF] bg-[#EEF4FF] px-4 py-3">
@@ -1813,11 +1811,62 @@
         {% endif %}
 
         <div id="chat-list-wrap" class="mt-5 space-y-5">
+          {% set filtered_sessions = [] %}
+
+          {% for s in sessions %}
+            {% set matches_lifecycle = true %}
+            {% set matches_group = true %}
+
+            {% if filters.lifecycle == 'inquiry' %}
+              {% set matches_lifecycle = not s.stay_cycle or s.stay_cycle not in ['upcoming', 'current', 'checked_out'] %}
+            {% elif filters.lifecycle == 'upcoming' %}
+              {% set matches_lifecycle = s.stay_cycle == 'upcoming' %}
+            {% elif filters.lifecycle == 'current' %}
+              {% set matches_lifecycle = s.stay_cycle == 'current' %}
+            {% elif filters.lifecycle == 'checked_out' %}
+              {% set matches_lifecycle = s.stay_cycle == 'checked_out' %}
+            {% endif %}
+
+            {% set mood_list = s.emotional_signals or [] %}
+            {% set signal_tone = (s.signal_tone or '')|lower %}
+            {% set signal_label = (s.signal_label or '')|lower %}
+            {% set priority = (s.action_priority or '')|lower %}
+            {% set escalation = (s.escalation_level or '')|lower %}
+
+            {% set derived_group = 'healthy' %}
+            {% if
+              priority == 'urgent'
+              or escalation in ['high', 'critical', 'urgent']
+              or signal_tone == 'danger'
+              or 'panicked' in mood_list
+              or 'angry' in mood_list
+              or 'upset' in mood_list
+            %}
+              {% set derived_group = 'needs_attention' %}
+            {% elif
+              priority in ['high', 'normal']
+              or signal_tone == 'warning'
+              or 'confused' in mood_list
+              or 'worried' in mood_list
+              or signal_label in ['needs clarity', 'friction detected', 'exploring']
+            %}
+              {% set derived_group = 'monitor' %}
+            {% endif %}
+
+            {% if filters.conversation_group %}
+              {% set matches_group = derived_group == filters.conversation_group %}
+            {% endif %}
+
+            {% if matches_lifecycle and matches_group %}
+              {% set _ = filtered_sessions.append(s) %}
+            {% endif %}
+          {% endfor %}
+
           {% set needs_attention = [] %}
           {% set monitor = [] %}
           {% set healthy = [] %}
 
-          {% for s in sessions %}
+          {% for s in filtered_sessions %}
             {% set mood_list = s.emotional_signals or [] %}
             {% set signal_tone = (s.signal_tone or '')|lower %}
             {% set signal_label = (s.signal_label or '')|lower %}
@@ -1852,7 +1901,7 @@
             ('healthy', 'Healthy conversations', healthy, 'Healthy', 'bg-emerald-50 text-emerald-700 border-emerald-200', 'Low-friction conversations where the AI is handling the guest smoothly.')
           ] %}
 
-          {% if sessions %}
+          {% if filtered_sessions %}
             {% for group_key, group_label, group_sessions, group_badge, group_pill_class, group_note in conversation_groups %}
               {% if group_sessions %}
               <div
@@ -1880,104 +1929,96 @@
                 </div>
 
                 <table class="min-w-full table-fixed text-sm">
-  <thead class="bg-slate-50/70 backdrop-blur">
-    <tr>
-      <th class="w-[180px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Status</th>
-      <th class="w-[180px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Guest</th>
-      <th class="w-[460px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Signal</th>
-      <th class="w-[180px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Property</th>
-      <th class="w-[160px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Last activity</th>
-    </tr>
-  </thead>
+                  <thead class="bg-slate-50/70 backdrop-blur">
+                    <tr>
+                      <th class="w-[180px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Status</th>
+                      <th class="w-[180px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Guest</th>
+                      <th class="w-[460px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Signal</th>
+                      <th class="w-[180px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Property</th>
+                      <th class="w-[160px] px-4 py-2.5 text-left text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Last activity</th>
+                    </tr>
+                  </thead>
 
-  <tbody>
-    {% for s in group_sessions %}
-    <tr
-      data-session-row="{{ s.id }}"
-      data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'
-      class="chat-row cursor-pointer border-t border-slate-100/80 transition-colors duration-150 hover:bg-slate-50/70">
+                  <tbody>
+                    {% for s in group_sessions %}
+                    <tr
+                      data-session-row="{{ s.id }}"
+                      data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'
+                      class="chat-row cursor-pointer border-t border-slate-100/80 transition-colors duration-150 hover:bg-slate-50/70">
 
-      <!-- Status -->
-      <td class="w-[180px] px-4 py-3.5 align-top">
-        {% if s.stay_cycle == 'current' %}
-        <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
-          🏡 Currently staying
-        </span>
-        {% elif s.stay_cycle == 'upcoming' %}
-        <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
-          🗓️ Upcoming stay
-        </span>
-        {% elif s.stay_cycle == 'checked_out' %}
-        <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
-          ✅ Checked out
-        </span>
-        {% else %}
-        <span class="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700">
-          Inquiry
-        </span>
-        {% endif %}
-      </td>
+                      <td class="w-[180px] px-4 py-3.5 align-top">
+                        {% if s.stay_cycle == 'current' %}
+                        <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                          🏡 Currently staying
+                        </span>
+                        {% elif s.stay_cycle == 'upcoming' %}
+                        <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                          🗓️ Upcoming stay
+                        </span>
+                        {% elif s.stay_cycle == 'checked_out' %}
+                        <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                          ✅ Checked out
+                        </span>
+                        {% else %}
+                        <span class="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700">
+                          Inquiry
+                        </span>
+                        {% endif %}
+                      </td>
 
-      <!-- Guest -->
-      <td class="w-[180px] px-4 py-3.5 align-top">
-        <div class="font-medium text-slate-900 truncate">
-          {{ s.guest_name or "Guest" }}
-        </div>
-      </td>
+                      <td class="w-[180px] px-4 py-3.5 align-top">
+                        <div class="font-medium text-slate-900 truncate">
+                          {{ s.guest_name or "Guest" }}
+                        </div>
+                      </td>
 
-      <!-- Signal -->
-      <td class="w-[460px] px-4 py-4 align-top text-xs">
-        <div class="min-w-0 pr-4">
+                      <td class="w-[460px] px-4 py-4 align-top text-xs">
+                        <div class="min-w-0 pr-4">
+                          <div class="flex items-center gap-2">
+                            <span class="inline-flex items-center rounded-full px-3 py-1.5 font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-inset
+                              {% if s.signal_tone == 'danger' %}bg-rose-50 text-rose-700 ring-rose-200
+                              {% elif s.signal_tone == 'warning' %}bg-amber-50 text-amber-700 ring-amber-200
+                              {% elif s.signal_tone == 'success' %}bg-emerald-50 text-emerald-700 ring-emerald-200
+                              {% else %}bg-blue-50 text-blue-700 ring-blue-200{% endif %}">
+                              {{ s.signal_label or "Exploring" }}
+                            </span>
 
-          <div class="flex items-center gap-2">
-            <span class="inline-flex items-center rounded-full px-3 py-1.5 font-semibold shadow-[0_1px_2px_rgba(15,23,42,0.04)] ring-1 ring-inset
-              {% if s.signal_tone == 'danger' %}bg-rose-50 text-rose-700 ring-rose-200
-              {% elif s.signal_tone == 'warning' %}bg-amber-50 text-amber-700 ring-amber-200
-              {% elif s.signal_tone == 'success' %}bg-emerald-50 text-emerald-700 ring-emerald-200
-              {% else %}bg-blue-50 text-blue-700 ring-blue-200{% endif %}">
-              {{ s.signal_label or "Exploring" }}
-            </span>
+                            <span class="text-[12px] font-medium text-slate-400">AI read</span>
+                          </div>
 
-            <span class="text-[12px] font-medium text-slate-400">AI read</span>
-          </div>
+                          <div class="mt-2 text-[13px] leading-5 text-slate-500">
+                            {{ s.signal_detail or "Guest is mainly exploring information right now." }}
+                          </div>
 
-          <div class="mt-2 text-[13px] leading-5 text-slate-500">
-            {{ s.signal_detail or "Guest is mainly exploring information right now." }}
-          </div>
+                          <div
+                            class="mt-2 flex flex-wrap gap-2"
+                            data-mood-badge
+                            data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'>
+                          </div>
+                        </div>
+                      </td>
 
-          <div
-            class="mt-2 flex flex-wrap gap-2"
-            data-mood-badge
-            data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'>
-          </div>
+                      <td class="w-[180px] px-4 py-4 align-top text-slate-600">
+                        <div class="truncate">
+                          {{ s.property_name or "—" }}
+                        </div>
+                      </td>
 
-        </div>
-      </td>
-
-      <!-- Property -->
-      <td class="w-[180px] px-4 py-4 align-top text-slate-600">
-        <div class="truncate">
-          {{ s.property_name or "—" }}
-        </div>
-      </td>
-
-      <!-- Last activity -->
-      <td class="w-[160px] px-4 py-4 align-top text-slate-400 whitespace-nowrap">
-        {% if s.last_activity_at %}
-        <span
-          class="js-rel-time"
-          data-ts="{{ s.last_activity_at.isoformat() if s.last_activity_at.isoformat is defined else s.last_activity_at }}">
-          {{ s.last_activity_at }}
-        </span>
-        {% else %}
-        —
-        {% endif %}
-      </td>
-
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+                      <td class="w-[160px] px-4 py-4 align-top text-slate-400 whitespace-nowrap">
+                        {% if s.last_activity_at %}
+                        <span
+                          class="js-rel-time"
+                          data-ts="{{ s.last_activity_at.isoformat() if s.last_activity_at.isoformat is defined else s.last_activity_at }}">
+                          {{ s.last_activity_at }}
+                        </span>
+                        {% else %}
+                        —
+                        {% endif %}
+                      </td>
+                    </tr>
+                    {% endfor %}
+                  </tbody>
+                </table>
               </div>
               {% endif %}
             {% endfor %}
@@ -1992,7 +2033,7 @@
             </div>
           {% else %}
             <div class="rounded-[24px] border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
-              No chat sessions yet.
+              No conversations match your current filters.
             </div>
           {% endif %}
         </div>
