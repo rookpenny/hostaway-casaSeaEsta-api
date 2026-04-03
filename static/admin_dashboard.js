@@ -274,15 +274,17 @@ function initChatFilters() {
     return url;
   }
 
-  form.addEventListener("submit", (e) => {
-    e.preventDefault();
-    window.location.href = buildUrl().toString();
-  });
-
   form.querySelectorAll("select").forEach((select) => {
     select.addEventListener("change", () => {
       window.location.href = buildUrl().toString();
     });
+  });
+
+  form.querySelector("input[name='q']").addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      window.location.href = buildUrl().toString();
+    }
   });
 }
 
