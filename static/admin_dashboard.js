@@ -281,6 +281,13 @@ function initChatFilters() {
     return url;
   }
 
+  function scrollToLifecycleGroup(key) {
+    if (!key || key === "all") return;
+    const section = document.getElementById(`chat-group-${key}`);
+    if (!section) return;
+    section.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   form.addEventListener("submit", (e) => {
     e.preventDefault();
     window.location.href = buildUrl().toString();
@@ -289,6 +296,18 @@ function initChatFilters() {
   lifecycleButtons.forEach((btn) => {
     btn.addEventListener("click", (e) => {
       e.preventDefault();
+
+      const lifecycle = String(btn.value || "").trim();
+      const currentLifecycle =
+        new URLSearchParams(window.location.search).get("lifecycle") || "";
+
+      const sameFilter = lifecycle === currentLifecycle;
+
+      if (sameFilter) {
+        scrollToLifecycleGroup(btn.dataset.lifecycleTarget || lifecycle || "all");
+        return;
+      }
+
       window.location.href = buildUrl(btn).toString();
     });
   });
@@ -298,6 +317,15 @@ function initChatFilters() {
       window.location.href = buildUrl().toString();
     });
   });
+
+  const activeLifecycle =
+    new URLSearchParams(window.location.search).get("lifecycle") || "";
+
+  if (activeLifecycle) {
+    requestAnimationFrame(() => {
+      scrollToLifecycleGroup(activeLifecycle);
+    });
+  }
 }
 
 function initChatLoadMore() {
@@ -314,10 +342,29 @@ function initChatLoadMore() {
   const pageSize = 12;
   let visibleCount = pageSize;
 
+  function initChatLoadMore() {
+  const btn = document.getElementById("chat-load-more");
+  if (!btn) return;
+
+  const rows = Array.from(document.querySelectorAll('#chat-list-wrap tr[data-session-row]'));
+  if (!rows.length) {
+    btn.classList.add("hidden");
+    return;
+  }
+
+  const pageSize = 12;
+  let visibleCount = pageSize;
+
   function render() {
     rows.forEach((row, index) => {
       row.classList.toggle("hidden", index >= visibleCount);
     });
+
+    document.querySelectorAll(".chat-lifecycle-group").forEach((group) => {
+      const visibleRows = group.querySelectorAll('tr[data-session-row]:not(.hidden)');
+      group.classList.toggle("hidden", visibleRows.length === 0);
+    });
+
     btn.classList.toggle("hidden", visibleCount >= rows.length);
   }
 
