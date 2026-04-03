@@ -252,7 +252,7 @@ function goToView(view) {
   };
 
   
-window.applyTrendFilter = function applyTrendFilter(tag) {
+window.applyTrendFilter = function applyTrendFilter(buttonEl) {
   const form = document.getElementById("chatFilters");
   const url = new URL(form?.action || window.location.pathname, window.location.origin);
 
@@ -260,14 +260,27 @@ window.applyTrendFilter = function applyTrendFilter(tag) {
     const fd = new FormData(form);
     for (const [k, v] of fd.entries()) {
       const value = String(v || "").trim();
-      if (value) url.searchParams.set(k, value);
+      if (value && k !== "q") url.searchParams.set(k, value);
       else url.searchParams.delete(k);
     }
   }
 
+  let payload = {};
+  try {
+    payload = JSON.parse(buttonEl?.dataset?.trendFilter || "{}");
+  } catch {
+    payload = {};
+  }
+
   url.searchParams.set("view", "chats");
-  url.searchParams.set("q", String(tag || "").trim());
   url.searchParams.delete("session_id");
+  url.searchParams.delete("q");
+
+  if (Object.keys(payload).length) {
+    url.searchParams.set("trend_filter", encodeURIComponent(JSON.stringify(payload)));
+  } else {
+    url.searchParams.delete("trend_filter");
+  }
 
   window.location.href = url.toString();
 };
@@ -286,6 +299,7 @@ window.clearTrendFilter = function clearTrendFilter() {
   }
 
   url.searchParams.set("view", "chats");
+  url.searchParams.delete("trend_filter");
   url.searchParams.delete("q");
   url.searchParams.delete("session_id");
 
@@ -497,46 +511,6 @@ function initRelativeTimes() {
   updateRelativeTimes();
   window.setInterval(updateRelativeTimes, 60 * 1000);
 }
-
-window.applyTrendFilter = function applyTrendFilter(tag) {
-  const form = document.getElementById("chatFilters");
-  const url = new URL(form?.action || window.location.pathname, window.location.origin);
-
-  if (form) {
-    const fd = new FormData(form);
-    for (const [k, v] of fd.entries()) {
-      const value = String(v || "").trim();
-      if (value) url.searchParams.set(k, value);
-      else url.searchParams.delete(k);
-    }
-  }
-
-  url.searchParams.set("view", "chats");
-  url.searchParams.set("q", String(tag || "").trim());
-  url.searchParams.delete("session_id");
-
-  window.location.href = url.toString();
-};
-
-window.clearTrendFilter = function clearTrendFilter() {
-  const form = document.getElementById("chatFilters");
-  const url = new URL(form?.action || window.location.pathname, window.location.origin);
-
-  if (form) {
-    const fd = new FormData(form);
-    for (const [k, v] of fd.entries()) {
-      const value = String(v || "").trim();
-      if (value && k !== "q") url.searchParams.set(k, value);
-      else url.searchParams.delete(k);
-    }
-  }
-
-  url.searchParams.set("view", "chats");
-  url.searchParams.delete("q");
-  url.searchParams.delete("session_id");
-
-  window.location.href = url.toString();
-};
 
   // -----------------------------------
   // Portfolio chart
