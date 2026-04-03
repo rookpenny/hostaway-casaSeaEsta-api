@@ -3726,8 +3726,14 @@ def build_stay_pulse(sessions: list[dict]) -> dict:
     if not sessions:
         return {
             "eyebrow": "Stay Pulse",
-            "headline": "No guest conversations yet",
-            "body": "Signals will appear here as guests begin asking questions.",
+            "headline": f"Guests are mostly looking for {top_topic}",
+            "body": body,
+            "filter_payload": {
+                "terms": [top_topic],
+                "moods": [],
+                "stay_cycles": [],
+                "signal_labels": [],
+            },
         }
 
     topic_counts = {}
@@ -3780,8 +3786,9 @@ def build_stay_pulse(sessions: list[dict]) -> dict:
 
     return {
         "eyebrow": "Stay Pulse",
-        "headline": f"Guests are mostly looking for {top_topic}",
-        "body": body,
+        "headline": "No guest conversations yet",
+        "body": "Signals will appear here as guests begin asking questions.",
+        "filter_payload": {},
     }
 
 @router.get("/admin/dashboard", response_class=HTMLResponse)
