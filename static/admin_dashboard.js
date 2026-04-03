@@ -1844,99 +1844,6 @@ window.rerenderAllMoodBadges = rerenderAllMoodBadges;
 })();
 
 
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest('#chatFilters button[name="lifecycle"]');
-  if (!btn) return;
-
-  e.preventDefault();
-
-  const form = document.getElementById("chatFilters");
-  if (!form) return;
-
-  const url = new URL(form.action || window.location.pathname, window.location.origin);
-  const fd = new FormData(form);
-
-  for (const [k, v] of fd.entries()) {
-    const value = String(v || "").trim();
-    if (value) url.searchParams.set(k, value);
-  }
-
-  url.searchParams.set("view", "chats");
-
-  const lifecycle = String(btn.value || "").trim();
-  if (lifecycle) url.searchParams.set("lifecycle", lifecycle);
-  else url.searchParams.delete("lifecycle");
-
-  url.searchParams.delete("session_id");
-
-  window.location.href = url.toString();
-});
-
-
-window.applyTrendFilter = function applyTrendFilter(tag) {
-  const form = document.getElementById("chatFilters");
-  const url = new URL(form?.action || window.location.pathname, window.location.origin);
-
-  if (form) {
-    const fd = new FormData(form);
-    for (const [k, v] of fd.entries()) {
-      const value = String(v || "").trim();
-      if (value) url.searchParams.set(k, value);
-    }
-  }
-
-  url.searchParams.set("view", "chats");
-  url.searchParams.set("trend", String(tag || "").trim());
-  url.searchParams.delete("session_id");
-
-  window.location.href = url.toString();
-};
-
-window.clearTrendFilter = function clearTrendFilter() {
-  const form = document.getElementById("chatFilters");
-  const url = new URL(form?.action || window.location.pathname, window.location.origin);
-
-  if (form) {
-    const fd = new FormData(form);
-    for (const [k, v] of fd.entries()) {
-      const value = String(v || "").trim();
-      if (value) url.searchParams.set(k, value);
-    }
-  }
-
-  url.searchParams.set("view", "chats");
-  url.searchParams.delete("trend");
-  url.searchParams.delete("session_id");
-
-  window.location.href = url.toString();
-};
-
-
-function pushChatUrl(sessionId) {
-  const id = String(sessionId);
-  const url = new URL(window.location.href);
-  const currentId = url.searchParams.get("session_id");
-
-  url.searchParams.set("view", "chats");
-  url.searchParams.set("session_id", id);
-  url.hash = "";
-
-  if (currentId === id) {
-    history.replaceState({ session_id: id }, "", url.toString());
-  } else {
-    history.pushState({ session_id: id }, "", url.toString());
-  }
-}
-
-function clearChatUrl() {
-  const url = new URL(window.location.href);
-
-  // Only clear the selected session; keep user's current view/hash.
-  url.searchParams.delete("session_id");
-
-  history.pushState({}, "", url.toString());
-}
-
 
 
 // Back button
@@ -2363,45 +2270,17 @@ function updateChatListEscalation(sessionId, level) {
 }
 
 
-    // ----------------------------
-    // Relative time updater
-    // ----------------------------
-    function parseTimestamp(ts) {
-      if (!ts) return null;
-      const normalized = ts.includes("T") ? ts : ts.replace(" ", "T");
-      const d = new Date(normalized);
-      return isNaN(d.getTime()) ? null : d;
-    }
 
-    function formatRelative(fromDate, now = new Date()) {
-      const diffMs = now - fromDate;
-      if (diffMs < 0) return "just now";
-      const sec = Math.floor(diffMs / 1000);
-      if (sec < 10) return "just now";
-      if (sec < 60) return `${sec}s ago`;
-      const min = Math.floor(sec / 60);
-      if (min < 60) return `${min}m ago`;
-      const hr = Math.floor(min / 60);
-      if (hr < 24) return `${hr}h ago`;
-      const day = Math.floor(hr / 24);
-      if (day < 14) return `${day}d ago`;
-      const wk = Math.floor(day / 7);
-      if (wk < 8) return `${wk}w ago`;
-      const mo = Math.floor(day / 30);
-      if (mo < 12) return `${mo}mo ago`;
-      const yr = Math.floor(day / 365);
-      return `${yr}y ago`;
-    }
-
-    function updateRelativeTimes() {
-      const now = new Date();
-      document.querySelectorAll(".js-rel-time").forEach(el => {
-        const ts = el.getAttribute("data-ts");
-        const d = parseTimestamp(ts);
-        if (!d) return;
-        el.textContent = formatRelative(d, now);
-      });
-    });
+    
+function updateRelativeTimes() {
+  const now = new Date();
+  document.querySelectorAll(".js-rel-time").forEach(el => {
+    const ts = el.getAttribute("data-ts");
+    const d = parseTimestamp(ts);
+    if (!d) return;
+    el.textContent = formatRelative(d, now);
+  });
+}
 
 
 ///----- END OF SECTION
@@ -5741,16 +5620,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 // ------------------------------
 
 
-// Click handler for sidebar nav (your HTML uses: .nav-item[data-view])
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest(".nav-item[data-view]");
-  if (!btn) return;
 
-  const view = btn.getAttribute("data-view");
-  if (!view) return;
-
-  showDashboardView(view);
-});
 
 // Handle browser back/forward
 window.addEventListener("popstate", () => {
@@ -5764,6 +5634,3 @@ window.DashboardOverview.jumpTo = function (view) {
   goToView(view);
 };
 
-  document.querySelectorAll(".view").forEach((el) => el.classList.add("hidden"));
-  document.getElementById(`view-${view}`)?.classList.remove("hidden");
-};
