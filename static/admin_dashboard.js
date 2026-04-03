@@ -329,20 +329,6 @@ function initChatFilters() {
 }
 
 function initChatLoadMore() {
-  const table = document.getElementById("chat-table");
-  const btn = document.getElementById("chat-load-more");
-  if (!table || !btn) return;
-
-  const rows = Array.from(table.querySelectorAll("tbody tr[data-session-row]"));
-  if (!rows.length) {
-    btn.classList.add("hidden");
-    return;
-  }
-
-  const pageSize = 12;
-  let visibleCount = pageSize;
-
-  function initChatLoadMore() {
   const btn = document.getElementById("chat-load-more");
   if (!btn) return;
 
@@ -360,7 +346,7 @@ function initChatLoadMore() {
       row.classList.toggle("hidden", index >= visibleCount);
     });
 
-    document.querySelectorAll(".chat-lifecycle-group").forEach((group) => {
+    document.querySelectorAll(".chat-conversation-group").forEach((group) => {
       const visibleRows = group.querySelectorAll('tr[data-session-row]:not(.hidden)');
       group.classList.toggle("hidden", visibleRows.length === 0);
     });
