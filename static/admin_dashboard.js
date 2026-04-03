@@ -262,14 +262,15 @@ function initChatFilters() {
     const url = new URL(form.action || window.location.pathname, window.location.origin);
     const fd = new FormData(form);
 
+    url.searchParams.set("view", "chats");
+    url.searchParams.delete("session_id");
+
     for (const [k, v] of fd.entries()) {
       const value = String(v || "").trim();
       if (value) url.searchParams.set(k, value);
       else url.searchParams.delete(k);
     }
 
-    url.searchParams.set("view", "chats");
-    url.searchParams.delete("session_id");
     return url;
   }
 
