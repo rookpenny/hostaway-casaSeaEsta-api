@@ -3800,6 +3800,9 @@ def admin_dashboard(
     assigned_to: str | None = Query(default=None),
     q: str | None = Query(default=None),
 
+    lifecycle: str | None = Query(default=None),
+    conversation_group: str | None = Query(default=None),
+
     # ✅ BACKWARD COMPAT
     priority: str | None = Query(default=None),       # legacy: "urgent" | "unhappy"
     guest_mood: str | None = Query(default=None),     # legacy alias for mood
@@ -3826,7 +3829,20 @@ def admin_dashboard(
     mood = normalize_guest_mood(raw_mood)
 
     ap_filter = _clean_str(action_priority)
+    lifecycle = _clean_str(lifecycle)
+    conversation_group = _clean_str(conversation_group)
     '''legacy_priority = _clean_str(priority)'''
+
+
+    # Validate lifecycle
+    allowed_lifecycles = {"inquiry", "upcoming", "current", "checked_out"}
+    if lifecycle not in allowed_lifecycles:
+        lifecycle = None
+    
+    # Validate conversation group
+    allowed_groups = {"needs_attention", "monitor", "healthy"}
+    if conversation_group not in allowed_groups:
+        conversation_group = None
 
     # ----------------------------
     # Auth
@@ -3927,6 +3943,9 @@ def admin_dashboard(
         "status": status or "",
         "action_priority": ap_filter or "",
         "guest_mood": mood or "",
+        "emotional_signals_filter": mood or "",
+        "lifecycle": lifecycle or "",
+        "conversation_group": conversation_group or "",
         "mine": bool(mine),
         "assigned_to": assigned_to or "",
         "q": q or "",
