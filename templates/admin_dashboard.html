@@ -1818,45 +1818,69 @@
         {% endif %}
 
         <div id="chat-list-wrap" class="mt-5 space-y-5">
-          {% set inquiry_sessions = [] %}
-          {% set upcoming_sessions = [] %}
-          {% set current_sessions = [] %}
-          {% set checked_out_sessions = [] %}
+          {% set needs_attention = [] %}
+          {% set monitor = [] %}
+          {% set healthy = [] %}
 
           {% for s in sessions %}
-            {% if s.stay_cycle == 'upcoming' %}
-              {% set _ = upcoming_sessions.append(s) %}
-            {% elif s.stay_cycle == 'current' %}
-              {% set _ = current_sessions.append(s) %}
-            {% elif s.stay_cycle == 'checked_out' %}
-              {% set _ = checked_out_sessions.append(s) %}
+            {% set mood_list = s.emotional_signals or [] %}
+            {% set signal_tone = (s.signal_tone or '')|lower %}
+            {% set signal_label = (s.signal_label or '')|lower %}
+            {% set priority = (s.action_priority or '')|lower %}
+            {% set escalation = (s.escalation_level or '')|lower %}
+
+            {% if
+              priority == 'urgent'
+              or escalation in ['high', 'critical', 'urgent']
+              or signal_tone == 'danger'
+              or 'panicked' in mood_list
+              or 'angry' in mood_list
+              or 'upset' in mood_list
+            %}
+              {% set _ = needs_attention.append(s) %}
+            {% elif
+              priority in ['high', 'normal']
+              or signal_tone == 'warning'
+              or 'confused' in mood_list
+              or 'worried' in mood_list
+              or signal_label in ['needs clarity', 'friction detected', 'exploring']
+            %}
+              {% set _ = monitor.append(s) %}
             {% else %}
-              {% set _ = inquiry_sessions.append(s) %}
+              {% set _ = healthy.append(s) %}
             {% endif %}
           {% endfor %}
 
-          {% set lifecycle_groups = [
-            ('inquiry', 'Inquiry', inquiry_sessions, 'bg-violet-50 text-violet-700 border-violet-200'),
-            ('upcoming', '🗓️ Upcoming stay', upcoming_sessions, 'bg-blue-50 text-blue-700 border-blue-200'),
-            ('current', '🏡 Currently staying', current_sessions, 'bg-emerald-50 text-emerald-700 border-emerald-200'),
-            ('checked_out', '✅ Checked out', checked_out_sessions, 'bg-slate-50 text-slate-700 border-slate-200')
+          {% set conversation_groups = [
+            ('needs-attention', 'Needs attention', needs_attention, 'Review first', 'bg-rose-50 text-rose-700 border-rose-200', 'Conversations showing urgency, guest distress, or clear friction.'),
+            ('monitor', 'Monitor', monitor, 'Monitor', 'bg-blue-50 text-blue-700 border-blue-200', 'Conversations worth watching for repeat questions, uncertainty, or emerging issues.'),
+            ('healthy', 'Healthy conversations', healthy, 'Healthy', 'bg-emerald-50 text-emerald-700 border-emerald-200', 'Low-friction conversations where the AI is handling the guest smoothly.')
           ] %}
 
           {% if sessions %}
-            {% for group_key, group_label, group_sessions, group_pill_class in lifecycle_groups %}
+            {% for group_key, group_label, group_sessions, group_badge, group_pill_class, group_note in conversation_groups %}
               {% if group_sessions %}
               <div
                 id="chat-group-{{ group_key }}"
-                data-lifecycle-group="{{ group_key }}"
-                class="chat-lifecycle-group overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
-                <div class="flex items-center justify-between border-b border-slate-100 bg-[linear-gradient(180deg,#FBFCFE_0%,#F8FAFC_100%)] px-5 py-4">
-                  <div class="flex items-center gap-3">
-                    <span class="inline-flex rounded-full border px-3 py-1 text-[12px] font-semibold {{ group_pill_class }}">
-                      {{ group_label }}
-                    </span>
-                    <span class="text-sm text-slate-500">
-                      {{ group_sessions|length }} conversation{{ '' if group_sessions|length == 1 else 's' }}
-                    </span>
+                data-conversation-group="{{ group_key }}"
+                class="chat-conversation-group overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm">
+                <div class="flex flex-col gap-3 border-b border-slate-100 bg-[linear-gradient(180deg,#FBFCFE_0%,#F8FAFC_100%)] px-5 py-4 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <div class="flex items-center gap-3">
+                      <span class="inline-flex rounded-full border px-3 py-1 text-[12px] font-semibold {{ group_pill_class }}">
+                        {{ group_label }}
+                      </span>
+                      <span class="text-sm text-slate-500">
+                        {{ group_sessions|length }} conversation{{ '' if group_sessions|length == 1 else 's' }}
+                      </span>
+                    </div>
+                    <div class="mt-2 text-[13px] text-slate-500">
+                      {{ group_note }}
+                    </div>
+                  </div>
+
+                  <div class="inline-flex items-center rounded-full border px-3 py-1 text-[12px] font-semibold {{ group_pill_class }}">
+                    {{ group_badge }}
                   </div>
                 </div>
 
