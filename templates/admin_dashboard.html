@@ -596,7 +596,7 @@
     </svg>
   </div>
 </form>
-        
+        </div>
 
         <div class="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
           <!-- Left side -->
@@ -795,7 +795,6 @@
               </svg>
             </button>
           </div>
-        </div>
         </div>
       </div>
 
@@ -1710,7 +1709,7 @@
     </div>
     {% endif %}
 
-    <div class="overflow-hidden rounded-[28px] border border-red-200 bg-white shadow-sm">
+    <!--div class="overflow-hidden rounded-[28px] border border-red-200 bg-white shadow-sm"-->
       <div class="p-6">
         {% if not selected_session %}
         <form id="chatFilters" method="get" action="/admin/dashboard" class="space-y-4">
@@ -1781,8 +1780,6 @@
           </div>
         </form>
         {% endif %}
-
-      </div>
 
         {% if stay_pulse and stay_pulse.filter_tag %}
         <div class="mt-5 rounded-[20px] border border-[#D7E3FF] bg-[#EEF4FF] px-4 py-3">
@@ -2080,6 +2077,7 @@
         </div>
       </div>
     </div>
+  <!--/div-->
 </section>
 
 
