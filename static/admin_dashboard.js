@@ -4572,7 +4572,7 @@ function initRouting() {
   const subtitles = {
   overview: BOOT.user_role === "super" ? "System health & activity" : "Your portfolio at a glance",
   properties: "Search and manage your portfolio",
-  chats: "Lifecycle, priority, escalations",
+  chats: "Monitor how your AI is performing across every stage of the stay lifecycle.",
   pmcs: "Partners, integrations, access",
   guides: "Guest-facing guides per property",
   upgrades: "Paid add-ons per property",
