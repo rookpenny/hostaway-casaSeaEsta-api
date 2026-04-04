@@ -3,223 +3,293 @@
 {% set prop_name = (property.property_name if property else (property_name_by_id | default({})).get(session.property_id)) %}
 {% set ap = (session.action_priority or '')|lower %}
 {% set stay_cycle = (session.stay_cycle or 'inquiry')|lower %}
+{% set booking_source = session.source or session.channel or session.booking_source or "—" %}
 
-{# Normalize escalation to low/medium/high #}
-{% set esc_raw = (session.escalation_level or '')|lower %}
-{% set esc = 'high' if esc_raw in ['critical','high'] else ('medium' if esc_raw in ['attention','medium'] else ('low' if esc_raw == 'low' else '')) %}
+{% set stay_cycle_label = "💬 Inquiry" %}
+{% set stay_cycle_pill = "bg-blue-50 text-blue-700 border-blue-200" %}
+{% if stay_cycle == "upcoming" %}
+  {% set stay_cycle_label = "🗓️ Upcoming stay" %}
+  {% set stay_cycle_pill = "bg-blue-50 text-blue-700 border-blue-200" %}
+{% elif stay_cycle == "current" %}
+  {% set stay_cycle_label = "🏡 Currently staying" %}
+  {% set stay_cycle_pill = "bg-emerald-50 text-emerald-700 border-emerald-200" %}
+{% elif stay_cycle == "checked_out" %}
+  {% set stay_cycle_label = "✅ Checked out" %}
+  {% set stay_cycle_pill = "bg-slate-50 text-slate-700 border-slate-200" %}
+{% endif %}
+
+{% set priority_label = "Needs attention" %}
+{% set priority_pill = "bg-rose-50 text-rose-700 border-rose-200" %}
+{% if ap in ["low", "normal"] %}
+  {% set priority_label = "Stable" %}
+  {% set priority_pill = "bg-slate-50 text-slate-700 border-slate-200" %}
+{% elif ap == "high" %}
+  {% set priority_label = "Needs attention" %}
+  {% set priority_pill = "bg-amber-50 text-amber-700 border-amber-200" %}
+{% elif ap == "urgent" %}
+  {% set priority_label = "Needs attention" %}
+  {% set priority_pill = "bg-rose-50 text-rose-700 border-rose-200" %}
+{% endif %}
 
 <div
-  class="space-y-4"
+  class="space-y-6"
   data-chat-panel="{{ session.id }}"
   data-session-id="{{ session.id }}"
   data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
   data-action-priority="{{ ap|e }}"
-  data-escalation-level="{{ esc|e }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
 >
 
-  <!-- Sticky Header -->
-  <div class="sticky top-0 z-10 bg-white/95 backdrop-blur border-b border-slate-200">
-    <div class="p-4 space-y-3">
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 items-start">
+  <div class="flex items-center justify-between gap-4">
+    <div>
+      <div class="text-[30px] font-semibold text-slate-950">Conversation detail</div>
+      <div class="text-sm text-slate-500">Monitor what happened, how the AI responded, and what should happen next.</div>
+    </div>
 
-        <!-- LEFT: Chat meta -->
-        <div class="min-w-0 space-y-2">
-          <div class="text-[14px] font-semibold truncate">
-            Chat #{{ session.id }}
-            <br>{{ prop_name or "Unknown property" }} • Property ID: {{ session.property_id }}
-          </div>
+    <div class="flex items-center gap-2">
+      <button
+        id="chat-detail-back"
+        type="button"
+        class="inline-flex h-11 items-center gap-2 rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm hover:bg-slate-50"
+      >
+        ← Back to chats
+      </button>
 
-          {% if session.guest_name or session.arrival_date or session.departure_date %}
-            <div class="text-xs text-slate-500">
-              {% if session.guest_name %}<span class="font-medium text-slate-700">{{ session.guest_name }}</span>{% endif %}
-              {% if session.arrival_date or session.departure_date %}
-                {% if session.guest_name %} • {% endif %}
-                {{ session.arrival_date or '—' }} → {{ session.departure_date or '—' }}
-              {% endif %}
-            </div>
-          {% endif %}
-
-          <!-- Pills row -->
-          <div class="flex flex-wrap items-center gap-1">
-
-            {# Stay cycle pill #}
-            {% if stay_cycle == "current" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-emerald-100 text-emerald-800 font-semibold text-xs">
-                🏡 Currently staying
-              </span>
-            {% elif stay_cycle == "upcoming" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-indigo-100 text-indigo-700 font-semibold text-xs">
-                🗓️ Upcoming stay
-              </span>
-            {% elif stay_cycle == "checked_out" %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-slate-200 text-slate-700 font-semibold text-xs">
-                ✅ Checked out
-              </span>
-            {% else %}
-              <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-700 font-semibold text-xs">
-                💬 Inquiry
-              </span>
-            {% endif %}
-
-            {# Action priority pill #}
-            <span
-              data-role="action-priority-pill"
-              class="inline-flex items-center px-2 py-1 rounded-full text-xs font-semibold
-                {% if ap == 'urgent' %}bg-rose-100 text-rose-800
-                {% elif ap == 'high' %}bg-orange-100 text-orange-800
-                {% elif ap == 'normal' %}bg-blue-100 text-blue-800
-                {% elif ap == 'low' %}bg-slate-100 text-slate-700
-                {% else %}text-slate-400{% endif %}">
-              {% if ap == 'urgent' %}🔴 Urgent
-              {% elif ap == 'high' %}🟠 High
-              {% elif ap == 'normal' %}🔵 Normal
-              {% elif ap == 'low' %}⚪ Low
-              {% else %}—{% endif %}
-            </span>
-
-            {# Guest Mood #}
-            <span
-              data-mood-badge
-              data-emotional-signals='{{ (session.emotional_signals or []) | tojson }}'
-            ></span>
-
-          </div>
-        </div>
-
-      </div>
+      <button
+        type="button"
+        data-action="delete-chat"
+        class="inline-flex h-11 items-center gap-2 rounded-full border border-rose-200 bg-rose-50 px-4 text-sm font-semibold text-rose-700 shadow-sm hover:bg-rose-100"
+      >
+        Delete chat
+      </button>
     </div>
   </div>
 
-  <!-- Body -->
-  <div class="p-4 space-y-4">
+  <div class="grid gap-6 xl:grid-cols-[1.2fr_420px]">
 
-    <!-- Internal note -->
-    <div class="rounded-2xl border border-slate-200 p-3 bg-white">
-      <div class="flex items-center justify-between gap-2">
-        <div class="text-sm font-semibold text-slate-800">Internal note</div>
+    <div class="space-y-6">
 
-        <button
-          type="button"
-          class="js-toggle inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
-          data-toggle-target="note"
-          data-chat-id="{{ session.id }}"
-          aria-expanded="false"
-          title="Toggle notes (N)"
-        >
-          <span class="text-xs font-semibold">Hide/Show (N)</span>
-          <svg class="js-chevron w-5 h-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-            <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
-          </svg>
-        </button>
-      </div>
+      <div class="overflow-hidden rounded-[28px] border border-blue-200 bg-white shadow-[0_14px_36px_rgba(59,130,246,0.08)]">
+        <div class="flex items-center justify-between border-b border-blue-100 bg-[linear-gradient(180deg,#F8FBFF_0%,#F2F7FF_100%)] px-6 py-4">
+          <div>
+            <div class="text-[12px] font-semibold uppercase tracking-[0.12em] text-blue-500">AI summary</div>
+            <div class="mt-1 text-[18px] font-semibold text-slate-900">Conversation analysis</div>
+            <div class="mt-1 text-xs text-slate-500 truncate" data-summary-updated>
+              {% if session.ai_summary_updated_at %}
+                Updated: {{ session.ai_summary_updated_at }}
+              {% else %}
+                Not generated yet
+              {% endif %}
+            </div>
+          </div>
 
-      <div class="js-toggle-body mt-3 hidden" data-toggle-body="note" data-chat-id="{{ session.id }}">
-        <textarea
-          data-role="note-input"
-          class="w-full border border-slate-200 rounded-xl p-2 text-sm bg-white"
-          rows="3"
-          placeholder="Add an internal note (not visible to guests)"
-        >{{ (session.internal_note or "")|e }}</textarea>
+          <div class="flex items-center gap-2">
+            <button
+              type="button"
+              class="js-toggle inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
+              data-toggle-target="summary"
+              data-chat-id="{{ session.id }}"
+              aria-expanded="false"
+              title="Toggle summary (S)"
+            >
+              <span class="text-xs font-semibold">Hide/Show (S)</span>
+              <svg class="js-chevron h-5 w-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
+              </svg>
+            </button>
 
-        <div class="mt-2 flex items-center gap-2">
-          <button
-            data-role="save-note-btn"
-            class="px-3 py-1 rounded-xl bg-slate-900 text-white text-sm hover:bg-slate-800"
-            type="button"
-          >
-            Save note
-          </button>
-          <span data-role="note-status" class="text-xs text-slate-500"></span>
+            <button
+              type="button"
+              data-action="summary"
+              class="inline-flex items-center gap-2 rounded-full bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+            >
+              Summarize this chat
+            </button>
+          </div>
+        </div>
+
+        <div class="js-toggle-body p-6" data-toggle-body="summary" data-chat-id="{{ session.id }}">
+          <div class="space-y-5">
+            <div class="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Summary</div>
+              <div data-summary-box class="mt-2 whitespace-pre-wrap text-[14px] leading-6 text-slate-700">
+                {% if session.ai_summary %}
+                  {{ session.ai_summary|e }}
+                {% else %}
+                  The AI will analyze this conversation and surface the main issue, pattern, and next best action.
+                {% endif %}
+              </div>
+            </div>
+
+            <div class="grid gap-4 md:grid-cols-2">
+              <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Trend</div>
+                <div class="mt-2 text-[15px] font-semibold text-slate-900">
+                  {{ session.signal_label or "No trend surfaced yet" }}
+                </div>
+                <div class="mt-2 text-[13px] leading-6 text-slate-500">
+                  {{ session.signal_detail or "Once summarized, this section should describe the broader pattern this conversation fits into." }}
+                </div>
+              </div>
+
+              <div class="rounded-2xl border border-slate-200 bg-white p-4">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Recommendation</div>
+                <div class="mt-2 text-[15px] font-semibold text-slate-900">
+                  {% if ap in ["urgent", "high"] %}
+                    Review and improve guidance
+                  {% else %}
+                    Monitor and refine
+                  {% endif %}
+                </div>
+                <div class="mt-2 text-[13px] leading-6 text-slate-500">
+                  Use the AI summary to decide whether this should become a reusable automation, a guide update, or an ops follow-up.
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
+
+      <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+        <div class="border-b border-slate-200 px-6 py-4">
+          <div class="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">Conversation thread</div>
+        </div>
+
+        <div class="space-y-5 px-6 py-6">
+          {% for msg in messages %}
+            {% set is_ai = msg.sender == 'assistant' %}
+            <div class="flex gap-4 {{ 'justify-start' if is_ai else 'justify-end' }}">
+              {% if is_ai %}
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 ring-1 ring-blue-200">
+                  🤖
+                </div>
+              {% endif %}
+
+              <div class="max-w-[78%] {{ 'order-2' if is_ai else 'order-1' }}">
+                <div class="rounded-[22px] px-4 py-3 shadow-sm ring-1 {{ 'bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'bg-slate-900 text-white ring-slate-900' }}">
+                  <div class="whitespace-pre-wrap text-[14px] leading-7">
+                    {{ (msg.content or '')|e }}
+                  </div>
+                </div>
+
+                <div class="mt-2 flex items-center gap-2 text-[12px] text-slate-400 {{ 'justify-start' if is_ai else 'justify-end' }}">
+                  <span class="font-medium text-slate-500">{{ msg.sender|capitalize }}</span>
+                  <span>•</span>
+                  <span>{{ msg.created_at }}</span>
+                </div>
+
+                {% if msg.sender == 'guest' and (msg.category or msg.log_type or msg.sentiment) %}
+                  <div class="mt-2 text-[11px] text-slate-500 {{ 'text-left' if is_ai else 'text-right' }}">
+                    {% if msg.category %}Category: {{ msg.category }}{% else %}Category: —{% endif %}
+                    •
+                    {% if msg.log_type %}Log: {{ msg.log_type }}{% else %}Log: —{% endif %}
+                    •
+                    {% if msg.sentiment %}Sentiment: {{ msg.sentiment }}{% else %}Sentiment: —{% endif %}
+                  </div>
+                {% endif %}
+              </div>
+
+              {% if not is_ai %}
+                <div class="order-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 ring-1 ring-slate-200">
+                  👤
+                </div>
+              {% endif %}
+            </div>
+          {% endfor %}
+        </div>
+      </div>
+
     </div>
 
-    <!-- AI Summary -->
-    <div class="rounded-2xl border border-slate-200 p-3 bg-white">
-      <div class="flex items-center justify-between gap-3">
-        <div class="min-w-0">
-          <div class="text-sm font-semibold">AI Summary</div>
+    <div class="space-y-6 xl:sticky xl:top-6 xl:self-start">
 
-          <div class="text-xs text-slate-500 truncate" data-summary-updated>
-            {% if session.ai_summary_updated_at %}
-              Updated: {{ session.ai_summary_updated_at }}
+      <div class="rounded-[28px] border border-slate-200 bg-white p-5">
+        <div class="mb-4">
+          <div class="text-[20px] font-semibold text-slate-950">{{ session.guest_name or "Guest" }}</div>
+
+          <div class="mt-2 flex flex-wrap gap-2">
+            <span class="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-semibold {{ stay_cycle_pill }}">
+              {{ stay_cycle_label }}
+            </span>
+
+            <span class="inline-flex items-center gap-1 rounded-full border px-3 py-1 text-[12px] font-semibold {{ priority_pill }}">
+              {{ priority_label }}
+            </span>
+          </div>
+
+          <div class="mt-3 text-xs text-slate-400">
+            {% if session.last_activity_at %}
+              Last active {{ session.last_activity_at }}
             {% else %}
-              Not generated yet
+              Last active —
             {% endif %}
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="mb-4 text-[16px] font-semibold text-slate-900">Stay details</div>
+
+        <div class="grid gap-3 text-sm text-slate-600 sm:grid-cols-2">
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Property</div>
+            <div class="mt-1 font-medium text-slate-900">{{ prop_name or "—" }}</div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Reservation source</div>
+            <div class="mt-1 font-medium text-slate-900">{{ booking_source }}</div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Check-in</div>
+            <div class="mt-1 font-medium text-slate-900">{{ session.arrival_date or "—" }}</div>
+          </div>
+
+          <div class="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-400">Check-out</div>
+            <div class="mt-1 font-medium text-slate-900">{{ session.departure_date or "—" }}</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="rounded-[28px] border border-slate-200 bg-white p-5">
+        <div class="flex items-center justify-between">
+          <div class="text-[16px] font-semibold text-slate-900">Admin notes</div>
+
           <button
             type="button"
             class="js-toggle inline-flex items-center gap-1 text-slate-600 hover:text-slate-900"
-            data-toggle-target="summary"
+            data-toggle-target="note"
             data-chat-id="{{ session.id }}"
             aria-expanded="false"
-            title="Toggle summary (S)"
+            title="Toggle notes (N)"
           >
-            <span class="text-xs font-semibold">Hide/Show (S)</span>
-            <svg class="js-chevron w-5 h-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+            <span class="text-xs font-semibold">Hide/Show (N)</span>
+            <svg class="js-chevron h-5 w-5 transition-transform" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
               <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 10.94l3.71-3.71a.75.75 0 111.06 1.06l-4.24 4.24a.75.75 0 01-1.06 0L5.21 8.29a.75.75 0 01.02-1.08z" clip-rule="evenodd" />
             </svg>
           </button>
-
-          <button
-            type="button"
-            data-action="summary"
-            class="bg-slate-900 text-white rounded-xl px-3 py-1 text-sm hover:bg-slate-800"
-          >
-            Summarize this chat
-          </button>
         </div>
-      </div>
 
-      <div class="js-toggle-body mt-3 hidden" data-toggle-body="summary" data-chat-id="{{ session.id }}">
-        <div data-summary-box class="text-sm text-slate-800 whitespace-pre-wrap">
-          {% if session.ai_summary %}
-            {{ session.ai_summary|e }}
-          {% else %}
-            <span class="text-slate-500">No overview yet.</span>
-          {% endif %}
-        </div>
-      </div>
-    </div>
+        <div class="js-toggle-body mt-4" data-toggle-body="note" data-chat-id="{{ session.id }}">
+          <textarea
+            data-role="note-input"
+            class="h-36 w-full rounded-[22px] border border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-700 outline-none"
+            placeholder="Add an internal note (not visible to guests)"
+          >{{ (session.internal_note or "")|e }}</textarea>
 
-    <!-- Messages -->
-    <div class="rounded-2xl border border-slate-200 p-3 bg-white">
-      <div class="text-sm font-semibold">Messages</div>
-
-      <div class="mt-3 space-y-3">
-        {% for msg in messages %}
-          <div class="flex {{ 'justify-end' if msg.sender == 'assistant' else 'justify-start' }}">
-            <div class="max-w-[85%] rounded-2xl px-3 py-2 text-sm border
-              {% if msg.sender == 'assistant' %}
-                bg-blue-50 border-blue-100
-              {% elif msg.sender == 'guest' %}
-                bg-slate-50 border-slate-200
-              {% else %}
-                bg-amber-50 border-amber-200
-              {% endif %}
-            ">
-              <div class="text-xs font-semibold mb-1 text-slate-600">
-                {{ msg.sender|capitalize }}
-                <span class="text-slate-400">• {{ msg.created_at }}</span>
-              </div>
-
-              <div class="whitespace-pre-wrap text-slate-800">{{ (msg.content or '')|e }}</div>
-
-              {% if msg.sender == 'guest' %}
-                <div class="mt-1 text-[11px] text-slate-500">
-                  Category: {{ msg.category or '—' }} •
-                  Log: {{ msg.log_type or '—' }} •
-                  Sentiment: {{ msg.sentiment or '—' }}
-                </div>
-              {% endif %}
-            </div>
+          <div class="mt-4 flex items-center justify-end gap-2">
+            <span data-role="note-status" class="text-xs text-slate-500"></span>
+            <button
+              data-role="save-note-btn"
+              type="button"
+              class="rounded-full bg-slate-900 px-5 py-2 text-sm text-white hover:bg-slate-800"
+            >
+              Save note
+            </button>
           </div>
-        {% endfor %}
+        </div>
       </div>
+
     </div>
 
   </div>
