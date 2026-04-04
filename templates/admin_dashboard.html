@@ -1709,6 +1709,7 @@
 
     <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
       <div class="p-6">
+        {% if not selected_session %}
         <form id="chatFilters" method="get" action="/admin/dashboard" class="space-y-4">
           <input type="hidden" name="view" value="chats" />
           {% set lifecycle = filters.lifecycle or '' %}
@@ -1776,6 +1777,7 @@
             </a>
           </div>
         </form>
+        {% endif %}
 
         {% if stay_pulse and stay_pulse.filter_tag %}
         <div class="mt-5 rounded-[20px] border border-[#D7E3FF] bg-[#EEF4FF] px-4 py-3">
@@ -2049,8 +2051,9 @@
           {% endif %}
         </div>
 
-        <div id="chat-detail-inline" class="mt-5 hidden">
+        <div id="chat-detail-inline" class="mt-5 {% if not selected_session %}hidden{% endif %}">
           <div class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
+            {% if not selected_session %}
             <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
               <div class="text-[16px] font-semibold text-slate-900">Conversation detail</div>
               <button
@@ -2060,6 +2063,7 @@
                 Back to chats
               </button>
             </div>
+            {% endif %}
 
             <div id="chat-detail-panel" class="p-5">
               <div id="chat-detail-empty" class="text-sm text-slate-500">
