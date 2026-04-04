@@ -1189,9 +1189,11 @@ def chat_detail_partial(
         "escalation_level": sess.escalation_level,
         "is_resolved": bool(sess.is_resolved),
         "action_priority": getattr(sess, "action_priority", None),
+        "booking_source": getattr(sess, "booking_source", None),
 
         "emotional_signals": getattr(sess, "emotional_signals", None) or [],
         "guest_mood": getattr(sess, "guest_mood", None),
+        "source": getattr(sess, "source", None),
 
         "internal_note": getattr(sess, "internal_note", None),
         "ai_summary": getattr(sess, "ai_summary", None),
