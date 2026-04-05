@@ -1934,23 +1934,81 @@ document.addEventListener("click", (e) => {
   }
 
   // Delegated click handling for toggles + actions
-  document.addEventListener("click", async (e) => {
-    // toggle open/close
-    const toggleBtn = e.target.closest(".js-toggle");
-    if (toggleBtn) {
-      e.preventDefault();
-      const which = toggleBtn.getAttribute("data-toggle-target");
-      const chatId = toggleBtn.getAttribute("data-chat-id");
-      if (!which || !chatId) return;
+document.addEventListener("click", async (e) => {
+  // toggle open/close
+  const toggleBtn = e.target.closest(".js-toggle");
+  if (toggleBtn) {
+    e.preventDefault();
+    const which = toggleBtn.getAttribute("data-toggle-target");
+    const chatId = toggleBtn.getAttribute("data-chat-id");
+    if (!which || !chatId) return;
 
-      const isOpen = toggleBtn.getAttribute("aria-expanded") === "true";
-      const panel = toggleBtn.closest("[data-chat-panel]") || document;
-      setOpen(chatId, which, !isOpen, panel);
-      return;
+    const isOpen = toggleBtn.getAttribute("aria-expanded") === "true";
+    const panel = toggleBtn.closest("[data-chat-panel]") || document;
+    setOpen(chatId, which, !isOpen, panel);
+    return;
+  }
+
+  // action buttons inside chat detail
+  const actionBtn = e.target.closest("[data-action]");
+  if (!actionBtn) return;
+
+  const action = actionBtn.getAttribute("data-action");
+  const panel = actionBtn.closest("[data-chat-panel]");
+  const chatId =
+    panel?.getAttribute("data-session-id") ||
+    panel?.getAttribute("data-chat-panel");
+
+  if (!chatId) return;
+
+  // Generate summary
+  if (action === "summary") {
+    e.preventDefault();
+    actionBtn.disabled = true;
+
+    try {
+      await window.Chats.refreshSummary(chatId);
+      setOpen(chatId, "summary", true, panel);
+    } finally {
+      actionBtn.disabled = false;
     }
+    return;
+  }
 
-     
-  });
+  // Delete chat
+  if (action === "delete-chat") {
+    e.preventDefault();
+
+    const ok = window.confirm("Delete this chat?");
+    if (!ok) return;
+
+    actionBtn.disabled = true;
+
+    try {
+      const res = await fetch("/admin/chats/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ session_ids: [chatId] }),
+      });
+
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        window.alert(data.detail || "Failed to delete chat.");
+        return;
+      }
+
+      window.location.href = "/admin/dashboard?view=chats";
+    } catch (err) {
+      console.error(err);
+      window.alert("Something went wrong while deleting the chat.");
+    } finally {
+      actionBtn.disabled = false;
+    }
+    return;
+  }
+});
 
   // Keyboard shortcuts: N / S (toggle current open detail panel if present)
   document.addEventListener("keydown", (e) => {
