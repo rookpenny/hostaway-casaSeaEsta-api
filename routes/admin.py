@@ -198,13 +198,18 @@ def get_ai_insights(
 
     q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
 
+    # Scope by role
     if user_role == "pmc":
         if not pmc_obj:
             raise HTTPException(status_code=403, detail="PMC account not linked")
         q = q.filter(Property.pmc_id == pmc_obj.id)
-    elif pmc_id_int:
-        q = q.filter(Property.pmc_id == pmc_id_int)
+    elif user_role == "super":
+        if pmc_id_int:
+            q = q.filter(Property.pmc_id == pmc_id_int)
+    else:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
+    # Optional property filter
     if property_id_int:
         q = q.filter(ChatSession.property_id == property_id_int)
 
