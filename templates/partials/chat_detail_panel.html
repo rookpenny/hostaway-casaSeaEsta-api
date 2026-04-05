@@ -189,7 +189,7 @@
 
           <div class="mt-2 flex items-center gap-2 text-[12px] text-slate-400">
             <span class="font-medium text-slate-500">
-              {{ 'Assistant' if is_ai else {{ session.guest_name or "Guest" }} }}
+              {{ 'Assistant' if is_ai else (session.guest_name or "Guest") }}
             </span>
             <span>•</span>
             <span
