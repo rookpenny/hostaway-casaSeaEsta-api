@@ -13,7 +13,9 @@ async function loadAIInsights() {
     !riskEl || !riskDetailEl ||
     !automationEl || !automationDetailEl ||
     !humanEl || !humanDetailEl
-  ) return;
+  ) {
+    return;
+  }
 
   try {
     const params = new URLSearchParams();
@@ -32,7 +34,9 @@ async function loadAIInsights() {
       headers: { Accept: "application/json" },
     });
 
-    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    if (!res.ok) {
+      throw new Error(`HTTP ${res.status}`);
+    }
 
     const data = await res.json();
 
@@ -50,6 +54,18 @@ async function loadAIInsights() {
     humanDetailEl.innerText = `${data.needs_human || 0} chats`;
   } catch (err) {
     console.error("loadAIInsights failed:", err);
+
+    topIssueEl.innerText = "Unavailable";
+    topIssueDetailEl.innerText = "Could not load";
+
+    riskEl.innerText = "Unavailable";
+    riskDetailEl.innerText = "Could not load";
+
+    automationEl.innerText = "Unavailable";
+    automationDetailEl.innerText = "Could not load";
+
+    humanEl.innerText = "Unavailable";
+    humanDetailEl.innerText = "Could not load";
   }
 }
 
@@ -79,7 +95,12 @@ window.applyInsightFilter = function (type) {
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const hasInsightsUI = document.getElementById("insight-top-issue");
+  const hasInsightsUI =
+    document.getElementById("insight-top-issue") ||
+    document.getElementById("insight-risk") ||
+    document.getElementById("insight-automation") ||
+    document.getElementById("insight-human");
+
   if (!hasInsightsUI) return;
 
   loadAIInsights();
