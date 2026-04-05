@@ -72,6 +72,7 @@ window.Chats = window.Chats || {};
   // -----------------------------------
 
 
+
 function goToView(view) {
   const url = new URL(window.location.href);
   url.searchParams.set("view", view);
@@ -405,6 +406,51 @@ function closeChatDetail() {
     `;
     panel.removeAttribute("data-session-id");
   }
+}
+
+
+function formatChatTimestamp(ts) {
+  const d = parseTimestamp(ts);
+  if (!d) return ts || "";
+
+  const now = new Date();
+  const diffMs = now - d;
+  const diffMin = Math.floor(diffMs / 60000);
+
+  if (diffMs < 60 * 1000) return "Just now";
+  if (diffMin < 60) return `${diffMin} min ago`;
+
+  const sameDay =
+    d.getFullYear() === now.getFullYear() &&
+    d.getMonth() === now.getMonth() &&
+    d.getDate() === now.getDate();
+
+  const timeOnly = d.toLocaleTimeString([], {
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+  if (sameDay) return timeOnly;
+
+  const datePart = d.toLocaleDateString([], {
+    month: "short",
+    day: "numeric",
+  });
+
+  return `${datePart} · ${timeOnly}`;
+}
+
+function initChatMessageTimes(root = document) {
+  function render() {
+    root.querySelectorAll(".js-chat-time").forEach((el) => {
+      const ts = el.getAttribute("data-ts");
+      if (!ts) return;
+      el.textContent = formatChatTimestamp(ts);
+    });
+  }
+
+  render();
+  return render;
 }
 
 window.openChatDetail = openChatDetail;
@@ -2105,6 +2151,7 @@ async function loadChatDetail(sessionId) {
 
     window.rerenderAllMoodBadges?.(panel);
     window.applyMoodConfidenceHints?.(panel);
+    initChatMessageTimes(panel);
 
     initChatDetailHandlers(sessionId, panel);
     await hydrateAssigneeDropdown(sessionId, panel);
@@ -5543,6 +5590,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   initChatFilters();
   initChatLoadMore();
   initRelativeTimes();
+  window.setInterval(() => {
+    initChatMessageTimes(document);
+  }, 60 * 1000);
 
   initSettingsUI();
   initAllReorderTables();
