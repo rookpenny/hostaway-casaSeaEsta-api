@@ -393,9 +393,16 @@ async function openChatDetail(sessionId) {
   await loadChatDetail(String(sessionId));
 }
 
+let routingInitialized = false;
+let currentViewKey = null;
+
 function closeChatDetail() {
+  const url = new URL(window.location.href);
+  url.searchParams.delete("session_id");
+  url.searchParams.set("view", "chats");
+  history.pushState(null, "", url.toString());
+
   setInlineDetailOpen(false);
-  clearChatUrl();
 
   const panel = document.getElementById("chat-detail-panel");
   if (panel) {
@@ -404,9 +411,18 @@ function closeChatDetail() {
         Select a chat session to view details.
       </div>
     `;
-    panel.removeAttribute("data-session-id");
+  }
+
+  const pageTitle = document.getElementById("page-title");
+  const pageSubtitle = document.getElementById("page-subtitle");
+
+  if (pageTitle) pageTitle.textContent = "Conversations";
+  if (pageSubtitle) {
+    pageSubtitle.textContent =
+      "Monitor how your AI is performing across every stage of the stay lifecycle.";
   }
 }
+
 
 
 function formatChatTimestamp(ts) {
@@ -1856,9 +1872,11 @@ window.rerenderAllMoodBadges = rerenderAllMoodBadges;
 
 // Back button
 document.addEventListener("click", (e) => {
-  if (e.target && e.target.closest("#chat-detail-back")) {
-    closeChatDetail();
-  }
+  const btn = e.target.closest("#chat-detail-back");
+  if (!btn) return;
+
+  e.preventDefault();
+  closeChatDetail();
 });
 
 (function initAdminChatPanelGlobal() {
@@ -4543,9 +4561,6 @@ function initAllReorderTables() {
 }
 
 
-let routingInitialized = false;
-let currentViewKey = null;
-
 function initRouting() {
   if (routingInitialized) return;
   routingInitialized = true;
@@ -4614,7 +4629,9 @@ function initRouting() {
     }
 
     if (pageTitle) {
-      pageTitle.textContent = isChatDetail ? "Conversation detail" : (titles[key] || "Overview");
+      pageTitle.textContent = isChatDetail
+        ? "Conversation detail"
+        : (titles[key] || "Overview");
     }
 
     if (pageSubtitle) {
@@ -4659,40 +4676,48 @@ function initRouting() {
   }
 
   async function route() {
-  const params = new URLSearchParams(window.location.search);
+    const params = new URLSearchParams(window.location.search);
+    const keyFromHash = (location.hash || "").slice(1).split("?")[0].toLowerCase();
+    const keyFromView = (params.get("view") || "").toLowerCase();
+    const view = keyFromHash || keyFromView || "overview";
+    const sessionId = params.get("session_id");
 
-  if (params.has("session_id")) {
-    await showView("chats");
-    return;
+    await showView(view);
+
+    if (view === "chats" && sessionId) {
+      setInlineDetailOpen(true);
+      await loadChatDetail(sessionId);
+    } else {
+      setInlineDetailOpen(false);
+    }
   }
-
-  closeChatDetail();
-
-  const keyFromHash = (location.hash || "").slice(1).split("?")[0].toLowerCase();
-  const keyFromView = (params.get("view") || "").toLowerCase();
-
-  await showView(keyFromHash || keyFromView || "overview");
-}
 
   navItems.forEach((btn) => {
     btn.addEventListener("click", async (e) => {
       e.preventDefault();
       const key = (btn.dataset.view || "overview").toLowerCase();
-  
+
       const url = new URL(window.location.href);
       url.searchParams.delete("session_id");
       url.searchParams.set("view", key);
-  
+
       if (key === "chats") {
         url.hash = "";
-        closeChatDetail();
       } else {
         url.hash = `#${key}`;
       }
-  
+
       history.pushState(null, "", url.toString());
       await route();
     });
+  });
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest("#chat-detail-back");
+    if (!btn) return;
+
+    e.preventDefault();
+    closeChatDetail();
   });
 
   window.addEventListener("popstate", route);
