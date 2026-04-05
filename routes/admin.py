@@ -182,6 +182,60 @@ async def admin_manual_ui_save(request: Request, db: Session = Depends(get_db)):
     )
     return {"ok": True}
 
+@router.get("/analytics/ai-insights")
+def get_ai_insights(db: Session = Depends(get_db)):
+    from models import ChatSession
+    from sqlalchemy import func
+
+    total = db.query(func.count(ChatSession.id)).scalar() or 1
+
+    # Top issue (ops_category)
+    top_issue = (
+        db.query(ChatSession.ops_category, func.count().label("count"))
+        .group_by(ChatSession.ops_category)
+        .order_by(func.count().desc())
+        .first()
+    )
+
+    # Highest risk
+    high_risk = (
+        db.query(ChatSession.signal_label, func.count().label("count"))
+        .filter(ChatSession.severity == "high")
+        .group_by(ChatSession.signal_label)
+        .order_by(func.count().desc())
+        .first()
+    )
+
+    # Automation opportunity (low severity + repeat)
+    automation = (
+        db.query(ChatSession.signal_label, func.count().label("count"))
+        .filter(ChatSession.severity == "low")
+        .group_by(ChatSession.signal_label)
+        .order_by(func.count().desc())
+        .first()
+    )
+
+    # Needs human
+    needs_human = (
+        db.query(func.count(ChatSession.id))
+        .filter(ChatSession.needs_human == True)
+        .scalar()
+    )
+
+    return {
+        "top_issue": top_issue[0] if top_issue else None,
+        "top_issue_count": top_issue[1] if top_issue else 0,
+
+        "high_risk": high_risk[0] if high_risk else None,
+        "high_risk_count": high_risk[1] if high_risk else 0,
+
+        "automation": automation[0] if automation else None,
+        "automation_count": automation[1] if automation else 0,
+
+        "needs_human": needs_human,
+        "needs_human_pct": round(needs_human / total * 100, 1)
+    }
+
 
 def batch_message_signals(
     db: Session,
