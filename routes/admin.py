@@ -185,57 +185,72 @@ async def admin_manual_ui_save(request: Request, db: Session = Depends(get_db)):
     return {"ok": True}
 
 @router.get("/analytics/ai-insights")
-def get_ai_insights(db: Session = Depends(get_db)):
-    from models import ChatSession
-    from sqlalchemy import func
+def get_ai_insights(
+    request: Request,
+    db: Session = Depends(get_db),
+    pmc_id: str | None = Query(default=None),
+    property_id: str | None = Query(default=None),
+):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
 
-    total = db.query(func.count(ChatSession.id)).scalar() or 1
+    pmc_id_int = _parse_optional_int(pmc_id)
+    property_id_int = _parse_optional_int(property_id)
 
-    # Top issue (ops_category)
+    q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
+
+    if user_role == "pmc":
+        if not pmc_obj:
+            raise HTTPException(status_code=403, detail="PMC account not linked")
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+    elif pmc_id_int:
+        q = q.filter(Property.pmc_id == pmc_id_int)
+
+    if property_id_int:
+        q = q.filter(ChatSession.property_id == property_id_int)
+
+    total = q.with_entities(func.count(ChatSession.id)).scalar() or 1
+
     top_issue = (
-        db.query(ChatSession.ops_category, func.count().label("count"))
+        q.with_entities(ChatSession.ops_category, func.count().label("count"))
+        .filter(ChatSession.ops_category.isnot(None))
         .group_by(ChatSession.ops_category)
         .order_by(func.count().desc())
         .first()
     )
 
-    # Highest risk
     high_risk = (
-        db.query(ChatSession.signal_label, func.count().label("count"))
+        q.with_entities(ChatSession.signal_label, func.count().label("count"))
         .filter(ChatSession.severity == "high")
+        .filter(ChatSession.signal_label.isnot(None))
         .group_by(ChatSession.signal_label)
         .order_by(func.count().desc())
         .first()
     )
 
-    # Automation opportunity (low severity + repeat)
     automation = (
-        db.query(ChatSession.signal_label, func.count().label("count"))
+        q.with_entities(ChatSession.signal_label, func.count().label("count"))
         .filter(ChatSession.severity == "low")
+        .filter(ChatSession.signal_label.isnot(None))
         .group_by(ChatSession.signal_label)
         .order_by(func.count().desc())
         .first()
     )
 
-    # Needs human
     needs_human = (
-        db.query(func.count(ChatSession.id))
+        q.with_entities(func.count(ChatSession.id))
         .filter(ChatSession.needs_human == True)
         .scalar()
-    )
+    ) or 0
 
     return {
         "top_issue": top_issue[0] if top_issue else None,
-        "top_issue_count": top_issue[1] if top_issue else 0,
-
+        "top_issue_count": int(top_issue[1]) if top_issue else 0,
         "high_risk": high_risk[0] if high_risk else None,
-        "high_risk_count": high_risk[1] if high_risk else 0,
-
+        "high_risk_count": int(high_risk[1]) if high_risk else 0,
         "automation": automation[0] if automation else None,
-        "automation_count": automation[1] if automation else 0,
-
-        "needs_human": needs_human,
-        "needs_human_pct": round(needs_human / total * 100, 1)
+        "automation_count": int(automation[1]) if automation else 0,
+        "needs_human": int(needs_human),
+        "needs_human_pct": round((needs_human / total) * 100, 1),
     }
 
 
