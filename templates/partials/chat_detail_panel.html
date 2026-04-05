@@ -43,7 +43,7 @@
   <div class="flex items-center justify-between gap-4">
     <div>
       <div class="text-[30px] font-semibold tracking-[-0.03em] text-slate-950">
-        Conversation detail - {{ session.guest_name or "Guest" }}
+        {{ session.guest_name or "Guest" }}'s Conversation
       </div>
       <div class="mt-1 text-sm text-slate-500">
         Monitor what happened, how the AI responded, and what should happen next.
@@ -169,7 +169,7 @@
     </div>
   </div>
 
-  <div class="space-y-5 px-6 py-6">
+  <div class="space-y-4 px-6 py-6">
     {% for msg in messages %}
       {% set is_ai = msg.sender == 'assistant' %}
 
@@ -180,8 +180,8 @@
           </div>
         {% endif %}
 
-        <div class="flex max-w-[560px] flex-col {{ 'items-start' if is_ai else 'items-end' }}">
-          <div class="w-fit rounded-[20px] px-4 py-2.5 shadow-sm ring-1 {{ 'bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'bg-[#071833] text-white ring-[#071833]' }}">
+        <div class="flex flex-col {{ 'items-start' if is_ai else 'items-end' }}">
+          <div class="inline-block max-w-[420px] rounded-[18px] px-4 py-2 shadow-sm ring-1 {{ 'bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'bg-[#071833] text-white ring-[#071833]' }}">
             <div class="whitespace-pre-wrap text-[14px] leading-5">
               {{ (msg.content or '')|e }}
             </div>
