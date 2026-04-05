@@ -4566,20 +4566,6 @@ function initAllReorderTables() {
 let routingInitialized = false;
 let currentViewKey = null;
 
-const titles = {
-  overview: "Overview",
-  properties: "Properties",
-  chats: "Conversations",
-  pmcs: "PMCs",
-  guides: "Guides",
-  upgrades: "Upgrades",
-  files: "Files",
-  analytics: "Analytics",
-  settings: "Settings",
-  payouts: "Payouts",
-  admin_payouts: "Revenue",
-};
-
 function initRouting() {
   if (routingInitialized) return;
   routingInitialized = true;
@@ -4589,46 +4575,150 @@ function initRouting() {
   const navItems = Array.from(document.querySelectorAll(".nav-item"));
   const views = Array.from(document.querySelectorAll(".view"));
 
-  const subtitles = {
-  overview: BOOT.user_role === "super" ? "System health & activity" : "Your portfolio at a glance",
-  properties: "Search and manage your portfolio",
-  chats: "Monitor how your AI is performing across every stage of the stay lifecycle.",
-  pmcs: "Partners, integrations, access",
-  guides: "Guest-facing guides per property",
-  upgrades: "Paid add-ons per property",
-  files: "Configs & manuals",
-  analytics: BOOT.user_role === "super" ? "Trends & performance" : "Your chat trends & performance",
-  settings: "Account and system settings",
-};
-
   const titles = {
-  overview: "Overview",
-  properties: "Properties",
-  chats: "Conversations",
-  pmcs: "PMCs",
-  guides: "Guides",
-  upgrades: "Upgrades",
-  files: "Files",
-  analytics: "Analytics",
-  settings: "Settings",
-  payouts: "Payouts",
-  admin_payouts: "Revenue",
-};
+    overview: "Overview",
+    properties: "Properties",
+    chats: "Conversations",
+    pmcs: "PMCs",
+    guides: "Guides",
+    upgrades: "Upgrades",
+    files: "Files",
+    analytics: "Analytics",
+    settings: "Settings",
+    payouts: "Payouts",
+    admin_payouts: "Revenue",
+    messages: "Messages",
+    tasks: "Tasks",
+  };
 
-  function route() {
+  const subtitles = {
+    overview: BOOT.user_role === "super" ? "System health & activity" : "Your portfolio at a glance",
+    properties: "Search and manage your portfolio",
+    chats: "Monitor how your AI is performing across every stage of the stay lifecycle.",
+    pmcs: "Partners, integrations, access",
+    guides: "Guest-facing guides per property",
+    upgrades: "Paid add-ons per property",
+    files: "Configs & manuals",
+    analytics: BOOT.user_role === "super" ? "Trends & performance" : "Your chat trends & performance",
+    settings: "Account and system settings",
+    payouts: "Revenue and transfers",
+    admin_payouts: "HostScout platform revenue",
+    messages: "Admin notifications and inbox",
+    tasks: "Track and manage operational work",
+  };
+
+  async function showView(key) {
+    key = (key || "overview").toLowerCase();
+
+    if (!document.getElementById(`view-${key}`)) key = "overview";
+    currentViewKey = key;
+
+    const url = new URL(window.location.href);
+    const sessionId = url.searchParams.get("session_id");
+    const isChatDetail = key === "chats" && !!sessionId;
+
+    views.forEach((v) => v.classList.add("hidden"));
+    document.getElementById(`view-${key}`)?.classList.remove("hidden");
+
+    navItems.forEach((btn) => {
+      btn.setAttribute("aria-current", "false");
+      btn.classList.remove("active");
+    });
+
+    const activeBtn = navItems.find(
+      (b) => (b.dataset.view || "").toLowerCase() === key
+    );
+    if (activeBtn) {
+      activeBtn.setAttribute("aria-current", "page");
+      activeBtn.classList.add("active");
+    }
+
+    if (pageTitle) {
+      pageTitle.textContent = isChatDetail ? "Conversation detail" : (titles[key] || "Overview");
+    }
+
+    if (pageSubtitle) {
+      pageSubtitle.textContent = isChatDetail
+        ? "Monitor what happened, how the AI responded, and what should happen next."
+        : (subtitles[key] || "");
+    }
+
+    if (key === "properties") filterProperties();
+
+    if (key === "settings") {
+      initSettingsUI();
+      showSettingsPanel(getSettingsTabFromHash());
+    }
+
+    if (key === "guides" && window.Guides && !Guides.loaded) {
+      Guides.loaded = true;
+      Guides.refresh();
+    }
+
+    if (key === "upgrades" && window.Upgrades && !Upgrades.loaded) {
+      Upgrades.loaded = true;
+      Upgrades.refresh();
+    }
+
+    if (key === "tasks") {
+      window.Tasks?.init?.();
+      window.Tasks?.refresh?.();
+    }
+
+    if (key === "messages") {
+      await window.Messages?.openView?.();
+    }
+
+    if (key === "analytics") {
+      const days = document.getElementById("analyticsRange")?.value || 30;
+      requestAnimationFrame(() => {
+        loadChatAnalytics(days);
+        resizeChatAnalyticsChartSoon();
+      });
+    }
+  }
+
+  async function route() {
   const params = new URLSearchParams(window.location.search);
 
   if (params.has("session_id")) {
-    showView("chats");
+    await showView("chats");
     return;
   }
 
-  closeChatDetail(); // ✅ no session_id means detail must be closed
+  closeChatDetail();
 
   const keyFromHash = (location.hash || "").slice(1).split("?")[0].toLowerCase();
   const keyFromView = (params.get("view") || "").toLowerCase();
 
-  showView(keyFromHash || keyFromView || "overview");
+  await showView(keyFromHash || keyFromView || "overview");
+}
+
+  navItems.forEach((btn) => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      const key = (btn.dataset.view || "overview").toLowerCase();
+  
+      const url = new URL(window.location.href);
+      url.searchParams.delete("session_id");
+      url.searchParams.set("view", key);
+  
+      if (key === "chats") {
+        url.hash = "";
+        closeChatDetail();
+      } else {
+        url.hash = `#${key}`;
+      }
+  
+      history.pushState(null, "", url.toString());
+      await route();
+    });
+  });
+
+  window.addEventListener("popstate", route);
+  window.addEventListener("hashchange", route);
+
+  route();
 }
 
 // nav clicks
@@ -5563,7 +5653,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initChatBatchActions();
   initChatDetailDelete();
-  initChatRowNavigation();
   initChatFilters();
   initChatLoadMore();
   initRelativeTimes();
@@ -5613,15 +5702,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Uses "hidden" class (matches template)
 // Keeps Tasks init + ALWAYS refresh
 // ------------------------------
-
-
-
-
-// Handle browser back/forward
-window.addEventListener("popstate", () => {
-  const view = new URLSearchParams(window.location.search).get("view") || "overview";
-  showDashboardView(view);
-});
 
 
 window.DashboardOverview = window.DashboardOverview || {};
