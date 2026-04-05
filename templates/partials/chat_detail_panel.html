@@ -161,56 +161,60 @@
       </div>
 
       <!-- CONVERSATION THREAD -->
-      <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
-        <div class="border-b border-slate-200 px-6 py-4">
-          <div class="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">
-            Conversation thread
+      <!-- CONVERSATION THREAD -->
+<div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+  <div class="border-b border-slate-200 px-6 py-4">
+    <div class="text-[13px] font-semibold uppercase tracking-[0.12em] text-slate-400">
+      Conversation thread
+    </div>
+  </div>
+
+  <div class="space-y-6 px-6 py-6">
+    {% for msg in messages %}
+      {% set is_ai = msg.sender == 'assistant' %}
+
+      <div class="flex items-end gap-3 {{ 'justify-start' if is_ai else 'justify-end' }}">
+        {% if is_ai %}
+          <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 ring-1 ring-blue-200 text-[18px]">
+            🤖
           </div>
-        </div>
+        {% endif %}
 
-        <div class="space-y-5 px-6 py-6">
-          {% for msg in messages %}
-            {% set is_ai = msg.sender == 'assistant' %}
-            <div class="flex gap-4 {{ 'justify-start' if is_ai else 'justify-end' }}">
-              {% if is_ai %}
-                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-blue-50 ring-1 ring-blue-200">
-                  🤖
-                </div>
-              {% endif %}
-
-              <div class="max-w-[78%] {{ 'order-2' if is_ai else 'order-1' }}">
-                <div class="rounded-[22px] px-4 py-3 shadow-sm ring-1 {{ 'bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'bg-slate-900 text-white ring-slate-900' }}">
-                  <div class="whitespace-pre-wrap text-[14px] leading-7">
-                    {{ (msg.content or '')|e }}
-                  </div>
-                </div>
-
-                <div class="mt-2 flex items-center gap-2 text-[12px] text-slate-400 {{ 'justify-start' if is_ai else 'justify-end' }}">
-                  <span class="font-medium text-slate-500">{{ msg.sender|capitalize }}</span>
-                  <span>•</span>
-                  <span>{{ msg.created_at }}</span>
-                </div>
-
-                {% if msg.sender == 'guest' and (msg.category or msg.log_type or msg.sentiment) %}
-                  <div class="mt-2 text-[11px] text-slate-500 {{ 'text-left' if is_ai else 'text-right' }}">
-                    {% if msg.category %}Category: {{ msg.category }}{% else %}Category: —{% endif %}
-                    •
-                    {% if msg.log_type %}Log: {{ msg.log_type }}{% else %}Log: —{% endif %}
-                    •
-                    {% if msg.sentiment %}Sentiment: {{ msg.sentiment }}{% else %}Sentiment: —{% endif %}
-                  </div>
-                {% endif %}
-              </div>
-
-              {% if not is_ai %}
-                <div class="order-2 flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-slate-100 ring-1 ring-slate-200">
-                  👤
-                </div>
-              {% endif %}
+        <div class="max-w-[72%] {{ 'order-2' if is_ai else 'order-1' }}">
+          <div class="rounded-[26px] px-5 py-4 shadow-sm ring-1 {{ 'bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'bg-[#071833] text-white ring-[#071833]' }}">
+            <div class="whitespace-pre-wrap text-[15px] leading-6">
+              {{ (msg.content or '')|e }}
             </div>
-          {% endfor %}
+          </div>
+
+          <div class="mt-2 flex items-center gap-2 text-[12px] text-slate-400 {{ 'justify-start pl-1' if is_ai else 'justify-end pr-1' }}">
+            <span class="font-medium text-slate-500">
+              {{ 'Assistant' if is_ai else 'User' }}
+            </span>
+            <span>•</span>
+            <span>{{ msg.created_at }}</span>
+          </div>
+
+          {% if msg.sender == 'guest' and (msg.category or msg.log_type or msg.sentiment) %}
+            <div class="mt-1 text-[11px] text-slate-400 {{ 'text-left pl-1' if is_ai else 'text-right pr-1' }}">
+              {% if msg.category %}Category: {{ msg.category }}{% else %}Category: —{% endif %}
+              •
+              {% if msg.log_type %}Log: {{ msg.log_type }}{% else %}Log: —{% endif %}
+              •
+              {% if msg.sentiment %}Sentiment: {{ msg.sentiment }}{% else %}Sentiment: —{% endif %}
+            </div>
+          {% endif %}
         </div>
+
+        {% if not is_ai %}
+          <div class="order-2 flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-slate-100 ring-1 ring-slate-200 text-[18px]">
+            👤
+          </div>
+        {% endif %}
       </div>
+    {% endfor %}
+  </div>
+</div>
 
     </div>
 
