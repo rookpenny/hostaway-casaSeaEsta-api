@@ -9,27 +9,30 @@ async function loadAIInsights() {
   const humanDetailEl = document.getElementById("insight-human-detail");
 
   if (
-    !topIssueEl ||
-    !topIssueDetailEl ||
-    !riskEl ||
-    !riskDetailEl ||
-    !automationEl ||
-    !automationDetailEl ||
-    !humanEl ||
-    !humanDetailEl
-  ) {
-    return;
-  }
+    !topIssueEl || !topIssueDetailEl ||
+    !riskEl || !riskDetailEl ||
+    !automationEl || !automationDetailEl ||
+    !humanEl || !humanDetailEl
+  ) return;
 
   try {
-    const res = await fetch("/api/analytics/ai-insights", {
+    const params = new URLSearchParams();
+
+    const pmcFilter = document.getElementById("analyticsPmcFilter");
+    const propertyFilter = document.getElementById("analyticsPropertyFilter");
+
+    if (pmcFilter?.value) params.set("pmc_id", pmcFilter.value);
+    if (propertyFilter?.value) params.set("property_id", propertyFilter.value);
+
+    const qs = params.toString();
+    const url = qs ? `/analytics/ai-insights?${qs}` : "/analytics/ai-insights";
+
+    const res = await fetch(url, {
       credentials: "include",
       headers: { Accept: "application/json" },
     });
 
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
 
     const data = await res.json();
 
@@ -47,51 +50,40 @@ async function loadAIInsights() {
     humanDetailEl.innerText = `${data.needs_human || 0} chats`;
   } catch (err) {
     console.error("loadAIInsights failed:", err);
-
-    topIssueEl.innerText = "Unavailable";
-    topIssueDetailEl.innerText = "Could not load";
-
-    riskEl.innerText = "Unavailable";
-    riskDetailEl.innerText = "Could not load";
-
-    automationEl.innerText = "Unavailable";
-    automationDetailEl.innerText = "Could not load";
-
-    humanEl.innerText = "Unavailable";
-    humanDetailEl.innerText = "Could not load";
   }
 }
 
 window.applyInsightFilter = function (type) {
+  const params = new URLSearchParams();
+  params.set("view", "chats");
+
+  const pmcFilter = document.getElementById("analyticsPmcFilter");
+  const propertyFilter = document.getElementById("analyticsPropertyFilter");
+
+  if (pmcFilter?.value) params.set("pmc_id", pmcFilter.value);
+  if (propertyFilter?.value) params.set("property_id", propertyFilter.value);
+
   if (type === "top_issue") {
-    window.location.href = "/admin/dashboard?view=chats&filter=ops_category";
-    return;
+    params.set("conversation_group", "monitor");
+  } else if (type === "high_risk") {
+    params.set("conversation_group", "needs_attention");
+    params.set("action_priority", "urgent");
+  } else if (type === "automation") {
+    params.set("conversation_group", "monitor");
+    params.set("action_priority", "low");
+  } else if (type === "needs_human") {
+    params.set("conversation_group", "needs_attention");
   }
 
-  if (type === "high_risk") {
-    window.location.href = "/admin/dashboard?view=chats&severity=high";
-    return;
-  }
-
-  if (type === "automation") {
-    window.location.href = "/admin/dashboard?view=chats&severity=low";
-    return;
-  }
-
-  if (type === "needs_human") {
-    window.location.href = "/admin/dashboard?view=chats&needs_human=true";
-    return;
-  }
+  window.location.href = `/admin/dashboard?${params.toString()}`;
 };
 
 document.addEventListener("DOMContentLoaded", () => {
-  const hasInsightsUI =
-    document.getElementById("insight-top-issue") ||
-    document.getElementById("insight-risk") ||
-    document.getElementById("insight-automation") ||
-    document.getElementById("insight-human");
-
+  const hasInsightsUI = document.getElementById("insight-top-issue");
   if (!hasInsightsUI) return;
 
   loadAIInsights();
+
+  document.getElementById("analyticsPmcFilter")?.addEventListener("change", loadAIInsights);
+  document.getElementById("analyticsPropertyFilter")?.addEventListener("change", loadAIInsights);
 });
