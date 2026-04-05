@@ -1625,7 +1625,7 @@
 
 
 
-<section id="view-chats" class="view space-y-6 {% if initial_view != 'chats' %}hidden{% endif %}">
+<section id="view-chats" class="view {% if selected_session %}space-y-0{% else %}space-y-6{% endif %} {% if initial_view != 'chats' %}hidden{% endif %}">
   {% if not selected_session %}
   <div>
     <div class="text-[32px] font-semibold tracking-[-0.04em] text-slate-950">Conversations</div>
@@ -1709,110 +1709,115 @@
     </div>
     {% endif %}
 
-    <div class="overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
-      <div class="p-6">
-        {% if not selected_session %}
-        <form id="chatFilters" method="get" action="/admin/dashboard" class="space-y-4">
-          <input type="hidden" name="view" value="chats" />
-          {% set lifecycle = filters.lifecycle or '' %}
-          {% set conversation_group = filters.conversation_group or '' %}
+    <!-- SEARCH / FILTER CARD -->
+{% if not selected_session %}
+<div class="sticky top-28 z-10 overflow-hidden rounded-[28px] border border-slate-200/80 bg-white/90 shadow-[0_8px_30px_rgba(15,23,42,0.04)] backdrop-blur-sm">
+  <div class="p-6">
+    <form id="chatFilters" method="get" action="/admin/dashboard" class="space-y-4">
+      <input type="hidden" name="view" value="chats" />
+      {% set lifecycle = filters.lifecycle or '' %}
+      {% set conversation_group = filters.conversation_group or '' %}
 
-          <div class="relative w-full">
-            <div class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">⌕</div>
-            <input
-              type="text"
-              name="q"
-              value="{{ filters.q or '' }}"
-              placeholder="Search every chat, guest, issue, or property..."
-              class="h-12 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
-            />
-          </div>
+      <div class="relative w-full">
+        <div class="pointer-events-none absolute inset-y-0 left-4 flex items-center text-slate-400">⌕</div>
+        <input
+          type="text"
+          name="q"
+          value="{{ filters.q or '' }}"
+          placeholder="Search every chat, guest, issue, or property..."
+          class="h-12 w-full rounded-full border border-slate-200 bg-white pl-11 pr-4 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none"
+        />
+      </div>
 
-          <div class="flex flex-wrap items-center gap-3">
-            <select name="lifecycle" class="h-11 min-w-[210px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="" {% if not lifecycle %}selected{% endif %}>Lifecycle</option>
-              <option value="inquiry" {% if lifecycle == 'inquiry' %}selected{% endif %}>Inquiry</option>
-              <option value="upcoming" {% if lifecycle == 'upcoming' %}selected{% endif %}>🗓️ Upcoming stay</option>
-              <option value="current" {% if lifecycle == 'current' %}selected{% endif %}>🏡 Currently staying</option>
-              <option value="checked_out" {% if lifecycle == 'checked_out' %}selected{% endif %}>✅ Checked out</option>
-            </select>
+      <div class="flex flex-wrap items-center gap-3">
+        <select name="lifecycle" class="h-11 min-w-[210px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="" {% if not lifecycle %}selected{% endif %}>Lifecycle</option>
+          <option value="inquiry" {% if lifecycle == 'inquiry' %}selected{% endif %}>Inquiry</option>
+          <option value="upcoming" {% if lifecycle == 'upcoming' %}selected{% endif %}>🗓️ Upcoming stay</option>
+          <option value="current" {% if lifecycle == 'current' %}selected{% endif %}>🏡 Currently staying</option>
+          <option value="checked_out" {% if lifecycle == 'checked_out' %}selected{% endif %}>✅ Checked out</option>
+        </select>
 
-            {% if user_role == "super" %}
-            <select name="pmc_id" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="">All PMCs</option>
-              {% for p in pmcs %}
-              <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
-                {{ p.pmc_name }}
-              </option>
-              {% endfor %}
-            </select>
-            {% endif %}
-
-            <select name="property_id" class="h-11 min-w-[220px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="">All properties</option>
-              {% for pr in properties %}
-              <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
-                {{ pr.property_name }}
-              </option>
-              {% endfor %}
-            </select>
-
-            <select name="conversation_group" class="h-11 min-w-[180px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="" {% if not conversation_group %}selected{% endif %}>Conversation type</option>
-              <option value="needs_attention" {% if conversation_group == "needs_attention" %}selected{% endif %}>Needs attention</option>
-              <option value="monitor" {% if conversation_group == "monitor" %}selected{% endif %}>Monitor</option>
-              <option value="healthy" {% if conversation_group == "healthy" %}selected{% endif %}>Healthy</option>
-            </select>
-
-            <select id="moodFilter" name="emotional_signals_filter" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
-              <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>Signal</option>
-              <option value="panicked" {% if filters.emotional_signals_filter == "panicked" %}selected{% endif %}>Panicked</option>
-              <option value="angry" {% if filters.emotional_signals_filter == "angry" %}selected{% endif %}>Angry</option>
-              <option value="upset" {% if filters.emotional_signals_filter == "upset" %}selected{% endif %}>Upset</option>
-              <option value="confused" {% if filters.emotional_signals_filter == "confused" %}selected{% endif %}>Confused</option>
-              <option value="worried" {% if filters.emotional_signals_filter == "worried" %}selected{% endif %}>Worried</option>
-              <option value="calm" {% if filters.emotional_signals_filter == "calm" %}selected{% endif %}>Calm</option>
-            </select>
-
-            <a href="/admin/dashboard?view=chats" class="inline-flex h-11 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
-              Reset
-            </a>
-          </div>
-        </form>
+        {% if user_role == "super" %}
+        <select name="pmc_id" class="h-11 rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="">All PMCs</option>
+          {% for p in pmcs %}
+          <option value="{{ p.id }}" {% if (filters.pmc_id|string) == (p.id|string) %}selected{% endif %}>
+            {{ p.pmc_name }}
+          </option>
+          {% endfor %}
+        </select>
         {% endif %}
 
-        {% if stay_pulse and stay_pulse.filter_tag %}
-        <div class="mt-5 rounded-[20px] border border-[#D7E3FF] bg-[#EEF4FF] px-4 py-3">
-          <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-            <div>
-              <div class="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#245BFF]">
-                Trend filter active
-              </div>
-              <div class="mt-1 text-[14px] font-medium text-slate-900">
-                Showing conversations related to {{ stay_pulse.filter_tag }}
-              </div>
-            </div>
+        <select name="property_id" class="h-11 min-w-[220px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="">All properties</option>
+          {% for pr in properties %}
+          <option value="{{ pr.id }}" {% if (filters.property_id|string) == (pr.id|string) %}selected{% endif %}>
+            {{ pr.property_name }}
+          </option>
+          {% endfor %}
+        </select>
 
-            <div class="flex items-center gap-2">
-              <button
-                type="button"
-                onclick="applyTrendFilter('{{ stay_pulse.filter_tag|e }}')"
-                class="inline-flex h-10 items-center rounded-full border border-[#D7E3FF] bg-[#EEF4FF] px-4 text-[13px] font-semibold text-[#245BFF]">
-                Filter conversations
-              </button>
+        <select name="conversation_group" class="h-11 min-w-[180px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="" {% if not conversation_group %}selected{% endif %}>Conversation type</option>
+          <option value="needs_attention" {% if conversation_group == "needs_attention" %}selected{% endif %}>Needs attention</option>
+          <option value="monitor" {% if conversation_group == "monitor" %}selected{% endif %}>Monitor</option>
+          <option value="healthy" {% if conversation_group == "healthy" %}selected{% endif %}>Healthy</option>
+        </select>
 
-              <button
-                type="button"
-                onclick="clearTrendFilter()"
-                class="inline-flex h-10 items-center rounded-full border border-[#C7D8FF] bg-white px-4 text-[13px] font-semibold text-[#245BFF]">
-                Clear filter
-              </button>
-            </div>
+        <select id="moodFilter" name="emotional_signals_filter" class="h-11 min-w-[160px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
+          <option value="" {% if not filters.emotional_signals_filter %}selected{% endif %}>Signal</option>
+          <option value="panicked" {% if filters.emotional_signals_filter == "panicked" %}selected{% endif %}>Panicked</option>
+          <option value="angry" {% if filters.emotional_signals_filter == "angry" %}selected{% endif %}>Angry</option>
+          <option value="upset" {% if filters.emotional_signals_filter == "upset" %}selected{% endif %}>Upset</option>
+          <option value="confused" {% if filters.emotional_signals_filter == "confused" %}selected{% endif %}>Confused</option>
+          <option value="worried" {% if filters.emotional_signals_filter == "worried" %}selected{% endif %}>Worried</option>
+          <option value="calm" {% if filters.emotional_signals_filter == "calm" %}selected{% endif %}>Calm</option>
+        </select>
+
+        <a href="/admin/dashboard?view=chats" class="inline-flex h-11 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
+          Reset
+        </a>
+      </div>
+    </form>
+
+    {% if stay_pulse and stay_pulse.filter_tag %}
+    <div class="mt-5 rounded-[20px] border border-[#D7E3FF] bg-[#EEF4FF] px-4 py-3">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <div>
+          <div class="text-[12px] font-semibold uppercase tracking-[0.12em] text-[#245BFF]">
+            Trend filter active
+          </div>
+          <div class="mt-1 text-[14px] font-medium text-slate-900">
+            Showing conversations related to {{ stay_pulse.filter_tag }}
           </div>
         </div>
-        {% endif %}
 
-        <div id="chat-list-wrap" class="mt-5 space-y-6">
+        <div class="flex items-center gap-2">
+          <button
+            type="button"
+            onclick="applyTrendFilter('{{ stay_pulse.filter_tag|e }}')"
+            class="inline-flex h-10 items-center rounded-full border border-[#D7E3FF] bg-[#EEF4FF] px-4 text-[13px] font-semibold text-[#245BFF]">
+            Filter conversations
+          </button>
+
+          <button
+            type="button"
+            onclick="clearTrendFilter()"
+            class="inline-flex h-10 items-center rounded-full border border-[#C7D8FF] bg-white px-4 text-[13px] font-semibold text-[#245BFF]">
+            Clear filter
+          </button>
+        </div>
+      </div>
+    </div>
+    {% endif %}
+  </div>
+</div>
+{% endif %}
+
+<!-- CHAT LIST OUTSIDE THE WHITE FRAME -->
+{% if not selected_session %}
+<div id="chat-list-wrap" class="mt-6 space-y-6">
           {% set filtered_sessions = [] %}
 
           {% for s in sessions %}
@@ -2046,38 +2051,22 @@
                 Load more chats
               </button>
             </div>
-          {% else %}
+            {% else %}
             <div class="rounded-[24px] border border-slate-200 bg-white p-6 text-sm text-slate-500 shadow-sm">
               No conversations match your current filters.
             </div>
-          {% endif %}
-        </div>
-
-        <div id="chat-detail-inline" class="mt-5 {% if not selected_session %}hidden{% endif %}">
-          <div>
-          <!--div class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
-            {% if not selected_session %}
-            <div class="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-              <div class="text-[16px] font-semibold text-slate-900">Conversation detail</div>
-              <button
-                id="chat-detail-back"
-                type="button"
-                class="inline-flex h-10 items-center rounded-full border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 hover:bg-slate-50">
-                Back to chats
-              </button>
+            {% endif %}
             </div>
-            {% endif %}-->
-
-            <div id="chat-detail-panel" class="p-5">
-              <div id="chat-detail-empty" class="text-sm text-slate-500">
-                Select a chat session to view details.
+            {% endif %}
+            
+            <!-- CHAT DETAIL -->
+            <div id="chat-detail-inline" class="mt-6 {% if not selected_session %}hidden{% endif %}">
+              <div id="chat-detail-panel" class="p-0">
+                <div id="chat-detail-empty" class="text-sm text-slate-500">
+                  Select a chat session to view details.
+                </div>
               </div>
             </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
 </section>
 
 
