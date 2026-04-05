@@ -2167,6 +2167,44 @@
   </div>
 </div>
 
+            <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+  <div
+    class="insight-card cursor-pointer"
+    onclick="applyInsightFilter('top_issue')"
+  >
+    <div class="text-xs text-slate-500">Top Issue</div>
+    <div id="insight-top-issue" class="mt-1 text-lg font-semibold text-slate-950">—</div>
+    <div id="insight-top-issue-detail" class="mt-1 text-xs text-slate-400">—</div>
+  </div>
+
+  <div
+    class="insight-card cursor-pointer"
+    onclick="applyInsightFilter('high_risk')"
+  >
+    <div class="text-xs text-slate-500">Highest Risk</div>
+    <div id="insight-risk" class="mt-1 text-lg font-semibold text-slate-950">—</div>
+    <div id="insight-risk-detail" class="mt-1 text-xs text-slate-400">—</div>
+  </div>
+
+  <div
+    class="insight-card cursor-pointer"
+    onclick="applyInsightFilter('automation')"
+  >
+    <div class="text-xs text-slate-500">Automation Opportunity</div>
+    <div id="insight-automation" class="mt-1 text-lg font-semibold text-slate-950">—</div>
+    <div id="insight-automation-detail" class="mt-1 text-xs text-slate-400">—</div>
+  </div>
+
+  <div
+    class="insight-card cursor-pointer"
+    onclick="applyInsightFilter('needs_human')"
+  >
+    <div class="text-xs text-slate-500">Needs Human</div>
+    <div id="insight-human" class="mt-1 text-lg font-semibold text-slate-950">—</div>
+    <div id="insight-human-detail" class="mt-1 text-xs text-slate-400">—</div>
+  </div>
+</div>
+
             <div class="mt-4 grid grid-cols-2 md:grid-cols-6 gap-2" id="analyticsCards">
               <div class="bg-slate-50 rounded-2xl border border-slate-200 p-3">
                 <div class="text-xs text-slate-500">Sessions</div>
