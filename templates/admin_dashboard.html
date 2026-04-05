@@ -2059,16 +2059,12 @@
             </div>
             {% endif %}
             
-            <!-- CHAT DETAIL -->
+<!-- CHAT DETAIL -->
 <div id="chat-detail-inline" class="mt-6 {% if not selected_session %}hidden{% endif %}">
   <div id="chat-detail-panel" class="p-0">
-    {% if selected_session %}
-      {% include "partials/chat_detail_panel.html" %}
-    {% else %}
-      <div id="chat-detail-empty" class="text-sm text-slate-500">
-        Select a chat session to view details.
-      </div>
-    {% endif %}
+    <div id="chat-detail-empty" class="text-sm text-slate-500">
+      Select a chat session to view details.
+    </div>
   </div>
 </div>
 </section>
