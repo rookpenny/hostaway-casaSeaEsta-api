@@ -189,10 +189,15 @@
 
           <div class="mt-2 flex items-center gap-2 text-[12px] text-slate-400">
             <span class="font-medium text-slate-500">
-              {{ 'Assistant' if is_ai else 'User' }}
+              {{ 'Assistant' if is_ai else {{ session.guest_name or "Guest" }} }}
             </span>
             <span>•</span>
-            <span>{{ msg.created_at }}</span>
+            <span
+                class="js-chat-time"
+                data-ts="{{ msg.created_at.isoformat() if msg.created_at.isoformat is defined else msg.created_at }}"
+              >
+                {{ msg.created_at }}
+              </span>
           </div>
 
           {% if msg.sender == 'guest' and (msg.category or msg.log_type or msg.sentiment) %}
