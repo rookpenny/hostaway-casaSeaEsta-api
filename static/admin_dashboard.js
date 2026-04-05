@@ -467,7 +467,7 @@ document.addEventListener("click", (e) => {
   );
   if (filterCard) filterCard.classList.remove("hidden");
 
-  if (pageTitle) pageTitle.textContent = "Chats";
+  if (pageTitle) pageTitle.textContent = "Conversations";
   if (pageSubtitle) pageSubtitle.textContent = "Monitor how your AI is performing across every stage of the stay lifecycle.";
 
   const url = new URL(window.location.href);
@@ -4566,6 +4566,20 @@ function initAllReorderTables() {
 let routingInitialized = false;
 let currentViewKey = null;
 
+const titles = {
+  overview: "Overview",
+  properties: "Properties",
+  chats: "Conversations",
+  pmcs: "PMCs",
+  guides: "Guides",
+  upgrades: "Upgrades",
+  files: "Files",
+  analytics: "Analytics",
+  settings: "Settings",
+  payouts: "Payouts",
+  admin_payouts: "Revenue",
+};
+
 function initRouting() {
   if (routingInitialized) return;
   routingInitialized = true;
@@ -4587,67 +4601,19 @@ function initRouting() {
   settings: "Account and system settings",
 };
 
-  async function showView(key) {
-    key = (key || "overview").toLowerCase();
-
-    // fallback safety FIRST
-    if (!document.getElementById(`view-${key}`)) key = "overview";
-
-    if (key === currentViewKey) return;
-    currentViewKey = key;
-
-    if (key === "messages") {
-      await window.Messages?.openView?.();
-    }
-
-
-    // show/hide views
-    views.forEach(v => v.classList.add("hidden"));
-    document.getElementById(`view-${key}`)?.classList.remove("hidden");
-
-    // active nav
-    navItems.forEach(btn => {
-      btn.setAttribute("aria-current", "false");
-      btn.classList.remove("active");
-    });
-    
-    const activeBtn = navItems.find(b => (b.dataset.view || "").toLowerCase() === key);
-    if (activeBtn) {
-      activeBtn.setAttribute("aria-current", "page");
-      activeBtn.classList.add("active");
-    }
-
-    // titles
-    const label = activeBtn?.querySelector(".sidebar-label")?.textContent?.trim() || "Overview";
-    if (pageTitle) pageTitle.textContent = label;
-    if (pageSubtitle) pageSubtitle.textContent = subtitles[key] || "";
-
-    // view hooks
-    if (key === "properties") filterProperties();
-
-    if (key === "settings") {
-      initSettingsUI();
-      showSettingsPanel(getSettingsTabFromHash());
-    }
-
-    if (key === "guides" && !Guides.loaded) {
-      Guides.loaded = true;
-      Guides.refresh();
-    }
-
-    if (key === "upgrades" && !Upgrades.loaded) {
-      Upgrades.loaded = true;
-      Upgrades.refresh();
-    }
-
-    if (key === "analytics") {
-      const days = document.getElementById("analyticsRange")?.value || 30;
-      requestAnimationFrame(() => {
-        loadChatAnalytics(days);
-        resizeChatAnalyticsChartSoon();
-      });
-    }
-  }
+  const titles = {
+  overview: "Overview",
+  properties: "Properties",
+  chats: "Conversations",
+  pmcs: "PMCs",
+  guides: "Guides",
+  upgrades: "Upgrades",
+  files: "Files",
+  analytics: "Analytics",
+  settings: "Settings",
+  payouts: "Payouts",
+  admin_payouts: "Revenue",
+};
 
   function route() {
   const params = new URLSearchParams(window.location.search);
