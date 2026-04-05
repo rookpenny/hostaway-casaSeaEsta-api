@@ -70,19 +70,7 @@ window.Chats = window.Chats || {};
   // -----------------------------------
   // View metadata + single source of truth
   // -----------------------------------
-  const VIEW_TITLES = {
-    overview: ["Overview", "Your portfolio at a glance"],
-    chats: ["Chats", "Guest conversations and issues"],
-    analytics: ["Analytics", "Performance across your portfolio"],
-    properties: ["Properties", "Manage listing status and configuration"],
-    guides: ["Guides", "Create and manage guest guides per property."],
-    upgrades: ["Upgrades", "Manage paid add-ons and offerings"],
-    pmcs: ["PMCs", "Property management companies"],
-    files: ["Configs & Manuals", "Central file management"],
-    payouts: ["Payouts", "Revenue and transfers"],
-    admin_payouts: ["Revenue", "HostScout platform revenue"],
-    settings: ["Settings", "Workspace and account controls"],
-  };
+
 
 function goToView(view) {
   const url = new URL(window.location.href);
@@ -92,39 +80,6 @@ function goToView(view) {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
-  function setActiveView(viewName) {
-    const pageTitle = $("page-title");
-    const pageSubtitle = $("page-subtitle");
-
-    qsa("[data-view]").forEach((item) => {
-      const active = item.getAttribute("data-view") === viewName;
-      item.classList.toggle("active", active);
-      item.setAttribute("aria-current", active ? "page" : "false");
-    });
-
-    qsa(".view").forEach((panel) => {
-      panel.classList.add("hidden");
-      panel.classList.remove("fade-in");
-    });
-
-    const activePanel = $(`view-${viewName}`);
-    if (activePanel) {
-      activePanel.classList.remove("hidden");
-      activePanel.classList.add("fade-in");
-    }
-
-    if (pageTitle && VIEW_TITLES[viewName]) {
-      pageTitle.textContent = VIEW_TITLES[viewName][0];
-    }
-
-    if (pageSubtitle && VIEW_TITLES[viewName]) {
-      pageSubtitle.textContent = VIEW_TITLES[viewName][1];
-    }
-
-    const url = new URL(window.location.href);
-    url.searchParams.set("view", viewName);
-    window.history.replaceState({}, "", url.toString());
-  }
 
   // -----------------------------------
   // Global functions used by inline HTML
@@ -393,13 +348,28 @@ function initChatLoadMore() {
 function setInlineDetailOpen(open) {
   const inline = document.getElementById("chat-detail-inline");
   const list = document.getElementById("chat-list-wrap");
-  if (!inline || !list) return;
 
+  const chatsView = document.getElementById("view-chats");
+  const filterCard = chatsView?.querySelector(".sticky.top-28");
+  const insightCards = chatsView?.querySelector(".grid.gap-4");
+
+  if (!inline || !list || !chatsView) return;
+
+  // Toggle main sections
   inline.classList.toggle("hidden", !open);
   list.classList.toggle("hidden", open);
 
+  // Hide/show top UI layers
+  if (filterCard) filterCard.classList.toggle("hidden", open);
+  if (insightCards) insightCards.classList.toggle("hidden", open);
+
+  // Tighten spacing when in detail mode
+  chatsView.classList.toggle("space-y-0", open);
+  chatsView.classList.toggle("space-y-6", !open);
+
+  // Optional: prevent weird scroll jumps
   if (open) {
-    inline.scrollIntoView({ behavior: "smooth", block: "start" });
+    window.scrollTo({ top: 0, behavior: "smooth" });
   }
 }
 
@@ -438,43 +408,6 @@ function closeChatDetail() {
 }
 
 window.openChatDetail = openChatDetail;
-
-document.addEventListener("click", (e) => {
-  const backBtn = e.target.closest("#chat-detail-back");
-  if (!backBtn) return;
-
-  const chatsView = document.getElementById("view-chats");
-  const chatList = document.getElementById("chat-list-wrap");
-  const chatDetail = document.getElementById("chat-detail-inline");
-  const pageTitle = document.getElementById("page-title");
-  const pageSubtitle = document.getElementById("page-subtitle");
-
-  if (chatDetail) chatDetail.classList.add("hidden");
-  if (chatList) chatList.classList.remove("hidden");
-
-  if (chatsView) {
-    chatsView.classList.remove("hidden");
-    chatsView.classList.remove("space-y-0");
-    chatsView.classList.add("space-y-6");
-  }
-
-  document.querySelectorAll("#view-chats > div .grid.gap-4.xl\\:grid-cols-3").forEach((el) => {
-    el.classList.remove("hidden");
-  });
-
-  const filterCard = document.querySelector(
-    '#view-chats .sticky.top-28'
-  );
-  if (filterCard) filterCard.classList.remove("hidden");
-
-  if (pageTitle) pageTitle.textContent = "Conversations";
-  if (pageSubtitle) pageSubtitle.textContent = "Monitor how your AI is performing across every stage of the stay lifecycle.";
-
-  const url = new URL(window.location.href);
-  url.searchParams.set("view", "chats");
-  url.searchParams.delete("session_id");
-  window.history.replaceState({}, "", url);
-});
 
 function parseTimestamp(ts) {
   if (!ts) return null;
@@ -4721,53 +4654,6 @@ function initRouting() {
   route();
 }
 
-// nav clicks
-navItems.forEach(btn => {
-  btn.addEventListener("click", (e) => {
-    e.preventDefault();
-    const key = (btn.dataset.view || "overview").toLowerCase();
-
-    const url = new URL(window.location.href);
-    url.searchParams.delete("session_id");
-    url.searchParams.set("view", key);
-
-    if (key === "chats") {
-      url.hash = "";
-      closeChatDetail();   // ✅ force chat detail closed
-    } else {
-      url.hash = `#${key}`;
-    }
-
-    history.pushState(null, "", url.toString());
-    showView(key);
-  });
-});
-
-window.addEventListener("popstate", route);
-window.addEventListener("hashchange", route);
-
-route();
-}
-
-
-
-
-
-document.addEventListener("change", (e) => {
-  const form = document.getElementById("chatFilters");
-  if (!form) return;
-
-  // Only auto-submit changes that happen inside the filters form
-  if (!e.target.closest("#chatFilters")) return;
-
-  // Only auto-submit dropdowns (not checkboxes / inputs)
-  if (!(e.target instanceof HTMLSelectElement)) return;
-
-  form.requestSubmit ? form.requestSubmit() : form.submit();
-});
-
-
-
 
 
 function initSyncAllProperties() {
@@ -5650,6 +5536,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initPortfolioChart();
   initRevenueReports();
   initSyncAllProperties();
+  
 
   initChatBatchActions();
   initChatDetailDelete();
