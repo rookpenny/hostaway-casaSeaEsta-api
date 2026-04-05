@@ -439,36 +439,42 @@ function closeChatDetail() {
 
 window.openChatDetail = openChatDetail;
 
-function initChatRowNavigation() {
-  document.addEventListener("click", (e) => {
-    const backBtn = e.target.closest("#chat-detail-back");
-    if (backBtn) {
-      e.preventDefault();
-      closeChatDetail();
-      return;
-    }
+document.addEventListener("click", (e) => {
+  const backBtn = e.target.closest("#chat-detail-back");
+  if (!backBtn) return;
 
-    const row = e.target.closest("[data-session-row]");
-    if (!row) return;
+  const chatsView = document.getElementById("view-chats");
+  const chatList = document.getElementById("chat-list-wrap");
+  const chatDetail = document.getElementById("chat-detail-inline");
+  const pageTitle = document.getElementById("page-title");
+  const pageSubtitle = document.getElementById("page-subtitle");
 
-    if (e.target.closest("a, button, input, textarea, select, label")) return;
+  if (chatDetail) chatDetail.classList.add("hidden");
+  if (chatList) chatList.classList.remove("hidden");
 
-    const sid = row.getAttribute("data-session-row");
-    if (!sid) return;
+  if (chatsView) {
+    chatsView.classList.remove("hidden");
+    chatsView.classList.remove("space-y-0");
+    chatsView.classList.add("space-y-6");
+  }
 
-    openChatDetail(sid);
+  document.querySelectorAll("#view-chats > div .grid.gap-4.xl\\:grid-cols-3").forEach((el) => {
+    el.classList.remove("hidden");
   });
 
-  window.addEventListener("popstate", () => {
-    const sid = new URLSearchParams(window.location.search).get("session_id");
-    if (sid) {
-      setInlineDetailOpen(true);
-      loadChatDetail(sid);
-    } else {
-      closeChatDetail();
-    }
-  });
-}
+  const filterCard = document.querySelector(
+    '#view-chats .sticky.top-28'
+  );
+  if (filterCard) filterCard.classList.remove("hidden");
+
+  if (pageTitle) pageTitle.textContent = "Chats";
+  if (pageSubtitle) pageSubtitle.textContent = "Monitor how your AI is performing across every stage of the stay lifecycle.";
+
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", "chats");
+  url.searchParams.delete("session_id");
+  window.history.replaceState({}, "", url);
+});
 
 function parseTimestamp(ts) {
   if (!ts) return null;
