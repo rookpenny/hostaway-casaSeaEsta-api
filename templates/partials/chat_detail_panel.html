@@ -173,14 +173,14 @@
     {% for msg in messages %}
       {% set is_ai = msg.sender == 'assistant' %}
 
-      <div class="flex items-end gap-3 {{ 'justify-start' if is_ai else 'justify-end' }}">
+      <div class="flex items-end gap-3">
         {% if is_ai %}
           <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 ring-1 ring-blue-200 text-[18px]">
             🤖
           </div>
         {% endif %}
 
-        <div class="flex flex-col {{ 'items-start' if is_ai else 'items-end' }}">
+        <div class="flex flex-col {{ 'items-start' if is_ai else 'items-end ml-auto' }}">
           <div class="inline-block max-w-[420px] rounded-[18px] px-4 py-2 shadow-sm ring-1 {{ 'bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'bg-[#071833] text-white ring-[#071833]' }}">
             <div class="whitespace-pre-wrap text-[14px] leading-5">
               {{ (msg.content or '')|e }}
