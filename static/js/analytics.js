@@ -26,3 +26,14 @@ async function loadAIInsights() {
   document.getElementById("insight-human-detail").innerText =
     `${data.needs_human} chats`;
 }
+
+
+document.addEventListener("DOMContentLoaded", () => {
+  const isAnalyticsPage =
+    document.getElementById("chatAnalyticsChart") ||
+    document.getElementById("insight-top-issue");
+
+  if (!isAnalyticsPage) return;
+
+  loadAIInsights();
+});
