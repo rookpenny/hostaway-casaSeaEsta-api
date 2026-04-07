@@ -49,8 +49,6 @@ from urllib.parse import urlparse
 from utils.ai_summary import generate_and_store_summary
 from zoneinfo import ZoneInfo  # Python 3.9+
 
-from collections import defaultdict
-
 
 router = APIRouter()
 
@@ -359,28 +357,7 @@ def batch_message_signals(
     return out
 
 
-@admin_bp.route("/admin/api/chats")
-def get_chats():
-    from sqlalchemy import func
-    from flask import request, jsonify
 
-    query = ChatSession.query
-
-    date = request.args.get("date")
-
-    if date:
-        query = query.filter(func.date(ChatSession.created_at) == date)
-
-    sessions = query.order_by(ChatSession.created_at.desc()).all()
-
-    return jsonify([
-        {
-            "id": s.id,
-            "created_at": s.created_at.isoformat() if s.created_at else None,
-            "status": getattr(s, "status", None)
-        }
-        for s in sessions
-    ])
 
         
 # ----------------------------
@@ -2578,59 +2555,6 @@ def _apply_scope_to_session_query(q, user_role: str, pmc_obj: Optional[PMC]):
 # Aliases to match admin dashboard frontend endpoint expectations
 # (keeps your existing routes working too)
 # -------------------------------------------------------------------
-
-
-from sqlalchemy import func
-from collections import defaultdict
-
-@admin_bp.route("/admin/api/analytics")
-def admin_analytics():
-    sessions = ChatSession.query.all()
-
-    daily = defaultdict(lambda: {
-        "chats": 0,
-        "resolved": 0,
-        "escalated": 0
-    })
-
-    for s in sessions:
-        if not s.created_at:
-            continue
-
-        day = s.created_at.date().isoformat()
-
-        daily[day]["chats"] += 1
-
-        # Adjust based on your actual schema
-        if getattr(s, "status", None) == "resolved":
-            daily[day]["resolved"] += 1
-
-        if getattr(s, "needs_attention", False):
-            daily[day]["escalated"] += 1
-
-    result = [
-        {
-            "date": d,
-            **vals
-        }
-        for d, vals in sorted(daily.items())
-    ]
-
-    total_chats = sum(d["chats"] for d in result)
-    total_escalated = sum(d["escalated"] for d in result)
-
-    return jsonify({
-        "daily": result,
-        "totals": {
-            "chats": total_chats,
-            "escalations": total_escalated,
-            "resolution_rate": (
-                (total_chats - total_escalated) / total_chats
-                if total_chats else 0
-            )
-        }
-    })
-
 
 @router.get("/admin/analytics/chat/summary")
 def admin_analytics_chat_summary(
