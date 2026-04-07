@@ -67,6 +67,86 @@ window.Chats = window.Chats || {};
     });
   }
 
+
+async function loadAnalytics() {
+  const res = await fetch('/admin/api/analytics');
+  const data = await res.json();
+
+  initAnalyticsChart(data.daily);
+}
+
+function initAnalyticsChart(daily) {
+  const ctx = document.getElementById('analyticsChart');
+
+  const labels = daily.map(d => d.date);
+  const chats = daily.map(d => d.chats);
+  const escalations = daily.map(d => d.escalated);
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Chats',
+          data: chats,
+          tension: 0.4
+        },
+        {
+          label: 'Escalations',
+          data: escalations,
+          tension: 0.4
+        }
+      ]
+    }
+  });
+}
+
+function initAnalyticsChart(daily) {
+  const ctx = document.getElementById('analyticsChart');
+
+  const labels = daily.map(d => d.date);
+  const chats = daily.map(d => d.chats);
+  const escalations = daily.map(d => d.escalated);
+
+  new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        {
+          label: 'Chats',
+          data: chats,
+          tension: 0.4
+        },
+        {
+          label: 'Escalations',
+          data: escalations,
+          tension: 0.4
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+
+      onClick: (e, elements) => {
+        if (!elements.length) return;
+
+        const index = elements[0].index;
+        const selectedDate = labels[index];
+
+        filterChatsByDate(selectedDate);
+      }
+    }
+  });
+}
+
+function filterChatsByDate(date) {
+  console.log("Filtering chats for:", date);
+
+  loadChats({ date }); // reuse your existing chat loader
+}
+
   // -----------------------------------
   // View metadata + single source of truth
   // -----------------------------------
