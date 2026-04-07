@@ -2952,7 +2952,7 @@ def admin_analytics_chat_timeseries(
         },
         "emotion_spike": emotion_spike,
     }
-    }
+    
 
 @router.get("/admin/analytics/chat/top-properties")
 def admin_analytics_chat_top_properties(
