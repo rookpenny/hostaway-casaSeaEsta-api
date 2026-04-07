@@ -359,7 +359,28 @@ def batch_message_signals(
     return out
 
 
+@admin_bp.route("/admin/api/chats")
+def get_chats():
+    from sqlalchemy import func
+    from flask import request, jsonify
 
+    query = ChatSession.query
+
+    date = request.args.get("date")
+
+    if date:
+        query = query.filter(func.date(ChatSession.created_at) == date)
+
+    sessions = query.order_by(ChatSession.created_at.desc()).all()
+
+    return jsonify([
+        {
+            "id": s.id,
+            "created_at": s.created_at.isoformat() if s.created_at else None,
+            "status": getattr(s, "status", None)
+        }
+        for s in sessions
+    ])
 
         
 # ----------------------------
