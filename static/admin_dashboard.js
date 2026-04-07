@@ -2581,268 +2581,547 @@ window.closeInlineManual = function () {
 };
 
 
-  // -------- Paywall flag (server-rendered) --------
-//const IS_LOCKED = {{ (user_role == 'pmc' and needs_payment) | tojson }};
-//const CONTENT_LOCKED = IS_LOCKED;
 
-
- // let chatAnalyticsChart = null;
 
 // ----------------------------
-// Analytics (single definition)
+// Analytics
 // ----------------------------
 window.chatAnalyticsChart = window.chatAnalyticsChart || null;
+window.chatAnalyticsState = {
+  mode: "chats",
+  compare: true,
+  hoveredIndex: null,
+  selectedIndex: null,
+  payload: null,
+};
 
-function rangeToUnixMs(days) {
-  const to = Date.now(); // ms
-  const from = to - (Number(days) * 24 * 60 * 60 * 1000);
-  return { from: Math.floor(from), to: Math.floor(to) };
-  //return { from: Math.floor(from / 1000), to: Math.floor(to / 1000) };
-
+function fmtPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return `${Math.round(n * 10) / 10}%`;
 }
 
-
-
-
-function fmtPct(x) {
-  const n = Number(x);
+function fmtInt(value) {
+  const n = Number(value);
   if (!Number.isFinite(n)) return "—";
-  return `${Math.round(n * 1000) / 10}%`;
+  return n.toLocaleString();
 }
 
 function getAnalyticsFilters() {
-  const days = document.getElementById("analyticsRange")?.value || 30;
-  const propertyId = document.getElementById("analyticsPropertyFilter")?.value || "";
-  const pmcId = document.getElementById("analyticsPmcFilter")?.value || ""; // super only
-  return { days, propertyId, pmcId };
+  return {
+    days: Number(document.getElementById("analyticsRange")?.value || 30),
+    propertyId: document.getElementById("analyticsPropertyFilter")?.value || "",
+    pmcId: document.getElementById("analyticsPmcFilter")?.value || "",
+  };
 }
 
-function buildAnalyticsQS({ from, to, propertyId, pmcId }) {
-  const qs = new URLSearchParams({ from: String(from), to: String(to) });
+function buildAnalyticsQS({ days, propertyId, pmcId }) {
+  const qs = new URLSearchParams();
+  qs.set("days", String(days));
   if (propertyId) qs.set("property_id", String(propertyId));
   if (pmcId) qs.set("pmc_id", String(pmcId));
   return qs.toString();
 }
 
-async function loadTopProperties({ from, to, pmcId, propertyId }) {
-  const tbody = document.getElementById("analyticsTopPropsBody");
-  if (!tbody) return;
+function getEventMeta(eventName) {
+  const key = String(eventName || "").toLowerCase();
+  if (key === "peak") return { icon: "🔥", label: "Peak day" };
+  if (key === "friction") return { icon: "⚠️", label: "Issue spike" };
+  if (key === "convert") return { icon: "📈", label: "High conversion" };
+  if (key === "inquiry") return { icon: "💬", label: "Inquiry surge" };
+  if (key === "quiet") return { icon: "🌙", label: "Quiet day" };
+  return { icon: "•", label: "Stable" };
+}
 
-  const qs = new URLSearchParams({ from: String(from), to: String(to), limit: "10" });
-  if (pmcId) qs.set("pmc_id", String(pmcId));
-  if (propertyId) qs.set("property_id", String(propertyId));
+function currentAnalyticsMode() {
+  return window.chatAnalyticsState?.mode || "chats";
+}
 
-  tbody.innerHTML = `<tr><td class="px-4 py-4 text-slate-500" colspan="6">Loading…</td></tr>`;
+function currentCompareMode() {
+  return !!window.chatAnalyticsState?.compare;
+}
 
-  let res;
-  try {
-    res = await fetch(`/admin/analytics/chat/top-properties?${qs.toString()}`, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-  } catch (e) {
-    console.error("top-properties fetch failed:", e);
-    tbody.innerHTML = `<tr><td class="px-4 py-4 text-rose-600" colspan="6">Network error loading Top Properties.</td></tr>`;
-    return;
-  }
+function analyticsModeValue(day, mode) {
+  if (!day) return 0;
+  if (mode === "conversion") return Number(day.conversion || 0);
+  if (mode === "lost") return Number(day.lost_opportunity || 0);
+  return Number(day.chats || 0);
+}
 
-  if (res.status === 401 || res.status === 403) return loginRedirect();
+function setAnalyticsKpi(name, value) {
+  const el = document.querySelector(`[data-kpi="${name}"]`);
+  if (!el) return;
+  el.textContent = value;
+}
 
-  // ✅ handle 500/other non-OK cleanly
-  if (!res.ok) {
-    const preview = await res.text().catch(() => "");
-    console.error("top-properties HTTP error:", res.status, preview.slice(0, 500));
-    tbody.innerHTML = `<tr><td class="px-4 py-4 text-rose-600" colspan="6">Top Properties failed to load (HTTP ${res.status}).</td></tr>`;
-    return;
-  }
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value == null || value === "" ? "—" : String(value);
+}
 
-    const parsed = await safeReadJson(res);
-  if (!parsed.ok) {
-    console.error("top-properties failed:", parsed.status, parsed.text.slice(0, 500));
-    tbody.innerHTML = `<tr><td class="px-4 py-4 text-rose-600" colspan="6">Top Properties failed to load (HTTP ${parsed.status}).</td></tr>`;
-    return;
-  }
+function setWidth(id, pct) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const n = Math.max(0, Math.min(100, Number(pct || 0)));
+  el.style.width = `${n}%`;
+}
 
-  const rows = parsed.json?.rows || [];
+function renderAnalyticsSummary(summary) {
+  setAnalyticsKpi("sessions_total", fmtInt(summary.sessions_total));
+  setAnalyticsKpi("response_rate", fmtPct(summary.response_rate));
+  setAnalyticsKpi("followup_clicks", fmtInt(summary.followup_clicks));
+  setAnalyticsKpi("chat_errors", fmtInt(summary.chat_errors));
+}
 
+function renderAnalyticsLifecycle(lifecycle) {
+  const total = Number(lifecycle.total || 0) || 1;
 
-  if (!rows.length) {
-    tbody.innerHTML = `<tr><td class="px-4 py-4 text-slate-500" colspan="6">No data yet.</td></tr>`;
-    return;
-  }
+  const inquiry = Number(lifecycle.inquiry || 0);
+  const upcoming = Number(lifecycle.upcoming || 0);
+  const current = Number(lifecycle.current || 0);
+  const post = Number(lifecycle.checked_out || 0);
 
-  const selectedPid = (propertyId || "").trim();
+  setText("analytics-stage-inquiry", `${inquiry}%`);
+  setText("analytics-stage-upcoming", `${upcoming}%`);
+  setText("analytics-stage-current", `${current}%`);
+  setText("analytics-stage-post", `${post}%`);
 
-  tbody.innerHTML = rows.map((r) => {
-    const pid = String(r.property_id ?? "");
-    const isSelected = selectedPid && pid === selectedPid;
+  setWidth("analytics-stage-inquiry-bar", inquiry);
+  setWidth("analytics-stage-upcoming-bar", upcoming);
+  setWidth("analytics-stage-current-bar", current);
+  setWidth("analytics-stage-post-bar", post);
+}
 
+function renderAnalyticsPeak(hours) {
+  setText("analytics-peak-window", hours?.peak_window || "—");
+
+  const barsWrap = document.getElementById("analytics-hour-bars");
+  if (!barsWrap) return;
+
+  const items = Array.isArray(hours?.items) ? hours.items : [];
+  const max = Math.max(...items.map((x) => Number(x.value || 0)), 1);
+
+  barsWrap.innerHTML = items.map((item) => {
+    const h = Math.max(10, Math.round((Number(item.value || 0) / max) * 96));
     return `
-      <tr class="border-t ${isSelected ? "bg-slate-50" : ""}">
-        <td class="px-4 py-3 font-medium">${r.property_name ? r.property_name : `#${pid}`}</td>
-        <td class="px-4 py-3">${r.sessions ?? 0}</td>
-        <td class="px-4 py-3">${r.messages ?? 0}</td>
-        <td class="px-4 py-3">${fmtPct(r.followup_conversion_rate)}</td>
-        <td class="px-4 py-3">${r.chat_errors ?? 0}</td>
-        <td class="px-4 py-3">${r.contact_host_clicks ?? 0}</td>
-      </tr>
+      <div class="flex flex-col items-center gap-2">
+        <div class="flex h-[100px] items-end">
+          <div class="w-8 rounded-t-2xl bg-indigo-500/90" style="height:${h}px"></div>
+        </div>
+        <div class="text-xs font-medium text-slate-500">${item.label}</div>
+      </div>
     `;
   }).join("");
 }
 
-   
+function renderAnalyticsInsights(insights) {
+  setText("insight-top", insights?.top_issue || "No dominant issue yet");
+  setText("insight-top-detail", insights?.top_issue_detail || "We need more conversation volume before this becomes meaningful.");
 
-async function loadChatAnalytics(daysOverride = null) {
-  try {
-    const { days, propertyId, pmcId } = getAnalyticsFilters();
-    const daysToUse = daysOverride != null ? daysOverride : days;
+  setText("insight-high", insights?.high_risk || "No major risk spike");
+  setText("insight-high-detail", insights?.high_risk_detail || "No concentrated high-risk pattern in the selected window.");
 
-    const { from, to } = rangeToUnixMs(daysToUse);
-    const qs = buildAnalyticsQS({ from, to, propertyId, pmcId });
+  setText("insight-auto", insights?.automation || "No clear automation win yet");
+  setText("insight-auto-detail", insights?.automation_detail || "As more repeat questions appear, this will tighten.");
 
-    // Summary KPIs
-    // Summary KPIs (robust)
-    const summaryRes = await fetch(`/admin/analytics/chat/summary?${qs}`, {
-  credentials: "include",
-  headers: { Accept: "application/json" },
-    });
-    if (summaryRes.status === 401 || summaryRes.status === 403) return loginRedirect();
-    
-    const summaryParsed = await safeReadJson(summaryRes);
-    if (!summaryParsed.ok) {
-      console.error("summary failed:", summaryParsed.status, summaryParsed.text.slice(0, 500));
-    }
-    const summary = summaryParsed.json || {};
-
-
-    document.querySelectorAll("[data-kpi]").forEach((el) => {
-      const k = el.getAttribute("data-kpi");
-      let val = summary?.[k];
-
-      if (k === "response_rate") val = fmtPct(val);
-
-      el.textContent = (val != null && val !== "") ? String(val) : "—";
-
-    });
-
-    // Timeseries
-// Timeseries
-const tsRes = await fetch(`/admin/analytics/chat/timeseries?bucket=day&${qs}`, {
-  credentials: "include",
-  headers: { Accept: "application/json" },
-});
-if (tsRes.status === 401 || tsRes.status === 403) return loginRedirect();
-
-const tsParsed = await safeReadJson(tsRes);
-if (!tsParsed.ok) {
-  console.error("timeseries failed:", tsParsed.status, tsParsed.text.slice(0, 500));
+  setText("insight-human", insights?.needs_human || "—");
+  setText("insight-human-detail", insights?.needs_human_detail || "No additional detail.");
 }
-const ts = tsParsed.json || { labels: [], series: {} };
 
+function renderAnalyticsTopProperties(rows) {
+  const tbody = document.getElementById("analyticsTopPropsBody");
+  if (!tbody) return;
 
-const canvas = document.getElementById("chatAnalyticsChart");
-if (!canvas || typeof canvas.getContext !== "function" || !window.Chart) {
-  console.warn("Chart canvas or Chart.js missing; skipping render.");
-} else {
-  const ctx = canvas.getContext("2d");
+  const items = Array.isArray(rows) ? rows : [];
+  if (!items.length) {
+    tbody.innerHTML = `<tr><td class="py-4 text-slate-500" colspan="6">No data yet.</td></tr>`;
+    return;
+  }
 
-  const labels = Array.isArray(ts.labels) ? ts.labels : [];
-  const series = ts.series && typeof ts.series === "object" ? ts.series : {};
+  tbody.innerHTML = items.map((r) => `
+    <tr class="border-t border-slate-100">
+      <td class="py-3 pr-4 font-medium text-slate-900">${escapeHtml(r.property_name || "Unknown")}</td>
+      <td class="py-3 pr-4 text-slate-600">${fmtInt(r.sessions || 0)}</td>
+      <td class="py-3 pr-4 text-slate-600">${fmtInt(r.messages || 0)}</td>
+      <td class="py-3 pr-4 text-slate-600">${fmtPct(r.followup_conversion_rate || 0)}</td>
+      <td class="py-3 pr-4 text-slate-600">${fmtInt(r.chat_errors || 0)}</td>
+      <td class="py-3 pr-4 text-slate-600">${fmtInt(r.escalations || 0)}</td>
+    </tr>
+  `).join("");
+}
 
-  const sessions = Array.isArray(series.sessions) ? series.sessions : [];
-  const messages = Array.isArray(series.messages) ? series.messages : [];
-  const followupClicks = Array.isArray(series.followup_clicks) ? series.followup_clicks : [];
-  const chatErrors = Array.isArray(series.chat_errors) ? series.chat_errors : [];
+function renderAnalyticsSummaryCards(days, selectedIndex) {
+  const selected = days[selectedIndex] || days[days.length - 1];
+  if (!selected) return;
+
+  const peak = [...days].sort((a, b) => Number(b.chats || 0) - Number(a.chats || 0))[0];
+  const quiet = [...days].sort((a, b) => Number(a.chats || 0) - Number(b.chats || 0))[0];
+  const avg = days.length
+    ? Math.round(days.reduce((sum, d) => sum + Number(d.chats || 0), 0) / days.length)
+    : 0;
+
+  setText("analytics-summary-peak-day", peak?.label || "—");
+  setText("analytics-summary-peak-meta", peak ? `${fmtInt(peak.chats)} chats` : "—");
+
+  setText("analytics-summary-quiet-day", quiet?.label || "—");
+  setText("analytics-summary-quiet-meta", quiet ? `${fmtInt(quiet.chats)} chats` : "—");
+
+  setText("analytics-summary-average", fmtInt(avg));
+
+  setText("analytics-summary-selected", selected?.label || "—");
+  setText(
+    "analytics-summary-selected-meta",
+    selected ? `${selected.delta >= 0 ? "+" : ""}${selected.delta || 0}% delta` : "—"
+  );
+}
+
+function positionAnalyticsHoverLine(chart, index) {
+  const line = document.getElementById("analyticsHoverLine");
+  if (!line || !chart || index == null) return;
+
+  const xScale = chart.scales?.x;
+  if (!xScale) return;
+
+  const x = xScale.getPixelForValue(index);
+  line.classList.remove("hidden");
+  line.style.left = `${x}px`;
+}
+
+function hideAnalyticsHover() {
+  const card = document.getElementById("analyticsChartHoverCard");
+  const line = document.getElementById("analyticsHoverLine");
+  if (card) card.classList.add("hidden");
+  if (line) line.classList.add("hidden");
+}
+
+function showAnalyticsHover(day, chart, index) {
+  const card = document.getElementById("analyticsChartHoverCard");
+  if (!card || !day) return;
+
+  const meta = getEventMeta(day.event);
+  card.classList.remove("hidden");
+
+  const dateEl = card.querySelector("[data-hover-date]");
+  const chatsEl = card.querySelector("[data-hover-chats]");
+  const convEl = card.querySelector("[data-hover-conversion]");
+  const lostEl = card.querySelector("[data-hover-lost]");
+  const signalEl = card.querySelector("[data-hover-signal]");
+
+  if (dateEl) dateEl.textContent = `${day.day} · ${day.label}`;
+  if (chatsEl) chatsEl.textContent = fmtInt(day.chats);
+  if (convEl) convEl.textContent = fmtInt(day.conversion);
+  if (lostEl) lostEl.textContent = fmtInt(day.lost_opportunity);
+  if (signalEl) signalEl.textContent = meta.label;
+
+  positionAnalyticsHoverLine(chart, index);
+}
+
+function renderChatAnalyticsChart(payload) {
+  const canvas = document.getElementById("chatAnalyticsChart");
+  if (!canvas || !window.Chart) return;
+
+  const days = Array.isArray(payload?.days) ? payload.days : [];
+  const labels = days.map((d) => d.day);
+  const mode = currentAnalyticsMode();
+  const compare = currentCompareMode();
+
+  const current = days.map((d) => analyticsModeValue(d, mode));
+  const previous = days.map((d) => analyticsModeValue(d.previous || {}, mode));
+  const trend = days.map((d) => Number(d.chats || 0));
+
+  const chartLabel =
+    mode === "conversion" ? "Conversion" :
+    mode === "lost" ? "Lost opportunity" :
+    "Chats";
 
   const datasets = [
-    { label: "Sessions", data: sessions },
-    { label: "Messages", data: messages },
-    { label: "Followup clicks", data: followupClicks },
-    { label: "Errors", data: chatErrors },
+    {
+      type: "bar",
+      label: chartLabel,
+      data: current,
+      backgroundColor: mode === "conversion"
+        ? "rgba(16,185,129,0.85)"
+        : mode === "lost"
+        ? "rgba(244,63,94,0.85)"
+        : "rgba(79,70,229,0.88)",
+      borderRadius: 14,
+      borderSkipped: false,
+      order: 2,
+    },
+    {
+      type: "bar",
+      label: "Prior period",
+      data: compare ? previous : current.map(() => null),
+      backgroundColor: "rgba(148,163,184,0.25)",
+      borderColor: "rgba(148,163,184,0.55)",
+      borderWidth: 1,
+      borderRadius: 14,
+      borderSkipped: false,
+      order: 1,
+    },
+    {
+      type: "line",
+      label: "Trend",
+      data: trend,
+      borderColor: "rgba(15,23,42,0.26)",
+      pointRadius: 0,
+      pointHoverRadius: 0,
+      tension: 0.35,
+      borderWidth: 2,
+      order: 0,
+      yAxisID: "y",
+    },
   ];
 
-  const existing = window.chatAnalyticsChart;
-
-  // Valid Chart.js instance check
-  const isValidChart =
-    existing &&
-    typeof existing.update === "function" &&
-    existing.data &&
-    typeof existing.data === "object" &&
-    Array.isArray(existing.data.datasets);
-
-  // If something non-chart got assigned, clean it up
-  if (existing && !isValidChart) {
-    try { existing.destroy?.(); } catch {}
+  if (window.chatAnalyticsChart) {
+    try { window.chatAnalyticsChart.destroy(); } catch (_) {}
     window.chatAnalyticsChart = null;
   }
 
-  if (!window.chatAnalyticsChart) {
-    window.chatAnalyticsChart = new Chart(ctx, {
-      type: "line",
-      data: { labels, datasets },
-      options: {
-        responsive: true,
-        plugins: { legend: { display: true } },
-        scales: { y: { beginAtZero: true } },
+  const hoverPlugin = {
+    id: "analyticsHoverPlugin",
+    afterEvent(chart, args) {
+      const event = args.event;
+      if (!event) return;
+
+      if (event.type === "mouseout") {
+        hideAnalyticsHover();
+        return;
+      }
+
+      const points = chart.getElementsAtEventForMode(
+        event,
+        "index",
+        { intersect: false },
+        false
+      );
+
+      if (!points.length) {
+        hideAnalyticsHover();
+        return;
+      }
+
+      const idx = points[0].index;
+      window.chatAnalyticsState.hoveredIndex = idx;
+      showAnalyticsHover(days[idx], chart, idx);
+    }
+  };
+
+  window.chatAnalyticsChart = new Chart(canvas.getContext("2d"), {
+    data: { labels, datasets },
+    plugins: [hoverPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: {
+        mode: "index",
+        intersect: false,
       },
-    });
-  } else {
-    // Ensure dataset slots exist (in case something mutated the chart)
-    window.chatAnalyticsChart.data.labels = labels;
-    window.chatAnalyticsChart.data.datasets = datasets;
-    window.chatAnalyticsChart.update();
-  }
+      onClick(_, elements) {
+        if (!elements?.length) return;
+        const idx = elements[0].index;
+        window.chatAnalyticsState.selectedIndex = idx;
+        renderAnalyticsSummaryCards(days, idx);
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: {
+          grid: { display: false, drawBorder: false },
+          ticks: { color: "#64748b" },
+          border: { display: false },
+        },
+        y: {
+          beginAtZero: true,
+          grid: {
+            color: "rgba(148,163,184,0.18)",
+            drawBorder: false,
+          },
+          ticks: {
+            color: "#94a3b8",
+            precision: 0,
+          },
+          border: { display: false },
+        },
+      },
+    },
+  });
+
+  renderAnalyticsSummaryCards(days, window.chatAnalyticsState.selectedIndex);
 }
 
+function wireAnalyticsModeControls() {
+  document.querySelectorAll(".analytics-mode-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const mode = btn.getAttribute("data-chart-mode") || "chats";
+      window.chatAnalyticsState.mode = mode;
 
+      document.querySelectorAll(".analytics-mode-btn").forEach((b) => {
+        b.classList.toggle("is-active", b === btn);
+        b.classList.toggle("bg-slate-900", false);
+        b.classList.toggle("text-white", !b.classList.contains("is-active") ? false : true);
+        if (!b.classList.contains("is-active")) {
+          b.classList.remove("text-white");
+          b.classList.add("text-slate-500");
+        } else {
+          b.classList.remove("text-slate-500");
+        }
+      });
 
-    await loadTopProperties({ from, to, pmcId, propertyId });
-  } catch (err) {
-    console.error("loadChatAnalytics failed:", err);
-    toast("Analytics failed to load (check console).");
-  }
-}
-
-function resizeChatAnalyticsChartSoon() {
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (window.chatAnalyticsChart && typeof window.chatAnalyticsChart.resize === "function") {
-        window.chatAnalyticsChart.resize();
+      if (window.chatAnalyticsState.payload) {
+        renderChatAnalyticsChart(window.chatAnalyticsState.payload);
       }
     });
   });
+
+  const compareBtn = document.getElementById("analyticsCompareToggle");
+  if (compareBtn && !compareBtn.dataset.wired) {
+    compareBtn.dataset.wired = "1";
+    compareBtn.addEventListener("click", () => {
+      window.chatAnalyticsState.compare = !window.chatAnalyticsState.compare;
+      compareBtn.classList.toggle("bg-slate-900", window.chatAnalyticsState.compare);
+      compareBtn.classList.toggle("text-white", window.chatAnalyticsState.compare);
+      compareBtn.classList.toggle("border-slate-900", window.chatAnalyticsState.compare);
+      compareBtn.classList.toggle("bg-white", !window.chatAnalyticsState.compare);
+      compareBtn.classList.toggle("text-slate-600", !window.chatAnalyticsState.compare);
+
+      if (window.chatAnalyticsState.payload) {
+        renderChatAnalyticsChart(window.chatAnalyticsState.payload);
+      }
+    });
+  }
 }
 
-   
-// Debounced filter reload ONLY when Analytics view is visible
+async function loadAnalyticsInsights(days, propertyId, pmcId) {
+  const qs = new URLSearchParams();
+  if (propertyId) qs.set("property_id", propertyId);
+  if (pmcId) qs.set("pmc_id", pmcId);
+
+  const res = await fetch(`/analytics/ai-insights?${qs.toString()}`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (res.status === 401 || res.status === 403) return loginRedirect();
+
+  const parsed = await safeReadJson(res);
+  if (!parsed.ok) return;
+
+  const raw = parsed.json || {};
+
+  renderAnalyticsInsights({
+    top_issue: raw.top_issue ? raw.top_issue.replaceAll("_", " ") : null,
+    top_issue_detail: raw.top_issue_count ? `${fmtInt(raw.top_issue_count)} conversations point to this issue.` : null,
+    high_risk: raw.high_risk ? raw.high_risk.replaceAll("_", " ") : null,
+    high_risk_detail: raw.high_risk_count ? `${fmtInt(raw.high_risk_count)} high-risk conversations in this slice.` : null,
+    automation: raw.automation ? raw.automation.replaceAll("_", " ") : null,
+    automation_detail: raw.automation_count ? `${fmtInt(raw.automation_count)} low-severity conversations could likely be automated.` : null,
+    needs_human: `${fmtInt(raw.needs_human || 0)} needs human`,
+    needs_human_detail: raw.needs_human_pct != null ? `${fmtPct(raw.needs_human_pct)} of sessions needed a human.` : null,
+  });
+}
+
+async function loadTopProperties(days, propertyId, pmcId) {
+  const qs = new URLSearchParams();
+  qs.set("days", String(days));
+  qs.set("limit", "10");
+  if (propertyId) qs.set("property_id", propertyId);
+  if (pmcId) qs.set("pmc_id", pmcId);
+
+  const res = await fetch(`/admin/analytics/chat/top-properties?${qs.toString()}`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (res.status === 401 || res.status === 403) return loginRedirect();
+
+  const parsed = await safeReadJson(res);
+  if (!parsed.ok) {
+    console.error("top properties failed", parsed.status, parsed.text);
+    renderAnalyticsTopProperties([]);
+    return;
+  }
+
+  renderAnalyticsTopProperties(parsed.json?.items || []);
+}
+
+async function loadChatAnalytics() {
+  try {
+    const { days, propertyId, pmcId } = getAnalyticsFilters();
+    const qs = buildAnalyticsQS({ days, propertyId, pmcId });
+
+    const summaryRes = await fetch(`/admin/analytics/chat/summary?${qs}`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    if (summaryRes.status === 401 || summaryRes.status === 403) return loginRedirect();
+    const summaryParsed = await safeReadJson(summaryRes);
+    if (!summaryParsed.ok) throw new Error("Summary failed");
+    renderAnalyticsSummary(summaryParsed.json || {});
+
+    const tsRes = await fetch(`/admin/analytics/chat/timeseries?${qs}`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+    if (tsRes.status === 401 || tsRes.status === 403) return loginRedirect();
+    const tsParsed = await safeReadJson(tsRes);
+    if (!tsParsed.ok) throw new Error("Timeseries failed");
+
+    const payload = tsParsed.json || {};
+    window.chatAnalyticsState.payload = payload;
+
+    renderChatAnalyticsChart(payload);
+    renderAnalyticsLifecycle(payload.lifecycle || {});
+    renderAnalyticsPeak(payload.hours || {});
+
+    await Promise.all([
+      loadTopProperties(days, propertyId, pmcId),
+      loadAnalyticsInsights(days, propertyId, pmcId),
+    ]);
+  } catch (err) {
+    console.error("loadChatAnalytics failed:", err);
+    toast("Analytics failed to load.");
+  }
+}
+
 let analyticsDebounce = null;
+
 function isAnalyticsVisible() {
   const el = document.getElementById("view-analytics");
-  return el && !el.classList.contains("hidden");
+  return !!el && !el.classList.contains("hidden");
 }
 
 document.addEventListener("change", (e) => {
   const t = e.target;
-  if (!t || !(t instanceof HTMLElement)) return;
+  if (!(t instanceof HTMLElement)) return;
 
-  const isAnalyticsControl =
-    t.id === "analyticsRange" ||
-    t.id === "analyticsPropertyFilter" ||
-    t.id === "analyticsPmcFilter";
-
-  if (!isAnalyticsControl) return;
+  if (!["analyticsRange", "analyticsPropertyFilter", "analyticsPmcFilter"].includes(t.id)) return;
   if (!isAnalyticsVisible()) return;
-
-  const days = document.getElementById("analyticsRange")?.value || 30;
 
   clearTimeout(analyticsDebounce);
   analyticsDebounce = setTimeout(() => {
-    loadChatAnalytics(days);
-    resizeChatAnalyticsChartSoon();
-  }, 150);
+    window.chatAnalyticsState.selectedIndex = null;
+    loadChatAnalytics();
+  }, 120);
 });
 
+function initAnalyticsSection() {
+  if (!document.getElementById("view-analytics")) return;
+  wireAnalyticsModeControls();
+  if (isAnalyticsVisible()) {
+    loadChatAnalytics();
+  }
+}
+
+
+
+
+// ----------------------------
+// END OF Analytics
+// ----------------------------
 
 // Prevent row click from firing when interacting with controls
 document.addEventListener("click", (e) => {
@@ -5664,6 +5943,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   initRouting();
   initSidebar();
   initPortfolioChart();
+  initAnalyticsSection();
   initRevenueReports();
   initSyncAllProperties();
   
@@ -5711,10 +5991,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   if ((params.get("view") || "overview") === "analytics") {
-    const days = document.getElementById("analyticsRange")?.value || 30;
-    loadChatAnalytics(days);
-    resizeChatAnalyticsChartSoon();
-  }
+  initAnalyticsSection();
+  loadChatAnalytics();
+}
 });
 
 // ------------------------------
