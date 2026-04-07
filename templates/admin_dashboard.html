@@ -21,7 +21,6 @@
   <!-- Your dashboard JS LAST -->
   <script src="/static/admin_dashboard.js" defer></script>
   <script src="/static/stripe_connect.js" defer></script>
-  <script src="/static/js/analytics.js" defer></script>
 
 
     
@@ -29,6 +28,11 @@
 
  <style type="text/tailwindcss">
   @layer components {
+
+   .analytics-mode-btn.is-active {
+  @apply bg-indigo-600 text-white;
+}
+   
     .btn {
       @apply inline-flex items-center justify-center gap-2 select-none
              h-9 px-3 rounded-xl text-sm font-semibold
