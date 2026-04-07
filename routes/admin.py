@@ -2862,7 +2862,8 @@ def admin_analytics_chat_timeseries(
     }.get(peak_hour["label"], "—")
 
 
-        emotion_counts = {
+    # 👇 INSERT HERE (same indent as above)
+    emotion_counts = {
         "calm": 0,
         "confused": 0,
         "worried": 0,
@@ -2938,7 +2939,7 @@ def admin_analytics_chat_timeseries(
             else "Current conversations are relatively balanced with no major emotional concentration."
         ),
     }
-
+    
     return {
         "window_days": int(days),
         "days": items,
