@@ -1,110 +1,160 @@
-async function loadAIInsights() {
-  const topIssueEl = document.getElementById("insight-top-issue");
-  const topIssueDetailEl = document.getElementById("insight-top-issue-detail");
-  const riskEl = document.getElementById("insight-risk");
-  const riskDetailEl = document.getElementById("insight-risk-detail");
-  const automationEl = document.getElementById("insight-automation");
-  const automationDetailEl = document.getElementById("insight-automation-detail");
-  const humanEl = document.getElementById("insight-human");
-  const humanDetailEl = document.getElementById("insight-human-detail");
+// ===============================
+// ANALYTICS.JS (DROP-IN FILE)
+// ===============================
 
-  if (
-    !topIssueEl || !topIssueDetailEl ||
-    !riskEl || !riskDetailEl ||
-    !automationEl || !automationDetailEl ||
-    !humanEl || !humanDetailEl
-  ) {
-    return;
-  }
+// expose globals
+window.chatAnalyticsChart = null;
 
-  try {
-    const params = new URLSearchParams();
-
-    const pmcFilter = document.getElementById("analyticsPmcFilter");
-    const propertyFilter = document.getElementById("analyticsPropertyFilter");
-
-    if (pmcFilter?.value) params.set("pmc_id", pmcFilter.value);
-    if (propertyFilter?.value) params.set("property_id", propertyFilter.value);
-
-    const qs = params.toString();
-    const url = qs ? `/analytics/ai-insights?${qs}` : "/analytics/ai-insights";
-
-    const res = await fetch(url, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-
-    if (!res.ok) {
-      throw new Error(`HTTP ${res.status}`);
-    }
-
-    const data = await res.json();
-
-    topIssueEl.innerText = data.top_issue || "None";
-    topIssueDetailEl.innerText = `${data.top_issue_count || 0} chats`;
-
-    riskEl.innerText = data.high_risk || "None";
-    riskDetailEl.innerText = `${data.high_risk_count || 0} high-risk chats`;
-
-    automationEl.innerText = data.automation || "None";
-    automationDetailEl.innerText = `${data.automation_count || 0} repeat low-risk`;
-
-    humanEl.innerText =
-      data.needs_human_pct != null ? `${data.needs_human_pct}%` : "0%";
-    humanDetailEl.innerText = `${data.needs_human || 0} chats`;
-  } catch (err) {
-    console.error("loadAIInsights failed:", err);
-
-    topIssueEl.innerText = "Unavailable";
-    topIssueDetailEl.innerText = "Could not load";
-
-    riskEl.innerText = "Unavailable";
-    riskDetailEl.innerText = "Could not load";
-
-    automationEl.innerText = "Unavailable";
-    automationDetailEl.innerText = "Could not load";
-
-    humanEl.innerText = "Unavailable";
-    humanDetailEl.innerText = "Could not load";
-  }
-}
-
-window.applyInsightFilter = function (type) {
-  const params = new URLSearchParams();
-  params.set("view", "chats");
-
-  const pmcFilter = document.getElementById("analyticsPmcFilter");
-  const propertyFilter = document.getElementById("analyticsPropertyFilter");
-
-  if (pmcFilter?.value) params.set("pmc_id", pmcFilter.value);
-  if (propertyFilter?.value) params.set("property_id", propertyFilter.value);
-
-  if (type === "top_issue") {
-    params.set("conversation_group", "monitor");
-  } else if (type === "high_risk") {
-    params.set("conversation_group", "needs_attention");
-    params.set("action_priority", "urgent");
-  } else if (type === "automation") {
-    params.set("conversation_group", "monitor");
-    params.set("action_priority", "low");
-  } else if (type === "needs_human") {
-    params.set("conversation_group", "needs_attention");
-  }
-
-  window.location.href = `/admin/dashboard?${params.toString()}`;
+window.analyticsUIState = {
+  chartMode: "chats",
+  compareMode: true,
+  rows: [],
+  previousRows: [],
+  selectedIndex: null,
+  hoveredIndex: null,
 };
 
-document.addEventListener("DOMContentLoaded", () => {
-  const hasInsightsUI =
-    document.getElementById("insight-top-issue") ||
-    document.getElementById("insight-risk") ||
-    document.getElementById("insight-automation") ||
-    document.getElementById("insight-human");
+// -------------------------------
+// HELPERS
+// -------------------------------
 
-  if (!hasInsightsUI) return;
+function safeNum(v, fallback = 0) {
+  const n = Number(v);
+  return Number.isFinite(n) ? n : fallback;
+}
 
-  loadAIInsights();
+function rangeToUnixMs(days) {
+  const to = Date.now();
+  const from = to - days * 86400000;
+  return { from, to };
+}
 
-  document.getElementById("analyticsPmcFilter")?.addEventListener("change", loadAIInsights);
-  document.getElementById("analyticsPropertyFilter")?.addEventListener("change", loadAIInsights);
-});
+function buildQS({ from, to, propertyId, pmcId }) {
+  const qs = new URLSearchParams({ from, to });
+  if (propertyId) qs.set("property_id", propertyId);
+  if (pmcId) qs.set("pmc_id", pmcId);
+  return qs.toString();
+}
+
+// -------------------------------
+// DATA TRANSFORM
+// -------------------------------
+
+function buildRows(labels, series) {
+  return labels.map((label, i) => {
+    const chats = safeNum(series.sessions?.[i]);
+    const clicks = safeNum(series.followup_clicks?.[i]);
+    const errors = safeNum(series.chat_errors?.[i]);
+
+    return {
+      label,
+      chats,
+      conversion: chats > 0 ? Math.round((clicks / chats) * 100) : 0,
+      lost: errors * 2,
+      errors,
+      clicks,
+    };
+  });
+}
+
+// -------------------------------
+// CHART
+// -------------------------------
+
+function renderChart() {
+  const canvas = document.getElementById("chatAnalyticsChart");
+  if (!canvas || !window.Chart) return;
+
+  const state = window.analyticsUIState;
+  const ctx = canvas.getContext("2d");
+
+  if (window.chatAnalyticsChart) {
+    window.chatAnalyticsChart.destroy();
+  }
+
+  const values = state.rows.map(r => {
+    if (state.chartMode === "conversion") return r.conversion;
+    if (state.chartMode === "lost") return r.lost;
+    return r.chats;
+  });
+
+  window.chatAnalyticsChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels: state.rows.map(r => r.label),
+      datasets: [
+        {
+          data: values,
+          borderColor: "#356cf6",
+          backgroundColor: "rgba(53,108,246,0.1)",
+          fill: true,
+          tension: 0.35,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { display: false } },
+    },
+  });
+}
+
+// -------------------------------
+// HOVER + DRILLDOWN
+// -------------------------------
+
+function renderDrilldown(index) {
+  const row = window.analyticsUIState.rows[index];
+  if (!row) return;
+
+  document.getElementById("analytics-drilldown-date").textContent = row.label;
+}
+
+// -------------------------------
+// MAIN LOAD
+// -------------------------------
+
+window.loadChatAnalytics = async function (daysOverride = null) {
+  const days = daysOverride || document.getElementById("analyticsRange")?.value || 30;
+  const { from, to } = rangeToUnixMs(days);
+
+  const qs = buildQS({ from, to });
+
+  const res = await fetch(`/admin/analytics/chat/timeseries?${qs}`);
+  const data = await res.json();
+
+  const rows = buildRows(data.labels || [], data.series || {});
+
+  window.analyticsUIState.rows = rows;
+
+  renderChart();
+  renderDrilldown(rows.length - 1);
+};
+
+// -------------------------------
+// INTERACTIONS
+// -------------------------------
+
+window.initAnalyticsInteractions = function () {
+  if (window.__analyticsInit) return;
+  window.__analyticsInit = true;
+
+  document.addEventListener("click", (e) => {
+    const btn = e.target.closest(".analytics-mode-btn");
+    if (btn) {
+      window.analyticsUIState.chartMode = btn.dataset.chartMode;
+      renderChart();
+    }
+
+    if (e.target.id === "analyticsCompareToggle") {
+      window.analyticsUIState.compareMode = !window.analyticsUIState.compareMode;
+      renderChart();
+    }
+  });
+
+  document.addEventListener("change", (e) => {
+    if (e.target.id === "analyticsRange") {
+      loadChatAnalytics(e.target.value);
+    }
+  });
+};
