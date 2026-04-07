@@ -81,7 +81,26 @@ function goToView(view) {
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
 
+window.applyInsightFilter = function applyInsightFilter(kind) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("view", "chats");
+  url.searchParams.delete("session_id");
 
+  if (kind === "needs_human") {
+    url.searchParams.set("q", "needs human");
+  } else if (kind === "high_risk") {
+    url.searchParams.set("q", "urgent");
+  } else if (kind === "automation") {
+    url.searchParams.set("q", "repeat");
+  } else if (kind === "top_issue") {
+    const topIssue = document.getElementById("insight-top-issue")?.textContent?.trim();
+    if (topIssue && topIssue !== "—") {
+      url.searchParams.set("q", topIssue);
+    }
+  }
+
+  window.location.href = url.toString();
+};
   // -----------------------------------
   // Global functions used by inline HTML
   // -----------------------------------
