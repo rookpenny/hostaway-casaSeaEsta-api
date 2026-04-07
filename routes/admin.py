@@ -2551,236 +2551,408 @@ def _apply_scope_to_session_query(q, user_role: str, pmc_obj: Optional[PMC]):
     return q
 
 
-# -------------------------------------------------------------------
-# Aliases to match admin dashboard frontend endpoint expectations
-# (keeps your existing routes working too)
-# -------------------------------------------------------------------
+from collections import defaultdict
+
+def _parse_optional_int(v):
+    try:
+        return int(v) if v not in (None, "", "null") else None
+    except Exception:
+        return None
+
+def _analytics_scope_session_query(db: Session, request: Request, pmc_id: str | None, property_id: str | None):
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
+    require_pmc_linked(user_role, pmc_obj)
+
+    pmc_id_int = _parse_optional_int(pmc_id)
+    property_id_int = _parse_optional_int(property_id)
+
+    q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
+
+    if user_role == "pmc":
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+    elif user_role == "super" and pmc_id_int:
+        q = q.filter(Property.pmc_id == pmc_id_int)
+
+    if property_id_int:
+        q = q.filter(ChatSession.property_id == property_id_int)
+
+    return q, user_role, pmc_obj, pmc_id_int, property_id_int
+
+def _session_day_key(dt):
+    if not dt:
+        return None
+    if isinstance(dt, datetime):
+        return dt.date().isoformat()
+    return None
+
+def _session_stage(sess: ChatSession) -> str:
+    today = datetime.utcnow().date()
+    arrival = getattr(sess, "arrival_date", None)
+    departure = getattr(sess, "departure_date", None)
+
+    try:
+        if arrival and departure:
+            a = arrival.date() if isinstance(arrival, datetime) else arrival
+            d = departure.date() if isinstance(departure, datetime) else departure
+            if today < a:
+                return "upcoming"
+            if a <= today <= d:
+                return "current"
+            return "checked_out"
+    except Exception:
+        pass
+
+    return "inquiry"
 
 @router.get("/admin/analytics/chat/summary")
 def admin_analytics_chat_summary(
     request: Request,
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365),
+    pmc_id: str | None = Query(default=None),
+    property_id: str | None = Query(default=None),
 ):
-    return admin_analytics_summary(request=request, db=db, days=days)
+    q, user_role, pmc_obj, pmc_id_int, property_id_int = _analytics_scope_session_query(
+        db, request, pmc_id, property_id
+    )
 
+    cutoff = datetime.utcnow() - timedelta(days=int(days))
+    sessions = q.filter(ChatSession.last_activity_at >= cutoff).all()
+    session_ids = [s.id for s in sessions]
 
+    sessions_total = len(sessions)
 
-@router.get("/admin/analytics/chat/top-properties")
-def admin_analytics_chat_top_properties(
-    request: Request,
-    db: Session = Depends(get_db),
-    days: int = Query(7, ge=1, le=365),
-    limit: int = Query(10, ge=1, le=50),
-    sort: str = Query("messages", pattern="^(messages|sessions|urgent_sessions|unhappy_sessions)$"),
-):
-    return admin_analytics_top_properties(request=request, db=db, days=days, limit=limit, sort=sort)
+    responded_sessions = 0
+    followup_clicks = 0
 
+    if session_ids:
+        responded_sessions = (
+            db.query(func.count(func.distinct(ChatMessage.session_id)))
+            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.sender != "guest")
+            .scalar()
+        ) or 0
+
+        # Safe proxy until you add click tracking
+        followup_clicks = (
+            db.query(func.count(ChatMessage.id))
+            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.category == "urgent")
+            .scalar()
+        ) or 0
+
+    chat_errors = (
+        db.query(func.count(ChatMessage.id))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.category == "error")
+    )
+
+    if user_role == "pmc":
+        chat_errors = chat_errors.filter(Property.pmc_id == pmc_obj.id)
+    elif user_role == "super" and pmc_id_int:
+        chat_errors = chat_errors.filter(Property.pmc_id == pmc_id_int)
+    if property_id_int:
+        chat_errors = chat_errors.filter(ChatSession.property_id == property_id_int)
+
+    response_rate = round((responded_sessions / sessions_total) * 100, 1) if sessions_total else 0.0
+
+    return {
+        "window_days": int(days),
+        "sessions_total": int(sessions_total),
+        "response_rate": float(response_rate),
+        "followup_clicks": int(followup_clicks),
+        "chat_errors": int(chat_errors.scalar() or 0),
+    }
 
 @router.get("/admin/analytics/chat/timeseries")
 def admin_analytics_chat_timeseries(
     request: Request,
     db: Session = Depends(get_db),
     days: int = Query(30, ge=1, le=365),
+    pmc_id: str | None = Query(default=None),
+    property_id: str | None = Query(default=None),
 ):
-    # Safe placeholder so the UI doesn't crash if it expects this endpoint.
-    # Replace later with real daily counts.
-    return {
-        "window_days": int(days),
-        "series": [],   # e.g. [{"date":"2026-01-01","messages":12,"sessions":3}, ...]
-    }
+    q, user_role, pmc_obj, pmc_id_int, property_id_int = _analytics_scope_session_query(
+        db, request, pmc_id, property_id
+    )
 
+    now = datetime.utcnow()
+    cutoff = now - timedelta(days=int(days))
+    prev_cutoff = cutoff - timedelta(days=int(days))
 
-@router.get("/admin/analytics/summary")
-def admin_analytics_summary(
-    request: Request,
-    db: Session = Depends(get_db),
-    days: int = Query(30, ge=1, le=365),
-):
-    """
-    High-level summary cards for dashboard:
-    - properties total / enabled
-    - sessions total / last N days
-    - messages last N days
-    - urgent/unhappy sessions last N days
-    Scoped to PMC if user_role == "pmc"
-    """
-    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
-    require_pmc_linked(user_role, pmc_obj)
+    current_sessions = q.filter(ChatSession.last_activity_at >= cutoff).all()
+    previous_sessions = q.filter(ChatSession.last_activity_at >= prev_cutoff, ChatSession.last_activity_at < cutoff).all()
 
-    cutoff = datetime.utcnow() - timedelta(days=int(days))
+    current_ids = [s.id for s in current_sessions]
+    previous_ids = [s.id for s in previous_sessions]
 
-    # Properties
-    props_q = db.query(Property)
-    props_q = _apply_scope_to_property_query(props_q, user_role, pmc_obj)
+    current_signals = batch_message_signals(db, current_ids) if current_ids else {}
+    previous_signals = batch_message_signals(db, previous_ids) if previous_ids else {}
 
-    total_properties = props_q.with_entities(func.count(Property.id)).scalar() or 0
-    enabled_properties = props_q.with_entities(
-        func.count(case((Property.chat_enabled.is_(True), 1)))
-    ).scalar() or 0
+    labels = []
+    current_map = {}
+    previous_map = {}
 
-    # Sessions
-    sess_q = db.query(ChatSession)
-    sess_q = _apply_scope_to_session_query(sess_q, user_role, pmc_obj)
+    for i in range(int(days)):
+        d = (cutoff.date() + timedelta(days=i))
+        prev_d = d - timedelta(days=int(days))
+        labels.append(d.isoformat())
+        current_map[d.isoformat()] = {
+            "date": d.isoformat(),
+            "label": d.strftime("%b %-d") if os.name != "nt" else d.strftime("%b %#d"),
+            "day": d.strftime("%a"),
+            "chats": 0,
+            "conversion": 0,
+            "lost_opportunity": 0,
+            "messages": 0,
+            "errors": 0,
+            "responded": 0,
+        }
+        previous_map[d.isoformat()] = {
+            "date": prev_d.isoformat(),
+            "label": prev_d.strftime("%b %-d") if os.name != "nt" else prev_d.strftime("%b %#d"),
+            "day": prev_d.strftime("%a"),
+            "chats": 0,
+            "conversion": 0,
+            "lost_opportunity": 0,
+            "messages": 0,
+            "errors": 0,
+            "responded": 0,
+        }
 
-    total_sessions = sess_q.with_entities(func.count(ChatSession.id)).scalar() or 0
-    sessions_last_n_days = sess_q.filter(ChatSession.last_activity_at >= cutoff).with_entities(
-        func.count(ChatSession.id)
-    ).scalar() or 0
+    lifecycle_counts = {"inquiry": 0, "upcoming": 0, "current": 0, "checked_out": 0}
 
-    # Messages last N days
+    for sess in current_sessions:
+        key = _session_day_key(getattr(sess, "last_activity_at", None))
+        if key in current_map:
+            current_map[key]["chats"] += 1
+            sig = current_signals.get(sess.id, {})
+            if sig.get("has_urgent") or sig.get("has_negative"):
+                current_map[key]["lost_opportunity"] += 1
+
+            has_response = (
+                db.query(func.count(ChatMessage.id))
+                .filter(ChatMessage.session_id == sess.id)
+                .filter(ChatMessage.sender != "guest")
+                .scalar()
+            ) or 0
+            if has_response:
+                current_map[key]["responded"] += 1
+
+        stage = _session_stage(sess)
+        if stage in lifecycle_counts:
+            lifecycle_counts[stage] += 1
+
+    for sess in previous_sessions:
+        key = _session_day_key(getattr(sess, "last_activity_at", None))
+        shifted_key = None
+        if key:
+            try:
+                shifted_key = (datetime.fromisoformat(key).date() + timedelta(days=int(days))).isoformat()
+            except Exception:
+                shifted_key = None
+
+        if shifted_key in previous_map:
+            previous_map[shifted_key]["chats"] += 1
+            sig = previous_signals.get(sess.id, {})
+            if sig.get("has_urgent") or sig.get("has_negative"):
+                previous_map[shifted_key]["lost_opportunity"] += 1
+
+            has_response = (
+                db.query(func.count(ChatMessage.id))
+                .filter(ChatMessage.session_id == sess.id)
+                .filter(ChatMessage.sender != "guest")
+                .scalar()
+            ) or 0
+            if has_response:
+                previous_map[shifted_key]["responded"] += 1
+
     msg_q = (
-        db.query(func.count(ChatMessage.id))
+        db.query(ChatMessage)
         .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .join(Property, Property.id == ChatSession.property_id)
         .filter(ChatMessage.created_at >= cutoff)
     )
     if user_role == "pmc":
         msg_q = msg_q.filter(Property.pmc_id == pmc_obj.id)
+    elif user_role == "super" and pmc_id_int:
+        msg_q = msg_q.filter(Property.pmc_id == pmc_id_int)
+    if property_id_int:
+        msg_q = msg_q.filter(ChatSession.property_id == property_id_int)
 
-    messages_last_n_days = msg_q.scalar() or 0
+    messages = msg_q.all()
 
-    # Urgent/unhappy sessions last N days (distinct sessions)
-    urgent_sessions_q = (
-        db.query(func.count(func.distinct(ChatMessage.session_id)))
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .join(Property, Property.id == ChatSession.property_id)
-        .filter(ChatMessage.created_at >= cutoff)
-        .filter(ChatMessage.sender == "guest")
-        .filter(ChatMessage.category == "urgent")
-    )
-    unhappy_sessions_q = (
-        db.query(func.count(func.distinct(ChatMessage.session_id)))
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .join(Property, Property.id == ChatSession.property_id)
-        .filter(ChatMessage.created_at >= cutoff)
-        .filter(ChatMessage.sender == "guest")
-        .filter(func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative")
-    )
+    hour_counts = defaultdict(int)
+    for msg in messages:
+        if msg.created_at:
+            day_key = msg.created_at.date().isoformat()
+            if day_key in current_map:
+                current_map[day_key]["messages"] += 1
+                if (msg.category or "") == "error":
+                    current_map[day_key]["errors"] += 1
+            hour_counts[msg.created_at.hour] += 1
 
-    if user_role == "pmc":
-        urgent_sessions_q = urgent_sessions_q.filter(Property.pmc_id == pmc_obj.id)
-        unhappy_sessions_q = unhappy_sessions_q.filter(Property.pmc_id == pmc_obj.id)
-
-    urgent_sessions = urgent_sessions_q.scalar() or 0
-    unhappy_sessions = unhappy_sessions_q.scalar() or 0
-
-    return {
-        "window_days": int(days),
-        "properties": {
-            "total": int(total_properties),
-            "chat_enabled": int(enabled_properties),
-        },
-        "sessions": {
-            "total": int(total_sessions),
-            "active_last_n_days": int(sessions_last_n_days),
-        },
-        "messages": {
-            "last_n_days": int(messages_last_n_days),
-        },
-        "flags": {
-            "urgent_sessions_last_n_days": int(urgent_sessions),
-            "unhappy_sessions_last_n_days": int(unhappy_sessions),
-        },
-    }
-
-
-@router.get("/admin/analytics/top-properties")
-def admin_analytics_top_properties(
-    request: Request,
-    db: Session = Depends(get_db),
-    days: int = Query(7, ge=1, le=365),
-    limit: int = Query(10, ge=1, le=50),
-    sort: str = Query("messages", pattern="^(messages|sessions|urgent_sessions|unhappy_sessions)$"),
-):
-    """
-    Top properties leaderboard over last N days.
-    sort:
-      - messages
-      - sessions
-      - urgent_sessions
-      - unhappy_sessions
-    Scoped to PMC if user_role == "pmc"
-    """
-    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
-    require_pmc_linked(user_role, pmc_obj)
-
-    cutoff = datetime.utcnow() - timedelta(days=int(days))
-
-    # Base: properties in scope
-    prop_q = db.query(Property.id, Property.property_name)
-    prop_q = _apply_scope_to_property_query(prop_q, user_role, pmc_obj)
-    prop_rows = prop_q.all()
-    prop_ids = [int(p.id) for p in prop_rows]
-    if not prop_ids:
-        return {"window_days": int(days), "items": []}
-
-    # Sessions per property (last N days by last_activity_at)
-    sessions_counts = dict(
-        db.query(ChatSession.property_id, func.count(ChatSession.id))
-        .filter(ChatSession.property_id.in_(prop_ids))
-        .filter(ChatSession.last_activity_at >= cutoff)
-        .group_by(ChatSession.property_id)
-        .all()
-    )
-
-    # Messages per property (last N days)
-    messages_counts = dict(
-        db.query(ChatSession.property_id, func.count(ChatMessage.id))
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .filter(ChatSession.property_id.in_(prop_ids))
-        .filter(ChatMessage.created_at >= cutoff)
-        .group_by(ChatSession.property_id)
-        .all()
-    )
-
-    # Urgent sessions per property (distinct sessions, last N days)
-    urgent_sessions_counts = dict(
-        db.query(ChatSession.property_id, func.count(func.distinct(ChatMessage.session_id)))
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .filter(ChatSession.property_id.in_(prop_ids))
-        .filter(ChatMessage.created_at >= cutoff)
-        .filter(ChatMessage.sender == "guest")
-        .filter(ChatMessage.category == "urgent")
-        .group_by(ChatSession.property_id)
-        .all()
-    )
-
-    # Unhappy sessions per property (distinct sessions, last N days)
-    unhappy_sessions_counts = dict(
-        db.query(ChatSession.property_id, func.count(func.distinct(ChatMessage.session_id)))
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .filter(ChatSession.property_id.in_(prop_ids))
-        .filter(ChatMessage.created_at >= cutoff)
-        .filter(ChatMessage.sender == "guest")
-        .filter(func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative")
-        .group_by(ChatSession.property_id)
-        .all()
-    )
-
-    # Build leaderboard
     items = []
-    name_by_id = {int(p.id): (p.property_name or "") for p in prop_rows}
+    max_chats = 0
+    max_conv = 0
+    max_lost = 0
 
-    for pid in prop_ids:
+    for key in labels:
+        cur = current_map[key]
+        prev = previous_map[key]
+
+        cur["conversion"] = round((cur["responded"] / cur["chats"]) * 100) if cur["chats"] else 0
+        prev["conversion"] = round((prev["responded"] / prev["chats"]) * 100) if prev["chats"] else 0
+
+        delta = 0
+        if prev["chats"] > 0:
+            delta = round(((cur["chats"] - prev["chats"]) / prev["chats"]) * 100)
+
+        max_chats = max(max_chats, cur["chats"])
+        max_conv = max(max_conv, cur["conversion"])
+        max_lost = max(max_lost, cur["lost_opportunity"])
+
         items.append({
-            "property_id": int(pid),
-            "property_name": name_by_id.get(int(pid), "") or "Unknown",
-            "sessions": int(sessions_counts.get(pid, 0) or 0),
-            "messages": int(messages_counts.get(pid, 0) or 0),
-            "urgent_sessions": int(urgent_sessions_counts.get(pid, 0) or 0),
-            "unhappy_sessions": int(unhappy_sessions_counts.get(pid, 0) or 0),
+            **cur,
+            "delta": delta,
+            "event": "stable",
+            "previous": prev,
         })
 
-    items.sort(key=lambda x: (x.get(sort, 0), x["messages"], x["sessions"]), reverse=True)
+    avg_chats = round(sum(x["chats"] for x in items) / len(items)) if items else 0
+
+    for item in items:
+        if item["chats"] == max_chats and item["chats"] > 0:
+            item["event"] = "peak"
+        elif item["lost_opportunity"] == max_lost and item["lost_opportunity"] > 0:
+            item["event"] = "friction"
+        elif item["conversion"] == max_conv and item["conversion"] > 0:
+            item["event"] = "convert"
+        elif item["chats"] > avg_chats * 1.15:
+            item["event"] = "inquiry"
+        elif item["chats"] < max(1, avg_chats * 0.6):
+            item["event"] = "quiet"
+
+    total_lifecycle = sum(lifecycle_counts.values()) or 1
+    lifecycle_pct = {
+        "total": total_lifecycle,
+        "inquiry": round((lifecycle_counts["inquiry"] / total_lifecycle) * 100),
+        "upcoming": round((lifecycle_counts["upcoming"] / total_lifecycle) * 100),
+        "current": round((lifecycle_counts["current"] / total_lifecycle) * 100),
+        "checked_out": round((lifecycle_counts["checked_out"] / total_lifecycle) * 100),
+    }
+
+    hour_labels = [
+        ("12a", 0), ("3a", 3), ("6a", 6), ("9a", 9),
+        ("12p", 12), ("3p", 15), ("6p", 18), ("9p", 21),
+    ]
+    hour_items = [{"label": label, "value": int(hour_counts.get(hour, 0))} for label, hour in hour_labels]
+    peak_hour = max(hour_items, key=lambda x: x["value"]) if hour_items else {"label": "—", "value": 0}
+    peak_window = {
+        "12a": "12 AM–3 AM",
+        "3a": "3 AM–6 AM",
+        "6a": "6 AM–9 AM",
+        "9a": "9 AM–12 PM",
+        "12p": "12 PM–3 PM",
+        "3p": "3 PM–6 PM",
+        "6p": "6 PM–9 PM",
+        "9p": "9 PM–12 AM",
+    }.get(peak_hour["label"], "—")
 
     return {
         "window_days": int(days),
-        "sort": sort,
-        "limit": int(limit),
-        "items": items[: int(limit)],
+        "days": items,
+        "lifecycle": lifecycle_pct,
+        "hours": {
+            "peak_window": peak_window,
+            "items": hour_items,
+        },
     }
 
+@router.get("/admin/analytics/chat/top-properties")
+def admin_analytics_chat_top_properties(
+    request: Request,
+    db: Session = Depends(get_db),
+    days: int = Query(30, ge=1, le=365),
+    limit: int = Query(10, ge=1, le=50),
+    pmc_id: str | None = Query(default=None),
+    property_id: str | None = Query(default=None),
+):
+    q, user_role, pmc_obj, pmc_id_int, property_id_int = _analytics_scope_session_query(
+        db, request, pmc_id, property_id
+    )
+
+    cutoff = datetime.utcnow() - timedelta(days=int(days))
+    sessions = q.filter(ChatSession.last_activity_at >= cutoff).all()
+
+    grouped = defaultdict(list)
+    for sess in sessions:
+      grouped[int(sess.property_id)].append(sess)
+
+    prop_rows = (
+        db.query(Property.id, Property.property_name)
+        .filter(Property.id.in_(grouped.keys() or [0]))
+        .all()
+    )
+    name_by_id = {int(p.id): p.property_name or "Unknown" for p in prop_rows}
+
+    items = []
+    for pid, sess_list in grouped.items():
+        session_ids = [s.id for s in sess_list]
+
+        messages = (
+            db.query(func.count(ChatMessage.id))
+            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.created_at >= cutoff)
+            .scalar()
+        ) or 0
+
+        responded = (
+            db.query(func.count(func.distinct(ChatMessage.session_id)))
+            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.sender != "guest")
+            .scalar()
+        ) or 0
+
+        errors = (
+            db.query(func.count(ChatMessage.id))
+            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.category == "error")
+            .scalar()
+        ) or 0
+
+        escalations = (
+            db.query(func.count(func.distinct(ChatMessage.session_id)))
+            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(or_(
+                ChatMessage.category == "urgent",
+                func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative"
+            ))
+            .scalar()
+        ) or 0
+
+        session_count = len(sess_list)
+        conversion_rate = round((responded / session_count) * 100, 1) if session_count else 0.0
+
+        items.append({
+            "property_id": int(pid),
+            "property_name": name_by_id.get(int(pid), "Unknown"),
+            "sessions": int(session_count),
+            "messages": int(messages),
+            "followup_conversion_rate": float(conversion_rate),
+            "chat_errors": int(errors),
+            "escalations": int(escalations),
+        })
+
+    items.sort(key=lambda x: (x["messages"], x["sessions"], -x["chat_errors"]), reverse=True)
+
+    return {
+        "window_days": int(days),
+        "items": items[: int(limit)],
+    }
+    
 
 @router.get("/admin/guides/partial/list", response_class=HTMLResponse)
 def guides_partial_list(
