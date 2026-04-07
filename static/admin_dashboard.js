@@ -67,13 +67,6 @@ window.Chats = window.Chats || {};
     });
   }
 
-
-
-
-
-
-
-
   // -----------------------------------
   // View metadata + single source of truth
   // -----------------------------------
@@ -5735,4 +5728,3 @@ window.DashboardOverview = window.DashboardOverview || {};
 window.DashboardOverview.jumpTo = function (view) {
   goToView(view);
 };
-
