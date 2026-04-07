@@ -2861,6 +2861,84 @@ def admin_analytics_chat_timeseries(
         "9p": "9 PM–12 AM",
     }.get(peak_hour["label"], "—")
 
+
+        emotion_counts = {
+        "calm": 0,
+        "confused": 0,
+        "worried": 0,
+        "upset": 0,
+        "panicked": 0,
+        "angry": 0,
+        "stressed": 0,
+    }
+
+    for sess in current_sessions:
+        signals = list(getattr(sess, "emotional_signals", None) or [])
+        guest_mood = (getattr(sess, "guest_mood", None) or "").strip().lower()
+
+        if guest_mood:
+            emotion_counts[guest_mood] = emotion_counts.get(guest_mood, 0) + 1
+
+        for sig in signals:
+            sig_key = str(sig or "").strip().lower()
+            if sig_key:
+                emotion_counts[sig_key] = emotion_counts.get(sig_key, 0) + 1
+
+    emotion_total = sum(emotion_counts.values()) or 1
+
+    emotion_items = [
+        {
+            "label": "Calm",
+            "value": round((emotion_counts.get("calm", 0) / emotion_total) * 100),
+            "tone": "emerald",
+        },
+        {
+            "label": "Confused",
+            "value": round((emotion_counts.get("confused", 0) / emotion_total) * 100),
+            "tone": "blue",
+        },
+        {
+            "label": "Worried",
+            "value": round((emotion_counts.get("worried", 0) / emotion_total) * 100),
+            "tone": "indigo",
+        },
+        {
+            "label": "Upset",
+            "value": round((emotion_counts.get("upset", 0) / emotion_total) * 100),
+            "tone": "amber",
+        },
+        {
+            "label": "Panicked",
+            "value": round((emotion_counts.get("panicked", 0) / emotion_total) * 100),
+            "tone": "rose",
+        },
+        {
+            "label": "Angry",
+            "value": round((emotion_counts.get("angry", 0) / emotion_total) * 100),
+            "tone": "rose",
+        },
+        {
+            "label": "Stressed",
+            "value": round((emotion_counts.get("stressed", 0) / emotion_total) * 100),
+            "tone": "orange",
+        },
+    ]
+
+    strongest_emotion = max(emotion_items, key=lambda x: x["value"]) if emotion_items else None
+
+    emotion_spike = {
+        "title": (
+            f"{strongest_emotion['label']} is the strongest emotional signal right now"
+            if strongest_emotion and strongest_emotion["value"] > 0
+            else "No major emotional spike detected"
+        ),
+        "body": (
+            f"{strongest_emotion['value']}% of current emotional signals cluster around {strongest_emotion['label'].lower()} conversations."
+            if strongest_emotion and strongest_emotion["value"] > 0
+            else "Current conversations are relatively balanced with no major emotional concentration."
+        ),
+    }
+
     return {
         "window_days": int(days),
         "days": items,
@@ -2869,6 +2947,11 @@ def admin_analytics_chat_timeseries(
             "peak_window": peak_window,
             "items": hour_items,
         },
+        "emotions": {
+            "items": emotion_items,
+        },
+        "emotion_spike": emotion_spike,
+    }
     }
 
 @router.get("/admin/analytics/chat/top-properties")
