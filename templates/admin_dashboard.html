@@ -2350,14 +2350,75 @@
             <div class="text-sm text-slate-500">When guests need help most</div>
           </div>
         </div>
-
-        <div class="mt-6 rounded-[28px] bg-slate-50 p-5">
-          <div class="text-center">
-            <div class="text-xs uppercase tracking-[0.16em] text-slate-400">Peak window</div>
-            <div id="analytics-peak-window" class="mt-1 text-2xl font-semibold text-slate-950">—</div>
-            <div id="analytics-hour-bars" class="mt-6 flex items-end justify-between gap-3"></div>
+      
+        <div class="mt-6 rounded-[30px] bg-slate-50 p-6">
+          <div class="flex justify-center">
+            <div class="relative h-[210px] w-[210px]">
+              <svg class="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 220 220">
+                <!-- outer base ring -->
+                <circle
+                  cx="110"
+                  cy="110"
+                  r="86"
+                  fill="none"
+                  stroke="#e7ecff"
+                  stroke-width="14"
+                ></circle>
+      
+                <!-- segment 1 -->
+                <circle
+                  id="analytics-peak-ring-1"
+                  cx="110"
+                  cy="110"
+                  r="70"
+                  fill="none"
+                  stroke="#5B5CEB"
+                  stroke-width="14"
+                  stroke-linecap="round"
+                  stroke-dasharray="0 999"
+                  stroke-dashoffset="0"
+                ></circle>
+      
+                <!-- segment 2 -->
+                <circle
+                  id="analytics-peak-ring-2"
+                  cx="110"
+                  cy="110"
+                  r="70"
+                  fill="none"
+                  stroke="#55D6F6"
+                  stroke-width="14"
+                  stroke-linecap="round"
+                  stroke-dasharray="0 999"
+                  stroke-dashoffset="0"
+                ></circle>
+      
+                <!-- segment 3 -->
+                <circle
+                  id="analytics-peak-ring-3"
+                  cx="110"
+                  cy="110"
+                  r="70"
+                  fill="none"
+                  stroke="#E4A6F8"
+                  stroke-width="14"
+                  stroke-linecap="round"
+                  stroke-dasharray="0 999"
+                  stroke-dashoffset="0"
+                ></circle>
+              </svg>
+      
+              <div class="absolute inset-[28px] flex flex-col items-center justify-center rounded-full bg-white text-center shadow-[inset_0_0_0_1px_rgba(226,232,240,0.9)]">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+                  Peak window
+                </div>
+                <div id="analytics-peak-window" class="mt-2 text-[36px] font-semibold tracking-[-0.05em] text-slate-950">
+                  —
+                </div>
+              </div>
+            </div>
           </div>
-
+      
           <div class="mt-6 space-y-3" id="analytics-hourly-bars">
             <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
               <div>—</div>
