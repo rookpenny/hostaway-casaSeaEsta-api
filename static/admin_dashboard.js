@@ -2628,7 +2628,7 @@ function fmtInt(value) {
 
 function getAnalyticsFilters() {
   return {
-    days: Number(document.getElementById("analyticsRange")?.value || 30),
+    days: Number(document.getElementById("analyticsRange")?.value || 14),
     propertyId: document.getElementById("analyticsPropertyFilter")?.value || "",
     pmcId: document.getElementById("analyticsPmcFilter")?.value || "",
   };
@@ -3090,17 +3090,17 @@ function renderChatAnalyticsChart(payload) {
 
   const currentBarColor =
     mode === "conversion"
-      ? "rgba(34,197,94,0.88)"
+      ? "rgba(52, 211, 153, 0.55)"
       : mode === "lost"
-      ? "rgba(244,63,94,0.88)"
-      : "rgba(79,70,229,0.88)";
+      ? "rgba(248, 113, 113, 0.55)"
+      : "rgba(79, 70, 229, 0.78)";
 
   const currentHoverColor =
     mode === "conversion"
-      ? "rgba(34,197,94,1)"
+      ? "rgba(52, 211, 153, 0.75)"
       : mode === "lost"
-      ? "rgba(244,63,94,1)"
-      : "rgba(79,70,229,1)";
+      ? "rgba(248, 113, 113, 0.75)"
+      : "rgba(91, 76, 240, 0.95)";
 
   if (window.chatAnalyticsChart) {
     try {
@@ -3116,35 +3116,27 @@ function renderChatAnalyticsChart(payload) {
       if (!ctx || !chartArea || !scales?.x || !scales?.y) return;
 
       const xScale = scales.x;
-      const yScale = scales.y;
 
       ctx.save();
 
       days.forEach((day, i) => {
         const x = xScale.getPixelForValue(i);
-        const value = values[i] || 0;
-        const y = yScale.getPixelForValue(value);
-
         const meta = getEventMeta(day.event);
 
-        // top mini metric
         ctx.fillStyle = "#94a3b8";
         ctx.font = "600 12px Inter, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
 
-        // event icon
         ctx.font = "14px Inter, sans-serif";
         ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
 
-        // bottom delta
         const delta = Number(day.delta || 0);
         const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
         ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
         ctx.font = "600 11px Inter, sans-serif";
         ctx.fillText(deltaText, x, chartArea.bottom + 20);
 
-        // bottom date stack
         ctx.fillStyle = "#334155";
         ctx.font = "500 11px Inter, sans-serif";
         ctx.fillText(day.day || "", x, chartArea.bottom + 38);
@@ -3204,12 +3196,12 @@ function renderChatAnalyticsChart(payload) {
           type: "bar",
           label: "Prior period",
           data: compare ? previousValues : previousValues.map(() => null),
-          backgroundColor: "rgba(16,185,129,0.16)",
-          borderRadius: 16,
+          backgroundColor: "rgba(110, 231, 183, 0.25)",
+          borderRadius: 999,
           borderSkipped: false,
           order: 1,
-          categoryPercentage: 0.72,
-          barPercentage: 0.96,
+          categoryPercentage: 0.78,
+          barPercentage: 1.0,
         },
         {
           type: "bar",
@@ -3217,24 +3209,24 @@ function renderChatAnalyticsChart(payload) {
           data: values,
           backgroundColor: values.map((_, i) =>
             i === window.chatAnalyticsState.selectedIndex
-              ? "rgba(59,130,246,0.95)"
+              ? "rgba(59, 130, 246, 0.98)"
               : currentBarColor
           ),
           hoverBackgroundColor: currentHoverColor,
-          borderRadius: 16,
+          borderRadius: 999,
           borderSkipped: false,
           order: 2,
           categoryPercentage: 0.56,
-          barPercentage: 0.9,
+          barPercentage: 0.92,
         },
         {
           type: "line",
           label: "Trend",
           data: trendValues,
-          borderColor: "rgba(148,163,184,0.65)",
+          borderColor: "rgba(156, 163, 175, 0.75)",
           pointRadius: 0,
           pointHoverRadius: 0,
-          tension: 0.35,
+          tension: 0.38,
           borderWidth: 2,
           order: 0,
           yAxisID: "y",
@@ -3247,10 +3239,10 @@ function renderChatAnalyticsChart(payload) {
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 42,
-          bottom: 72,
-          left: 8,
-          right: 8,
+          top: 48,
+          bottom: 76,
+          left: 10,
+          right: 10,
         },
       },
       elements: {
@@ -3283,21 +3275,17 @@ function renderChatAnalyticsChart(payload) {
       scales: {
         x: {
           grid: { display: false, drawBorder: false },
-          ticks: {
-            display: false,
-          },
+          ticks: { display: false },
           border: { display: false },
         },
         y: {
           beginAtZero: true,
           grid: {
-            color: "rgba(148,163,184,0.20)",
+            color: "rgba(203,213,225,0.7)",
             borderDash: [4, 4],
             drawBorder: false,
           },
-          ticks: {
-            display: false,
-          },
+          ticks: { display: false },
           border: { display: false },
         },
       },
@@ -3320,12 +3308,11 @@ function wireAnalyticsRangeButtons() {
   if (!rangeButtons.length || !rangeSelect) return;
 
   function paint() {
-    const current = String(rangeSelect.value || "30");
+    const current = String(rangeSelect.value || "14");
+
     rangeButtons.forEach((btn) => {
       const active = btn.getAttribute("data-range") === current;
-      btn.classList.toggle("bg-slate-900", active);
-      btn.classList.toggle("text-white", active);
-      btn.classList.toggle("text-slate-500", !active);
+      btn.classList.toggle("is-active", active);
     });
   }
 
@@ -3336,9 +3323,10 @@ function wireAnalyticsRangeButtons() {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-range");
       if (!next) return;
+
       rangeSelect.value = next;
-      paint();
       window.chatAnalyticsState.selectedIndex = null;
+      paint();
       loadChatAnalytics();
     });
   });
