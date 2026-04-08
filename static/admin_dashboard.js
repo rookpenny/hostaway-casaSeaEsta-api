@@ -3183,13 +3183,15 @@ function renderChatAnalyticsChart(payload) {
     window.chatAnalyticsState.selectedIndex < days.length
       ? window.chatAnalyticsState.selectedIndex
       : Math.max(days.length - 1, 0);
-
+  
   window.chatAnalyticsState.selectedIndex = selectedIndex;
-
+  
   if (days.length) {
     renderAnalyticsSummaryCards(days, selectedIndex);
+    renderAnalyticsDrilldown(days[selectedIndex] || null);
   } else {
     hideAnalyticsHover();
+    renderAnalyticsDrilldown(null);
   }
 }
 
@@ -3276,30 +3278,50 @@ async function loadAnalyticsInsights(days, propertyId, pmcId) {
 
     const parsed = await safeReadJson(res);
     if (!parsed.ok || !parsed.json) {
-      renderAnalyticsInsights({});
+      renderAnalyticsInsights({
+        top_issue: "No dominant issue yet",
+        top_issue_detail: "We need more conversation volume before this becomes meaningful.",
+        high_risk: "No major risk spike",
+        high_risk_detail: "No concentrated high-risk pattern in the selected window.",
+        automation: "No clear automation win yet",
+        automation_detail: "As more repeat questions appear, this will tighten.",
+        needs_human: "—",
+        needs_human_detail: "No additional detail.",
+      });
       return;
     }
 
     const raw = parsed.json || {};
 
     renderAnalyticsInsights({
-      top_issue: raw.top_issue ? raw.top_issue.replaceAll("_", " ") : null,
-      top_issue_detail: raw.top_issue_count ? `${fmtInt(raw.top_issue_count)} conversations point to this issue.` : null,
-      high_risk: raw.high_risk ? raw.high_risk.replaceAll("_", " ") : null,
-      high_risk_detail: raw.high_risk_count ? `${fmtInt(raw.high_risk_count)} high-risk conversations in this slice.` : null,
-      automation: raw.automation ? raw.automation.replaceAll("_", " ") : null,
-      automation_detail: raw.automation_count ? `${fmtInt(raw.automation_count)} low-severity conversations could likely be automated.` : null,
-      needs_human: `${fmtInt(raw.needs_human || 0)} needs human`,
-      needs_human_detail: raw.needs_human_pct != null ? `${fmtPct(raw.needs_human_pct)} of sessions needed a human.` : null,
+      top_issue: raw.top_issue ? raw.top_issue.replaceAll("_", " ") : "No dominant issue yet",
+      top_issue_detail: raw.top_issue_count
+        ? `${fmtInt(raw.top_issue_count)} conversations point to this issue.`
+        : "We need more conversation volume before this becomes meaningful.",
+      high_risk: raw.high_risk ? raw.high_risk.replaceAll("_", " ") : "No major risk spike",
+      high_risk_detail: raw.high_risk_count
+        ? `${fmtInt(raw.high_risk_count)} high-risk conversations in this slice.`
+        : "No concentrated high-risk pattern in the selected window.",
+      automation: raw.automation ? raw.automation.replaceAll("_", " ") : "No clear automation win yet",
+      automation_detail: raw.automation_count
+        ? `${fmtInt(raw.automation_count)} low-severity conversations could likely be automated.`
+        : "As more repeat questions appear, this will tighten.",
+      needs_human: raw.needs_human != null ? `${fmtInt(raw.needs_human || 0)} needs human` : "—",
+      needs_human_detail: raw.needs_human_pct != null
+        ? `${fmtPct(raw.needs_human_pct)} of sessions needed a human.`
+        : "No additional detail.",
     });
   } catch (err) {
     console.error("loadAnalyticsInsights failed:", err);
-  
     renderAnalyticsInsights({
-      top_issue: "No clear issue yet",
-      high_risk: "No risk spike",
-      automation: "No automation signal",
+      top_issue: "No dominant issue yet",
+      top_issue_detail: "We need more conversation volume before this becomes meaningful.",
+      high_risk: "No major risk spike",
+      high_risk_detail: "No concentrated high-risk pattern in the selected window.",
+      automation: "No clear automation win yet",
+      automation_detail: "As more repeat questions appear, this will tighten.",
       needs_human: "—",
+      needs_human_detail: "No additional detail.",
     });
   }
 }
@@ -3361,16 +3383,17 @@ async function loadChatAnalytics() {
     renderAnalyticsAIRead(Array.isArray(payload.days) ? payload.days : []);
 
     const daysArr = Array.isArray(payload.days) ? payload.days : [];
-
     const selectedIndex =
       Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
       window.chatAnalyticsState.selectedIndex >= 0 &&
       window.chatAnalyticsState.selectedIndex < daysArr.length
         ? window.chatAnalyticsState.selectedIndex
         : Math.max(daysArr.length - 1, 0);
-    
+
     if (daysArr.length) {
-      renderAnalyticsDrilldown(daysArr[selectedIndex]);
+      window.chatAnalyticsState.selectedIndex = selectedIndex;
+      renderAnalyticsSummaryCards(daysArr, selectedIndex);
+      renderAnalyticsDrilldown(daysArr[selectedIndex] || null);
     } else {
       renderAnalyticsDrilldown(null);
     }
