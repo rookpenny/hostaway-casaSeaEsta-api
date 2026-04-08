@@ -2617,8 +2617,29 @@ def admin_analytics_chat_summary(
     )
 
     cutoff = datetime.utcnow() - timedelta(days=int(days))
-    sessions = q.filter(ChatSession.last_activity_at >= cutoff).all()
-    session_ids = [s.id for s in sessions]
+
+    # Active sessions are determined by message activity in the window
+    msg_session_q = (
+        db.query(func.distinct(ChatMessage.session_id))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatMessage.created_at >= cutoff)
+    )
+
+    if user_role == "pmc":
+        msg_session_q = msg_session_q.filter(Property.pmc_id == pmc_obj.id)
+    elif user_role == "super" and pmc_id_int:
+        msg_session_q = msg_session_q.filter(Property.pmc_id == pmc_id_int)
+
+    if property_id_int:
+        msg_session_q = msg_session_q.filter(ChatSession.property_id == property_id_int)
+
+    session_ids = [int(sid) for (sid,) in msg_session_q.all() if sid is not None]
+
+    sessions = (
+        q.filter(ChatSession.id.in_(session_ids)).all()
+        if session_ids else []
+    )
 
     sessions_total = len(sessions)
 
@@ -2629,19 +2650,21 @@ def admin_analytics_chat_summary(
         responded_sessions = (
             db.query(func.count(func.distinct(ChatMessage.session_id)))
             .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.created_at >= cutoff)
             .filter(ChatMessage.sender != "guest")
             .scalar()
         ) or 0
 
-        # Safe proxy until you add click tracking
+        # proxy until real click tracking exists
         followup_clicks = (
             db.query(func.count(ChatMessage.id))
             .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.created_at >= cutoff)
             .filter(ChatMessage.category == "urgent")
             .scalar()
         ) or 0
 
-    chat_errors = (
+    chat_errors_q = (
         db.query(func.count(ChatMessage.id))
         .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .join(Property, Property.id == ChatSession.property_id)
@@ -2650,11 +2673,12 @@ def admin_analytics_chat_summary(
     )
 
     if user_role == "pmc":
-        chat_errors = chat_errors.filter(Property.pmc_id == pmc_obj.id)
+        chat_errors_q = chat_errors_q.filter(Property.pmc_id == pmc_obj.id)
     elif user_role == "super" and pmc_id_int:
-        chat_errors = chat_errors.filter(Property.pmc_id == pmc_id_int)
+        chat_errors_q = chat_errors_q.filter(Property.pmc_id == pmc_id_int)
+
     if property_id_int:
-        chat_errors = chat_errors.filter(ChatSession.property_id == property_id_int)
+        chat_errors_q = chat_errors_q.filter(ChatSession.property_id == property_id_int)
 
     response_rate = round((responded_sessions / sessions_total) * 100, 1) if sessions_total else 0.0
 
@@ -2663,7 +2687,7 @@ def admin_analytics_chat_summary(
         "sessions_total": int(sessions_total),
         "response_rate": float(response_rate),
         "followup_clicks": int(followup_clicks),
-        "chat_errors": int(chat_errors.scalar() or 0),
+        "chat_errors": int(chat_errors_q.scalar() or 0),
     }
 
 @router.get("/admin/analytics/chat/timeseries")
