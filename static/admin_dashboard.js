@@ -2793,29 +2793,84 @@ function renderAnalyticsEmotions(emotions, spike) {
   );
 }
 
-function renderAnalyticsInsights(insights) {
-  setText("insight-top-issue", insights?.top_issue || "No dominant issue yet");
-  setText(
-    "insight-top-issue-detail",
-    insights?.top_issue_detail || "We need more conversation volume before this becomes meaningful."
-  );
+function renderAnalyticsPeak(hours) {
+  setText("analytics-peak-window", hours?.peak_window || "—");
 
-  setText("insight-risk", insights?.high_risk || "No major risk spike");
-  setText(
-    "insight-risk-detail",
-    insights?.high_risk_detail || "No concentrated high-risk pattern in the selected window."
-  );
+  const barsWrap = document.getElementById("analytics-hour-bars");
+  const detailWrap = document.getElementById("analytics-hourly-bars");
 
-  setText("insight-automation", insights?.automation || "No clear automation win yet");
-  setText(
-    "insight-automation-detail",
-    insights?.automation_detail || "As more repeat questions appear, this will tighten."
-  );
+  const items = Array.isArray(hours?.items) ? hours.items : [];
+  const max = Math.max(...items.map((x) => Number(x.value || 0)), 1);
 
-  setText("insight-human", insights?.needs_human || "—");
+  if (barsWrap) {
+    barsWrap.innerHTML = items.map((item) => {
+      const h = Math.max(10, Math.round((Number(item.value || 0) / max) * 96));
+      return `
+        <div class="flex flex-col items-center gap-2">
+          <div class="flex h-[100px] items-end">
+            <div class="w-8 rounded-t-2xl bg-indigo-500/90" style="height:${h}px"></div>
+          </div>
+          <div class="text-xs font-medium text-slate-500">${escapeHtml(item.label || "—")}</div>
+        </div>
+      `;
+    }).join("");
+  }
+
+  if (detailWrap) {
+    detailWrap.innerHTML = items.map((item) => {
+      const pct = Math.round((Number(item.value || 0) / max) * 100);
+      return `
+        <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
+          <div>${escapeHtml(item.label || "—")}</div>
+          <div class="h-2.5 rounded-full bg-white">
+            <div class="h-2.5 rounded-full bg-indigo-500" style="width:${pct}%"></div>
+          </div>
+          <div class="text-right">${fmtInt(item.value || 0)}</div>
+        </div>
+      `;
+    }).join("");
+  }
+}
+
+function renderAnalyticsEmotions(emotions, spike) {
+  const wrap = document.getElementById("analytics-emotion-bars");
+  if (wrap) {
+    const items = Array.isArray(emotions?.items) ? emotions.items : [];
+
+    if (!items.length) {
+      wrap.innerHTML = `<div class="text-sm text-slate-500">No emotion data yet.</div>`;
+    } else {
+      const toneClass = (tone) => {
+        if (tone === "emerald") return "bg-emerald-500";
+        if (tone === "blue") return "bg-blue-500";
+        if (tone === "indigo") return "bg-indigo-500";
+        if (tone === "amber") return "bg-amber-500";
+        if (tone === "orange") return "bg-orange-500";
+        if (tone === "rose") return "bg-rose-500";
+        return "bg-slate-400";
+      };
+
+      wrap.innerHTML = items.map((item) => `
+        <div>
+          <div class="mb-2 flex items-center justify-between text-sm">
+            <span class="font-semibold text-slate-800">${escapeHtml(item.label || "Unknown")}</span>
+            <span class="text-slate-500">${fmtInt(item.value || 0)}%</span>
+          </div>
+          <div class="h-3 rounded-full bg-slate-100">
+            <div class="h-3 rounded-full ${toneClass(item.tone)}" style="width:${Math.max(0, Math.min(100, Number(item.value || 0)))}%"></div>
+          </div>
+        </div>
+      `).join("");
+    }
+  }
+
   setText(
-    "insight-human-detail",
-    insights?.needs_human_detail || "No additional detail."
+    "analytics-emotion-spike-title",
+    spike?.title || "No major emotional spike detected"
+  );
+  setText(
+    "analytics-emotion-spike-body",
+    spike?.body || "Current conversations are relatively balanced."
   );
 }
 
