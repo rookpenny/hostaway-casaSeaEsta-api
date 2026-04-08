@@ -2608,6 +2608,8 @@ def _session_stage(sess: ChatSession) -> str:
 def admin_analytics_chat_summary(
     request: Request,
     db: Session = Depends(get_db),
+    from_ts: int | None = Query(default=None, alias="from"),
+    to_ts: int | None = Query(default=None, alias="to"),
     days: int = Query(30, ge=1, le=365),
     pmc_id: str | None = Query(default=None),
     property_id: str | None = Query(default=None),
@@ -2616,7 +2618,12 @@ def admin_analytics_chat_summary(
         db, request, pmc_id, property_id
     )
 
-    cutoff = datetime.utcnow() - timedelta(days=int(days))
+    if from_ts and to_ts:
+        cutoff = datetime.utcfromtimestamp(int(from_ts) / 1000.0)
+        window_end = datetime.utcfromtimestamp(int(to_ts) / 1000.0)
+    else:
+        window_end = datetime.utcnow()
+        cutoff = window_end - timedelta(days=int(days))
 
     # Active sessions are determined by message activity in the window
     msg_session_q = (
@@ -2624,6 +2631,7 @@ def admin_analytics_chat_summary(
         .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .join(Property, Property.id == ChatSession.property_id)
         .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.created_at <= window_end)
     )
 
     if user_role == "pmc":
@@ -2651,6 +2659,7 @@ def admin_analytics_chat_summary(
             db.query(func.count(func.distinct(ChatMessage.session_id)))
             .filter(ChatMessage.session_id.in_(session_ids))
             .filter(ChatMessage.created_at >= cutoff)
+            .filter(ChatMessage.created_at <= window_end)
             .filter(ChatMessage.sender != "guest")
             .scalar()
         ) or 0
@@ -2660,6 +2669,7 @@ def admin_analytics_chat_summary(
             db.query(func.count(ChatMessage.id))
             .filter(ChatMessage.session_id.in_(session_ids))
             .filter(ChatMessage.created_at >= cutoff)
+            .filter(ChatMessage.created_at <= window_end)
             .filter(ChatMessage.category == "urgent")
             .scalar()
         ) or 0
@@ -2669,6 +2679,7 @@ def admin_analytics_chat_summary(
         .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .join(Property, Property.id == ChatSession.property_id)
         .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.created_at <= window_end)
         .filter(ChatMessage.category == "error")
     )
 
@@ -2694,6 +2705,8 @@ def admin_analytics_chat_summary(
 def admin_analytics_chat_timeseries(
     request: Request,
     db: Session = Depends(get_db),
+    from_ts: int | None = Query(default=None, alias="from"),
+    to_ts: int | None = Query(default=None, alias="to"),
     days: int = Query(30, ge=1, le=365),
     pmc_id: str | None = Query(default=None),
     property_id: str | None = Query(default=None),
@@ -2702,19 +2715,23 @@ def admin_analytics_chat_timeseries(
         db, request, pmc_id, property_id
     )
 
-    now = datetime.utcnow()
-    cutoff = now - timedelta(days=int(days))
-    prev_cutoff = cutoff - timedelta(days=int(days))
+    if from_ts and to_ts:
+        cutoff = datetime.utcfromtimestamp(int(from_ts) / 1000.0)
+        window_end = datetime.utcfromtimestamp(int(to_ts) / 1000.0)
+        prev_cutoff = cutoff - (window_end - cutoff)
+    else:
+        window_end = datetime.utcnow()
+        cutoff = window_end - timedelta(days=int(days))
+        prev_cutoff = cutoff - timedelta(days=int(days))
 
-    # Current-period messages
     current_msg_q = (
         db.query(ChatMessage)
         .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .join(Property, Property.id == ChatSession.property_id)
         .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.created_at <= window_end)
     )
 
-    # Previous-period messages
     previous_msg_q = (
         db.query(ChatMessage)
         .join(ChatSession, ChatSession.id == ChatMessage.session_id)
@@ -2759,7 +2776,6 @@ def admin_analytics_chat_timeseries(
     for i in range(int(days)):
         d = cutoff.date() + timedelta(days=i)
         prev_d = d - timedelta(days=int(days))
-
         labels.append(d.isoformat())
 
         current_map[d.isoformat()] = {
@@ -2786,11 +2802,20 @@ def admin_analytics_chat_timeseries(
             "responded": 0,
         }
 
+    current_msgs_by_session = defaultdict(list)
+    for m in current_messages:
+        if m.session_id is not None:
+            current_msgs_by_session[int(m.session_id)].append(m)
+
+    previous_msgs_by_session = defaultdict(list)
+    for m in previous_messages:
+        if m.session_id is not None:
+            previous_msgs_by_session[int(m.session_id)].append(m)
+
     lifecycle_counts = {"inquiry": 0, "upcoming": 0, "current": 0, "checked_out": 0}
 
-    # Count chats by session activity in current window
     for sess in current_sessions:
-        sess_msgs = [m for m in current_messages if int(m.session_id) == int(sess.id)]
+        sess_msgs = current_msgs_by_session.get(int(sess.id), [])
         if not sess_msgs:
             continue
 
@@ -2811,9 +2836,8 @@ def admin_analytics_chat_timeseries(
         if stage in lifecycle_counts:
             lifecycle_counts[stage] += 1
 
-    # Count chats by session activity in previous window, shifted forward for compare mode
     for sess in previous_sessions:
-        sess_msgs = [m for m in previous_messages if int(m.session_id) == int(sess.id)]
+        sess_msgs = previous_msgs_by_session.get(int(sess.id), [])
         if not sess_msgs:
             continue
 
@@ -2833,7 +2857,6 @@ def admin_analytics_chat_timeseries(
             if has_response:
                 previous_map[shifted_key]["responded"] += 1
 
-    # Message-level counts for current window
     hour_counts = defaultdict(int)
     for msg in current_messages:
         if not msg.created_at:
@@ -2982,6 +3005,8 @@ def admin_analytics_chat_timeseries(
 def admin_analytics_chat_top_properties(
     request: Request,
     db: Session = Depends(get_db),
+    from_ts: int | None = Query(default=None, alias="from"),
+    to_ts: int | None = Query(default=None, alias="to"),
     days: int = Query(30, ge=1, le=365),
     limit: int = Query(10, ge=1, le=50),
     pmc_id: str | None = Query(default=None),
@@ -2991,14 +3016,19 @@ def admin_analytics_chat_top_properties(
         db, request, pmc_id, property_id
     )
 
-    cutoff = datetime.utcnow() - timedelta(days=int(days))
+    if from_ts and to_ts:
+        cutoff = datetime.utcfromtimestamp(int(from_ts) / 1000.0)
+        window_end = datetime.utcfromtimestamp(int(to_ts) / 1000.0)
+    else:
+        window_end = datetime.utcnow()
+        cutoff = window_end - timedelta(days=int(days))
 
-    # Find active sessions based on message activity, not last_activity_at
     msg_session_q = (
         db.query(func.distinct(ChatMessage.session_id))
         .join(ChatSession, ChatSession.id == ChatMessage.session_id)
         .join(Property, Property.id == ChatSession.property_id)
         .filter(ChatMessage.created_at >= cutoff)
+        .filter(ChatMessage.created_at <= window_end)
     )
 
     if user_role == "pmc":
@@ -3036,35 +3066,39 @@ def admin_analytics_chat_top_properties(
 
     items = []
     for pid, sess_list in grouped.items():
-        session_ids = [int(s.id) for s in sess_list]
+        prop_session_ids = [int(s.id) for s in sess_list]
 
         messages = (
             db.query(func.count(ChatMessage.id))
-            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.session_id.in_(prop_session_ids))
             .filter(ChatMessage.created_at >= cutoff)
+            .filter(ChatMessage.created_at <= window_end)
             .scalar()
         ) or 0
 
         responded = (
             db.query(func.count(func.distinct(ChatMessage.session_id)))
-            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.session_id.in_(prop_session_ids))
             .filter(ChatMessage.created_at >= cutoff)
+            .filter(ChatMessage.created_at <= window_end)
             .filter(ChatMessage.sender != "guest")
             .scalar()
         ) or 0
 
         errors = (
             db.query(func.count(ChatMessage.id))
-            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.session_id.in_(prop_session_ids))
             .filter(ChatMessage.created_at >= cutoff)
+            .filter(ChatMessage.created_at <= window_end)
             .filter(ChatMessage.category == "error")
             .scalar()
         ) or 0
 
         escalations = (
             db.query(func.count(func.distinct(ChatMessage.session_id)))
-            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.session_id.in_(prop_session_ids))
             .filter(ChatMessage.created_at >= cutoff)
+            .filter(ChatMessage.created_at <= window_end)
             .filter(
                 or_(
                     ChatMessage.category == "urgent",
