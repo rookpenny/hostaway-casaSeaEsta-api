@@ -2113,16 +2113,10 @@
           </div>
         </section>
 
-        <!--
-DROP-IN REPLACEMENT FOR YOUR EXISTING:
-<section id="view-analytics" ...>
 
-Paste this in place of your current analytics section inside admin_dashboard.html.
-It is designed to match your existing Tailwind + Jinja structure and visual language.
-It keeps ids/classes friendly for your current JS layer, while upgrading the layout to the new premium analytics direction.
--->
 
 <section id="view-analytics" class="view space-y-6 {% if initial_view != 'analytics' %}hidden{% endif %}">
+  <!-- Hero -->
   <div class="relative overflow-hidden rounded-[28px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-7 text-white shadow-[0_20px_60px_rgba(40,50,160,0.18)]">
     <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,190,150,0.18),transparent_28%)]"></div>
     <div class="absolute -right-8 bottom-0 h-52 w-52 rounded-full bg-white/10 blur-3xl"></div>
@@ -2205,7 +2199,9 @@ It keeps ids/classes friendly for your current JS layer, while upgrading the lay
     </div>
   </div>
 
+  <!-- Main Analytics Grid -->
   <div class="grid gap-6 xl:grid-cols-[1.55fr_0.95fr]">
+    <!-- Left: Trend + summaries -->
     <div class="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
       <div class="border-b border-slate-100 px-7 py-6">
         <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -2217,7 +2213,7 @@ It keeps ids/classes friendly for your current JS layer, while upgrading the lay
 
           <div class="flex flex-wrap gap-2 text-sm">
             <div class="flex rounded-full border border-slate-200 bg-white p-1">
-              <button type="button" class="analytics-mode-btn rounded-full bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white" data-chart-mode="chats">Chats</button>
+              <button type="button" class="analytics-mode-btn is-active rounded-full px-3 py-1.5 text-xs font-semibold" data-chart-mode="chats">Chats</button>
               <button type="button" class="analytics-mode-btn rounded-full px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100" data-chart-mode="conversion">Conversion</button>
               <button type="button" class="analytics-mode-btn rounded-full px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100" data-chart-mode="lost">Lost opportunity</button>
             </div>
@@ -2315,6 +2311,7 @@ It keeps ids/classes friendly for your current JS layer, while upgrading the lay
       </div>
     </div>
 
+    <!-- Right rail -->
     <div class="grid gap-6">
       <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
         <div class="flex items-center gap-3">
@@ -2357,12 +2354,16 @@ It keeps ids/classes friendly for your current JS layer, while upgrading the lay
         <div class="mt-6 rounded-[28px] bg-slate-50 p-5">
           <div class="text-center">
             <div class="text-xs uppercase tracking-[0.16em] text-slate-400">Peak window</div>
-            <div id="analytics-peak-window" class="mt-1 text-2xl font-semibold text-slate-950">6–9 PM</div>
+            <div id="analytics-peak-window" class="mt-1 text-2xl font-semibold text-slate-950">—</div>
             <div id="analytics-hour-bars" class="mt-6 flex items-end justify-between gap-3"></div>
           </div>
 
           <div class="mt-6 space-y-3" id="analytics-hourly-bars">
-            <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500"><div>—</div><div class="h-2.5 rounded-full bg-white"></div><div class="text-right">—</div></div>
+            <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
+              <div>—</div>
+              <div class="h-2.5 rounded-full bg-white"></div>
+              <div class="text-right">—</div>
+            </div>
           </div>
         </div>
       </div>
@@ -2384,6 +2385,7 @@ It keeps ids/classes friendly for your current JS layer, while upgrading the lay
     </div>
   </div>
 
+  <!-- Insight cards -->
   <div class="grid gap-6 xl:grid-cols-4">
     <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
       <div class="flex items-center gap-3">
@@ -2426,6 +2428,7 @@ It keeps ids/classes friendly for your current JS layer, while upgrading the lay
     </div>
   </div>
 
+  <!-- Top properties -->
   <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
@@ -2454,17 +2457,6 @@ It keeps ids/classes friendly for your current JS layer, while upgrading the lay
     </div>
   </div>
 </section>
-
-<!--
-OPTIONAL SMALL STYLE ADDITIONS
-Paste these inside your existing <style type="text/tailwindcss"> @layer components block if you want the new chart controls to feel more polished.
-
-.analytics-mode-btn.is-active {
-  @apply bg-indigo-600 text-white;
-}
--->
-
-
         <section id="view-settings" class="view hidden space-y-4">
 
           <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
