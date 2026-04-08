@@ -2853,13 +2853,25 @@ function renderAnalyticsAIRead(days) {
   }
 
   const pills = [];
-  if (peakDay?.label) pills.push(`Peak: ${peakDay.label}`);
-  if ((bestConvDay?.conversion || 0) > 0) pills.push(`Best conversion: ${bestConvDay.label}`);
-  if ((frictionDay?.lost_opportunity || 0) > 0) pills.push(`Friction: ${frictionDay.label}`);
-
-  pillsEl.innerHTML = pills.length
-    ? pills.map((txt) => `<span class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700">${escapeHtml(txt)}</span>`).join("")
-    : `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No major signals</span>`;
+    if (peakDay?.label) pills.push(`Peak: ${peakDay.label}`);
+    if ((bestConvDay?.conversion || 0) > 0) pills.push(`Best conversion: ${bestConvDay.label}`);
+    if ((frictionDay?.lost_opportunity || 0) > 0) pills.push(`Friction: ${frictionDay.label}`);
+  
+    pillsEl.innerHTML = pills.length
+      ? pills.map((txt) => `<span class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700">${escapeHtml(txt)}</span>`).join("")
+      : `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No major signals</span>`;
+  
+    if (peakDay && frictionDay) {
+    const insight = peakDay.lost_opportunity > 0
+      ? "Spike driven by guest friction"
+      : "Spike driven by booking demand";
+  
+    pillsEl.innerHTML += `
+      <span class="rounded-full bg-rose-50 px-3 py-1.5 font-semibold text-rose-700">
+        ${insight}
+      </span>
+    `;
+  }
 }
 
 function renderAnalyticsDrilldown(day) {
@@ -2870,6 +2882,8 @@ function renderAnalyticsDrilldown(day) {
   setTextByData("conversion", day ? fmtPct(day.conversion || 0) : "—");
   setTextByData("lost", day ? fmtInt(day.lost_opportunity || 0) : "—");
   setTextByData("signal", day ? getEventMeta(day.event).label : "—");
+  const badge = getEventMeta(day?.event)?.label || "";
+  setTextByData("signal", badge);
 }
 
 function setTextByData(key, value) {
@@ -3037,7 +3051,11 @@ function renderChatAnalyticsChart(payload) {
       type: "bar",
       label: chartLabel,
       data: values,
-      backgroundColor: currentBarColor,
+      backgroundColor: values.map((_, i) =>
+        i === window.chatAnalyticsState.selectedIndex
+          ? "rgba(15,23,42,1)"
+          : currentBarColor
+      ),
       hoverBackgroundColor: currentHoverColor,
       borderRadius: 14,
       borderSkipped: false,
@@ -3123,6 +3141,12 @@ function renderChatAnalyticsChart(payload) {
     },
     plugins: [hoverPlugin],
     options: {
+      elements: {
+        bar: {
+          borderSkipped: false,
+          borderRadius: 14,
+        },
+      },
       responsive: true,
       maintainAspectRatio: false,
       animation: {
@@ -3132,6 +3156,7 @@ function renderChatAnalyticsChart(payload) {
       interaction: {
         mode: "index",
         intersect: false,
+        axis: "x",
       },
       onClick(_, elements) {
         if (!elements?.length) return;
@@ -3198,6 +3223,7 @@ function renderChatAnalyticsChart(payload) {
 function wireAnalyticsModeControls() {
   const modeButtons = Array.from(document.querySelectorAll(".analytics-mode-btn"));
   const compareBtn = document.getElementById("analyticsCompareToggle");
+  const canvas = document.getElementById("chatAnalyticsChart");
 
   function paintModeButtons() {
     modeButtons.forEach((btn) => {
@@ -3236,11 +3262,17 @@ function wireAnalyticsModeControls() {
       window.chatAnalyticsState.mode = mode;
       paintModeButtons();
 
+      if (canvas) canvas.classList.add("opacity-50");
+
       if (window.analyticsPayload) {
         renderChatAnalyticsChart(window.analyticsPayload);
       } else if (window.chatAnalyticsState.payload) {
         renderChatAnalyticsChart(window.chatAnalyticsState.payload);
       }
+      
+      setTimeout(() => {
+        if (canvas) canvas.classList.remove("opacity-50");
+      }, 120);
     });
   });
 
@@ -3251,11 +3283,17 @@ function wireAnalyticsModeControls() {
       window.chatAnalyticsState.compare = !window.chatAnalyticsState.compare;
       paintCompareButton();
 
+      if (canvas) canvas.classList.add("opacity-50");
+
       if (window.analyticsPayload) {
         renderChatAnalyticsChart(window.analyticsPayload);
       } else if (window.chatAnalyticsState.payload) {
         renderChatAnalyticsChart(window.chatAnalyticsState.payload);
       }
+      
+      setTimeout(() => {
+        if (canvas) canvas.classList.remove("opacity-50");
+      }, 120);
     });
   }
 
