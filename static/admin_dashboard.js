@@ -2793,6 +2793,91 @@ function renderAnalyticsEmotions(emotions, spike) {
   );
 }
 
+function renderAnalyticsInsights(insights) {
+  setText("insight-top-issue", insights?.top_issue || "No dominant issue yet");
+  setText(
+    "insight-top-issue-detail",
+    insights?.top_issue_detail || "We need more conversation volume before this becomes meaningful."
+  );
+
+  setText("insight-risk", insights?.high_risk || "No major risk spike");
+  setText(
+    "insight-risk-detail",
+    insights?.high_risk_detail || "No concentrated high-risk pattern in the selected window."
+  );
+
+  setText("insight-automation", insights?.automation || "No clear automation win yet");
+  setText(
+    "insight-automation-detail",
+    insights?.automation_detail || "As more repeat questions appear, this will tighten."
+  );
+
+  setText("insight-human", insights?.needs_human || "—");
+  setText(
+    "insight-human-detail",
+    insights?.needs_human_detail || "No additional detail."
+  );
+}
+
+function renderAnalyticsAIRead(days) {
+  const titleEl = document.getElementById("analytics-ai-read-title");
+  const bodyEl = document.getElementById("analytics-ai-read-body");
+  const pillsEl = document.getElementById("analytics-ai-pills");
+
+  if (!titleEl || !bodyEl || !pillsEl) return;
+
+  if (!Array.isArray(days) || !days.length) {
+    titleEl.textContent = "No trend signal yet";
+    bodyEl.textContent = "We need more conversation volume before we can summarize what happened.";
+    pillsEl.innerHTML = `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No data</span>`;
+    return;
+  }
+
+  const totalChats = days.reduce((sum, d) => sum + Number(d.chats || 0), 0);
+  const avgChats = Math.round(totalChats / days.length);
+  const peakDay = [...days].sort((a, b) => Number(b.chats || 0) - Number(a.chats || 0))[0];
+  const frictionDay = [...days].sort((a, b) => Number(b.lost_opportunity || 0) - Number(a.lost_opportunity || 0))[0];
+  const bestConvDay = [...days].sort((a, b) => Number(b.conversion || 0) - Number(a.conversion || 0))[0];
+
+  const spikePct = avgChats > 0 ? Math.round(((Number(peakDay?.chats || 0) - avgChats) / avgChats) * 100) : 0;
+
+  if ((peakDay?.chats || 0) > avgChats * 1.25) {
+    titleEl.textContent = "Demand spike detected";
+    bodyEl.textContent = `${peakDay.label} was the busiest day with ${fmtInt(peakDay.chats)} chats, ${spikePct}% above the daily average.`;
+  } else if ((frictionDay?.lost_opportunity || 0) > 0) {
+    titleEl.textContent = "Friction is the main story";
+    bodyEl.textContent = `${frictionDay.label} had the strongest drop-off pattern, with ${fmtInt(frictionDay.lost_opportunity)} lost-opportunity signals.`;
+  } else {
+    titleEl.textContent = "Stable conversation flow";
+    bodyEl.textContent = `Chat volume stayed relatively steady with an average of ${fmtInt(avgChats)} chats per day across the selected window.`;
+  }
+
+  const pills = [];
+  if (peakDay?.label) pills.push(`Peak: ${peakDay.label}`);
+  if ((bestConvDay?.conversion || 0) > 0) pills.push(`Best conversion: ${bestConvDay.label}`);
+  if ((frictionDay?.lost_opportunity || 0) > 0) pills.push(`Friction: ${frictionDay.label}`);
+
+  pillsEl.innerHTML = pills.length
+    ? pills.map((txt) => `<span class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700">${escapeHtml(txt)}</span>`).join("")
+    : `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No major signals</span>`;
+}
+
+function renderAnalyticsDrilldown(day) {
+  setText("analytics-drilldown-date", day ? `${day.day || "—"} · ${day.label || "—"}` : "Select a day");
+  setTextByData("chats", day ? fmtInt(day.chats || 0) : "—");
+  setTextByData("user_messages", day ? fmtInt(day.messages || 0) : "—");
+  setTextByData("assistant_messages", "—");
+  setTextByData("conversion", day ? fmtPct(day.conversion || 0) : "—");
+  setTextByData("lost", day ? fmtInt(day.lost_opportunity || 0) : "—");
+  setTextByData("signal", day ? getEventMeta(day.event).label : "—");
+}
+
+function setTextByData(key, value) {
+  const el = document.querySelector(`[data-drilldown="${key}"]`);
+  if (!el) return;
+  el.textContent = value == null || value === "" ? "—" : String(value);
+}
+
 function renderAnalyticsTopProperties(rows) {
   const tbody = document.getElementById("analyticsTopPropsBody");
   if (!tbody) return;
@@ -3053,6 +3138,7 @@ function renderChatAnalyticsChart(payload) {
         const idx = elements[0].index;
         window.chatAnalyticsState.selectedIndex = idx;
         renderAnalyticsSummaryCards(days, idx);
+        renderAnalyticsDrilldown(days[idx] || null);
       },
       plugins: {
         legend: { display: false },
@@ -3178,28 +3264,36 @@ async function loadAnalyticsInsights(days, propertyId, pmcId) {
   if (propertyId) qs.set("property_id", propertyId);
   if (pmcId) qs.set("pmc_id", pmcId);
 
-  const res = await fetch(`/analytics/ai-insights?${qs.toString()}`, {
-    credentials: "include",
-    headers: { Accept: "application/json" },
-  });
+  try {
+    const res = await fetch(`/analytics/ai-insights?${qs.toString()}`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
 
-  if (res.status === 401 || res.status === 403) return loginRedirect();
+    if (res.status === 401 || res.status === 403) return loginRedirect();
 
-  const parsed = await safeReadJson(res);
-  if (!parsed.ok) return;
+    const parsed = await safeReadJson(res);
+    if (!parsed.ok || !parsed.json) {
+      renderAnalyticsInsights({});
+      return;
+    }
 
-  const raw = parsed.json || {};
+    const raw = parsed.json || {};
 
-  renderAnalyticsInsights({
-    top_issue: raw.top_issue ? raw.top_issue.replaceAll("_", " ") : null,
-    top_issue_detail: raw.top_issue_count ? `${fmtInt(raw.top_issue_count)} conversations point to this issue.` : null,
-    high_risk: raw.high_risk ? raw.high_risk.replaceAll("_", " ") : null,
-    high_risk_detail: raw.high_risk_count ? `${fmtInt(raw.high_risk_count)} high-risk conversations in this slice.` : null,
-    automation: raw.automation ? raw.automation.replaceAll("_", " ") : null,
-    automation_detail: raw.automation_count ? `${fmtInt(raw.automation_count)} low-severity conversations could likely be automated.` : null,
-    needs_human: `${fmtInt(raw.needs_human || 0)} needs human`,
-    needs_human_detail: raw.needs_human_pct != null ? `${fmtPct(raw.needs_human_pct)} of sessions needed a human.` : null,
-  });
+    renderAnalyticsInsights({
+      top_issue: raw.top_issue ? raw.top_issue.replaceAll("_", " ") : null,
+      top_issue_detail: raw.top_issue_count ? `${fmtInt(raw.top_issue_count)} conversations point to this issue.` : null,
+      high_risk: raw.high_risk ? raw.high_risk.replaceAll("_", " ") : null,
+      high_risk_detail: raw.high_risk_count ? `${fmtInt(raw.high_risk_count)} high-risk conversations in this slice.` : null,
+      automation: raw.automation ? raw.automation.replaceAll("_", " ") : null,
+      automation_detail: raw.automation_count ? `${fmtInt(raw.automation_count)} low-severity conversations could likely be automated.` : null,
+      needs_human: `${fmtInt(raw.needs_human || 0)} needs human`,
+      needs_human_detail: raw.needs_human_pct != null ? `${fmtPct(raw.needs_human_pct)} of sessions needed a human.` : null,
+    });
+  } catch (err) {
+    console.error("loadAnalyticsInsights failed:", err);
+    renderAnalyticsInsights({});
+  }
 }
 
 async function loadTopProperties(days, propertyId, pmcId) {
@@ -3250,16 +3344,38 @@ async function loadChatAnalytics() {
 
     const payload = tsParsed.json || {};
     window.chatAnalyticsState.payload = payload;
+    window.analyticsPayload = payload;
 
     renderChatAnalyticsChart(payload);
     renderAnalyticsLifecycle(payload.lifecycle || {});
     renderAnalyticsPeak(payload.hours || {});
     renderAnalyticsEmotions(payload.emotions || {}, payload.emotion_spike || {});
+    renderAnalyticsAIRead(Array.isArray(payload.days) ? payload.days : []);
 
-    await Promise.all([
+    const daysArr = Array.isArray(payload.days) ? payload.days : [];
+    const selectedIndex =
+      Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
+      window.chatAnalyticsState.selectedIndex >= 0 &&
+      window.chatAnalyticsState.selectedIndex < daysArr.length
+        ? window.chatAnalyticsState.selectedIndex
+        : Math.max(daysArr.length - 1, 0);
+
+    if (daysArr.length) {
+      renderAnalyticsDrilldown(daysArr[selectedIndex]);
+    } else {
+      renderAnalyticsDrilldown(null);
+    }
+
+    const results = await Promise.allSettled([
       loadTopProperties(days, propertyId, pmcId),
       loadAnalyticsInsights(days, propertyId, pmcId),
     ]);
+
+    results.forEach((r) => {
+      if (r.status === "rejected") {
+        console.error("analytics side load failed:", r.reason);
+      }
+    });
   } catch (err) {
     console.error("loadChatAnalytics failed:", err);
     toast("Analytics failed to load.");
