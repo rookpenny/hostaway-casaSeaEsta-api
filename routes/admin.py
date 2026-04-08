@@ -2706,23 +2706,62 @@ def admin_analytics_chat_timeseries(
     cutoff = now - timedelta(days=int(days))
     prev_cutoff = cutoff - timedelta(days=int(days))
 
-    current_sessions = q.filter(ChatSession.last_activity_at >= cutoff).all()
-    previous_sessions = q.filter(ChatSession.last_activity_at >= prev_cutoff, ChatSession.last_activity_at < cutoff).all()
+    # Current-period messages
+    current_msg_q = (
+        db.query(ChatMessage)
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatMessage.created_at >= cutoff)
+    )
 
-    current_ids = [s.id for s in current_sessions]
-    previous_ids = [s.id for s in previous_sessions]
+    # Previous-period messages
+    previous_msg_q = (
+        db.query(ChatMessage)
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatMessage.created_at >= prev_cutoff)
+        .filter(ChatMessage.created_at < cutoff)
+    )
 
-    current_signals = batch_message_signals(db, current_ids) if current_ids else {}
-    previous_signals = batch_message_signals(db, previous_ids) if previous_ids else {}
+    if user_role == "pmc":
+        current_msg_q = current_msg_q.filter(Property.pmc_id == pmc_obj.id)
+        previous_msg_q = previous_msg_q.filter(Property.pmc_id == pmc_obj.id)
+    elif user_role == "super" and pmc_id_int:
+        current_msg_q = current_msg_q.filter(Property.pmc_id == pmc_id_int)
+        previous_msg_q = previous_msg_q.filter(Property.pmc_id == pmc_id_int)
+
+    if property_id_int:
+        current_msg_q = current_msg_q.filter(ChatSession.property_id == property_id_int)
+        previous_msg_q = previous_msg_q.filter(ChatSession.property_id == property_id_int)
+
+    current_messages = current_msg_q.all()
+    previous_messages = previous_msg_q.all()
+
+    current_session_ids = sorted({int(m.session_id) for m in current_messages if m.session_id is not None})
+    previous_session_ids = sorted({int(m.session_id) for m in previous_messages if m.session_id is not None})
+
+    current_sessions = (
+        q.filter(ChatSession.id.in_(current_session_ids)).all()
+        if current_session_ids else []
+    )
+    previous_sessions = (
+        q.filter(ChatSession.id.in_(previous_session_ids)).all()
+        if previous_session_ids else []
+    )
+
+    current_signals = batch_message_signals(db, current_session_ids) if current_session_ids else {}
+    previous_signals = batch_message_signals(db, previous_session_ids) if previous_session_ids else {}
 
     labels = []
     current_map = {}
     previous_map = {}
 
     for i in range(int(days)):
-        d = (cutoff.date() + timedelta(days=i))
+        d = cutoff.date() + timedelta(days=i)
         prev_d = d - timedelta(days=int(days))
+
         labels.append(d.isoformat())
+
         current_map[d.isoformat()] = {
             "date": d.isoformat(),
             "label": d.strftime("%b %-d") if os.name != "nt" else d.strftime("%b %#d"),
@@ -2734,6 +2773,7 @@ def admin_analytics_chat_timeseries(
             "errors": 0,
             "responded": 0,
         }
+
         previous_map[d.isoformat()] = {
             "date": prev_d.isoformat(),
             "label": prev_d.strftime("%b %-d") if os.name != "nt" else prev_d.strftime("%b %#d"),
@@ -2748,20 +2788,22 @@ def admin_analytics_chat_timeseries(
 
     lifecycle_counts = {"inquiry": 0, "upcoming": 0, "current": 0, "checked_out": 0}
 
+    # Count chats by session activity in current window
     for sess in current_sessions:
-        key = _session_day_key(getattr(sess, "last_activity_at", None))
+        sess_msgs = [m for m in current_messages if int(m.session_id) == int(sess.id)]
+        if not sess_msgs:
+            continue
+
+        last_msg = max(sess_msgs, key=lambda m: m.created_at or datetime.min)
+        key = last_msg.created_at.date().isoformat() if last_msg.created_at else None
+
         if key in current_map:
             current_map[key]["chats"] += 1
             sig = current_signals.get(sess.id, {})
             if sig.get("has_urgent") or sig.get("has_negative"):
                 current_map[key]["lost_opportunity"] += 1
 
-            has_response = (
-                db.query(func.count(ChatMessage.id))
-                .filter(ChatMessage.session_id == sess.id)
-                .filter(ChatMessage.sender != "guest")
-                .scalar()
-            ) or 0
+            has_response = any((m.sender or "") != "guest" for m in sess_msgs)
             if has_response:
                 current_map[key]["responded"] += 1
 
@@ -2769,14 +2811,17 @@ def admin_analytics_chat_timeseries(
         if stage in lifecycle_counts:
             lifecycle_counts[stage] += 1
 
+    # Count chats by session activity in previous window, shifted forward for compare mode
     for sess in previous_sessions:
-        key = _session_day_key(getattr(sess, "last_activity_at", None))
-        shifted_key = None
-        if key:
-            try:
-                shifted_key = (datetime.fromisoformat(key).date() + timedelta(days=int(days))).isoformat()
-            except Exception:
-                shifted_key = None
+        sess_msgs = [m for m in previous_messages if int(m.session_id) == int(sess.id)]
+        if not sess_msgs:
+            continue
+
+        last_msg = max(sess_msgs, key=lambda m: m.created_at or datetime.min)
+        if not last_msg.created_at:
+            continue
+
+        shifted_key = (last_msg.created_at.date() + timedelta(days=int(days))).isoformat()
 
         if shifted_key in previous_map:
             previous_map[shifted_key]["chats"] += 1
@@ -2784,39 +2829,23 @@ def admin_analytics_chat_timeseries(
             if sig.get("has_urgent") or sig.get("has_negative"):
                 previous_map[shifted_key]["lost_opportunity"] += 1
 
-            has_response = (
-                db.query(func.count(ChatMessage.id))
-                .filter(ChatMessage.session_id == sess.id)
-                .filter(ChatMessage.sender != "guest")
-                .scalar()
-            ) or 0
+            has_response = any((m.sender or "") != "guest" for m in sess_msgs)
             if has_response:
                 previous_map[shifted_key]["responded"] += 1
 
-    msg_q = (
-        db.query(ChatMessage)
-        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
-        .join(Property, Property.id == ChatSession.property_id)
-        .filter(ChatMessage.created_at >= cutoff)
-    )
-    if user_role == "pmc":
-        msg_q = msg_q.filter(Property.pmc_id == pmc_obj.id)
-    elif user_role == "super" and pmc_id_int:
-        msg_q = msg_q.filter(Property.pmc_id == pmc_id_int)
-    if property_id_int:
-        msg_q = msg_q.filter(ChatSession.property_id == property_id_int)
-
-    messages = msg_q.all()
-
+    # Message-level counts for current window
     hour_counts = defaultdict(int)
-    for msg in messages:
-        if msg.created_at:
-            day_key = msg.created_at.date().isoformat()
-            if day_key in current_map:
-                current_map[day_key]["messages"] += 1
-                if (msg.category or "") == "error":
-                    current_map[day_key]["errors"] += 1
-            hour_counts[msg.created_at.hour] += 1
+    for msg in current_messages:
+        if not msg.created_at:
+            continue
+
+        day_key = msg.created_at.date().isoformat()
+        if day_key in current_map:
+            current_map[day_key]["messages"] += 1
+            if (msg.category or "") == "error":
+                current_map[day_key]["errors"] += 1
+
+        hour_counts[msg.created_at.hour] += 1
 
     items = []
     max_chats = 0
@@ -2885,8 +2914,6 @@ def admin_analytics_chat_timeseries(
         "9p": "9 PM–12 AM",
     }.get(peak_hour["label"], "—")
 
-
-    # 👇 INSERT HERE (same indent as above)
     emotion_counts = {
         "calm": 0,
         "confused": 0,
@@ -2912,41 +2939,13 @@ def admin_analytics_chat_timeseries(
     emotion_total = sum(emotion_counts.values()) or 1
 
     emotion_items = [
-        {
-            "label": "Calm",
-            "value": round((emotion_counts.get("calm", 0) / emotion_total) * 100),
-            "tone": "emerald",
-        },
-        {
-            "label": "Confused",
-            "value": round((emotion_counts.get("confused", 0) / emotion_total) * 100),
-            "tone": "blue",
-        },
-        {
-            "label": "Worried",
-            "value": round((emotion_counts.get("worried", 0) / emotion_total) * 100),
-            "tone": "indigo",
-        },
-        {
-            "label": "Upset",
-            "value": round((emotion_counts.get("upset", 0) / emotion_total) * 100),
-            "tone": "amber",
-        },
-        {
-            "label": "Panicked",
-            "value": round((emotion_counts.get("panicked", 0) / emotion_total) * 100),
-            "tone": "rose",
-        },
-        {
-            "label": "Angry",
-            "value": round((emotion_counts.get("angry", 0) / emotion_total) * 100),
-            "tone": "rose",
-        },
-        {
-            "label": "Stressed",
-            "value": round((emotion_counts.get("stressed", 0) / emotion_total) * 100),
-            "tone": "orange",
-        },
+        {"label": "Calm", "value": round((emotion_counts.get("calm", 0) / emotion_total) * 100), "tone": "emerald"},
+        {"label": "Confused", "value": round((emotion_counts.get("confused", 0) / emotion_total) * 100), "tone": "blue"},
+        {"label": "Worried", "value": round((emotion_counts.get("worried", 0) / emotion_total) * 100), "tone": "indigo"},
+        {"label": "Upset", "value": round((emotion_counts.get("upset", 0) / emotion_total) * 100), "tone": "amber"},
+        {"label": "Panicked", "value": round((emotion_counts.get("panicked", 0) / emotion_total) * 100), "tone": "rose"},
+        {"label": "Angry", "value": round((emotion_counts.get("angry", 0) / emotion_total) * 100), "tone": "rose"},
+        {"label": "Stressed", "value": round((emotion_counts.get("stressed", 0) / emotion_total) * 100), "tone": "orange"},
     ]
 
     strongest_emotion = max(emotion_items, key=lambda x: x["value"]) if emotion_items else None
@@ -2963,7 +2962,7 @@ def admin_analytics_chat_timeseries(
             else "Current conversations are relatively balanced with no major emotional concentration."
         ),
     }
-    
+
     return {
         "window_days": int(days),
         "days": items,
