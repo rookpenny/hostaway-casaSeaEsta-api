@@ -2712,6 +2712,8 @@ function renderAnalyticsLifecycle(lifecycle) {
   setWidth("analytics-stage-post-bar", post);
 }
 
+
+
 function renderAnalyticsPeak(hours) {
   const items = Array.isArray(hours?.items) ? hours.items : [];
   const peakWindow = hours?.peak_window || "—";
@@ -3476,6 +3478,12 @@ async function loadAnalyticsInsights(days, propertyId, pmcId) {
       needs_human_detail: "No additional detail.",
     });
   }
+}
+
+function initAnalyticsView() {
+  wireAnalyticsRangeButtons();
+  wireAnalyticsModeControls();
+  loadChatAnalytics();
 }
 
 async function loadTopProperties(days, propertyId, pmcId) {
