@@ -3135,8 +3135,10 @@ function renderChatAnalyticsChart(payload) {
       },
       onClick(_, elements) {
         if (!elements?.length) return;
+      
         const idx = elements[0].index;
         window.chatAnalyticsState.selectedIndex = idx;
+      
         renderAnalyticsSummaryCards(days, idx);
         renderAnalyticsDrilldown(days[idx] || null);
       },
@@ -3292,7 +3294,13 @@ async function loadAnalyticsInsights(days, propertyId, pmcId) {
     });
   } catch (err) {
     console.error("loadAnalyticsInsights failed:", err);
-    renderAnalyticsInsights({});
+  
+    renderAnalyticsInsights({
+      top_issue: "No clear issue yet",
+      high_risk: "No risk spike",
+      automation: "No automation signal",
+      needs_human: "—",
+    });
   }
 }
 
@@ -3353,13 +3361,14 @@ async function loadChatAnalytics() {
     renderAnalyticsAIRead(Array.isArray(payload.days) ? payload.days : []);
 
     const daysArr = Array.isArray(payload.days) ? payload.days : [];
+
     const selectedIndex =
       Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
       window.chatAnalyticsState.selectedIndex >= 0 &&
       window.chatAnalyticsState.selectedIndex < daysArr.length
         ? window.chatAnalyticsState.selectedIndex
         : Math.max(daysArr.length - 1, 0);
-
+    
     if (daysArr.length) {
       renderAnalyticsDrilldown(daysArr[selectedIndex]);
     } else {
