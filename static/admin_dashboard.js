@@ -2713,42 +2713,85 @@ function renderAnalyticsLifecycle(lifecycle) {
 }
 
 function renderAnalyticsPeak(hours) {
-  setText("analytics-peak-window", hours?.peak_window || "—");
-
-  const barsWrap = document.getElementById("analytics-hour-bars");
-  const detailWrap = document.getElementById("analytics-hourly-bars");
-
   const items = Array.isArray(hours?.items) ? hours.items : [];
+  const peakWindow = hours?.peak_window || "—";
+
+  setText("analytics-peak-window", peakWindow);
+
+  const detailWrap = document.getElementById("analytics-hourly-bars");
+  const ring1 = document.getElementById("analytics-peak-ring-1");
+  const ring2 = document.getElementById("analytics-peak-ring-2");
+  const ring3 = document.getElementById("analytics-peak-ring-3");
+
+  if (!items.length) {
+    if (detailWrap) {
+      detailWrap.innerHTML = `
+        <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
+          <div>—</div>
+          <div class="h-2.5 rounded-full bg-white"></div>
+          <div class="text-right">—</div>
+        </div>
+      `;
+    }
+
+    [ring1, ring2, ring3].forEach((ring) => {
+      if (!ring) return;
+      ring.setAttribute("stroke-dasharray", "0 999");
+      ring.setAttribute("stroke-dashoffset", "0");
+    });
+
+    return;
+  }
+
   const max = Math.max(...items.map((x) => Number(x.value || 0)), 1);
 
-  if (barsWrap) {
-    barsWrap.innerHTML = items.map((item) => {
-      const h = Math.max(10, Math.round((Number(item.value || 0) / max) * 96));
-      return `
-        <div class="flex flex-col items-center gap-2">
-          <div class="flex h-[100px] items-end">
-            <div class="w-8 rounded-t-2xl bg-indigo-500/90" style="height:${h}px"></div>
+  if (detailWrap) {
+    detailWrap.innerHTML = items
+      .map((item) => {
+        const value = Number(item.value || 0);
+        const pct = Math.round((value / max) * 100);
+
+        return `
+          <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
+            <div>${escapeHtml(item.label || "—")}</div>
+            <div class="h-2.5 rounded-full bg-white">
+              <div
+                class="h-2.5 rounded-full"
+                style="width:${pct}%; background: linear-gradient(90deg, #6366F1 0%, #4FC3F7 100%);"
+              ></div>
+            </div>
+            <div class="text-right">${fmtInt(value)}</div>
           </div>
-          <div class="text-xs font-medium text-slate-500">${escapeHtml(item.label || "—")}</div>
-        </div>
-      `;
-    }).join("");
+        `;
+      })
+      .join("");
   }
 
-  if (detailWrap) {
-    detailWrap.innerHTML = items.map((item) => {
-      const pct = Math.round((Number(item.value || 0) / max) * 100);
-      return `
-        <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
-          <div>${escapeHtml(item.label || "—")}</div>
-          <div class="h-2.5 rounded-full bg-white">
-            <div class="h-2.5 rounded-full bg-indigo-500" style="width:${pct}%"></div>
-          </div>
-          <div class="text-right">${fmtInt(item.value || 0)}</div>
-        </div>
-      `;
-    }).join("");
-  }
+  // Build a 3-part ring from the top three values
+  const sorted = [...items].sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+  const topThree = sorted.slice(0, 3);
+  const totalTop = topThree.reduce((sum, item) => sum + Number(item.value || 0), 0) || 1;
+
+  const rings = [
+    { el: ring1, radius: 70, value: Number(topThree[0]?.value || 0) },
+    { el: ring2, radius: 70, value: Number(topThree[1]?.value || 0) },
+    { el: ring3, radius: 70, value: Number(topThree[2]?.value || 0) },
+  ];
+
+  let offsetProgress = 0;
+  const gap = 8;
+
+  rings.forEach(({ el, radius, value }) => {
+    if (!el) return;
+
+    const circumference = 2 * Math.PI * radius;
+    const rawLength = (value / totalTop) * circumference;
+    const visibleLength = Math.max(0, rawLength - gap);
+
+    el.setAttribute("stroke-dasharray", `${visibleLength} ${circumference}`);
+    el.setAttribute("stroke-dashoffset", `${-offsetProgress}`);
+    offsetProgress += rawLength;
+  });
 }
 
 function renderAnalyticsEmotions(emotions, spike) {
