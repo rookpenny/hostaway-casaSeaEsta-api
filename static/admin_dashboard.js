@@ -2760,40 +2760,44 @@ function renderAnalyticsPeak(hours) {
                 style="width:${pct}%; background: linear-gradient(90deg, #6366F1 0%, #4FC3F7 100%);"
               ></div>
             </div>
-            <div class="text-right">${fmtInt(value)}</div>
+            <div class="text-right font-medium text-slate-600">${fmtInt(value)}</div>
           </div>
         `;
       })
       .join("");
   }
 
-  // Build a 3-part ring from the top three values
   const sorted = [...items].sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
   const topThree = sorted.slice(0, 3);
   const totalTop = topThree.reduce((sum, item) => sum + Number(item.value || 0), 0) || 1;
 
-  const rings = [
-    { el: ring1, radius: 70, value: Number(topThree[0]?.value || 0) },
-    { el: ring2, radius: 70, value: Number(topThree[1]?.value || 0) },
-    { el: ring3, radius: 70, value: Number(topThree[2]?.value || 0) },
-  ];
+  const radius = 74;
+  const circumference = 2 * Math.PI * radius;
+  const gap = 10;
 
+  const arcs = topThree.map((item) => {
+    const rawLength = (Number(item.value || 0) / totalTop) * circumference;
+    return Math.max(0, rawLength - gap);
+  });
+
+  const rawLengths = topThree.map((item) => {
+    return (Number(item.value || 0) / totalTop) * circumference;
+  });
+
+  const ringEls = [ring1, ring2, ring3];
   let offsetProgress = 0;
-  const gap = 8;
 
-  rings.forEach(({ el, radius, value }) => {
+  ringEls.forEach((el, i) => {
     if (!el) return;
 
-    const circumference = 2 * Math.PI * radius;
-    const rawLength = (value / totalTop) * circumference;
-    const visibleLength = Math.max(0, rawLength - gap);
+    const visibleLength = arcs[i] || 0;
+    const rawLength = rawLengths[i] || 0;
 
     el.setAttribute("stroke-dasharray", `${visibleLength} ${circumference}`);
     el.setAttribute("stroke-dashoffset", `${-offsetProgress}`);
     offsetProgress += rawLength;
   });
 }
-
 function renderAnalyticsEmotions(emotions, spike) {
   const wrap = document.getElementById("analytics-emotion-bars");
   if (wrap) {
