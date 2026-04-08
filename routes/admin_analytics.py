@@ -1,6 +1,6 @@
 #admin_analytics.py
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, Literal
 from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from sqlalchemy.orm import Session
@@ -103,177 +103,94 @@ def _with_upgrade_array_binds(stmt_text: str):
 # --------------------------------------------------
 # SUMMARY
 # --------------------------------------------------
+
 @router.get("/summary")
 def summary(
     request: Request,
-    from_ms: int = Query(..., alias="from"),
-    to_ms: int = Query(..., alias="to"),
+    from_ms: int | None = Query(default=None, alias="from"),
+    to_ms: int | None = Query(default=None, alias="to"),
+    days: int = Query(30, ge=1, le=365),
     property_id: Optional[int] = None,
     pmc_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
     pmc_id = _enforce_scope(request, pmc_id)
 
-    start = ms_to_dt(from_ms)
-    end = ms_to_dt(to_ms)
+    if from_ms is not None and to_ms is not None:
+        start = ms_to_dt(from_ms)
+        end = ms_to_dt(to_ms)
+    else:
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=int(days))
 
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-    stmt = _with_upgrade_array_binds("""
-        with base as (
-            select *
-            from analytics_events
-            where ts >= :start
-              and ts < :end
-              and (:pmc_id is null or pmc_id = :pmc_id)
-              and (:property_id is null or property_id = :property_id)
-        ),
-        msg_base as (
+    stmt = text("""
+        with filtered_msgs as (
             select
-                ts,
-                session_id,
-                coalesce(data->>'sender', data->>'role') as sender,
-                coalesce(data->>'assistant', data->>'variant', 'default') as assistant_key
-            from base
-            where event_name = 'message_sent'
-              and session_id is not null
+                cm.id,
+                cm.session_id,
+                cm.sender,
+                cm.category,
+                cm.created_at
+            from chat_messages cm
+            join chat_sessions cs on cs.id = cm.session_id
+            join properties p on p.id = cs.property_id
+            where cm.created_at >= :start
+              and cm.created_at < :end
+              and (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
         ),
-        user_msgs as (
-            select session_id, ts as user_ts
-            from msg_base
-            where sender in ('user', 'guest')
-        ),
-        response_pairs as (
-            select
-                u.session_id,
-                u.user_ts,
-                a.assistant_ts,
-                extract(epoch from (a.assistant_ts - u.user_ts)) as response_seconds
-            from user_msgs u
-            join lateral (
-                select mb.ts as assistant_ts
-                from msg_base mb
-                where mb.session_id = u.session_id
-                  and mb.ts > u.user_ts
-                  and mb.sender in ('assistant', 'bot')
-                order by mb.ts asc
-                limit 1
-            ) a on true
-            where a.assistant_ts is not null
-        ),
-        response_clean as (
-            select *
-            from response_pairs
-            where response_seconds is not null
-              and response_seconds >= 0
-              and response_seconds <= 1800
+        active_sessions as (
+            select distinct session_id
+            from filtered_msgs
+            where session_id is not null
         )
         select
-            -- sessions
-            count(*) filter (where event_name = 'chat_session_created') as sessions_total,
-
-            -- messages
-            count(*) filter (
-                where event_name = 'message_sent'
-                  and coalesce(data->>'sender', data->>'role') in ('user', 'guest')
-            ) as user_messages,
-
-            count(*) filter (
-                where event_name = 'message_sent'
-                  and coalesce(data->>'sender', data->>'role') in ('assistant', 'bot')
-            ) as assistant_messages,
-
-            -- response rate (pairing)
-            (select count(*) from user_msgs) as user_message_samples,
-            (select count(*) from response_clean) as responded_user_messages,
+            (select count(*) from active_sessions) as sessions_total,
             (
-              (select count(*) from response_clean)::float
-              / nullif((select count(*) from user_msgs)::float, 0)
-            ) as response_rate,
-
-            -- followups funnel
-            count(*) filter (where event_name = :followups_shown_event) as followups_shown,
-            count(*) filter (where event_name = :followup_click_event) as followup_clicks,
+              select count(distinct session_id)
+              from filtered_msgs
+              where sender != 'guest'
+            ) as responded_sessions,
             (
-              count(*) filter (where event_name = :followup_click_event)::float
-              / nullif(count(*) filter (where event_name = :followups_shown_event)::float, 0)
-            ) as followup_conversion_rate,
-
-            -- upgrades funnel (typed arrays)
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
+              select count(*)
+              from filtered_msgs
+              where category = 'urgent'
+            ) as followup_clicks,
             (
-              count(*) filter (where event_name = ANY(:upgrade_purchase_events))::float
-              / nullif(count(*) filter (where event_name = ANY(:upgrade_start_events))::float, 0)
-            ) as upgrade_conversion_rate,
-
-            -- reactions
-            count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'up') as reactions_up,
-            count(*) filter (where event_name = 'reaction_set' and data->>'value' = 'down') as reactions_down,
-
-            -- errors + escalation
-            count(*) filter (where event_name = :chat_error_event) as chat_errors,
-            count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks,
-            (
-              count(*) filter (where event_name = :chat_error_event)::float
-              / nullif(count(*) filter (where event_name = 'message_sent'
-                   and coalesce(data->>'sender', data->>'role') in ('user','guest')
-                 )::float, 0)
-            ) as error_rate_per_user_message,
-
-            -- response time (seconds)
-            (select avg(response_seconds) from response_clean) as avg_response_seconds,
-            (select percentile_cont(0.5) within group (order by response_seconds) from response_clean) as p50_response_seconds
-        from base;
+              select count(*)
+              from filtered_msgs
+              where category = 'error'
+            ) as chat_errors
     """).bindparams(
-        bindparam("followups_shown_event", type_=PG_TEXT),
-        bindparam("followup_click_event", type_=PG_TEXT),
-        bindparam("chat_error_event", type_=PG_TEXT),
-        bindparam("contact_host_click_event", type_=PG_TEXT),
+        bindparam("pmc_id", type_=BIGINT),
+        bindparam("property_id", type_=BIGINT),
     )
 
-    try:
-        row = db.execute(
-            stmt,
-            {
-                "start": start,
-                "end": end,
-                "pmc_id": pmc_id,
-                "property_id": property_id,
-                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-                "followup_click_event": FOLLOWUP_CLICK_EVENT,
-                "chat_error_event": CHAT_ERROR_EVENT,
-                "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
-                "upgrade_start_events": list(UPGRADE_START_EVENTS),
-                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-            },
-        ).mappings().first() or {}
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"summary query failed: {e}")
+    row = db.execute(
+        stmt,
+        {
+            "start": start,
+            "end": end,
+            "pmc_id": pmc_id,
+            "property_id": property_id,
+        },
+    ).mappings().first() or {}
+
+    sessions_total = int(_num(row.get("sessions_total"), 0))
+    responded_sessions = int(_num(row.get("responded_sessions"), 0))
+
+    response_rate = (responded_sessions / sessions_total * 100.0) if sessions_total else 0.0
 
     return {
-        "sessions_total": int(_num(row.get("sessions_total"), 0)),
-        "user_messages": int(_num(row.get("user_messages"), 0)),
-        "assistant_messages": int(_num(row.get("assistant_messages"), 0)),
-        "user_message_samples": int(_num(row.get("user_message_samples"), 0)),
-        "responded_user_messages": int(_num(row.get("responded_user_messages"), 0)),
-        "response_rate": float(_num(row.get("response_rate"), 0.0)),
-        "followups_shown": int(_num(row.get("followups_shown"), 0)),
+        "window_days": int(days),
+        "sessions_total": sessions_total,
+        "response_rate": round(float(response_rate), 1),
         "followup_clicks": int(_num(row.get("followup_clicks"), 0)),
-        "followup_conversion_rate": float(_num(row.get("followup_conversion_rate"), 0.0)),
-        "upgrade_checkouts_started": int(_num(row.get("upgrade_checkouts_started"), 0)),
-        "upgrade_purchases": int(_num(row.get("upgrade_purchases"), 0)),
-        "upgrade_conversion_rate": float(_num(row.get("upgrade_conversion_rate"), 0.0)),
-        "reactions_up": int(_num(row.get("reactions_up"), 0)),
-        "reactions_down": int(_num(row.get("reactions_down"), 0)),
         "chat_errors": int(_num(row.get("chat_errors"), 0)),
-        "contact_host_clicks": int(_num(row.get("contact_host_clicks"), 0)),
-        "error_rate_per_user_message": float(_num(row.get("error_rate_per_user_message"), 0.0)),
-        "avg_response_seconds": float(_num(row.get("avg_response_seconds"), 0.0)),
-        "p50_response_seconds": float(_num(row.get("p50_response_seconds"), 0.0)),
     }
-
 
 # --------------------------------------------------
 # RESPONSE RATE
@@ -387,114 +304,448 @@ def response_rate(
 @router.get("/timeseries")
 def timeseries(
     request: Request,
-    bucket: Literal["day", "hour"] = "day",
-    from_ms: int = Query(..., alias="from"),
-    to_ms: int = Query(..., alias="to"),
+    from_ms: int | None = Query(default=None, alias="from"),
+    to_ms: int | None = Query(default=None, alias="to"),
+    days: int = Query(30, ge=1, le=365),
     property_id: Optional[int] = None,
     pmc_id: Optional[int] = None,
     db: Session = Depends(get_db),
 ):
     pmc_id = _enforce_scope(request, pmc_id)
-    start = ms_to_dt(from_ms)
-    end = ms_to_dt(to_ms)
+
+    if from_ms is not None and to_ms is not None:
+        start = ms_to_dt(from_ms)
+        end = ms_to_dt(to_ms)
+        window_days = max(1, (end.date() - start.date()).days)
+        prev_start = start - (end - start)
+        prev_end = start
+    else:
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=int(days))
+        window_days = int(days)
+        prev_start = start - timedelta(days=int(days))
+        prev_end = start
 
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-    # bucket is constrained by Literal -> safe to splice only these identifiers/intervals
-    trunc = "day" if bucket == "day" else "hour"
-    step = "1 day" if bucket == "day" else "1 hour"
-
-    stmt = text(f"""
-        with buckets as (
-          select generate_series(
-            date_trunc('{trunc}', :start),
-            date_trunc('{trunc}', :end),
-            interval '{step}'
-          ) as bucket
+    day_stmt = text("""
+        with filtered_msgs as (
+            select
+                cm.id,
+                cm.session_id,
+                cm.sender,
+                cm.category,
+                cm.sentiment,
+                cm.created_at,
+                cs.property_id
+            from chat_messages cm
+            join chat_sessions cs on cs.id = cm.session_id
+            join properties p on p.id = cs.property_id
+            where cm.created_at >= :start
+              and cm.created_at < :end
+              and (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
         ),
-        filtered as (
-          select *
-          from analytics_events
-          where ts >= :start
-            and ts < :end
-            and (:pmc_id is null or pmc_id = :pmc_id)
-            and (:property_id is null or property_id = :property_id)
+        last_msg_per_session as (
+            select distinct on (session_id)
+                session_id,
+                property_id,
+                created_at,
+                category,
+                sentiment
+            from filtered_msgs
+            order by session_id, created_at desc
         ),
-        agg as (
-          select
-            date_trunc('{trunc}', ts) as bucket,
-            count(*) filter (where event_name = 'chat_session_created') as sessions,
-            count(*) filter (where event_name = 'message_sent') as messages,
-            count(*) filter (where event_name = :followup_click_event) as followup_clicks,
-            count(*) filter (where event_name = :followups_shown_event) as followups_shown,
-            count(*) filter (where event_name = :chat_error_event) as chat_errors,
-            count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
-          from filtered
-          group by 1
+        responded_sessions as (
+            select distinct session_id
+            from filtered_msgs
+            where sender != 'guest'
+        ),
+        daily_msgs as (
+            select
+                date_trunc('day', created_at) as bucket,
+                count(*) as messages,
+                count(*) filter (where category = 'error') as errors
+            from filtered_msgs
+            group by 1
+        ),
+        daily_sessions as (
+            select
+                date_trunc('day', lm.created_at) as bucket,
+                count(*) as chats,
+                count(*) filter (
+                    where lm.category = 'urgent'
+                       or lower(coalesce(lm.sentiment, '')) = 'negative'
+                ) as lost_opportunity,
+                count(*) filter (
+                    where exists (
+                        select 1 from responded_sessions rs where rs.session_id = lm.session_id
+                    )
+                ) as responded
+            from last_msg_per_session lm
+            group by 1
         )
         select
-          b.bucket,
-          coalesce(a.sessions, 0) as sessions,
-          coalesce(a.messages, 0) as messages,
-          coalesce(a.followup_clicks, 0) as followup_clicks,
-          coalesce(a.followups_shown, 0) as followups_shown,
-          coalesce(a.chat_errors, 0) as chat_errors,
-          coalesce(a.contact_host_clicks, 0) as contact_host_clicks
-        from buckets b
-        left join agg a using (bucket)
-        order by b.bucket asc;
+            coalesce(ds.bucket, dm.bucket) as bucket,
+            coalesce(ds.chats, 0) as chats,
+            coalesce(ds.lost_opportunity, 0) as lost_opportunity,
+            coalesce(ds.responded, 0) as responded,
+            coalesce(dm.messages, 0) as messages,
+            coalesce(dm.errors, 0) as errors
+        from daily_sessions ds
+        full outer join daily_msgs dm on dm.bucket = ds.bucket
+        order by bucket asc
     """).bindparams(
         bindparam("pmc_id", type_=BIGINT),
         bindparam("property_id", type_=BIGINT),
-        bindparam("followup_click_event", type_=PG_TEXT),
-        bindparam("followups_shown_event", type_=PG_TEXT),
-        bindparam("chat_error_event", type_=PG_TEXT),
-        bindparam("contact_host_click_event", type_=PG_TEXT),
     )
 
-    try:
-        rows = db.execute(
-            stmt,
-            {
-                "start": start,
-                "end": end,
-                "pmc_id": pmc_id,
-                "property_id": property_id,
-                "followup_click_event": FOLLOWUP_CLICK_EVENT,
-                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-                "chat_error_event": CHAT_ERROR_EVENT,
-                "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
-            },
-        ).mappings().all()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"timeseries query failed: {e}")
+    prev_stmt = text("""
+        with filtered_msgs as (
+            select
+                cm.id,
+                cm.session_id,
+                cm.sender,
+                cm.category,
+                cm.sentiment,
+                cm.created_at,
+                cs.property_id
+            from chat_messages cm
+            join chat_sessions cs on cs.id = cm.session_id
+            join properties p on p.id = cs.property_id
+            where cm.created_at >= :start
+              and cm.created_at < :end
+              and (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
+        ),
+        last_msg_per_session as (
+            select distinct on (session_id)
+                session_id,
+                property_id,
+                created_at,
+                category,
+                sentiment
+            from filtered_msgs
+            order by session_id, created_at desc
+        ),
+        responded_sessions as (
+            select distinct session_id
+            from filtered_msgs
+            where sender != 'guest'
+        )
+        select
+            date_trunc('day', lm.created_at) as bucket,
+            count(*) as chats,
+            count(*) filter (
+                where lm.category = 'urgent'
+                   or lower(coalesce(lm.sentiment, '')) = 'negative'
+            ) as lost_opportunity,
+            count(*) filter (
+                where exists (
+                    select 1 from responded_sessions rs where rs.session_id = lm.session_id
+                )
+            ) as responded
+        from last_msg_per_session lm
+        group by 1
+        order by bucket asc
+    """).bindparams(
+        bindparam("pmc_id", type_=BIGINT),
+        bindparam("property_id", type_=BIGINT),
+    )
 
-    labels = []
-    sessions, messages = [], []
-    followup_clicks, followups_shown = [], []
-    chat_errors, contact_host_clicks = [], []
+    hour_stmt = text("""
+        with filtered_msgs as (
+            select
+                cm.created_at
+            from chat_messages cm
+            join chat_sessions cs on cs.id = cm.session_id
+            join properties p on p.id = cs.property_id
+            where cm.created_at >= :start
+              and cm.created_at < :end
+              and (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
+        )
+        select
+            extract(hour from created_at) as hr,
+            count(*) as value
+        from filtered_msgs
+        group by 1
+        order by 1
+    """).bindparams(
+        bindparam("pmc_id", type_=BIGINT),
+        bindparam("property_id", type_=BIGINT),
+    )
 
-    for r in rows:
-        dt = r["bucket"]
-        labels.append(dt.strftime("%b %d") if bucket == "day" else dt.strftime("%b %d %H:%M"))
-        sessions.append(int(r["sessions"]))
-        messages.append(int(r["messages"]))
-        followup_clicks.append(int(r["followup_clicks"]))
-        followups_shown.append(int(r["followups_shown"]))
-        chat_errors.append(int(r["chat_errors"]))
-        contact_host_clicks.append(int(r["contact_host_clicks"]))
+    emotion_stmt = text("""
+        with scoped_sessions as (
+            select
+                cs.id,
+                cs.guest_mood,
+                cs.emotional_signals
+            from chat_sessions cs
+            join properties p on p.id = cs.property_id
+            where (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
+              and exists (
+                  select 1
+                  from chat_messages cm
+                  where cm.session_id = cs.id
+                    and cm.created_at >= :start
+                    and cm.created_at < :end
+              )
+        )
+        select
+            guest_mood,
+            emotional_signals
+        from scoped_sessions
+    """).bindparams(
+        bindparam("pmc_id", type_=BIGINT),
+        bindparam("property_id", type_=BIGINT),
+    )
+
+    lifecycle_stmt = text("""
+        with scoped_sessions as (
+            select
+                cs.id,
+                cs.arrival_date,
+                cs.departure_date
+            from chat_sessions cs
+            join properties p on p.id = cs.property_id
+            where (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
+              and exists (
+                  select 1
+                  from chat_messages cm
+                  where cm.session_id = cs.id
+                    and cm.created_at >= :start
+                    and cm.created_at < :end
+              )
+        )
+        select
+            arrival_date,
+            departure_date
+        from scoped_sessions
+    """).bindparams(
+        bindparam("pmc_id", type_=BIGINT),
+        bindparam("property_id", type_=BIGINT),
+    )
+
+    cur_rows = db.execute(
+        day_stmt,
+        {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
+    ).mappings().all()
+
+    prev_rows = db.execute(
+        prev_stmt,
+        {"start": prev_start, "end": prev_end, "pmc_id": pmc_id, "property_id": property_id},
+    ).mappings().all()
+
+    hour_rows = db.execute(
+        hour_stmt,
+        {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
+    ).mappings().all()
+
+    emotion_rows = db.execute(
+        emotion_stmt,
+        {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
+    ).mappings().all()
+
+    lifecycle_rows = db.execute(
+        lifecycle_stmt,
+        {"start": start, "end": end, "pmc_id": pmc_id, "property_id": property_id},
+    ).mappings().all()
+
+    cur_by_day = {}
+    for r in cur_rows:
+        bucket = r["bucket"].date().isoformat()
+        chats = int(_num(r.get("chats"), 0))
+        responded = int(_num(r.get("responded"), 0))
+        cur_by_day[bucket] = {
+            "chats": chats,
+            "conversion": round((responded / chats) * 100) if chats else 0,
+            "lost_opportunity": int(_num(r.get("lost_opportunity"), 0)),
+            "messages": int(_num(r.get("messages"), 0)),
+            "errors": int(_num(r.get("errors"), 0)),
+        }
+
+    prev_by_day = {}
+    for r in prev_rows:
+        bucket = r["bucket"].date()
+        shifted = (bucket + timedelta(days=window_days)).isoformat()
+        chats = int(_num(r.get("chats"), 0))
+        responded = int(_num(r.get("responded"), 0))
+        prev_by_day[shifted] = {
+            "chats": chats,
+            "conversion": round((responded / chats) * 100) if chats else 0,
+            "lost_opportunity": int(_num(r.get("lost_opportunity"), 0)),
+        }
+
+    items = []
+    max_chats = 0
+    max_conv = 0
+    max_lost = 0
+
+    for i in range(window_days):
+        d = (start.date() + timedelta(days=i))
+        key = d.isoformat()
+
+        cur = cur_by_day.get(key, {
+            "chats": 0,
+            "conversion": 0,
+            "lost_opportunity": 0,
+            "messages": 0,
+            "errors": 0,
+        })
+        prev = prev_by_day.get(key, {
+            "chats": 0,
+            "conversion": 0,
+            "lost_opportunity": 0,
+        })
+
+        delta = 0
+        if prev["chats"] > 0:
+            delta = round(((cur["chats"] - prev["chats"]) / prev["chats"]) * 100)
+
+        max_chats = max(max_chats, cur["chats"])
+        max_conv = max(max_conv, cur["conversion"])
+        max_lost = max(max_lost, cur["lost_opportunity"])
+
+        items.append({
+            "date": key,
+            "label": d.strftime("%b %-d") if d else key,
+            "day": d.strftime("%a"),
+            "chats": cur["chats"],
+            "conversion": cur["conversion"],
+            "lost_opportunity": cur["lost_opportunity"],
+            "messages": cur["messages"],
+            "errors": cur["errors"],
+            "delta": delta,
+            "event": "stable",
+            "previous": prev,
+        })
+
+    avg_chats = round(sum(x["chats"] for x in items) / len(items)) if items else 0
+
+    for item in items:
+        if item["chats"] == max_chats and item["chats"] > 0:
+            item["event"] = "peak"
+        elif item["lost_opportunity"] == max_lost and item["lost_opportunity"] > 0:
+            item["event"] = "friction"
+        elif item["conversion"] == max_conv and item["conversion"] > 0:
+            item["event"] = "convert"
+        elif item["chats"] > avg_chats * 1.15:
+            item["event"] = "inquiry"
+        elif item["chats"] < max(1, avg_chats * 0.6):
+            item["event"] = "quiet"
+
+    hour_map = {int(r["hr"]): int(_num(r.get("value"), 0)) for r in hour_rows}
+    hour_labels = [
+        ("12a", 0), ("3a", 3), ("6a", 6), ("9a", 9),
+        ("12p", 12), ("3p", 15), ("6p", 18), ("9p", 21),
+    ]
+    hour_items = [{"label": label, "value": int(hour_map.get(hour, 0))} for label, hour in hour_labels]
+    peak_hour = max(hour_items, key=lambda x: x["value"]) if hour_items else {"label": "—", "value": 0}
+    peak_window = {
+        "12a": "12 AM–3 AM",
+        "3a": "3 AM–6 AM",
+        "6a": "6 AM–9 AM",
+        "9a": "9 AM–12 PM",
+        "12p": "12 PM–3 PM",
+        "3p": "3 PM–6 PM",
+        "6p": "6 PM–9 PM",
+        "9p": "9 PM–12 AM",
+    }.get(peak_hour["label"], "—")
+
+    emotion_counts = {
+        "calm": 0,
+        "confused": 0,
+        "worried": 0,
+        "upset": 0,
+        "panicked": 0,
+        "angry": 0,
+        "stressed": 0,
+    }
+
+    for r in emotion_rows:
+        guest_mood = (r.get("guest_mood") or "").strip().lower()
+        if guest_mood:
+            emotion_counts[guest_mood] = emotion_counts.get(guest_mood, 0) + 1
+
+        signals = r.get("emotional_signals") or []
+        if isinstance(signals, list):
+            for sig in signals:
+                sig_key = str(sig or "").strip().lower()
+                if sig_key:
+                    emotion_counts[sig_key] = emotion_counts.get(sig_key, 0) + 1
+
+    emotion_total = sum(emotion_counts.values()) or 1
+    emotion_items = [
+        {"label": "Calm", "value": round((emotion_counts.get("calm", 0) / emotion_total) * 100), "tone": "emerald"},
+        {"label": "Confused", "value": round((emotion_counts.get("confused", 0) / emotion_total) * 100), "tone": "blue"},
+        {"label": "Worried", "value": round((emotion_counts.get("worried", 0) / emotion_total) * 100), "tone": "indigo"},
+        {"label": "Upset", "value": round((emotion_counts.get("upset", 0) / emotion_total) * 100), "tone": "amber"},
+        {"label": "Panicked", "value": round((emotion_counts.get("panicked", 0) / emotion_total) * 100), "tone": "rose"},
+        {"label": "Angry", "value": round((emotion_counts.get("angry", 0) / emotion_total) * 100), "tone": "rose"},
+        {"label": "Stressed", "value": round((emotion_counts.get("stressed", 0) / emotion_total) * 100), "tone": "orange"},
+    ]
+
+    strongest_emotion = max(emotion_items, key=lambda x: x["value"]) if emotion_items else None
+    emotion_spike = {
+        "title": (
+            f"{strongest_emotion['label']} is the strongest emotional signal right now"
+            if strongest_emotion and strongest_emotion["value"] > 0
+            else "No major emotional spike detected"
+        ),
+        "body": (
+            f"{strongest_emotion['value']}% of current emotional signals cluster around {strongest_emotion['label'].lower()} conversations."
+            if strongest_emotion and strongest_emotion["value"] > 0
+            else "Current conversations are relatively balanced with no major emotional concentration."
+        ),
+    }
+
+    today = datetime.now(timezone.utc).date()
+    lifecycle_counts = {"inquiry": 0, "upcoming": 0, "current": 0, "checked_out": 0}
+    for r in lifecycle_rows:
+        arrival = r.get("arrival_date")
+        departure = r.get("departure_date")
+
+        try:
+            if arrival and departure:
+                a = datetime.fromisoformat(str(arrival)).date()
+                d = datetime.fromisoformat(str(departure)).date()
+                if today < a:
+                    lifecycle_counts["upcoming"] += 1
+                elif a <= today <= d:
+                    lifecycle_counts["current"] += 1
+                else:
+                    lifecycle_counts["checked_out"] += 1
+            else:
+                lifecycle_counts["inquiry"] += 1
+        except Exception:
+            lifecycle_counts["inquiry"] += 1
+
+    total_lifecycle = sum(lifecycle_counts.values()) or 1
+    lifecycle_pct = {
+        "total": total_lifecycle,
+        "inquiry": round((lifecycle_counts["inquiry"] / total_lifecycle) * 100),
+        "upcoming": round((lifecycle_counts["upcoming"] / total_lifecycle) * 100),
+        "current": round((lifecycle_counts["current"] / total_lifecycle) * 100),
+        "checked_out": round((lifecycle_counts["checked_out"] / total_lifecycle) * 100),
+    }
 
     return {
-        "labels": labels,
-        "series": {
-            "sessions": sessions,
-            "messages": messages,
-            "followup_clicks": followup_clicks,
-            "followups_shown": followups_shown,
-            "chat_errors": chat_errors,
-            "contact_host_clicks": contact_host_clicks,
+        "window_days": int(days),
+        "days": items,
+        "lifecycle": lifecycle_pct,
+        "hours": {
+            "peak_window": peak_window,
+            "items": hour_items,
         },
+        "emotions": {
+            "items": emotion_items,
+        },
+        "emotion_spike": emotion_spike,
     }
 
 
@@ -504,170 +755,107 @@ def timeseries(
 @router.get("/top-properties")
 def top_properties(
     request: Request,
-    from_ms: int = Query(..., alias="from"),
-    to_ms: int = Query(..., alias="to"),
+    from_ms: int | None = Query(default=None, alias="from"),
+    to_ms: int | None = Query(default=None, alias="to"),
+    days: int = Query(30, ge=1, le=365),
     pmc_id: Optional[int] = None,
-    property_id: Optional[int] = None,   # frontend sends it
-    limit: int = 10,
+    property_id: Optional[int] = None,
+    limit: int = Query(10, ge=1, le=50),
     db: Session = Depends(get_db),
 ):
     pmc_id = _enforce_scope(request, pmc_id)
-    start = ms_to_dt(from_ms)
-    end = ms_to_dt(to_ms)
 
-    # If PMC-scoped and property filter provided, enforce property belongs to PMC
+    if from_ms is not None and to_ms is not None:
+        start = ms_to_dt(from_ms)
+        end = ms_to_dt(to_ms)
+    else:
+        end = datetime.now(timezone.utc)
+        start = end - timedelta(days=int(days))
+
     if property_id is not None and pmc_id is not None:
         _assert_property_in_pmc(db, int(property_id), int(pmc_id))
 
-    stmt = _with_upgrade_array_binds("""
-        with base as (
-          select
-            ae.*,
-
-            -- robust property_id extraction (column first, then JSON fallbacks)
-            coalesce(
-              ae.property_id,
-              case when (ae.data->>'property_id') ~ '^[0-9]+$' then (ae.data->>'property_id')::bigint end,
-              case when (ae.data->>'propertyId')  ~ '^[0-9]+$' then (ae.data->>'propertyId')::bigint end,
-              case when (ae.data->'property'->>'id') ~ '^[0-9]+$' then (ae.data->'property'->>'id')::bigint end
-            ) as prop_id,
-
-            -- robust pmc_id extraction (column first, then JSON fallbacks)
-            coalesce(
-              ae.pmc_id,
-              case when (ae.data->>'pmc_id') ~ '^[0-9]+$' then (ae.data->>'pmc_id')::bigint end,
-              case when (ae.data->>'pmcId')  ~ '^[0-9]+$' then (ae.data->>'pmcId')::bigint end
-            ) as pmc_id_eff
-
-          from analytics_events ae
-          where ae.ts >= :start and ae.ts < :end
+    stmt = text("""
+        with filtered_msgs as (
+            select
+                cm.id,
+                cm.session_id,
+                cm.sender,
+                cm.category,
+                cm.sentiment,
+                cm.created_at,
+                cs.property_id
+            from chat_messages cm
+            join chat_sessions cs on cs.id = cm.session_id
+            join properties p on p.id = cs.property_id
+            where cm.created_at >= :start
+              and cm.created_at < :end
+              and (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
         ),
-
-        scoped as (
-          select *
-          from base
-          where (:pmc_id is null or pmc_id_eff = :pmc_id)
-            and (:property_id is null or prop_id = :property_id)
-            and prop_id is not null
-        ),
-
-        agg as (
-          select
-            prop_id as property_id,
-
-            count(*) filter (where event_name = 'chat_session_created') as sessions,
-            count(*) filter (where event_name = 'message_sent') as messages,
-
-            count(*) filter (where event_name = :followups_shown_event) as followups_shown,
-            count(*) filter (where event_name = :followup_click_event) as followup_clicks,
-
-            count(*) filter (where event_name = ANY(:upgrade_start_events)) as upgrade_checkouts_started,
-            count(*) filter (where event_name = ANY(:upgrade_purchase_events)) as upgrade_purchases,
-
-            count(*) filter (where event_name = :chat_error_event) as chat_errors,
-            count(*) filter (where event_name = :contact_host_click_event) as contact_host_clicks
-
-          from scoped
-          group by 1
-        ),
-
-        -- ---------------------------------------------------------
-        -- Reactionary mood: latest guest message per session -> mood
-        -- ---------------------------------------------------------
-        scoped_sessions as (
-          select
-            cs.id as session_id,
-            cs.property_id
-          from chat_sessions cs
-          join properties p on p.id = cs.property_id
-          where (:pmc_id is null or p.pmc_id = :pmc_id)
-            and (:property_id is null or cs.property_id = :property_id)
-        ),
-
-        latest_guest_per_session as (
-          select
-            ss.property_id,
-            cm.session_id,
-            coalesce(cm.sentiment_data->>'mood', 'calm') as mood,
-            row_number() over (
-              partition by cm.session_id
-              order by cm.created_at desc
-            ) as rn
-          from chat_messages cm
-          join scoped_sessions ss on ss.session_id = cm.session_id
-          where cm.sender in ('guest','user')
-        ),
-
-        latest_guest as (
-          select property_id, mood
-          from latest_guest_per_session
-          where rn = 1
-        ),
-
-        mood_agg as (
-          select
-            property_id,
-            mode() within group (order by mood) as current_mood
-          from latest_guest
-          group by 1
+        per_property as (
+            select
+                property_id,
+                count(distinct session_id) as sessions,
+                count(*) as messages,
+                count(distinct session_id) filter (where sender != 'guest') as responded_sessions,
+                count(*) filter (where category = 'error') as chat_errors,
+                count(distinct session_id) filter (
+                    where category = 'urgent'
+                       or lower(coalesce(sentiment, '')) = 'negative'
+                ) as escalations
+            from filtered_msgs
+            group by property_id
         )
-
         select
-          a.property_id,
-          p.property_name,
-
-          a.sessions,
-          a.messages,
-
-          a.followups_shown,
-          a.followup_clicks,
-          (a.followup_clicks::float / nullif(a.followups_shown::float, 0)) as followup_conversion_rate,
-
-          a.upgrade_checkouts_started,
-          a.upgrade_purchases,
-          (a.upgrade_purchases::float / nullif(a.upgrade_checkouts_started::float, 0)) as upgrade_conversion_rate,
-
-          a.chat_errors,
-          a.contact_host_clicks,
-
-          coalesce(ma.current_mood, 'calm') as current_mood
-
-        from agg a
-        left join properties p on p.id = a.property_id
-        left join mood_agg ma on ma.property_id = a.property_id
-        order by a.sessions desc, a.messages desc
-        limit :limit;
+            pp.property_id,
+            p.property_name,
+            pp.sessions,
+            pp.messages,
+            pp.responded_sessions,
+            pp.chat_errors,
+            pp.escalations
+        from per_property pp
+        join properties p on p.id = pp.property_id
+        order by pp.messages desc, pp.sessions desc, pp.escalations desc
+        limit :limit
     """).bindparams(
+        bindparam("pmc_id", type_=BIGINT),
+        bindparam("property_id", type_=BIGINT),
         bindparam("limit", type_=BIGINT),
-        bindparam("followups_shown_event", type_=PG_TEXT),
-        bindparam("followup_click_event", type_=PG_TEXT),
-        bindparam("chat_error_event", type_=PG_TEXT),
-        bindparam("contact_host_click_event", type_=PG_TEXT),
     )
 
-    try:
-        rows = db.execute(
-            stmt,
-            {
-                "start": start,
-                "end": end,
-                "pmc_id": pmc_id,
-                "property_id": property_id,
-                "limit": int(limit),
-                "followups_shown_event": FOLLOWUPS_SHOWN_EVENT,
-                "followup_click_event": FOLLOWUP_CLICK_EVENT,
-                "chat_error_event": CHAT_ERROR_EVENT,
-                "contact_host_click_event": CONTACT_HOST_CLICK_EVENT,
-                "upgrade_start_events": list(UPGRADE_START_EVENTS),
-                "upgrade_purchase_events": list(UPGRADE_PURCHASE_EVENTS),
-            },
-        ).mappings().all()
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"top-properties query failed: {e}")
+    rows = db.execute(
+        stmt,
+        {
+            "start": start,
+            "end": end,
+            "pmc_id": pmc_id,
+            "property_id": property_id,
+            "limit": int(limit),
+        },
+    ).mappings().all()
 
-    return {"rows": [dict(r) for r in rows]}
+    items = []
+    for r in rows:
+        sessions = int(_num(r.get("sessions"), 0))
+        responded = int(_num(r.get("responded_sessions"), 0))
+        conversion_rate = (responded / sessions * 100.0) if sessions else 0.0
 
+        items.append({
+            "property_id": int(r["property_id"]),
+            "property_name": r.get("property_name") or "Unknown",
+            "sessions": sessions,
+            "messages": int(_num(r.get("messages"), 0)),
+            "followup_conversion_rate": round(float(conversion_rate), 1),
+            "chat_errors": int(_num(r.get("chat_errors"), 0)),
+            "escalations": int(_num(r.get("escalations"), 0)),
+        })
 
+    return {
+        "window_days": int(days),
+        "items": items,
+    }
 
 # --------------------------------------------------
 # CONVERSION
