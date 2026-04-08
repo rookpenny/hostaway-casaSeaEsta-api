@@ -2969,22 +2969,51 @@ def admin_analytics_chat_top_properties(
     )
 
     cutoff = datetime.utcnow() - timedelta(days=int(days))
-    sessions = q.filter(ChatSession.last_activity_at >= cutoff).all()
+
+    # Find active sessions based on message activity, not last_activity_at
+    msg_session_q = (
+        db.query(func.distinct(ChatMessage.session_id))
+        .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+        .join(Property, Property.id == ChatSession.property_id)
+        .filter(ChatMessage.created_at >= cutoff)
+    )
+
+    if user_role == "pmc":
+        msg_session_q = msg_session_q.filter(Property.pmc_id == pmc_obj.id)
+    elif user_role == "super" and pmc_id_int:
+        msg_session_q = msg_session_q.filter(Property.pmc_id == pmc_id_int)
+
+    if property_id_int:
+        msg_session_q = msg_session_q.filter(ChatSession.property_id == property_id_int)
+
+    session_ids = [int(sid) for (sid,) in msg_session_q.all() if sid is not None]
+
+    sessions = (
+        q.filter(ChatSession.id.in_(session_ids)).all()
+        if session_ids else []
+    )
 
     grouped = defaultdict(list)
     for sess in sessions:
-      grouped[int(sess.property_id)].append(sess)
+        if sess.property_id is not None:
+            grouped[int(sess.property_id)].append(sess)
+
+    if not grouped:
+        return {
+            "window_days": int(days),
+            "items": [],
+        }
 
     prop_rows = (
         db.query(Property.id, Property.property_name)
-        .filter(Property.id.in_(grouped.keys() or [0]))
+        .filter(Property.id.in_(list(grouped.keys())))
         .all()
     )
     name_by_id = {int(p.id): p.property_name or "Unknown" for p in prop_rows}
 
     items = []
     for pid, sess_list in grouped.items():
-        session_ids = [s.id for s in sess_list]
+        session_ids = [int(s.id) for s in sess_list]
 
         messages = (
             db.query(func.count(ChatMessage.id))
@@ -2996,6 +3025,7 @@ def admin_analytics_chat_top_properties(
         responded = (
             db.query(func.count(func.distinct(ChatMessage.session_id)))
             .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.created_at >= cutoff)
             .filter(ChatMessage.sender != "guest")
             .scalar()
         ) or 0
@@ -3003,6 +3033,7 @@ def admin_analytics_chat_top_properties(
         errors = (
             db.query(func.count(ChatMessage.id))
             .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.created_at >= cutoff)
             .filter(ChatMessage.category == "error")
             .scalar()
         ) or 0
@@ -3010,10 +3041,13 @@ def admin_analytics_chat_top_properties(
         escalations = (
             db.query(func.count(func.distinct(ChatMessage.session_id)))
             .filter(ChatMessage.session_id.in_(session_ids))
-            .filter(or_(
-                ChatMessage.category == "urgent",
-                func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative"
-            ))
+            .filter(ChatMessage.created_at >= cutoff)
+            .filter(
+                or_(
+                    ChatMessage.category == "urgent",
+                    func.lower(func.coalesce(ChatMessage.sentiment, "")) == "negative",
+                )
+            )
             .scalar()
         ) or 0
 
@@ -3030,13 +3064,15 @@ def admin_analytics_chat_top_properties(
             "escalations": int(escalations),
         })
 
-    items.sort(key=lambda x: (x["messages"], x["sessions"], -x["chat_errors"]), reverse=True)
+    items.sort(
+        key=lambda x: (x["messages"], x["sessions"], x["escalations"], -x["chat_errors"]),
+        reverse=True,
+    )
 
     return {
         "window_days": int(days),
         "items": items[: int(limit)],
     }
-    
 
 @router.get("/admin/guides/partial/list", response_class=HTMLResponse)
 def guides_partial_list(
