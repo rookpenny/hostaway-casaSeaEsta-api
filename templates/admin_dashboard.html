@@ -2202,89 +2202,158 @@
   <!-- Main Analytics Grid -->
   <div class="grid gap-6 xl:grid-cols-[1.55fr_0.95fr]">
     <!-- Left: Trend + summaries -->
-    <div class="overflow-hidden rounded-[32px] border border-slate-200 bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-      <div class="border-b border-slate-100 px-7 py-6">
-        <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <div class="text-xs font-semibold uppercase tracking-[0.16em] text-indigo-500">Trend chart</div>
-            <div class="mt-2 text-2xl font-semibold tracking-tight text-slate-950">Chats per day</div>
-            <div class="mt-1 text-sm text-slate-500">Fast scan daily chat volume, conversion quality, and drop-off behavior.</div>
-          </div>
-
-          <div class="flex flex-wrap gap-2 text-sm">
-            <div class="flex rounded-full border border-slate-200 bg-white p-1">
-              <button type="button" class="analytics-mode-btn is-active rounded-full px-3 py-1.5 text-xs font-semibold" data-chart-mode="chats">Chats</button>
-              <button type="button" class="analytics-mode-btn rounded-full px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100" data-chart-mode="conversion">Conversion</button>
-              <button type="button" class="analytics-mode-btn rounded-full px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100" data-chart-mode="lost">Lost opportunity</button>
-            </div>
-
-            <button id="analyticsCompareToggle" type="button" class="rounded-full border border-slate-200 bg-white px-4 py-2 font-medium text-slate-600">
-              Compare vs prior period
-            </button>
-          </div>
+    <div class="overflow-hidden rounded-[36px] border border-slate-200 bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+  <div class="border-b border-slate-100 px-6 py-5 sm:px-7">
+    <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+      <div class="max-w-2xl">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-500">
+          Trend chart
+        </div>
+        <div class="mt-2 text-[38px] font-semibold tracking-[-0.05em] text-slate-950">
+          Chats per day
+        </div>
+        <div class="mt-2 max-w-xl text-[15px] leading-7 text-slate-500">
+          Use the range selector to update the chart, AI period summary, and selected day drill-down together.
         </div>
       </div>
 
-      <div class="p-7">
-        <div class="rounded-[28px] bg-[linear-gradient(180deg,#f8fbff_0%,#ffffff_100%)] p-6">
-          <div class="mb-4 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-            <div class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm">
-              <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span> Current period
-            </div>
-            <div class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm">
-              <span class="h-2.5 w-2.5 rounded-full bg-slate-300"></span> Prior period
-            </div>
-            <div class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm">
-              <span class="h-0.5 w-5 bg-slate-900/30"></span> Trend line
-            </div>
-            <div class="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1.5 shadow-sm">Hover for instant detail</div>
-          </div>
+      <div class="flex flex-col items-start gap-3 xl:items-end">
+        <div class="inline-flex rounded-full border border-slate-200 bg-slate-50 p-1">
+          <button
+            type="button"
+            class="analytics-range-btn rounded-full px-4 py-2 text-xs font-semibold text-slate-500"
+            data-range="7"
+          >
+            7D
+          </button>
+          <button
+            type="button"
+            class="analytics-range-btn rounded-full px-4 py-2 text-xs font-semibold text-white bg-slate-900"
+            data-range="14"
+          >
+            14D
+          </button>
+          <button
+            type="button"
+            class="analytics-range-btn rounded-full px-4 py-2 text-xs font-semibold text-slate-500"
+            data-range="30"
+          >
+            30D
+          </button>
+        </div>
 
-          <div class="relative overflow-hidden rounded-[24px] border border-slate-100 bg-white/70 p-5">
-            <div id="analyticsChartHoverCard" class="pointer-events-none absolute left-5 top-5 z-30 hidden rounded-[18px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm">
-              <div class="text-sm font-semibold text-slate-950" data-hover-date>—</div>
-              <div class="mt-2 space-y-1 text-xs text-slate-600">
-                <div class="flex items-center justify-between gap-4"><span>Chats</span><span class="font-semibold text-slate-950" data-hover-chats>—</span></div>
-                <div class="flex items-center justify-between gap-4"><span>Conversion</span><span class="font-semibold text-slate-950" data-hover-conversion>—</span></div>
-                <div class="flex items-center justify-between gap-4"><span>Lost opportunity</span><span class="font-semibold text-slate-950" data-hover-lost>—</span></div>
-                <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
-              </div>
-            </div>
+        <div class="inline-flex rounded-full border border-slate-200 bg-white p-1">
+          <button
+            type="button"
+            class="analytics-mode-btn is-active rounded-full bg-indigo-600 px-4 py-2 text-xs font-semibold text-white"
+            data-chart-mode="chats"
+          >
+            Chats
+          </button>
+          <button
+            type="button"
+            class="analytics-mode-btn rounded-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+            data-chart-mode="conversion"
+          >
+            Conversion
+          </button>
+          <button
+            type="button"
+            class="analytics-mode-btn rounded-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+            data-chart-mode="lost"
+          >
+            Lost Opportunity
+          </button>
+        </div>
 
-            <div class="pointer-events-none absolute inset-x-5 top-[18%] border-t border-dashed border-slate-200"></div>
-            <div class="pointer-events-none absolute inset-x-5 top-[40%] border-t border-dashed border-slate-200"></div>
-            <div class="pointer-events-none absolute inset-x-5 top-[62%] border-t border-dashed border-slate-200"></div>
-            <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
+        <button
+          id="analyticsCompareToggle"
+          type="button"
+          class="rounded-full border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-600"
+        >
+          Chats focus
+        </button>
+      </div>
+    </div>
+  </div>
 
-            <div class="mt-2">
-              <canvas id="chatAnalyticsChart" height="130"></canvas>
-            </div>
-          </div>
+  <div class="p-5 sm:p-6">
+    <div class="rounded-[32px] bg-slate-50 p-5 sm:p-6">
+      <div class="mb-4 flex flex-wrap gap-3 text-xs text-slate-500">
+        <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
+          <span>Current period</span>
+        </div>
+        <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2">
+          <span class="h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+          <span>Prior period</span>
+        </div>
+        <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2">
+          <span class="h-[2px] w-5 bg-slate-400"></span>
+          <span>Trend line</span>
+        </div>
+        <div class="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-4 py-2">
+          <span>Hover for instant detail</span>
+        </div>
+      </div>
 
-          <div class="mt-4 grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
-            <div class="rounded-[22px] border border-slate-200 bg-white p-4">
-              <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">AI read on the period</div>
-              <div id="analytics-ai-read-title" class="mt-2 text-base font-semibold text-slate-950">Loading insight…</div>
-              <div id="analytics-ai-read-body" class="mt-1 text-sm leading-6 text-slate-500">We’ll summarize what the trend line is showing once the chart data loads.</div>
-              <div class="mt-4 flex flex-wrap gap-2 text-xs" id="analytics-ai-pills">
-                <span class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700">Waiting for data</span>
-              </div>
-            </div>
-
-            <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
-              <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Day drill-down</div>
-              <div id="analytics-drilldown-date" class="mt-2 text-lg font-semibold text-slate-950">Select a day</div>
-              <div class="mt-3 space-y-3 text-sm text-slate-600">
-                <div class="flex items-center justify-between"><span>Chats</span><span class="font-semibold text-slate-950" data-drilldown="chats">—</span></div>
-                <div class="flex items-center justify-between"><span>User messages</span><span class="font-semibold text-slate-950" data-drilldown="user_messages">—</span></div>
-                <div class="flex items-center justify-between"><span>Assistant messages</span><span class="font-semibold text-slate-950" data-drilldown="assistant_messages">—</span></div>
-                <div class="flex items-center justify-between"><span>Conversion score</span><span class="font-semibold text-slate-950" data-drilldown="conversion">—</span></div>
-                <div class="flex items-center justify-between"><span>Lost opportunity</span><span class="font-semibold text-slate-950" data-drilldown="lost">—</span></div>
-                <div class="flex items-center justify-between"><span>Top signal</span><span class="font-semibold text-slate-950" data-drilldown="signal">—</span></div>
-              </div>
-            </div>
+      <div class="relative overflow-hidden rounded-[30px] border border-slate-200 bg-white px-4 py-4 sm:px-5 sm:py-5">
+        <div
+          id="analyticsChartHoverCard"
+          class="pointer-events-none absolute left-5 top-5 z-30 hidden rounded-[18px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
+        >
+          <div class="text-sm font-semibold text-slate-950" data-hover-date>—</div>
+          <div class="mt-2 space-y-1 text-xs text-slate-600">
+            <div class="flex items-center justify-between gap-4"><span>Chats</span><span class="font-semibold text-slate-950" data-hover-chats>—</span></div>
+            <div class="flex items-center justify-between gap-4"><span>Conversion</span><span class="font-semibold text-slate-950" data-hover-conversion>—</span></div>
+            <div class="flex items-center justify-between gap-4"><span>Lost opportunity</span><span class="font-semibold text-slate-950" data-hover-lost>—</span></div>
+            <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
           </div>
         </div>
+
+        <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
+
+        <div class="relative h-[360px]">
+          <canvas id="chatAnalyticsChart"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+      <div class="rounded-[24px] border border-slate-200 bg-white p-5">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+          AI read on the period
+        </div>
+        <div id="analytics-ai-read-title" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
+          Loading insight...
+        </div>
+        <div id="analytics-ai-read-body" class="mt-2 text-[15px] leading-7 text-slate-500">
+          We’ll summarize what the trend line is showing once the chart data loads.
+        </div>
+        <div id="analytics-ai-pills" class="mt-4 flex flex-wrap gap-2">
+          <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">Waiting for data</span>
+        </div>
+      </div>
+
+      <div class="rounded-[24px] border border-slate-200 bg-slate-50 p-5">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+          Day drill-down
+        </div>
+        <div id="analytics-drilldown-date" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
+          Select a day
+        </div>
+        <div class="mt-4 space-y-3 text-sm text-slate-600">
+          <div class="flex items-center justify-between"><span>Chats</span><span class="font-semibold text-slate-950" data-drilldown="chats">—</span></div>
+          <div class="flex items-center justify-between"><span>User messages</span><span class="font-semibold text-slate-950" data-drilldown="user_messages">—</span></div>
+          <div class="flex items-center justify-between"><span>Assistant messages</span><span class="font-semibold text-slate-950" data-drilldown="assistant_messages">—</span></div>
+          <div class="flex items-center justify-between"><span>Conversion score</span><span class="font-semibold text-slate-950" data-drilldown="conversion">—</span></div>
+          <div class="flex items-center justify-between"><span>Lost opportunity</span><span class="font-semibold text-slate-950" data-drilldown="lost">—</span></div>
+          <div class="flex items-center justify-between"><span>Top signal</span><span class="font-semibold text-slate-950" data-drilldown="signal">—</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
         <div class="mt-5 grid gap-4 sm:grid-cols-4">
           <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
