@@ -3072,6 +3072,15 @@ function renderChatAnalyticsChart(payload) {
   const previousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
   const trendValues = values.slice();
 
+  const selectedIndex =
+    Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
+    window.chatAnalyticsState.selectedIndex >= 0 &&
+    window.chatAnalyticsState.selectedIndex < days.length
+      ? window.chatAnalyticsState.selectedIndex
+      : Math.max(days.length - 1, 0);
+
+  window.chatAnalyticsState.selectedIndex = selectedIndex;
+
   const chartLabel =
     mode === "conversion"
       ? "Conversion"
@@ -3081,61 +3090,17 @@ function renderChatAnalyticsChart(payload) {
 
   const currentBarColor =
     mode === "conversion"
-      ? "rgba(16,185,129,0.85)"
+      ? "rgba(34,197,94,0.88)"
       : mode === "lost"
-      ? "rgba(244,63,94,0.85)"
+      ? "rgba(244,63,94,0.88)"
       : "rgba(79,70,229,0.88)";
 
   const currentHoverColor =
     mode === "conversion"
-      ? "rgba(16,185,129,1)"
+      ? "rgba(34,197,94,1)"
       : mode === "lost"
       ? "rgba(244,63,94,1)"
       : "rgba(79,70,229,1)";
-
-  const datasets = [
-    {
-      type: "bar",
-      label: chartLabel,
-      data: values,
-      backgroundColor: values.map((_, i) =>
-        i === window.chatAnalyticsState.selectedIndex
-          ? "rgba(15,23,42,1)"
-          : currentBarColor
-      ),
-      hoverBackgroundColor: currentHoverColor,
-      borderRadius: 14,
-      borderSkipped: false,
-      order: 2,
-      categoryPercentage: 0.72,
-      barPercentage: 0.9,
-    },
-    {
-      type: "bar",
-      label: "Prior period",
-      data: compare ? previousValues : previousValues.map(() => null),
-      backgroundColor: "rgba(148,163,184,0.25)",
-      borderColor: "rgba(148,163,184,0.55)",
-      borderWidth: 1,
-      borderRadius: 14,
-      borderSkipped: false,
-      order: 1,
-      categoryPercentage: 0.72,
-      barPercentage: 0.9,
-    },
-    {
-      type: "line",
-      label: "Trend",
-      data: trendValues,
-      borderColor: "rgba(15,23,42,0.18)",
-      pointRadius: 0,
-      pointHoverRadius: 0,
-      tension: 0.35,
-      borderWidth: 1.5,
-      order: 0,
-      yAxisID: "y",
-    },
-  ];
 
   if (window.chatAnalyticsChart) {
     try {
@@ -3143,6 +3108,55 @@ function renderChatAnalyticsChart(payload) {
     } catch (_) {}
     window.chatAnalyticsChart = null;
   }
+
+  const eventPlugin = {
+    id: "analyticsEventPlugin",
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea, scales } = chart;
+      if (!ctx || !chartArea || !scales?.x || !scales?.y) return;
+
+      const xScale = scales.x;
+      const yScale = scales.y;
+
+      ctx.save();
+
+      days.forEach((day, i) => {
+        const x = xScale.getPixelForValue(i);
+        const value = values[i] || 0;
+        const y = yScale.getPixelForValue(value);
+
+        const meta = getEventMeta(day.event);
+
+        // top mini metric
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "600 12px Inter, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
+
+        // event icon
+        ctx.font = "14px Inter, sans-serif";
+        ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
+
+        // bottom delta
+        const delta = Number(day.delta || 0);
+        const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
+        ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
+        ctx.font = "600 11px Inter, sans-serif";
+        ctx.fillText(deltaText, x, chartArea.bottom + 20);
+
+        // bottom date stack
+        ctx.fillStyle = "#334155";
+        ctx.font = "500 11px Inter, sans-serif";
+        ctx.fillText(day.day || "", x, chartArea.bottom + 38);
+
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "500 11px Inter, sans-serif";
+        ctx.fillText(day.label || "", x, chartArea.bottom + 54);
+      });
+
+      ctx.restore();
+    },
+  };
 
   const hoverPlugin = {
     id: "analyticsHoverPlugin",
@@ -3182,20 +3196,69 @@ function renderChatAnalyticsChart(payload) {
   };
 
   window.chatAnalyticsChart = new Chart(canvas.getContext("2d"), {
+    type: "bar",
     data: {
       labels,
-      datasets,
+      datasets: [
+        {
+          type: "bar",
+          label: "Prior period",
+          data: compare ? previousValues : previousValues.map(() => null),
+          backgroundColor: "rgba(16,185,129,0.16)",
+          borderRadius: 16,
+          borderSkipped: false,
+          order: 1,
+          categoryPercentage: 0.72,
+          barPercentage: 0.96,
+        },
+        {
+          type: "bar",
+          label: chartLabel,
+          data: values,
+          backgroundColor: values.map((_, i) =>
+            i === window.chatAnalyticsState.selectedIndex
+              ? "rgba(59,130,246,0.95)"
+              : currentBarColor
+          ),
+          hoverBackgroundColor: currentHoverColor,
+          borderRadius: 16,
+          borderSkipped: false,
+          order: 2,
+          categoryPercentage: 0.56,
+          barPercentage: 0.9,
+        },
+        {
+          type: "line",
+          label: "Trend",
+          data: trendValues,
+          borderColor: "rgba(148,163,184,0.65)",
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0.35,
+          borderWidth: 2,
+          order: 0,
+          yAxisID: "y",
+        },
+      ],
     },
-    plugins: [hoverPlugin],
+    plugins: [hoverPlugin, eventPlugin],
     options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 42,
+          bottom: 72,
+          left: 8,
+          right: 8,
+        },
+      },
       elements: {
         bar: {
           borderSkipped: false,
-          borderRadius: 14,
+          borderRadius: 16,
         },
       },
-      responsive: true,
-      maintainAspectRatio: false,
       animation: {
         duration: 400,
         easing: "easeOutCubic",
@@ -3207,10 +3270,9 @@ function renderChatAnalyticsChart(payload) {
       },
       onClick(_, elements) {
         if (!elements?.length) return;
-      
         const idx = elements[0].index;
         window.chatAnalyticsState.selectedIndex = idx;
-      
+        renderChatAnalyticsChart(window.analyticsPayload || payload);
         renderAnalyticsSummaryCards(days, idx);
         renderAnalyticsDrilldown(days[idx] || null);
       },
@@ -3220,44 +3282,28 @@ function renderChatAnalyticsChart(payload) {
       },
       scales: {
         x: {
-          grid: {
-            display: false,
-            drawBorder: false,
-          },
+          grid: { display: false, drawBorder: false },
           ticks: {
-            color: "#64748b",
-          },
-          border: {
             display: false,
           },
+          border: { display: false },
         },
         y: {
           beginAtZero: true,
           grid: {
-            color: "rgba(148,163,184,0.18)",
+            color: "rgba(148,163,184,0.20)",
+            borderDash: [4, 4],
             drawBorder: false,
           },
           ticks: {
-            color: "#94a3b8",
-            precision: 0,
-          },
-          border: {
             display: false,
           },
+          border: { display: false },
         },
       },
     },
   });
 
-  const selectedIndex =
-    Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
-    window.chatAnalyticsState.selectedIndex >= 0 &&
-    window.chatAnalyticsState.selectedIndex < days.length
-      ? window.chatAnalyticsState.selectedIndex
-      : Math.max(days.length - 1, 0);
-  
-  window.chatAnalyticsState.selectedIndex = selectedIndex;
-  
   if (days.length) {
     renderAnalyticsSummaryCards(days, selectedIndex);
     renderAnalyticsDrilldown(days[selectedIndex] || null);
@@ -3265,6 +3311,39 @@ function renderChatAnalyticsChart(payload) {
     hideAnalyticsHover();
     renderAnalyticsDrilldown(null);
   }
+}
+
+function wireAnalyticsRangeButtons() {
+  const rangeButtons = Array.from(document.querySelectorAll(".analytics-range-btn"));
+  const rangeSelect = document.getElementById("analyticsRange");
+
+  if (!rangeButtons.length || !rangeSelect) return;
+
+  function paint() {
+    const current = String(rangeSelect.value || "30");
+    rangeButtons.forEach((btn) => {
+      const active = btn.getAttribute("data-range") === current;
+      btn.classList.toggle("bg-slate-900", active);
+      btn.classList.toggle("text-white", active);
+      btn.classList.toggle("text-slate-500", !active);
+    });
+  }
+
+  rangeButtons.forEach((btn) => {
+    if (btn.dataset.wired === "1") return;
+    btn.dataset.wired = "1";
+
+    btn.addEventListener("click", () => {
+      const next = btn.getAttribute("data-range");
+      if (!next) return;
+      rangeSelect.value = next;
+      paint();
+      window.chatAnalyticsState.selectedIndex = null;
+      loadChatAnalytics();
+    });
+  });
+
+  paint();
 }
 
 function wireAnalyticsModeControls() {
@@ -3523,6 +3602,7 @@ document.addEventListener("change", (e) => {
 function initAnalyticsSection() {
   if (!document.getElementById("view-analytics")) return;
   wireAnalyticsModeControls();
+  wireAnalyticsRangeButtons();
   if (isAnalyticsVisible()) {
     loadChatAnalytics();
   }
