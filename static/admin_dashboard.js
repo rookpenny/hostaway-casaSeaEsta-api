@@ -3568,6 +3568,27 @@ function wireAnalyticsModeControls() {
   paintCompareButton();
 }
 
+const MODE_FIELD_MAP = {
+  chats: ["chats", "total_chats", "messages"],
+  conversion: ["conversion", "conversion_rate", "conv"],
+  lost: ["lost_opportunity", "lost", "lostOpportunity"]
+};
+
+function analyticsModeValue(day, mode) {
+  if (!day) return 0;
+
+  const fields = MODE_FIELD_MAP[mode] || MODE_FIELD_MAP.chats;
+
+  for (const key of fields) {
+    if (day[key] != null) {
+      const n = Number(day[key]);
+      if (Number.isFinite(n)) return n;
+    }
+  }
+
+  return 0;
+}
+
 async function loadAnalyticsInsights(days, propertyId, pmcId) {
   const qs = new URLSearchParams();
   if (propertyId) qs.set("property_id", propertyId);
