@@ -2653,18 +2653,60 @@ function getEventMeta(eventName) {
 }
 
 function currentAnalyticsMode() {
-  return window.chatAnalyticsState?.mode || "chats";
-}
+  const state = window.chatAnalyticsState || {};
+  const mode = state.mode;
 
+  // Only allow valid modes
+  if (mode === "conversion" || mode === "lost" || mode === "chats") {
+    return mode;
+  }
+
+  return "chats";
+}
 function currentCompareMode() {
   return !!window.chatAnalyticsState?.compare;
 }
 
+const ANALYTICS_MODES = ["chats", "conversion", "lost"];
+
+function currentAnalyticsMode() {
+  const mode = window.chatAnalyticsState?.mode;
+  return ANALYTICS_MODES.includes(mode) ? mode : "chats";
+}
+
 function analyticsModeValue(day, mode) {
   if (!day) return 0;
-  if (mode === "conversion") return Number(day.conversion || 0);
-  if (mode === "lost") return Number(day.lost_opportunity || 0);
-  return Number(day.chats || 0);
+
+  function safeNumber(val) {
+    const n = Number(val);
+    return Number.isFinite(n) ? n : 0;
+  }
+
+  if (mode === "conversion") {
+    return safeNumber(
+      day.conversion ??
+      day.conversion_rate ??
+      day.conv ??
+      0
+    );
+  }
+
+  if (mode === "lost") {
+    return safeNumber(
+      day.lost_opportunity ??
+      day.lost ??
+      day.lostOpportunity ??
+      0
+    );
+  }
+
+  // default = chats
+  return safeNumber(
+    day.chats ??
+    day.total_chats ??
+    day.messages ??
+    0
+  );
 }
 
 function setAnalyticsKpi(name, value) {
@@ -3075,12 +3117,13 @@ function renderChatAnalyticsChart(payload) {
   const trendValues = values.slice();
 
   const selectedIndex =
-    Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
+    Number.isInteger(window.chatAnalyticsState?.selectedIndex) &&
     window.chatAnalyticsState.selectedIndex >= 0 &&
     window.chatAnalyticsState.selectedIndex < days.length
       ? window.chatAnalyticsState.selectedIndex
       : Math.max(days.length - 1, 0);
 
+  window.chatAnalyticsState = window.chatAnalyticsState || {};
   window.chatAnalyticsState.selectedIndex = selectedIndex;
 
   const chartLabel =
@@ -3090,19 +3133,82 @@ function renderChatAnalyticsChart(payload) {
       ? "Lost opportunity"
       : "Chats";
 
-  const currentBarColor =
-    mode === "conversion"
-      ? "rgba(52, 211, 153, 0.55)"
-      : mode === "lost"
-      ? "rgba(248, 113, 113, 0.55)"
-      : "rgba(79, 70, 229, 0.78)";
+  function makeBarGradient(ctx, chartArea, currentMode, isPrior = false) {
+    if (!chartArea) {
+      if (isPrior) return "rgba(187, 230, 212, 0.35)";
+      if (currentMode === "conversion") return "#10B981";
+      if (currentMode === "lost") return "#F59E0B";
+      return "#4F46E5";
+    }
 
-  const currentHoverColor =
-    mode === "conversion"
-      ? "rgba(52, 211, 153, 0.75)"
-      : mode === "lost"
-      ? "rgba(248, 113, 113, 0.75)"
-      : "rgba(91, 76, 240, 0.95)";
+    const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+
+    if (isPrior) {
+      gradient.addColorStop(0, "rgba(187, 230, 212, 0.42)");
+      gradient.addColorStop(1, "rgba(187, 230, 212, 0.78)");
+      return gradient;
+    }
+
+    if (currentMode === "conversion") {
+      gradient.addColorStop(0, "#10B981");
+      gradient.addColorStop(0.48, "#12C98A");
+      gradient.addColorStop(1, "#95E6C3");
+      return gradient;
+    }
+
+    if (currentMode === "lost") {
+      gradient.addColorStop(0, "#FF2D55");
+      gradient.addColorStop(0.45, "#FF8A00");
+      gradient.addColorStop(1, "#FACC15");
+      return gradient;
+    }
+
+    gradient.addColorStop(0, "#3F6AE8");
+    gradient.addColorStop(0.58, "#5E86EF");
+    gradient.addColorStop(1, "#7DC7F2");
+    return gradient;
+  }
+
+  function selectedBarGradient(ctx, chartArea, currentMode) {
+    if (!chartArea) {
+      if (currentMode === "conversion") return "#0FCA8A";
+      if (currentMode === "lost") return "#FF8A00";
+      return "#3B82F6";
+    }
+
+    const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+
+    if (currentMode === "conversion") {
+      gradient.addColorStop(0, "#0EAE79");
+      gradient.addColorStop(0.48, "#11C88A");
+      gradient.addColorStop(1, "#7BE0B2");
+      return gradient;
+    }
+
+    if (currentMode === "lost") {
+      gradient.addColorStop(0, "#FF2351");
+      gradient.addColorStop(0.45, "#FF7A00");
+      gradient.addColorStop(1, "#FBBF24");
+      return gradient;
+    }
+
+    gradient.addColorStop(0, "#3563E9");
+    gradient.addColorStop(0.58, "#5B85F0");
+    gradient.addColorStop(1, "#76C0F0");
+    return gradient;
+  }
+
+  function pointFill(currentMode) {
+    if (currentMode === "conversion") return "rgba(110, 231, 183, 0.55)";
+    if (currentMode === "lost") return "rgba(251, 113, 133, 0.92)";
+    return "rgba(244, 114, 145, 0.95)";
+  }
+
+  function pointStroke(currentMode) {
+    if (currentMode === "conversion") return "rgba(196, 245, 223, 0.65)";
+    if (currentMode === "lost") return "rgba(255,255,255,0.9)";
+    return "rgba(255,255,255,0.92)";
+  }
 
   if (window.chatAnalyticsChart) {
     try {
@@ -3115,7 +3221,7 @@ function renderChatAnalyticsChart(payload) {
     id: "analyticsEventPlugin",
     afterDatasetsDraw(chart) {
       const { ctx, chartArea, scales } = chart;
-      if (!ctx || !chartArea || !scales?.x || !scales?.y) return;
+      if (!ctx || !chartArea || !scales?.x) return;
 
       const xScale = scales.x;
 
@@ -3125,7 +3231,7 @@ function renderChatAnalyticsChart(payload) {
         const x = xScale.getPixelForValue(i);
         const meta = getEventMeta(day.event);
 
-        ctx.fillStyle = "#94a3b8";
+        ctx.fillStyle = "#8EA0BC";
         ctx.font = "600 12px Inter, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
@@ -3135,7 +3241,7 @@ function renderChatAnalyticsChart(payload) {
 
         const delta = Number(day.delta || 0);
         const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
-        ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
+        ctx.fillStyle = delta >= 0 ? "#059669" : "#F43F5E";
         ctx.font = "600 11px Inter, sans-serif";
         ctx.fillText(deltaText, x, chartArea.bottom + 20);
 
@@ -3143,7 +3249,7 @@ function renderChatAnalyticsChart(payload) {
         ctx.font = "500 11px Inter, sans-serif";
         ctx.fillText(day.day || "", x, chartArea.bottom + 38);
 
-        ctx.fillStyle = "#94a3b8";
+        ctx.fillStyle = "#8EA0BC";
         ctx.font = "500 11px Inter, sans-serif";
         ctx.fillText(day.label || "", x, chartArea.bottom + 54);
       });
@@ -3176,16 +3282,46 @@ function renderChatAnalyticsChart(payload) {
       }
 
       const idx = points[0].index;
-      const meta = chart.getDatasetMeta(points[0].datasetIndex);
-      const element = meta?.data?.[idx];
-
-      if (!element || !days[idx]) {
+      if (!days[idx]) {
         hideAnalyticsHover();
         return;
       }
 
       window.chatAnalyticsState.hoveredIndex = idx;
       showAnalyticsHover(days[idx], chart, idx);
+    },
+  };
+
+  const overlayPointPlugin = {
+    id: "analyticsOverlayPointPlugin",
+    afterDatasetsDraw(chart) {
+      if (mode === "lost") return;
+
+      const { ctx } = chart;
+      const activeMeta = chart.getDatasetMeta(1);
+      if (!activeMeta?.data?.length) return;
+
+      ctx.save();
+
+      activeMeta.data.forEach((bar, i) => {
+        const x = bar.x + (mode === "conversion" ? 14 : 16);
+        const y =
+          mode === "conversion"
+            ? bar.y + (bar.base - bar.y) * 0.58
+            : bar.y + (bar.base - bar.y) * 0.42;
+
+        ctx.beginPath();
+        ctx.fillStyle = pointFill(mode);
+        ctx.strokeStyle = pointStroke(mode);
+        ctx.lineWidth = 2;
+
+        const radius = mode === "conversion" ? 7 : 8;
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      ctx.restore();
     },
   };
 
@@ -3198,63 +3334,67 @@ function renderChatAnalyticsChart(payload) {
           type: "bar",
           label: "Prior period",
           data: compare ? previousValues : previousValues.map(() => null),
-          backgroundColor: "rgba(110, 231, 183, 0.25)",
+          backgroundColor(context) {
+            const { chart } = context;
+            return makeBarGradient(chart.ctx, chart.chartArea, mode, true);
+          },
           borderRadius: 999,
           borderSkipped: false,
           order: 1,
-          categoryPercentage: 0.78,
+          categoryPercentage: 0.82,
           barPercentage: 1.0,
         },
         {
           type: "bar",
           label: chartLabel,
           data: values,
-          backgroundColor: values.map((_, i) =>
-            i === window.chatAnalyticsState.selectedIndex
-              ? "rgba(59, 130, 246, 0.98)"
-              : currentBarColor
-          ),
-          hoverBackgroundColor: currentHoverColor,
+          backgroundColor(context) {
+            const { chart, dataIndex } = context;
+            if (dataIndex === selectedIndex) {
+              return selectedBarGradient(chart.ctx, chart.chartArea, mode);
+            }
+            return makeBarGradient(chart.ctx, chart.chartArea, mode, false);
+          },
           borderRadius: 999,
           borderSkipped: false,
           order: 2,
-          categoryPercentage: 0.56,
-          barPercentage: 0.92,
+          categoryPercentage: 0.58,
+          barPercentage: 0.94,
         },
         {
           type: "line",
           label: "Trend",
           data: trendValues,
-          borderColor: "rgba(156, 163, 175, 0.75)",
+          borderColor: "rgba(175, 178, 186, 0.95)",
           pointRadius: 0,
           pointHoverRadius: 0,
-          tension: 0.38,
-          borderWidth: 2,
+          tension: 0.34,
+          borderWidth: 3,
           order: 0,
           yAxisID: "y",
         },
       ],
     },
-    plugins: [hoverPlugin, eventPlugin],
+    plugins: [hoverPlugin, eventPlugin, overlayPointPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 48,
-          bottom: 76,
-          left: 10,
-          right: 10,
+          top: 50,
+          bottom: 78,
+          left: 12,
+          right: 12,
         },
       },
       elements: {
         bar: {
           borderSkipped: false,
-          borderRadius: 16,
+          borderRadius: 18,
         },
       },
       animation: {
-        duration: 400,
+        duration: 450,
         easing: "easeOutCubic",
       },
       interaction: {
@@ -3282,9 +3422,10 @@ function renderChatAnalyticsChart(payload) {
         },
         y: {
           beginAtZero: true,
+          suggestedMax: Math.max(...values, ...previousValues, 10) * 1.18,
           grid: {
-            color: "rgba(203,213,225,0.7)",
-            borderDash: [4, 4],
+            color: "rgba(191,219,254,0.7)",
+            borderDash: [5, 5],
             drawBorder: false,
           },
           ticks: { display: false },
@@ -3341,30 +3482,61 @@ function wireAnalyticsModeControls() {
   const compareBtn = document.getElementById("analyticsCompareToggle");
   const canvas = document.getElementById("chatAnalyticsChart");
 
+  window.chatAnalyticsState = window.chatAnalyticsState || {};
+  if (!window.chatAnalyticsState.mode) window.chatAnalyticsState.mode = "chats";
+  if (typeof window.chatAnalyticsState.compare !== "boolean") {
+    window.chatAnalyticsState.compare = false;
+  }
+
+  function modeLabel(mode) {
+    if (mode === "conversion") return "Conversion focus";
+    if (mode === "lost") return "Lost opportunity focus";
+    return "Chats focus";
+  }
+
   function paintModeButtons() {
+    const activeMode = window.chatAnalyticsState.mode || "chats";
+
     modeButtons.forEach((btn) => {
-      const isActive =
-        (btn.getAttribute("data-chart-mode") || "chats") === window.chatAnalyticsState.mode;
+      const btnMode = btn.getAttribute("data-chart-mode") || "chats";
+      const isActive = btnMode === activeMode;
 
       btn.classList.toggle("is-active", isActive);
-      btn.classList.toggle("bg-slate-900", isActive);
-      btn.classList.toggle("text-white", isActive);
-      btn.classList.toggle("text-slate-500", !isActive);
-      btn.classList.toggle("hover:bg-slate-100", !isActive);
+      btn.setAttribute("aria-pressed", isActive ? "true" : "false");
     });
   }
 
   function paintCompareButton() {
     if (!compareBtn) return;
 
-    const isActive = !!window.chatAnalyticsState.compare;
-    compareBtn.classList.toggle("bg-slate-900", isActive);
-    compareBtn.classList.toggle("text-white", isActive);
-    compareBtn.classList.toggle("border-slate-900", isActive);
+    const isCompareOn = !!window.chatAnalyticsState.compare;
+    const activeMode = window.chatAnalyticsState.mode || "chats";
 
-    compareBtn.classList.toggle("bg-white", !isActive);
-    compareBtn.classList.toggle("text-slate-600", !isActive);
-    compareBtn.classList.toggle("border-slate-200", !isActive);
+    compareBtn.textContent = modeLabel(activeMode);
+
+    compareBtn.classList.toggle("bg-slate-900", isCompareOn);
+    compareBtn.classList.toggle("text-white", isCompareOn);
+    compareBtn.classList.toggle("border-slate-900", isCompareOn);
+
+    compareBtn.classList.toggle("bg-white", !isCompareOn);
+    compareBtn.classList.toggle("text-slate-600", !isCompareOn);
+    compareBtn.classList.toggle("border-slate-200", !isCompareOn);
+
+    compareBtn.setAttribute("aria-pressed", isCompareOn ? "true" : "false");
+  }
+
+  function rerenderChart() {
+    if (canvas) canvas.classList.add("opacity-50");
+
+    if (window.analyticsPayload) {
+      renderChatAnalyticsChart(window.analyticsPayload);
+    } else if (window.chatAnalyticsState.payload) {
+      renderChatAnalyticsChart(window.chatAnalyticsState.payload);
+    }
+
+    window.setTimeout(() => {
+      if (canvas) canvas.classList.remove("opacity-50");
+    }, 120);
   }
 
   modeButtons.forEach((btn) => {
@@ -3372,23 +3544,13 @@ function wireAnalyticsModeControls() {
     btn.dataset.wired = "1";
 
     btn.addEventListener("click", () => {
-      const mode = btn.getAttribute("data-chart-mode") || "chats";
-      if (window.chatAnalyticsState.mode === mode) return;
+      const nextMode = btn.getAttribute("data-chart-mode") || "chats";
+      if (window.chatAnalyticsState.mode === nextMode) return;
 
-      window.chatAnalyticsState.mode = mode;
+      window.chatAnalyticsState.mode = nextMode;
       paintModeButtons();
-
-      if (canvas) canvas.classList.add("opacity-50");
-
-      if (window.analyticsPayload) {
-        renderChatAnalyticsChart(window.analyticsPayload);
-      } else if (window.chatAnalyticsState.payload) {
-        renderChatAnalyticsChart(window.chatAnalyticsState.payload);
-      }
-      
-      setTimeout(() => {
-        if (canvas) canvas.classList.remove("opacity-50");
-      }, 120);
+      paintCompareButton();
+      rerenderChart();
     });
   });
 
@@ -3398,18 +3560,7 @@ function wireAnalyticsModeControls() {
     compareBtn.addEventListener("click", () => {
       window.chatAnalyticsState.compare = !window.chatAnalyticsState.compare;
       paintCompareButton();
-
-      if (canvas) canvas.classList.add("opacity-50");
-
-      if (window.analyticsPayload) {
-        renderChatAnalyticsChart(window.analyticsPayload);
-      } else if (window.chatAnalyticsState.payload) {
-        renderChatAnalyticsChart(window.chatAnalyticsState.payload);
-      }
-      
-      setTimeout(() => {
-        if (canvas) canvas.classList.remove("opacity-50");
-      }, 120);
+      rerenderChart();
     });
   }
 
