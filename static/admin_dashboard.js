@@ -3379,116 +3379,116 @@ if (chartInner && chartScroll) {
 };
 
   window.chatAnalyticsChart = new Chart(canvas.getContext("2d"), {
-    type: "bar",
-    data: {
-      labels,
-      datasets: [
-        {
-          type: "bar",
-          label: "Prior period",
-          data: compare ? previousValues : previousValues.map(() => null),
-          backgroundColor(context) {
-            const { chart } = context;
-            return makeBarGradient(chart.ctx, chart.chartArea, mode, true);
-          },
-          borderRadius: 999,
-          borderSkipped: false,
-          order: 1,
-          categoryPercentage: 0.92,
-          barPercentage: 0.98,
-          maxBarThickness: 36,
-        },
-        {
-          type: "bar",
-          label: chartLabel,
-          data: values,
-          backgroundColor(context) {
-            const { chart, dataIndex } = context;
-            if (dataIndex === selectedIndex) {
-              return selectedBarGradient(chart.ctx, chart.chartArea, mode);
-            }
-            return makeBarGradient(chart.ctx, chart.chartArea, mode, false);
-          },
-          borderRadius: 999,
-          borderSkipped: false,
-          order: 2,
-          categoryPercentage: 0.78,
-          barPercentage: 0.98,
-          maxBarThickness: 42,
-        },
-        {
-          type: "line",
-          label: "Trend",
-          data: trendValues,
-          borderColor: "rgba(148, 163, 184, 0.72)",
-          pointRadius: 0,
-          pointHoverRadius: 0,
-          tension: 0.18,
-          borderWidth: 2,
-          order: 0,
-          yAxisID: "y",
-        },
-      ],
-    },
-    plugins: [hoverPlugin, eventPlugin, overlayPointPlugin],
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      layout: {
-        padding: {
-          top: 28,
-          bottom: 52,
-          left: 2,
-          right: 2,
-        },
+  type: "bar",
+  data: {
+    labels,
+    datasets: [
+      {
+        type: "bar",
+        label: "Prior period",
+        data: compare ? previousValues : previousValues.map(() => null),
+        backgroundColor: "rgba(187, 230, 220, 0.78)",
+        borderColor: "rgba(187, 230, 220, 0.9)",
+        borderWidth: 0,
+        borderRadius: 999,
+        borderSkipped: false,
+        order: 1,
+        categoryPercentage: 0.96,
+        barPercentage: 0.98,
+        maxBarThickness: 30,
       },
-      elements: {
-        bar: {
-          borderSkipped: false,
-          borderRadius: 18,
+      {
+        type: "bar",
+        label: chartLabel,
+        data: values,
+        backgroundColor(context) {
+          const { chart, dataIndex } = context;
+          if (dataIndex === selectedIndex) {
+            return selectedBarGradient(chart.ctx, chart.chartArea, mode);
+          }
+          return makeBarGradient(chart.ctx, chart.chartArea, mode, false);
         },
+        borderRadius: 999,
+        borderSkipped: false,
+        order: 2,
+        categoryPercentage: 0.62,
+        barPercentage: 0.92,
+        maxBarThickness: 24,
       },
-      animation: {
-        duration: 450,
-        easing: "easeOutCubic",
+      {
+        type: "line",
+        label: "Trend",
+        data: trendValues,
+        borderColor: "rgba(156, 163, 175, 0.58)",
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        tension: 0.34,
+        borderWidth: 2,
+        order: 0,
+        yAxisID: "y",
       },
-      interaction: {
-        mode: "index",
-        intersect: false,
-        axis: "x",
-      },
-      onClick(_, elements) {
-        if (!elements?.length) return;
-        const idx = elements[0].index;
-        window.chatAnalyticsState.selectedIndex = idx;
-        renderChatAnalyticsChart(window.analyticsPayload || payload);
-        renderAnalyticsSummaryCards(days, idx);
-        renderAnalyticsDrilldown(days[idx] || null);
-      },
-      plugins: {
-        legend: { display: false },
-        tooltip: { enabled: false },
-      },
-      scales: {
-        x: {
-          grid: { display: false, drawBorder: false },
-          ticks: { display: false },
-          border: { display: false },
-        },
-        y: {
-          beginAtZero: true,
-          suggestedMax: Math.max(...values, ...previousValues, 10) * 1.18,
-          grid: {
-            color: "rgba(191,219,254,0.7)",
-            borderDash: [5, 5],
-            drawBorder: false,
-          },
-          ticks: { display: false },
-          border: { display: false },
-        },
+    ],
+  },
+  plugins: [hoverPlugin, eventPlugin, overlayPointPlugin],
+  options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    layout: {
+      padding: {
+        top: 36,
+        bottom: 62,
+        left: 8,
+        right: 8,
       },
     },
-  });
+    elements: {
+      bar: {
+        borderSkipped: false,
+        borderRadius: 18,
+      },
+    },
+    animation: {
+      duration: 450,
+      easing: "easeOutCubic",
+    },
+    interaction: {
+      mode: "index",
+      intersect: false,
+      axis: "x",
+    },
+    onClick(_, elements) {
+      if (!elements?.length) return;
+      const idx = elements[0].index;
+      window.chatAnalyticsState.selectedIndex = idx;
+      renderChatAnalyticsChart(window.analyticsPayload || payload);
+      renderAnalyticsSummaryCards(days, idx);
+      renderAnalyticsDrilldown(days[idx] || null);
+    },
+    plugins: {
+      legend: { display: false },
+      tooltip: { enabled: false },
+    },
+    scales: {
+      x: {
+        grid: { display: false, drawBorder: false },
+        ticks: { display: false },
+        border: { display: false },
+      },
+      y: {
+        beginAtZero: true,
+        suggestedMax: Math.max(...values, ...previousValues, 10) * 1.22,
+        grid: {
+          color: "rgba(203, 213, 225, 0.52)",
+          borderDash: [3, 5],
+          drawBorder: false,
+          drawTicks: false,
+        },
+        ticks: { display: false },
+        border: { display: false },
+      },
+    },
+  },
+});
 
   if (days.length) {
     renderAnalyticsSummaryCards(days, selectedIndex);
