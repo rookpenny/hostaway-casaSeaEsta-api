@@ -2988,6 +2988,27 @@ function renderAnalyticsSummaryCards(days, selectedIndex) {
   );
 }
 
+function makeBarGradient(ctx, chartArea, isCurrent) {
+  if (!chartArea) return "#4f46e5";
+
+  const gradient = ctx.createLinearGradient(
+    0,
+    chartArea.bottom,
+    0,
+    chartArea.top
+  );
+
+  if (isCurrent) {
+    gradient.addColorStop(0, "rgba(59,130,246,0.85)");
+    gradient.addColorStop(1, "rgba(125,211,252,0.95)");
+  } else {
+    gradient.addColorStop(0, "rgba(134,239,172,0.35)");
+    gradient.addColorStop(1, "rgba(187,247,208,0.65)");
+  }
+
+  return gradient;
+}
+
 function positionAnalyticsHoverLine(chart, index) {
   const line = document.getElementById("analyticsHoverLine");
   if (!line || !chart || index == null) return;
@@ -3124,20 +3145,6 @@ function renderChatAnalyticsChart(payload) {
       ? "Lost opportunity"
       : "Chats";
 
-  const currentBarColor =
-    mode === "conversion"
-      ? "rgba(52, 211, 153, 0.55)"
-      : mode === "lost"
-      ? "rgba(248, 113, 113, 0.55)"
-      : "rgba(79, 70, 229, 0.78)";
-
-  const selectedBarColor =
-    mode === "conversion"
-      ? "rgba(16, 185, 129, 0.95)"
-      : mode === "lost"
-      ? "rgba(239, 68, 68, 0.95)"
-      : "rgba(79, 70, 229, 0.98)";
-
   if (window.chatAnalyticsChart) {
     try {
       window.chatAnalyticsChart.destroy();
@@ -3151,7 +3158,7 @@ function renderChatAnalyticsChart(payload) {
       const { ctx, chartArea } = chart;
       if (!ctx || !chartArea) return;
 
-      const activeMeta = chart.getDatasetMeta(1); // current bars
+      const activeMeta = chart.getDatasetMeta(1);
       if (!activeMeta?.data?.length) return;
 
       ctx.save();
@@ -3163,16 +3170,16 @@ function renderChatAnalyticsChart(payload) {
 
         const x = bar.x;
         const meta = getEventMeta(day.event);
+        const topCount = Number(day.messages || day.chats || 0);
+        const delta = Number(day.delta || 0);
+        const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
 
         ctx.fillStyle = "#94a3b8";
         ctx.font = "600 12px Inter, sans-serif";
-        ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
+        ctx.fillText(String(topCount), x, chartArea.top + 10);
 
         ctx.font = "14px Inter, sans-serif";
-        ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
-
-        const delta = Number(day.delta || 0);
-        const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
+        ctx.fillText(meta.icon || "•", x, chartArea.top + 26);
 
         ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
         ctx.font = "600 11px Inter, sans-serif";
@@ -3241,8 +3248,8 @@ function renderChatAnalyticsChart(payload) {
         const x = bar.x;
         const y =
           mode === "conversion"
-            ? bar.y + (bar.base - bar.y) * 0.60
-            : bar.y + (bar.base - bar.y) * 0.50;
+            ? bar.y + (bar.base - bar.y) * 0.55
+            : bar.y + (bar.base - bar.y) * 0.35;
 
         ctx.beginPath();
         ctx.fillStyle =
@@ -3251,7 +3258,6 @@ function renderChatAnalyticsChart(payload) {
             : "rgba(251, 113, 133, 0.95)";
         ctx.strokeStyle = "rgba(255,255,255,0.95)";
         ctx.lineWidth = 1.5;
-
         ctx.arc(x, y, 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.stroke();
@@ -3270,37 +3276,73 @@ function renderChatAnalyticsChart(payload) {
           type: "bar",
           label: "Prior period",
           data: compare ? previousValues : previousValues.map(() => null),
-          backgroundColor: "rgba(110, 231, 183, 0.25)",
+          backgroundColor(context) {
+            const { chart } = context;
+            const area = chart.chartArea;
+            if (!area) return "rgba(110, 231, 183, 0.4)";
+
+            const gradient = chart.ctx.createLinearGradient(
+              0,
+              area.bottom,
+              0,
+              area.top
+            );
+            gradient.addColorStop(0, "rgba(134,239,172,0.25)");
+            gradient.addColorStop(1, "rgba(187,247,208,0.55)");
+            return gradient;
+          },
           borderRadius: 999,
           borderSkipped: false,
           order: 1,
-          categoryPercentage: 0.92,
-          barPercentage: 1.0,
-          maxBarThickness: 32,
+          categoryPercentage: 0.72,
+          barPercentage: 0.75,
+          maxBarThickness: 28,
         },
         {
           type: "bar",
           label: chartLabel,
           data: values,
-          backgroundColor: values.map((_, i) =>
-            i === selectedIndex ? selectedBarColor : currentBarColor
-          ),
+          backgroundColor(context) {
+            const { chart, dataIndex } = context;
+            const area = chart.chartArea;
+            if (!area) {
+              return dataIndex === selectedIndex
+                ? "rgba(79,70,229,0.95)"
+                : "rgba(79,70,229,0.8)";
+            }
+
+            const gradient = chart.ctx.createLinearGradient(
+              0,
+              area.bottom,
+              0,
+              area.top
+            );
+
+            if (dataIndex === selectedIndex) {
+              gradient.addColorStop(0, "rgba(79,70,229,0.95)");
+              gradient.addColorStop(1, "rgba(129,140,248,1)");
+            } else {
+              gradient.addColorStop(0, "rgba(59,130,246,0.82)");
+              gradient.addColorStop(1, "rgba(125,211,252,0.96)");
+            }
+
+            return gradient;
+          },
           borderRadius: 999,
           borderSkipped: false,
           order: 2,
-          categoryPercentage: 0.58,
-          barPercentage: 0.94,
+          categoryPercentage: 0.52,
+          barPercentage: 0.82,
           maxBarThickness: 22,
         },
         {
           type: "line",
-          label: "Trend",
           data: trendValues,
-          borderColor: "rgba(148, 163, 184, 0.72)",
+          borderColor: "rgba(148, 163, 184, 0.5)",
+          borderWidth: 2,
+          tension: 0.3,
           pointRadius: 0,
           pointHoverRadius: 0,
-          tension: 0.18,
-          borderWidth: 2,
           order: 0,
           yAxisID: "y",
         },
@@ -3353,6 +3395,7 @@ function renderChatAnalyticsChart(payload) {
         },
         y: {
           beginAtZero: true,
+          suggestedMax: Math.max(...values, ...previousValues, 10) * 1.25,
           grid: {
             color: "rgba(203,213,225,0.7)",
             borderDash: [4, 4],
@@ -3373,7 +3416,6 @@ function renderChatAnalyticsChart(payload) {
     renderAnalyticsDrilldown(null);
   }
 }
-
 function wireAnalyticsRangeButtons() {
   const rangeButtons = Array.from(document.querySelectorAll(".analytics-range-btn"));
   const rangeSelect = document.getElementById("analyticsRange");
