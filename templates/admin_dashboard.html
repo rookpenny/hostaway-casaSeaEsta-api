@@ -80,7 +80,7 @@
 }
 
 .analytics-chart-frame {
-  @apply rounded-[36px] border border-[#DDE4EF] bg-white/70 px-7 py-7;
+  @apply rounded-[36px] border border-[#DDE4EF] bg-white/70 px-2 py-3;
   background: linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(248,250,252,0.92) 100%);
 }
 
@@ -2376,7 +2376,7 @@
             </div>
           </div>
 
-          <div class="analytics-chart-frame relative overflow-hidden px-4 py-4 sm:px-5 sm:py-5">
+          <div class="analytics-chart-frame relative overflow-hidden px-2 py-3 sm:px-3 sm:py-4">
             <div
               id="analyticsChartHoverCard"
               class="pointer-events-none absolute left-5 top-5 z-30 hidden rounded-[18px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
@@ -2392,8 +2392,8 @@
 
             <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
 
-            <div id="analyticsChartScroll" class="overflow-x-auto overflow-y-hidden pb-3">
-              <div id="analyticsChartInner" class="relative h-[360px]" style="min-width: 760px;">
+            <div id="analyticsChartScroll" class="overflow-x-hidden overflow-y-hidden pb-2">
+              <div id="analyticsChartInner" class="relative h-[360px] w-full">
                 <canvas id="chatAnalyticsChart"></canvas>
               </div>
             </div>
