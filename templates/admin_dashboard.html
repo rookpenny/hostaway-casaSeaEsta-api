@@ -2330,7 +2330,7 @@
               <span>Hover for instant detail</span>
             </div>
           </div>
-
+        
           <div class="analytics-chart-frame relative overflow-hidden px-4 py-4 sm:px-5 sm:py-5">
             <div
               id="analyticsChartHoverCard"
@@ -2344,11 +2344,16 @@
                 <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
               </div>
             </div>
-
-            <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
-
-            <div class="relative h-[360px]">
-              <canvas id="chatAnalyticsChart"></canvas>
+        
+            <div id="analyticsChartScroll" class="overflow-x-auto overflow-y-hidden pb-2">
+              <div id="analyticsChartInner" class="relative h-[360px] min-w-full">
+                <div
+                  id="analyticsHoverLine"
+                  class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"
+                ></div>
+        
+                <canvas id="chatAnalyticsChart"></canvas>
+              </div>
             </div>
           </div>
         </div>
