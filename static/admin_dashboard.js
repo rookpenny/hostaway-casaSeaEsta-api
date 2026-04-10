@@ -3379,7 +3379,7 @@ function renderChatAnalyticsChart(payload) {
           top: 20,
           bottom: 60,
           left: 12,
-          right: 12,
+          right: 24,
         },
       },
       elements: {
