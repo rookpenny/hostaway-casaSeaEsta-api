@@ -2608,7 +2608,7 @@ window.closeInlineManual = function () {
 window.chatAnalyticsChart = window.chatAnalyticsChart || null;
 window.chatAnalyticsState = {
   mode: "chats",
-  compare: true,
+  compare: false,
   hoveredIndex: null,
   selectedIndex: null,
   payload: null,
@@ -2650,21 +2650,6 @@ function getEventMeta(eventName) {
   if (key === "inquiry") return { icon: "💬", label: "Inquiry surge" };
   if (key === "quiet") return { icon: "🌙", label: "Quiet day" };
   return { icon: "•", label: "Stable" };
-}
-
-function currentAnalyticsMode() {
-  const state = window.chatAnalyticsState || {};
-  const mode = state.mode;
-
-  // Only allow valid modes
-  if (mode === "conversion" || mode === "lost" || mode === "chats") {
-    return mode;
-  }
-
-  return "chats";
-}
-function currentCompareMode() {
-  return !!window.chatAnalyticsState?.compare;
 }
 
 const ANALYTICS_MODES = ["chats", "conversion", "lost"];
@@ -3636,26 +3621,6 @@ function wireAnalyticsModeControls() {
   paintCompareButton();
 }
 
-const MODE_FIELD_MAP = {
-  chats: ["chats", "total_chats", "messages"],
-  conversion: ["conversion", "conversion_rate", "conv"],
-  lost: ["lost_opportunity", "lost", "lostOpportunity"]
-};
-
-function analyticsModeValue(day, mode) {
-  if (!day) return 0;
-
-  const fields = MODE_FIELD_MAP[mode] || MODE_FIELD_MAP.chats;
-
-  for (const key of fields) {
-    if (day[key] != null) {
-      const n = Number(day[key]);
-      if (Number.isFinite(n)) return n;
-    }
-  }
-
-  return 0;
-}
 
 async function loadAnalyticsInsights(days, propertyId, pmcId) {
   const qs = new URLSearchParams();
@@ -3874,9 +3839,15 @@ document.addEventListener("change", (e) => {
 });
 
 function initAnalyticsSection() {
-  if (!document.getElementById("view-analytics")) return;
-  wireAnalyticsModeControls();
-  wireAnalyticsRangeButtons();
+  const view = document.getElementById("view-analytics");
+  if (!view) return;
+
+  if (!view.__analyticsInit) {
+    wireAnalyticsModeControls();
+    wireAnalyticsRangeButtons();
+    view.__analyticsInit = true;
+  }
+
   if (isAnalyticsVisible()) {
     loadChatAnalytics();
   }
@@ -5770,9 +5741,8 @@ function initRouting() {
     }
 
     if (key === "analytics") {
-      const days = document.getElementById("analyticsRange")?.value || 30;
       requestAnimationFrame(() => {
-        loadChatAnalytics(days);
+        initAnalyticsSection();
         resizeChatAnalyticsChartSoon();
       });
     }
@@ -6709,16 +6679,15 @@ document.addEventListener("DOMContentLoaded", async () => {
   initRouting();
   initSidebar();
   initPortfolioChart();
-  initAnalyticsSection();
   initRevenueReports();
   initSyncAllProperties();
-  
 
   initChatBatchActions();
   initChatDetailDelete();
   initChatFilters();
   initChatLoadMore();
   initRelativeTimes();
+
   window.setInterval(() => {
     initChatMessageTimes(document);
   }, 60 * 1000);
@@ -6744,6 +6713,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   const params = new URLSearchParams(window.location.search);
   const sid = params.get("session_id");
+
   if (sid) {
     setInlineDetailOpen(true);
     await loadChatDetail(sid);
@@ -6757,9 +6727,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   if ((params.get("view") || "overview") === "analytics") {
-  initAnalyticsSection();
-  loadChatAnalytics();
-}
+    initAnalyticsSection();
+  }
 });
 
 // ------------------------------
