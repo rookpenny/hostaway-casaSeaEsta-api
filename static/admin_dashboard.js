@@ -3354,7 +3354,7 @@ function renderChatAnalyticsChart(payload) {
         padding: {
           top: 20,
           bottom: 64,
-          left: 8,
+          left: 20,
           right: 8,
         },
       },
