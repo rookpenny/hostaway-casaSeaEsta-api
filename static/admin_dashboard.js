@@ -3408,6 +3408,15 @@ function wireAnalyticsRangeButtons() {
 }
 
 function wireAnalyticsModeControls() {
+  window.chatAnalyticsState = window.chatAnalyticsState || {};
+
+  if (!window.chatAnalyticsState.mode) {
+    window.chatAnalyticsState.mode = "chats";
+  }
+  if (typeof window.chatAnalyticsState.compare !== "boolean") {
+    window.chatAnalyticsState.compare = true;
+  }
+    
   const modeButtons = Array.from(document.querySelectorAll(".analytics-mode-btn"));
   const compareBtn = document.getElementById("analyticsCompareToggle");
   const canvas = document.getElementById("chatAnalyticsChart");
