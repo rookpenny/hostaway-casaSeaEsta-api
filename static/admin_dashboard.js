@@ -3116,18 +3116,31 @@ function renderChatAnalyticsChart(payload) {
   const previousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
   const trendValues = values.slice();
 
-  const chartScroll = document.getElementById("analyticsChartScroll");
-  const chartInner = document.getElementById("analyticsChartInner");
-  
-  if (chartInner) {
-    const dayWidth = days.length <= 7 ? 92 : days.length <= 14 ? 96 : 104;
-    const sidePadding = 120;
-    const minWidth = 760;
-    const computedWidth = Math.max(minWidth, days.length * dayWidth + sidePadding);
+const chartInner = document.getElementById("analyticsChartInner");
+const chartScroll = document.getElementById("analyticsChartScroll");
+const canvasEl = document.getElementById("chatAnalyticsChart");
+
+if (chartInner && chartScroll) {
+  const dayCount = days.length;
+  const scrollable = dayCount > 7;
+
+  chartScroll.classList.toggle("overflow-x-auto", scrollable);
+  chartScroll.classList.toggle("overflow-x-hidden", !scrollable);
+
+  if (scrollable) {
+    const dayWidth = dayCount <= 14 ? 96 : 104;
+    const computedWidth = Math.max(760, dayCount * dayWidth + 80);
     chartInner.style.width = `${computedWidth}px`;
+  } else {
+    chartInner.style.width = "100%";
   }
 
-  const canvasEl = document.getElementById("chatAnalyticsChart");
+  if (canvasEl) {
+    canvasEl.style.width = "100%";
+  }
+}
+
+
   if (canvasEl && chartInner) {
     canvasEl.style.width = `${chartInner.clientWidth}px`;
     canvasEl.width = chartInner.clientWidth;
