@@ -3248,49 +3248,49 @@ if (chartInner && chartScroll) {
   }
 
   const eventPlugin = {
-    id: "analyticsEventPlugin",
-    afterDatasetsDraw(chart) {
-      const { ctx, chartArea, scales } = chart;
-      if (!ctx || !chartArea || !scales?.x) return;
+  id: "analyticsEventPlugin",
+  afterDatasetsDraw(chart) {
+    const { ctx, chartArea } = chart;
+    if (!ctx || !chartArea) return;
 
-      const xScale = scales.x;
+    const activeBarMeta = chart.getDatasetMeta(1);
+    if (!activeBarMeta?.data?.length) return;
 
-      ctx.save();
+    ctx.save();
 
-      const activeBarMeta = chart.getDatasetMeta(1); // foreground/current bars
+    days.forEach((day, i) => {
+      const bar = activeBarMeta.data[i];
+      if (!bar) return;
 
-      days.forEach((day, i) => {
-        const bar = activeBarMeta?.data?.[i];
-        if (!bar) return;
-      
-        const x = bar.x;
-        const meta = getEventMeta(day.event);
-      
-        ctx.fillStyle = "#8EA0BC";
-        ctx.font = "600 12px Inter, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
-      
-        ctx.font = "14px Inter, sans-serif";
-        ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
-      
-        const delta = Number(day.delta || 0);
-        const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
-        ctx.fillStyle = delta >= 0 ? "#059669" : "#F43F5E";
-        ctx.font = "600 11px Inter, sans-serif";
-        ctx.fillText(deltaText, x, chartArea.bottom + 20);
-      
-        ctx.fillStyle = "#334155";
-        ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.day || "", x, chartArea.bottom + 38);
-      
-        ctx.fillStyle = "#8EA0BC";
-        ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.label || "", x, chartArea.bottom + 54);
-      });
-      ctx.restore();
-    },
-  };
+      const x = bar.x;
+      const meta = getEventMeta(day.event);
+
+      ctx.fillStyle = "#8EA0BC";
+      ctx.font = "600 12px Inter, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
+
+      ctx.font = "14px Inter, sans-serif";
+      ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
+
+      const delta = Number(day.delta || 0);
+      const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
+      ctx.fillStyle = delta >= 0 ? "#059669" : "#F43F5E";
+      ctx.font = "600 11px Inter, sans-serif";
+      ctx.fillText(deltaText, x, chartArea.bottom + 20);
+
+      ctx.fillStyle = "#334155";
+      ctx.font = "500 11px Inter, sans-serif";
+      ctx.fillText(day.day || "", x, chartArea.bottom + 38);
+
+      ctx.fillStyle = "#8EA0BC";
+      ctx.font = "500 11px Inter, sans-serif";
+      ctx.fillText(day.label || "", x, chartArea.bottom + 54);
+    });
+
+    ctx.restore();
+  },
+};
 
   const hoverPlugin = {
     id: "analyticsHoverPlugin",
@@ -3327,37 +3327,37 @@ if (chartInner && chartScroll) {
   };
 
   const overlayPointPlugin = {
-    id: "analyticsOverlayPointPlugin",
-    afterDatasetsDraw(chart) {
-      if (mode === "lost") return;
+  id: "analyticsOverlayPointPlugin",
+  afterDatasetsDraw(chart) {
+    if (mode === "lost") return;
 
-      const { ctx } = chart;
-      const activeMeta = chart.getDatasetMeta(1);
-      if (!activeMeta?.data?.length) return;
+    const { ctx } = chart;
+    const activeMeta = chart.getDatasetMeta(1);
+    if (!activeMeta?.data?.length) return;
 
-      ctx.save();
+    ctx.save();
 
-      activeMeta.data.forEach((bar, i) => {
-        const x = bar.x + (mode === "conversion" ? 14 : 16);
-        const y =
-          mode === "conversion"
-            ? bar.y + (bar.base - bar.y) * 0.58
-            : bar.y + (bar.base - bar.y) * 0.42;
+    activeMeta.data.forEach((bar) => {
+      const x = bar.x; // <- keep dot centered on the actual bar/date
+      const y =
+        mode === "conversion"
+          ? bar.y + (bar.base - bar.y) * 0.58
+          : bar.y + (bar.base - bar.y) * 0.42;
 
-        ctx.beginPath();
-        ctx.fillStyle = pointFill(mode);
-        ctx.strokeStyle = pointStroke(mode);
-        ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.fillStyle = pointFill(mode);
+      ctx.strokeStyle = pointStroke(mode);
+      ctx.lineWidth = 2;
 
-        const radius = mode === "conversion" ? 7 : 8;
-        ctx.arc(x, y, radius, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      });
+      const radius = mode === "conversion" ? 7 : 8;
+      ctx.arc(x, y, radius, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
 
-      ctx.restore();
-    },
-  };
+    ctx.restore();
+  },
+};
 
   window.chatAnalyticsChart = new Chart(canvas.getContext("2d"), {
     type: "bar",
@@ -3404,7 +3404,7 @@ if (chartInner && chartScroll) {
           borderColor: "rgba(175, 178, 186, 0.95)",
           pointRadius: 0,
           pointHoverRadius: 0,
-          tension: 0.34,
+          tension: 0.22,
           borderWidth: 3,
           order: 0,
           yAxisID: "y",
