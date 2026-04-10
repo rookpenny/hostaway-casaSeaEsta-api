@@ -3244,33 +3244,37 @@ function renderChatAnalyticsChart(payload) {
 
       ctx.save();
 
-      days.forEach((day, i) => {
-        const x = xScale.getPixelForValue(i);
-        const meta = getEventMeta(day.event);
+      const activeBarMeta = chart.getDatasetMeta(1); // foreground/current bars
 
+      days.forEach((day, i) => {
+        const bar = activeBarMeta?.data?.[i];
+        if (!bar) return;
+      
+        const x = bar.x;
+        const meta = getEventMeta(day.event);
+      
         ctx.fillStyle = "#8EA0BC";
         ctx.font = "600 12px Inter, sans-serif";
         ctx.textAlign = "center";
         ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
-
+      
         ctx.font = "14px Inter, sans-serif";
         ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
-
+      
         const delta = Number(day.delta || 0);
         const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
         ctx.fillStyle = delta >= 0 ? "#059669" : "#F43F5E";
         ctx.font = "600 11px Inter, sans-serif";
         ctx.fillText(deltaText, x, chartArea.bottom + 20);
-
+      
         ctx.fillStyle = "#334155";
         ctx.font = "500 11px Inter, sans-serif";
         ctx.fillText(day.day || "", x, chartArea.bottom + 38);
-
+      
         ctx.fillStyle = "#8EA0BC";
         ctx.font = "500 11px Inter, sans-serif";
         ctx.fillText(day.label || "", x, chartArea.bottom + 54);
       });
-
       ctx.restore();
     },
   };
