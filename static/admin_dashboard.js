@@ -3103,6 +3103,17 @@ function showAnalyticsHover(day, chart, index) {
 
   positionAnalyticsHoverLine(chart, index);
 }
+
+function currentAnalyticsMode() {
+  return window.chatAnalyticsState?.mode || "chats";
+}
+
+function currentCompareMode() {
+  return !!window.chatAnalyticsState?.compare;
+}
+
+
+
 function renderChatAnalyticsChart(payload) {
   const canvas = document.getElementById("chatAnalyticsChart");
   if (!canvas || !window.Chart) return;
