@@ -100,6 +100,29 @@
          shadow-sm transition hover:bg-[#F6F7FF];
 }
 
+   #analyticsChartScroll {
+  -webkit-overflow-scrolling: touch;
+  scrollbar-gutter: stable;
+}
+
+#analyticsChartScroll::-webkit-scrollbar {
+  height: 10px;
+}
+
+#analyticsChartScroll::-webkit-scrollbar-track {
+  background: rgba(226, 232, 240, 0.7);
+  border-radius: 999px;
+}
+
+#analyticsChartScroll::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.6);
+  border-radius: 999px;
+}
+
+#analyticsChartInner {
+  min-width: 720px;
+}
+
     .btn {
       @apply inline-flex items-center justify-center gap-2 select-none
              h-9 px-3 rounded-xl text-sm font-semibold
@@ -2369,8 +2392,10 @@
 
             <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
 
-            <div class="relative h-[360px]">
-              <canvas id="chatAnalyticsChart"></canvas>
+            <div id="analyticsChartScroll" class="overflow-x-auto overflow-y-hidden pb-2">
+              <div id="analyticsChartInner" class="relative h-[360px] min-w-[720px]">
+                <canvas id="chatAnalyticsChart"></canvas>
+              </div>
             </div>
           </div>
         </div>
