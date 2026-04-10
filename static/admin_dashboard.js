@@ -3088,6 +3088,17 @@ function showAnalyticsHover(day, chart, index) {
   }
 }
 
+let analyticsResizeTimer = null;
+
+window.addEventListener("resize", () => {
+  clearTimeout(analyticsResizeTimer);
+  analyticsResizeTimer = setTimeout(() => {
+    if (window.analyticsPayload) {
+      renderChatAnalyticsChart(window.analyticsPayload);
+    }
+  }, 120);
+});
+
 function renderChatAnalyticsChart(payload) {
   const canvas = document.getElementById("chatAnalyticsChart");
   if (!canvas || !window.Chart) return;
@@ -3127,9 +3138,13 @@ function renderChatAnalyticsChart(payload) {
   const chartInner = document.getElementById("analyticsChartInner");
 
   if (chartScroll && chartInner) {
-    const visibleWidth = 760;
+    /*const visibleWidth = 760;
     const perDayWidth = 84;
-    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 40);
+    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 40);*/
+
+    const visibleWidth = chartScroll.clientWidth;
+    const perDayWidth = Math.max(48, visibleWidth / days.length);
+    const computedWidth = visibleWidth;
 
     chartScroll.classList.remove("overflow-x-hidden");
     chartScroll.classList.add("overflow-x-auto");
