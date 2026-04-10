@@ -3126,7 +3126,7 @@ function renderChatAnalyticsChart(payload) {
   if (chartScroll && chartInner) {
     const visibleWidth = 760;
     const perDayWidth = 84;
-    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth);
+    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 10);
 
     chartScroll.classList.remove("overflow-x-hidden");
     chartScroll.classList.add("overflow-x-auto");
