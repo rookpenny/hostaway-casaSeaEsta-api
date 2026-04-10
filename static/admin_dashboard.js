@@ -3387,8 +3387,8 @@ function renderChatAnalyticsChart(payload) {
       },
       scales: {
         x: {
-          /*offset: false,
-          bounds: 'data',*/
+          offset: false,
+          bounds: 'data',/**/
           grid: { display: false, drawBorder: false },
           ticks: { display: false },
           border: { display: false },
