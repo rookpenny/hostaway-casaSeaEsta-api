@@ -259,6 +259,44 @@
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(0,0,0,0.05);
 }
+
+
+   .analytics-ai-card {
+  @apply rounded-[28px] border border-[#DCE4EF] bg-white px-7 py-7;
+  box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+}
+
+.analytics-ai-eyebrow {
+  @apply text-[11px] font-semibold tracking-[0.28em] text-[#94A3B8];
+}
+
+.analytics-ai-title {
+  @apply mt-4 text-[20px] leading-[1.35] font-semibold tracking-[-0.03em] text-[#111827];
+}
+
+.analytics-ai-body {
+  @apply mt-4 text-[15px] leading-8 text-[#64748B];
+}
+
+.analytics-ai-pills {
+  @apply mt-5 flex flex-wrap gap-3;
+}
+
+.analytics-insight-pill {
+  @apply inline-flex items-center rounded-full px-4 py-2 text-[14px] font-medium;
+}
+
+.analytics-insight-pill-indigo {
+  @apply bg-[#EEF2FF] text-[#4338CA];
+}
+
+.analytics-insight-pill-green {
+  @apply bg-[#EAF8F2] text-[#0F766E];
+}
+
+.analytics-insight-pill-amber {
+  @apply bg-[#FFF7E8] text-[#B45309];
+}
     
   }
   
@@ -2427,23 +2465,28 @@
         </div>
 
         <div class="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div class="analytics-lower-card">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-              AI read on the period
+          <div class="analytics-lower-card analytics-ai-card">
+            <div class="analytics-ai-eyebrow">
+              AI READ ON THE PERIOD
             </div>
-            <div id="analytics-ai-read-title" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
-              Loading insight...
-            </div>
-            <div id="analytics-ai-read-body" class="mt-2 text-[15px] leading-7 text-slate-500">
-              We’ll summarize what the trend line is showing once the chart data loads.
-            </div>
-            <div id="analytics-ai-pills" class="mt-4 flex flex-wrap gap-2">
-              <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">Waiting for data</span>
+          
+            <h3 id="analytics-ai-read-title" class="analytics-ai-title">
+              Sat volume is strongest, while Fri shows the most leakage in this window.
+            </h3>
+          
+            <p id="analytics-ai-read-body" class="analytics-ai-body">
+              Across the selected 30D range, average daily volume is 166 chats. Wed Jun 12 has the healthiest conversion score, while Fri Jun 14 shows the highest lost-opportunity signal.
+            </p>
+          
+            <div id="analytics-ai-pills" class="analytics-ai-pills">
+              <span class="analytics-insight-pill analytics-insight-pill-indigo">💬 Peak volume on Jun 15</span>
+              <span class="analytics-insight-pill analytics-insight-pill-green">📈 Best conversion on Jun 12</span>
+              <span class="analytics-insight-pill analytics-insight-pill-amber">⚠ Highest leakage on Jun 14</span>
             </div>
           </div>
 
           <div class="analytics-drill-card">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+            <div class="analytics-ai-eyebrow">
               Day drill-down
             </div>
             <div id="analytics-drilldown-date" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
