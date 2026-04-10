@@ -3126,7 +3126,7 @@ function renderChatAnalyticsChart(payload) {
   if (chartScroll && chartInner) {
     const visibleWidth = 760;
     const perDayWidth = 84;
-    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 45);
+    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 40);
 
     chartScroll.classList.remove("overflow-x-hidden");
     chartScroll.classList.add("overflow-x-auto");
@@ -3316,7 +3316,7 @@ function renderChatAnalyticsChart(payload) {
           order: 1,
           categoryPercentage: 0.72,
           barPercentage: 0.75,
-          maxBarThickness: 28,
+          maxBarThickness: 30,
         },
         {
           type: "bar",
@@ -3330,7 +3330,7 @@ function renderChatAnalyticsChart(payload) {
           order: 2,
           categoryPercentage: 0.52,
           barPercentage: 0.82,
-          maxBarThickness: 22,
+          maxBarThickness: 30,
         },
         {
           type: "line",
@@ -3387,8 +3387,8 @@ function renderChatAnalyticsChart(payload) {
       },
       scales: {
         x: {
-          offset: false,
-          bounds: 'data',
+          /*offset: false,
+          bounds: 'data',*/
           grid: { display: false, drawBorder: false },
           ticks: { display: false },
           border: { display: false },
