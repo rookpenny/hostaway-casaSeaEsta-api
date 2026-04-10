@@ -3138,17 +3138,18 @@ function renderChatAnalyticsChart(payload) {
   const chartInner = document.getElementById("analyticsChartInner");
 
   if (chartScroll && chartInner) {
-    /*const visibleWidth = 760;
-    const perDayWidth = 84;
-    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 40);*/
-
-    const visibleWidth = chartScroll.clientWidth;
-    const perDayWidth = Math.max(48, visibleWidth / days.length);
-    const computedWidth = visibleWidth;
-
+    const visibleWidth = chartScroll.clientWidth || 0;
+    const dayCount = Math.max(days.length, 1);
+  
+    const minDayWidth = dayCount <= 7 ? 0 : 68;
+    const naturalWidth = dayCount * minDayWidth;
+    const computedWidth = dayCount <= 7
+      ? visibleWidth
+      : Math.max(visibleWidth, naturalWidth);
+  
     chartScroll.classList.remove("overflow-x-hidden");
     chartScroll.classList.add("overflow-x-auto");
-
+  
     chartInner.style.width = `${computedWidth}px`;
     canvas.style.width = `${computedWidth}px`;
     canvas.width = computedWidth;
