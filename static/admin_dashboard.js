@@ -3219,11 +3219,11 @@ function renderChatAnalyticsChart(payload) {
 
         ctx.fillStyle = "#334155";
         ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.day || "", x, chartArea.bottom + 40);
+        ctx.fillText(day.day || "", x, chartArea.bottom + 38);
 
         ctx.fillStyle = "#94a3b8";
         ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.label || "", x, chartArea.bottom + 48);
+        ctx.fillText(day.label || "", x, chartArea.bottom + 52);
       });
 
       ctx.restore();
