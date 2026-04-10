@@ -3097,15 +3097,22 @@ function renderChatAnalyticsChart(payload) {
 
   const days = Array.isArray(payload?.days) ? payload.days : [];
   const labels = days.map((d) => d.day || d.label || "—");
+
   const mode = typeof currentAnalyticsMode === "function"
     ? currentAnalyticsMode()
     : (window.chatAnalyticsState.mode || "chats");
+
   const compare = typeof currentCompareMode === "function"
     ? currentCompareMode()
     : !!window.chatAnalyticsState.compare;
 
-  const values = days.map((d) => analyticsModeValue(d, mode));
-  const previousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
+  const rawValues = days.map((d) => analyticsModeValue(d, mode));
+  const rawPreviousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
+
+  // visual lift for very small non-zero values so low-volume days still read well
+  const values = rawValues.map((v) => (v > 0 ? v + 1 : 0));
+  const previousValues = rawPreviousValues.map((v) => (v > 0 ? v + 1 : 0));
+
   const trendValues = values.map((_, i, arr) => {
     const prev = arr[i - 1] ?? arr[i];
     const curr = arr[i];
@@ -3152,6 +3159,31 @@ function renderChatAnalyticsChart(payload) {
     window.chatAnalyticsChart = null;
   }
 
+  function currentBarGradient(chart, isSelected) {
+    const area = chart.chartArea;
+    if (!area) return isSelected ? "rgba(79,70,229,0.95)" : "rgba(59,130,246,0.82)";
+
+    const g = chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
+    if (isSelected) {
+      g.addColorStop(0, "rgba(79,70,229,0.95)");
+      g.addColorStop(1, "rgba(129,140,248,1)");
+    } else {
+      g.addColorStop(0, "rgba(59,130,246,0.82)");
+      g.addColorStop(1, "rgba(125,211,252,0.96)");
+    }
+    return g;
+  }
+
+  function priorBarGradient(chart) {
+    const area = chart.chartArea;
+    if (!area) return "rgba(187,247,208,0.5)";
+
+    const g = chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
+    g.addColorStop(0, "rgba(134,239,172,0.25)");
+    g.addColorStop(1, "rgba(187,247,208,0.55)");
+    return g;
+  }
+
   const eventPlugin = {
     id: "analyticsEventPlugin",
     afterDatasetsDraw(chart) {
@@ -3183,15 +3215,15 @@ function renderChatAnalyticsChart(payload) {
 
         ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
         ctx.font = "600 11px Inter, sans-serif";
-        ctx.fillText(deltaText, x, chartArea.bottom + 20);
+        ctx.fillText(deltaText, x, chartArea.bottom + 16);
 
         ctx.fillStyle = "#334155";
         ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.day || "", x, chartArea.bottom + 38);
+        ctx.fillText(day.day || "", x, chartArea.bottom + 30);
 
         ctx.fillStyle = "#94a3b8";
         ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.label || "", x, chartArea.bottom + 54);
+        ctx.fillText(day.label || "", x, chartArea.bottom + 42);
       });
 
       ctx.restore();
@@ -3277,19 +3309,7 @@ function renderChatAnalyticsChart(payload) {
           label: "Prior period",
           data: compare ? previousValues : previousValues.map(() => null),
           backgroundColor(context) {
-            const { chart } = context;
-            const area = chart.chartArea;
-            if (!area) return "rgba(110, 231, 183, 0.4)";
-
-            const gradient = chart.ctx.createLinearGradient(
-              0,
-              area.bottom,
-              0,
-              area.top
-            );
-            gradient.addColorStop(0, "rgba(134,239,172,0.25)");
-            gradient.addColorStop(1, "rgba(187,247,208,0.55)");
-            return gradient;
+            return priorBarGradient(context.chart);
           },
           borderRadius: 999,
           borderSkipped: false,
@@ -3303,30 +3323,7 @@ function renderChatAnalyticsChart(payload) {
           label: chartLabel,
           data: values,
           backgroundColor(context) {
-            const { chart, dataIndex } = context;
-            const area = chart.chartArea;
-            if (!area) {
-              return dataIndex === selectedIndex
-                ? "rgba(79,70,229,0.95)"
-                : "rgba(79,70,229,0.8)";
-            }
-
-            const gradient = chart.ctx.createLinearGradient(
-              0,
-              area.bottom,
-              0,
-              area.top
-            );
-
-            if (dataIndex === selectedIndex) {
-              gradient.addColorStop(0, "rgba(79,70,229,0.95)");
-              gradient.addColorStop(1, "rgba(129,140,248,1)");
-            } else {
-              gradient.addColorStop(0, "rgba(59,130,246,0.82)");
-              gradient.addColorStop(1, "rgba(125,211,252,0.96)");
-            }
-
-            return gradient;
+            return currentBarGradient(context.chart, context.dataIndex === selectedIndex);
           },
           borderRadius: 999,
           borderSkipped: false,
@@ -3337,6 +3334,7 @@ function renderChatAnalyticsChart(payload) {
         },
         {
           type: "line",
+          label: "Trend",
           data: trendValues,
           borderColor: "rgba(148, 163, 184, 0.5)",
           borderWidth: 2,
@@ -3354,10 +3352,10 @@ function renderChatAnalyticsChart(payload) {
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 36,
-          bottom: 64,
-          left: 10,
-          right: 10,
+          top: 20,
+          bottom: 48,
+          left: 8,
+          right: 8,
         },
       },
       elements: {
@@ -3395,13 +3393,21 @@ function renderChatAnalyticsChart(payload) {
         },
         y: {
           beginAtZero: true,
-          suggestedMax: Math.max(...values, ...previousValues, 10) * 1.25,
+          suggestedMax: Math.max(
+            12,
+            Math.max(...values, ...previousValues, 0) * 1.3
+          ),
           grid: {
-            color: "rgba(203,213,225,0.7)",
-            borderDash: [4, 4],
+            color: "rgba(148,163,184,0.25)",
+            borderDash: [3, 4],
             drawBorder: false,
           },
-          ticks: { display: false },
+          ticks: {
+            display: false,
+            stepSize: Math.ceil(
+              Math.max(...values, ...previousValues, 10) / 5
+            ),
+          },
           border: { display: false },
         },
       },
