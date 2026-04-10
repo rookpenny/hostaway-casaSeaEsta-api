@@ -3057,11 +3057,9 @@ function showAnalyticsHover(day, chart, index) {
   }
 
   let x = bar.x;
-
-  const EDGE_OFFSET = 8;
   
-  if (i === 0) x += EDGE_OFFSET;
-  if (i === days.length - 1) x -= EDGE_OFFSET;
+  if (i === 0) x += 10;
+  if (i === days.length - 1) x -= 18;
 
   card.classList.remove("hidden");
 
@@ -3379,9 +3377,9 @@ function renderChatAnalyticsChart(payload) {
       layout: {
         padding: {
           top: 20,
-          bottom: 64,
-          left: 8,
-          right: 8,
+          bottom: 60,
+          left: 12,
+          right: 12,
         },
       },
       elements: {
