@@ -3435,7 +3435,7 @@ function renderChatAnalyticsChart(payload) {
               ),
             },
             afterBuildTicks: (scale) => {
-              scale.ticks = scale.ticks.slice(1); // 👈 removes top grid line
+              scale.ticks = scale.ticks.slice(0, -1); // 👈 removes top grid line
             },
           border: { display: false },
         },
