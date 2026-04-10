@@ -1,4 +1,3 @@
-<!-- admin_dashboard.html-->
 <!doctype html>
 <html lang="en">
   <head>
@@ -30,127 +29,63 @@
  <style type="text/tailwindcss">
   @layer components {
 
-    .analytics-shell {
+   .analytics-shell {
       @apply overflow-hidden rounded-[34px] border border-[#DDE4EF] bg-[#FCFCFE]
              shadow-[0_8px_30px_rgba(15,23,42,0.05)];
     }
 
     .analytics-top-pill-wrap {
-      @apply inline-flex items-center rounded-full border border-[#D7DFEC] bg-white p-[4px]
-             shadow-[0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(15,23,42,0.04)];
+      @apply inline-flex rounded-full border border-[#D8E0EC] bg-[#F8FAFD] p-1;
     }
 
-    .analytics-range-btn,
-    .analytics-mode-btn {
-      @apply rounded-full px-7 py-3 text-[18px] font-semibold tracking-[-0.02em]
-             text-[#64748B] transition-all duration-200;
-    }
-
-    .analytics-range-btn:hover,
-    .analytics-mode-btn:hover {
-      @apply text-slate-900;
+    .analytics-range-btn {
+      @apply rounded-full px-4 py-2 text-[11px] font-semibold tracking-[-0.01em]
+             text-[#7C8CA5] transition;
     }
 
     .analytics-range-btn.is-active {
-      @apply bg-[#12214B] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.08),0_1px_2px_rgba(15,23,42,0.18)];
+      @apply bg-[#18284A] text-white shadow-sm;
+    }
+
+    .analytics-mode-btn {
+      @apply rounded-full px-4 py-2 text-[11px] font-semibold tracking-[-0.01em]
+             text-[#6E7E97] transition;
     }
 
     .analytics-mode-btn.is-active {
-      @apply text-white;
-      background: linear-gradient(90deg, #5B4CF0 0%, #4F46E5 100%);
-      box-shadow:
-        inset 0 0 0 2px #0EA5E9,
-        0 6px 18px rgba(91,76,240,0.24);
-    }
-
-    .analytics-focus-btn {
-      @apply inline-flex items-center rounded-full border border-[#D7DFEC] bg-white px-8 py-3
-             text-[18px] font-semibold tracking-[-0.02em] text-[#475569]
-             shadow-[0_1px_0_rgba(255,255,255,0.7),0_1px_2px_rgba(15,23,42,0.04)];
+      @apply bg-[#5B4CF0] text-white shadow-[0_4px_12px_rgba(91,76,240,0.25)];
     }
 
     .analytics-soft-pill {
-      @apply inline-flex items-center gap-3 rounded-full border border-[#D9E1EC] bg-white
-             px-6 py-3 text-[16px] font-medium text-[#64748B]
-             shadow-[0_2px_8px_rgba(15,23,42,0.05)];
+      @apply inline-flex items-center gap-2 rounded-full border border-[#E2E8F0]
+             bg-white px-4 py-2 text-[11px] font-medium text-[#7A889D];
     }
 
     .analytics-chart-frame {
-      @apply rounded-[36px] border border-[#DDE4EF] bg-white/70 px-2 py-3;
-      background: linear-gradient(180deg, rgba(255,255,255,0.72) 0%, rgba(248,250,252,0.92) 100%);
+      @apply rounded-[28px] border border-[#DDE4EF] bg-white/70 p-4;
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.92) 100%);
+      box-shadow:
+        inset 0 1px 0 rgba(255,255,255,0.7),
+        0 1px 2px rgba(15,23,42,0.03);
     }
 
     .analytics-lower-card {
-      @apply rounded-[26px] border border-[#DDE4EF] bg-white p-6
+      @apply rounded-[24px] border border-[#DDE4EF] bg-white p-5
              shadow-[0_4px_18px_rgba(15,23,42,0.04)];
     }
 
     .analytics-drill-card {
-      @apply rounded-[26px] border border-[#DDE4EF] bg-[#FBFCFE] p-6
+      @apply rounded-[24px] border border-[#DDE4EF] bg-[#FBFCFE] p-5
              shadow-[0_4px_18px_rgba(15,23,42,0.04)];
     }
 
     .analytics-open-day-btn {
       @apply inline-flex items-center gap-2 rounded-full border border-[#D7DDF0]
-             bg-white px-5 py-3 text-[15px] font-semibold text-[#4F46E5]
+             bg-white px-4 py-2 text-sm font-semibold text-[#4F46E5]
              shadow-sm transition hover:bg-[#F6F7FF];
     }
 
-    #analyticsChartScroll {
-      -webkit-overflow-scrolling: touch;
-      scrollbar-gutter: stable;
-    }
-
-    #analyticsChartScroll::-webkit-scrollbar {
-      height: 10px;
-    }
-
-    #analyticsChartScroll::-webkit-scrollbar-track {
-      background: rgba(226, 232, 240, 0.7);
-      border-radius: 999px;
-    }
-
-    #analyticsChartScroll::-webkit-scrollbar-thumb {
-      background: rgba(148, 163, 184, 0.6);
-      border-radius: 999px;
-    }
-
-    .analytics-ai-card {
-      @apply rounded-[28px] border border-[#DCE4EF] bg-white px-7 py-7;
-      box-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
-    }
-
-    .analytics-ai-eyebrow {
-      @apply text-[11px] font-semibold tracking-[0.28em] text-[#94A3B8];
-    }
-
-    .analytics-ai-title {
-      @apply mt-4 text-[20px] leading-[1.35] font-semibold tracking-[-0.03em] text-[#111827];
-    }
-
-    .analytics-ai-body {
-      @apply mt-4 text-[15px] leading-8 text-[#64748B];
-    }
-
-    .analytics-ai-pills {
-      @apply mt-5 flex flex-wrap gap-3;
-    }
-
-    .analytics-insight-pill {
-      @apply inline-flex items-center rounded-full px-4 py-2 text-[14px] font-medium;
-    }
-
-    .analytics-insight-pill-indigo {
-      @apply bg-[#EEF2FF] text-[#4338CA];
-    }
-
-    .analytics-insight-pill-green {
-      @apply bg-[#EAF8F2] text-[#0F766E];
-    }
-
-    .analytics-insight-pill-amber {
-      @apply bg-[#FFF7E8] text-[#B45309];
-    }
 
     .btn {
       @apply inline-flex items-center justify-center gap-2 select-none
@@ -197,14 +132,13 @@
       @apply h-9 rounded-xl border border-slate-200 bg-white px-3 text-sm;
     }
 
-    .card {
-      @apply shadow-[0_10px_30px_rgba(15,23,42,0.04)];
-    }
+   .card {
+    @apply shadow-[0_10px_30px_rgba(15,23,42,0.04)];
+  }
 
-    .hairline {
-      box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.04);
-    }
-
+  .hairline {
+    box-shadow: inset 0 -1px 0 rgba(15, 23, 42, 0.04);
+  }
     .nav-section-label {
       @apply px-6 text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-400;
     }
@@ -213,9 +147,9 @@
       @apply px-4 space-y-1.5;
     }
 
-    .nav-item {
-      @apply flex w-full items-center gap-3 rounded-2xl px-4 py-1.5 text-left text-[15px] font-medium text-slate-600 transition-all duration-200;
-    }
+.nav-item {
+  @apply flex w-full items-center gap-3 rounded-2xl px-4 py-1.5 text-left text-[15px] font-medium text-slate-600 transition-all duration-200;
+}
 
     .nav-item:hover {
       @apply bg-slate-100/80 text-slate-900;
@@ -273,23 +207,25 @@
       @apply text-[18px] font-semibold tracking-tight text-slate-950;
     }
 
-    header {
-      backdrop-filter: blur(12px);
-    }
+   header {
+  backdrop-filter: blur(12px);
+}
 
-    .insight-card {
-      background: white;
-      border-radius: 16px;
-      padding: 16px;
-      border: 1px solid rgba(0,0,0,0.05);
-      transition: all 0.2s ease;
-    }
+   .insight-card {
+  background: white;
+  border-radius: 16px;
+  padding: 16px;
+  border: 1px solid rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
 
-    .insight-card:hover {
-      transform: translateY(-2px);
-      box-shadow: 0 10px 25px rgba(0,0,0,0.05);
-    }
+.insight-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+}
+    
   }
+  
 </style>
 
 </head>
@@ -2333,127 +2269,87 @@
             </div>
           </div>
 
-          <div class="flex flex-col items-start gap-4 xl:items-end">
-  <select id="analyticsRange" class="hidden">
-    <option value="7">7</option>
-    <option value="14" selected>14</option>
-    <option value="30">30</option>
-  </select>
+          <div class="flex flex-col items-start gap-3 xl:items-end">
+            <select id="analyticsRange" class="hidden">
+              <option value="7">7</option>
+              <option value="14" selected>14</option>
+              <option value="30">30</option>
+            </select>
 
-  <div class="analytics-top-pill-wrap">
-    <button type="button" class="analytics-range-btn" data-range="7">7D</button>
-    <button type="button" class="analytics-range-btn is-active" data-range="14">14D</button>
-    <button type="button" class="analytics-range-btn" data-range="30">30D</button>
-  </div>
+            <div class="analytics-top-pill-wrap">
+              <button type="button" class="analytics-range-btn" data-range="7">7D</button>
+              <button type="button" class="analytics-range-btn is-active" data-range="14">14D</button>
+              <button type="button" class="analytics-range-btn" data-range="30">30D</button>
+            </div>
 
-  <div class="analytics-top-pill-wrap">
-    <button
-      type="button"
-      class="analytics-mode-btn is-active"
-      data-chart-mode="chats"
-    >
-      Chats
-    </button>
+            <div class="analytics-top-pill-wrap bg-white">
+              <button
+                id="analyticsCompareToggle"
+                type="button"
+                class="rounded-full border border-[#D8E0EC] bg-white px-4 py-2 text-[13px] font-medium text-[#66758D]"
+              >
+                Chats focus
+              </button>
 
-    <button
-      type="button"
-      class="analytics-mode-btn"
-      data-chart-mode="conversion"
-    >
-      Conversion
-    </button>
+              <button
+                type="button"
+                class="analytics-mode-btn rounded-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                data-chart-mode="conversion"
+              >
+                Conversion
+              </button>
 
-    <button
-      type="button"
-      class="analytics-mode-btn"
-      data-chart-mode="lost"
-    >
-      Lost Opportunity
-    </button>
-  </div>
-
-  <button
-    id="analyticsCompareToggle"
-    type="button"
-    class="analytics-focus-btn"
-  >
-    Chats focus
-  </button>
-</div>
-      
+              <button
+                type="button"
+                class="analytics-mode-btn rounded-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50"
+                data-chart-mode="lost"
+              >
+                Lost Opportunity
+              </button>
+            </div>
+          </div>
         </div>
       </div>
 
       <div class="p-5 sm:p-6">
         <div class="rounded-[32px] bg-slate-50 p-5 sm:p-6">
           <div class="mb-4 flex flex-wrap gap-3 text-xs text-slate-500">
-
-            <button type="button" data-legend-toggle="current" class="analytics-soft-pill">
-              <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
-              <span>Current period</span>
-            </button>
-          
-            <button type="button" data-legend-toggle="prior" class="analytics-soft-pill">
-              <span class="h-2.5 w-2.5 rounded-full bg-emerald-300"></span>
-              <span>Prior period</span>
-            </button>
-          
-            <button type="button" data-legend-toggle="trend" class="analytics-soft-pill">
-              <span class="h-[2px] w-5 rounded-full bg-slate-400"></span>
-              <span>Trend line</span>
-            </button>
-          
             <div class="analytics-soft-pill">
-              <span>Hover for instant detail</span>
-            </div>
-          
-          </div>
-
-         <div class="analytics-chart-frame relative overflow-hidden px-2 py-3 sm:px-3 sm:py-4">
-          <div
-            id="analyticsChartHoverCard"
-            class="pointer-events-none absolute left-5 top-5 z-30 hidden rounded-[18px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
-          >
-            <div class="text-sm font-semibold text-slate-950" data-hover-date>—</div>
-            <div class="mt-2 space-y-1 text-xs text-slate-600">
-              <div class="flex items-center justify-between gap-4"><span>Chats</span><span class="font-semibold text-slate-950" data-hover-chats>—</span></div>
-              <div class="flex items-center justify-between gap-4"><span>Conversion</span><span class="font-semibold text-slate-950" data-hover-conversion>—</span></div>
-              <div class="flex items-center justify-between gap-4"><span>Lost opportunity</span><span class="font-semibold text-slate-950" data-hover-lost>—</span></div>
-              <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
-            </div>
-          </div>
-        
-          <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
-        
-          <!-- ADD THIS -->
-          <div class="mb-4 flex flex-wrap gap-3 text-xs text-slate-500">
-            <button type="button" data-legend-toggle="current" class="analytics-soft-pill">
               <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
               <span>Current period</span>
-            </button>
-        
-            <button type="button" data-legend-toggle="prior" class="analytics-soft-pill">
-              <span class="h-2.5 w-2.5 rounded-full bg-emerald-300"></span>
+            </div>
+            <div class="analytics-soft-pill">
+              <span class="h-2.5 w-2.5 rounded-full bg-slate-300"></span>
               <span>Prior period</span>
-            </button>
-        
-            <button type="button" data-legend-toggle="trend" class="analytics-soft-pill">
-              <span class="h-[2px] w-5 rounded-full bg-slate-400"></span>
+            </div>
+            <div class="analytics-soft-pill">
+              <span class="h-[2px] w-5 bg-slate-400"></span>
               <span>Trend line</span>
-            </button>
-        
+            </div>
             <div class="analytics-soft-pill">
               <span>Hover for instant detail</span>
             </div>
           </div>
-          <!-- END ADD -->
-        
-          <div id="analyticsChartScroll" class="overflow-x-hidden overflow-y-hidden pb-2">
-            <div id="analyticsChartInner" class="relative h-[360px] w-full">
+
+          <div class="analytics-chart-frame relative overflow-hidden px-4 py-4 sm:px-5 sm:py-5">
+            <div
+              id="analyticsChartHoverCard"
+              class="pointer-events-none absolute left-5 top-5 z-30 hidden rounded-[18px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
+            >
+              <div class="text-sm font-semibold text-slate-950" data-hover-date>—</div>
+              <div class="mt-2 space-y-1 text-xs text-slate-600">
+                <div class="flex items-center justify-between gap-4"><span>Chats</span><span class="font-semibold text-slate-950" data-hover-chats>—</span></div>
+                <div class="flex items-center justify-between gap-4"><span>Conversion</span><span class="font-semibold text-slate-950" data-hover-conversion>—</span></div>
+                <div class="flex items-center justify-between gap-4"><span>Lost opportunity</span><span class="font-semibold text-slate-950" data-hover-lost>—</span></div>
+                <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
+              </div>
+            </div>
+
+            <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
+
+            <div class="relative h-[360px]">
               <canvas id="chatAnalyticsChart"></canvas>
             </div>
-          </div>
-        </div>
           </div>
         </div>
 
@@ -2484,26 +2380,23 @@
         </div>
 
         <div class="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div class="analytics-lower-card analytics-ai-card">
-            <div class="analytics-ai-eyebrow">
-              AI READ ON THE PERIOD
+          <div class="analytics-lower-card">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+              AI read on the period
             </div>
-          
-            <h3 id="analytics-ai-read-title" class="analytics-ai-title">
+            <div id="analytics-ai-read-title" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
               Loading insight...
-            </h3>
-          
-            <p id="analytics-ai-read-body" class="analytics-ai-body">
+            </div>
+            <div id="analytics-ai-read-body" class="mt-2 text-[15px] leading-7 text-slate-500">
               We’ll summarize what the trend line is showing once the chart data loads.
-            </p>
-          
-            <div id="analytics-ai-pills" class="analytics-ai-pills">
-              <span class="analytics-insight-pill analytics-insight-pill-indigo">Waiting for data</span>
+            </div>
+            <div id="analytics-ai-pills" class="mt-4 flex flex-wrap gap-2">
+              <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">Waiting for data</span>
             </div>
           </div>
 
           <div class="analytics-drill-card">
-            <div class="analytics-ai-eyebrow">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
               Day drill-down
             </div>
             <div id="analytics-drilldown-date" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
@@ -3022,52 +2915,54 @@
                 </div>
               </div>
 
-<div id="settings-integrations" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
-  <div class="flex items-start justify-between gap-3">
-    <div>
-      <div class="text-sm font-semibold">Integrations</div>
-      <div class="mt-1 text-sm text-slate-500">Connect Stripe so guests can pay for upgrades.</div>
-    </div>
-  </div>
+              <div id="settings-integrations" class="settings-panel hidden bg-white border border-slate-200 rounded-2xl p-4 card">
+                <div class="flex items-start justify-between gap-3">
+                  <div>
+                    <div class="text-sm font-semibold">Integrations</div>
+                    <div class="mt-1 text-sm text-slate-500">Connect Stripe so guests can pay for upgrades.</div>
+                  </div>
+                </div>
+              
+                <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div class="flex items-center justify-between gap-3 flex-wrap">
+                    <div>
+                      <div class="text-sm font-semibold">Stripe Connect</div>
+                      <div class="text-xs text-slate-500" id="stripe-connect-status">Checking status…</div>
+                    </div>
+              
+                    <div class="flex items-center gap-2">
+                    <button
+                      type="button"
+                      id="stripe-connect-btn"
+                      onclick="stripeConnectStart()"
+                      class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
+                    >
+                      Connect Stripe
+                    </button>
+                  
+                    {% if stripe_connected %}
+                    <button
+                      type="button"
+                      onclick="stripeDisconnect()"
+                      class="h-10 px-4 rounded-xl border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold"
+                    >
+                      Remove connection
+                    </button>
+                    {% endif %}
+                  </div>
 
-  <div class="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
-    <div class="flex items-center justify-between gap-3 flex-wrap">
-      <div>
-        <div class="text-sm font-semibold">Stripe Connect</div>
-        <div class="text-xs text-slate-500" id="stripe-connect-status">Checking status…</div>
-      </div>
+                  </div>
+              
+                  <div class="mt-3 text-xs text-slate-500">
+                    Connect your Stripe account to receive payouts for upgrade purchases. HostScout can apply a small platform fee.
+                  </div>
+                </div>
+              </div>
 
-      <div class="flex items-center gap-2">
-        <button
-          type="button"
-          id="stripe-connect-btn"
-          onclick="stripeConnectStart()"
-          class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold"
-        >
-          Connect Stripe
-        </button>
-
-        {% if stripe_connected %}
-        <button
-          type="button"
-          onclick="stripeDisconnect()"
-          class="h-10 px-4 rounded-xl border border-red-300 text-red-600 hover:bg-red-50 text-sm font-semibold"
-        >
-          Remove connection
-        </button>
-        {% endif %}
-      </div>
-    </div>
-
-    <div class="mt-3 text-xs text-slate-500">
-      Connect your Stripe account to receive payouts for upgrade purchases. HostScout can apply a small platform fee.
-    </div>
-  </div>
-</div>
-
-            </div>
           </div>
         </section>
+
+      </div>
 
       <!-- Assistant Config Drawer -->
       <div id="configDrawer" class="fixed inset-0 z-[9999] hidden">
