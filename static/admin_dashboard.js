@@ -3116,6 +3116,17 @@ function renderChatAnalyticsChart(payload) {
   const previousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
   const trendValues = values.slice();
 
+  const chartInner = document.getElementById("analyticsChartInner");
+  const chartScroll = document.getElementById("analyticsChartScroll");
+
+  if (chartInner) {
+    const minDayWidth = 78; // wider bars / more breathing room
+    const sidePadding = 80;
+    const minWidth = 720;
+    const computedWidth = Math.max(minWidth, days.length * minDayWidth + sidePadding);
+    chartInner.style.width = `${computedWidth}px`;
+  }
+
   const selectedIndex =
     Number.isInteger(window.chatAnalyticsState?.selectedIndex) &&
     window.chatAnalyticsState.selectedIndex >= 0 &&
@@ -3451,7 +3462,7 @@ function wireAnalyticsRangeButtons() {
   if (!rangeButtons.length || !rangeSelect) return;
 
   function paint() {
-    const current = String(rangeSelect.value || "14");
+    const current = String(rangeSelect.value || "7");
 
     rangeButtons.forEach((btn) => {
       const active = btn.getAttribute("data-range") === current;
