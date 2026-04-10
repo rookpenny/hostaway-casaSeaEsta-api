@@ -3126,7 +3126,7 @@ function renderChatAnalyticsChart(payload) {
   if (chartScroll && chartInner) {
     const visibleWidth = 760;
     const perDayWidth = 84;
-    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 40);
+    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth);
 
     chartScroll.classList.remove("overflow-x-hidden");
     chartScroll.classList.add("overflow-x-auto");
@@ -3387,6 +3387,8 @@ function renderChatAnalyticsChart(payload) {
       },
       scales: {
         x: {
+          offset: false,
+          bounds: 'data',
           grid: { display: false, drawBorder: false },
           ticks: { display: false },
           border: { display: false },
