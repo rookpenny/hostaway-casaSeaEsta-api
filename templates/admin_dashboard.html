@@ -119,9 +119,7 @@
   border-radius: 999px;
 }
 
-#analyticsChartInner {
-  min-width: 720px;
-}
+
 
     .btn {
       @apply inline-flex items-center justify-center gap-2 select-none
@@ -2357,39 +2355,38 @@
   </div>
 
   <div class="analytics-top-pill-wrap">
-    <button
-      type="button"
-      class="analytics-mode-btn"
-      data-chart-mode="chats"
-    >
-      Chats
-    </button>
-
-    <button
-      type="button"
-      class="analytics-mode-btn"
-      data-chart-mode="conversion"
-    >
-      Conversion
-    </button>
-
-    <button
-      type="button"
-      class="analytics-mode-btn is-active"
-      data-chart-mode="lost"
-    >
-      Lost Opportunity
-    </button>
-  </div>
+  <button
+    type="button"
+    class="analytics-mode-btn is-active"
+    data-chart-mode="chats"
+  >
+    Chats
+  </button>
 
   <button
-    id="analyticsCompareToggle"
     type="button"
-    class="analytics-focus-btn"
+    class="analytics-mode-btn"
+    data-chart-mode="conversion"
   >
-    Lost opportunity focus
+    Conversion
+  </button>
+
+  <button
+    type="button"
+    class="analytics-mode-btn"
+    data-chart-mode="lost"
+  >
+    Lost Opportunity
   </button>
 </div>
+
+<button
+  id="analyticsCompareToggle"
+  type="button"
+  class="analytics-focus-btn"
+>
+  Chats focus
+</button>
       
         </div>
       </div>
@@ -2466,24 +2463,22 @@
 
         <div class="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
           <div class="analytics-lower-card analytics-ai-card">
-            <div class="analytics-ai-eyebrow">
-              AI READ ON THE PERIOD
-            </div>
-          
-            <h3 id="analytics-ai-read-title" class="analytics-ai-title">
-              Sat volume is strongest, while Fri shows the most leakage in this window.
-            </h3>
-          
-            <p id="analytics-ai-read-body" class="analytics-ai-body">
-              Across the selected 30D range, average daily volume is 166 chats. Wed Jun 12 has the healthiest conversion score, while Fri Jun 14 shows the highest lost-opportunity signal.
-            </p>
-          
-            <div id="analytics-ai-pills" class="analytics-ai-pills">
-              <span class="analytics-insight-pill analytics-insight-pill-indigo">💬 Peak volume on Jun 15</span>
-              <span class="analytics-insight-pill analytics-insight-pill-green">📈 Best conversion on Jun 12</span>
-              <span class="analytics-insight-pill analytics-insight-pill-amber">⚠ Highest leakage on Jun 14</span>
-            </div>
+          <div class="analytics-ai-eyebrow">
+            AI READ ON THE PERIOD
           </div>
+        
+          <h3 id="analytics-ai-read-title" class="analytics-ai-title">
+            Loading insight...
+          </h3>
+        
+          <p id="analytics-ai-read-body" class="analytics-ai-body">
+            We’ll summarize what the trend line is showing once the chart data loads.
+          </p>
+        
+          <div id="analytics-ai-pills" class="analytics-ai-pills">
+            <span class="analytics-insight-pill analytics-insight-pill-indigo">Waiting for data</span>
+          </div>
+        </div>
 
           <div class="analytics-drill-card">
             <div class="analytics-ai-eyebrow">
