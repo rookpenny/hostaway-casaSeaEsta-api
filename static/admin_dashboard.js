@@ -3418,21 +3418,25 @@ function renderChatAnalyticsChart(payload) {
           border: { display: false },
         },
         y: {
-          beginAtZero: true,
-          suggestedMax: Math.max(
-            12,
-            Math.max(...values, ...previousValues, 0) * 1.3
-          ),
-          grid: {
-            color: "rgba(148,163,184,0.25)",
-            borderDash: [3, 4],
-            drawBorder: false,
-          },
-          ticks: {
-            display: false,
-            stepSize: Math.ceil(
-              Math.max(...values, ...previousValues, 10) / 5
+            beginAtZero: true,
+            suggestedMax: Math.max(
+              12,
+              Math.max(...values, ...previousValues, 0) * 1.3
             ),
+            grid: {
+              color: "rgba(148,163,184,0.25)",
+              borderDash: [3, 4],
+              drawBorder: false,
+            },
+            ticks: {
+              display: false,
+              stepSize: Math.ceil(
+                Math.max(...values, ...previousValues, 10) / 5
+              ),
+            },
+            afterBuildTicks: (scale) => {
+              scale.ticks = scale.ticks.slice(1); // 👈 removes top grid line
+            },
           },
           border: { display: false },
         },
