@@ -2387,44 +2387,73 @@
       <div class="p-5 sm:p-6">
         <div class="rounded-[32px] bg-slate-50 p-5 sm:p-6">
           <div class="mb-4 flex flex-wrap gap-3 text-xs text-slate-500">
-            <div class="analytics-soft-pill">
+
+            <button type="button" data-legend-toggle="current" class="analytics-soft-pill">
               <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
               <span>Current period</span>
-            </div>
-            <div class="analytics-soft-pill">
-              <span class="h-2.5 w-2.5 rounded-full bg-slate-300"></span>
+            </button>
+          
+            <button type="button" data-legend-toggle="prior" class="analytics-soft-pill">
+              <span class="h-2.5 w-2.5 rounded-full bg-emerald-300"></span>
               <span>Prior period</span>
-            </div>
-            <div class="analytics-soft-pill">
-              <span class="h-[2px] w-5 bg-slate-400"></span>
+            </button>
+          
+            <button type="button" data-legend-toggle="trend" class="analytics-soft-pill">
+              <span class="h-[2px] w-5 rounded-full bg-slate-400"></span>
               <span>Trend line</span>
+            </button>
+          
+            <div class="analytics-soft-pill">
+              <span>Hover for instant detail</span>
             </div>
+          
+          </div>
+
+         <div class="analytics-chart-frame relative overflow-hidden px-2 py-3 sm:px-3 sm:py-4">
+          <div
+            id="analyticsChartHoverCard"
+            class="pointer-events-none absolute left-5 top-5 z-30 hidden rounded-[18px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
+          >
+            <div class="text-sm font-semibold text-slate-950" data-hover-date>—</div>
+            <div class="mt-2 space-y-1 text-xs text-slate-600">
+              <div class="flex items-center justify-between gap-4"><span>Chats</span><span class="font-semibold text-slate-950" data-hover-chats>—</span></div>
+              <div class="flex items-center justify-between gap-4"><span>Conversion</span><span class="font-semibold text-slate-950" data-hover-conversion>—</span></div>
+              <div class="flex items-center justify-between gap-4"><span>Lost opportunity</span><span class="font-semibold text-slate-950" data-hover-lost>—</span></div>
+              <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
+            </div>
+          </div>
+        
+          <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
+        
+          <!-- ADD THIS -->
+          <div class="mb-4 flex flex-wrap gap-3 text-xs text-slate-500">
+            <button type="button" data-legend-toggle="current" class="analytics-soft-pill">
+              <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
+              <span>Current period</span>
+            </button>
+        
+            <button type="button" data-legend-toggle="prior" class="analytics-soft-pill">
+              <span class="h-2.5 w-2.5 rounded-full bg-emerald-300"></span>
+              <span>Prior period</span>
+            </button>
+        
+            <button type="button" data-legend-toggle="trend" class="analytics-soft-pill">
+              <span class="h-[2px] w-5 rounded-full bg-slate-400"></span>
+              <span>Trend line</span>
+            </button>
+        
             <div class="analytics-soft-pill">
               <span>Hover for instant detail</span>
             </div>
           </div>
-
-          <div class="analytics-chart-frame relative overflow-hidden px-2 py-3 sm:px-3 sm:py-4">
-            <div
-              id="analyticsChartHoverCard"
-              class="pointer-events-none absolute left-5 top-5 z-30 hidden rounded-[18px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
-            >
-              <div class="text-sm font-semibold text-slate-950" data-hover-date>—</div>
-              <div class="mt-2 space-y-1 text-xs text-slate-600">
-                <div class="flex items-center justify-between gap-4"><span>Chats</span><span class="font-semibold text-slate-950" data-hover-chats>—</span></div>
-                <div class="flex items-center justify-between gap-4"><span>Conversion</span><span class="font-semibold text-slate-950" data-hover-conversion>—</span></div>
-                <div class="flex items-center justify-between gap-4"><span>Lost opportunity</span><span class="font-semibold text-slate-950" data-hover-lost>—</span></div>
-                <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
-              </div>
+          <!-- END ADD -->
+        
+          <div id="analyticsChartScroll" class="overflow-x-hidden overflow-y-hidden pb-2">
+            <div id="analyticsChartInner" class="relative h-[360px] w-full">
+              <canvas id="chatAnalyticsChart"></canvas>
             </div>
-
-            <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
-
-            <div id="analyticsChartScroll" class="overflow-x-hidden overflow-y-hidden pb-2">
-              <div id="analyticsChartInner" class="relative h-[360px] w-full">
-                <canvas id="chatAnalyticsChart"></canvas>
-              </div>
-            </div>
+          </div>
+        </div>
           </div>
         </div>
 
