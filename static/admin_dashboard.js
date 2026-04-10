@@ -3417,10 +3417,10 @@ if (chartInner && chartScroll) {
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 50,
-          bottom: 78,
-          left: 12,
-          right: 12,
+          top: 34,
+          bottom: 60,
+          left: 4,
+          right: 4,
         },
       },
       elements: {
