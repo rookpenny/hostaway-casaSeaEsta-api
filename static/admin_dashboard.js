@@ -3381,7 +3381,7 @@ function wireAnalyticsRangeButtons() {
   if (!rangeButtons.length || !rangeSelect) return;
 
   function paint() {
-    const current = String(rangeSelect.value || "14");
+    const current = String(rangeSelect.value || "7");
 
     rangeButtons.forEach((btn) => {
       const active = btn.getAttribute("data-range") === current;
