@@ -28,10 +28,9 @@
 
  <style type="text/tailwindcss">
   @layer components {
-
-   .analytics-shell {
-      @apply overflow-hidden rounded-[34px] border border-[#DDE4EF] bg-[#FCFCFE]
-             shadow-[0_8px_30px_rgba(15,23,42,0.05)];
+.analytics-shell {
+      @apply overflow-hidden rounded-[30px] border border-[#DDE4EF] bg-[#FCFCFE]
+             shadow-[0_10px_32px_rgba(15,23,42,0.06)];
     }
 
     .analytics-top-pill-wrap {
@@ -62,21 +61,21 @@
     }
 
     .analytics-chart-frame {
-      @apply rounded-[28px] border border-[#DDE4EF] bg-white/70 p-4;
+      @apply rounded-[26px] border border-[#DDE4EF] bg-white/80 p-4;
       background:
-        linear-gradient(180deg, rgba(255,255,255,0.88) 0%, rgba(248,250,252,0.92) 100%);
+        linear-gradient(180deg, rgba(255,255,255,0.92) 0%, rgba(248,250,252,0.96) 100%);
       box-shadow:
-        inset 0 1px 0 rgba(255,255,255,0.7),
+        inset 0 1px 0 rgba(255,255,255,0.85),
         0 1px 2px rgba(15,23,42,0.03);
     }
 
     .analytics-lower-card {
-      @apply rounded-[24px] border border-[#DDE4EF] bg-white p-5
+      @apply rounded-[22px] border border-[#DDE4EF] bg-white p-5
              shadow-[0_4px_18px_rgba(15,23,42,0.04)];
     }
 
     .analytics-drill-card {
-      @apply rounded-[24px] border border-[#DDE4EF] bg-[#FBFCFE] p-5
+      @apply rounded-[22px] border border-[#DDE4EF] bg-[#FBFCFE] p-5
              shadow-[0_4px_18px_rgba(15,23,42,0.04)];
     }
 
@@ -85,7 +84,6 @@
              bg-white px-4 py-2 text-sm font-semibold text-[#4F46E5]
              shadow-sm transition hover:bg-[#F6F7FF];
     }
-
 
     .btn {
       @apply inline-flex items-center justify-center gap-2 select-none
@@ -2191,9 +2189,9 @@
 
       <div class="flex flex-wrap gap-3">
         <div class="analytics-top-pill-wrap">
-          <button class="analytics-range-btn is-active" data-range="7">7D</button>
-          <button class="analytics-range-btn data-range="14">14D</button>
-          <button class="analytics-range-btn" data-range="30">30D</button>
+          <button type="button" class="analytics-range-btn is-active" data-range="7">7D</button>
+          <button type="button" class="analytics-range-btn" data-range="14">14D</button>
+          <button type="button" class="analytics-range-btn" data-range="30">30D</button>
         </div>
 
         {% if user_role == "super" %}
@@ -2261,7 +2259,7 @@
             <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-500">
               Trend chart
             </div>
-            <div class="mt-2 text-[38px] font-semibold tracking-[-0.05em] text-slate-950">
+            <div class="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-slate-950 sm:text-[38px]">
               Chats per day
             </div>
             <div class="mt-2 max-w-xl text-[15px] leading-7 text-slate-500">
@@ -2277,8 +2275,8 @@
             </select>
 
             <div class="analytics-top-pill-wrap">
-              <button type="button" class="analytics-range-btn" data-range="7">7D</button>
-              <button type="button" class="analytics-range-btn is-active" data-range="14">14D</button>
+              <button type="button" class="analytics-range-btn is-active" data-range="7">7D</button>
+              <button type="button" class="analytics-range-btn" data-range="14">14D</button>
               <button type="button" class="analytics-range-btn" data-range="30">30D</button>
             </div>
 
@@ -2290,7 +2288,7 @@
               >
                 Chats
               </button>
-            
+
               <button
                 type="button"
                 class="analytics-mode-btn rounded-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50"
@@ -2298,7 +2296,7 @@
               >
                 Conversion
               </button>
-            
+
               <button
                 type="button"
                 class="analytics-mode-btn rounded-full px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50"
@@ -2306,7 +2304,7 @@
               >
                 Lost Opportunity
               </button>
-            
+
               <button
                 id="analyticsCompareToggle"
                 type="button"
@@ -2320,7 +2318,7 @@
       </div>
 
       <div class="p-5 sm:p-6">
-        <div class="rounded-[32px] bg-slate-50 p-5 sm:p-6">
+        <div class="rounded-[30px] bg-[#F8FAFD] p-4 sm:p-5">
           <div class="mb-4 flex flex-wrap gap-3 text-xs text-slate-500">
             <div class="analytics-soft-pill">
               <span class="h-2.5 w-2.5 rounded-full bg-indigo-500"></span>
@@ -2338,7 +2336,7 @@
               <span>Hover for instant detail</span>
             </div>
           </div>
-        
+
           <div class="analytics-chart-frame relative overflow-hidden px-4 py-4 sm:px-5 sm:py-5">
             <div
               id="analyticsChartHoverCard"
@@ -2352,9 +2350,9 @@
                 <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
               </div>
             </div>
-        
+
             <div id="analyticsChartScroll" class="overflow-x-auto overflow-y-hidden pb-2">
-              <div id="analyticsChartInner" class="relative h-[320px] min-w-full">
+              <div id="analyticsChartInner" class="relative h-[300px] min-w-full">
                 <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
                 <canvas id="chatAnalyticsChart"></canvas>
               </div>
@@ -2363,25 +2361,25 @@
         </div>
 
         <div class="mt-5 grid gap-4 sm:grid-cols-4">
-          <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+          <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
             <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Peak day</div>
             <div id="analytics-summary-peak-day" class="mt-2 text-xl font-semibold text-slate-950">—</div>
             <div id="analytics-summary-peak-meta" class="mt-1 text-sm text-slate-500">—</div>
           </div>
 
-          <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+          <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
             <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Quietest day</div>
             <div id="analytics-summary-quiet-day" class="mt-2 text-xl font-semibold text-slate-950">—</div>
             <div id="analytics-summary-quiet-meta" class="mt-1 text-sm text-slate-500">—</div>
           </div>
 
-          <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+          <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
             <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Average</div>
             <div id="analytics-summary-average" class="mt-2 text-xl font-semibold text-slate-950">—</div>
             <div class="mt-1 text-sm text-slate-500">Daily chat volume</div>
           </div>
 
-          <div class="rounded-[22px] border border-slate-200 bg-slate-50 p-4">
+          <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
             <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Selected</div>
             <div id="analytics-summary-selected" class="mt-2 text-xl font-semibold text-slate-950">—</div>
             <div id="analytics-summary-selected-meta" class="mt-1 text-sm text-slate-500">—</div>
@@ -2431,7 +2429,7 @@
     </div>
 
     <div class="grid gap-6">
-      <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+      <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
         <div class="flex items-center gap-3">
           <div class="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-600">🌊</div>
           <div>
@@ -2460,7 +2458,7 @@
         </div>
       </div>
 
-      <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+      <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
         <div class="flex items-center gap-3">
           <div class="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-50 text-indigo-600">🕘</div>
           <div>
@@ -2469,7 +2467,7 @@
           </div>
         </div>
 
-        <div class="mt-6 rounded-[30px] bg-slate-50 p-6">
+        <div class="mt-6 rounded-[26px] bg-slate-50 p-6">
           <div class="flex justify-center">
             <div class="relative h-[240px] w-[240px]">
               <svg class="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 240 240">
@@ -2501,7 +2499,7 @@
         </div>
       </div>
 
-      <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+      <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
         <div class="text-lg font-semibold text-slate-950">Guest emotion mix</div>
         <div class="mt-1 text-sm text-slate-500">A live pulse on how conversations feel</div>
 
@@ -2509,7 +2507,7 @@
           <div class="text-sm text-slate-500">Loading emotion data…</div>
         </div>
 
-        <div class="mt-8 rounded-[24px] border border-rose-100 bg-rose-50 p-4">
+        <div class="mt-8 rounded-[22px] border border-rose-100 bg-rose-50 p-4">
           <div class="text-xs font-semibold uppercase tracking-[0.16em] text-rose-500">Emotional spike</div>
           <div id="analytics-emotion-spike-title" class="mt-2 text-base font-semibold text-slate-950">Loading emotional trend…</div>
           <div id="analytics-emotion-spike-body" class="mt-1 text-sm leading-6 text-slate-600">We’ll surface the strongest tension pattern from current conversation data.</div>
@@ -2519,7 +2517,7 @@
   </div>
 
   <div class="grid gap-6 xl:grid-cols-4">
-    <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+    <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
       <div class="flex items-center gap-3">
         <div class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">⚠</div>
         <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Top issue</div>
@@ -2529,7 +2527,7 @@
       <button type="button" onclick="applyInsightFilter('top_issue')" class="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-slate-50">Explore <span>↗</span></button>
     </div>
 
-    <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+    <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
       <div class="flex items-center gap-3">
         <div class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">🤖</div>
         <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Automation</div>
@@ -2539,7 +2537,7 @@
       <button type="button" onclick="applyInsightFilter('automation')" class="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-slate-50">Explore <span>↗</span></button>
     </div>
 
-    <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+    <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
       <div class="flex items-center gap-3">
         <div class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">📈</div>
         <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Highest risk</div>
@@ -2549,7 +2547,7 @@
       <button type="button" onclick="applyInsightFilter('high_risk')" class="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-slate-50">Explore <span>↗</span></button>
     </div>
 
-    <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+    <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
       <div class="flex items-center gap-3">
         <div class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">👤</div>
         <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Needs human</div>
@@ -2560,7 +2558,7 @@
     </div>
   </div>
 
-  <div class="rounded-[32px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
+  <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
         <div class="text-lg font-semibold text-slate-950">Property performance intelligence</div>
