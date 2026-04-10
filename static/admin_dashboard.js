@@ -6678,24 +6678,24 @@ populateCategorySelect($id("taskCategory"));
 // DOM ready (single, clean)
 // ------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
-  initRouting();
-  initSidebar();
-  initPortfolioChart();
-  initRevenueReports();
-  initSyncAllProperties();
+  if (typeof initRouting === "function") initRouting();
+  if (typeof initSidebar === "function") initSidebar();
+  if (typeof initPortfolioChart === "function") initPortfolioChart();
+  if (typeof initRevenueReports === "function") initRevenueReports();
+  if (typeof initSyncAllProperties === "function") initSyncAllProperties();
 
-  initChatBatchActions();
-  initChatDetailDelete();
-  initChatFilters();
-  initChatLoadMore();
-  initRelativeTimes();
+  if (typeof initChatBatchActions === "function") initChatBatchActions();
+  if (typeof initChatDetailDelete === "function") initChatDetailDelete();
+  if (typeof initChatFilters === "function") initChatFilters();
+  if (typeof initChatLoadMore === "function") initChatLoadMore();
+  if (typeof initRelativeTimes === "function") initRelativeTimes();
 
   window.setInterval(() => {
-    initChatMessageTimes(document);
+    if (typeof initChatMessageTimes === "function") initChatMessageTimes(document);
   }, 60 * 1000);
 
-  initSettingsUI();
-  initAllReorderTables();
+  if (typeof initSettingsUI === "function") initSettingsUI();
+  if (typeof initAllReorderTables === "function") initAllReorderTables();
 
   document.getElementById("searchInput")?.addEventListener("input", filterProperties);
   document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
@@ -6710,17 +6710,17 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.rerenderAllMoodBadges?.();
   window.applyMoodConfidenceHints?.(document);
 
-  filterProperties();
-  updateOverviewUI();
+  if (typeof filterProperties === "function") filterProperties();
+  if (typeof updateOverviewUI === "function") updateOverviewUI();
 
   const params = new URLSearchParams(window.location.search);
   const sid = params.get("session_id");
 
   if (sid) {
-    setInlineDetailOpen(true);
-    await loadChatDetail(sid);
+    if (typeof setInlineDetailOpen === "function") setInlineDetailOpen(true);
+    if (typeof loadChatDetail === "function") await loadChatDetail(sid);
   } else {
-    setInlineDetailOpen(false);
+    if (typeof setInlineDetailOpen === "function") setInlineDetailOpen(false);
   }
 
   if ((params.get("view") || "overview") === "tasks") {
@@ -6729,7 +6729,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   if ((params.get("view") || "overview") === "analytics") {
-    initAnalyticsSection();
+    if (typeof initAnalyticsSection === "function") initAnalyticsSection();
   }
 });
 
