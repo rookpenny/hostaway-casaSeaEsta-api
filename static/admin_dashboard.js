@@ -3110,8 +3110,11 @@ function renderChatAnalyticsChart(payload) {
   const rawPreviousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
 
   // visual lift for very small non-zero values so low-volume days still read well
-  const values = rawValues.map((v) => (v > 0 ? v + 1 : 0));
-  const previousValues = rawPreviousValues.map((v) => (v > 0 ? v + 1 : 0));
+  //const values = rawValues.map((v) => (v > 0 ? v + 1 : 0));
+  //const previousValues = rawPreviousValues.map((v) => (v > 0 ? v + 1 : 0));
+
+  const values = rawValues.slice();
+  const previousValues = rawPreviousValues.slice();
 
   const trendValues = values.map((_, i, arr) => {
     const prev = arr[i - 1] ?? arr[i];
@@ -3314,6 +3317,7 @@ function renderChatAnalyticsChart(payload) {
           borderRadius: 999,
           borderSkipped: false,
           order: 1,
+          grouped: false,
           categoryPercentage: 1,
           barPercentage: 0.95,
           maxBarThickness: 32,
@@ -3328,6 +3332,7 @@ function renderChatAnalyticsChart(payload) {
           borderRadius: 999,
           borderSkipped: false,
           order: 2,
+          grouped: false,
           categoryPercentage: 1,
           barPercentage: 0.95,
           maxBarThickness: 32,
