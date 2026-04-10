@@ -2992,10 +2992,11 @@ function positionAnalyticsHoverLine(chart, index) {
   const line = document.getElementById("analyticsHoverLine");
   if (!line || !chart || index == null) return;
 
-  const xScale = chart.scales?.x;
-  if (!xScale) return;
+  const activeMeta = chart.getDatasetMeta(1); // current-period bars
+  const bar = activeMeta?.data?.[index];
+  if (!bar) return;
 
-  const x = xScale.getPixelForValue(index);
+  const x = bar.x;
   line.classList.remove("hidden");
   line.style.left = `${x}px`;
 }
@@ -3009,6 +3010,7 @@ function hideAnalyticsHover() {
 
 function showAnalyticsHover(day, chart, index) {
   const card = document.getElementById("analyticsChartHoverCard");
+  const hoverLine = document.getElementById("analyticsHoverLine");
   if (!card || !day || !chart) return;
 
   const meta = getEventMeta(day.event);
@@ -3024,16 +3026,19 @@ function showAnalyticsHover(day, chart, index) {
   if (lostEl) lostEl.textContent = fmtInt(day.lost_opportunity);
   if (signalEl) signalEl.textContent = meta.label;
 
-  card.classList.remove("hidden");
-
-  const xScale = chart.scales?.x;
+  const activeMeta = chart.getDatasetMeta(1); // current-period bars
+  const bar = activeMeta?.data?.[index];
   const chartArea = chart.chartArea;
-  if (!xScale || !chartArea) {
-    positionAnalyticsHoverLine(chart, index);
+
+  if (!bar || !chartArea) {
+    card.classList.add("hidden");
+    if (hoverLine) hoverLine.classList.add("hidden");
     return;
   }
 
-  const x = xScale.getPixelForValue(index);
+  const x = bar.x;
+
+  card.classList.remove("hidden");
 
   const cardWidth = card.offsetWidth || 220;
   const cardHeight = card.offsetHeight || 120;
@@ -3057,7 +3062,10 @@ function showAnalyticsHover(day, chart, index) {
   card.style.left = `${left}px`;
   card.style.top = `${top}px`;
 
-  positionAnalyticsHoverLine(chart, index);
+  if (hoverLine) {
+    hoverLine.classList.remove("hidden");
+    hoverLine.style.left = `${x}px`;
+  }
 }
 function renderChatAnalyticsChart(payload) {
   const canvas = document.getElementById("chatAnalyticsChart");
@@ -3073,6 +3081,22 @@ function renderChatAnalyticsChart(payload) {
   const values = days.map((d) => analyticsModeValue(d, mode));
   const previousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
   const trendValues = values.slice();
+
+  const chartScroll = document.getElementById("analyticsChartScroll");
+  const chartInner = document.getElementById("analyticsChartInner");
+  
+  if (chartScroll && chartInner) {
+    const visibleWidth = 760;      // fixed visible area
+    const perDayWidth = 84;        // spacing per day
+    const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 40);
+  
+    chartScroll.classList.remove("overflow-x-hidden");
+    chartScroll.classList.add("overflow-x-auto");
+  
+    chartInner.style.width = `${computedWidth}px`;
+    canvas.style.width = `${computedWidth}px`;
+    canvas.width = computedWidth;
+  }
 
   const selectedIndex =
     Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
@@ -3112,45 +3136,50 @@ function renderChatAnalyticsChart(payload) {
   }
 
   const eventPlugin = {
-    id: "analyticsEventPlugin",
-    afterDatasetsDraw(chart) {
-      const { ctx, chartArea, scales } = chart;
-      if (!ctx || !chartArea || !scales?.x || !scales?.y) return;
+  id: "analyticsEventPlugin",
+  afterDatasetsDraw(chart) {
+    const { ctx, chartArea } = chart;
+    if (!ctx || !chartArea) return;
 
-      const xScale = scales.x;
+    const activeMeta = chart.getDatasetMeta(1); // current bars
+    if (!activeMeta?.data?.length) return;
 
-      ctx.save();
+    ctx.save();
+    ctx.textAlign = "center";
 
-      days.forEach((day, i) => {
-        const x = xScale.getPixelForValue(i);
-        const meta = getEventMeta(day.event);
+    days.forEach((day, i) => {
+      const bar = activeMeta.data[i];
+      if (!bar) return;
 
-        ctx.fillStyle = "#94a3b8";
-        ctx.font = "600 12px Inter, sans-serif";
-        ctx.textAlign = "center";
-        ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
+      const x = bar.x; // ✅ FIXED — this aligns everything
+      const meta = getEventMeta(day.event);
 
-        ctx.font = "14px Inter, sans-serif";
-        ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "600 12px Inter, sans-serif";
+      ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
 
-        const delta = Number(day.delta || 0);
-        const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
-        ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
-        ctx.font = "600 11px Inter, sans-serif";
-        ctx.fillText(deltaText, x, chartArea.bottom + 20);
+      ctx.font = "14px Inter, sans-serif";
+      ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
 
-        ctx.fillStyle = "#334155";
-        ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.day || "", x, chartArea.bottom + 38);
+      const delta = Number(day.delta || 0);
+      const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
 
-        ctx.fillStyle = "#94a3b8";
-        ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.label || "", x, chartArea.bottom + 54);
-      });
+      ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
+      ctx.font = "600 11px Inter, sans-serif";
+      ctx.fillText(deltaText, x, chartArea.bottom + 20);
 
-      ctx.restore();
-    },
-  };
+      ctx.fillStyle = "#334155";
+      ctx.font = "500 11px Inter, sans-serif";
+      ctx.fillText(day.day || "", x, chartArea.bottom + 38);
+
+      ctx.fillStyle = "#94a3b8";
+      ctx.font = "500 11px Inter, sans-serif";
+      ctx.fillText(day.label || "", x, chartArea.bottom + 54);
+    });
+
+    ctx.restore();
+  },
+};
 
   const hoverPlugin = {
     id: "analyticsHoverPlugin",
@@ -3202,8 +3231,9 @@ function renderChatAnalyticsChart(payload) {
           borderRadius: 999,
           borderSkipped: false,
           order: 1,
-          categoryPercentage: 0.78,
+          categoryPercentage: 0.92,
           barPercentage: 1.0,
+          maxBarThickness: 32,
         },
         {
           type: "bar",
@@ -3214,12 +3244,12 @@ function renderChatAnalyticsChart(payload) {
               ? "rgba(59, 130, 246, 0.98)"
               : currentBarColor
           ),
-          hoverBackgroundColor: currentHoverColor,
           borderRadius: 999,
           borderSkipped: false,
           order: 2,
-          categoryPercentage: 0.56,
-          barPercentage: 0.92,
+          categoryPercentage: 0.58,
+          barPercentage: 0.94,
+          maxBarThickness: 22,
         },
         {
           type: "line",
