@@ -3116,15 +3116,21 @@ function renderChatAnalyticsChart(payload) {
   const previousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
   const trendValues = values.slice();
 
-  const chartInner = document.getElementById("analyticsChartInner");
   const chartScroll = document.getElementById("analyticsChartScroll");
-
+  const chartInner = document.getElementById("analyticsChartInner");
+  
   if (chartInner) {
-    const minDayWidth = 78; // wider bars / more breathing room
-    const sidePadding = 80;
-    const minWidth = 720;
-    const computedWidth = Math.max(minWidth, days.length * minDayWidth + sidePadding);
+    const dayWidth = days.length <= 7 ? 92 : days.length <= 14 ? 96 : 104;
+    const sidePadding = 120;
+    const minWidth = 760;
+    const computedWidth = Math.max(minWidth, days.length * dayWidth + sidePadding);
     chartInner.style.width = `${computedWidth}px`;
+  }
+
+  const canvasEl = document.getElementById("chatAnalyticsChart");
+  if (canvasEl && chartInner) {
+    canvasEl.style.width = `${chartInner.clientWidth}px`;
+    canvasEl.width = chartInner.clientWidth;
   }
 
   const selectedIndex =
@@ -3352,8 +3358,9 @@ function renderChatAnalyticsChart(payload) {
           borderRadius: 999,
           borderSkipped: false,
           order: 1,
-          categoryPercentage: 0.82,
-          barPercentage: 1.0,
+          categoryPercentage: 0.92,
+          barPercentage: 0.98,
+          maxBarThickness: 36,
         },
         {
           type: "bar",
@@ -3369,8 +3376,9 @@ function renderChatAnalyticsChart(payload) {
           borderRadius: 999,
           borderSkipped: false,
           order: 2,
-          categoryPercentage: 0.58,
-          barPercentage: 0.94,
+          categoryPercentage: 0.78,
+          barPercentage: 0.98,
+          maxBarThickness: 42,
         },
         {
           type: "line",
