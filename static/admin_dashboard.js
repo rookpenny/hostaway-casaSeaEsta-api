@@ -3215,7 +3215,7 @@ function renderChatAnalyticsChart(payload) {
 
         ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
         ctx.font = "600 11px Inter, sans-serif";
-        ctx.fillText(deltaText, x, chartArea.bottom + 16);
+        ctx.fillText(deltaText, x, chartArea.bottom + 20);
 
         ctx.fillStyle = "#334155";
         ctx.font = "500 11px Inter, sans-serif";
