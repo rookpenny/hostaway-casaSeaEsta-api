@@ -2904,51 +2904,80 @@ function renderAnalyticsAIRead(days) {
   if (!titleEl || !bodyEl || !pillsEl) return;
 
   if (!Array.isArray(days) || !days.length) {
-    titleEl.textContent = "No trend signal yet";
-    bodyEl.textContent = "We need more conversation volume before we can summarize what happened.";
-    pillsEl.innerHTML = `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No data</span>`;
+    titleEl.textContent = "No trend signal yet.";
+    bodyEl.textContent =
+      "We need more conversation volume before we can summarize what happened across this period.";
+    pillsEl.innerHTML =
+      `<span class="analytics-insight-pill analytics-insight-pill-indigo">Waiting for data</span>`;
     return;
   }
 
   const totalChats = days.reduce((sum, d) => sum + Number(d.chats || 0), 0);
   const avgChats = Math.round(totalChats / days.length);
-  const peakDay = [...days].sort((a, b) => Number(b.chats || 0) - Number(a.chats || 0))[0];
-  const frictionDay = [...days].sort((a, b) => Number(b.lost_opportunity || 0) - Number(a.lost_opportunity || 0))[0];
-  const bestConvDay = [...days].sort((a, b) => Number(b.conversion || 0) - Number(a.conversion || 0))[0];
 
-  const spikePct = avgChats > 0 ? Math.round(((Number(peakDay?.chats || 0) - avgChats) / avgChats) * 100) : 0;
+  const peakDay = [...days].sort((a, b) => Number(b.chats || 0) - Number(a.chats || 0))[0] || null;
+  const bestConvDay = [...days].sort((a, b) => Number(b.conversion || 0) - Number(a.conversion || 0))[0] || null;
+  const frictionDay = [...days].sort((a, b) => Number(b.lost_opportunity || 0) - Number(a.lost_opportunity || 0))[0] || null;
 
-  if ((peakDay?.chats || 0) > avgChats * 1.25) {
-    titleEl.textContent = "Demand spike detected";
-    bodyEl.textContent = `${peakDay.label} was the busiest day with ${fmtInt(peakDay.chats)} chats, ${spikePct}% above the daily average.`;
-  } else if ((frictionDay?.lost_opportunity || 0) > 0) {
-    titleEl.textContent = "Friction is the main story";
-    bodyEl.textContent = `${frictionDay.label} had the strongest drop-off pattern, with ${fmtInt(frictionDay.lost_opportunity)} lost-opportunity signals.`;
+  const peakLabel = peakDay?.label || "—";
+  const convLabel = bestConvDay?.label || "—";
+  const frictionLabel = frictionDay?.label || "—";
+
+  const peakChats = Number(peakDay?.chats || 0);
+  const bestConv = Number(bestConvDay?.conversion || 0);
+  const mostLeakage = Number(frictionDay?.lost_opportunity || 0);
+
+  let title = "";
+  let body = "";
+
+  if (peakChats > 0 && mostLeakage > 0) {
+    title = `${peakDay?.day || "Peak"} volume is strongest, while ${frictionDay?.day || "another day"} shows the most leakage in this window.`;
+
+    body =
+      `Across the selected ${days.length}D range, average daily volume is ${avgChats} chats. ` +
+      `${convLabel} has the healthiest conversion score, while ${frictionLabel} shows the highest lost-opportunity signal.`;
+  } else if (peakChats > 0 && bestConv > 0) {
+    title = `${peakDay?.day || "Peak"} drives the most conversation volume, with ${bestConvDay?.day || "another day"} converting most efficiently.`;
+
+    body =
+      `Across the selected ${days.length}D range, average daily volume is ${avgChats} chats. ` +
+      `${peakLabel} led total chat volume, while ${convLabel} posted the strongest conversion result.`;
   } else {
-    titleEl.textContent = "Stable conversation flow";
-    bodyEl.textContent = `Chat volume stayed relatively steady with an average of ${fmtInt(avgChats)} chats per day across the selected window.`;
+    title = "Conversation flow is relatively steady across this period.";
+    body =
+      `Across the selected ${days.length}D range, average daily volume is ${avgChats} chats, with no single day dramatically outperforming the rest.`;
   }
+
+  titleEl.textContent = title;
+  bodyEl.textContent = body;
 
   const pills = [];
-    if (peakDay?.label) pills.push(`Peak: ${peakDay.label}`);
-    if ((bestConvDay?.conversion || 0) > 0) pills.push(`Best conversion: ${bestConvDay.label}`);
-    if ((frictionDay?.lost_opportunity || 0) > 0) pills.push(`Friction: ${frictionDay.label}`);
-  
-    pillsEl.innerHTML = pills.length
-      ? pills.map((txt) => `<span class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700">${escapeHtml(txt)}</span>`).join("")
-      : `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No major signals</span>`;
-  
-    if (peakDay && frictionDay) {
-    const insight = peakDay.lost_opportunity > 0
-      ? "Spike driven by guest friction"
-      : "Spike driven by booking demand";
-  
-    pillsEl.innerHTML += `
-      <span class="rounded-full bg-rose-50 px-3 py-1.5 font-semibold text-rose-700">
-        ${insight}
-      </span>
-    `;
+
+  if (peakDay?.label) {
+    pills.push(
+      `<span class="analytics-insight-pill analytics-insight-pill-indigo">💬 Peak volume on ${escapeHtml(peakLabel)}</span>`
+    );
   }
+
+  if (bestConvDay?.label && bestConv > 0) {
+    pills.push(
+      `<span class="analytics-insight-pill analytics-insight-pill-green">📈 Best conversion on ${escapeHtml(convLabel)}</span>`
+    );
+  }
+
+  if (frictionDay?.label && mostLeakage > 0) {
+    pills.push(
+      `<span class="analytics-insight-pill analytics-insight-pill-amber">⚠ Highest leakage on ${escapeHtml(frictionLabel)}</span>`
+    );
+  }
+
+  if (!pills.length) {
+    pills.push(
+      `<span class="analytics-insight-pill analytics-insight-pill-indigo">No major signals</span>`
+    );
+  }
+
+  pillsEl.innerHTML = pills.join("");
 }
 
 function renderAnalyticsDrilldown(day) {
