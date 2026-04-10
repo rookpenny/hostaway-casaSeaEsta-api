@@ -3314,9 +3314,9 @@ function renderChatAnalyticsChart(payload) {
           borderRadius: 999,
           borderSkipped: false,
           order: 1,
-          categoryPercentage: 0.72,
-          barPercentage: 0.75,
-          maxBarThickness: 30,
+          categoryPercentage: 1,
+          barPercentage: 0.95,
+          maxBarThickness: 32,
         },
         {
           type: "bar",
