@@ -3134,31 +3134,30 @@ function renderChatAnalyticsChart(payload) {
     const next = arr[i + 1] ?? arr[i];
     return (prev + curr + next) / 3;
   });
-    
+
   const chartInner = document.getElementById("analyticsChartInner");
   const chartScroll = document.getElementById("analyticsChartScroll");
   const canvasEl = document.getElementById("chatAnalyticsChart");
 
-if (chartInner && chartScroll) {
-  const dayCount = days.length;
-  const scrollable = dayCount > 7;
+  if (chartInner && chartScroll) {
+    const dayCount = days.length;
+    const scrollable = dayCount > 7;
 
-  chartScroll.classList.toggle("overflow-x-auto", scrollable);
-  chartScroll.classList.toggle("overflow-x-hidden", !scrollable);
+    chartScroll.classList.toggle("overflow-x-auto", scrollable);
+    chartScroll.classList.toggle("overflow-x-hidden", !scrollable);
 
-  if (scrollable) {
-    const dayWidth = dayCount <= 14 ? 96 : 104;
-    const computedWidth = Math.max(760, dayCount * dayWidth + 80);
-    chartInner.style.width = `${computedWidth}px`;
-  } else {
-    chartInner.style.width = "100%";
+    if (scrollable) {
+      const dayWidth = dayCount <= 14 ? 108 : 112;
+      const computedWidth = Math.max(760, dayCount * dayWidth + 88);
+      chartInner.style.width = `${computedWidth}px`;
+    } else {
+      chartInner.style.width = "100%";
+    }
+
+    if (canvasEl) {
+      canvasEl.style.width = "100%";
+    }
   }
-
-  if (canvasEl) {
-    canvasEl.style.width = "100%";
-  }
-}
-
 
   if (canvasEl && chartInner) {
     canvasEl.style.width = `${chartInner.clientWidth}px`;
@@ -3177,86 +3176,84 @@ if (chartInner && chartScroll) {
 
   const chartLabel =
     mode === "conversion"
-      ? "Conversion"
+      ? "Current period"
       : mode === "lost"
-      ? "Lost opportunity"
-      : "Chats";
+      ? "Current period"
+      : "Current period";
 
   function makeBarGradient(ctx, chartArea, currentMode, isPrior = false) {
     if (!chartArea) {
-      if (isPrior) return "rgba(187, 230, 212, 0.35)";
-      if (currentMode === "conversion") return "#10B981";
-      if (currentMode === "lost") return "#F59E0B";
-      return "#4F46E5";
+      if (isPrior) return "rgba(171, 230, 205, 0.75)";
+      if (currentMode === "conversion") return "#2FC58D";
+      if (currentMode === "lost") return "#2FC58D";
+      return "#4F6AF0";
     }
 
     const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
 
     if (isPrior) {
-      gradient.addColorStop(0, "rgba(187, 230, 212, 0.42)");
-      gradient.addColorStop(1, "rgba(187, 230, 212, 0.78)");
+      gradient.addColorStop(0, "rgba(182, 232, 214, 0.82)");
+      gradient.addColorStop(1, "rgba(182, 232, 214, 0.96)");
       return gradient;
     }
 
     if (currentMode === "conversion") {
-      gradient.addColorStop(0, "#10B981");
-      gradient.addColorStop(0.48, "#12C98A");
-      gradient.addColorStop(1, "#95E6C3");
+      gradient.addColorStop(0, "#25B87F");
+      gradient.addColorStop(0.55, "#3CCD93");
+      gradient.addColorStop(1, "#6FE0B3");
       return gradient;
     }
 
     if (currentMode === "lost") {
-      gradient.addColorStop(0, "#FF2D55");
-      gradient.addColorStop(0.45, "#FF8A00");
-      gradient.addColorStop(1, "#FACC15");
+      gradient.addColorStop(0, "#25B87F");
+      gradient.addColorStop(0.55, "#3CCD93");
+      gradient.addColorStop(1, "#6FE0B3");
       return gradient;
     }
 
-    gradient.addColorStop(0, "#3F6AE8");
-    gradient.addColorStop(0.58, "#5E86EF");
-    gradient.addColorStop(1, "#7DC7F2");
+    gradient.addColorStop(0, "#375EEA");
+    gradient.addColorStop(0.58, "#5A84EF");
+    gradient.addColorStop(1, "#7AC5F1");
     return gradient;
   }
 
   function selectedBarGradient(ctx, chartArea, currentMode) {
     if (!chartArea) {
-      if (currentMode === "conversion") return "#0FCA8A";
-      if (currentMode === "lost") return "#FF8A00";
-      return "#3B82F6";
+      if (currentMode === "conversion") return "#27BE84";
+      if (currentMode === "lost") return "#27BE84";
+      return "#3F66F0";
     }
 
     const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
 
     if (currentMode === "conversion") {
-      gradient.addColorStop(0, "#0EAE79");
-      gradient.addColorStop(0.48, "#11C88A");
-      gradient.addColorStop(1, "#7BE0B2");
+      gradient.addColorStop(0, "#22B67C");
+      gradient.addColorStop(0.55, "#36C98D");
+      gradient.addColorStop(1, "#67DCA9");
       return gradient;
     }
 
     if (currentMode === "lost") {
-      gradient.addColorStop(0, "#FF2351");
-      gradient.addColorStop(0.45, "#FF7A00");
-      gradient.addColorStop(1, "#FBBF24");
+      gradient.addColorStop(0, "#22B67C");
+      gradient.addColorStop(0.55, "#36C98D");
+      gradient.addColorStop(1, "#67DCA9");
       return gradient;
     }
 
-    gradient.addColorStop(0, "#3563E9");
-    gradient.addColorStop(0.58, "#5B85F0");
-    gradient.addColorStop(1, "#76C0F0");
+    gradient.addColorStop(0, "#355FEA");
+    gradient.addColorStop(0.58, "#5A84EF");
+    gradient.addColorStop(1, "#78C0F0");
     return gradient;
   }
 
   function pointFill(currentMode) {
-    if (currentMode === "conversion") return "rgba(110, 231, 183, 0.55)";
-    if (currentMode === "lost") return "rgba(251, 113, 133, 0.92)";
-    return "rgba(244, 114, 145, 0.95)";
+    if (currentMode === "conversion") return "rgba(110, 231, 183, 0.92)";
+    if (currentMode === "lost") return "rgba(110, 231, 183, 0.92)";
+    return "rgba(110, 231, 183, 0.92)";
   }
 
-  function pointStroke(currentMode) {
-    if (currentMode === "conversion") return "rgba(196, 245, 223, 0.65)";
-    if (currentMode === "lost") return "rgba(255,255,255,0.9)";
-    return "rgba(255,255,255,0.92)";
+  function pointStroke() {
+    return "rgba(255,255,255,0.96)";
   }
 
   if (window.chatAnalyticsChart) {
@@ -3267,49 +3264,50 @@ if (chartInner && chartScroll) {
   }
 
   const eventPlugin = {
-  id: "analyticsEventPlugin",
-  afterDatasetsDraw(chart) {
-    const { ctx, chartArea } = chart;
-    if (!ctx || !chartArea) return;
+    id: "analyticsEventPlugin",
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea } = chart;
+      if (!ctx || !chartArea) return;
 
-    const activeBarMeta = chart.getDatasetMeta(1);
-    if (!activeBarMeta?.data?.length) return;
+      const activeBarMeta = chart.getDatasetMeta(1);
+      if (!activeBarMeta?.data?.length) return;
 
-    ctx.save();
-
-    days.forEach((day, i) => {
-      const bar = activeBarMeta.data[i];
-      if (!bar) return;
-
-      const x = bar.x;
-      const meta = getEventMeta(day.event);
-
-      ctx.fillStyle = "#8EA0BC";
-      ctx.font = "600 10px Inter, sans-serif";
+      ctx.save();
       ctx.textAlign = "center";
-      ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 12);
 
-      ctx.font = "12px Inter, sans-serif";
-      ctx.fillText(meta.icon || "•", x, chartArea.top + 28);
+      days.forEach((day, i) => {
+        const bar = activeBarMeta.data[i];
+        if (!bar) return;
 
-      const delta = Number(day.delta || 0);
-      const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
-      ctx.fillStyle = delta >= 0 ? "#059669" : "#F43F5E";
-      ctx.font = "600 10px Inter, sans-serif";
-      ctx.fillText(deltaText, x, chartArea.bottom + 18);
+        const x = bar.x;
+        const meta = getEventMeta(day.event);
+        const topCount = Number(day.messages ?? day.chats ?? 0);
+        const delta = Number(day.delta || 0);
+        const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
 
-      ctx.fillStyle = "#334155";
-      ctx.font = "500 10px Inter, sans-serif";
-      ctx.fillText(day.day || "", x, chartArea.bottom + 34);
+        ctx.fillStyle = "#8DA0BC";
+        ctx.font = "600 11px Inter, sans-serif";
+        ctx.fillText(String(topCount), x, chartArea.top + 12);
 
-      ctx.fillStyle = "#8EA0BC";
-      ctx.font = "500 10px Inter, sans-serif";
-      ctx.fillText(day.label || "", x, chartArea.bottom + 48);
-    });
+        ctx.font = "13px Inter, sans-serif";
+        ctx.fillText(meta.icon || "•", x, chartArea.top + 31);
 
-    ctx.restore();
-  },
-};
+        ctx.fillStyle = delta >= 0 ? "#0F9D69" : "#F43F5E";
+        ctx.font = "700 11px Inter, sans-serif";
+        ctx.fillText(deltaText, x, chartArea.bottom + 18);
+
+        ctx.fillStyle = "#4B5D7A";
+        ctx.font = "600 11px Inter, sans-serif";
+        ctx.fillText(day.day || "", x, chartArea.bottom + 36);
+
+        ctx.fillStyle = "#8EA0BC";
+        ctx.font = "500 11px Inter, sans-serif";
+        ctx.fillText(day.label || "", x, chartArea.bottom + 53);
+      });
+
+      ctx.restore();
+    },
+  };
 
   const hoverPlugin = {
     id: "analyticsHoverPlugin",
@@ -3346,151 +3344,149 @@ if (chartInner && chartScroll) {
   };
 
   const overlayPointPlugin = {
-  id: "analyticsOverlayPointPlugin",
-  afterDatasetsDraw(chart) {
-    if (mode === "lost") return;
+    id: "analyticsOverlayPointPlugin",
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const activeMeta = chart.getDatasetMeta(1);
+      if (!activeMeta?.data?.length) return;
 
-    const { ctx } = chart;
-    const activeMeta = chart.getDatasetMeta(1);
-    if (!activeMeta?.data?.length) return;
+      ctx.save();
 
-    ctx.save();
+      activeMeta.data.forEach((bar) => {
+        const x = bar.x;
+        const y =
+          mode === "conversion"
+            ? bar.y + (bar.base - bar.y) * 0.60
+            : mode === "lost"
+              ? bar.y + (bar.base - bar.y) * 0.60
+              : bar.y + (bar.base - bar.y) * 0.46;
 
-    activeMeta.data.forEach((bar) => {
-      const x = bar.x;
-      const y =
-        mode === "conversion"
-          ? bar.y + (bar.base - bar.y) * 0.6
-          : bar.y + (bar.base - bar.y) * 0.44;
+        ctx.beginPath();
+        ctx.fillStyle = pointFill(mode);
+        ctx.strokeStyle = pointStroke();
+        ctx.lineWidth = 1.5;
 
-      ctx.beginPath();
-      ctx.fillStyle = mode === "conversion"
-        ? "rgba(110, 231, 183, 0.92)"
-        : "rgba(251, 113, 133, 0.95)";
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.96)";
-      ctx.lineWidth = 1.5;
+        const radius = 5;
+        ctx.arc(x, y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
 
-      const radius = mode === "conversion" ? 5 : 5.5;
-      ctx.arc(x, y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    });
-
-    ctx.restore();
-  },
-};
+      ctx.restore();
+    },
+  };
 
   window.chatAnalyticsChart = new Chart(canvas.getContext("2d"), {
-  type: "bar",
-  data: {
-    labels,
-    datasets: [
-      {
-        type: "bar",
-        label: "Prior period",
-        data: compare ? previousValues : previousValues.map(() => null),
-        backgroundColor: "rgba(187, 230, 220, 0.78)",
-        borderColor: "rgba(187, 230, 220, 0.9)",
-        borderWidth: 0,
-        borderRadius: 999,
-        borderSkipped: false,
-        order: 1,
-        categoryPercentage: 0.96,
-        barPercentage: 0.98,
-        maxBarThickness: 30,
-      },
-      {
-        type: "bar",
-        label: chartLabel,
-        data: values,
-        backgroundColor(context) {
-          const { chart, dataIndex } = context;
-          if (dataIndex === selectedIndex) {
-            return selectedBarGradient(chart.ctx, chart.chartArea, mode);
-          }
-          return makeBarGradient(chart.ctx, chart.chartArea, mode, false);
+    type: "bar",
+    data: {
+      labels,
+      datasets: [
+        {
+          type: "bar",
+          label: "Prior period",
+          data: compare ? previousValues : previousValues.map(() => null),
+          backgroundColor: "rgba(182, 232, 214, 0.88)",
+          borderColor: "rgba(182, 232, 214, 0.98)",
+          borderWidth: 0,
+          borderRadius: 999,
+          borderSkipped: false,
+          order: 1,
+          categoryPercentage: 0.98,
+          barPercentage: 0.98,
+          maxBarThickness: 32,
         },
-        borderRadius: 999,
-        borderSkipped: false,
-        order: 2,
-        categoryPercentage: 0.62,
-        barPercentage: 0.92,
-        maxBarThickness: 24,
-      },
-      {
-        type: "line",
-        label: "Trend",
-        data: trendValues,
-        borderColor: "rgba(156, 163, 175, 0.58)",
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        tension: 0.34,
-        borderWidth: 2,
-        order: 0,
-        yAxisID: "y",
-      },
-    ],
-  },
-  plugins: [hoverPlugin, eventPlugin, overlayPointPlugin],
-  options: {
-    responsive: true,
-    maintainAspectRatio: false,
-    layout: {
-      padding: {
-        top: 36,
-        bottom: 62,
-        left: 8,
-        right: 8,
-      },
-    },
-    elements: {
-      bar: {
-        borderSkipped: false,
-        borderRadius: 18,
-      },
-    },
-    animation: {
-      duration: 450,
-      easing: "easeOutCubic",
-    },
-    interaction: {
-      mode: "index",
-      intersect: false,
-      axis: "x",
-    },
-    onClick(_, elements) {
-      if (!elements?.length) return;
-      const idx = elements[0].index;
-      window.chatAnalyticsState.selectedIndex = idx;
-      renderChatAnalyticsChart(window.analyticsPayload || payload);
-      renderAnalyticsSummaryCards(days, idx);
-      renderAnalyticsDrilldown(days[idx] || null);
-    },
-    plugins: {
-      legend: { display: false },
-      tooltip: { enabled: false },
-    },
-    scales: {
-      x: {
-        grid: { display: false, drawBorder: false },
-        ticks: { display: false },
-        border: { display: false },
-      },
-      y: {
-        beginAtZero: true,
-        suggestedMax: Math.max(...values, ...previousValues, 10) * 1.22,
-        grid: {
-          color: "rgba(203, 213, 225, 0.52)",
-          borderDash: [3, 5],
-          drawBorder: false,
-          drawTicks: false,
+        {
+          type: "bar",
+          label: chartLabel,
+          data: values,
+          backgroundColor(context) {
+            const { chart, dataIndex } = context;
+            if (dataIndex === selectedIndex) {
+              return selectedBarGradient(chart.ctx, chart.chartArea, mode);
+            }
+            return makeBarGradient(chart.ctx, chart.chartArea, mode, false);
+          },
+          borderRadius: 999,
+          borderSkipped: false,
+          order: 2,
+          categoryPercentage: 0.58,
+          barPercentage: 0.94,
+          maxBarThickness: 22,
         },
-        ticks: { display: false },
-        border: { display: false },
+        {
+          type: "line",
+          label: "Trend line",
+          data: trendValues,
+          borderColor: "rgba(160, 167, 179, 0.62)",
+          pointRadius: 0,
+          pointHoverRadius: 0,
+          tension: 0.34,
+          borderWidth: 2,
+          order: 0,
+          yAxisID: "y",
+        },
+      ],
+    },
+    plugins: [hoverPlugin, eventPlugin, overlayPointPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: {
+          top: 42,
+          bottom: 62,
+          left: 10,
+          right: 10,
+        },
+      },
+      elements: {
+        bar: {
+          borderSkipped: false,
+          borderRadius: 999,
+        },
+      },
+      animation: {
+        duration: 450,
+        easing: "easeOutCubic",
+      },
+      interaction: {
+        mode: "index",
+        intersect: false,
+        axis: "x",
+      },
+      onClick(_, elements) {
+        if (!elements?.length) return;
+        const idx = elements[0].index;
+        window.chatAnalyticsState.selectedIndex = idx;
+        renderChatAnalyticsChart(window.analyticsPayload || payload);
+        renderAnalyticsSummaryCards(days, idx);
+        renderAnalyticsDrilldown(days[idx] || null);
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: { enabled: false },
+      },
+      scales: {
+        x: {
+          grid: { display: false, drawBorder: false },
+          ticks: { display: false },
+          border: { display: false },
+        },
+        y: {
+          beginAtZero: true,
+          suggestedMax: Math.max(...values, ...previousValues, 10) * 1.28,
+          grid: {
+            color: "rgba(196, 204, 216, 0.72)",
+            borderDash: [1, 0],
+            drawBorder: false,
+            drawTicks: false,
+          },
+          ticks: { display: false },
+          border: { display: false },
+        },
       },
     },
-  },
-});
+  });
 
   if (days.length) {
     renderAnalyticsSummaryCards(days, selectedIndex);
@@ -3552,15 +3548,16 @@ function wireAnalyticsModeControls() {
 
   window.chatAnalyticsState = window.chatAnalyticsState || {};
   if (!window.chatAnalyticsState.mode) window.chatAnalyticsState.mode = "chats";
+  
   if (typeof window.chatAnalyticsState.compare !== "boolean") {
     window.chatAnalyticsState.compare = true;
   }
 
-  function modeLabel(mode) {
-    if (mode === "conversion") return "Conversion focus";
-    if (mode === "lost") return "Lost opportunity focus";
-    return "Chats focus";
-  }
+function modeLabel(mode) {
+  if (mode === "conversion") return "Hover for instant detail";
+  if (mode === "lost") return "Hover for instant detail";
+  return "Hover for instant detail";
+}
 
   function paintModeButtons() {
     const activeMode = window.chatAnalyticsState.mode || "chats";
