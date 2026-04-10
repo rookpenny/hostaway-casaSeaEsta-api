@@ -3719,31 +3719,60 @@ async function loadTopProperties(days, propertyId, pmcId) {
 }
 
 async function loadChatAnalytics() {
+  window.chatAnalyticsState = window.chatAnalyticsState || {};
+
+  const requestId = (window.chatAnalyticsState.requestId || 0) + 1;
+  window.chatAnalyticsState.requestId = requestId;
+
+  const chartCanvas = document.getElementById("chatAnalyticsChart");
+  const chartScroll = document.getElementById("analyticsChartScroll");
+
+  function isStale() {
+    return window.chatAnalyticsState.requestId !== requestId;
+  }
+
   try {
     const { days, propertyId, pmcId } = getAnalyticsFilters();
     const qs = buildAnalyticsQS({ days, propertyId, pmcId });
 
-    const summaryRes = await fetch(`/admin/analytics/chat/summary?${qs}`, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
-    if (summaryRes.status === 401 || summaryRes.status === 403) return loginRedirect();
-    const summaryParsed = await safeReadJson(summaryRes);
-    if (!summaryParsed.ok) throw new Error("Summary failed");
-    renderAnalyticsSummary(summaryParsed.json || {});
+    // show loading state and prevent stale payload from feeling like "fake" data
+    if (chartCanvas) chartCanvas.classList.add("opacity-40");
+    if (chartScroll) chartScroll.classList.add("pointer-events-none");
 
-    const tsRes = await fetch(`/admin/analytics/chat/timeseries?${qs}`, {
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
+    window.analyticsPayload = null;
+    window.chatAnalyticsState.payload = null;
+
+    const [summaryRes, tsRes] = await Promise.all([
+      fetch(`/admin/analytics/chat/summary?${qs}`, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      }),
+      fetch(`/admin/analytics/chat/timeseries?${qs}`, {
+        credentials: "include",
+        headers: { Accept: "application/json" },
+      }),
+    ]);
+
+    if (summaryRes.status === 401 || summaryRes.status === 403) return loginRedirect();
     if (tsRes.status === 401 || tsRes.status === 403) return loginRedirect();
-    const tsParsed = await safeReadJson(tsRes);
+
+    const [summaryParsed, tsParsed] = await Promise.all([
+      safeReadJson(summaryRes),
+      safeReadJson(tsRes),
+    ]);
+
+    if (isStale()) return;
+
+    if (!summaryParsed.ok) throw new Error("Summary failed");
     if (!tsParsed.ok) throw new Error("Timeseries failed");
 
+    const summary = summaryParsed.json || {};
     const payload = tsParsed.json || {};
+
     window.chatAnalyticsState.payload = payload;
     window.analyticsPayload = payload;
 
+    renderAnalyticsSummary(summary);
     renderChatAnalyticsChart(payload);
     renderAnalyticsLifecycle(payload.lifecycle || {});
     renderAnalyticsPeak(payload.hours || {});
@@ -3763,6 +3792,7 @@ async function loadChatAnalytics() {
       renderAnalyticsSummaryCards(daysArr, selectedIndex);
       renderAnalyticsDrilldown(daysArr[selectedIndex] || null);
     } else {
+      renderAnalyticsSummaryCards([], 0);
       renderAnalyticsDrilldown(null);
     }
 
@@ -3771,14 +3801,22 @@ async function loadChatAnalytics() {
       loadAnalyticsInsights(days, propertyId, pmcId),
     ]);
 
+    if (isStale()) return;
+
     results.forEach((r) => {
       if (r.status === "rejected") {
         console.error("analytics side load failed:", r.reason);
       }
     });
   } catch (err) {
+    if (requestId !== window.chatAnalyticsState.requestId) return;
     console.error("loadChatAnalytics failed:", err);
     toast("Analytics failed to load.");
+  } finally {
+    if (requestId === window.chatAnalyticsState.requestId) {
+      if (chartCanvas) chartCanvas.classList.remove("opacity-40");
+      if (chartScroll) chartScroll.classList.remove("pointer-events-none");
+    }
   }
 }
 
