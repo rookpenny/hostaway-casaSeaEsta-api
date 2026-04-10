@@ -3357,18 +3357,20 @@ if (chartInner && chartScroll) {
     ctx.save();
 
     activeMeta.data.forEach((bar) => {
-      const x = bar.x; // <- keep dot centered on the actual bar/date
+      const x = bar.x;
       const y =
         mode === "conversion"
-          ? bar.y + (bar.base - bar.y) * 0.58
-          : bar.y + (bar.base - bar.y) * 0.42;
+          ? bar.y + (bar.base - bar.y) * 0.6
+          : bar.y + (bar.base - bar.y) * 0.44;
 
       ctx.beginPath();
-      ctx.fillStyle = pointFill(mode);
-      ctx.strokeStyle = pointStroke(mode);
-      ctx.lineWidth = 2;
+      ctx.fillStyle = mode === "conversion"
+        ? "rgba(110, 231, 183, 0.92)"
+        : "rgba(251, 113, 133, 0.95)";
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.96)";
+      ctx.lineWidth = 1.5;
 
-      const radius = mode === "conversion" ? 7 : 8;
+      const radius = mode === "conversion" ? 5 : 5.5;
       ctx.arc(x, y, radius, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
@@ -3551,7 +3553,7 @@ function wireAnalyticsModeControls() {
   window.chatAnalyticsState = window.chatAnalyticsState || {};
   if (!window.chatAnalyticsState.mode) window.chatAnalyticsState.mode = "chats";
   if (typeof window.chatAnalyticsState.compare !== "boolean") {
-    window.chatAnalyticsState.compare = false;
+    window.chatAnalyticsState.compare = true;
   }
 
   function modeLabel(mode) {
