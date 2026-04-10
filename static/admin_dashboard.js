@@ -1,3 +1,5 @@
+//admin_dashboard.js
+
 function getBoot() {
   const el = document.getElementById("dashboard-bootstrap");
   if (!el) return {};
