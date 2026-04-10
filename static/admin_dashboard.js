@@ -3056,7 +3056,12 @@ function showAnalyticsHover(day, chart, index) {
     return;
   }
 
-  const x = bar.x;
+  let x = bar.x;
+
+  const EDGE_OFFSET = 8;
+  
+  if (i === 0) x += EDGE_OFFSET;
+  if (i === days.length - 1) x -= EDGE_OFFSET;
 
   card.classList.remove("hidden");
 
