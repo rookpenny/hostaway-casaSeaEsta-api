@@ -2992,13 +2992,12 @@ function positionAnalyticsHoverLine(chart, index) {
   const line = document.getElementById("analyticsHoverLine");
   if (!line || !chart || index == null) return;
 
-  const activeMeta = chart.getDatasetMeta(1); // current-period bars
+  const activeMeta = chart.getDatasetMeta(1);
   const bar = activeMeta?.data?.[index];
   if (!bar) return;
 
-  const x = bar.x;
   line.classList.remove("hidden");
-  line.style.left = `${x}px`;
+  line.style.left = `${bar.x}px`;
 }
 
 function hideAnalyticsHover() {
@@ -3026,7 +3025,7 @@ function showAnalyticsHover(day, chart, index) {
   if (lostEl) lostEl.textContent = fmtInt(day.lost_opportunity);
   if (signalEl) signalEl.textContent = meta.label;
 
-  const activeMeta = chart.getDatasetMeta(1); // current-period bars
+  const activeMeta = chart.getDatasetMeta(1);
   const bar = activeMeta?.data?.[index];
   const chartArea = chart.chartArea;
 
@@ -3067,32 +3066,43 @@ function showAnalyticsHover(day, chart, index) {
     hoverLine.style.left = `${x}px`;
   }
 }
+
 function renderChatAnalyticsChart(payload) {
   const canvas = document.getElementById("chatAnalyticsChart");
   if (!canvas || !window.Chart) return;
 
   window.analyticsPayload = payload;
+  window.chatAnalyticsState = window.chatAnalyticsState || {};
 
   const days = Array.isArray(payload?.days) ? payload.days : [];
   const labels = days.map((d) => d.day || d.label || "—");
-  const mode = currentAnalyticsMode();
-  const compare = currentCompareMode();
+  const mode = typeof currentAnalyticsMode === "function"
+    ? currentAnalyticsMode()
+    : (window.chatAnalyticsState.mode || "chats");
+  const compare = typeof currentCompareMode === "function"
+    ? currentCompareMode()
+    : !!window.chatAnalyticsState.compare;
 
   const values = days.map((d) => analyticsModeValue(d, mode));
   const previousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
-  const trendValues = values.slice();
+  const trendValues = values.map((_, i, arr) => {
+    const prev = arr[i - 1] ?? arr[i];
+    const curr = arr[i];
+    const next = arr[i + 1] ?? arr[i];
+    return (prev + curr + next) / 3;
+  });
 
   const chartScroll = document.getElementById("analyticsChartScroll");
   const chartInner = document.getElementById("analyticsChartInner");
-  
+
   if (chartScroll && chartInner) {
-    const visibleWidth = 760;      // fixed visible area
-    const perDayWidth = 84;        // spacing per day
+    const visibleWidth = 760;
+    const perDayWidth = 84;
     const computedWidth = Math.max(visibleWidth, days.length * perDayWidth + 40);
-  
+
     chartScroll.classList.remove("overflow-x-hidden");
     chartScroll.classList.add("overflow-x-auto");
-  
+
     chartInner.style.width = `${computedWidth}px`;
     canvas.style.width = `${computedWidth}px`;
     canvas.width = computedWidth;
@@ -3121,12 +3131,12 @@ function renderChatAnalyticsChart(payload) {
       ? "rgba(248, 113, 113, 0.55)"
       : "rgba(79, 70, 229, 0.78)";
 
-  const currentHoverColor =
+  const selectedBarColor =
     mode === "conversion"
-      ? "rgba(52, 211, 153, 0.75)"
+      ? "rgba(16, 185, 129, 0.95)"
       : mode === "lost"
-      ? "rgba(248, 113, 113, 0.75)"
-      : "rgba(91, 76, 240, 0.95)";
+      ? "rgba(239, 68, 68, 0.95)"
+      : "rgba(79, 70, 229, 0.98)";
 
   if (window.chatAnalyticsChart) {
     try {
@@ -3136,50 +3146,50 @@ function renderChatAnalyticsChart(payload) {
   }
 
   const eventPlugin = {
-  id: "analyticsEventPlugin",
-  afterDatasetsDraw(chart) {
-    const { ctx, chartArea } = chart;
-    if (!ctx || !chartArea) return;
+    id: "analyticsEventPlugin",
+    afterDatasetsDraw(chart) {
+      const { ctx, chartArea } = chart;
+      if (!ctx || !chartArea) return;
 
-    const activeMeta = chart.getDatasetMeta(1); // current bars
-    if (!activeMeta?.data?.length) return;
+      const activeMeta = chart.getDatasetMeta(1); // current bars
+      if (!activeMeta?.data?.length) return;
 
-    ctx.save();
-    ctx.textAlign = "center";
+      ctx.save();
+      ctx.textAlign = "center";
 
-    days.forEach((day, i) => {
-      const bar = activeMeta.data[i];
-      if (!bar) return;
+      days.forEach((day, i) => {
+        const bar = activeMeta.data[i];
+        if (!bar) return;
 
-      const x = bar.x; // ✅ FIXED — this aligns everything
-      const meta = getEventMeta(day.event);
+        const x = bar.x;
+        const meta = getEventMeta(day.event);
 
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "600 12px Inter, sans-serif";
-      ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "600 12px Inter, sans-serif";
+        ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
 
-      ctx.font = "14px Inter, sans-serif";
-      ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
+        ctx.font = "14px Inter, sans-serif";
+        ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
 
-      const delta = Number(day.delta || 0);
-      const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
+        const delta = Number(day.delta || 0);
+        const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
 
-      ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
-      ctx.font = "600 11px Inter, sans-serif";
-      ctx.fillText(deltaText, x, chartArea.bottom + 20);
+        ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
+        ctx.font = "600 11px Inter, sans-serif";
+        ctx.fillText(deltaText, x, chartArea.bottom + 20);
 
-      ctx.fillStyle = "#334155";
-      ctx.font = "500 11px Inter, sans-serif";
-      ctx.fillText(day.day || "", x, chartArea.bottom + 38);
+        ctx.fillStyle = "#334155";
+        ctx.font = "500 11px Inter, sans-serif";
+        ctx.fillText(day.day || "", x, chartArea.bottom + 38);
 
-      ctx.fillStyle = "#94a3b8";
-      ctx.font = "500 11px Inter, sans-serif";
-      ctx.fillText(day.label || "", x, chartArea.bottom + 54);
-    });
+        ctx.fillStyle = "#94a3b8";
+        ctx.font = "500 11px Inter, sans-serif";
+        ctx.fillText(day.label || "", x, chartArea.bottom + 54);
+      });
 
-    ctx.restore();
-  },
-};
+      ctx.restore();
+    },
+  };
 
   const hoverPlugin = {
     id: "analyticsHoverPlugin",
@@ -3205,16 +3215,49 @@ function renderChatAnalyticsChart(payload) {
       }
 
       const idx = points[0].index;
-      const meta = chart.getDatasetMeta(points[0].datasetIndex);
-      const element = meta?.data?.[idx];
+      const activeMeta = chart.getDatasetMeta(1);
+      const bar = activeMeta?.data?.[idx];
 
-      if (!element || !days[idx]) {
+      if (!bar || !days[idx]) {
         hideAnalyticsHover();
         return;
       }
 
       window.chatAnalyticsState.hoveredIndex = idx;
       showAnalyticsHover(days[idx], chart, idx);
+    },
+  };
+
+  const overlayPointPlugin = {
+    id: "analyticsOverlayPointPlugin",
+    afterDatasetsDraw(chart) {
+      const { ctx } = chart;
+      const activeMeta = chart.getDatasetMeta(1);
+      if (!activeMeta?.data?.length) return;
+
+      ctx.save();
+
+      activeMeta.data.forEach((bar) => {
+        const x = bar.x;
+        const y =
+          mode === "conversion"
+            ? bar.y + (bar.base - bar.y) * 0.60
+            : bar.y + (bar.base - bar.y) * 0.50;
+
+        ctx.beginPath();
+        ctx.fillStyle =
+          mode === "conversion"
+            ? "rgba(110, 231, 183, 0.92)"
+            : "rgba(251, 113, 133, 0.95)";
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.lineWidth = 1.5;
+
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      ctx.restore();
     },
   };
 
@@ -3240,9 +3283,7 @@ function renderChatAnalyticsChart(payload) {
           label: chartLabel,
           data: values,
           backgroundColor: values.map((_, i) =>
-            i === window.chatAnalyticsState.selectedIndex
-              ? "rgba(59, 130, 246, 0.98)"
-              : currentBarColor
+            i === selectedIndex ? selectedBarColor : currentBarColor
           ),
           borderRadius: 999,
           borderSkipped: false,
@@ -3255,24 +3296,24 @@ function renderChatAnalyticsChart(payload) {
           type: "line",
           label: "Trend",
           data: trendValues,
-          borderColor: "rgba(156, 163, 175, 0.75)",
+          borderColor: "rgba(148, 163, 184, 0.72)",
           pointRadius: 0,
           pointHoverRadius: 0,
-          tension: 0.38,
+          tension: 0.18,
           borderWidth: 2,
           order: 0,
           yAxisID: "y",
         },
       ],
     },
-    plugins: [hoverPlugin, eventPlugin],
+    plugins: [hoverPlugin, eventPlugin, overlayPointPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 48,
-          bottom: 76,
+          top: 36,
+          bottom: 64,
           left: 10,
           right: 10,
         },
