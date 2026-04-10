@@ -3353,7 +3353,7 @@ function renderChatAnalyticsChart(payload) {
       layout: {
         padding: {
           top: 20,
-          bottom: 48,
+          bottom: 64,
           left: 8,
           right: 8,
         },
