@@ -2674,39 +2674,25 @@ function currentAnalyticsMode() {
   return ANALYTICS_MODES.includes(mode) ? mode : "chats";
 }
 
+const MODE_FIELD_MAP = {
+  chats: ["chats", "total_chats", "messages"],
+  conversion: ["conversion", "conversion_rate", "conv"],
+  lost: ["lost_opportunity", "lost", "lostOpportunity"],
+};
+
 function analyticsModeValue(day, mode) {
   if (!day) return 0;
 
-  function safeNumber(val) {
-    const n = Number(val);
-    return Number.isFinite(n) ? n : 0;
+  const fields = MODE_FIELD_MAP[mode] || MODE_FIELD_MAP.chats;
+
+  for (const key of fields) {
+    if (day[key] != null) {
+      const n = Number(day[key]);
+      if (Number.isFinite(n)) return n;
+    }
   }
 
-  if (mode === "conversion") {
-    return safeNumber(
-      day.conversion ??
-      day.conversion_rate ??
-      day.conv ??
-      0
-    );
-  }
-
-  if (mode === "lost") {
-    return safeNumber(
-      day.lost_opportunity ??
-      day.lost ??
-      day.lostOpportunity ??
-      0
-    );
-  }
-
-  // default = chats
-  return safeNumber(
-    day.chats ??
-    day.total_chats ??
-    day.messages ??
-    0
-  );
+  return 0;
 }
 
 function setAnalyticsKpi(name, value) {
@@ -3114,11 +3100,17 @@ function renderChatAnalyticsChart(payload) {
 
   const values = days.map((d) => analyticsModeValue(d, mode));
   const previousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
-  const trendValues = values.slice();
 
-const chartInner = document.getElementById("analyticsChartInner");
-const chartScroll = document.getElementById("analyticsChartScroll");
-const canvasEl = document.getElementById("chatAnalyticsChart");
+  const trendValues = values.map((_, i, arr) => {
+    const prev = arr[i - 1] ?? arr[i];
+    const curr = arr[i];
+    const next = arr[i + 1] ?? arr[i];
+    return (prev + curr + next) / 3;
+  });
+    
+  const chartInner = document.getElementById("analyticsChartInner");
+  const chartScroll = document.getElementById("analyticsChartScroll");
+  const canvasEl = document.getElementById("chatAnalyticsChart");
 
 if (chartInner && chartScroll) {
   const dayCount = days.length;
@@ -3266,26 +3258,26 @@ if (chartInner && chartScroll) {
       const meta = getEventMeta(day.event);
 
       ctx.fillStyle = "#8EA0BC";
-      ctx.font = "600 12px Inter, sans-serif";
+      ctx.font = "600 10px Inter, sans-serif";
       ctx.textAlign = "center";
-      ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 14);
+      ctx.fillText(String(day.messages || day.chats || 0), x, chartArea.top + 12);
 
-      ctx.font = "14px Inter, sans-serif";
-      ctx.fillText(meta.icon || "•", x, chartArea.top + 32);
+      ctx.font = "12px Inter, sans-serif";
+      ctx.fillText(meta.icon || "•", x, chartArea.top + 28);
 
       const delta = Number(day.delta || 0);
       const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
       ctx.fillStyle = delta >= 0 ? "#059669" : "#F43F5E";
-      ctx.font = "600 11px Inter, sans-serif";
-      ctx.fillText(deltaText, x, chartArea.bottom + 20);
+      ctx.font = "600 10px Inter, sans-serif";
+      ctx.fillText(deltaText, x, chartArea.bottom + 18);
 
       ctx.fillStyle = "#334155";
-      ctx.font = "500 11px Inter, sans-serif";
-      ctx.fillText(day.day || "", x, chartArea.bottom + 38);
+      ctx.font = "500 10px Inter, sans-serif";
+      ctx.fillText(day.day || "", x, chartArea.bottom + 34);
 
       ctx.fillStyle = "#8EA0BC";
-      ctx.font = "500 11px Inter, sans-serif";
-      ctx.fillText(day.label || "", x, chartArea.bottom + 54);
+      ctx.font = "500 10px Inter, sans-serif";
+      ctx.fillText(day.label || "", x, chartArea.bottom + 48);
     });
 
     ctx.restore();
@@ -3401,11 +3393,11 @@ if (chartInner && chartScroll) {
           type: "line",
           label: "Trend",
           data: trendValues,
-          borderColor: "rgba(175, 178, 186, 0.95)",
+          borderColor: "rgba(148, 163, 184, 0.72)",
           pointRadius: 0,
           pointHoverRadius: 0,
-          tension: 0.22,
-          borderWidth: 3,
+          tension: 0.18,
+          borderWidth: 2,
           order: 0,
           yAxisID: "y",
         },
@@ -3417,10 +3409,10 @@ if (chartInner && chartScroll) {
       maintainAspectRatio: false,
       layout: {
         padding: {
-          top: 34,
-          bottom: 60,
-          left: 4,
-          right: 4,
+          top: 28,
+          bottom: 52,
+          left: 2,
+          right: 2,
         },
       },
       elements: {
@@ -3478,6 +3470,17 @@ if (chartInner && chartScroll) {
     hideAnalyticsHover();
     renderAnalyticsDrilldown(null);
   }
+}
+
+
+function resizeChatAnalyticsChartSoon() {
+  window.requestAnimationFrame(() => {
+    window.requestAnimationFrame(() => {
+      try {
+        window.chatAnalyticsChart?.resize();
+      } catch (_) {}
+    });
+  });
 }
 
 function wireAnalyticsRangeButtons() {
