@@ -3141,22 +3141,21 @@ function renderChatAnalyticsChart(payload) {
   const chartInner = document.getElementById("analyticsChartInner");
 
   if (chartScroll && chartInner) {
-    const visibleWidth = chartScroll.clientWidth || 0;
-    const dayCount = Math.max(days.length, 1);
-  
-    const minDayWidth = dayCount <= 7 ? 0 : 68;
-    const naturalWidth = dayCount * minDayWidth;
-    const computedWidth = dayCount <= 7
-      ? visibleWidth
-      : Math.max(visibleWidth, naturalWidth);
-  
-    chartScroll.classList.remove("overflow-x-hidden");
-    chartScroll.classList.add("overflow-x-auto");
-  
-    chartInner.style.width = `${computedWidth}px`;
-    canvas.style.width = `${computedWidth}px`;
-    canvas.width = computedWidth;
-  }
+  const visibleWidth = chartScroll.clientWidth || 0;
+  const dayCount = Math.max(days.length, 1);
+
+  const minDayWidth = dayCount <= 7 ? 0 : 72;
+  const naturalWidth = dayCount * minDayWidth;
+  const computedWidth = dayCount <= 7
+    ? visibleWidth
+    : Math.max(visibleWidth, naturalWidth);
+
+  chartScroll.classList.remove("overflow-x-hidden");
+  chartScroll.classList.add("overflow-x-auto");
+
+  chartInner.style.width = `${computedWidth}px`;
+  canvas.style.width = "100%";
+}
 
   const selectedIndex =
     Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
@@ -3327,35 +3326,35 @@ function renderChatAnalyticsChart(payload) {
       labels,
       datasets: [
         {
-          type: "bar",
-          label: "Prior period",
-          data: compare ? previousValues : previousValues.map(() => null),
-          backgroundColor(context) {
-            return priorBarGradient(context.chart);
-          },
-          borderRadius: 999,
-          borderSkipped: false,
-          order: 1,
-          grouped: false,
-          categoryPercentage: 1,
-          barPercentage: 0.95,
-          maxBarThickness: 32,
+        type: "bar",
+        label: "Prior period",
+        data: compare ? previousValues : previousValues.map(() => null),
+        backgroundColor(context) {
+          return priorBarGradient(context.chart);
         },
-        {
-          type: "bar",
-          label: chartLabel,
-          data: values,
-          backgroundColor(context) {
-            return currentBarGradient(context.chart, context.dataIndex === selectedIndex);
-          },
-          borderRadius: 999,
-          borderSkipped: false,
-          order: 2,
-          grouped: false,
-          categoryPercentage: 1,
-          barPercentage: 0.95,
-          maxBarThickness: 32,
+        borderRadius: 999,
+        borderSkipped: false,
+        order: 1,
+        grouped: false,
+        categoryPercentage: 1,
+        barPercentage: 0.95,
+        maxBarThickness: 32,
+      },
+      {
+        type: "bar",
+        label: chartLabel,
+        data: values,
+        backgroundColor(context) {
+          return currentBarGradient(context.chart, context.dataIndex === selectedIndex);
         },
+        borderRadius: 999,
+        borderSkipped: false,
+        order: 2,
+        grouped: false,
+        categoryPercentage: 1,
+        barPercentage: 0.72,
+        maxBarThickness: 22,
+      },
         {
           type: "line",
           label: "Trend",
