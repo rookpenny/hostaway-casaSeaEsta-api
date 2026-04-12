@@ -3144,7 +3144,7 @@ function renderChatAnalyticsChart(payload) {
   const visibleWidth = chartScroll.clientWidth || 0;
   const dayCount = Math.max(days.length, 1);
 
-  const minDayWidth = dayCount <= 7 ? 0 : 72;
+  const minDayWidth = dayCount <= 7 ? visibleWidth / dayCount : 72;
   const naturalWidth = dayCount * minDayWidth;
   const computedWidth = dayCount <= 7
     ? visibleWidth
@@ -3378,7 +3378,7 @@ function renderChatAnalyticsChart(payload) {
           top: 20,
           bottom: 60,
           left: 12,
-          right: 24,
+          right: 12,
         },
       },
       elements: {
@@ -3410,12 +3410,11 @@ function renderChatAnalyticsChart(payload) {
       },
       scales: {
         x: {
-          offset: false,
-          bounds: 'data',/**/
-          grid: { display: false, drawBorder: false },
-          ticks: { display: false },
-          border: { display: false },
-        },
+  offset: true,
+  grid: { display: false, drawBorder: false },
+  ticks: { display: false },
+  border: { display: false },
+},
         y: {
             beginAtZero: true,
             suggestedMax: Math.max(
