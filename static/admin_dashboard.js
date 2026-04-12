@@ -3228,7 +3228,7 @@ function renderChatAnalyticsChart(payload) {
 
         let x = bar.x;
         if (i === 0) x += 10;
-        if (i === days.length - 1) x -= 10;
+        if (i === days.length - 1) x -= 18;
 
         const meta = getEventMeta(day.event);
         const topCount = Number(day.messages || day.chats || 0);
