@@ -3070,6 +3070,49 @@ function showAnalyticsHover(day, chart, index) {
   let left = x + 16;
   let top = chartArea.top + 12;
 
+  function showAnalyticsHover(day, chart, index) {
+  const card = document.getElementById("analyticsChartHoverCard");
+  const hoverLine = document.getElementById("analyticsHoverLine");
+  if (!card || !day || !chart) return;
+
+  const meta = getEventMeta(day.event);
+  const dateEl = card.querySelector("[data-hover-date]");
+  const chatsEl = card.querySelector("[data-hover-chats]");
+  const convEl = card.querySelector("[data-hover-conversion]");
+  const lostEl = card.querySelector("[data-hover-lost]");
+  const signalEl = card.querySelector("[data-hover-signal]");
+
+  if (dateEl) dateEl.textContent = `${day.day || "—"} · ${day.label || "—"}`;
+  if (chatsEl) chatsEl.textContent = fmtInt(day.chats);
+  if (convEl) convEl.textContent = fmtPct(day.conversion);
+  if (lostEl) lostEl.textContent = fmtInt(day.lost_opportunity);
+  if (signalEl) signalEl.textContent = meta.label;
+
+  const activeMeta = chart.getDatasetMeta(1);
+  const bar = activeMeta?.data?.[index];
+  const chartArea = chart.chartArea;
+
+  if (!bar || !chartArea) {
+    card.classList.add("hidden");
+    if (hoverLine) hoverLine.classList.add("hidden");
+    return;
+  }
+
+  let x = bar.x;
+  const total = activeMeta.data.length;
+
+  if (index === 0) x += 10;
+  if (index === total - 1) x -= 18;
+
+  card.classList.remove("hidden");
+
+  const cardWidth = card.offsetWidth || 220;
+  const cardHeight = card.offsetHeight || 120;
+  const padding = 12;
+
+  let left = x + 16;
+  let top = chartArea.top + 12;
+
   if (left + cardWidth > chartArea.right - padding) {
     left = x - cardWidth - 16;
   }
@@ -3123,14 +3166,18 @@ function renderChatAnalyticsChart(payload) {
   const rawValues = days.map((d) => analyticsModeValue(d, mode));
   const rawPreviousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
 
-  // visual lift for very small non-zero values so low-volume days still read well
-  //const values = rawValues.map((v) => (v > 0 ? v + 1 : 0));
-  //const previousValues = rawPreviousValues.map((v) => (v > 0 ? v + 1 : 0));
+  // Visual lift only for chat bars so tiny counts still read
+  const values =
+    mode === "chats"
+      ? rawValues.map((v) => (v > 0 ? v + 1 : 0))
+      : rawValues.slice();
 
-  const values = rawValues.slice();
-  const previousValues = rawPreviousValues.slice();
+  const previousValues =
+    mode === "chats"
+      ? rawPreviousValues.map((v) => (v > 0 ? v + 1 : 0))
+      : rawPreviousValues.slice();
 
-  const trendValues = values.map((_, i, arr) => {
+  const trendValues = rawValues.map((_, i, arr) => {
     const prev = arr[i - 1] ?? arr[i];
     const curr = arr[i];
     const next = arr[i + 1] ?? arr[i];
@@ -3141,21 +3188,21 @@ function renderChatAnalyticsChart(payload) {
   const chartInner = document.getElementById("analyticsChartInner");
 
   if (chartScroll && chartInner) {
-  const visibleWidth = chartScroll.clientWidth || 0;
-  const dayCount = Math.max(days.length, 1);
+    const visibleWidth = chartScroll.clientWidth || 0;
+    const dayCount = Math.max(days.length, 1);
 
-  const minDayWidth = dayCount <= 7 ? visibleWidth / dayCount : 72;
-  const naturalWidth = dayCount * minDayWidth;
-  const computedWidth = dayCount <= 7
-    ? visibleWidth
-    : Math.max(visibleWidth, naturalWidth);
+    const minDayWidth = dayCount <= 7 ? visibleWidth / dayCount : 72;
+    const naturalWidth = dayCount * minDayWidth;
+    const computedWidth = dayCount <= 7
+      ? visibleWidth
+      : Math.max(visibleWidth, naturalWidth);
 
-  chartScroll.classList.remove("overflow-x-hidden");
-  chartScroll.classList.add("overflow-x-auto");
+    chartScroll.classList.remove("overflow-x-hidden");
+    chartScroll.classList.add("overflow-x-auto");
 
-  chartInner.style.width = `${computedWidth}px`;
-  canvas.style.width = "100%";
-}
+    chartInner.style.width = `${computedWidth}px`;
+    canvas.style.width = "100%";
+  }
 
   const selectedIndex =
     Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
@@ -3221,7 +3268,10 @@ function renderChatAnalyticsChart(payload) {
         const bar = activeMeta.data[i];
         if (!bar) return;
 
-        const x = bar.x;
+        let x = bar.x;
+        if (i === 0) x += 10;
+        if (i === days.length - 1) x -= 18;
+
         const meta = getEventMeta(day.event);
         const topCount = Number(day.messages || day.chats || 0);
         const delta = Number(day.delta || 0);
@@ -3291,6 +3341,9 @@ function renderChatAnalyticsChart(payload) {
   const overlayPointPlugin = {
     id: "analyticsOverlayPointPlugin",
     afterDatasetsDraw(chart) {
+      // Do not draw dots in chats mode
+      if (mode === "chats") return;
+
       const { ctx } = chart;
       const activeMeta = chart.getDatasetMeta(1);
       if (!activeMeta?.data?.length) return;
@@ -3326,35 +3379,35 @@ function renderChatAnalyticsChart(payload) {
       labels,
       datasets: [
         {
-        type: "bar",
-        label: "Prior period",
-        data: compare ? previousValues : previousValues.map(() => null),
-        backgroundColor(context) {
-          return priorBarGradient(context.chart);
+          type: "bar",
+          label: "Prior period",
+          data: compare ? previousValues : previousValues.map(() => null),
+          backgroundColor(context) {
+            return priorBarGradient(context.chart);
+          },
+          borderRadius: 999,
+          borderSkipped: false,
+          order: 1,
+          grouped: false,
+          categoryPercentage: 1,
+          barPercentage: 0.95,
+          maxBarThickness: 32,
         },
-        borderRadius: 999,
-        borderSkipped: false,
-        order: 1,
-        grouped: false,
-        categoryPercentage: 1,
-        barPercentage: 0.95,
-        maxBarThickness: 32,
-      },
-      {
-        type: "bar",
-        label: chartLabel,
-        data: values,
-        backgroundColor(context) {
-          return currentBarGradient(context.chart, context.dataIndex === selectedIndex);
+        {
+          type: "bar",
+          label: chartLabel,
+          data: values,
+          backgroundColor(context) {
+            return currentBarGradient(context.chart, context.dataIndex === selectedIndex);
+          },
+          borderRadius: 999,
+          borderSkipped: false,
+          order: 2,
+          grouped: false,
+          categoryPercentage: 1,
+          barPercentage: 0.72,
+          maxBarThickness: 22,
         },
-        borderRadius: 999,
-        borderSkipped: false,
-        order: 2,
-        grouped: false,
-        categoryPercentage: 1,
-        barPercentage: 0.72,
-        maxBarThickness: 22,
-      },
         {
           type: "line",
           label: "Trend",
@@ -3410,31 +3463,31 @@ function renderChatAnalyticsChart(payload) {
       },
       scales: {
         x: {
-  offset: true,
-  grid: { display: false, drawBorder: false },
-  ticks: { display: false },
-  border: { display: false },
-},
+          offset: true,
+          grid: { display: false, drawBorder: false },
+          ticks: { display: false },
+          border: { display: false },
+        },
         y: {
-            beginAtZero: true,
-            suggestedMax: Math.max(
-              12,
-              Math.max(...values, ...previousValues, 0) * 1.3
+          beginAtZero: true,
+          suggestedMax: Math.max(
+            12,
+            Math.max(...values, ...previousValues, 0) * 1.3
+          ),
+          grid: {
+            color: "rgba(148,163,184,0.25)",
+            borderDash: [3, 4],
+            drawBorder: false,
+          },
+          ticks: {
+            display: false,
+            stepSize: Math.ceil(
+              Math.max(...values, ...previousValues, 10) / 5
             ),
-            grid: {
-              color: "rgba(148,163,184,0.25)",
-              borderDash: [3, 4],
-              drawBorder: false,
-            },
-            ticks: {
-              display: false,
-              stepSize: Math.ceil(
-                Math.max(...values, ...previousValues, 10) / 5
-              ),
-            },
-            afterBuildTicks: (scale) => {
-              scale.ticks = scale.ticks.slice(0, -1); // 👈 removes top grid line
-            },
+          },
+          afterBuildTicks: (scale) => {
+            scale.ticks = scale.ticks.slice(0, -1);
+          },
           border: { display: false },
         },
       },
