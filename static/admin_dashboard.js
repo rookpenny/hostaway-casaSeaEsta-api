@@ -3057,48 +3057,6 @@ function showAnalyticsHover(day, chart, index) {
   }
 
   let x = bar.x;
-  
-  if (i === 0) x += 10;
-  if (i === days.length - 1) x -= 18;
-
-  card.classList.remove("hidden");
-
-  const cardWidth = card.offsetWidth || 220;
-  const cardHeight = card.offsetHeight || 120;
-  const padding = 12;
-
-  let left = x + 16;
-  let top = chartArea.top + 12;
-
-  function showAnalyticsHover(day, chart, index) {
-  const card = document.getElementById("analyticsChartHoverCard");
-  const hoverLine = document.getElementById("analyticsHoverLine");
-  if (!card || !day || !chart) return;
-
-  const meta = getEventMeta(day.event);
-  const dateEl = card.querySelector("[data-hover-date]");
-  const chatsEl = card.querySelector("[data-hover-chats]");
-  const convEl = card.querySelector("[data-hover-conversion]");
-  const lostEl = card.querySelector("[data-hover-lost]");
-  const signalEl = card.querySelector("[data-hover-signal]");
-
-  if (dateEl) dateEl.textContent = `${day.day || "—"} · ${day.label || "—"}`;
-  if (chatsEl) chatsEl.textContent = fmtInt(day.chats);
-  if (convEl) convEl.textContent = fmtPct(day.conversion);
-  if (lostEl) lostEl.textContent = fmtInt(day.lost_opportunity);
-  if (signalEl) signalEl.textContent = meta.label;
-
-  const activeMeta = chart.getDatasetMeta(1);
-  const bar = activeMeta?.data?.[index];
-  const chartArea = chart.chartArea;
-
-  if (!bar || !chartArea) {
-    card.classList.add("hidden");
-    if (hoverLine) hoverLine.classList.add("hidden");
-    return;
-  }
-
-  let x = bar.x;
   const total = activeMeta.data.length;
 
   if (index === 0) x += 10;
@@ -3339,39 +3297,38 @@ function renderChatAnalyticsChart(payload) {
   };
 
   const overlayPointPlugin = {
-    id: "analyticsOverlayPointPlugin",
-    afterDatasetsDraw(chart) {
-      // Do not draw dots in chats mode
-      if (mode === "chats") return;
+  id: "analyticsOverlayPointPlugin",
+  afterDatasetsDraw(chart) {
+    if (mode === "chats") return;
 
-      const { ctx } = chart;
-      const activeMeta = chart.getDatasetMeta(1);
-      if (!activeMeta?.data?.length) return;
+    const { ctx } = chart;
+    const activeMeta = chart.getDatasetMeta(1);
+    if (!activeMeta?.data?.length) return;
 
-      ctx.save();
+    ctx.save();
 
-      activeMeta.data.forEach((bar) => {
-        const x = bar.x;
-        const y =
-          mode === "conversion"
-            ? bar.y + (bar.base - bar.y) * 0.55
-            : bar.y + (bar.base - bar.y) * 0.35;
+    activeMeta.data.forEach((bar) => {
+      const x = bar.x;
+      const y =
+        mode === "conversion"
+          ? bar.y + (bar.base - bar.y) * 0.55
+          : bar.y + (bar.base - bar.y) * 0.35;
 
-        ctx.beginPath();
-        ctx.fillStyle =
-          mode === "conversion"
-            ? "rgba(110, 231, 183, 0.92)"
-            : "rgba(251, 113, 133, 0.95)";
-        ctx.strokeStyle = "rgba(255,255,255,0.95)";
-        ctx.lineWidth = 1.5;
-        ctx.arc(x, y, 5, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.stroke();
-      });
+      ctx.beginPath();
+      ctx.fillStyle =
+        mode === "conversion"
+          ? "rgba(110, 231, 183, 0.92)"
+          : "rgba(251, 113, 133, 0.95)";
+      ctx.strokeStyle = "rgba(255,255,255,0.95)";
+      ctx.lineWidth = 1.5;
+      ctx.arc(x, y, 5, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    });
 
-      ctx.restore();
-    },
-  };
+    ctx.restore();
+  },
+};
 
   window.chatAnalyticsChart = new Chart(canvas.getContext("2d"), {
     type: "bar",
