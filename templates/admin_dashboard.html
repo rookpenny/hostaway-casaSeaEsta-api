@@ -2339,25 +2339,33 @@
           </div>
 
           <div class="analytics-chart-frame relative overflow-hidden py-7">
-            <div class="px-7">
-            <div
-              id="analyticsChartHoverCard"
-              class="pointer-events-none absolute left-5 top-5 z-30 hidden rounded-[18px] border border-slate-200 bg-white/95 px-4 py-3 shadow-[0_12px_30px_rgba(15,23,42,0.12)] backdrop-blur-sm"
-            >
-              <div class="text-sm font-semibold text-slate-950" data-hover-date>—</div>
-              <div class="mt-2 space-y-1 text-xs text-slate-600">
-                <div class="flex items-center justify-between gap-4"><span>Chats</span><span class="font-semibold text-slate-950" data-hover-chats>—</span></div>
-                <div class="flex items-center justify-between gap-4"><span>Conversion</span><span class="font-semibold text-slate-950" data-hover-conversion>—</span></div>
-                <div class="flex items-center justify-between gap-4"><span>Top signal</span><span class="font-semibold text-slate-950" data-hover-signal>—</span></div>
-              </div>
-            </div>
+            <div class="mt-6">
 
-            <div id="analyticsChartScroll" class="w-full overflow-x-auto">
-              <div id="analyticsChartInner" class="relative h-[425px] w-full">
-                <div id="analyticsHoverLine" class="pointer-events-none absolute bottom-5 top-5 z-20 hidden w-px bg-indigo-300/80"></div>
-                <canvas id="chatAnalyticsChart" class="block h-full w-full"></canvas>
-              </div>
-            </div>
+  <!-- Controls -->
+  <div class="flex items-center justify-between mb-4">
+
+    <!-- Mode Toggle -->
+    <div id="analytics-mode" class="flex gap-2">
+      <button data-mode="chats" class="px-3 py-1.5 text-sm rounded-full bg-black text-white">Chats</button>
+      <button data-mode="conversion" class="px-3 py-1.5 text-sm rounded-full bg-gray-100">Conversion</button>
+      <button data-mode="lost" class="px-3 py-1.5 text-sm rounded-full bg-gray-100">Lost</button>
+    </div>
+
+    <!-- Range -->
+    <div id="analytics-range" class="flex gap-2">
+      <button data-range="7" class="px-3 py-1.5 text-sm rounded-full bg-gray-100">7d</button>
+      <button data-range="14" class="px-3 py-1.5 text-sm rounded-full bg-gray-100">14d</button>
+      <button data-range="30" class="px-3 py-1.5 text-sm rounded-full bg-black text-white">30d</button>
+    </div>
+
+  </div>
+
+  <!-- Chart -->
+  <div class="bg-white rounded-2xl p-6 border border-gray-200">
+    <canvas id="chatAnalyticsChart" height="120"></canvas>
+  </div>
+
+</div>
           </div>
           </div>
 
