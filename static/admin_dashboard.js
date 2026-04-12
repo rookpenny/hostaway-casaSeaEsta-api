@@ -535,48 +535,60 @@ function initRelativeTimes() {
   // -----------------------------------
   // Portfolio chart
   // -----------------------------------
-  function initPortfolioChart() {
-    const ctx = $("overviewPortfolioChart");
-    if (!ctx || typeof Chart === "undefined") return;
+function initPortfolioChart() {
+  const ctx = $("overviewPortfolioChart");
+  if (!ctx || typeof Chart === "undefined") return;
 
-    const live = Number(BOOT.live_props || 0);
-    const offline = Number(BOOT.offline_props || 0);
+  const live = Number(BOOT.live_props || 0);
+  const offline = Number(BOOT.offline_props || 0);
 
-    if (window.__overviewPortfolioChart) {
-      window.__overviewPortfolioChart.destroy();
-    }
+  if (window.__overviewPortfolioChart) {
+    window.__overviewPortfolioChart.destroy();
+  }
 
-    window.__overviewPortfolioChart = new Chart(ctx, {
-      type: "doughnut",
-      data: {
-        labels: ["Live", "Offline"],
-        datasets: [{
+  window.__overviewPortfolioChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Live", "Offline"],
+      datasets: [
+        {
           data: [live, offline],
           backgroundColor: ["#356cf6", "#47c5c9"],
           borderWidth: 0,
           hoverOffset: 4,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: "72%",
-        animation: {
-          animateRotate: true,
-          duration: 800,
         },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: "#0f172a",
-            titleColor: "#fff",
-            bodyColor: "#cbd5f5",
-            padding: 10,
+      ],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "72%",
+      animation: {
+        animateRotate: true,
+        duration: 800,
+      },
+      plugins: {
+        legend: {
+          display: false,
+        },
+        tooltip: {
+          backgroundColor: "#111",
+          padding: 10,
+          titleColor: "#fff",
+          bodyColor: "#ccc",
+          displayColors: false,
+          callbacks: {
+            label: (tooltipItem) => {
+              const label = tooltipItem.label || "";
+              const value = Number(tooltipItem.raw || 0);
+              return `${label}: ${value}`;
+            },
           },
         },
       },
-    });
-  }
+    },
+  });
+}
 
   // -----------------------------------
   // Chat batch actions
@@ -2606,8 +2618,10 @@ window.closeInlineManual = function () {
 // Analytics
 // ----------------------------
 window.chatAnalyticsChart = window.chatAnalyticsChart || null;
+window.analyticsPayload = window.analyticsPayload || null;
+
 window.chatAnalyticsState = {
-  mode: "chats",
+  mode: "chats", // chats | conversion | lost
   compare: true,
   hoveredIndex: null,
   selectedIndex: null,
@@ -2626,9 +2640,34 @@ function fmtInt(value) {
   return n.toLocaleString();
 }
 
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value == null || value === "" ? "—" : String(value);
+}
+
+function setTextByData(key, value) {
+  const el = document.querySelector(`[data-drilldown="${key}"]`);
+  if (!el) return;
+  el.textContent = value == null || value === "" ? "—" : String(value);
+}
+
+function setWidth(id, pct) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  const n = Math.max(0, Math.min(100, Number(pct || 0)));
+  el.style.width = `${n}%`;
+}
+
+function setAnalyticsKpi(name, value) {
+  const el = document.querySelector(`[data-kpi="${name}"]`);
+  if (!el) return;
+  el.textContent = value;
+}
+
 function getAnalyticsFilters() {
   return {
-    days: Number(document.getElementById("analyticsRange")?.value || 14),
+    days: Number(document.getElementById("analyticsRange")?.value || 7),
     propertyId: document.getElementById("analyticsPropertyFilter")?.value || "",
     pmcId: document.getElementById("analyticsPmcFilter")?.value || "",
   };
@@ -2640,6 +2679,15 @@ function buildAnalyticsQS({ days, propertyId, pmcId }) {
   if (propertyId) qs.set("property_id", String(propertyId));
   if (pmcId) qs.set("pmc_id", String(pmcId));
   return qs.toString();
+}
+
+function resizeChatAnalyticsChartSoon() {
+  clearTimeout(window.__analyticsResizeTimer);
+  window.__analyticsResizeTimer = setTimeout(() => {
+    if (window.chatAnalyticsChart) {
+      window.chatAnalyticsChart.resize();
+    }
+  }, 100);
 }
 
 function getEventMeta(eventName) {
@@ -2662,45 +2710,91 @@ function currentCompareMode() {
 
 function analyticsModeValue(day, mode) {
   if (!day) return 0;
-
   if (mode === "conversion") {
-    const raw = Number(day.conversion ?? 0);
-    // Support either 0–1 or 0–100 input
-    return raw <= 1 ? raw * 100 : raw;
+    return Number(day.conversion_rate ?? day.conversion ?? 0) * 100;
   }
-
+  if (mode === "lost") {
+    return Number(day.lost_opportunity || 0);
+  }
   return Number(day.chats || 0);
 }
 
-function setAnalyticsKpi(name, value) {
-  const el = document.querySelector(`[data-kpi="${name}"]`);
-  if (!el) return;
-  el.textContent = value;
+function hideAnalyticsHover() {
+  const card = document.getElementById("analyticsChartHoverCard");
+  const line = document.getElementById("analyticsHoverLine");
+  if (card) card.classList.add("hidden");
+  if (line) line.classList.add("hidden");
 }
 
-function setText(id, value) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = value == null || value === "" ? "—" : String(value);
-}
+function showAnalyticsHover(day, chart, index) {
+  const card = document.getElementById("analyticsChartHoverCard");
+  const hoverLine = document.getElementById("analyticsHoverLine");
+  if (!card || !day || !chart) return;
 
-function setWidth(id, pct) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  const n = Math.max(0, Math.min(100, Number(pct || 0)));
-  el.style.width = `${n}%`;
+  const meta = getEventMeta(day.event);
+  const dateEl = card.querySelector("[data-hover-date]");
+  const chatsEl = card.querySelector("[data-hover-chats]");
+  const convEl = card.querySelector("[data-hover-conversion]");
+  const signalEl = card.querySelector("[data-hover-signal]");
+
+  if (dateEl) dateEl.textContent = `${day.day || "—"} · ${day.label || "—"}`;
+  if (chatsEl) chatsEl.textContent = fmtInt(day.chats || 0);
+  if (convEl) convEl.textContent = fmtPct((Number(day.conversion_rate ?? day.conversion ?? 0)) * 100);
+  if (signalEl) signalEl.textContent = meta.label;
+
+  const activeMeta = chart.getDatasetMeta(
+    currentAnalyticsMode() === "conversion" ? 1 : 1
+  );
+  const point = activeMeta?.data?.[index];
+  const chartArea = chart.chartArea;
+
+  if (!point || !chartArea) {
+    hideAnalyticsHover();
+    return;
+  }
+
+  let x = point.x;
+  const total = activeMeta.data.length;
+
+  if (index === 0) x += 10;
+  if (index === total - 1) x -= 18;
+
+  card.classList.remove("hidden");
+
+  const cardWidth = card.offsetWidth || 220;
+  const cardHeight = card.offsetHeight || 120;
+  const padding = 12;
+
+  let left = x + 16;
+  let top = chartArea.top + 12;
+
+  if (left + cardWidth > chartArea.right - padding) {
+    left = x - cardWidth - 16;
+  }
+  if (left < chartArea.left + padding) {
+    left = chartArea.left + padding;
+  }
+  if (top + cardHeight > chartArea.bottom - padding) {
+    top = chartArea.bottom - cardHeight - padding;
+  }
+
+  card.style.left = `${left}px`;
+  card.style.top = `${top}px`;
+
+  if (hoverLine) {
+    hoverLine.classList.remove("hidden");
+    hoverLine.style.left = `${x}px`;
+  }
 }
 
 function renderAnalyticsSummary(summary) {
-  setAnalyticsKpi("sessions_total", fmtInt(summary.sessions_total));
-  setAnalyticsKpi("response_rate", fmtPct(summary.response_rate));
-  setAnalyticsKpi("followup_clicks", fmtInt(summary.followup_clicks));
-  setAnalyticsKpi("chat_errors", fmtInt(summary.chat_errors));
+  setAnalyticsKpi("sessions_total", fmtInt(summary.sessions_total || 0));
+  setAnalyticsKpi("response_rate", fmtPct(summary.response_rate || 0));
+  setAnalyticsKpi("followup_clicks", fmtInt(summary.followup_clicks || 0));
+  setAnalyticsKpi("chat_errors", fmtInt(summary.chat_errors || 0));
 }
 
 function renderAnalyticsLifecycle(lifecycle) {
-  const total = Number(lifecycle.total || 0) || 1;
-
   const inquiry = Number(lifecycle.inquiry || 0);
   const upcoming = Number(lifecycle.upcoming || 0);
   const current = Number(lifecycle.current || 0);
@@ -2716,8 +2810,6 @@ function renderAnalyticsLifecycle(lifecycle) {
   setWidth("analytics-stage-current-bar", current);
   setWidth("analytics-stage-post-bar", post);
 }
-
-
 
 function renderAnalyticsPeak(hours) {
   const items = Array.isArray(hours?.items) ? hours.items : [];
@@ -2740,13 +2832,11 @@ function renderAnalyticsPeak(hours) {
         </div>
       `;
     }
-
     [ring1, ring2, ring3].forEach((ring) => {
       if (!ring) return;
       ring.setAttribute("stroke-dasharray", "0 999");
       ring.setAttribute("stroke-dashoffset", "0");
     });
-
     return;
   }
 
@@ -2757,7 +2847,6 @@ function renderAnalyticsPeak(hours) {
       .map((item) => {
         const value = Number(item.value || 0);
         const pct = Math.round((value / max) * 100);
-
         return `
           <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
             <div>${escapeHtml(item.label || "—")}</div>
@@ -2782,29 +2871,20 @@ function renderAnalyticsPeak(hours) {
   const circumference = 2 * Math.PI * radius;
   const gap = 10;
 
-  const arcs = topThree.map((item) => {
-    const rawLength = (Number(item.value || 0) / totalTop) * circumference;
-    return Math.max(0, rawLength - gap);
-  });
-
-  const rawLengths = topThree.map((item) => {
-    return (Number(item.value || 0) / totalTop) * circumference;
-  });
+  const rawLengths = topThree.map((item) => (Number(item.value || 0) / totalTop) * circumference);
+  const visibleLengths = rawLengths.map((len) => Math.max(0, len - gap));
 
   const ringEls = [ring1, ring2, ring3];
   let offsetProgress = 0;
 
   ringEls.forEach((el, i) => {
     if (!el) return;
-
-    const visibleLength = arcs[i] || 0;
-    const rawLength = rawLengths[i] || 0;
-
-    el.setAttribute("stroke-dasharray", `${visibleLength} ${circumference}`);
+    el.setAttribute("stroke-dasharray", `${visibleLengths[i] || 0} ${circumference}`);
     el.setAttribute("stroke-dashoffset", `${-offsetProgress}`);
-    offsetProgress += rawLength;
+    offsetProgress += rawLengths[i] || 0;
   });
 }
+
 function renderAnalyticsEmotions(emotions, spike) {
   const wrap = document.getElementById("analytics-emotion-bars");
   if (wrap) {
@@ -2823,24 +2903,28 @@ function renderAnalyticsEmotions(emotions, spike) {
         return "bg-slate-400";
       };
 
-      wrap.innerHTML = items.map((item) => `
-        <div>
-          <div class="mb-2 flex items-center justify-between text-sm">
-            <span class="font-semibold text-slate-800">${escapeHtml(item.label || "Unknown")}</span>
-            <span class="text-slate-500">${fmtInt(item.value || 0)}%</span>
+      wrap.innerHTML = items
+        .map(
+          (item) => `
+          <div>
+            <div class="mb-2 flex items-center justify-between text-sm">
+              <span class="font-semibold text-slate-800">${escapeHtml(item.label || "Unknown")}</span>
+              <span class="text-slate-500">${fmtInt(item.value || 0)}%</span>
+            </div>
+            <div class="h-3 rounded-full bg-slate-100">
+              <div class="h-3 rounded-full ${toneClass(item.tone)}" style="width:${Math.max(
+            0,
+            Math.min(100, Number(item.value || 0))
+          )}%"></div>
+            </div>
           </div>
-          <div class="h-3 rounded-full bg-slate-100">
-            <div class="h-3 rounded-full ${toneClass(item.tone)}" style="width:${Math.max(0, Math.min(100, Number(item.value || 0)))}%"></div>
-          </div>
-        </div>
-      `).join("");
+        `
+        )
+        .join("");
     }
   }
 
-  setText(
-    "analytics-emotion-spike-title",
-    spike?.title || "No major emotional spike detected"
-  );
+  setText("analytics-emotion-spike-title", spike?.title || "No major emotional spike detected");
   setText(
     "analytics-emotion-spike-body",
     spike?.body || "Current conversations are relatively balanced."
@@ -2867,10 +2951,7 @@ function renderAnalyticsInsights(insights) {
   );
 
   setText("insight-human", insights?.needs_human || "—");
-  setText(
-    "insight-human-detail",
-    insights?.needs_human_detail || "No additional detail."
-  );
+  setText("insight-human-detail", insights?.needs_human_detail || "No additional detail.");
 }
 
 function renderAnalyticsAIRead(days) {
@@ -2890,39 +2971,62 @@ function renderAnalyticsAIRead(days) {
   const totalChats = days.reduce((sum, d) => sum + Number(d.chats || 0), 0);
   const avgChats = Math.round(totalChats / days.length);
   const peakDay = [...days].sort((a, b) => Number(b.chats || 0) - Number(a.chats || 0))[0];
-  const frictionDay = [...days].sort((a, b) => Number(b.lost_opportunity || 0) - Number(a.lost_opportunity || 0))[0];
-  const bestConvDay = [...days].sort((a, b) => Number(b.conversion || 0) - Number(a.conversion || 0))[0];
+  const frictionDay = [...days].sort(
+    (a, b) => Number(b.lost_opportunity || 0) - Number(a.lost_opportunity || 0)
+  )[0];
+  const bestConvDay = [...days].sort(
+    (a, b) =>
+      Number(b.conversion_rate ?? b.conversion ?? 0) -
+      Number(a.conversion_rate ?? a.conversion ?? 0)
+  )[0];
 
-  const spikePct = avgChats > 0 ? Math.round(((Number(peakDay?.chats || 0) - avgChats) / avgChats) * 100) : 0;
+  const spikePct =
+    avgChats > 0
+      ? Math.round(((Number(peakDay?.chats || 0) - avgChats) / avgChats) * 100)
+      : 0;
 
   if ((peakDay?.chats || 0) > avgChats * 1.25) {
     titleEl.textContent = "Demand spike detected";
-    bodyEl.textContent = `${peakDay.label} was the busiest day with ${fmtInt(peakDay.chats)} chats, ${spikePct}% above the daily average.`;
+    bodyEl.textContent = `${peakDay.label} was the busiest day with ${fmtInt(
+      peakDay.chats
+    )} chats, ${spikePct}% above the daily average.`;
   } else if ((frictionDay?.lost_opportunity || 0) > 0) {
     titleEl.textContent = "Friction is the main story";
-    bodyEl.textContent = `${frictionDay.label} had the strongest drop-off pattern, with ${fmtInt(frictionDay.lost_opportunity)} lost-opportunity signals.`;
+    bodyEl.textContent = `${frictionDay.label} had the strongest drop-off pattern, with ${fmtInt(
+      frictionDay.lost_opportunity
+    )} lost-opportunity signals.`;
   } else {
     titleEl.textContent = "Stable conversation flow";
-    bodyEl.textContent = `Chat volume stayed relatively steady with an average of ${fmtInt(avgChats)} chats per day across the selected window.`;
+    bodyEl.textContent = `Chat volume stayed relatively steady with an average of ${fmtInt(
+      avgChats
+    )} chats per day across the selected window.`;
   }
 
   const pills = [];
-    if (peakDay?.label) pills.push(`Peak: ${peakDay.label}`);
-    if ((bestConvDay?.conversion || 0) > 0) pills.push(`Best conversion: ${bestConvDay.label}`);
-    if ((frictionDay?.lost_opportunity || 0) > 0) pills.push(`Friction: ${frictionDay.label}`);
-  
-    pillsEl.innerHTML = pills.length
-      ? pills.map((txt) => `<span class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700">${escapeHtml(txt)}</span>`).join("")
-      : `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No major signals</span>`;
-  
-    if (peakDay && frictionDay) {
-    const insight = peakDay.lost_opportunity > 0
-      ? "Spike driven by guest friction"
-      : "Spike driven by booking demand";
-  
+  if (peakDay?.label) pills.push(`Peak: ${peakDay.label}`);
+  if (bestConvDay?.label) pills.push(`Best conversion: ${bestConvDay.label}`);
+  if ((frictionDay?.lost_opportunity || 0) > 0) pills.push(`Friction: ${frictionDay.label}`);
+
+  pillsEl.innerHTML = pills.length
+    ? pills
+        .map(
+          (txt) =>
+            `<span class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700">${escapeHtml(
+              txt
+            )}</span>`
+        )
+        .join("")
+    : `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No major signals</span>`;
+
+  if (peakDay && frictionDay) {
+    const insight =
+      Number(peakDay.lost_opportunity || 0) > 0
+        ? "Spike driven by guest friction"
+        : "Spike driven by booking demand";
+
     pillsEl.innerHTML += `
       <span class="rounded-full bg-rose-50 px-3 py-1.5 font-semibold text-rose-700">
-        ${insight}
+        ${escapeHtml(insight)}
       </span>
     `;
   }
@@ -2933,17 +3037,12 @@ function renderAnalyticsDrilldown(day) {
   setTextByData("chats", day ? fmtInt(day.chats || 0) : "—");
   setTextByData("user_messages", day ? fmtInt(day.messages || 0) : "—");
   setTextByData("assistant_messages", "—");
-  setTextByData("conversion", day ? fmtPct(day.conversion || 0) : "—");
+  setTextByData(
+    "conversion",
+    day ? fmtPct((Number(day.conversion_rate ?? day.conversion ?? 0)) * 100) : "—"
+  );
   setTextByData("lost", day ? fmtInt(day.lost_opportunity || 0) : "—");
   setTextByData("signal", day ? getEventMeta(day.event).label : "—");
-  const badge = getEventMeta(day?.event)?.label || "";
-  setTextByData("signal", badge);
-}
-
-function setTextByData(key, value) {
-  const el = document.querySelector(`[data-drilldown="${key}"]`);
-  if (!el) return;
-  el.textContent = value == null || value === "" ? "—" : String(value);
 }
 
 function renderAnalyticsTopProperties(rows) {
@@ -2956,27 +3055,29 @@ function renderAnalyticsTopProperties(rows) {
     return;
   }
 
-  tbody.innerHTML = items.map((r) => `
-    <tr class="border-t border-slate-100">
-      <td class="py-3 pr-4 font-medium text-slate-900">${escapeHtml(r.property_name || "Unknown")}</td>
-      <td class="py-3 pr-4 text-slate-600">${fmtInt(r.sessions || 0)}</td>
-      <td class="py-3 pr-4 text-slate-600">${fmtInt(r.messages || 0)}</td>
-      <td class="py-3 pr-4 text-slate-600">${fmtPct(r.followup_conversion_rate || 0)}</td>
-      <td class="py-3 pr-4 text-slate-600">${fmtInt(r.chat_errors || 0)}</td>
-      <td class="py-3 pr-4 text-slate-600">${fmtInt(r.escalations || 0)}</td>
-    </tr>
-  `).join("");
+  tbody.innerHTML = items
+    .map(
+      (r) => `
+      <tr class="border-t border-slate-100">
+        <td class="py-3 pr-4 font-medium text-slate-900">${escapeHtml(r.property_name || "Unknown")}</td>
+        <td class="py-3 pr-4 text-slate-600">${fmtInt(r.sessions || 0)}</td>
+        <td class="py-3 pr-4 text-slate-600">${fmtInt(r.messages || 0)}</td>
+        <td class="py-3 pr-4 text-slate-600">${fmtPct(r.followup_conversion_rate || 0)}</td>
+        <td class="py-3 pr-4 text-slate-600">${fmtInt(r.chat_errors || 0)}</td>
+        <td class="py-3 pr-4 text-slate-600">${fmtInt(r.escalations || 0)}</td>
+      </tr>
+    `
+    )
+    .join("");
 }
 
 function renderAnalyticsSummaryCards(days, selectedIndex) {
-  const selected = days[selectedIndex] || days[days.length - 1];
-  if (!selected) return;
+  if (!Array.isArray(days) || !days.length) return;
 
+  const selected = days[selectedIndex] || days[days.length - 1];
   const peak = [...days].sort((a, b) => Number(b.chats || 0) - Number(a.chats || 0))[0];
   const quiet = [...days].sort((a, b) => Number(a.chats || 0) - Number(b.chats || 0))[0];
-  const avg = days.length
-    ? Math.round(days.reduce((sum, d) => sum + Number(d.chats || 0), 0) / days.length)
-    : 0;
+  const avg = Math.round(days.reduce((sum, d) => sum + Number(d.chats || 0), 0) / days.length);
 
   setText("analytics-summary-peak-day", peak?.label || "—");
   setText("analytics-summary-peak-meta", peak ? `${fmtInt(peak.chats)} chats` : "—");
@@ -2993,150 +3094,22 @@ function renderAnalyticsSummaryCards(days, selectedIndex) {
   );
 }
 
-function makeBarGradient(ctx, chartArea, isCurrent) {
-  if (!chartArea) return "#4f46e5";
-
-  const gradient = ctx.createLinearGradient(
-    0,
-    chartArea.bottom,
-    0,
-    chartArea.top
-  );
-
-  if (isCurrent) {
-    gradient.addColorStop(0, "rgba(59,130,246,0.85)");
-    gradient.addColorStop(1, "rgba(125,211,252,0.95)");
-  } else {
-    gradient.addColorStop(0, "rgba(134,239,172,0.35)");
-    gradient.addColorStop(1, "rgba(187,247,208,0.65)");
-  }
-
-  return gradient;
-}
-
-function positionAnalyticsHoverLine(chart, index) {
-  const line = document.getElementById("analyticsHoverLine");
-  if (!line || !chart || index == null) return;
-
-  const activeMeta = chart.getDatasetMeta(1);
-  const bar = activeMeta?.data?.[index];
-  if (!bar) return;
-
-  line.classList.remove("hidden");
-  line.style.left = `${bar.x}px`;
-}
-
-function hideAnalyticsHover() {
-  const card = document.getElementById("analyticsChartHoverCard");
-  const line = document.getElementById("analyticsHoverLine");
-  if (card) card.classList.add("hidden");
-  if (line) line.classList.add("hidden");
-}
-
-function showAnalyticsHover(day, chart, index) {
-  const card = document.getElementById("analyticsChartHoverCard");
-  const hoverLine = document.getElementById("analyticsHoverLine");
-  if (!card || !day || !chart) return;
-
-  const meta = getEventMeta(day.event);
-  const dateEl = card.querySelector("[data-hover-date]");
-  const chatsEl = card.querySelector("[data-hover-chats]");
-  const convEl = card.querySelector("[data-hover-conversion]");
-  const signalEl = card.querySelector("[data-hover-signal]");
-
-  if (dateEl) dateEl.textContent = `${day.day || "—"} · ${day.label || "—"}`;
-  if (chatsEl) chatsEl.textContent = fmtInt(day.chats);
-  if (convEl) convEl.textContent = fmtPct(day.conversion);
-  if (signalEl) signalEl.textContent = meta.label;
-
-  const activeMeta = chart.getDatasetMeta(1);
-  const bar = activeMeta?.data?.[index];
-  const chartArea = chart.chartArea;
-
-  if (!bar || !chartArea) {
-    card.classList.add("hidden");
-    if (hoverLine) hoverLine.classList.add("hidden");
-    return;
-  }
-
-  let x = bar.x;
-  const total = activeMeta.data.length;
-
-  if (index === 0) x += 10;
-  if (index === total - 1) x -= 18;
-
-  card.classList.remove("hidden");
-
-  const cardWidth = card.offsetWidth || 220;
-  const cardHeight = card.offsetHeight || 120;
-  const padding = 12;
-
-  let left = x + 16;
-  let top = chartArea.top + 12;
-
-  if (left + cardWidth > chartArea.right - padding) {
-    left = x - cardWidth - 16;
-  }
-
-  if (left < chartArea.left + padding) {
-    left = chartArea.left + padding;
-  }
-
-  if (top + cardHeight > chartArea.bottom - padding) {
-    top = chartArea.bottom - cardHeight - padding;
-  }
-
-  card.style.left = `${left}px`;
-  card.style.top = `${top}px`;
-
-  if (hoverLine) {
-    hoverLine.classList.remove("hidden");
-    hoverLine.style.left = `${x}px`;
-  }
-}
-
-let analyticsResizeTimer = null;
-
-window.addEventListener("resize", () => {
-  clearTimeout(analyticsResizeTimer);
-  analyticsResizeTimer = setTimeout(() => {
-    if (window.analyticsPayload) {
-      renderChatAnalyticsChart(window.analyticsPayload);
-    }
-  }, 120);
-});
-
 function renderChatAnalyticsChart(payload) {
   const canvas = document.getElementById("chatAnalyticsChart");
-  if (!canvas || !window.Chart) return;
-
-  window.analyticsPayload = payload;
-  window.chatAnalyticsState = window.chatAnalyticsState || {};
+  if (!canvas || typeof Chart === "undefined") return;
 
   const days = Array.isArray(payload?.days) ? payload.days : [];
   const labels = days.map((d) => d.day || d.label || "—");
 
-  const mode = typeof currentAnalyticsMode === "function"
-    ? currentAnalyticsMode()
-    : (window.chatAnalyticsState.mode || "chats");
-
-  const compare = typeof currentCompareMode === "function"
-    ? currentCompareMode()
-    : !!window.chatAnalyticsState.compare;
+  const mode = currentAnalyticsMode();
+  const compare = currentCompareMode();
 
   const rawValues = days.map((d) => analyticsModeValue(d, mode));
   const rawPreviousValues = days.map((d) => analyticsModeValue(d?.previous || {}, mode));
 
-  // Visual lift only for chat bars so tiny counts still read
-  const values =
-    mode === "chats"
-      ? rawValues.map((v) => (v > 0 ? v + 1 : 0))
-      : rawValues.slice();
-
+  const values = mode === "chats" ? rawValues.map((v) => (v > 0 ? v + 1 : 0)) : rawValues.slice();
   const previousValues =
-    mode === "chats"
-      ? rawPreviousValues.map((v) => (v > 0 ? v + 1 : 0))
-      : rawPreviousValues.slice();
+    mode === "chats" ? rawPreviousValues.map((v) => (v > 0 ? v + 1 : 0)) : rawPreviousValues.slice();
 
   const trendValues = rawValues.map((_, i, arr) => {
     const prev = arr[i - 1] ?? arr[i];
@@ -3151,12 +3124,9 @@ function renderChatAnalyticsChart(payload) {
   if (chartScroll && chartInner) {
     const visibleWidth = chartScroll.clientWidth || 0;
     const dayCount = Math.max(days.length, 1);
-
-    const minDayWidth = dayCount <= 7 ? visibleWidth / dayCount : 72;
+    const minDayWidth = dayCount <= 7 ? visibleWidth / dayCount : 84;
     const naturalWidth = dayCount * minDayWidth;
-    const computedWidth = dayCount <= 7
-      ? visibleWidth
-      : Math.max(visibleWidth, naturalWidth);
+    const computedWidth = dayCount <= 7 ? visibleWidth : Math.max(visibleWidth, naturalWidth);
 
     chartScroll.classList.remove("overflow-x-hidden");
     chartScroll.classList.add("overflow-x-auto");
@@ -3174,9 +3144,6 @@ function renderChatAnalyticsChart(payload) {
 
   window.chatAnalyticsState.selectedIndex = selectedIndex;
 
-  const chartLabel =
-  mode === "conversion" ? "Conversion" : "Chats";
-
   if (window.chatAnalyticsChart) {
     try {
       window.chatAnalyticsChart.destroy();
@@ -3186,28 +3153,50 @@ function renderChatAnalyticsChart(payload) {
 
   function currentBarGradient(chart, isSelected) {
     const area = chart.chartArea;
-    if (!area) return isSelected ? "rgba(79,70,229,0.95)" : "rgba(59,130,246,0.82)";
+    if (!area) return isSelected ? "rgba(79,70,229,0.98)" : "rgba(59,130,246,0.9)";
 
     const g = chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
     if (isSelected) {
-      g.addColorStop(0, "rgba(79,70,229,0.95)");
-      g.addColorStop(1, "rgba(129,140,248,1)");
+      g.addColorStop(0, "rgba(67, 97, 238, 0.98)");
+      g.addColorStop(0.55, "rgba(96, 135, 255, 0.94)");
+      g.addColorStop(1, "rgba(137, 220, 255, 0.96)");
     } else {
-      g.addColorStop(0, "rgba(59,130,246,0.82)");
-      g.addColorStop(1, "rgba(125,211,252,0.96)");
+      g.addColorStop(0, "rgba(59, 105, 240, 0.94)");
+      g.addColorStop(0.55, "rgba(93, 141, 255, 0.90)");
+      g.addColorStop(1, "rgba(134, 216, 255, 0.92)");
     }
     return g;
   }
 
   function priorBarGradient(chart) {
     const area = chart.chartArea;
-    if (!area) return "rgba(187,247,208,0.5)";
-
+    if (!area) return "rgba(187,247,208,0.22)";
     const g = chart.ctx.createLinearGradient(0, area.bottom, 0, area.top);
-    g.addColorStop(0, "rgba(134,239,172,0.25)");
-    g.addColorStop(1, "rgba(187,247,208,0.55)");
+    g.addColorStop(0, "rgba(187,247,208,0.14)");
+    g.addColorStop(1, "rgba(187,247,208,0.42)");
     return g;
   }
+
+  const selectedGlowPlugin = {
+    id: "selectedGlowPlugin",
+    beforeDatasetsDraw(chart) {
+      if (mode !== "chats") return;
+      const idx = window.chatAnalyticsState.selectedIndex;
+      if (idx == null) return;
+
+      const meta = chart.getDatasetMeta(1);
+      const bar = meta?.data?.[idx];
+      if (!bar) return;
+
+      const { ctx } = chart;
+      ctx.save();
+      ctx.beginPath();
+      ctx.fillStyle = "rgba(91, 76, 240, 0.08)";
+      ctx.ellipse(bar.x, (bar.y + bar.base) / 2, 28, 120, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.restore();
+    },
+  };
 
   const eventPlugin = {
     id: "analyticsEventPlugin",
@@ -3222,10 +3211,10 @@ function renderChatAnalyticsChart(payload) {
       ctx.textAlign = "center";
 
       days.forEach((day, i) => {
-        const bar = activeMeta.data[i];
-        if (!bar) return;
+        const point = activeMeta.data[i];
+        if (!point) return;
 
-        let x = bar.x;
+        let x = point.x;
         if (i === 0) x += 10;
         if (i === days.length - 1) x -= 18;
 
@@ -3234,24 +3223,24 @@ function renderChatAnalyticsChart(payload) {
         const delta = Number(day.delta || 0);
         const deltaText = `${delta > 0 ? "+" : ""}${delta}%`;
 
-        ctx.fillStyle = "#94a3b8";
-        ctx.font = "600 12px Inter, sans-serif";
-        ctx.fillText(String(topCount), x, chartArea.top + 10);
+        ctx.fillStyle = "#8FA0B8";
+        ctx.font = "600 11px Inter, sans-serif";
+        ctx.fillText(String(topCount), x, chartArea.top + 8);
 
-        ctx.font = "14px Inter, sans-serif";
+        ctx.font = "15px Inter, sans-serif";
         ctx.fillText(meta.icon || "•", x, chartArea.top + 26);
 
-        ctx.fillStyle = delta >= 0 ? "#16a34a" : "#f43f5e";
-        ctx.font = "600 11px Inter, sans-serif";
-        ctx.fillText(deltaText, x, chartArea.bottom + 20);
+        ctx.fillStyle = delta >= 0 ? "#10B981" : "#F43F5E";
+        ctx.font = "700 11px Inter, sans-serif";
+        ctx.fillText(deltaText, x, chartArea.bottom + 18);
 
         ctx.fillStyle = "#334155";
-        ctx.font = "500 11px Inter, sans-serif";
+        ctx.font = "600 12px Inter, sans-serif";
         ctx.fillText(day.day || "", x, chartArea.bottom + 38);
 
-        ctx.fillStyle = "#94a3b8";
-        ctx.font = "500 11px Inter, sans-serif";
-        ctx.fillText(day.label || "", x, chartArea.bottom + 52);
+        ctx.fillStyle = "#94A3B8";
+        ctx.font = "500 12px Inter, sans-serif";
+        ctx.fillText(day.label || "", x, chartArea.bottom + 54);
       });
 
       ctx.restore();
@@ -3265,27 +3254,22 @@ function renderChatAnalyticsChart(payload) {
       if (!event) return;
 
       if (event.type === "mouseout") {
+        window.chatAnalyticsState.hoveredIndex = null;
         hideAnalyticsHover();
         return;
       }
 
-      const points = chart.getElementsAtEventForMode(
-        event,
-        "index",
-        { intersect: false },
-        false
-      );
-
+      const points = chart.getElementsAtEventForMode(event, "index", { intersect: false }, false);
       if (!points.length) {
+        window.chatAnalyticsState.hoveredIndex = null;
         hideAnalyticsHover();
         return;
       }
 
       const idx = points[0].index;
-      const activeMeta = chart.getDatasetMeta(1);
-      const bar = activeMeta?.data?.[idx];
-
-      if (!bar || !days[idx]) {
+      const point = chart.getDatasetMeta(1)?.data?.[idx];
+      if (!point || !days[idx]) {
+        window.chatAnalyticsState.hoveredIndex = null;
         hideAnalyticsHover();
         return;
       }
@@ -3296,120 +3280,127 @@ function renderChatAnalyticsChart(payload) {
   };
 
   const overlayPointPlugin = {
-  id: "analyticsOverlayPointPlugin",
-  afterDatasetsDraw(chart) {
-    if (mode !== "chats") return;
+    id: "analyticsOverlayPointPlugin",
+    afterDatasetsDraw(chart) {
+      if (mode !== "chats") return;
 
-    const { ctx } = chart;
-    const activeMeta = chart.getDatasetMeta(1);
-    if (!activeMeta?.data?.length) return;
+      const { ctx } = chart;
+      const activeMeta = chart.getDatasetMeta(1);
+      if (!activeMeta?.data?.length) return;
 
-    ctx.save();
+      const maxLost = Math.max(...days.map((d) => Number(d.lost_opportunity || 0)), 1);
 
-    activeMeta.data.forEach((bar) => {
-      const x = bar.x;
-      const y = bar.y + (bar.base - bar.y) * 0.35;
+      ctx.save();
 
-      ctx.beginPath();
-      ctx.fillStyle = "rgba(251, 113, 133, 0.95)";
-      ctx.strokeStyle = "rgba(255,255,255,0.95)";
-      ctx.lineWidth = 1.5;
-      ctx.arc(x, y, 5, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
-    });
+      activeMeta.data.forEach((bar, i) => {
+        const lostValue = Number(days[i]?.lost_opportunity || 0);
+        const ratio = lostValue / maxLost;
+        const x = bar.x;
+        const y = bar.base - (bar.base - bar.y) * ratio;
 
-    ctx.restore();
-  },
-};
+        ctx.beginPath();
+        ctx.fillStyle = "rgba(251, 113, 133, 0.95)";
+        ctx.strokeStyle = "rgba(255,255,255,0.95)";
+        ctx.lineWidth = 1.5;
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+      });
+
+      ctx.restore();
+    },
+  };
+
+  const chartConfig =
+    mode === "conversion"
+      ? {
+          labels,
+          datasets: [
+            {
+              type: "line",
+              label: "Prior period",
+              data: compare ? previousValues : previousValues.map(() => null),
+              borderColor: "rgba(134, 239, 172, 0.9)",
+              backgroundColor: "rgba(134, 239, 172, 0.14)",
+              borderWidth: 2,
+              tension: 0.35,
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              fill: false,
+              order: 1,
+              yAxisID: "y",
+            },
+            {
+              type: "line",
+              label: "Conversion",
+              data: values,
+              borderColor: "rgba(59, 130, 246, 0.95)",
+              backgroundColor: "rgba(59, 130, 246, 0.10)",
+              borderWidth: 3,
+              tension: 0.35,
+              pointRadius: 4,
+              pointHoverRadius: 5,
+              pointBackgroundColor: "rgba(59, 130, 246, 1)",
+              pointBorderColor: "rgba(255,255,255,0.95)",
+              pointBorderWidth: 2,
+              fill: false,
+              order: 2,
+              yAxisID: "y",
+            },
+          ],
+        }
+      : {
+          labels,
+          datasets: [
+            {
+              type: "bar",
+              label: "Prior period",
+              data: compare ? previousValues : previousValues.map(() => null),
+              backgroundColor(context) {
+                return priorBarGradient(context.chart);
+              },
+              borderRadius: 999,
+              borderSkipped: false,
+              order: 1,
+              grouped: false,
+              categoryPercentage: 0.86,
+              barPercentage: 0.82,
+              maxBarThickness: 26,
+            },
+            {
+              type: "bar",
+              label: mode === "lost" ? "Lost opportunity" : "Chats",
+              data: values,
+              backgroundColor(context) {
+                return currentBarGradient(context.chart, context.dataIndex === selectedIndex);
+              },
+              borderRadius: 999,
+              borderSkipped: false,
+              order: 2,
+              grouped: false,
+              categoryPercentage: 0.86,
+              barPercentage: 0.62,
+              maxBarThickness: 20,
+            },
+            {
+              type: "line",
+              label: "Trend",
+              data: trendValues,
+              borderColor: "rgba(148, 163, 184, 0.5)",
+              borderWidth: 2,
+              tension: 0.3,
+              pointRadius: 0,
+              pointHoverRadius: 0,
+              order: 0,
+              yAxisID: "y",
+            },
+          ],
+        };
 
   window.chatAnalyticsChart = new Chart(canvas.getContext("2d"), {
     type: "bar",
-    data: {
-      labels,
-      datasets: mode === "conversion"
-  ? [
-      {
-        type: "line",
-        label: "Prior period",
-        data: compare ? previousValues : previousValues.map(() => null),
-        borderColor: "rgba(134, 239, 172, 0.9)",
-        backgroundColor: "rgba(134, 239, 172, 0.14)",
-        borderWidth: 2,
-        tension: 0.35,
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        fill: false,
-        order: 1,
-        yAxisID: "y",
-      },
-      {
-        type: "line",
-        label: "Conversion",
-        data: values,
-        borderColor: "rgba(59, 130, 246, 0.95)",
-        backgroundColor: "rgba(59, 130, 246, 0.10)",
-        borderWidth: 3,
-        tension: 0.35,
-        pointRadius: 4,
-        pointHoverRadius: 5,
-        pointBackgroundColor: "rgba(59, 130, 246, 1)",
-        pointBorderColor: "rgba(255,255,255,0.95)",
-        pointBorderWidth: 2,
-        fill: false,
-        order: 2,
-        yAxisID: "y",
-      }
-    ]
-  : [
-      {
-        type: "bar",
-        label: "Prior period",
-        data: compare ? previousValues : previousValues.map(() => null),
-        backgroundColor(context) {
-          return priorBarGradient(context.chart);
-        },
-        borderRadius: 999,
-        borderSkipped: false,
-        order: 1,
-        grouped: false,
-        categoryPercentage: 0.86,
-        barPercentage: 0.82,
-        maxBarThickness: 26,
-      },
-      {
-        type: "bar",
-        label: chartLabel,
-        data: values,
-        backgroundColor(context) {
-          return currentBarGradient(
-            context.chart,
-            context.dataIndex === selectedIndex
-          );
-        },
-        borderRadius: 999,
-        borderSkipped: false,
-        order: 2,
-        grouped: false,
-        categoryPercentage: 0.86,
-        barPercentage: 0.62,
-        maxBarThickness: 20,
-      },
-      {
-        type: "line",
-        label: "Trend",
-        data: trendValues,
-        borderColor: "rgba(148, 163, 184, 0.5)",
-        borderWidth: 2,
-        tension: 0.3,
-        pointRadius: 0,
-        pointHoverRadius: 0,
-        order: 0,
-        yAxisID: "y",
-      }
-    ],
-    },
-    plugins: [hoverPlugin, eventPlugin, overlayPointPlugin],
+    data: chartConfig,
+    plugins: [selectedGlowPlugin, hoverPlugin, eventPlugin, overlayPointPlugin],
     options: {
       responsive: true,
       maintainAspectRatio: false,
@@ -3456,28 +3447,28 @@ function renderChatAnalyticsChart(payload) {
           border: { display: false },
         },
         y: {
-  beginAtZero: true,
-  suggestedMax:
-    mode === "conversion"
-      ? 100
-      : Math.max(12, Math.max(...values, ...previousValues, 0) * 1.3),
-  grid: {
-    color: "rgba(148,163,184,0.25)",
-    borderDash: [3, 4],
-    drawBorder: false,
-  },
-  ticks: {
-    display: false,
-    stepSize:
-      mode === "conversion"
-        ? 20
-        : Math.ceil(Math.max(...values, ...previousValues, 10) / 5),
-  },
-  afterBuildTicks: (scale) => {
-    scale.ticks = scale.ticks.slice(0, -1);
-  },
-  border: { display: false },
-},
+          beginAtZero: true,
+          suggestedMax:
+            mode === "conversion"
+              ? 100
+              : Math.max(12, Math.max(...values, ...previousValues, 0) * 1.3),
+          grid: {
+            color: "rgba(148,163,184,0.25)",
+            borderDash: [3, 4],
+            drawBorder: false,
+          },
+          ticks: {
+            display: false,
+            stepSize:
+              mode === "conversion"
+                ? 20
+                : Math.ceil(Math.max(...values, ...previousValues, 10) / 5),
+          },
+          afterBuildTicks: (scale) => {
+            scale.ticks = scale.ticks.slice(0, -1);
+          },
+          border: { display: false },
+        },
       },
     },
   });
@@ -3490,15 +3481,14 @@ function renderChatAnalyticsChart(payload) {
     renderAnalyticsDrilldown(null);
   }
 }
+
 function wireAnalyticsRangeButtons() {
   const rangeButtons = Array.from(document.querySelectorAll(".analytics-range-btn"));
   const rangeSelect = document.getElementById("analyticsRange");
-
   if (!rangeButtons.length || !rangeSelect) return;
 
   function paint() {
     const current = String(rangeSelect.value || "7");
-
     rangeButtons.forEach((btn) => {
       const active = btn.getAttribute("data-range") === current;
       btn.classList.toggle("is-active", active);
@@ -3512,7 +3502,6 @@ function wireAnalyticsRangeButtons() {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-range");
       if (!next) return;
-
       rangeSelect.value = next;
       window.chatAnalyticsState.selectedIndex = null;
       paint();
@@ -3524,15 +3513,13 @@ function wireAnalyticsRangeButtons() {
 }
 
 function wireAnalyticsModeControls() {
-  window.chatAnalyticsState = window.chatAnalyticsState || {};
-
   if (!window.chatAnalyticsState.mode) {
     window.chatAnalyticsState.mode = "chats";
   }
   if (typeof window.chatAnalyticsState.compare !== "boolean") {
     window.chatAnalyticsState.compare = true;
   }
-    
+
   const modeButtons = Array.from(document.querySelectorAll(".analytics-mode-btn"));
   const compareBtn = document.getElementById("analyticsCompareToggle");
   const canvas = document.getElementById("chatAnalyticsChart");
@@ -3575,13 +3562,9 @@ function wireAnalyticsModeControls() {
       paintModeButtons();
 
       if (canvas) canvas.classList.add("opacity-50");
-
       if (window.analyticsPayload) {
         renderChatAnalyticsChart(window.analyticsPayload);
-      } else if (window.chatAnalyticsState.payload) {
-        renderChatAnalyticsChart(window.chatAnalyticsState.payload);
       }
-      
       setTimeout(() => {
         if (canvas) canvas.classList.remove("opacity-50");
       }, 120);
@@ -3596,13 +3579,9 @@ function wireAnalyticsModeControls() {
       paintCompareButton();
 
       if (canvas) canvas.classList.add("opacity-50");
-
       if (window.analyticsPayload) {
         renderChatAnalyticsChart(window.analyticsPayload);
-      } else if (window.chatAnalyticsState.payload) {
-        renderChatAnalyticsChart(window.chatAnalyticsState.payload);
       }
-      
       setTimeout(() => {
         if (canvas) canvas.classList.remove("opacity-50");
       }, 120);
@@ -3642,7 +3621,6 @@ async function loadAnalyticsInsights(days, propertyId, pmcId) {
     }
 
     const raw = parsed.json || {};
-
     renderAnalyticsInsights({
       top_issue: raw.top_issue ? raw.top_issue.replaceAll("_", " ") : "No dominant issue yet",
       top_issue_detail: raw.top_issue_count
@@ -3657,29 +3635,14 @@ async function loadAnalyticsInsights(days, propertyId, pmcId) {
         ? `${fmtInt(raw.automation_count)} low-severity conversations could likely be automated.`
         : "As more repeat questions appear, this will tighten.",
       needs_human: raw.needs_human != null ? `${fmtInt(raw.needs_human || 0)} needs human` : "—",
-      needs_human_detail: raw.needs_human_pct != null
-        ? `${fmtPct(raw.needs_human_pct)} of sessions needed a human.`
-        : "No additional detail.",
+      needs_human_detail:
+        raw.needs_human_pct != null
+          ? `${fmtPct(raw.needs_human_pct)} of sessions needed a human.`
+          : "No additional detail.",
     });
   } catch (err) {
     console.error("loadAnalyticsInsights failed:", err);
-    renderAnalyticsInsights({
-      top_issue: "No dominant issue yet",
-      top_issue_detail: "We need more conversation volume before this becomes meaningful.",
-      high_risk: "No major risk spike",
-      high_risk_detail: "No concentrated high-risk pattern in the selected window.",
-      automation: "No clear automation win yet",
-      automation_detail: "As more repeat questions appear, this will tighten.",
-      needs_human: "—",
-      needs_human_detail: "No additional detail.",
-    });
   }
-}
-
-function initAnalyticsView() {
-  wireAnalyticsRangeButtons();
-  wireAnalyticsModeControls();
-  loadChatAnalytics();
 }
 
 async function loadTopProperties(days, propertyId, pmcId) {
@@ -3791,6 +3754,15 @@ document.addEventListener("change", (e) => {
   }, 120);
 });
 
+window.addEventListener("resize", () => {
+  clearTimeout(window.__analyticsHardResizeTimer);
+  window.__analyticsHardResizeTimer = setTimeout(() => {
+    if (window.analyticsPayload) {
+      renderChatAnalyticsChart(window.analyticsPayload);
+    }
+  }, 120);
+});
+
 function initAnalyticsSection() {
   if (!document.getElementById("view-analytics")) return;
   wireAnalyticsModeControls();
@@ -3799,10 +3771,6 @@ function initAnalyticsSection() {
     loadChatAnalytics();
   }
 }
-
-
-
-
 // ----------------------------
 // END OF Analytics
 // ----------------------------
@@ -5687,13 +5655,12 @@ function initRouting() {
       await window.Messages?.openView?.();
     }
 
-    if (key === "analytics") {
-      const days = document.getElementById("analyticsRange")?.value || 30;
-      requestAnimationFrame(() => {
-        loadChatAnalytics(days);
-        resizeChatAnalyticsChartSoon();
-      });
-    }
+if (key === "analytics") {
+  requestAnimationFrame(() => {
+    loadChatAnalytics();
+    resizeChatAnalyticsChartSoon();
+  });
+}
   }
 
   async function route() {
@@ -6627,7 +6594,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   initRouting();
   initSidebar();
   initPortfolioChart();
-  initAnalyticsSection();
   initRevenueReports();
   initSyncAllProperties();
   
