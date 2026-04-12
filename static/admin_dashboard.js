@@ -2662,7 +2662,13 @@ function currentCompareMode() {
 
 function analyticsModeValue(day, mode) {
   if (!day) return 0;
-  if (mode === "conversion") return Number(day.conversion || 0);
+
+  if (mode === "conversion") {
+    const raw = Number(day.conversion ?? 0);
+    // Support either 0–1 or 0–100 input
+    return raw <= 1 ? raw * 100 : raw;
+  }
+
   return Number(day.chats || 0);
 }
 
@@ -3292,7 +3298,7 @@ function renderChatAnalyticsChart(payload) {
   const overlayPointPlugin = {
   id: "analyticsOverlayPointPlugin",
   afterDatasetsDraw(chart) {
-    if (mode === "chats") return;
+    if (mode !== "chats") return;
 
     const { ctx } = chart;
     const activeMeta = chart.getDatasetMeta(1);
@@ -3302,9 +3308,10 @@ function renderChatAnalyticsChart(payload) {
 
     activeMeta.data.forEach((bar) => {
       const x = bar.x;
-const y = bar.y + (bar.base - bar.y) * 0.55;
+      const y = bar.y + (bar.base - bar.y) * 0.35;
 
-ctx.fillStyle = "rgba(110, 231, 183, 0.92)";
+      ctx.beginPath();
+      ctx.fillStyle = "rgba(251, 113, 133, 0.95)";
       ctx.strokeStyle = "rgba(255,255,255,0.95)";
       ctx.lineWidth = 1.5;
       ctx.arc(x, y, 5, 0, Math.PI * 2);
@@ -3320,50 +3327,87 @@ ctx.fillStyle = "rgba(110, 231, 183, 0.92)";
     type: "bar",
     data: {
       labels,
-      datasets: [
-        {
-          type: "bar",
-          label: "Prior period",
-          data: compare ? previousValues : previousValues.map(() => null),
-          backgroundColor(context) {
-            return priorBarGradient(context.chart);
-          },
-          borderRadius: 999,
-          borderSkipped: false,
-          order: 1,
-          grouped: false,
-          categoryPercentage: 1,
-          barPercentage: 0.95,
-          maxBarThickness: 32,
+      datasets: mode === "conversion"
+  ? [
+      {
+        type: "line",
+        label: "Prior period",
+        data: compare ? previousValues : previousValues.map(() => null),
+        borderColor: "rgba(134, 239, 172, 0.9)",
+        backgroundColor: "rgba(134, 239, 172, 0.14)",
+        borderWidth: 2,
+        tension: 0.35,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        fill: false,
+        order: 1,
+        yAxisID: "y",
+      },
+      {
+        type: "line",
+        label: "Conversion",
+        data: values,
+        borderColor: "rgba(59, 130, 246, 0.95)",
+        backgroundColor: "rgba(59, 130, 246, 0.10)",
+        borderWidth: 3,
+        tension: 0.35,
+        pointRadius: 4,
+        pointHoverRadius: 5,
+        pointBackgroundColor: "rgba(59, 130, 246, 1)",
+        pointBorderColor: "rgba(255,255,255,0.95)",
+        pointBorderWidth: 2,
+        fill: false,
+        order: 2,
+        yAxisID: "y",
+      }
+    ]
+  : [
+      {
+        type: "bar",
+        label: "Prior period",
+        data: compare ? previousValues : previousValues.map(() => null),
+        backgroundColor(context) {
+          return priorBarGradient(context.chart);
         },
-        {
-          type: "bar",
-          label: chartLabel,
-          data: values,
-          backgroundColor(context) {
-            return currentBarGradient(context.chart, context.dataIndex === selectedIndex);
-          },
-          borderRadius: 999,
-          borderSkipped: false,
-          order: 2,
-          grouped: false,
-          categoryPercentage: 1,
-          barPercentage: 0.72,
-          maxBarThickness: 22,
+        borderRadius: 999,
+        borderSkipped: false,
+        order: 1,
+        grouped: false,
+        categoryPercentage: 0.86,
+        barPercentage: 0.82,
+        maxBarThickness: 26,
+      },
+      {
+        type: "bar",
+        label: chartLabel,
+        data: values,
+        backgroundColor(context) {
+          return currentBarGradient(
+            context.chart,
+            context.dataIndex === selectedIndex
+          );
         },
-        {
-          type: "line",
-          label: "Trend",
-          data: trendValues,
-          borderColor: "rgba(148, 163, 184, 0.5)",
-          borderWidth: 2,
-          tension: 0.3,
-          pointRadius: 0,
-          pointHoverRadius: 0,
-          order: 0,
-          yAxisID: "y",
-        },
-      ],
+        borderRadius: 999,
+        borderSkipped: false,
+        order: 2,
+        grouped: false,
+        categoryPercentage: 0.86,
+        barPercentage: 0.62,
+        maxBarThickness: 20,
+      },
+      {
+        type: "line",
+        label: "Trend",
+        data: trendValues,
+        borderColor: "rgba(148, 163, 184, 0.5)",
+        borderWidth: 2,
+        tension: 0.3,
+        pointRadius: 0,
+        pointHoverRadius: 0,
+        order: 0,
+        yAxisID: "y",
+      }
+    ],
     },
     plugins: [hoverPlugin, eventPlugin, overlayPointPlugin],
     options: {
@@ -3412,27 +3456,28 @@ ctx.fillStyle = "rgba(110, 231, 183, 0.92)";
           border: { display: false },
         },
         y: {
-          beginAtZero: true,
-          suggestedMax: Math.max(
-            12,
-            Math.max(...values, ...previousValues, 0) * 1.3
-          ),
-          grid: {
-            color: "rgba(148,163,184,0.25)",
-            borderDash: [3, 4],
-            drawBorder: false,
-          },
-          ticks: {
-            display: false,
-            stepSize: Math.ceil(
-              Math.max(...values, ...previousValues, 10) / 5
-            ),
-          },
-          afterBuildTicks: (scale) => {
-            scale.ticks = scale.ticks.slice(0, -1);
-          },
-          border: { display: false },
-        },
+  beginAtZero: true,
+  suggestedMax:
+    mode === "conversion"
+      ? 100
+      : Math.max(12, Math.max(...values, ...previousValues, 0) * 1.3),
+  grid: {
+    color: "rgba(148,163,184,0.25)",
+    borderDash: [3, 4],
+    drawBorder: false,
+  },
+  ticks: {
+    display: false,
+    stepSize:
+      mode === "conversion"
+        ? 20
+        : Math.ceil(Math.max(...values, ...previousValues, 10) / 5),
+  },
+  afterBuildTicks: (scale) => {
+    scale.ticks = scale.ticks.slice(0, -1);
+  },
+  border: { display: false },
+},
       },
     },
   });
