@@ -2663,7 +2663,6 @@ function currentCompareMode() {
 function analyticsModeValue(day, mode) {
   if (!day) return 0;
   if (mode === "conversion") return Number(day.conversion || 0);
-  if (mode === "lost") return Number(day.lost_opportunity || 0);
   return Number(day.chats || 0);
 }
 
@@ -3037,13 +3036,11 @@ function showAnalyticsHover(day, chart, index) {
   const dateEl = card.querySelector("[data-hover-date]");
   const chatsEl = card.querySelector("[data-hover-chats]");
   const convEl = card.querySelector("[data-hover-conversion]");
-  const lostEl = card.querySelector("[data-hover-lost]");
   const signalEl = card.querySelector("[data-hover-signal]");
 
   if (dateEl) dateEl.textContent = `${day.day || "—"} · ${day.label || "—"}`;
   if (chatsEl) chatsEl.textContent = fmtInt(day.chats);
   if (convEl) convEl.textContent = fmtPct(day.conversion);
-  if (lostEl) lostEl.textContent = fmtInt(day.lost_opportunity);
   if (signalEl) signalEl.textContent = meta.label;
 
   const activeMeta = chart.getDatasetMeta(1);
@@ -3172,11 +3169,7 @@ function renderChatAnalyticsChart(payload) {
   window.chatAnalyticsState.selectedIndex = selectedIndex;
 
   const chartLabel =
-    mode === "conversion"
-      ? "Conversion"
-      : mode === "lost"
-      ? "Lost opportunity"
-      : "Chats";
+  mode === "conversion" ? "Conversion" : "Chats";
 
   if (window.chatAnalyticsChart) {
     try {
@@ -3309,16 +3302,9 @@ function renderChatAnalyticsChart(payload) {
 
     activeMeta.data.forEach((bar) => {
       const x = bar.x;
-      const y =
-        mode === "conversion"
-          ? bar.y + (bar.base - bar.y) * 0.55
-          : bar.y + (bar.base - bar.y) * 0.35;
+const y = bar.y + (bar.base - bar.y) * 0.55;
 
-      ctx.beginPath();
-      ctx.fillStyle =
-        mode === "conversion"
-          ? "rgba(110, 231, 183, 0.92)"
-          : "rgba(251, 113, 133, 0.95)";
+ctx.fillStyle = "rgba(110, 231, 183, 0.92)";
       ctx.strokeStyle = "rgba(255,255,255,0.95)";
       ctx.lineWidth = 1.5;
       ctx.arc(x, y, 5, 0, Math.PI * 2);
