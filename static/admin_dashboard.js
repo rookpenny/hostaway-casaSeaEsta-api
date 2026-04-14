@@ -3233,10 +3233,21 @@ document.addEventListener("change", (e) => {
   }, 120);
 });
 
+
+
 function initAnalyticsView() {
   wireAnalyticsRangeButtons();
   loadChatAnalytics();
 }
+
+function initAnalyticsSection() {
+  if (!document.getElementById("view-analytics")) return;
+  wireAnalyticsRangeButtons();
+  if (isAnalyticsVisible()) {
+    loadChatAnalytics();
+  }
+}
+
 // ----------------------------
 // END OF Analytics
 // ----------------------------
