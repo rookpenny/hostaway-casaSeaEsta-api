@@ -2602,7 +2602,6 @@ window.closeInlineManual = function () {
 
 
 
-
 // ----------------------------
 // Analytics
 // ----------------------------
@@ -2610,68 +2609,6 @@ window.chatAnalyticsState = {
   selectedIndex: null,
   payload: null,
 };
-
-function fmtPct(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
-  return `${Math.round(n)}%`;
-}
-
-function fmtInt(value) {
-  const n = Number(value);
-  if (!Number.isFinite(n)) return "—";
-  return n.toLocaleString();
-}
-
-function getAnalyticsFilters() {
-  return {
-    days: Number(document.getElementById("analyticsRange")?.value || 7),
-    propertyId: document.getElementById("analyticsPropertyFilter")?.value || "",
-    pmcId: document.getElementById("analyticsPmcFilter")?.value || "",
-  };
-}
-
-function buildAnalyticsQS({ days, propertyId, pmcId }) {
-  const qs = new URLSearchParams();
-  qs.set("days", String(days));
-  if (propertyId) qs.set("property_id", String(propertyId));
-  if (pmcId) qs.set("pmc_id", String(pmcId));
-  return qs.toString();
-}
-
-function setText(id, value) {
-  const el = document.getElementById(id);
-  if (!el) return;
-  el.textContent = value == null || value === "" ? "—" : String(value);
-}
-
-function setTextByData(key, value) {
-  const el = document.querySelector(`[data-drilldown="${key}"]`);
-  if (!el) return;
-  el.textContent = value == null || value === "" ? "—" : String(value);
-}
-
-function renderAnalyticsSummary(summary) {
-  const setKpi = (name, value) => {
-    const el = document.querySelector(`[data-kpi="${name}"]`);
-    if (!el) return;
-    el.textContent = value;
-  };
-
-  setKpi("sessions_total", fmtInt(summary.sessions_total));
-  setKpi("response_rate", fmtPct(summary.response_rate));
-  setKpi("followup_clicks", fmtInt(summary.followup_clicks));
-  setKpi("chat_errors", fmtInt(summary.chat_errors));
-}
-
-function getTopSignalLabel(day) {
-  const eventName = String(day?.event || "").toLowerCase();
-  if (eventName === "peak") return "Peak day";
-  if (eventName === "friction") return "Issue spike";
-  if (eventName === "inquiry") return "Inquiry surge";
-  if (eventName === "quiet") return "Quiet day";
-  return "Stable";
-}
 
 function renderAnalyticsDrilldown(day) {
   setText(
@@ -2689,10 +2626,10 @@ function renderAnalyticsDrilldown(day) {
 
   setTextByData("user_messages", day ? fmtInt(day.messages || 0) : "—");
 
-  // Temporary until backend gives assistant message count separately
-  setTextByData("assistant_messages", day ? "—" : "—");
+  // keep placeholder until backend gives separate assistant count
+  setTextByData("assistant_messages", "—");
 
-  setTextByData("signal", day ? getTopSignalLabel(day) : "—");
+  setTextByData("signal", day ? getEventMeta(day.event).label : "—");
 }
 
 function renderAnalyticsSummaryCards(days, selectedIndex) {
@@ -2739,15 +2676,15 @@ function renderAnalyticsAIRead(days) {
   const peakDay = [...days].sort((a, b) => Number(b.chats || 0) - Number(a.chats || 0))[0];
   const quietDay = [...days].sort((a, b) => Number(a.chats || 0) - Number(b.chats || 0))[0];
 
-  titleEl.textContent = "Chat volume builds and peaks around guest arrival support";
+  titleEl.textContent = "Volume builds into the stronger support days";
   bodyEl.textContent = `${peakDay.label} was the busiest day with ${fmtInt(
     peakDay.chats
   )} chats, while ${quietDay.label} was the quietest. Daily average was ${fmtInt(avgChats)} chats.`;
 
   pillsEl.innerHTML = `
-    <span class="rounded-full bg-indigo-50 px-3 py-1.5 font-semibold text-indigo-700">Peak: ${peakDay.label}</span>
-    <span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">Quietest: ${quietDay.label}</span>
-    <span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-700">Avg: ${fmtInt(avgChats)}/day</span>
+    <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">Peak: ${escapeHtml(peakDay.label || "—")}</span>
+    <span class="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">Quietest: ${escapeHtml(quietDay.label || "—")}</span>
+    <span class="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">Avg: ${fmtInt(avgChats)}/day</span>
   `;
 }
 
@@ -2779,34 +2716,36 @@ function renderSimpleChatBars(payload) {
     const chats = Number(day.chats || 0);
     const delta = Number(day.delta || 0);
     const barHeight = Math.max(18, Math.round((chats / maxChats) * 220));
-    const selected = index === selectedIndex;
+    const isSelected = index === selectedIndex;
 
-    const card = document.createElement("button");
-    card.type = "button";
-    card.className = `flex min-w-0 flex-col items-center justify-end gap-3 text-center ${
-      selected ? "" : ""
-    }`;
+    const col = document.createElement("button");
+    col.type = "button";
+    col.className = "flex min-w-0 flex-col items-center justify-end gap-3 text-center";
 
-    card.innerHTML = `
+    col.innerHTML = `
       <div class="flex flex-col items-center gap-1">
         <div class="text-[12px] font-semibold text-slate-400">${fmtInt(chats)}</div>
-        <div class="rounded-full px-2 py-1 text-[11px] font-semibold ${
-          delta >= 0
-            ? "bg-emerald-50 text-emerald-700"
-            : "bg-rose-50 text-rose-700"
-        }">
-          ${delta > 0 ? "+" : ""}${delta}%
-        </div>
+        ${
+          index === 0
+            ? `<div class="rounded-full bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-400">—</div>`
+            : `<div class="rounded-full px-2 py-1 text-[11px] font-semibold ${
+                delta >= 0
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-rose-50 text-rose-700"
+              }">
+                ${delta > 0 ? "+" : ""}${delta}%
+              </div>`
+        }
       </div>
 
       <div class="relative flex h-[240px] w-full items-end justify-center rounded-2xl px-2 pb-2 transition-all ${
-        selected
+        isSelected
           ? "border border-indigo-200 bg-indigo-50/70 shadow-[0_10px_30px_rgba(79,70,229,0.10)]"
           : "bg-slate-50"
       }">
         <div
           class="w-full rounded-[16px] ${
-            selected
+            isSelected
               ? "bg-gradient-to-t from-[#4338CA] to-[#9BB7FF] shadow-[0_12px_28px_rgba(67,56,202,0.28)]"
               : "bg-gradient-to-t from-[#356CF6] to-[#8FB2FF] shadow-[0_10px_24px_rgba(53,108,246,0.18)]"
           }"
@@ -2814,33 +2753,34 @@ function renderSimpleChatBars(payload) {
         ></div>
       </div>
 
-      <div>
-        <div class="text-[13px] font-medium ${selected ? "text-slate-950" : "text-slate-500"}">
-          ${day.label || "—"}
+      <div class="text-center">
+        <div class="text-[13px] font-medium ${isSelected ? "text-slate-950" : "text-slate-500"}">
+          ${escapeHtml(day.label || "—")}
         </div>
         <div class="mt-1 text-[11px] text-slate-400">
-          ${day.day || ""}
+          ${escapeHtml(day.day || "")}
         </div>
       </div>
     `;
 
-    card.addEventListener("click", () => {
+    col.addEventListener("click", () => {
       window.chatAnalyticsState.selectedIndex = index;
       renderSimpleChatBars(payload);
       renderAnalyticsSummaryCards(days, index);
-      renderAnalyticsDrilldown(days[index]);
+      renderAnalyticsDrilldown(days[index] || null);
     });
 
-    host.appendChild(card);
+    host.appendChild(col);
   });
 
   renderAnalyticsSummaryCards(days, selectedIndex);
-  renderAnalyticsDrilldown(days[selectedIndex]);
+  renderAnalyticsDrilldown(days[selectedIndex] || null);
 }
 
 function wireAnalyticsRangeButtons() {
   const rangeButtons = Array.from(document.querySelectorAll(".analytics-range-btn"));
   const rangeSelect = document.getElementById("analyticsRange");
+
   if (!rangeButtons.length || !rangeSelect) return;
 
   function paint() {
@@ -2858,6 +2798,7 @@ function wireAnalyticsRangeButtons() {
     btn.addEventListener("click", () => {
       const next = btn.getAttribute("data-range");
       if (!next) return;
+
       rangeSelect.value = next;
       window.chatAnalyticsState.selectedIndex = null;
       paint();
@@ -2866,6 +2807,99 @@ function wireAnalyticsRangeButtons() {
   });
 
   paint();
+}
+
+async function loadAnalyticsInsights(days, propertyId, pmcId) {
+  const qs = new URLSearchParams();
+  if (propertyId) qs.set("property_id", propertyId);
+  if (pmcId) qs.set("pmc_id", pmcId);
+
+  try {
+    const res = await fetch(`/analytics/ai-insights?${qs.toString()}`, {
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    if (res.status === 401 || res.status === 403) return loginRedirect();
+
+    const parsed = await safeReadJson(res);
+    if (!parsed.ok || !parsed.json) {
+      renderAnalyticsInsights({
+        top_issue: "No dominant issue yet",
+        top_issue_detail: "We need more conversation volume before this becomes meaningful.",
+        high_risk: "No major risk spike",
+        high_risk_detail: "No concentrated high-risk pattern in the selected window.",
+        automation: "No clear automation win yet",
+        automation_detail: "As more repeat questions appear, this will tighten.",
+        needs_human: "—",
+        needs_human_detail: "No additional detail.",
+      });
+      return;
+    }
+
+    const raw = parsed.json || {};
+
+    renderAnalyticsInsights({
+      top_issue: raw.top_issue ? raw.top_issue.replaceAll("_", " ") : "No dominant issue yet",
+      top_issue_detail: raw.top_issue_count
+        ? `${fmtInt(raw.top_issue_count)} conversations point to this issue.`
+        : "We need more conversation volume before this becomes meaningful.",
+      high_risk: raw.high_risk ? raw.high_risk.replaceAll("_", " ") : "No major risk spike",
+      high_risk_detail: raw.high_risk_count
+        ? `${fmtInt(raw.high_risk_count)} high-risk conversations in this slice.`
+        : "No concentrated high-risk pattern in the selected window.",
+      automation: raw.automation ? raw.automation.replaceAll("_", " ") : "No clear automation win yet",
+      automation_detail: raw.automation_count
+        ? `${fmtInt(raw.automation_count)} low-severity conversations could likely be automated.`
+        : "As more repeat questions appear, this will tighten.",
+      needs_human: raw.needs_human != null ? `${fmtInt(raw.needs_human || 0)} needs human` : "—",
+      needs_human_detail: raw.needs_human_pct != null
+        ? `${fmtPct(raw.needs_human_pct)} of sessions needed a human.`
+        : "No additional detail.",
+    });
+  } catch (err) {
+    console.error("loadAnalyticsInsights failed:", err);
+    renderAnalyticsInsights({
+      top_issue: "No dominant issue yet",
+      top_issue_detail: "We need more conversation volume before this becomes meaningful.",
+      high_risk: "No major risk spike",
+      high_risk_detail: "No concentrated high-risk pattern in the selected window.",
+      automation: "No clear automation win yet",
+      automation_detail: "As more repeat questions appear, this will tighten.",
+      needs_human: "—",
+      needs_human_detail: "No additional detail.",
+    });
+  }
+}
+
+function initAnalyticsView() {
+  wireAnalyticsRangeButtons();
+  wireAnalyticsModeControls();
+  loadChatAnalytics();
+}
+
+async function loadTopProperties(days, propertyId, pmcId) {
+  const qs = new URLSearchParams();
+  qs.set("days", String(days));
+  qs.set("limit", "10");
+  if (propertyId) qs.set("property_id", propertyId);
+  if (pmcId) qs.set("pmc_id", pmcId);
+
+  const res = await fetch(`/admin/analytics/chat/top-properties?${qs.toString()}`, {
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
+
+  if (res.status === 401 || res.status === 403) return loginRedirect();
+
+  const parsed = await safeReadJson(res);
+  if (!parsed.ok) {
+    console.error("top properties failed", parsed.status, parsed.text);
+    renderAnalyticsTopProperties([]);
+    return;
+  }
+
+  renderAnalyticsTopProperties(parsed.json?.items || []);
 }
 
 async function loadChatAnalytics() {
@@ -2892,19 +2926,40 @@ async function loadChatAnalytics() {
 
     const payload = tsParsed.json || {};
     window.chatAnalyticsState.payload = payload;
+    window.analyticsPayload = payload;
 
     renderSimpleChatBars(payload);
-    renderAnalyticsAIRead(Array.isArray(payload.days) ? payload.days : []);
-
-    // keep these if you're still using the rest of the analytics page
     renderAnalyticsLifecycle(payload.lifecycle || {});
     renderAnalyticsPeak(payload.hours || {});
     renderAnalyticsEmotions(payload.emotions || {}, payload.emotion_spike || {});
+    renderAnalyticsAIRead(Array.isArray(payload.days) ? payload.days : []);
 
-    await Promise.allSettled([
+    const daysArr = Array.isArray(payload.days) ? payload.days : [];
+    const selectedIndex =
+      Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
+      window.chatAnalyticsState.selectedIndex >= 0 &&
+      window.chatAnalyticsState.selectedIndex < daysArr.length
+        ? window.chatAnalyticsState.selectedIndex
+        : Math.max(daysArr.length - 1, 0);
+
+    if (daysArr.length) {
+      window.chatAnalyticsState.selectedIndex = selectedIndex;
+      renderAnalyticsSummaryCards(daysArr, selectedIndex);
+      renderAnalyticsDrilldown(daysArr[selectedIndex] || null);
+    } else {
+      renderAnalyticsDrilldown(null);
+    }
+
+    const results = await Promise.allSettled([
       loadTopProperties(days, propertyId, pmcId),
       loadAnalyticsInsights(days, propertyId, pmcId),
     ]);
+
+    results.forEach((r) => {
+      if (r.status === "rejected") {
+        console.error("analytics side load failed:", r.reason);
+      }
+    });
   } catch (err) {
     console.error("loadChatAnalytics failed:", err);
     toast("Analytics failed to load.");
@@ -2921,6 +2976,7 @@ function isAnalyticsVisible() {
 document.addEventListener("change", (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
+
   if (!["analyticsRange", "analyticsPropertyFilter", "analyticsPmcFilter"].includes(t.id)) return;
   if (!isAnalyticsVisible()) return;
 
@@ -2933,16 +2989,19 @@ document.addEventListener("change", (e) => {
 
 function initAnalyticsSection() {
   if (!document.getElementById("view-analytics")) return;
+  wireAnalyticsModeControls();
   wireAnalyticsRangeButtons();
   if (isAnalyticsVisible()) {
     loadChatAnalytics();
   }
 }
+
+
+
+
 // ----------------------------
 // END OF Analytics
 // ----------------------------
-
-
 
 // Prevent row click from firing when interacting with controls
 document.addEventListener("click", (e) => {
@@ -4825,10 +4884,10 @@ function initRouting() {
     }
 
     if (key === "analytics") {
-      requestAnimationFrame(() => {
-        loadChatAnalytics();
-      });
-    }
+  requestAnimationFrame(() => {
+    loadChatAnalytics();
+  });
+}
   }
 
   async function route() {
