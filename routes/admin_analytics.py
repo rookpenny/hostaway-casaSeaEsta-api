@@ -366,6 +366,10 @@ def timeseries(
             select
                 date_trunc('day', created_at) as bucket,
                 count(*) as messages,
+        
+                count(*) filter (where sender in ('guest','user')) as messages_user,
+                count(*) filter (where sender in ('assistant','bot')) as messages_assistant,
+        
                 count(*) filter (where category = 'error') as errors
             from filtered_msgs
             group by 1
@@ -392,6 +396,8 @@ def timeseries(
             coalesce(ds.lost_opportunity, 0) as lost_opportunity,
             coalesce(ds.responded, 0) as responded,
             coalesce(dm.messages, 0) as messages,
+            coalesce(dm.messages_user, 0) as messages_user,
+            coalesce(dm.messages_assistant, 0) as messages_assistant,
             coalesce(dm.errors, 0) as errors
         from daily_sessions ds
         full outer join daily_msgs dm on dm.bucket = ds.bucket
@@ -566,6 +572,10 @@ def timeseries(
             "conversion": round((responded / chats) * 100) if chats else 0,
             "lost_opportunity": int(_num(r.get("lost_opportunity"), 0)),
             "messages": int(_num(r.get("messages"), 0)),
+        
+            "messages_user": int(_num(r.get("messages_user"), 0)),
+            "messages_assistant": int(_num(r.get("messages_assistant"), 0)),
+        
             "errors": int(_num(r.get("errors"), 0)),
         }
 
@@ -610,15 +620,18 @@ def timeseries(
         max_chats = max(max_chats, cur["chats"])
         max_conv = max(max_conv, cur["conversion"])
         max_lost = max(max_lost, cur["lost_opportunity"])
-
         items.append({
             "date": key,
-            "label": d.strftime("%b %-d") if d else key,
+            "label": d.strftime("%b %-d"),
             "day": d.strftime("%a"),
             "chats": cur["chats"],
             "conversion": cur["conversion"],
             "lost_opportunity": cur["lost_opportunity"],
             "messages": cur["messages"],
+        
+            "messages_user": cur.get("messages_user", 0),
+            "messages_assistant": cur.get("messages_assistant", 0),
+        
             "errors": cur["errors"],
             "delta": delta,
             "event": "stable",
