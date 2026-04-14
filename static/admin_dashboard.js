@@ -2909,13 +2909,12 @@ function renderAnalyticsPeak(hours) {
 
   if (!host || !peakWindow) return;
 
-  const entries = Object.entries(hours || {}).map(([hour, count]) => ({
-    hour,
-    count: Number(count || 0),
-  }));
+  const items = Array.isArray(hours?.items) ? hours.items : [];
+  const peak = hours?.peak_window || "—";
 
-  if (!entries.length) {
-    peakWindow.textContent = "—";
+  peakWindow.textContent = peak;
+
+  if (!items.length) {
     host.innerHTML = `<div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500"><div>—</div><div class="h-2.5 rounded-full bg-white"></div><div class="text-right">—</div></div>`;
     if (ring1) ring1.setAttribute("stroke-dasharray", "0 999");
     if (ring2) ring2.setAttribute("stroke-dasharray", "0 999");
@@ -2923,28 +2922,32 @@ function renderAnalyticsPeak(hours) {
     return;
   }
 
-  const sorted = [...entries].sort((a, b) => b.count - a.count).slice(0, 3);
-  const max = sorted[0]?.count || 1;
+  const sorted = [...items].sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+  const top3 = sorted.slice(0, 3);
+  const max = Math.max(...top3.map((x) => Number(x.value || 0)), 1);
 
-  peakWindow.textContent = sorted[0]?.hour || "—";
-
-  host.innerHTML = sorted
+  host.innerHTML = top3
     .map((item) => {
-      const width = Math.max(8, Math.round((item.count / max) * 100));
+      const value = Number(item.value || 0);
+      const width = Math.max(8, Math.round((value / max) * 100));
       return `
         <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
-          <div>${escapeHtml(item.hour)}</div>
+          <div>${escapeHtml(item.label || "—")}</div>
           <div class="h-2.5 rounded-full bg-white overflow-hidden">
             <div class="h-2.5 rounded-full bg-slate-900" style="width:${width}%"></div>
           </div>
-          <div class="text-right">${fmtInt(item.count)}</div>
+          <div class="text-right">${fmtInt(value)}</div>
         </div>
       `;
     })
     .join("");
 
   const circumference = 2 * Math.PI * 74;
-  const vals = [sorted[0]?.count || 0, sorted[1]?.count || 0, sorted[2]?.count || 0];
+  const vals = [
+    Number(top3[0]?.value || 0),
+    Number(top3[1]?.value || 0),
+    Number(top3[2]?.value || 0),
+  ];
   const total = vals.reduce((a, b) => a + b, 0) || 1;
 
   const seg1 = (vals[0] / total) * circumference;
@@ -2972,64 +2975,40 @@ function renderAnalyticsEmotions(emotions, spike) {
 
   if (!host) return;
 
-  const entries = Object.entries(emotions || {})
-    .map(([key, value]) => ({ key, value: Number(value || 0) }))
-    .filter((x) => x.value > 0);
+  const items = Array.isArray(emotions?.items) ? emotions.items : [];
 
-  if (!entries.length) {
+  if (!items.length) {
     host.innerHTML = `<div class="text-sm text-slate-500">No emotion data yet.</div>`;
     if (spikeTitle) spikeTitle.textContent = "No emotional trend yet";
     if (spikeBody) spikeBody.textContent = "We’ll surface the strongest tension pattern from current conversation data.";
     return;
   }
 
-  const labelMap = {
-    panicked: "Panicked",
-    angry: "Angry",
-    upset: "Upset",
-    confused: "Confused",
-    worried: "Worried",
-    calm: "Calm",
-    happy: "Happy",
-  };
-
   const toneClass = {
-    panicked: "bg-rose-500",
-    angry: "bg-rose-400",
-    upset: "bg-amber-400",
-    confused: "bg-blue-400",
-    worried: "bg-indigo-400",
-    calm: "bg-emerald-400",
-    happy: "bg-yellow-400",
+    emerald: "bg-emerald-400",
+    blue: "bg-blue-400",
+    indigo: "bg-indigo-400",
+    amber: "bg-amber-400",
+    rose: "bg-rose-400",
+    orange: "bg-orange-400",
   };
 
-  const max = Math.max(...entries.map((x) => x.value), 1);
-
-  host.innerHTML = entries
-    .sort((a, b) => b.value - a.value)
-    .map((item) => {
-      const width = Math.max(8, Math.round((item.value / max) * 100));
-      return `
-        <div>
-          <div class="mb-2 flex items-center justify-between text-sm">
-            <span class="font-semibold text-slate-800">${escapeHtml(labelMap[item.key] || item.key)}</span>
-            <span class="text-slate-500">${fmtInt(item.value)}</span>
-          </div>
-          <div class="h-3 rounded-full bg-slate-100 overflow-hidden">
-            <div class="h-3 rounded-full ${toneClass[item.key] || "bg-slate-400"}" style="width:${width}%"></div>
-          </div>
+  host.innerHTML = items
+    .map((item) => `
+      <div>
+        <div class="mb-2 flex items-center justify-between text-sm">
+          <span class="font-semibold text-slate-800">${escapeHtml(item.label || "—")}</span>
+          <span class="text-slate-500">${fmtInt(item.value || 0)}%</span>
         </div>
-      `;
-    })
+        <div class="h-3 rounded-full bg-slate-100 overflow-hidden">
+          <div class="h-3 rounded-full ${toneClass[item.tone] || "bg-slate-400"}" style="width:${Math.max(0, Math.min(100, Number(item.value || 0)))}%"></div>
+        </div>
+      </div>
+    `)
     .join("");
 
-  if (spikeTitle) {
-    spikeTitle.textContent = spike?.title || "Emotional spike";
-  }
-  if (spikeBody) {
-    spikeBody.textContent =
-      spike?.body || "We’ll surface the strongest tension pattern from current conversation data.";
-  }
+  if (spikeTitle) spikeTitle.textContent = spike?.title || "Emotional spike";
+  if (spikeBody) spikeBody.textContent = spike?.body || "We’ll surface the strongest tension pattern from current conversation data.";
 }
 
 function renderAnalyticsTopProperties(items) {
@@ -3047,8 +3026,8 @@ function renderAnalyticsTopProperties(items) {
         <td class="py-4 pr-4 font-semibold text-slate-900">${escapeHtml(item.property_name || "—")}</td>
         <td class="py-4 pr-4 text-slate-600">${fmtInt(item.sessions)}</td>
         <td class="py-4 pr-4 text-slate-600">${fmtInt(item.messages)}</td>
-        <td class="py-4 pr-4 text-slate-600">${fmtPct(item.followup_ctr)}</td>
-        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.errors)}</td>
+        <td class="py-4 pr-4 text-slate-600">${fmtPct(item.followup_conversion_rate)}</td>
+        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.chat_errors)}</td>
         <td class="py-4 pr-4 text-slate-600">${fmtInt(item.escalations)}</td>
       </tr>
     `)
