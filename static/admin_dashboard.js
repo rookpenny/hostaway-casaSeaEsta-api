@@ -2610,6 +2610,68 @@ window.chatAnalyticsState = {
   payload: null,
 };
 
+function fmtInt(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return n.toLocaleString();
+}
+
+function fmtPct(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n)) return "—";
+  return `${Math.round(n)}%`;
+}
+
+function setText(id, value) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = value == null || value === "" ? "—" : String(value);
+}
+
+function setTextByData(key, value) {
+  const el = document.querySelector(`[data-drilldown="${key}"]`);
+  if (!el) return;
+  el.textContent = value == null || value === "" ? "—" : String(value);
+}
+
+function getAnalyticsFilters() {
+  return {
+    days: Number(document.getElementById("analyticsRange")?.value || 7),
+    propertyId: document.getElementById("analyticsPropertyFilter")?.value || "",
+    pmcId: document.getElementById("analyticsPmcFilter")?.value || "",
+  };
+}
+
+function buildAnalyticsQS({ days, propertyId, pmcId }) {
+  const qs = new URLSearchParams();
+  qs.set("days", String(days));
+  if (propertyId) qs.set("property_id", String(propertyId));
+  if (pmcId) qs.set("pmc_id", String(pmcId));
+  return qs.toString();
+}
+
+function getEventMeta(eventKey) {
+  const key = String(eventKey || "").toLowerCase();
+  if (key === "peak") return { label: "Peak day" };
+  if (key === "friction") return { label: "Issue spike" };
+  if (key === "inquiry") return { label: "Inquiry surge" };
+  if (key === "quiet") return { label: "Quiet day" };
+  return { label: "Stable" };
+}
+
+function renderAnalyticsSummary(summary) {
+  const setKpi = (name, value) => {
+    const el = document.querySelector(`[data-kpi="${name}"]`);
+    if (!el) return;
+    el.textContent = value;
+  };
+
+  setKpi("sessions_total", fmtInt(summary.sessions_total));
+  setKpi("response_rate", fmtPct(summary.response_rate));
+  setKpi("followup_clicks", fmtInt(summary.followup_clicks));
+  setKpi("chat_errors", fmtInt(summary.chat_errors));
+}
+
 function renderAnalyticsDrilldown(day) {
   setText(
     "analytics-drilldown-date",
@@ -2626,7 +2688,7 @@ function renderAnalyticsDrilldown(day) {
 
   setTextByData("user_messages", day ? fmtInt(day.messages || 0) : "—");
 
-  // keep placeholder until backend gives separate assistant count
+  // Placeholder until backend provides separate assistant count
   setTextByData("assistant_messages", "—");
 
   setTextByData("signal", day ? getEventMeta(day.event).label : "—");
@@ -2809,6 +2871,189 @@ function wireAnalyticsRangeButtons() {
   paint();
 }
 
+function renderAnalyticsLifecycle(lifecycle) {
+  const stages = {
+    inquiry: lifecycle?.inquiry || 0,
+    upcoming: lifecycle?.upcoming || 0,
+    current: lifecycle?.current || lifecycle?.in_stay || 0,
+    post: lifecycle?.post || lifecycle?.checked_out || 0,
+  };
+
+  const total = Object.values(stages).reduce((a, b) => a + Number(b || 0), 0) || 1;
+
+  Object.entries(stages).forEach(([key, value]) => {
+    setText(`analytics-stage-${key}`, `${fmtInt(value)} · ${Math.round((Number(value) / total) * 100)}%`);
+    const bar = document.getElementById(`analytics-stage-${key}-bar`);
+    if (bar) bar.style.width = `${Math.round((Number(value) / total) * 100)}%`;
+  });
+}
+
+function renderAnalyticsPeak(hours) {
+  const host = document.getElementById("analytics-hourly-bars");
+  const peakWindow = document.getElementById("analytics-peak-window");
+  const ring1 = document.getElementById("analytics-peak-ring-1");
+  const ring2 = document.getElementById("analytics-peak-ring-2");
+  const ring3 = document.getElementById("analytics-peak-ring-3");
+
+  if (!host || !peakWindow) return;
+
+  const entries = Object.entries(hours || {}).map(([hour, count]) => ({
+    hour,
+    count: Number(count || 0),
+  }));
+
+  if (!entries.length) {
+    peakWindow.textContent = "—";
+    host.innerHTML = `<div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500"><div>—</div><div class="h-2.5 rounded-full bg-white"></div><div class="text-right">—</div></div>`;
+    if (ring1) ring1.setAttribute("stroke-dasharray", "0 999");
+    if (ring2) ring2.setAttribute("stroke-dasharray", "0 999");
+    if (ring3) ring3.setAttribute("stroke-dasharray", "0 999");
+    return;
+  }
+
+  const sorted = [...entries].sort((a, b) => b.count - a.count).slice(0, 3);
+  const max = sorted[0]?.count || 1;
+
+  peakWindow.textContent = sorted[0]?.hour || "—";
+
+  host.innerHTML = sorted
+    .map((item) => {
+      const width = Math.max(8, Math.round((item.count / max) * 100));
+      return `
+        <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
+          <div>${escapeHtml(item.hour)}</div>
+          <div class="h-2.5 rounded-full bg-white overflow-hidden">
+            <div class="h-2.5 rounded-full bg-slate-900" style="width:${width}%"></div>
+          </div>
+          <div class="text-right">${fmtInt(item.count)}</div>
+        </div>
+      `;
+    })
+    .join("");
+
+  const circumference = 2 * Math.PI * 74;
+  const vals = [sorted[0]?.count || 0, sorted[1]?.count || 0, sorted[2]?.count || 0];
+  const total = vals.reduce((a, b) => a + b, 0) || 1;
+
+  const seg1 = (vals[0] / total) * circumference;
+  const seg2 = (vals[1] / total) * circumference;
+  const seg3 = (vals[2] / total) * circumference;
+
+  if (ring1) {
+    ring1.setAttribute("stroke-dasharray", `${seg1} ${circumference}`);
+    ring1.setAttribute("stroke-dashoffset", `0`);
+  }
+  if (ring2) {
+    ring2.setAttribute("stroke-dasharray", `${seg2} ${circumference}`);
+    ring2.setAttribute("stroke-dashoffset", `${-seg1}`);
+  }
+  if (ring3) {
+    ring3.setAttribute("stroke-dasharray", `${seg3} ${circumference}`);
+    ring3.setAttribute("stroke-dashoffset", `${-(seg1 + seg2)}`);
+  }
+}
+
+function renderAnalyticsEmotions(emotions, spike) {
+  const host = document.getElementById("analytics-emotion-bars");
+  const spikeTitle = document.getElementById("analytics-emotion-spike-title");
+  const spikeBody = document.getElementById("analytics-emotion-spike-body");
+
+  if (!host) return;
+
+  const entries = Object.entries(emotions || {})
+    .map(([key, value]) => ({ key, value: Number(value || 0) }))
+    .filter((x) => x.value > 0);
+
+  if (!entries.length) {
+    host.innerHTML = `<div class="text-sm text-slate-500">No emotion data yet.</div>`;
+    if (spikeTitle) spikeTitle.textContent = "No emotional trend yet";
+    if (spikeBody) spikeBody.textContent = "We’ll surface the strongest tension pattern from current conversation data.";
+    return;
+  }
+
+  const labelMap = {
+    panicked: "Panicked",
+    angry: "Angry",
+    upset: "Upset",
+    confused: "Confused",
+    worried: "Worried",
+    calm: "Calm",
+    happy: "Happy",
+  };
+
+  const toneClass = {
+    panicked: "bg-rose-500",
+    angry: "bg-rose-400",
+    upset: "bg-amber-400",
+    confused: "bg-blue-400",
+    worried: "bg-indigo-400",
+    calm: "bg-emerald-400",
+    happy: "bg-yellow-400",
+  };
+
+  const max = Math.max(...entries.map((x) => x.value), 1);
+
+  host.innerHTML = entries
+    .sort((a, b) => b.value - a.value)
+    .map((item) => {
+      const width = Math.max(8, Math.round((item.value / max) * 100));
+      return `
+        <div>
+          <div class="mb-2 flex items-center justify-between text-sm">
+            <span class="font-semibold text-slate-800">${escapeHtml(labelMap[item.key] || item.key)}</span>
+            <span class="text-slate-500">${fmtInt(item.value)}</span>
+          </div>
+          <div class="h-3 rounded-full bg-slate-100 overflow-hidden">
+            <div class="h-3 rounded-full ${toneClass[item.key] || "bg-slate-400"}" style="width:${width}%"></div>
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  if (spikeTitle) {
+    spikeTitle.textContent = spike?.title || "Emotional spike";
+  }
+  if (spikeBody) {
+    spikeBody.textContent =
+      spike?.body || "We’ll surface the strongest tension pattern from current conversation data.";
+  }
+}
+
+function renderAnalyticsTopProperties(items) {
+  const body = document.getElementById("analyticsTopPropsBody");
+  if (!body) return;
+
+  if (!Array.isArray(items) || !items.length) {
+    body.innerHTML = `<tr><td class="py-4 text-slate-500" colspan="6">No property data yet.</td></tr>`;
+    return;
+  }
+
+  body.innerHTML = items
+    .map((item) => `
+      <tr class="border-b border-slate-100">
+        <td class="py-4 pr-4 font-semibold text-slate-900">${escapeHtml(item.property_name || "—")}</td>
+        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.sessions)}</td>
+        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.messages)}</td>
+        <td class="py-4 pr-4 text-slate-600">${fmtPct(item.followup_ctr)}</td>
+        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.errors)}</td>
+        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.escalations)}</td>
+      </tr>
+    `)
+    .join("");
+}
+
+function renderAnalyticsInsights(data) {
+  setText("insight-top-issue", data?.top_issue || "—");
+  setText("insight-top-issue-detail", data?.top_issue_detail || "—");
+  setText("insight-automation", data?.automation || "—");
+  setText("insight-automation-detail", data?.automation_detail || "—");
+  setText("insight-risk", data?.high_risk || "—");
+  setText("insight-risk-detail", data?.high_risk_detail || "—");
+  setText("insight-human", data?.needs_human || "—");
+  setText("insight-human-detail", data?.needs_human_detail || "—");
+}
+
 async function loadAnalyticsInsights(days, propertyId, pmcId) {
   const qs = new URLSearchParams();
   if (propertyId) qs.set("property_id", propertyId);
@@ -2870,12 +3115,6 @@ async function loadAnalyticsInsights(days, propertyId, pmcId) {
       needs_human_detail: "No additional detail.",
     });
   }
-}
-
-function initAnalyticsView() {
-  wireAnalyticsRangeButtons();
-  wireAnalyticsModeControls();
-  loadChatAnalytics();
 }
 
 async function loadTopProperties(days, propertyId, pmcId) {
@@ -2987,18 +3226,10 @@ document.addEventListener("change", (e) => {
   }, 120);
 });
 
-function initAnalyticsSection() {
-  if (!document.getElementById("view-analytics")) return;
-  wireAnalyticsModeControls();
+function initAnalyticsView() {
   wireAnalyticsRangeButtons();
-  if (isAnalyticsVisible()) {
-    loadChatAnalytics();
-  }
+  loadChatAnalytics();
 }
-
-
-
-
 // ----------------------------
 // END OF Analytics
 // ----------------------------
