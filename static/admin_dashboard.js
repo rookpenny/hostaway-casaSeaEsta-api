@@ -2686,10 +2686,15 @@ function renderAnalyticsDrilldown(day) {
     day ? `${delta > 0 ? "+" : ""}${delta}%` : "—"
   );
 
-  setTextByData("user_messages", day ? fmtInt(day.messages || 0) : "—");
+  setTextByData(
+    "user_messages",
+    day ? fmtInt(day.messages_user || 0) : "—"
+  );
 
-  // Placeholder until backend provides separate assistant count
-  setTextByData("assistant_messages", "—");
+  setTextByData(
+    "assistant_messages",
+    day ? fmtInt(day.messages_assistant || 0) : "—"
+  );
 
   setTextByData("signal", day ? getEventMeta(day.event).label : "—");
 }
