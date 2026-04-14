@@ -2915,7 +2915,13 @@ function renderAnalyticsPeak(hours) {
   peakWindow.textContent = peak;
 
   if (!items.length) {
-    host.innerHTML = `<div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500"><div>—</div><div class="h-2.5 rounded-full bg-white"></div><div class="text-right">—</div></div>`;
+    host.innerHTML = `
+      <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
+        <div>—</div>
+        <div class="h-2.5 rounded-full bg-white"></div>
+        <div class="text-right">—</div>
+      </div>
+    `;
     if (ring1) ring1.setAttribute("stroke-dasharray", "0 999");
     if (ring2) ring2.setAttribute("stroke-dasharray", "0 999");
     if (ring3) ring3.setAttribute("stroke-dasharray", "0 999");
