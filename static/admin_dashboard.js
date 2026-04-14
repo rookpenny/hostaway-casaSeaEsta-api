@@ -2756,6 +2756,7 @@ function renderSimpleChatBars(payload) {
 
   const days = Array.isArray(payload?.days) ? payload.days : [];
   host.innerHTML = "";
+  host.style.gridTemplateColumns = "";
 
   if (!days.length) {
     host.innerHTML = `<div class="col-span-full rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No analytics data yet.</div>`;
@@ -2773,6 +2774,12 @@ function renderSimpleChatBars(payload) {
       : days.length - 1;
 
   window.chatAnalyticsState.selectedIndex = selectedIndex;
+
+  const colWidth = days.length <= 7 ? 1 : 88;
+  host.style.gridTemplateColumns =
+    days.length <= 7
+      ? `repeat(${days.length}, minmax(0, 1fr))`
+      : `repeat(${days.length}, minmax(${colWidth}px, ${colWidth}px))`;
 
   days.forEach((day, index) => {
     const chats = Number(day.chats || 0);
