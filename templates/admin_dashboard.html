@@ -2188,12 +2188,6 @@
       </div>
 
       <div class="flex flex-wrap gap-3">
-        <div class="analytics-top-pill-wrap">
-          <button type="button" class="analytics-range-btn is-active" data-range="7">7D</button>
-          <button type="button" class="analytics-range-btn" data-range="14">14D</button>
-          <button type="button" class="analytics-range-btn" data-range="30">30D</button>
-        </div>
-
         {% if user_role == "super" %}
         <select id="analyticsPmcFilter" class="h-11 rounded-full border border-white/15 bg-white/10 px-4 text-sm font-medium text-white backdrop-blur-sm focus:outline-none">
           <option value="" class="text-slate-900">All PMCs</option>
@@ -2253,132 +2247,105 @@
 
   <div class="grid gap-6 xl:grid-cols-[1.55fr_0.95fr]">
     <div class="analytics-shell">
-      <div class="analytics-shell">
-  <div class="border-b border-slate-100 px-6 py-5 sm:px-7">
-    <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-      <div class="max-w-2xl">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-500">
-          Trend chart
-        </div>
-        <div class="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-slate-950 sm:text-[38px]">
-          Chats per day
-        </div>
-        <div class="mt-2 max-w-xl text-[15px] leading-7 text-slate-500">
-          A simpler daily chat view with dates, day-over-day change, AI read, and day drill-down.
+      <div class="border-b border-slate-100 px-6 py-5 sm:px-7">
+        <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div class="max-w-2xl">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-500">
+              Trend chart
+            </div>
+            <div class="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-slate-950 sm:text-[38px]">
+              Chats per day
+            </div>
+            <div class="mt-2 max-w-xl text-[15px] leading-7 text-slate-500">
+              A simpler daily chat view with dates, day-over-day change, AI read, and day drill-down.
+            </div>
+          </div>
+
+          <div class="flex flex-col items-start gap-3 xl:items-end">
+            <select id="analyticsRange" class="hidden">
+              <option value="7" selected>7</option>
+              <option value="14">14</option>
+              <option value="30">30</option>
+            </select>
+
+            <div class="analytics-top-pill-wrap">
+              <button type="button" class="analytics-range-btn is-active" data-range="7">7D</button>
+              <button type="button" class="analytics-range-btn" data-range="14">14D</button>
+              <button type="button" class="analytics-range-btn" data-range="30">30D</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="flex flex-col items-start gap-3 xl:items-end">
-        <select id="analyticsRange" class="hidden">
-          <option value="7" selected>7</option>
-          <option value="14">14</option>
-          <option value="30">30</option>
-        </select>
+      <div class="p-5 sm:p-6">
+        <div class="analytics-chart-frame p-6">
+          <div class="grid gap-4 sm:grid-cols-7" id="simple-chat-bars">
+            <!-- JS renders simple bars here -->
+          </div>
+        </div>
 
-        <div class="analytics-top-pill-wrap">
-          <button type="button" class="analytics-range-btn is-active" data-range="7">7D</button>
-          <button type="button" class="analytics-range-btn" data-range="14">14D</button>
-          <button type="button" class="analytics-range-btn" data-range="30">30D</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <div class="p-5 sm:p-6">
-    <div class="analytics-chart-frame p-6">
-      <div class="grid gap-4 sm:grid-cols-7" id="simple-chat-bars">
-        <!-- JS will render bars here -->
-      </div>
-    </div>
-
-    <div class="mt-5 grid gap-4 sm:grid-cols-4">
-      <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-        <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Peak day</div>
-        <div id="analytics-summary-peak-day" class="mt-2 text-xl font-semibold text-slate-950">—</div>
-        <div id="analytics-summary-peak-meta" class="mt-1 text-sm text-slate-500">—</div>
-      </div>
-
-      <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-        <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Quietest day</div>
-        <div id="analytics-summary-quiet-day" class="mt-2 text-xl font-semibold text-slate-950">—</div>
-        <div id="analytics-summary-quiet-meta" class="mt-1 text-sm text-slate-500">—</div>
-      </div>
-
-      <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-        <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Average</div>
-        <div id="analytics-summary-average" class="mt-2 text-xl font-semibold text-slate-950">—</div>
-        <div class="mt-1 text-sm text-slate-500">Daily chat volume</div>
-      </div>
-
-      <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-        <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Selected day</div>
-        <div id="analytics-summary-selected" class="mt-2 text-xl font-semibold text-slate-950">—</div>
-        <div id="analytics-summary-selected-meta" class="mt-1 text-sm text-slate-500">—</div>
-      </div>
-    </div>
-
-    <div class="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-      <div class="analytics-lower-card">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-          AI read on the period
-        </div>
-        <div id="analytics-ai-read-title" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
-          Loading insight...
-        </div>
-        <div id="analytics-ai-read-body" class="mt-2 text-[15px] leading-7 text-slate-500">
-          We’ll summarize what the period is showing once the chart data loads.
-        </div>
-        <div id="analytics-ai-pills" class="mt-4 flex flex-wrap gap-2">
-          <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">Waiting for data</span>
-        </div>
-      </div>
-
-      <div class="analytics-drill-card">
-        <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-          Day drill-down
-        </div>
-        <div id="analytics-drilldown-date" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
-          Select a day
-        </div>
-        <div class="mt-5 space-y-3 text-[13px] text-slate-600">
-          <div class="flex items-center justify-between"><span>Chats</span><span class="font-semibold text-slate-950" data-drilldown="chats">—</span></div>
-          <div class="flex items-center justify-between"><span>Day-over-day</span><span class="font-semibold text-slate-950" data-drilldown="day_change">—</span></div>
-          <div class="flex items-center justify-between"><span>User messages</span><span class="font-semibold text-slate-950" data-drilldown="user_messages">—</span></div>
-          <div class="flex items-center justify-between"><span>Assistant messages</span><span class="font-semibold text-slate-950" data-drilldown="assistant_messages">—</span></div>
-          <div class="flex items-center justify-between"><span>Top signal</span><span class="font-semibold text-slate-950" data-drilldown="signal">—</span></div>
-        </div>
-        <div class="mt-6">
-          <button type="button" class="analytics-open-day-btn w-full justify-center">
-            Open day details
-            <span>↗</span>
-          </button>
-        </div>
-      </div>
-    </div>
-  </div>
-</div>
+        <div class="mt-5 grid gap-4 sm:grid-cols-4">
           <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Peak day</div>
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Peak day</div>
             <div id="analytics-summary-peak-day" class="mt-2 text-xl font-semibold text-slate-950">—</div>
             <div id="analytics-summary-peak-meta" class="mt-1 text-sm text-slate-500">—</div>
           </div>
 
           <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Quietest day</div>
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Quietest day</div>
             <div id="analytics-summary-quiet-day" class="mt-2 text-xl font-semibold text-slate-950">—</div>
             <div id="analytics-summary-quiet-meta" class="mt-1 text-sm text-slate-500">—</div>
           </div>
 
           <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Average</div>
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Average</div>
             <div id="analytics-summary-average" class="mt-2 text-xl font-semibold text-slate-950">—</div>
             <div class="mt-1 text-sm text-slate-500">Daily chat volume</div>
           </div>
 
           <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Selected</div>
+            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Selected day</div>
             <div id="analytics-summary-selected" class="mt-2 text-xl font-semibold text-slate-950">—</div>
             <div id="analytics-summary-selected-meta" class="mt-1 text-sm text-slate-500">—</div>
+          </div>
+        </div>
+
+        <div class="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+          <div class="analytics-lower-card">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+              AI read on the period
+            </div>
+            <div id="analytics-ai-read-title" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
+              Loading insight...
+            </div>
+            <div id="analytics-ai-read-body" class="mt-2 text-[15px] leading-7 text-slate-500">
+              We’ll summarize what the period is showing once the chart data loads.
+            </div>
+            <div id="analytics-ai-pills" class="mt-4 flex flex-wrap gap-2">
+              <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">Waiting for data</span>
+            </div>
+          </div>
+
+          <div class="analytics-drill-card">
+            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+              Day drill-down
+            </div>
+            <div id="analytics-drilldown-date" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
+              Select a day
+            </div>
+            <div class="mt-5 space-y-3 text-[13px] text-slate-600">
+              <div class="flex items-center justify-between"><span>Chats</span><span class="font-semibold text-slate-950" data-drilldown="chats">—</span></div>
+              <div class="flex items-center justify-between"><span>Day-over-day</span><span class="font-semibold text-slate-950" data-drilldown="day_change">—</span></div>
+              <div class="flex items-center justify-between"><span>User messages</span><span class="font-semibold text-slate-950" data-drilldown="user_messages">—</span></div>
+              <div class="flex items-center justify-between"><span>Assistant messages</span><span class="font-semibold text-slate-950" data-drilldown="assistant_messages">—</span></div>
+              <div class="flex items-center justify-between"><span>Top signal</span><span class="font-semibold text-slate-950" data-drilldown="signal">—</span></div>
+            </div>
+            <div class="mt-6">
+              <button type="button" class="analytics-open-day-btn w-full justify-center">
+                Open day details
+                <span>↗</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>
