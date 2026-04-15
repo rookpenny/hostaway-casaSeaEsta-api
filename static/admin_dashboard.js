@@ -2732,26 +2732,66 @@ function renderAnalyticsAIRead(days) {
   if (!titleEl || !bodyEl || !pillsEl) return;
 
   if (!Array.isArray(days) || !days.length) {
-    titleEl.textContent = "No trend signal yet";
-    bodyEl.textContent = "We need more conversation volume before we can summarize what happened.";
-    pillsEl.innerHTML = `<span class="rounded-full bg-slate-100 px-3 py-1.5 font-semibold text-slate-600">No data</span>`;
+    titleEl.textContent = "No trend signal yet.";
+    bodyEl.textContent =
+      "We need more conversation volume before we can summarize what happened across this period.";
+    pillsEl.innerHTML = `
+      <span class="inline-flex items-center gap-2 rounded-full bg-slate-100 px-4 py-2 text-[15px] font-semibold text-slate-700">
+        <span>…</span>
+        No data yet
+      </span>
+    `;
     return;
   }
 
   const totalChats = days.reduce((sum, d) => sum + Number(d.chats || 0), 0);
   const avgChats = Math.round(totalChats / days.length);
+
   const peakDay = [...days].sort((a, b) => Number(b.chats || 0) - Number(a.chats || 0))[0];
   const quietDay = [...days].sort((a, b) => Number(a.chats || 0) - Number(b.chats || 0))[0];
+  const bestConversionDay = [...days].sort(
+    (a, b) => Number(b.conversion || 0) - Number(a.conversion || 0)
+  )[0];
+  const highestLeakDay = [...days].sort(
+    (a, b) => Number(b.lost_opportunity || 0) - Number(a.lost_opportunity || 0)
+  )[0];
 
-  titleEl.textContent = "Volume builds into the stronger support days";
-  bodyEl.textContent = `${peakDay.label} was the busiest day with ${fmtInt(
-    peakDay.chats
-  )} chats, while ${quietDay.label} was the quietest. Daily average was ${fmtInt(avgChats)} chats.`;
+  const peakLabel = peakDay?.label || "—";
+  const quietLabel = quietDay?.label || "—";
+  const bestConvLabel = bestConversionDay?.label || "—";
+  const leakLabel = highestLeakDay?.label || "—";
+
+  const peakChats = Number(peakDay?.chats || 0);
+  const quietChats = Number(quietDay?.chats || 0);
+  const bestConv = Number(bestConversionDay?.conversion || 0);
+  const leakValue = Number(highestLeakDay?.lost_opportunity || 0);
+
+  let title = "Chat volume is steady across this window.";
+  if (peakChats > quietChats) {
+    title = `${peakLabel} volume is strongest, while ${leakLabel} shows the most leakage in this window.`;
+  }
+
+  titleEl.textContent = title;
+
+  bodyEl.textContent =
+    `Across the selected ${days.length} day range, average daily volume is ${fmtInt(avgChats)} chats. ` +
+    `${bestConvLabel} has the healthiest conversion score, while ${leakLabel} shows the highest lost-opportunity signal.`;
 
   pillsEl.innerHTML = `
-    <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">Peak: ${escapeHtml(peakDay.label || "—")}</span>
-    <span class="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">Quietest: ${escapeHtml(quietDay.label || "—")}</span>
-    <span class="rounded-full bg-slate-100 px-3 py-1.5 text-sm font-semibold text-slate-700">Avg: ${fmtInt(avgChats)}/day</span>
+    <span class="inline-flex items-center gap-2 rounded-full bg-indigo-50 px-4 py-2 text-[15px] font-semibold text-indigo-700">
+      <span>💬</span>
+      Peak volume on ${escapeHtml(peakLabel)}
+    </span>
+
+    <span class="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-4 py-2 text-[15px] font-semibold text-emerald-700">
+      <span>📈</span>
+      Best conversion on ${escapeHtml(bestConvLabel)}
+    </span>
+
+    <span class="inline-flex items-center gap-2 rounded-full bg-amber-50 px-4 py-2 text-[15px] font-semibold text-amber-700">
+      <span>⚠️</span>
+      Highest leakage on ${escapeHtml(leakLabel)}
+    </span>
   `;
 }
 
