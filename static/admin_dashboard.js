@@ -3037,14 +3037,76 @@ function renderAnalyticsEmotions(emotions, spike) {
   if (spikeBody) spikeBody.textContent = spike?.body || "We’ll surface the strongest tension pattern from current conversation data.";
 }
 
+
+window.analyticsPropertyViewMode =
+  window.analyticsPropertyViewMode || "cards";
+
+function setAnalyticsPropertyViewMode(mode) {
+  const cards = document.getElementById("analytics-property-cards");
+  const list = document.getElementById("analytics-property-list");
+  const cardsBtn = document.getElementById("analytics-props-mode-cards");
+  const listBtn = document.getElementById("analytics-props-mode-list");
+
+  window.analyticsPropertyViewMode = mode;
+
+  if (cards) cards.classList.toggle("hidden", mode !== "cards");
+  if (list) list.classList.toggle("hidden", mode !== "list");
+
+  if (cardsBtn) {
+    cardsBtn.classList.toggle("bg-white", mode === "cards");
+    cardsBtn.classList.toggle("text-slate-900", mode === "cards");
+    cardsBtn.classList.toggle("shadow-sm", mode === "cards");
+    cardsBtn.classList.toggle("text-slate-500", mode !== "cards");
+  }
+
+  if (listBtn) {
+    listBtn.classList.toggle("bg-white", mode === "list");
+    listBtn.classList.toggle("text-slate-900", mode === "list");
+    listBtn.classList.toggle("shadow-sm", mode === "list");
+    listBtn.classList.toggle("text-slate-500", mode !== "list");
+  }
+
+  try {
+    localStorage.setItem("analytics_property_view_mode", mode);
+  } catch {}
+}
+
+function initAnalyticsPropertyViewToggle() {
+  const cardsBtn = document.getElementById("analytics-props-mode-cards");
+  const listBtn = document.getElementById("analytics-props-mode-list");
+
+  if (cardsBtn && !cardsBtn.dataset.wired) {
+    cardsBtn.dataset.wired = "1";
+    cardsBtn.addEventListener("click", () => {
+      setAnalyticsPropertyViewMode("cards");
+    });
+  }
+
+  if (listBtn && !listBtn.dataset.wired) {
+    listBtn.dataset.wired = "1";
+    listBtn.addEventListener("click", () => {
+      setAnalyticsPropertyViewMode("list");
+    });
+  }
+
+  let saved = "cards";
+  try {
+    saved = localStorage.getItem("analytics_property_view_mode") || "cards";
+  } catch {}
+
+  setAnalyticsPropertyViewMode(saved);
+}
+
+
+
 function renderAnalyticsTopProperties(items) {
-  const host = document.getElementById("analytics-property-cards");
-  if (!host) return;
+  const cardsHost = document.getElementById("analytics-property-cards");
+  const listBody = document.getElementById("analytics-property-list-body");
+
+  if (!cardsHost || !listBody) return;
 
   const analyticsItems = Array.isArray(items) ? items : [];
-
-  const allProperties =
-    Array.isArray(BOOT?.properties) ? BOOT.properties : [];
+  const allProperties = Array.isArray(BOOT?.properties) ? BOOT.properties : [];
 
   const byId = new Map(
     analyticsItems.map((item) => [String(item.property_id ?? item.id ?? ""), item])
@@ -3071,11 +3133,17 @@ function renderAnalyticsTopProperties(items) {
       : analyticsItems;
 
   if (!merged.length) {
-    host.innerHTML = `
+    cardsHost.innerHTML = `
       <div class="xl:col-span-4 rounded-[24px] border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
         No property data yet.
       </div>
     `;
+    listBody.innerHTML = `
+      <tr>
+        <td colspan="7" class="px-6 py-6 text-sm text-slate-500">No property data yet.</td>
+      </tr>
+    `;
+    initAnalyticsPropertyViewToggle();
     return;
   }
 
@@ -3119,7 +3187,7 @@ function renderAnalyticsTopProperties(items) {
     return vals.map((v) => Math.max(14, Math.round((v / max) * 40) + 8));
   }
 
-  host.innerHTML = merged
+  cardsHost.innerHTML = merged
     .map((item) => {
       const score = scoreFromItem(item);
       const bars = sparkHeights(item);
@@ -3194,6 +3262,40 @@ function renderAnalyticsTopProperties(items) {
       `;
     })
     .join("");
+
+  listBody.innerHTML = merged
+    .map((item) => {
+      const score = scoreFromItem(item);
+      const hasData =
+        Number(item.sessions || 0) > 0 ||
+        Number(item.messages || 0) > 0 ||
+        Number(item.chat_errors || 0) > 0 ||
+        Number(item.escalations || 0) > 0;
+
+      return `
+        <tr class="border-b border-slate-100 last:border-b-0">
+          <td class="px-6 py-4">
+            <div class="font-semibold text-slate-950">${escapeHtml(item.property_name || "—")}</div>
+            <div class="mt-1 text-xs text-slate-400">${fmtInt(item.messages)} chats</div>
+          </td>
+          <td class="px-6 py-4 text-slate-600">${fmtInt(item.sessions)}</td>
+          <td class="px-6 py-4 text-slate-600">${fmtInt(item.messages)}</td>
+          <td class="px-6 py-4 text-slate-600">${fmtPct(item.followup_conversion_rate)}</td>
+          <td class="px-6 py-4 text-slate-600">${fmtInt(item.chat_errors)}</td>
+          <td class="px-6 py-4 text-slate-600">${fmtInt(item.escalations)}</td>
+          <td class="px-6 py-4">
+            <span class="inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+              hasData ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+            }">
+              ${fmtInt(score)}
+            </span>
+          </td>
+        </tr>
+      `;
+    })
+    .join("");
+
+  initAnalyticsPropertyViewToggle();
 }
 
 function renderAnalyticsInsights(data) {
