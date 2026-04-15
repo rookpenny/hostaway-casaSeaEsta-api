@@ -2894,18 +2894,23 @@ function renderSimpleChatBars(payload) {
 
 function renderAnalyticsLifecycle(lifecycle) {
   const stages = {
-    inquiry: lifecycle?.inquiry || 0,
-    upcoming: lifecycle?.upcoming || 0,
-    current: lifecycle?.current || lifecycle?.in_stay || 0,
-    post: lifecycle?.post || lifecycle?.checked_out || 0,
+    inquiry: Number(lifecycle?.inquiry || 0),
+    upcoming: Number(lifecycle?.upcoming || 0),
+    current: Number(lifecycle?.current || lifecycle?.in_stay || 0),
+    post: Number(lifecycle?.post || lifecycle?.checked_out || 0),
   };
 
-  const total = Object.values(stages).reduce((a, b) => a + Number(b || 0), 0) || 1;
+  const total = Object.values(stages).reduce((a, b) => a + b, 0) || 1;
 
   Object.entries(stages).forEach(([key, value]) => {
-    setText(`analytics-stage-${key}`, `${fmtInt(value)} · ${Math.round((Number(value) / total) * 100)}%`);
+    const pct = Math.round((value / total) * 100);
+
+    setText(`analytics-stage-${key}`, `${pct}%`);
+
     const bar = document.getElementById(`analytics-stage-${key}-bar`);
-    if (bar) bar.style.width = `${Math.round((Number(value) / total) * 100)}%`;
+    if (bar) {
+      bar.style.width = `${pct}%`;
+    }
   });
 }
 
