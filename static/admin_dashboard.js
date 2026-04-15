@@ -2930,9 +2930,9 @@ function renderAnalyticsPeak(hours) {
 
   if (!items.length) {
     host.innerHTML = `
-      <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
+      <div class="grid grid-cols-[34px_1fr_40px] items-center gap-4 text-sm text-slate-500">
         <div>—</div>
-        <div class="h-2.5 rounded-full bg-white"></div>
+        <div class="h-3 rounded-full bg-white"></div>
         <div class="text-right">—</div>
       </div>
     `;
@@ -2942,33 +2942,39 @@ function renderAnalyticsPeak(hours) {
     return;
   }
 
-  const sorted = [...items].sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
-  const top3 = sorted.slice(0, 3);
-  const max = Math.max(...top3.map((x) => Number(x.value || 0)), 1);
+  const ordered = Array.isArray(items) ? items : [];
+  const max = Math.max(...ordered.map((x) => Number(x.value || 0)), 1);
 
-  host.innerHTML = top3
+  host.innerHTML = ordered
     .map((item) => {
       const value = Number(item.value || 0);
       const width = Math.max(8, Math.round((value / max) * 100));
+
       return `
-        <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
-          <div>${escapeHtml(item.label || "—")}</div>
-          <div class="h-2.5 rounded-full bg-white overflow-hidden">
-            <div class="h-2.5 rounded-full bg-slate-900" style="width:${width}%"></div>
+        <div class="grid grid-cols-[34px_1fr_40px] items-center gap-4 text-sm">
+          <div class="text-slate-500">${escapeHtml(item.label || "—")}</div>
+          <div class="h-3 overflow-hidden rounded-full bg-white">
+            <div
+              class="h-3 rounded-full bg-gradient-to-r from-[#5B5CEB] to-[#55D6F6]"
+              style="width:${width}%"
+            ></div>
           </div>
-          <div class="text-right">${fmtInt(value)}</div>
+          <div class="text-right font-medium text-slate-600">${fmtInt(value)}</div>
         </div>
       `;
     })
     .join("");
 
-  const circumference = 2 * Math.PI * 74;
+  const sorted = [...ordered].sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
+  const top3 = sorted.slice(0, 3);
   const vals = [
     Number(top3[0]?.value || 0),
     Number(top3[1]?.value || 0),
     Number(top3[2]?.value || 0),
   ];
+
   const total = vals.reduce((a, b) => a + b, 0) || 1;
+  const circumference = 2 * Math.PI * 68;
 
   const seg1 = (vals[0] / total) * circumference;
   const seg2 = (vals[1] / total) * circumference;
