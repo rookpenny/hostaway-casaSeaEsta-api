@@ -2245,156 +2245,107 @@
     </div>
   </div>
 
-  <div class="grid gap-6 xl:grid-cols-[1.55fr_0.95fr]">
-    <div class="analytics-shell">
-      <div class="border-b border-slate-100 px-6 py-5 sm:px-7">
-        <div class="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
-          <div class="max-w-2xl">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-indigo-500">
-              Trend chart
-            </div>
-            <div class="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-slate-950 sm:text-[38px]">
-              Chats per day
-            </div>
-            <div class="mt-2 max-w-xl text-[15px] leading-7 text-slate-500">
-              A simpler daily chat view with dates, day-over-day change, AI read, and day drill-down.
-            </div>
-          </div>
-
-          <div class="flex flex-col items-start gap-3 xl:items-end">
-            <select id="analyticsRange" class="hidden">
-              <option value="7" selected>7</option>
-              <option value="14">14</option>
-              <option value="30">30</option>
-            </select>
-
-            <div class="analytics-top-pill-wrap">
-              <button type="button" class="analytics-range-btn is-active" data-range="7">7D</button>
-              <button type="button" class="analytics-range-btn" data-range="14">14D</button>
-              <button type="button" class="analytics-range-btn" data-range="30">30D</button>
-            </div>
-          </div>
-        </div>
+  <!-- Main analytics frame -->
+  <div class="analytics-shell overflow-hidden">
+    <div class="flex items-center justify-between px-8 pt-8">
+      <div>
+        <div class="text-[28px] font-semibold tracking-tight text-slate-950">Chats per day</div>
+        <div class="mt-1 text-sm text-slate-500">Conversation volume and patterns</div>
       </div>
+      <div class="text-sm font-medium text-slate-400">Last 30 days</div>
+    </div>
 
-      <div class="p-5 sm:p-6">
-        <div class="analytics-chart-frame p-6">
-          <div class="overflow-x-auto">
-            <div class="grid gap-4 min-w-max" id="simple-chat-bars">
-            <!-- JS renders simple bars here -->
-            </div>
-          </div>
-        </div>
+    <!-- keep hidden range input for existing JS -->
+    <select id="analyticsRange" class="hidden">
+      <option value="30" selected>30</option>
+    </select>
 
-        <div class="mt-5 grid gap-4 sm:grid-cols-4">
-          <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Peak day</div>
-            <div id="analytics-summary-peak-day" class="mt-2 text-xl font-semibold text-slate-950">—</div>
-            <div id="analytics-summary-peak-meta" class="mt-1 text-sm text-slate-500">—</div>
-          </div>
-
-          <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Quietest day</div>
-            <div id="analytics-summary-quiet-day" class="mt-2 text-xl font-semibold text-slate-950">—</div>
-            <div id="analytics-summary-quiet-meta" class="mt-1 text-sm text-slate-500">—</div>
-          </div>
-
-          <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Average</div>
-            <div id="analytics-summary-average" class="mt-2 text-xl font-semibold text-slate-950">—</div>
-            <div class="mt-1 text-sm text-slate-500">Daily chat volume</div>
-          </div>
-
-          <div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4">
-            <div class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">Selected day</div>
-            <div id="analytics-summary-selected" class="mt-2 text-xl font-semibold text-slate-950">—</div>
-            <div id="analytics-summary-selected-meta" class="mt-1 text-sm text-slate-500">—</div>
-          </div>
-        </div>
-
-        <div class="mt-5 grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-          <div class="analytics-lower-card">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-              AI read on the period
-            </div>
-            <div id="analytics-ai-read-title" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
-              Loading insight...
-            </div>
-            <div id="analytics-ai-read-body" class="mt-2 text-[15px] leading-7 text-slate-500">
-              We’ll summarize what the period is showing once the chart data loads.
-            </div>
-            <div id="analytics-ai-pills" class="mt-4 flex flex-wrap gap-2">
-              <span class="rounded-full bg-indigo-50 px-3 py-1.5 text-sm font-semibold text-indigo-700">Waiting for data</span>
-            </div>
-          </div>
-
-          <div class="analytics-drill-card">
-            <div class="text-[11px] font-semibold uppercase tracking-[0.24em] text-slate-400">
-              Day drill-down
-            </div>
-            <div id="analytics-drilldown-date" class="mt-3 text-[22px] font-semibold tracking-[-0.03em] text-slate-950">
-              Select a day
-            </div>
-            <div class="mt-5 space-y-3 text-[13px] text-slate-600">
-              <div class="flex items-center justify-between"><span>Chats</span><span class="font-semibold text-slate-950" data-drilldown="chats">—</span></div>
-              <div class="flex items-center justify-between"><span>Day-over-day</span><span class="font-semibold text-slate-950" data-drilldown="day_change">—</span></div>
-              <div class="flex items-center justify-between"><span>User messages</span><span class="font-semibold text-slate-950" data-drilldown="user_messages">—</span></div>
-              <div class="flex items-center justify-between"><span>Assistant messages</span><span class="font-semibold text-slate-950" data-drilldown="assistant_messages">—</span></div>
-              <div class="flex items-center justify-between"><span>Top signal</span><span class="font-semibold text-slate-950" data-drilldown="signal">—</span></div>
-            </div>
-            <!--div class="mt-6">
-              <button type="button" class="analytics-open-day-btn w-full justify-center">
-                Open day details
-                <span>↗</span>
-              </button>
-          </div-->
+    <div class="px-6 pt-6 pb-6">
+      <div class="analytics-chart-frame p-6">
+        <div class="overflow-x-auto">
+          <div class="grid gap-4 min-w-max" id="simple-chat-bars">
+            <!-- JS renders bars here -->
           </div>
         </div>
       </div>
     </div>
 
-    <div class="grid gap-6">
-      <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-        <div class="flex items-center gap-3">
-          <div class="grid h-11 w-11 place-items-center rounded-2xl bg-emerald-50 text-emerald-600">🌊</div>
-          <div>
-            <div class="text-lg font-semibold text-slate-950">Lifecycle flow</div>
-            <div class="text-sm text-slate-500">How conversations move through the stay</div>
-          </div>
+    <div class="grid gap-6 px-8 pb-8 lg:grid-cols-[1.4fr_0.8fr]">
+      <div class="rounded-[26px] border border-indigo-100 bg-indigo-50/50 p-6">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-indigo-400">
+          AI read on the period
+        </div>
+        <div id="analytics-ai-read-title" class="mt-3 text-[26px] font-semibold tracking-[-0.04em] text-slate-950">
+          Loading insight...
+        </div>
+        <div id="analytics-ai-read-body" class="mt-2 text-[15px] leading-7 text-slate-600">
+          We’ll summarize what the period is showing once the chart data loads.
+        </div>
+        <div id="analytics-ai-pills" class="mt-4 flex flex-wrap gap-2">
+          <span class="rounded-full bg-white px-3 py-1 text-sm font-semibold text-indigo-600">Waiting for data</span>
+        </div>
+      </div>
+
+      <div class="rounded-[26px] border border-slate-200 bg-white p-6">
+        <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
+          Day drill-down
+        </div>
+        <div id="analytics-drilldown-date" class="mt-3 text-[22px] font-semibold text-slate-950">
+          Select a day
         </div>
 
-        <div class="mt-6 space-y-4">
+        <div class="mt-5 space-y-3 text-sm text-slate-600">
+          <div class="flex items-center justify-between"><span>Chats</span><span class="font-semibold text-slate-950" data-drilldown="chats">—</span></div>
+          <div class="flex items-center justify-between"><span>Day-over-day</span><span class="font-semibold text-slate-950" data-drilldown="day_change">—</span></div>
+          <div class="flex items-center justify-between"><span>User messages</span><span class="font-semibold text-slate-950" data-drilldown="user_messages">—</span></div>
+          <div class="flex items-center justify-between"><span>Assistant messages</span><span class="font-semibold text-slate-950" data-drilldown="assistant_messages">—</span></div>
+          <div class="flex items-center justify-between"><span>Top signal</span><span class="font-semibold text-slate-950" data-drilldown="signal">—</span></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid gap-6 px-8 pb-8 xl:grid-cols-3">
+      <!-- Lifecycle flow -->
+      <div class="rounded-[26px] border border-slate-200 bg-white p-5">
+        <div class="text-sm font-semibold text-slate-900">Lifecycle flow</div>
+        <div class="mt-1 text-xs text-slate-500">How conversations move through the stay</div>
+
+        <div class="mt-5 space-y-3 text-xs">
           <div>
-            <div class="mb-2 flex items-center justify-between text-sm"><span class="font-semibold text-slate-800">Inquiry</span><span id="analytics-stage-inquiry" class="text-slate-500">—</span></div>
-            <div class="h-4 rounded-full bg-slate-100"><div id="analytics-stage-inquiry-bar" class="h-4 rounded-full bg-slate-900" style="width:0%"></div></div>
+            <div class="flex justify-between"><span>Inquiry</span><span id="analytics-stage-inquiry" class="text-slate-500">—</span></div>
+            <div class="mt-1 h-2 rounded bg-slate-100">
+              <div id="analytics-stage-inquiry-bar" class="h-2 rounded bg-slate-900" style="width:0%"></div>
+            </div>
           </div>
           <div>
-            <div class="mb-2 flex items-center justify-between text-sm"><span class="font-semibold text-slate-800">Upcoming</span><span id="analytics-stage-upcoming" class="text-slate-500">—</span></div>
-            <div class="h-4 rounded-full bg-slate-100"><div id="analytics-stage-upcoming-bar" class="h-4 rounded-full bg-indigo-500" style="width:0%"></div></div>
+            <div class="flex justify-between"><span>Upcoming</span><span id="analytics-stage-upcoming" class="text-slate-500">—</span></div>
+            <div class="mt-1 h-2 rounded bg-slate-100">
+              <div id="analytics-stage-upcoming-bar" class="h-2 rounded bg-indigo-500" style="width:0%"></div>
+            </div>
           </div>
           <div>
-            <div class="mb-2 flex items-center justify-between text-sm"><span class="font-semibold text-slate-800">In stay</span><span id="analytics-stage-current" class="text-slate-500">—</span></div>
-            <div class="h-4 rounded-full bg-slate-100"><div id="analytics-stage-current-bar" class="h-4 rounded-full bg-cyan-500" style="width:0%"></div></div>
+            <div class="flex justify-between"><span>In stay</span><span id="analytics-stage-current" class="text-slate-500">—</span></div>
+            <div class="mt-1 h-2 rounded bg-slate-100">
+              <div id="analytics-stage-current-bar" class="h-2 rounded bg-cyan-500" style="width:0%"></div>
+            </div>
           </div>
           <div>
-            <div class="mb-2 flex items-center justify-between text-sm"><span class="font-semibold text-slate-800">Post stay</span><span id="analytics-stage-post" class="text-slate-500">—</span></div>
-            <div class="h-4 rounded-full bg-slate-100"><div id="analytics-stage-post-bar" class="h-4 rounded-full bg-emerald-500" style="width:0%"></div></div>
+            <div class="flex justify-between"><span>Post stay</span><span id="analytics-stage-post" class="text-slate-500">—</span></div>
+            <div class="mt-1 h-2 rounded bg-slate-100">
+              <div id="analytics-stage-post-bar" class="h-2 rounded bg-emerald-500" style="width:0%"></div>
+            </div>
           </div>
         </div>
       </div>
 
-      <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-        <div class="flex items-center gap-3">
-          <div class="grid h-11 w-11 place-items-center rounded-2xl bg-indigo-50 text-indigo-600">🕘</div>
-          <div>
-            <div class="text-lg font-semibold text-slate-950">Peak chat times</div>
-            <div class="text-sm text-slate-500">When guests need help most</div>
-          </div>
-        </div>
+      <!-- Peak chat times -->
+      <div class="rounded-[26px] border border-slate-200 bg-white p-5">
+        <div class="text-sm font-semibold text-slate-900">Peak chat times</div>
+        <div class="mt-1 text-xs text-slate-500">When guests need help most</div>
 
-        <div class="mt-6 rounded-[26px] bg-slate-50 p-6">
+        <div class="mt-6 rounded-[22px] bg-slate-50 p-5">
           <div class="flex justify-center">
-            <div class="relative h-[240px] w-[240px]">
+            <div class="relative h-[220px] w-[220px]">
               <svg class="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 240 240">
                 <circle cx="120" cy="120" r="94" fill="none" stroke="#E8EEFF" stroke-width="18"></circle>
                 <circle cx="120" cy="120" r="74" fill="none" stroke="#EEF2FF" stroke-width="18"></circle>
@@ -2404,17 +2355,17 @@
               </svg>
 
               <div class="absolute inset-[38px] flex flex-col items-center justify-center rounded-full bg-white shadow-[inset_0_0_0_1px_rgba(226,232,240,0.9)]">
-                <div class="text-[12px] font-semibold uppercase tracking-[0.24em] text-slate-400">
+                <div class="text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-400">
                   Peak window
                 </div>
-                <div id="analytics-peak-window" class="mt-2 text-[34px] font-semibold tracking-[-0.05em] text-slate-950">
+                <div id="analytics-peak-window" class="mt-2 text-[28px] font-semibold tracking-[-0.05em] text-slate-950">
                   —
                 </div>
               </div>
             </div>
           </div>
 
-          <div class="mt-6 space-y-3" id="analytics-hourly-bars">
+          <div id="analytics-hourly-bars" class="mt-5 space-y-2">
             <div class="grid grid-cols-[36px_1fr_42px] items-center gap-3 text-xs text-slate-500">
               <div>—</div>
               <div class="h-2.5 rounded-full bg-white"></div>
@@ -2424,90 +2375,44 @@
         </div>
       </div>
 
-      <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-        <div class="text-lg font-semibold text-slate-950">Guest emotion mix</div>
-        <div class="mt-1 text-sm text-slate-500">A live pulse on how conversations feel</div>
+      <!-- Guest emotion mix -->
+      <div class="rounded-[26px] border border-slate-200 bg-white p-5">
+        <div class="text-sm font-semibold text-slate-900">Guest emotion mix</div>
+        <div class="mt-1 text-xs text-slate-500">A live pulse on how conversations feel</div>
 
-        <div class="mt-6 space-y-4" id="analytics-emotion-bars">
+        <div id="analytics-emotion-bars" class="mt-5 space-y-3">
           <div class="text-sm text-slate-500">Loading emotion data…</div>
         </div>
 
-        <div class="mt-8 rounded-[22px] border border-rose-100 bg-rose-50 p-4">
+        <div class="mt-6 rounded-[18px] border border-rose-100 bg-rose-50 p-4">
           <div class="text-xs font-semibold uppercase tracking-[0.16em] text-rose-500">Emotional spike</div>
-          <div id="analytics-emotion-spike-title" class="mt-2 text-base font-semibold text-slate-950">Loading emotional trend…</div>
-          <div id="analytics-emotion-spike-body" class="mt-1 text-sm leading-6 text-slate-600">We’ll surface the strongest tension pattern from current conversation data.</div>
+          <div id="analytics-emotion-spike-title" class="mt-2 text-sm font-semibold text-slate-950">Loading emotional trend…</div>
+          <div id="analytics-emotion-spike-body" class="mt-1 text-sm leading-6 text-slate-600">
+            We’ll surface the strongest tension pattern from current conversation data.
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <!--div class="grid gap-6 xl:grid-cols-4">
-    <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-      <div class="flex items-center gap-3">
-        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">⚠</div>
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Top issue</div>
+    <!-- Property performance -->
+    <div class="border-t border-slate-100 px-8 py-8">
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <div class="text-[24px] font-semibold tracking-[-0.03em] text-slate-950">
+            Property performance intelligence
+          </div>
+          <div class="mt-1 text-sm text-slate-500">
+            Each property behaves like its own mini analytics surface.
+          </div>
+        </div>
+        <div class="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600">
+          600-property friendly layout
+        </div>
       </div>
-      <div id="insight-top-issue" class="mt-5 text-xl font-semibold leading-8 tracking-tight text-slate-950">—</div>
-      <div id="insight-top-issue-detail" class="mt-3 text-sm leading-7 text-slate-500">—</div>
-      <button type="button" onclick="applyInsightFilter('top_issue')" class="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-slate-50">Explore <span>↗</span></button>
-    </div>
 
-    <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-      <div class="flex items-center gap-3">
-        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">🤖</div>
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Automation</div>
+      <div id="analytics-property-cards" class="mt-6 grid gap-4 xl:grid-cols-4">
+        <!-- JS renders property cards here -->
       </div>
-      <div id="insight-automation" class="mt-5 text-xl font-semibold leading-8 tracking-tight text-slate-950">—</div>
-      <div id="insight-automation-detail" class="mt-3 text-sm leading-7 text-slate-500">—</div>
-      <button type="button" onclick="applyInsightFilter('automation')" class="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-slate-50">Explore <span>↗</span></button>
-    </div>
-
-    <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-      <div class="flex items-center gap-3">
-        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">📈</div>
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Highest risk</div>
-      </div>
-      <div id="insight-risk" class="mt-5 text-xl font-semibold leading-8 tracking-tight text-slate-950">—</div>
-      <div id="insight-risk-detail" class="mt-3 text-sm leading-7 text-slate-500">—</div>
-      <button type="button" onclick="applyInsightFilter('high_risk')" class="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-slate-50">Explore <span>↗</span></button>
-    </div>
-
-    <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-      <div class="flex items-center gap-3">
-        <div class="grid h-11 w-11 place-items-center rounded-2xl bg-slate-100 text-slate-700">👤</div>
-        <div class="text-xs font-semibold uppercase tracking-[0.16em] text-slate-400">Needs human</div>
-      </div>
-      <div id="insight-human" class="mt-5 text-xl font-semibold leading-8 tracking-tight text-slate-950">—</div>
-      <div id="insight-human-detail" class="mt-3 text-sm leading-7 text-slate-500">—</div>
-      <button type="button" onclick="applyInsightFilter('needs_human')" class="mt-6 inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-indigo-600 hover:bg-slate-50">Explore <span>↗</span></button>
-    </div>
-</div-->
-
-  <div class="rounded-[30px] border border-slate-200 bg-white p-6 shadow-[0_18px_60px_rgba(15,23,42,0.08)]">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-      <div>
-        <div class="text-lg font-semibold text-slate-950">Property performance intelligence</div>
-        <div class="mt-1 text-sm text-slate-500">Each property behaves like its own mini analytics surface.</div>
-      </div>
-      <div class="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600">Portfolio view</div>
-    </div>
-
-    <div class="mt-6 overflow-x-auto">
-      <table class="min-w-full text-sm">
-        <thead>
-          <tr class="border-b border-slate-200 text-left text-slate-500">
-            <th class="py-3 pr-4">Property</th>
-            <th class="py-3 pr-4">Sessions</th>
-            <th class="py-3 pr-4">Messages</th>
-            <th class="py-3 pr-4">Follow-up CTR</th>
-            <th class="py-3 pr-4">Errors</th>
-            <th class="py-3 pr-4">Escalations</th>
-          </tr>
-        </thead>
-        <tbody id="analyticsTopPropsBody">
-          <tr><td class="py-4 text-slate-500" colspan="6">Loading…</td></tr>
-        </tbody>
-      </table>
     </div>
   </div>
 </section>
