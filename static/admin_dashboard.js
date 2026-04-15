@@ -3018,25 +3018,114 @@ function renderAnalyticsEmotions(emotions, spike) {
 }
 
 function renderAnalyticsTopProperties(items) {
-  const body = document.getElementById("analyticsTopPropsBody");
-  if (!body) return;
+  const host = document.getElementById("analytics-property-cards");
+  if (!host) return;
 
   if (!Array.isArray(items) || !items.length) {
-    body.innerHTML = `<tr><td class="py-4 text-slate-500" colspan="6">No property data yet.</td></tr>`;
+    host.innerHTML = `
+      <div class="xl:col-span-4 rounded-[24px] border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
+        No property data yet.
+      </div>
+    `;
     return;
   }
 
-  body.innerHTML = items
-    .map((item) => `
-      <tr class="border-b border-slate-100">
-        <td class="py-4 pr-4 font-semibold text-slate-900">${escapeHtml(item.property_name || "—")}</td>
-        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.sessions)}</td>
-        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.messages)}</td>
-        <td class="py-4 pr-4 text-slate-600">${fmtPct(item.followup_conversion_rate)}</td>
-        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.chat_errors)}</td>
-        <td class="py-4 pr-4 text-slate-600">${fmtInt(item.escalations)}</td>
-      </tr>
-    `)
+  function scoreFromItem(item) {
+    const ctr = Number(item.followup_conversion_rate || 0);
+    const errors = Number(item.chat_errors || 0);
+    const escalations = Number(item.escalations || 0);
+
+    const raw = Math.round(100 - errors * 3 - escalations * 2 + ctr * 0.15);
+    return Math.max(0, Math.min(99, raw));
+  }
+
+  function sparkHeights(item) {
+    const base = Math.max(1, Number(item.sessions || 0));
+    const messages = Math.max(1, Number(item.messages || 0));
+    const escalations = Math.max(0, Number(item.escalations || 0));
+    const errors = Math.max(0, Number(item.chat_errors || 0));
+
+    const vals = [
+      base * 0.35,
+      base * 0.55,
+      messages * 0.18,
+      base * 0.75,
+      messages * 0.22,
+      Math.max(base * 0.45, escalations * 6 + 12),
+      Math.max(base * 0.6, errors * 8 + 14),
+    ];
+
+    const max = Math.max(...vals, 1);
+    return vals.map((v) => Math.max(14, Math.round((v / max) * 40) + 8));
+  }
+
+  host.innerHTML = items
+    .map((item) => {
+      const score = scoreFromItem(item);
+      const bars = sparkHeights(item);
+      const issues = Number(item.chat_errors || 0) + Number(item.escalations || 0);
+
+      return `
+        <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex min-w-0 items-start gap-3">
+              <div class="h-12 w-12 shrink-0 rounded-[16px] bg-slate-100"></div>
+              <div class="min-w-0">
+                <div class="truncate text-[15px] font-semibold text-slate-950">
+                  ${escapeHtml(item.property_name || "—")}
+                </div>
+                <div class="mt-1 text-sm text-slate-400">
+                  ${fmtInt(item.messages)} chats
+                </div>
+              </div>
+            </div>
+
+            <div class="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
+              ${fmtInt(score)}
+            </div>
+          </div>
+
+          <div class="mt-6 grid grid-cols-2 gap-3 text-sm">
+            <div>
+              <div class="text-slate-500">Sessions</div>
+              <div class="mt-1 font-semibold text-slate-950">${fmtInt(item.sessions)}</div>
+            </div>
+            <div>
+              <div class="text-slate-500">Issues</div>
+              <div class="mt-1 font-semibold text-slate-950">${fmtInt(issues)}</div>
+            </div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-3 gap-3 text-xs text-slate-500">
+            <div>
+              <div>CTR</div>
+              <div class="mt-1 font-semibold text-slate-900">${fmtPct(item.followup_conversion_rate)}</div>
+            </div>
+            <div>
+              <div>Errors</div>
+              <div class="mt-1 font-semibold text-slate-900">${fmtInt(item.chat_errors)}</div>
+            </div>
+            <div>
+              <div>Escalations</div>
+              <div class="mt-1 font-semibold text-slate-900">${fmtInt(item.escalations)}</div>
+            </div>
+          </div>
+
+          <div class="mt-5 flex items-end gap-1.5">
+            ${bars
+              .map(
+                (h) => `
+                  <div
+                    class="w-2.5 rounded-full bg-indigo-400/80"
+                    style="height:${h}px"
+                  ></div>
+                `
+              )
+              .join("")}
+          </div>
+        </div>
+      `;
+    })
     .join("");
 }
 
