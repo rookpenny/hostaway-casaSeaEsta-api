@@ -2636,7 +2636,7 @@ function setTextByData(key, value) {
 
 function getAnalyticsFilters() {
   return {
-    days: 30,
+    days: 14,
     propertyId: document.getElementById("analyticsPropertyFilter")?.value || "",
     pmcId: document.getElementById("analyticsPmcFilter")?.value || "",
   };
@@ -2801,10 +2801,10 @@ function renderSimpleChatBars(payload) {
 
   const days = Array.isArray(payload?.days) ? payload.days : [];
   host.innerHTML = "";
-  host.style.gridTemplateColumns = "";
 
   if (!days.length) {
-    host.innerHTML = `<div class="col-span-full rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No analytics data yet.</div>`;
+    host.style.gridTemplateColumns = "1fr";
+    host.innerHTML = `<div class="rounded-[20px] border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">No analytics data yet.</div>`;
     renderAnalyticsDrilldown(null);
     return;
   }
@@ -2820,11 +2820,7 @@ function renderSimpleChatBars(payload) {
 
   window.chatAnalyticsState.selectedIndex = selectedIndex;
 
-  const colWidth = days.length <= 7 ? 1 : 88;
-  host.style.gridTemplateColumns =
-    days.length <= 7
-      ? `repeat(${days.length}, minmax(0, 1fr))`
-      : `repeat(${days.length}, minmax(${colWidth}px, ${colWidth}px))`;
+  host.style.gridTemplateColumns = `repeat(${days.length}, minmax(0, 1fr))`;
 
   days.forEach((day, index) => {
     const chats = Number(day.chats || 0);
@@ -2852,7 +2848,7 @@ function renderSimpleChatBars(payload) {
         }
       </div>
 
-      <div class="relative flex h-[240px] w-full items-end justify-center rounded-2xl px-2 pb-2 transition-all ${
+      <div class="relative flex h-[240px] w-full items-end justify-center rounded-2xl px-1 pb-2 transition-all ${
         isSelected
           ? "border border-indigo-200 bg-indigo-50/70 shadow-[0_10px_30px_rgba(79,70,229,0.10)]"
           : "bg-slate-50"
