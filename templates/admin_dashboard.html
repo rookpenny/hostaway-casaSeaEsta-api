@@ -2424,23 +2424,67 @@
 
     <!-- Property performance -->
     <div class="border-t border-slate-100 px-8 py-8">
-      <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <div class="text-[24px] font-semibold tracking-[-0.03em] text-slate-950">
-            Property performance intelligence
-          </div>
-          <div class="mt-1 text-sm text-slate-500">
-            Each property behaves like its own mini analytics surface.
-          </div>
+      <div class="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div>
+        <div class="text-[24px] font-semibold tracking-[-0.03em] text-slate-950">
+          Property performance intelligence
         </div>
+        <div class="mt-1 text-sm text-slate-500">
+          Each property behaves like its own mini analytics surface.
+        </div>
+      </div>
+    
+      <div class="flex items-center gap-3">
         <div class="rounded-full bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600">
           600-property friendly layout
         </div>
+    
+        <div class="inline-flex rounded-full bg-slate-100 p-1">
+          <button
+            id="analytics-props-mode-cards"
+            type="button"
+            class="rounded-full bg-white px-4 py-2 text-sm font-medium text-slate-900 shadow-sm transition"
+          >
+            Cards
+          </button>
+          <button
+            id="analytics-props-mode-list"
+            type="button"
+            class="rounded-full px-4 py-2 text-sm font-medium text-slate-500 transition"
+          >
+            List
+          </button>
+        </div>
       </div>
+    </div>
 
-      <div id="analytics-property-cards" class="mt-6 grid gap-4 xl:grid-cols-4">
-        <!-- JS renders property cards here -->
-      </div>
+     <div id="analytics-property-cards" class="mt-6 grid gap-4 xl:grid-cols-4">
+  <!-- JS renders property cards here -->
+</div>
+
+<div
+  id="analytics-property-list"
+  class="mt-6 hidden overflow-hidden rounded-[24px] border border-slate-200 bg-white"
+>
+  <div class="overflow-x-auto">
+    <table class="min-w-full text-sm">
+      <thead>
+        <tr class="border-b border-slate-200 text-left text-slate-500">
+          <th class="px-6 py-4 font-semibold">Property</th>
+          <th class="px-6 py-4 font-semibold">Sessions</th>
+          <th class="px-6 py-4 font-semibold">Messages</th>
+          <th class="px-6 py-4 font-semibold">CTR</th>
+          <th class="px-6 py-4 font-semibold">Errors</th>
+          <th class="px-6 py-4 font-semibold">Escalations</th>
+          <th class="px-6 py-4 font-semibold">Score</th>
+        </tr>
+      </thead>
+      <tbody id="analytics-property-list-body"></tbody>
+    </table>
+  </div>
+</div>
+
+      
     </div>
   </div>
 </section>
