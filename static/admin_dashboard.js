@@ -3222,25 +3222,32 @@ async function loadChatAnalytics() {
     window.chatAnalyticsState.payload = payload;
     window.analyticsPayload = payload;
 
-    renderSimpleChatBars(payload);
     renderAnalyticsLifecycle(payload.lifecycle || {});
     renderAnalyticsPeak(payload.hours || {});
     renderAnalyticsEmotions(payload.emotions || {}, payload.emotion_spike || {});
     renderAnalyticsAIRead(Array.isArray(payload.days) ? payload.days : []);
 
     const daysArr = Array.isArray(payload.days) ? payload.days : [];
-    const selectedIndex =
-      Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
-      window.chatAnalyticsState.selectedIndex >= 0 &&
-      window.chatAnalyticsState.selectedIndex < daysArr.length
-        ? window.chatAnalyticsState.selectedIndex
-        : Math.max(daysArr.length - 1, 0);
+    const todayStr = new Date().toISOString().slice(0, 10);
+
+    let selectedIndex = daysArr.findIndex((d) => d.date === todayStr);
+
+    if (selectedIndex === -1) {
+      selectedIndex =
+        Number.isInteger(window.chatAnalyticsState.selectedIndex) &&
+        window.chatAnalyticsState.selectedIndex >= 0 &&
+        window.chatAnalyticsState.selectedIndex < daysArr.length
+          ? window.chatAnalyticsState.selectedIndex
+          : Math.max(daysArr.length - 1, 0);
+    }
 
     if (daysArr.length) {
       window.chatAnalyticsState.selectedIndex = selectedIndex;
+      renderSimpleChatBars(payload);
       renderAnalyticsSummaryCards(daysArr, selectedIndex);
       renderAnalyticsDrilldown(daysArr[selectedIndex] || null);
     } else {
+      renderSimpleChatBars(payload);
       renderAnalyticsDrilldown(null);
     }
 
