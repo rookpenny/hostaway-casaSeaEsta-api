@@ -2913,9 +2913,6 @@ function renderAnalyticsLifecycle(lifecycle) {
 function renderAnalyticsPeak(hours) {
   const host = document.getElementById("analytics-hourly-bars");
   const peakWindow = document.getElementById("analytics-peak-window");
-  const ring1 = document.getElementById("analytics-peak-ring-1");
-  const ring2 = document.getElementById("analytics-peak-ring-2");
-  const ring3 = document.getElementById("analytics-peak-ring-3");
 
   if (!host || !peakWindow) return;
 
@@ -2928,20 +2925,16 @@ function renderAnalyticsPeak(hours) {
     host.innerHTML = `
       <div class="grid grid-cols-[34px_1fr_40px] items-center gap-4 text-sm text-slate-500">
         <div>—</div>
-        <div class="h-3 rounded-full bg-white"></div>
+        <div class="h-3 rounded-full bg-slate-100"></div>
         <div class="text-right">—</div>
       </div>
     `;
-    if (ring1) ring1.setAttribute("stroke-dasharray", "0 999");
-    if (ring2) ring2.setAttribute("stroke-dasharray", "0 999");
-    if (ring3) ring3.setAttribute("stroke-dasharray", "0 999");
     return;
   }
 
-  const ordered = Array.isArray(items) ? items : [];
-  const max = Math.max(...ordered.map((x) => Number(x.value || 0)), 1);
+  const max = Math.max(...items.map((x) => Number(x.value || 0)), 1);
 
-  host.innerHTML = ordered
+  host.innerHTML = items
     .map((item) => {
       const value = Number(item.value || 0);
       const width = Math.max(8, Math.round((value / max) * 100));
@@ -2949,7 +2942,7 @@ function renderAnalyticsPeak(hours) {
       return `
         <div class="grid grid-cols-[34px_1fr_40px] items-center gap-4 text-sm">
           <div class="text-slate-500">${escapeHtml(item.label || "—")}</div>
-          <div class="h-3 overflow-hidden rounded-full bg-white">
+          <div class="h-3 overflow-hidden rounded-full bg-slate-100">
             <div
               class="h-3 rounded-full bg-gradient-to-r from-[#5B5CEB] to-[#55D6F6]"
               style="width:${width}%"
@@ -2960,34 +2953,6 @@ function renderAnalyticsPeak(hours) {
       `;
     })
     .join("");
-
-  const sorted = [...ordered].sort((a, b) => Number(b.value || 0) - Number(a.value || 0));
-  const top3 = sorted.slice(0, 3);
-  const vals = [
-    Number(top3[0]?.value || 0),
-    Number(top3[1]?.value || 0),
-    Number(top3[2]?.value || 0),
-  ];
-
-  const total = vals.reduce((a, b) => a + b, 0) || 1;
-  const circumference = 2 * Math.PI * 68;
-
-  const seg1 = (vals[0] / total) * circumference;
-  const seg2 = (vals[1] / total) * circumference;
-  const seg3 = (vals[2] / total) * circumference;
-
-  if (ring1) {
-    ring1.setAttribute("stroke-dasharray", `${seg1} ${circumference}`);
-    ring1.setAttribute("stroke-dashoffset", `0`);
-  }
-  if (ring2) {
-    ring2.setAttribute("stroke-dasharray", `${seg2} ${circumference}`);
-    ring2.setAttribute("stroke-dashoffset", `${-seg1}`);
-  }
-  if (ring3) {
-    ring3.setAttribute("stroke-dasharray", `${seg3} ${circumference}`);
-    ring3.setAttribute("stroke-dashoffset", `${-(seg1 + seg2)}`);
-  }
 }
 
 function renderAnalyticsEmotions(emotions, spike) {
