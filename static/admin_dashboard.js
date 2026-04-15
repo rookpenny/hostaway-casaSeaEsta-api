@@ -2917,11 +2917,9 @@ function renderAnalyticsPeak(hours) {
   if (!host || !peakWindow) return;
 
   const items = Array.isArray(hours?.items) ? hours.items : [];
-  const peak = hours?.peak_window || "—";
-
-  peakWindow.textContent = peak;
 
   if (!items.length) {
+    peakWindow.textContent = "No activity";
     host.innerHTML = `
       <div class="grid grid-cols-[34px_1fr_40px] items-center gap-4 text-sm text-slate-500">
         <div>—</div>
@@ -2932,12 +2930,37 @@ function renderAnalyticsPeak(hours) {
     return;
   }
 
-  const max = Math.max(...items.map((x) => Number(x.value || 0)), 1);
+  const max = Math.max(...items.map((x) => Number(x.value || 0)), 0);
+  const total = items.reduce((sum, x) => sum + Number(x.value || 0), 0);
+
+  if (total === 0 || max === 0) {
+    peakWindow.textContent = "No activity";
+    host.innerHTML = items
+      .map((item) => {
+        return `
+          <div class="grid grid-cols-[34px_1fr_40px] items-center gap-4 text-sm">
+            <div class="text-slate-500">${escapeHtml(item.label || "—")}</div>
+            <div class="h-3 overflow-hidden rounded-full bg-slate-100"></div>
+            <div class="text-right font-medium text-slate-400">0</div>
+          </div>
+        `;
+      })
+      .join("");
+    return;
+  }
+
+  const derivedPeak = [...items].sort(
+    (a, b) => Number(b.value || 0) - Number(a.value || 0)
+  )[0];
+
+  peakWindow.textContent =
+    hours?.peak_window ||
+    `${derivedPeak?.label || "—"}`;
 
   host.innerHTML = items
     .map((item) => {
       const value = Number(item.value || 0);
-      const width = Math.max(8, Math.round((value / max) * 100));
+      const width = value <= 0 ? 0 : Math.round((value / max) * 100);
 
       return `
         <div class="grid grid-cols-[34px_1fr_40px] items-center gap-4 text-sm">
