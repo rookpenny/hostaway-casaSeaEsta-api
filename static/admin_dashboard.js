@@ -2636,7 +2636,7 @@ function setTextByData(key, value) {
 
 function getAnalyticsFilters() {
   return {
-    days: Number(document.getElementById("analyticsRange")?.value || 7),
+    days: 30,
     propertyId: document.getElementById("analyticsPropertyFilter")?.value || "",
     pmcId: document.getElementById("analyticsPmcFilter")?.value || "",
   };
@@ -2851,37 +2851,6 @@ function renderSimpleChatBars(payload) {
   renderAnalyticsDrilldown(days[selectedIndex] || null);
 }
 
-function wireAnalyticsRangeButtons() {
-  const rangeButtons = Array.from(document.querySelectorAll(".analytics-range-btn"));
-  const rangeSelect = document.getElementById("analyticsRange");
-
-  if (!rangeButtons.length || !rangeSelect) return;
-
-  function paint() {
-    const current = String(rangeSelect.value || "7");
-    rangeButtons.forEach((btn) => {
-      const active = btn.getAttribute("data-range") === current;
-      btn.classList.toggle("is-active", active);
-    });
-  }
-
-  rangeButtons.forEach((btn) => {
-    if (btn.dataset.wired === "1") return;
-    btn.dataset.wired = "1";
-
-    btn.addEventListener("click", () => {
-      const next = btn.getAttribute("data-range");
-      if (!next) return;
-
-      rangeSelect.value = next;
-      window.chatAnalyticsState.selectedIndex = null;
-      paint();
-      loadChatAnalytics();
-    });
-  });
-
-  paint();
-}
 
 function renderAnalyticsLifecycle(lifecycle) {
   const stages = {
@@ -3315,13 +3284,11 @@ document.addEventListener("change", (e) => {
 
 
 function initAnalyticsView() {
-  wireAnalyticsRangeButtons();
   loadChatAnalytics();
 }
 
 function initAnalyticsSection() {
   if (!document.getElementById("view-analytics")) return;
-  wireAnalyticsRangeButtons();
   if (isAnalyticsVisible()) {
     loadChatAnalytics();
   }
