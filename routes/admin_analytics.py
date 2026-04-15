@@ -320,9 +320,26 @@ def timeseries(
         prev_start = start - (end - start)
         prev_end = start
     else:
-        end = datetime.now(timezone.utc)
-        start = end - timedelta(days=int(days))
+        now = datetime.now(timezone.utc)
+    
+        # 🔑 Find start of current week (Monday)
+        start_of_week = now - timedelta(days=now.weekday())
+    
+        # 🔑 End of week (Sunday 23:59)
+        end_of_week = start_of_week + timedelta(days=6, hours=23, minutes=59, seconds=59)
+    
+        # 🔑 Anchor chart to end of current week
+        end = end_of_week
+    
+        # 🔑 Go backwards 30 days from that anchor
+        start = end - timedelta(days=int(days) - 1)
+
+        # ✅ ADD IT RIGHT HERE
+        start = start.replace(hour=0, minute=0, second=0, microsecond=0)
+        end = end.replace(hour=23, minute=59, second=59, microsecond=999999)
+    
         window_days = int(days)
+    
         prev_start = start - timedelta(days=int(days))
         prev_end = start
 
