@@ -2252,21 +2252,21 @@
         <div class="text-[28px] font-semibold tracking-tight text-slate-950">Chats per day</div>
         <div class="mt-1 text-sm text-slate-500">Conversation volume and patterns</div>
       </div>
-      <div class="text-sm font-medium text-slate-400">Last 30 days</div>
+      <div class="text-sm font-medium text-slate-400">Last 14 days</div>
     </div>
 
     <!-- keep hidden range input for existing JS -->
     <select id="analyticsRange" class="hidden">
-      <option value="30" selected>30</option>
+      <option value="14" selected>14</option>
     </select>
 
     <div class="px-6 pt-6 pb-6">
       <div class="analytics-chart-frame p-6">
-        <div class="overflow-x-auto">
-          <div class="grid gap-4 min-w-max" id="simple-chat-bars">
-            <!-- JS renders bars here -->
-          </div>
+      <div>
+        <div class="grid gap-4 w-full" id="simple-chat-bars">
+          <!-- JS renders bars here -->
         </div>
+      </div>
       </div>
     </div>
 
