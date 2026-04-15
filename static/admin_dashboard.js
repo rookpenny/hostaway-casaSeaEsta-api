@@ -3041,7 +3041,36 @@ function renderAnalyticsTopProperties(items) {
   const host = document.getElementById("analytics-property-cards");
   if (!host) return;
 
-  if (!Array.isArray(items) || !items.length) {
+  const analyticsItems = Array.isArray(items) ? items : [];
+
+  const allProperties =
+    Array.isArray(BOOT?.properties) ? BOOT.properties : [];
+
+  const byId = new Map(
+    analyticsItems.map((item) => [String(item.property_id ?? item.id ?? ""), item])
+  );
+
+  const merged =
+    allProperties.length > 0
+      ? allProperties.map((prop) => {
+          const id = String(prop.id ?? "");
+          const existing = byId.get(id);
+
+          return (
+            existing || {
+              property_id: prop.id,
+              property_name: prop.property_name || prop.name || "—",
+              sessions: 0,
+              messages: 0,
+              followup_conversion_rate: 0,
+              chat_errors: 0,
+              escalations: 0,
+            }
+          );
+        })
+      : analyticsItems;
+
+  if (!merged.length) {
     host.innerHTML = `
       <div class="xl:col-span-4 rounded-[24px] border border-slate-200 bg-slate-50 p-6 text-sm text-slate-500">
         No property data yet.
@@ -3054,23 +3083,34 @@ function renderAnalyticsTopProperties(items) {
     const ctr = Number(item.followup_conversion_rate || 0);
     const errors = Number(item.chat_errors || 0);
     const escalations = Number(item.escalations || 0);
+    const sessions = Number(item.sessions || 0);
+    const messages = Number(item.messages || 0);
+
+    if (sessions === 0 && messages === 0 && errors === 0 && escalations === 0) {
+      return 0;
+    }
 
     const raw = Math.round(100 - errors * 3 - escalations * 2 + ctr * 0.15);
     return Math.max(0, Math.min(99, raw));
   }
 
   function sparkHeights(item) {
-    const base = Math.max(1, Number(item.sessions || 0));
-    const messages = Math.max(1, Number(item.messages || 0));
-    const escalations = Math.max(0, Number(item.escalations || 0));
-    const errors = Math.max(0, Number(item.chat_errors || 0));
+    const sessions = Number(item.sessions || 0);
+    const messages = Number(item.messages || 0);
+    const escalations = Number(item.escalations || 0);
+    const errors = Number(item.chat_errors || 0);
 
+    if (sessions === 0 && messages === 0 && escalations === 0 && errors === 0) {
+      return [14, 14, 14, 14, 14, 14, 14];
+    }
+
+    const base = Math.max(1, sessions);
     const vals = [
       base * 0.35,
       base * 0.55,
-      messages * 0.18,
+      Math.max(1, messages) * 0.18,
       base * 0.75,
-      messages * 0.22,
+      Math.max(1, messages) * 0.22,
       Math.max(base * 0.45, escalations * 6 + 12),
       Math.max(base * 0.6, errors * 8 + 14),
     ];
@@ -3079,11 +3119,16 @@ function renderAnalyticsTopProperties(items) {
     return vals.map((v) => Math.max(14, Math.round((v / max) * 40) + 8));
   }
 
-  host.innerHTML = items
+  host.innerHTML = merged
     .map((item) => {
       const score = scoreFromItem(item);
       const bars = sparkHeights(item);
       const issues = Number(item.chat_errors || 0) + Number(item.escalations || 0);
+      const hasData =
+        Number(item.sessions || 0) > 0 ||
+        Number(item.messages || 0) > 0 ||
+        Number(item.chat_errors || 0) > 0 ||
+        Number(item.escalations || 0) > 0;
 
       return `
         <div class="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
@@ -3100,7 +3145,9 @@ function renderAnalyticsTopProperties(items) {
               </div>
             </div>
 
-            <div class="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-sm font-semibold text-emerald-700">
+            <div class="shrink-0 rounded-full ${
+              hasData ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+            } px-3 py-1 text-sm font-semibold">
               ${fmtInt(score)}
             </div>
           </div>
@@ -3136,7 +3183,7 @@ function renderAnalyticsTopProperties(items) {
               .map(
                 (h) => `
                   <div
-                    class="w-2.5 rounded-full bg-indigo-400/80"
+                    class="w-2.5 rounded-full ${hasData ? "bg-indigo-400/80" : "bg-slate-200"}"
                     style="height:${h}px"
                   ></div>
                 `
