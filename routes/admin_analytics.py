@@ -477,28 +477,28 @@ def timeseries(
         bindparam("property_id", type_=BIGINT),
     )
 
-hour_stmt = text("""
-    with filtered_msgs as (
+    hour_stmt = text("""
+        with filtered_msgs as (
+            select
+                cm.created_at
+            from chat_messages cm
+            join chat_sessions cs on cs.id = cm.session_id
+            join properties p on p.id = cs.property_id
+            where cm.created_at >= :start
+              and cm.created_at < :end
+              and (:pmc_id is null or p.pmc_id = :pmc_id)
+              and (:property_id is null or cs.property_id = :property_id)
+        )
         select
-            cm.created_at
-        from chat_messages cm
-        join chat_sessions cs on cs.id = cm.session_id
-        join properties p on p.id = cs.property_id
-        where cm.created_at >= :start
-          and cm.created_at < :end
-          and (:pmc_id is null or p.pmc_id = :pmc_id)
-          and (:property_id is null or cs.property_id = :property_id)
+            floor(extract(hour from created_at) / 3) * 3 as hr,
+            count(*) as value
+        from filtered_msgs
+        group by 1
+        order by 1
+    """).bindparams(
+        bindparam("pmc_id", type_=BIGINT),
+        bindparam("property_id", type_=BIGINT),
     )
-    select
-        floor(extract(hour from created_at) / 3) * 3 as hr,
-        count(*) as value
-    from filtered_msgs
-    group by 1
-    order by 1
-""").bindparams(
-    bindparam("pmc_id", type_=BIGINT),
-    bindparam("property_id", type_=BIGINT),
-)
 
     emotion_stmt = text("""
         with scoped_sessions as (
