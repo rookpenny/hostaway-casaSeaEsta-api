@@ -2317,38 +2317,64 @@
     </div>
 
     <div class="grid gap-6 px-8 pb-8 xl:grid-cols-3">
-      <!-- Lifecycle flow -->
-      <div class="rounded-[26px] border border-slate-200 bg-white p-5">
-        <div class="text-sm font-semibold text-slate-900">Lifecycle flow</div>
-        <div class="mt-1 text-xs text-slate-500">How conversations move through the stay</div>
-
-        <div class="mt-5 space-y-3 text-xs">
-          <div>
-            <div class="flex justify-between"><span>Inquiry</span><span id="analytics-stage-inquiry" class="text-slate-500">—</span></div>
-            <div class="mt-1 h-2 rounded bg-slate-100">
-              <div id="analytics-stage-inquiry-bar" class="h-2 rounded bg-slate-900" style="width:0%"></div>
-            </div>
+      <div class="rounded-[30px] border border-slate-200 bg-white p-6">
+      <div class="flex items-start gap-4">
+        <div class="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-emerald-50">
+          <svg viewBox="0 0 24 24" class="h-6 w-6 text-emerald-500" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M4 7c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2" />
+            <path d="M4 12c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2" />
+            <path d="M4 17c2.5 0 2.5-2 5-2s2.5 2 5 2 2.5-2 5-2" />
+          </svg>
+        </div>
+    
+        <div>
+          <div class="text-[30px] font-semibold tracking-[-0.04em] text-slate-950">Lifecycle flow</div>
+          <div class="mt-1 text-[15px] text-slate-500">How conversations move through the stay</div>
+        </div>
+      </div>
+    
+      <div class="mt-7 space-y-5">
+        <div>
+          <div class="mb-2 flex items-center justify-between text-[15px]">
+            <span class="font-medium text-slate-700">Inquiry</span>
+            <span id="analytics-stage-inquiry" class="font-medium text-slate-400">—</span>
           </div>
-          <div>
-            <div class="flex justify-between"><span>Upcoming</span><span id="analytics-stage-upcoming" class="text-slate-500">—</span></div>
-            <div class="mt-1 h-2 rounded bg-slate-100">
-              <div id="analytics-stage-upcoming-bar" class="h-2 rounded bg-indigo-500" style="width:0%"></div>
-            </div>
+          <div class="h-4 rounded-full bg-slate-100 overflow-hidden">
+            <div id="analytics-stage-inquiry-bar" class="h-4 rounded-full bg-[#0B1736]" style="width:0%"></div>
           </div>
-          <div>
-            <div class="flex justify-between"><span>In stay</span><span id="analytics-stage-current" class="text-slate-500">—</span></div>
-            <div class="mt-1 h-2 rounded bg-slate-100">
-              <div id="analytics-stage-current-bar" class="h-2 rounded bg-cyan-500" style="width:0%"></div>
-            </div>
+        </div>
+    
+        <div>
+          <div class="mb-2 flex items-center justify-between text-[15px]">
+            <span class="font-medium text-slate-700">Upcoming</span>
+            <span id="analytics-stage-upcoming" class="font-medium text-slate-400">—</span>
           </div>
-          <div>
-            <div class="flex justify-between"><span>Post stay</span><span id="analytics-stage-post" class="text-slate-500">—</span></div>
-            <div class="mt-1 h-2 rounded bg-slate-100">
-              <div id="analytics-stage-post-bar" class="h-2 rounded bg-emerald-500" style="width:0%"></div>
-            </div>
+          <div class="h-4 rounded-full bg-slate-100 overflow-hidden">
+            <div id="analytics-stage-upcoming-bar" class="h-4 rounded-full bg-[#5B5CEB]" style="width:0%"></div>
+          </div>
+        </div>
+    
+        <div>
+          <div class="mb-2 flex items-center justify-between text-[15px]">
+            <span class="font-medium text-slate-700">In Stay</span>
+            <span id="analytics-stage-current" class="font-medium text-slate-400">—</span>
+          </div>
+          <div class="h-4 rounded-full bg-slate-100 overflow-hidden">
+            <div id="analytics-stage-current-bar" class="h-4 rounded-full bg-[#42B4D6]" style="width:0%"></div>
+          </div>
+        </div>
+    
+        <div>
+          <div class="mb-2 flex items-center justify-between text-[15px]">
+            <span class="font-medium text-slate-700">Post Stay</span>
+            <span id="analytics-stage-post" class="font-medium text-slate-400">—</span>
+          </div>
+          <div class="h-4 rounded-full bg-slate-100 overflow-hidden">
+            <div id="analytics-stage-post-bar" class="h-4 rounded-full bg-[#43BE7A]" style="width:0%"></div>
           </div>
         </div>
       </div>
+    </div>
 
       <!-- Peak chat times -->
       <div class="rounded-[26px] border border-slate-200 bg-white p-5">
