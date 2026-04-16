@@ -4865,6 +4865,32 @@ window.Guides = {
     }
   },
 
+  async duplicate(id) {
+  if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+
+  try {
+    const r = await fetch(`/admin/guides/ajax/duplicate?id=${encodeURIComponent(id)}`, {
+      method: "POST",
+      credentials: "include",
+    });
+
+    if (r.status === 401 || r.status === 403) return loginRedirect();
+
+    const j = await r.json().catch(() => ({}));
+
+    if (!r.ok || !j.ok) {
+      flashIn("guides-flash", j.error || j.detail || "Duplicate failed", false);
+      return;
+    }
+
+    flashIn("guides-flash", "Guide duplicated");
+    await this.refresh();
+  } catch (err) {
+    console.error(err);
+    flashIn("guides-flash", "Duplicate failed.", false);
+  }
+},
+
   async refresh() {
     const { property } = this.getEls();
     const pid = property?.value || "";
