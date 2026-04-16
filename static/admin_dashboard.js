@@ -4254,7 +4254,7 @@ function getRowMood(row) {
     return;
   }
 
-     const dupBtn = e.target.closest("[data-guide-duplicate]");
+const dupBtn = e.target.closest("[data-guide-duplicate]");
 if (dupBtn) {
   e.preventDefault();
   const id = (dupBtn.getAttribute("data-guide-duplicate") || "").trim();
@@ -5094,13 +5094,6 @@ document.addEventListener("click", (e) => {
     e.preventDefault();
     const id = (delBtn.getAttribute("data-guide-delete") || "").trim();
     if (id) Guides.remove(id);
-    return;
-  }
-
-  const dupBtn = e.target.closest("[data-guide-duplicate]");
-  if (dupBtn) {
-    e.preventDefault();
-    toast("Duplicate is not wired yet.");
     return;
   }
 
