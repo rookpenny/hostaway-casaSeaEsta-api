@@ -1490,8 +1490,8 @@
     <div class="flex flex-col gap-4">
       <label class="flex h-12 w-full items-center gap-3 rounded-full border border-slate-200 bg-white px-4">
         <svg class="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-          <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.8"/>
+          <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+          <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.8"></circle>
         </svg>
         <input
           id="guidesSearch"
@@ -1531,17 +1531,11 @@
 
   <div id="guides-flash"></div>
 
-  <div class="rounded-[24px] border border-slate-200 bg-white shadow-sm">
-    <div id="guides-list" class="min-h-[140px] text-sm text-slate-500">
-      Loading…
-    </div>
+  <div class="space-y-4">
+    <div id="guides-list" class="text-sm text-slate-500">Loading…</div>
   </div>
 
-  <div
-    id="guides-editor"
-    class="pointer-events-none fixed inset-0 z-40"
-    aria-hidden="true"
-  >
+  <div id="guides-editor" class="pointer-events-none fixed inset-0 z-40" aria-hidden="true">
     <div
       id="guides-editor-backdrop"
       class="absolute inset-0 bg-slate-950/20 opacity-0 transition-opacity duration-200"
