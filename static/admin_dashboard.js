@@ -4769,18 +4769,20 @@ document.addEventListener("click", async (e) => {
   // ----------------------------
   // Guides (single definition)
   // ----------------------------
-  function flashIn(elId, msg, ok = true) {
-    const el = document.getElementById(elId);
-    if (!el) return;
-    el.innerHTML = `<div class="text-sm rounded-xl px-3 py-2 ${
-      ok
-        ? "bg-emerald-50 border border-emerald-200 text-emerald-800"
-        : "bg-rose-50 border border-rose-200 text-rose-800"
-    }">${msg}</div>`;
-    setTimeout(() => (el.innerHTML = ""), 2400);
-  }
+function flashIn(elId, msg, ok = true) {
+  const el = document.getElementById(elId);
+  if (!el) return;
+  el.innerHTML = `<div class="rounded-xl border px-3 py-3 text-sm ${
+    ok
+      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+      : "border-rose-200 bg-rose-50 text-rose-800"
+  }">${msg}</div>`;
+  window.setTimeout(() => {
+    if (el) el.innerHTML = "";
+  }, 2400);
+}
 
- async function loadHtmlInto(url, targetId) {
+async function loadHtmlInto(url, targetId) {
   const r = await fetch(url, {
     credentials: "include",
     headers: { "X-Requested-With": "fetch" },
@@ -4793,77 +4795,372 @@ document.addEventListener("click", async (e) => {
 
   const html = await r.text();
   target.innerHTML = html;
-
-  // ✅ Rebind ALL reorder tables after any partial inject
   initAllReorderTables();
-
-  // Helpful debug (you can remove later)
-  console.log("Injected partial into:", targetId, "tables:", document.querySelectorAll("table[data-list-kind]").length);
 }
 
+window.Guides = {
+  loaded: false,
+  searchValue: "",
 
+  getEls() {
+    return {
+      search: document.getElementById("guidesSearch"),
+      property: document.getElementById("guidesPropertyFilter"),
+      list: document.getElementById("guides-list"),
+      editor: document.getElementById("guides-editor"),
+      panel: document.getElementById("guides-editor-panel"),
+      backdrop: document.getElementById("guides-editor-backdrop"),
+      editorBody: document.getElementById("guides-editor-body"),
+      editorTitle: document.getElementById("guides-editor-title"),
+      reset: document.getElementById("guidesResetFilters"),
+    };
+  },
 
-  window.Guides = {
-    loaded: false,
+  bindUI() {
+    const { search, property, reset } = this.getEls();
 
-    refresh() {
-      const pid = document.getElementById("guidesPropertyFilter")?.value || "";
-      const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
-      return loadHtmlInto(`/admin/guides/partial/list${qs}`, "guides-list");
-    },
+    if (search && !search.dataset.guidesBound) {
+      search.dataset.guidesBound = "1";
+      search.addEventListener("input", () => {
+        this.searchValue = (search.value || "").trim().toLowerCase();
+        this.applyClientFilters();
+      });
+    }
 
-    openNew() {
-      return Guides.openForm("/admin/guides/partial/form", "New Guide");
-    },
+    if (property && !property.dataset.guidesBound) {
+      property.dataset.guidesBound = "1";
+      property.addEventListener("change", () => {
+        this.refresh();
+      });
+    }
 
-    openEdit(id) {
-      return Guides.openForm(
-        `/admin/guides/partial/form?id=${encodeURIComponent(id)}`,
-        "Edit Guide"
+    if (reset && !reset.dataset.guidesBound) {
+      reset.dataset.guidesBound = "1";
+      reset.addEventListener("click", () => {
+        if (search) search.value = "";
+        if (property) property.value = "";
+        this.searchValue = "";
+        this.refresh();
+      });
+    }
+
+    document.addEventListener("keydown", (e) => {
+      const { editor } = this.getEls();
+      if (!editor) return;
+      if (e.key === "Escape" && !editor.classList.contains("pointer-events-none")) {
+        this.closeEditor();
+      }
+    });
+  },
+
+  async refresh() {
+    const { property } = this.getEls();
+    const pid = property?.value || "";
+    const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+    await loadHtmlInto(`/admin/guides/partial/list${qs}`, "guides-list");
+    this.decorateList();
+    this.applyClientFilters();
+  },
+
+  decorateList() {
+    const { list } = this.getEls();
+    if (!list) return;
+
+    const firstTable = list.querySelector("table");
+    if (firstTable) {
+      firstTable.classList.add("w-full", "text-sm");
+      firstTable.setAttribute("data-list-kind", "guides");
+    }
+
+    list.querySelectorAll("table thead th").forEach((th) => {
+      th.classList.add(
+        "bg-white",
+        "px-4",
+        "py-3",
+        "text-left",
+        "text-xs",
+        "font-semibold",
+        "uppercase",
+        "tracking-[0.08em]",
+        "text-slate-400"
       );
-    },
+    });
 
-    async openForm(url, title) {
-      if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
-      document.getElementById("guides-editor-title").textContent = title || "Editor";
-      await loadHtmlInto(url, "guides-editor-body");
-      document.getElementById("guides-editor")?.classList.remove("hidden");
-    },
+    list.querySelectorAll("table tbody tr").forEach((row) => {
+      row.classList.add("border-t", "border-slate-100", "hover:bg-slate-50");
+    });
 
-    closeEditor() {
-      document.getElementById("guides-editor")?.classList.add("hidden");
-      const body = document.getElementById("guides-editor-body");
-      if (body) body.innerHTML = "";
-    },
+    list.querySelectorAll("table tbody td").forEach((td) => {
+      td.classList.add("px-4", "py-4", "align-middle");
+    });
+  },
 
-    async submit(formEl) {
-      if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+  applyClientFilters() {
+    const { list } = this.getEls();
+    if (!list) return;
+
+    const q = this.searchValue;
+    const rows = Array.from(
+      list.querySelectorAll("[data-guide-row], [data-guides-row], tr[data-guide-row], tr[data-guides-row]")
+    );
+
+    if (!rows.length) return;
+
+    rows.forEach((row) => {
+      const text = (row.textContent || "").toLowerCase();
+      const show = !q || text.includes(q);
+      row.classList.toggle("hidden", !show);
+    });
+
+    list.querySelectorAll("tbody").forEach((tbody) => {
+      const visibleRows = tbody.querySelectorAll("tr:not(.hidden)");
+      const table = tbody.closest("table");
+      if (!table) return;
+      table.classList.toggle("opacity-60", visibleRows.length === 0);
+    });
+  },
+
+  openDrawer() {
+    const { editor, panel, backdrop } = this.getEls();
+    if (!editor || !panel || !backdrop) return;
+    editor.classList.remove("pointer-events-none");
+    editor.setAttribute("aria-hidden", "false");
+    backdrop.classList.remove("opacity-0");
+    panel.classList.remove("translate-x-full");
+    document.body.classList.add("overflow-hidden");
+  },
+
+  closeEditor() {
+    const { editor, panel, backdrop, editorBody } = this.getEls();
+    if (!editor || !panel || !backdrop) return;
+    editor.classList.add("pointer-events-none");
+    editor.setAttribute("aria-hidden", "true");
+    backdrop.classList.add("opacity-0");
+    panel.classList.add("translate-x-full");
+    document.body.classList.remove("overflow-hidden");
+    if (editorBody) editorBody.innerHTML = "";
+  },
+
+  openNew() {
+    return this.openForm("/admin/guides/partial/form", "New Guide");
+  },
+
+  openEdit(id) {
+    return this.openForm(`/admin/guides/partial/form?id=${encodeURIComponent(id)}`, "Edit Guide");
+  },
+
+  async openForm(url, title) {
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+
+    const { editorTitle, editorBody } = this.getEls();
+    if (editorTitle) editorTitle.textContent = title || "Editor";
+    if (editorBody) {
+      editorBody.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+    }
+
+    this.openDrawer();
+    await loadHtmlInto(url, "guides-editor-body");
+    this.decorateEditorForm();
+  },
+
+  decorateEditorForm() {
+    const { editorBody } = this.getEls();
+    if (!editorBody) return;
+
+    editorBody.querySelectorAll("input[type='text'], input[type='url'], input[type='number'], select, textarea").forEach((el) => {
+      if (el.tagName === "TEXTAREA") {
+        el.classList.add(
+          "w-full",
+          "rounded-2xl",
+          "border",
+          "border-slate-200",
+          "bg-white",
+          "px-4",
+          "py-3",
+          "text-[15px]",
+          "text-slate-900",
+          "focus:outline-none"
+        );
+      } else {
+        el.classList.add(
+          "h-12",
+          "w-full",
+          "rounded-2xl",
+          "border",
+          "border-slate-200",
+          "bg-white",
+          "px-4",
+          "text-[15px]",
+          "text-slate-900",
+          "focus:outline-none"
+        );
+      }
+    });
+
+    editorBody.querySelectorAll("label").forEach((label) => {
+      label.classList.add("mb-2", "block", "text-sm", "font-semibold", "text-slate-600");
+    });
+
+    editorBody.querySelectorAll("button[type='submit']").forEach((btn) => {
+      btn.className =
+        "inline-flex h-11 items-center rounded-2xl bg-[#0F172A] px-5 text-[15px] font-semibold text-white";
+    });
+
+    editorBody.querySelectorAll("[data-guide-cancel], .guide-cancel").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        this.closeEditor();
+      });
+    });
+  },
+
+  async submit(formEl) {
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+
+    try {
       const r = await fetch("/admin/guides/ajax/save", {
         method: "POST",
         credentials: "include",
         body: new FormData(formEl),
       });
-      if (r.status === 401 || r.status === 403) return loginRedirect();
-      const j = await r.json().catch(() => ({}));
-      if (!j.ok) return flashIn("guides-flash", j.error || "Save failed", false);
-      flashIn("guides-flash", "Guide saved");
-      Guides.closeEditor();
-      Guides.refresh();
-    },
 
-    async remove(id) {
-      if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
-      if (!confirm("Delete this guide?")) return;
+      if (r.status === 401 || r.status === 403) return loginRedirect();
+
+      const contentType = (r.headers.get("content-type") || "").toLowerCase();
+      if (!contentType.includes("application/json")) {
+        flashIn("guides-flash", "Save failed.", false);
+        return;
+      }
+
+      const j = await r.json().catch(() => ({}));
+      if (!r.ok || !j.ok) {
+        flashIn("guides-flash", j.error || j.detail || "Save failed", false);
+        return;
+      }
+
+      flashIn("guides-flash", "Guide saved");
+      this.closeEditor();
+      await this.refresh();
+    } catch (err) {
+      console.error(err);
+      flashIn("guides-flash", "Network error saving guide.", false);
+    }
+  },
+
+  async remove(id) {
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
+    if (!window.confirm("Delete this guide?")) return;
+
+    try {
       const r = await fetch(`/admin/guides/ajax/delete?id=${encodeURIComponent(id)}`, {
         method: "POST",
         credentials: "include",
       });
+
+      if (r.status === 401 || r.status === 403) return loginRedirect();
+
       const j = await r.json().catch(() => ({}));
-      if (!j.ok) return flashIn("guides-flash", j.error || "Delete failed", false);
+      if (!r.ok || !j.ok) {
+        flashIn("guides-flash", j.error || j.detail || "Delete failed", false);
+        return;
+      }
+
       flashIn("guides-flash", "Guide deleted");
-      Guides.refresh();
-    },
-  };
+      await this.refresh();
+    } catch (err) {
+      console.error(err);
+      flashIn("guides-flash", "Delete failed.", false);
+    }
+  },
+
+  init() {
+    if (this.loaded) return;
+    this.loaded = true;
+    this.bindUI();
+    this.refresh();
+  },
+};
+
+document.addEventListener("click", (e) => {
+  const editBtn = e.target.closest("[data-guide-edit]");
+  if (editBtn) {
+    e.preventDefault();
+    const id = (editBtn.getAttribute("data-guide-edit") || "").trim();
+    if (id) Guides.openEdit(id);
+    return;
+  }
+
+  const delBtn = e.target.closest("[data-guide-delete]");
+  if (delBtn) {
+    e.preventDefault();
+    const id = (delBtn.getAttribute("data-guide-delete") || "").trim();
+    if (id) Guides.remove(id);
+    return;
+  }
+});
+
+document.addEventListener("change", async (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement)) return;
+  if (!el.matches("[data-guide-active]")) return;
+
+  if (window.CONTENT_LOCKED) {
+    toast("Complete payment to unlock Guides.");
+    el.checked = !el.checked;
+    return;
+  }
+
+  const id = el.dataset.guideId;
+  const checked = el.checked;
+  const row = el.closest("[data-guide-row], [data-guides-row]");
+  const label = row?.querySelector("[data-guide-status-label]");
+
+  if (label) {
+    label.textContent = checked ? "Active" : "Inactive";
+    label.className =
+      "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
+  }
+
+  try {
+    const { res, data } = await apiJson("/admin/guides/ajax/toggle-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, is_active: checked }),
+    });
+
+    if (!res.ok || !data.ok) {
+      toast(data.error || "Failed to update.");
+      el.checked = !checked;
+
+      if (label) {
+        const reverted = el.checked;
+        label.textContent = reverted ? "Active" : "Inactive";
+        label.className =
+          "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
+      }
+    }
+  } catch (err) {
+    console.error(err);
+    toast("Failed to update.");
+    el.checked = !checked;
+
+    if (label) {
+      const reverted = el.checked;
+      label.textContent = reverted ? "Active" : "Inactive";
+      label.className =
+        "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
+    }
+  }
+});
+
+document.addEventListener("submit", (e) => {
+  const form = e.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  if (!form.closest("#guides-editor-body")) return;
+
+  e.preventDefault();
+  Guides.submit(form);
+});
 
   // ----------------------------
   // Settings tabs + Team settings
