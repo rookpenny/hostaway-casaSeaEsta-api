@@ -5124,11 +5124,17 @@ document.addEventListener("change", async (e) => {
   const checked = el.checked;
   const row = el.closest("[data-guide-row]");
   const label = row?.querySelector("[data-guide-status-label]");
-
   if (label) {
     label.textContent = checked ? "Active" : "Disabled";
     label.className =
       "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
+  }
+
+ if (label) {
+      const reverted = el.checked;
+      label.textContent = reverted ? "Active" : "Disabled";
+      label.className =
+      "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
   }
   
   const track = row?.querySelector("[data-guide-toggle-track]");
