@@ -4777,7 +4777,7 @@ function flashIn(elId, msg, ok = true) {
       ? "border-emerald-200 bg-emerald-50 text-emerald-800"
       : "border-rose-200 bg-rose-50 text-rose-800"
   }">${msg}</div>`;
-  window.setTimeout(() => {
+  setTimeout(() => {
     if (el) el.innerHTML = "";
   }, 2400);
 }
@@ -4795,6 +4795,7 @@ async function loadHtmlInto(url, targetId) {
 
   const html = await r.text();
   target.innerHTML = html;
+
   initAllReorderTables();
 }
 
@@ -4844,13 +4845,16 @@ window.Guides = {
       });
     }
 
-    document.addEventListener("keydown", (e) => {
-      const { editor } = this.getEls();
-      if (!editor) return;
-      if (e.key === "Escape" && !editor.classList.contains("pointer-events-none")) {
-        this.closeEditor();
-      }
-    });
+    if (!document.body.dataset.guidesEscBound) {
+      document.body.dataset.guidesEscBound = "1";
+      document.addEventListener("keydown", (e) => {
+        const { editor } = this.getEls();
+        if (!editor) return;
+        if (e.key === "Escape" && !editor.classList.contains("pointer-events-none")) {
+          this.closeEditor();
+        }
+      });
+    }
   },
 
   async refresh() {
@@ -4858,41 +4862,7 @@ window.Guides = {
     const pid = property?.value || "";
     const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
     await loadHtmlInto(`/admin/guides/partial/list${qs}`, "guides-list");
-    this.decorateList();
     this.applyClientFilters();
-  },
-
-  decorateList() {
-    const { list } = this.getEls();
-    if (!list) return;
-
-    const firstTable = list.querySelector("table");
-    if (firstTable) {
-      firstTable.classList.add("w-full", "text-sm");
-      firstTable.setAttribute("data-list-kind", "guides");
-    }
-
-    list.querySelectorAll("table thead th").forEach((th) => {
-      th.classList.add(
-        "bg-white",
-        "px-4",
-        "py-3",
-        "text-left",
-        "text-xs",
-        "font-semibold",
-        "uppercase",
-        "tracking-[0.08em]",
-        "text-slate-400"
-      );
-    });
-
-    list.querySelectorAll("table tbody tr").forEach((row) => {
-      row.classList.add("border-t", "border-slate-100", "hover:bg-slate-50");
-    });
-
-    list.querySelectorAll("table tbody td").forEach((td) => {
-      td.classList.add("px-4", "py-4", "align-middle");
-    });
   },
 
   applyClientFilters() {
@@ -4900,23 +4870,33 @@ window.Guides = {
     if (!list) return;
 
     const q = this.searchValue;
+    const cards = Array.from(list.querySelectorAll("[data-guide-property-card]"));
+
+    if (cards.length) {
+      cards.forEach((card) => {
+        const rows = Array.from(card.querySelectorAll("[data-guide-row]"));
+        let visibleCount = 0;
+
+        rows.forEach((row) => {
+          const text = (row.textContent || "").toLowerCase();
+          const show = !q || text.includes(q);
+          row.classList.toggle("hidden", !show);
+          if (show) visibleCount += 1;
+        });
+
+        card.classList.toggle("hidden", visibleCount === 0);
+      });
+      return;
+    }
+
     const rows = Array.from(
       list.querySelectorAll("[data-guide-row], [data-guides-row], tr[data-guide-row], tr[data-guides-row]")
     );
-
-    if (!rows.length) return;
 
     rows.forEach((row) => {
       const text = (row.textContent || "").toLowerCase();
       const show = !q || text.includes(q);
       row.classList.toggle("hidden", !show);
-    });
-
-    list.querySelectorAll("tbody").forEach((tbody) => {
-      const visibleRows = tbody.querySelectorAll("tr:not(.hidden)");
-      const table = tbody.closest("table");
-      if (!table) return;
-      table.classList.toggle("opacity-60", visibleRows.length === 0);
     });
   },
 
@@ -4954,9 +4934,7 @@ window.Guides = {
 
     const { editorTitle, editorBody } = this.getEls();
     if (editorTitle) editorTitle.textContent = title || "Editor";
-    if (editorBody) {
-      editorBody.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
-    }
+    if (editorBody) editorBody.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
 
     this.openDrawer();
     await loadHtmlInto(url, "guides-editor-body");
@@ -5005,13 +4983,6 @@ window.Guides = {
       btn.className =
         "inline-flex h-11 items-center rounded-2xl bg-[#0F172A] px-5 text-[15px] font-semibold text-white";
     });
-
-    editorBody.querySelectorAll("[data-guide-cancel], .guide-cancel").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        this.closeEditor();
-      });
-    });
   },
 
   async submit(formEl) {
@@ -5025,12 +4996,6 @@ window.Guides = {
       });
 
       if (r.status === 401 || r.status === 403) return loginRedirect();
-
-      const contentType = (r.headers.get("content-type") || "").toLowerCase();
-      if (!contentType.includes("application/json")) {
-        flashIn("guides-flash", "Save failed.", false);
-        return;
-      }
 
       const j = await r.json().catch(() => ({}));
       if (!r.ok || !j.ok) {
@@ -5049,7 +5014,7 @@ window.Guides = {
 
   async remove(id) {
     if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
-    if (!window.confirm("Delete this guide?")) return;
+    if (!confirm("Delete this guide?")) return;
 
     try {
       const r = await fetch(`/admin/guides/ajax/delete?id=${encodeURIComponent(id)}`, {
@@ -5097,6 +5062,24 @@ document.addEventListener("click", (e) => {
     if (id) Guides.remove(id);
     return;
   }
+
+  const dupBtn = e.target.closest("[data-guide-duplicate]");
+  if (dupBtn) {
+    e.preventDefault();
+    toast("Duplicate is not wired yet.");
+    return;
+  }
+
+  const propertyToggle = e.target.closest("[data-guide-property-toggle]");
+  if (propertyToggle) {
+    const card = propertyToggle.closest("[data-guide-property-card]");
+    const body = card?.querySelector("[data-guide-property-body]");
+    const chevron = propertyToggle.querySelector("[data-guide-property-chevron]");
+    if (!card || !body) return;
+
+    body.classList.toggle("hidden");
+    chevron?.classList.toggle("rotate-180");
+  }
 });
 
 document.addEventListener("change", async (e) => {
@@ -5112,11 +5095,11 @@ document.addEventListener("change", async (e) => {
 
   const id = el.dataset.guideId;
   const checked = el.checked;
-  const row = el.closest("[data-guide-row], [data-guides-row]");
+  const row = el.closest("[data-guide-row]");
   const label = row?.querySelector("[data-guide-status-label]");
 
   if (label) {
-    label.textContent = checked ? "Active" : "Inactive";
+    label.textContent = checked ? "Active" : "Disabled";
     label.className =
       "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
   }
@@ -5134,7 +5117,7 @@ document.addEventListener("change", async (e) => {
 
       if (label) {
         const reverted = el.checked;
-        label.textContent = reverted ? "Active" : "Inactive";
+        label.textContent = reverted ? "Active" : "Disabled";
         label.className =
           "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
       }
@@ -5146,7 +5129,7 @@ document.addEventListener("change", async (e) => {
 
     if (label) {
       const reverted = el.checked;
-      label.textContent = reverted ? "Active" : "Inactive";
+      label.textContent = reverted ? "Active" : "Disabled";
       label.className =
         "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
     }
