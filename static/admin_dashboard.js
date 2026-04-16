@@ -370,7 +370,7 @@ function setInlineDetailOpen(open) {
   const list = document.getElementById("chat-list-wrap");
 
   const chatsView = document.getElementById("view-chats");
-  const filterCard = chatsView?.querySelector(".sticky.top-28");
+  const filterCard = document.getElementById("chat-filter-card");
   const insightCards = chatsView?.querySelector(".grid.gap-4");
 
   if (!inline || !list || !chatsView) return;
