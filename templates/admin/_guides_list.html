@@ -1,2 +1,121 @@
-{% from "admin/_list_table.html" import render_list_table %}
-{{ render_list_table(guides, "guide", show_price=false, show_delete=true) }}
+{% if guides and guides|length %}
+  <div class="space-y-4">
+    {% for property_name, property_guides in guides|groupby("property_name") %}
+      <section
+        data-guide-property-card
+        class="overflow-hidden rounded-[24px] border border-slate-200 bg-white shadow-sm"
+      >
+        <div
+          data-guide-property-toggle
+          class="flex cursor-pointer items-center justify-between gap-4 px-6 py-6"
+        >
+          <div class="min-w-0">
+            <div class="text-[15px] font-semibold text-slate-900">
+              {{ property_name or "Unknown property" }}
+            </div>
+            <div class="mt-1 text-xs text-slate-500">
+              {{ property_guides|length }} guides
+            </div>
+          </div>
+
+          <div class="flex h-12 w-12 items-center justify-center rounded-full border border-[#D7E3FF] bg-[#F8FAFF] text-slate-500">
+            <svg
+              data-guide-property-chevron
+              class="h-5 w-5 transition-transform"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <path
+                d="m6 9 6 6 6-6"
+                stroke="currentColor"
+                stroke-width="1.8"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              ></path>
+            </svg>
+          </div>
+        </div>
+
+        <div data-guide-property-body class="border-t border-slate-200 overflow-x-auto">
+          <table data-list-kind="guides" class="w-full text-sm">
+            <thead>
+              <tr class="border-b border-slate-100">
+                <th class="w-[48px] px-4 py-3"></th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Title</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Category</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Status</th>
+                <th class="px-4 py-3 text-left text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Summary</th>
+                <th class="px-4 py-3 text-right text-xs font-semibold uppercase tracking-[0.08em] text-slate-400">Actions</th>
+              </tr>
+            </thead>
+
+            <tbody data-reorder-body>
+              {% for guide in property_guides %}
+                <tr data-guide-row="{{ guide.id }}" class="border-t border-slate-100 hover:bg-slate-50">
+                  <td class="px-4 py-4 text-slate-400">
+                    <span data-reorder-handle class="cursor-grab select-none">⋮⋮</span>
+                  </td>
+
+                  <td class="px-4 py-4 font-semibold text-slate-900">
+                    {{ guide.title }}
+                  </td>
+
+                  <td class="px-4 py-4 text-slate-500">
+                    {{ guide.category or guide.type or "General" }}
+                  </td>
+
+                  <td class="px-4 py-4">
+                    <label class="inline-flex items-center gap-2">
+                      <input
+                        type="checkbox"
+                        data-guide-active
+                        data-guide-id="{{ guide.id }}"
+                        {% if guide.is_active or guide.active %}checked{% endif %}
+                        class="h-5 w-5 rounded border-slate-300 text-blue-600 focus:ring-0"
+                      />
+                      <span
+                        data-guide-status-label
+                        class="text-xs font-semibold {% if guide.is_active or guide.active %}text-emerald-700{% else %}text-slate-400{% endif %}"
+                      >
+                        {% if guide.is_active or guide.active %}Active{% else %}Disabled{% endif %}
+                      </span>
+                    </label>
+                  </td>
+
+                  <td class="max-w-[260px] truncate px-4 py-4 text-slate-500">
+                    {{ guide.body_plain or guide.summary or guide.short_description or guide.description or "" }}
+                  </td>
+
+                  <td class="px-4 py-4 text-right">
+                    <div class="flex justify-end gap-3">
+                      <button
+                        type="button"
+                        data-guide-edit="{{ guide.id }}"
+                        class="text-xs font-semibold text-slate-700"
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type="button"
+                        data-guide-delete="{{ guide.id }}"
+                        class="text-xs font-semibold text-rose-600"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    {% endfor %}
+  </div>
+{% else %}
+  <div class="rounded-[24px] border border-slate-200 bg-white p-8 text-sm text-slate-500 shadow-sm">
+    No guides yet.
+  </div>
+{% endif %}
