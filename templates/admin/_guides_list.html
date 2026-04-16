@@ -71,15 +71,17 @@
     type="checkbox"
     data-guide-active
     data-guide-id="{{ guide.id }}"
-    class="peer sr-only"
+    class="sr-only"
     {% if guide.is_active or guide.active %}checked{% endif %}
   />
 
   <span
-    class="relative h-6 w-11 rounded-full bg-slate-200 transition-colors duration-200 peer-checked:bg-emerald-600"
+    data-guide-toggle-track
+    class="relative h-6 w-11 rounded-full transition-colors duration-200 {% if guide.is_active or guide.active %}bg-emerald-600{% else %}bg-slate-200{% endif %}"
   >
     <span
-      class="absolute top-1 left-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5"
+      data-guide-toggle-knob
+      class="absolute top-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 {% if guide.is_active or guide.active %}translate-x-5 left-1{% else %}left-1{% endif %}"
     ></span>
   </span>
 
