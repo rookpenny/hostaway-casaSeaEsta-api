@@ -4254,6 +4254,14 @@ function getRowMood(row) {
     return;
   }
 
+     const dupBtn = e.target.closest("[data-guide-duplicate]");
+if (dupBtn) {
+  e.preventDefault();
+  const id = (dupBtn.getAttribute("data-guide-duplicate") || "").trim();
+  if (id) Guides.duplicate(id);
+  return;
+}
+
   const delBtn = e.target.closest("[data-guide-delete]");
   if (delBtn) {
     const id = (delBtn.getAttribute("data-guide-delete") || "").trim();
