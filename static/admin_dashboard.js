@@ -5103,6 +5103,12 @@ document.addEventListener("change", async (e) => {
     label.className =
       "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
   }
+  
+  const track = row?.querySelector("[data-guide-toggle-track]");
+  if (track) {
+    track.classList.remove("bg-emerald-600", "bg-slate-200");
+    track.classList.add(checked ? "bg-emerald-600" : "bg-slate-200");
+  }
 
   try {
     const { res, data } = await apiJson("/admin/guides/ajax/toggle-active", {
