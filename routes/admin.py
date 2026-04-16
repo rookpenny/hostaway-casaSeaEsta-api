@@ -2253,7 +2253,29 @@ def resolve_chat(session_id: int, request: Request, db: Session = Depends(get_db
     db.commit()
     return {"ok": True, "is_resolved": True, "resolved_at": s.resolved_at.isoformat()}
 
+@router.post("/admin/guides/ajax/duplicate")
+def duplicate_guide(
+    id: int = Query(...),
+    db: Session = Depends(get_db),
+):
+    guide = db.query(Guide).filter(Guide.id == id).first()
+    if not guide:
+        return JSONResponse({"ok": False, "error": "Guide not found"}, status_code=404)
 
+    new_guide = Guide(
+        property_id=guide.property_id,
+        title=f"{guide.title} (Copy)",
+        category=guide.category,
+        body_html=guide.body_html,
+        is_active=False,
+        sort_order=guide.sort_order,
+    )
+
+    db.add(new_guide)
+    db.commit()
+
+    return {"ok": True}
+    
 @router.post("/admin/chats/{session_id}/unresolve")
 def unresolve_chat(session_id: int, request: Request, db: Session = Depends(get_db)):
     s = require_session_in_scope(request, db, session_id)
