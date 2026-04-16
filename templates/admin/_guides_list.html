@@ -67,25 +67,34 @@
 
                   <td class="px-4 py-4">
                     <label class="inline-flex items-center gap-3">
-                        <input
-                          type="checkbox"
-                          data-guide-active
-                          data-guide-id="{{ guide.id }}"
-                          class="peer sr-only"
-                          {% if guide.is_active or guide.active %}checked{% endif %}
-                        />
-                      
-                        <span class="relative h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-[#0F172A]">
-                          <span class="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-5"></span>
-                        </span>
-                      
-                        <span
-                          data-guide-status-label
-                          class="text-xs font-semibold {% if guide.is_active or guide.active %}text-emerald-700{% else %}text-slate-400{% endif %}"
-                        >
-                          {% if guide.is_active or guide.active %}Active{% else %}Disabled{% endif %}
-                        </span>
-                      </label>
+                      <input
+                        type="checkbox"
+                        data-guide-active
+                        data-guide-id="{{ guide.id }}"
+                        class="peer sr-only"
+                        {% if guide.is_active or guide.active %}checked{% endif %}
+                      />
+                    
+                      <!-- Track -->
+                      <span class="relative h-6 w-11 rounded-full transition
+                        {% if guide.is_active or guide.active %}
+                          bg-emerald-600
+                        {% else %}
+                          bg-slate-200
+                        {% endif %}
+                      ">
+                        <!-- Knob (always right) -->
+                        <span class="absolute right-1 top-1 h-4 w-4 rounded-full bg-white"></span>
+                      </span>
+                    
+                      <!-- Label -->
+                      <span
+                        data-guide-status-label
+                        class="text-xs font-semibold {% if guide.is_active or guide.active %}text-emerald-700{% else %}text-slate-400{% endif %}"
+                      >
+                        {% if guide.is_active or guide.active %}Active{% else %}Disabled{% endif %}
+                      </span>
+                    </label>
                   </td>
 
                   <td class="max-w-[260px] truncate px-4 py-4 text-slate-500">
