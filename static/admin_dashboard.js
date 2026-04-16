@@ -5124,24 +5124,28 @@ document.addEventListener("change", async (e) => {
   const checked = el.checked;
   const row = el.closest("[data-guide-row]");
   const label = row?.querySelector("[data-guide-status-label]");
-  if (label) {
-    label.textContent = checked ? "Active" : "Disabled";
-    label.className =
-      "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
-  }
-
- if (label) {
-      const reverted = el.checked;
-      label.textContent = reverted ? "Active" : "Disabled";
-      label.className =
-      "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
-  }
-  
   const track = row?.querySelector("[data-guide-toggle-track]");
-  if (track) {
-    track.classList.remove("bg-emerald-600", "bg-slate-200");
-    track.classList.add(checked ? "bg-emerald-600" : "bg-slate-200");
-  }
+  const knob = row?.querySelector("[data-guide-toggle-knob]");
+
+  const paintToggle = (isChecked) => {
+    if (label) {
+      label.textContent = isChecked ? "Active" : "Disabled";
+      label.className =
+        "text-xs font-semibold " + (isChecked ? "text-emerald-700" : "text-slate-400");
+    }
+
+    if (track) {
+      track.classList.remove("bg-emerald-600", "bg-slate-200");
+      track.classList.add(isChecked ? "bg-emerald-600" : "bg-slate-200");
+    }
+
+    if (knob) {
+      knob.classList.remove("translate-x-5");
+      if (isChecked) knob.classList.add("translate-x-5");
+    }
+  };
+
+  paintToggle(checked);
 
   try {
     const { res, data } = await apiJson("/admin/guides/ajax/toggle-active", {
@@ -5153,26 +5157,23 @@ document.addEventListener("change", async (e) => {
     if (!res.ok || !data.ok) {
       toast(data.error || "Failed to update.");
       el.checked = !checked;
-
-      if (label) {
-        const reverted = el.checked;
-        label.textContent = reverted ? "Active" : "Disabled";
-        label.className =
-          "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
-      }
+      paintToggle(el.checked);
     }
   } catch (err) {
     console.error(err);
     toast("Failed to update.");
     el.checked = !checked;
-
-    if (label) {
-      const reverted = el.checked;
-      label.textContent = reverted ? "Active" : "Disabled";
-      label.className =
-        "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
-    }
+    paintToggle(el.checked);
   }
+});
+
+document.addEventListener("submit", (e) => {
+  const form = e.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  if (!form.closest("#guides-editor-body")) return;
+
+  e.preventDefault();
+  Guides.submit(form);
 });
 
 document.addEventListener("submit", (e) => {
