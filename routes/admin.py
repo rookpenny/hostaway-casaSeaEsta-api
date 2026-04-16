@@ -2625,27 +2625,41 @@ def guides_partial_list(
     if property_id is not None:
         q = q.filter(Guide.property_id == int(property_id))
 
-    guides = q.order_by(Guide.sort_order.asc(), Guide.updated_at.desc()).all()
+    guides = (
+        q.order_by(Property.property_name.asc(), Guide.sort_order.asc(), Guide.updated_at.desc())
+        .all()
+    )
 
-    rows = [
-        {
-            "id": g.id,
-            "title": g.title,
-            "property_id": g.property_id,
-            "property_name": p.property_name,
-            "is_active": g.is_active,
-            "updated_at": g.updated_at,
-        }
-        for (g, p) in guides
-    ]
+    rows = []
+    for (g, p) in guides:
+        summary = (
+            (getattr(g, "short_description", None) or "").strip()
+            or re.sub(r"<[^>]+>", "", (getattr(g, "body_html", None) or "")).strip()
+        )
+
+        if len(summary) > 180:
+            summary = summary[:180].rstrip() + "…"
+
+        rows.append(
+            {
+                "id": g.id,
+                "title": g.title,
+                "property_id": g.property_id,
+                "property_name": p.property_name,
+                "category": getattr(g, "category", None),
+                "summary": summary,
+                "body_html": getattr(g, "body_html", None),
+                "is_active": bool(g.is_active),
+                "sort_order": getattr(g, "sort_order", 0) or 0,
+                "updated_at": g.updated_at,
+            }
+        )
 
     return templates.TemplateResponse(
         request,
         "admin/_guides_list.html",
         {"request": request, "guides": rows},
     )
-
-
 @router.get("/admin/guides/partial/form", response_class=HTMLResponse)
 def guides_partial_form(
     request: Request,
