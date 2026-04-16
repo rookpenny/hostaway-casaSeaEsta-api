@@ -45,16 +45,23 @@
       >{{ guide.body_html if guide else '' }}</textarea>
     </div>
 
-    <label class="flex items-center gap-3 text-[15px] text-slate-900">
-      <input
-        type="checkbox"
-        name="is_active"
-        value="true"
-        {% if guide and guide.is_active %}checked{% endif %}
-        class="h-4 w-4 rounded border-slate-300"
-      >
-      Active
-    </label>
+    <div class="flex items-center justify-between">
+  <span class="text-[15px] font-medium text-slate-900">Active</span>
+
+  <label class="relative inline-flex cursor-pointer items-center">
+    <input
+      type="checkbox"
+      name="is_active"
+      value="true"
+      class="peer sr-only"
+      {% if guide and guide.is_active %}checked{% endif %}
+    >
+
+    <div class="h-6 w-11 rounded-full bg-slate-200 transition peer-checked:bg-[#0F172A]"></div>
+
+    <div class="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform peer-checked:translate-x-5"></div>
+  </label>
+</div>
   </div>
 
   <div class="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-6">
