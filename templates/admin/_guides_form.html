@@ -1,61 +1,75 @@
-<form onsubmit="event.preventDefault(); Guides.submit(this);"
-      class="space-y-3">
-
+<form onsubmit="event.preventDefault(); Guides.submit(this);" class="flex h-full flex-col">
   <input type="hidden" name="id" value="{{ guide.id if guide else '' }}">
 
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Property</label>
-    <select name="property_id"
-            required
-            class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white">
-      {% for p in properties %}
-        <option value="{{ p.id }}"
-          {% if guide and guide.property_id == p.id %}selected{% endif %}>
-          {{ p.property_name }}
-        </option>
-      {% endfor %}
-    </select>
+  <div class="space-y-5">
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Property</label>
+      <select
+        name="property_id"
+        required
+        class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 focus:outline-none"
+      >
+        {% for p in properties %}
+          <option value="{{ p.id }}" {% if guide and guide.property_id == p.id %}selected{% endif %}>
+            {{ p.property_name }}
+          </option>
+        {% endfor %}
+      </select>
+    </div>
+
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Title</label>
+      <input
+        name="title"
+        required
+        value="{{ guide.title if guide else '' }}"
+        class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 focus:outline-none"
+      >
+    </div>
+
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Category</label>
+      <input
+        name="category"
+        value="{{ guide.category if guide else '' }}"
+        class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 focus:outline-none"
+      >
+    </div>
+
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Body</label>
+      <textarea
+        name="body_html"
+        rows="12"
+        class="min-h-[280px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-900 focus:outline-none"
+      >{{ guide.body_html if guide else '' }}</textarea>
+    </div>
+
+    <label class="flex items-center gap-3 text-[15px] text-slate-900">
+      <input
+        type="checkbox"
+        name="is_active"
+        value="true"
+        {% if guide and guide.is_active %}checked{% endif %}
+        class="h-4 w-4 rounded border-slate-300"
+      >
+      Active
+    </label>
   </div>
 
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Title</label>
-    <input name="title"
-           required
-           value="{{ guide.title if guide else '' }}"
-           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
-  </div>
-
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Category</label>
-    <input name="category"
-           value="{{ guide.category if guide else '' }}"
-           class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm">
-  </div>
-
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Body (HTML)</label>
-    <textarea name="body_html"
-              rows="6"
-              class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm">{{ guide.body_html if guide else '' }}</textarea>
-  </div>
-
-  <div class="flex items-center gap-2">
-    <input type="checkbox"
-           name="is_active"
-           value="true"
-           {% if guide and guide.is_active %}checked{% endif %}>
-    <span class="text-sm">Active</span>
-  </div>
-
-  <div class="flex justify-end gap-2 pt-2">
-    <button type="button"
-            onclick="Guides.closeEditor()"
-            class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+  <div class="mt-6 flex items-center justify-end gap-3 border-t border-slate-100 pt-6">
+    <button
+      type="button"
+      onclick="Guides.closeEditor()"
+      class="inline-flex h-11 items-center rounded-2xl border border-slate-200 px-5 text-[15px] font-medium text-slate-800"
+    >
       Cancel
     </button>
 
-    <button type="submit"
-            class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+    <button
+      type="submit"
+      class="inline-flex h-11 items-center rounded-2xl bg-[#0F172A] px-5 text-[15px] font-semibold text-white"
+    >
       Save Guide
     </button>
   </div>
