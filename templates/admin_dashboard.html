@@ -1565,28 +1565,28 @@
 </section>
 
 <section id="view-upgrades" class="view hidden space-y-6">
-  <div class="overflow-hidden rounded-[32px] border border-[#3147B9] bg-gradient-to-r from-[#15258F] via-[#3C3BC4] to-[#C66DDA] shadow-[0_12px_40px_rgba(42,61,170,0.18)]">
-  <div class="relative px-8 py-8 sm:px-10 sm:py-9">
-    <div class="absolute bottom-[-72px] right-[-18px] h-[180px] w-[300px] rounded-[48px] bg-[#F3C1C7] opacity-90 rotate-[-18deg]"></div>
+  <div class="overflow-hidden rounded-[32px] border border-[#3147B9] bg-gradient-to-r from-[#15258F] via-[#3037B8] to-[#7A67D8] shadow-[0_12px_40px_rgba(42,61,170,0.18)]">
+  <div class="relative px-8 py-8 sm:px-10 sm:py-10">
+    <div class="absolute bottom-[-46px] right-[-8px] h-[170px] w-[330px] rounded-[52px] bg-[#F1BCC5] opacity-95 rotate-[-17deg]"></div>
 
-    <div class="relative z-10 max-w-4xl">
-      <div class="inline-flex items-center rounded-full bg-white/10 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-white/90">
+    <div class="relative z-10 max-w-[1220px]">
+      <div class="inline-flex items-center rounded-full bg-white/10 px-5 py-2 text-[12px] font-semibold uppercase tracking-[0.20em] text-white/90">
         ✦ UPGRADE SYSTEM
       </div>
 
-      <h2 class="mt-8 max-w-4xl text-[42px] font-semibold tracking-[-0.05em] text-white sm:text-[56px] sm:leading-[1.02]">
+      <h2 class="mt-10 max-w-[1200px] text-[64px] font-semibold tracking-[-0.06em] leading-[0.98] text-white">
         Build upgrades your guests actually want.
       </h2>
 
-      <p class="mt-6 max-w-3xl text-[18px] leading-8 text-white/72">
+      <p class="mt-10 max-w-[1180px] text-[22px] leading-[1.65] text-white/68">
         Create, organize, and optimize paid add-ons that increase guest experience and unlock more revenue per stay.
       </p>
 
-      <div class="mt-8">
+      <div class="mt-12">
         <button
           type="button"
           onclick="{{ 'Upgrades.openNew()' if stripe_connected else 'null' }}"
-          class="inline-flex h-[70px] items-center rounded-full px-8 text-[20px] font-semibold transition
+          class="inline-flex h-[78px] items-center rounded-full px-10 text-[22px] font-semibold transition
             {{ 'bg-white text-slate-900 hover:bg-slate-100'
               if stripe_connected
               else 'cursor-not-allowed bg-white/50 text-slate-500' }}"
