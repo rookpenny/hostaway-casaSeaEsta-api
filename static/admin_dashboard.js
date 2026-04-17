@@ -4246,32 +4246,6 @@ function getRowMood(row) {
   };
 
 
-   document.addEventListener("click", (e) => {
-  const editBtn = e.target.closest("[data-guide-edit]");
-  if (editBtn) {
-    const id = (editBtn.getAttribute("data-guide-edit") || "").trim();
-    if (id) Guides.openEdit(id);
-    return;
-  }
-
-const dupBtn = e.target.closest("[data-guide-duplicate]");
-if (dupBtn) {
-  e.preventDefault();
-  const id = (dupBtn.getAttribute("data-guide-duplicate") || "").trim();
-  if (id) Guides.duplicate(id);
-  return;
-}
-
-  const delBtn = e.target.closest("[data-guide-delete]");
-  if (delBtn) {
-    const id = (delBtn.getAttribute("data-guide-delete") || "").trim();
-    if (id) Guides.remove(id);
-    return;
-  }
-});
-
-  
-
    document.addEventListener("change", async (e) => {
   const el = e.target;
   if (!(el instanceof HTMLInputElement)) return;
@@ -5089,6 +5063,45 @@ document.addEventListener("click", (e) => {
     return;
   }
 
+  const propertyToggle = e.target.closest("[data-guide-property-toggle]");
+  if (propertyToggle) {
+    const card = propertyToggle.closest("[data-guide-property-card]");
+    const body = card?.querySelector("[data-guide-property-body]");
+    const chevron = propertyToggle.querySelector("[data-guide-property-chevron]");
+    if (!card || !body) return;
+
+    body.classList.toggle("hidden");
+    chevron?.classList.toggle("rotate-180");
+  }
+});
+
+
+document.addEventListener("submit", (e) => {
+  const form = e.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  if (!form.closest("#guides-editor-body")) return;
+
+  e.preventDefault();
+  Guides.submit(form);
+});
+
+document.addEventListener("click", (e) => {
+  const editBtn = e.target.closest("[data-guide-edit]");
+  if (editBtn) {
+    e.preventDefault();
+    const id = (editBtn.getAttribute("data-guide-edit") || "").trim();
+    if (id) Guides.openEdit(id);
+    return;
+  }
+
+  const dupBtn = e.target.closest("[data-guide-duplicate]");
+  if (dupBtn) {
+    e.preventDefault();
+    const id = (dupBtn.getAttribute("data-guide-duplicate") || "").trim();
+    if (id) Guides.duplicate(id);
+    return;
+  }
+
   const delBtn = e.target.closest("[data-guide-delete]");
   if (delBtn) {
     e.preventDefault();
@@ -5107,82 +5120,6 @@ document.addEventListener("click", (e) => {
     body.classList.toggle("hidden");
     chevron?.classList.toggle("rotate-180");
   }
-});
-
-document.addEventListener("change", async (e) => {
-  const el = e.target;
-  if (!(el instanceof HTMLInputElement)) return;
-  if (!el.matches("[data-guide-active]")) return;
-
-  if (window.CONTENT_LOCKED) {
-    toast("Complete payment to unlock Guides.");
-    el.checked = !el.checked;
-    return;
-  }
-
-  const id = el.dataset.guideId;
-  const checked = el.checked;
-  const row = el.closest("[data-guide-row]");
-  const label = row?.querySelector("[data-guide-status-label]");
-  const track = row?.querySelector("[data-guide-toggle-track]");
-  const knob = row?.querySelector("[data-guide-toggle-knob]");
-
-  const paintToggle = (isChecked) => {
-    if (label) {
-      label.textContent = isChecked ? "Active" : "Disabled";
-      label.className =
-        "text-xs font-semibold " + (isChecked ? "text-emerald-700" : "text-slate-400");
-    }
-
-    if (track) {
-      track.classList.remove("bg-emerald-600", "bg-slate-200");
-      track.classList.add(isChecked ? "bg-emerald-600" : "bg-slate-200");
-    }
-
-    if (knob) {
-      knob.classList.remove("translate-x-5");
-      if (isChecked) knob.classList.add("translate-x-5");
-    }
-  };
-
-  paintToggle(checked);
-
-  try {
-    const { res, data } = await apiJson("/admin/guides/ajax/toggle-active", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ id, is_active: checked }),
-    });
-
-    if (!res.ok || !data.ok) {
-      toast(data.error || "Failed to update.");
-      el.checked = !checked;
-      paintToggle(el.checked);
-    }
-  } catch (err) {
-    console.error(err);
-    toast("Failed to update.");
-    el.checked = !checked;
-    paintToggle(el.checked);
-  }
-});
-
-document.addEventListener("submit", (e) => {
-  const form = e.target;
-  if (!(form instanceof HTMLFormElement)) return;
-  if (!form.closest("#guides-editor-body")) return;
-
-  e.preventDefault();
-  Guides.submit(form);
-});
-
-document.addEventListener("submit", (e) => {
-  const form = e.target;
-  if (!(form instanceof HTMLFormElement)) return;
-  if (!form.closest("#guides-editor-body")) return;
-
-  e.preventDefault();
-  Guides.submit(form);
 });
 
   // ----------------------------
