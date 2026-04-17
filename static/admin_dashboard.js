@@ -5607,9 +5607,8 @@ function initRouting() {
       showSettingsPanel(getSettingsTabFromHash());
     }
 
-    if (key === "guides" && window.Guides && !Guides.loaded) {
-      Guides.loaded = true;
-      Guides.refresh();
+    if (key === "guides" && window.Guides) {
+      Guides.init();
     }
 
     if (key === "upgrades" && window.Upgrades && !Upgrades.loaded) {
