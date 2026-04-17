@@ -3459,6 +3459,18 @@ function isAnalyticsVisible() {
 }
 
 document.addEventListener("change", (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement)) return;
+  if (!el.matches('#upgrades-editor-body input[name="is_active"]')) return;
+
+  const label = el.closest("label")?.querySelector("span:last-child");
+  if (!label) return;
+
+  label.textContent = el.checked ? "Active" : "Disabled";
+});
+
+
+document.addEventListener("change", (e) => {
   const t = e.target;
   if (!(t instanceof HTMLElement)) return;
 
