@@ -5102,43 +5102,6 @@ document.addEventListener("submit", (e) => {
   Guides.submit(form);
 });
 
-async submit(formEl) {
-  if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Guides.");
-  if (!formEl) return;
-  if (formEl.dataset.submitting === "1") return;
-
-  formEl.dataset.submitting = "1";
-
-  const submitBtn = formEl.querySelector('button[type="submit"]');
-  if (submitBtn) submitBtn.disabled = true;
-
-  try {
-    const r = await fetch("/admin/guides/ajax/save", {
-      method: "POST",
-      credentials: "include",
-      body: new FormData(formEl),
-    });
-
-    if (r.status === 401 || r.status === 403) return loginRedirect();
-
-    const j = await r.json().catch(() => ({}));
-    if (!r.ok || !j.ok) {
-      flashIn("guides-flash", j.error || j.detail || "Save failed", false);
-      return;
-    }
-
-    flashIn("guides-flash", "Guide saved");
-    this.closeEditor();
-    await this.refresh();
-  } catch (err) {
-    console.error(err);
-    flashIn("guides-flash", "Network error saving guide.", false);
-  } finally {
-    delete formEl.dataset.submitting;
-    if (submitBtn) submitBtn.disabled = false;
-  }
-}
-
 
 
   // ----------------------------
