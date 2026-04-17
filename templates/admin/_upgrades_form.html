@@ -1,131 +1,160 @@
-<!-- templates/admin/_upgrades_form.html -->
-<form onsubmit="event.preventDefault(); Upgrades.submit(this);" class="space-y-3">
+<form class="flex h-full flex-col">
   <input type="hidden" name="id" value="{{ upgrade.id if upgrade else '' }}">
-
-  <!-- Persisted DB field -->
   <input
     type="hidden"
     name="image_url"
     value="{{ upgrade.image_url if upgrade else '' }}"
     data-upgrade-image-url
   />
-
-  <!-- Temp upload key (returned by /admin/upgrades/ajax/upload-image) -->
   <input type="hidden" name="image_tmp_key" value="" data-upgrade-image-tmp-key />
-
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Property</label>
-    <select
-      name="property_id"
-      required
-      class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm bg-white"
-    >
-      {% for p in properties %}
-        <option value="{{ p.id }}" {% if upgrade and upgrade.property_id == p.id %}selected{% endif %}>
-          {{ p.property_name }}
-        </option>
-      {% endfor %}
-    </select>
-  </div>
-
   <input
-  type="hidden"
-  name="slug"
-  value="{{ upgrade.slug if upgrade else '' }}"
-  data-upgrade-slug
-/>
+    type="hidden"
+    name="slug"
+    value="{{ upgrade.slug if upgrade else '' }}"
+    data-upgrade-slug
+  />
 
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Title</label>
-    <input
-      name="title"
-      required
-      value="{{ upgrade.title if upgrade else '' }}"
-      class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm"
-    />
-  </div>
-
-  <!-- Long description (plain text) -->
-<div>
-  <label class="text-xs font-semibold text-slate-600">Long description</label>
-
-  <textarea
-    name="long_description"
-    rows="5"
-    class="mt-1 w-full px-3 py-2 rounded-xl border border-slate-200 text-sm resize-none"
-    placeholder="Describe what this upgrade includes..."
-  >{{ upgrade.long_description if upgrade and upgrade.long_description else '' }}</textarea>
-
-  <div class="mt-1 text-[11px] text-slate-500">
-    Shown in the upgrade details / guest UI.
-  </div>
-</div>
-
-
-
-  <!-- Image upload -->
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Image</label>
-
-    <div class="mt-2 flex items-center gap-2 flex-wrap">
-      <label class="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-semibold grid place-items-center cursor-pointer">
-        Choose image
-        <input type="file" accept="image/*" class="hidden" data-upgrade-image-file />
-      </label>
-
-      <button
-        type="button"
-        class="h-10 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
-        data-upgrade-image-upload
+  <div class="space-y-6">
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Property</label>
+      <select
+        name="property_id"
+        required
+        class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 focus:outline-none"
       >
-        Upload
-      </button>
-
-      <button
-        type="button"
-        class="h-10 px-4 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm font-semibold"
-        data-upgrade-image-clear
-      >
-        Remove
-      </button>
-
-      <div class="text-xs text-slate-500">PNG/JPG/WebP recommended.</div>
+        {% for p in properties %}
+          <option value="{{ p.id }}" {% if upgrade and upgrade.property_id == p.id %}selected{% endif %}>
+            {{ p.property_name }}
+          </option>
+        {% endfor %}
+      </select>
     </div>
 
-    <img
-      data-upgrade-image-preview
-      src="{{ upgrade.image_url if (upgrade and upgrade.image_url) else '' }}"
-      alt="Upgrade image"
-      class="mt-2 w-full rounded-xl border border-slate-200 object-cover {% if not (upgrade and upgrade.image_url) %}hidden{% endif %}"
-      style="max-height:180px;"
-    />
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Title</label>
+      <input
+        name="title"
+        required
+        value="{{ upgrade.title if upgrade else '' }}"
+        class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 focus:outline-none"
+      />
+    </div>
 
-    <div class="mt-1 text-xs text-slate-500">Used in guest UI / upsell cards.</div>
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Long description</label>
+      <textarea
+        name="long_description"
+        rows="6"
+        placeholder="Describe what this upgrade includes..."
+        class="min-h-[160px] w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-[15px] text-slate-900 resize-none focus:outline-none"
+      >{{ upgrade.long_description if upgrade and upgrade.long_description else '' }}</textarea>
+      <div class="mt-2 text-[12px] text-slate-500">
+        Shown in the upgrade details and guest-facing upsell UI.
+      </div>
+    </div>
+
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Image</label>
+
+      <div class="rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+        <div class="flex flex-wrap items-center gap-3">
+          <label class="inline-flex h-11 cursor-pointer items-center rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-medium text-slate-800 hover:bg-slate-50">
+            Choose image
+            <input type="file" accept="image/*" class="hidden" data-upgrade-image-file />
+          </label>
+
+          <button
+            type="button"
+            class="inline-flex h-11 items-center rounded-2xl bg-[#0F172A] px-4 text-[15px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            data-upgrade-image-upload
+          >
+            Upload
+          </button>
+
+          <button
+            type="button"
+            class="inline-flex h-11 items-center rounded-2xl border border-slate-200 bg-white px-4 text-[15px] font-medium text-slate-700 hover:bg-slate-50"
+            data-upgrade-image-clear
+          >
+            Remove
+          </button>
+
+          <div class="text-[12px] text-slate-500">
+            PNG, JPG, or WebP recommended
+          </div>
+        </div>
+
+        <img
+          data-upgrade-image-preview
+          src="{{ upgrade.image_url if (upgrade and upgrade.image_url) else '' }}"
+          alt="Upgrade image"
+          class="mt-4 w-full rounded-[20px] border border-slate-200 object-cover {% if not (upgrade and upgrade.image_url) %}hidden{% endif %}"
+          style="max-height:220px;"
+        />
+      </div>
+
+      <div class="mt-2 text-[12px] text-slate-500">
+        Used in guest upsell cards and upgrade detail views.
+      </div>
+    </div>
+
+    <div>
+      <label class="mb-2 block text-sm font-semibold text-slate-600">Price (USD)</label>
+      <input
+        name="price_dollars"
+        type="number"
+        min="0"
+        step="0.01"
+        value="{{ '%.2f'|format((upgrade.price_cents or 0) / 100) if upgrade else '0.00' }}"
+        class="h-12 w-full rounded-2xl border border-slate-200 bg-white px-4 text-[15px] text-slate-900 focus:outline-none"
+      />
+    </div>
+
+    <div class="flex items-center justify-between rounded-[20px] border border-slate-200 bg-white px-4 py-4">
+      <div>
+        <div class="text-[15px] font-medium text-slate-900">Availability</div>
+        <div class="mt-1 text-[12px] text-slate-500">
+          Control whether guests can see and purchase this upgrade.
+        </div>
+      </div>
+
+      <label class="inline-flex items-center gap-3">
+        <input
+          type="checkbox"
+          name="is_active"
+          value="true"
+          class="sr-only"
+          {% if upgrade and upgrade.is_active %}checked{% endif %}
+        />
+
+        <span
+          class="relative h-6 w-11 rounded-full transition-colors duration-200 {% if upgrade and upgrade.is_active %}bg-emerald-600{% else %}bg-slate-200{% endif %}"
+        >
+          <span
+            class="absolute left-1 top-1 h-4 w-4 rounded-full bg-white transition-transform duration-200 {% if upgrade and upgrade.is_active %}translate-x-5{% endif %}"
+          ></span>
+        </span>
+
+        <span class="text-xs font-semibold {% if upgrade and upgrade.is_active %}text-emerald-700{% else %}text-slate-400{% endif %}">
+          {% if upgrade and upgrade.is_active %}Active{% else %}Disabled{% endif %}
+        </span>
+      </label>
+    </div>
   </div>
 
-  <div>
-    <label class="text-xs font-semibold text-slate-600">Price (USD)</label>
-    <input
-      name="price_dollars"
-      type="number"
-      min="0"
-      step="0.01"
-      value="{{ '%.2f'|format((upgrade.price_cents or 0) / 100) if upgrade else '0.00' }}"
-      class="mt-1 h-10 w-full px-3 rounded-xl border border-slate-200 text-sm"
-    />
-  </div>
-
-  <div class="flex items-center gap-2">
-    <input type="checkbox" name="is_active" value="true" {% if upgrade and upgrade.is_active %}checked{% endif %} />
-    <span class="text-sm">Active</span>
-  </div>
-
-  <div class="flex justify-end gap-2 pt-2">
-    <button type="button" onclick="Upgrades.closeEditor()" class="h-9 px-3 rounded-xl border border-slate-200 bg-white text-sm">
+  <div class="mt-8 flex items-center justify-end gap-3 border-t border-slate-100 pt-6">
+    <button
+      type="button"
+      onclick="Upgrades.closeEditor()"
+      class="inline-flex h-11 items-center rounded-2xl border border-slate-200 bg-white px-5 text-[15px] font-medium text-slate-700"
+    >
       Cancel
     </button>
 
-    <button type="submit" class="h-9 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-sm font-semibold">
+    <button
+      type="submit"
+      class="inline-flex h-11 items-center rounded-2xl bg-[#0F172A] px-5 text-[15px] font-semibold text-white"
+    >
       Save Upgrade
     </button>
   </div>
