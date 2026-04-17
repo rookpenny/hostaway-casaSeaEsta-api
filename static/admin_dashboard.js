@@ -5093,7 +5093,6 @@ document.addEventListener("click", (e) => {
   }
 });
 
-
 document.addEventListener("submit", (e) => {
   const form = e.target;
   if (!(form instanceof HTMLFormElement)) return;
