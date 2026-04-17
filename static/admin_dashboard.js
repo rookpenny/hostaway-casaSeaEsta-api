@@ -5065,37 +5065,6 @@ document.addEventListener("click", (e) => {
     return;
   }
 
-  const propertyToggle = e.target.closest("[data-guide-property-toggle]");
-  if (propertyToggle) {
-    const card = propertyToggle.closest("[data-guide-property-card]");
-    const body = card?.querySelector("[data-guide-property-body]");
-    const chevron = propertyToggle.querySelector("[data-guide-property-chevron]");
-    if (!card || !body) return;
-
-    body.classList.toggle("hidden");
-    chevron?.classList.toggle("rotate-180");
-  }
-});
-
-
-document.addEventListener("submit", (e) => {
-  const form = e.target;
-  if (!(form instanceof HTMLFormElement)) return;
-  if (!form.closest("#guides-editor-body")) return;
-
-  e.preventDefault();
-  Guides.submit(form);
-});
-
-document.addEventListener("click", (e) => {
-  const editBtn = e.target.closest("[data-guide-edit]");
-  if (editBtn) {
-    e.preventDefault();
-    const id = (editBtn.getAttribute("data-guide-edit") || "").trim();
-    if (id) Guides.openEdit(id);
-    return;
-  }
-
   const dupBtn = e.target.closest("[data-guide-duplicate]");
   if (dupBtn) {
     e.preventDefault();
@@ -5123,6 +5092,18 @@ document.addEventListener("click", (e) => {
     chevron?.classList.toggle("rotate-180");
   }
 });
+
+
+document.addEventListener("submit", (e) => {
+  const form = e.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  if (!form.closest("#guides-editor-body")) return;
+
+  e.preventDefault();
+  Guides.submit(form);
+});
+
+
 
   // ----------------------------
   // Settings tabs + Team settings
