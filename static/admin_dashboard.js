@@ -4245,8 +4245,7 @@ function getRowMood(row) {
     }
   };
 
-
-   document.addEventListener("change", async (e) => {
+document.addEventListener("change", async (e) => {
   const el = e.target;
   if (!(el instanceof HTMLInputElement)) return;
   if (!el.matches("[data-guide-active]")) return;
@@ -4264,7 +4263,7 @@ function getRowMood(row) {
   const label = row?.querySelector("[data-guide-status-label]");
 
   if (label) {
-    label.textContent = checked ? "Active" : "Inactive";
+    label.textContent = checked ? "Active" : "Disabled";
     label.className =
       "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
   }
@@ -4282,7 +4281,7 @@ function getRowMood(row) {
 
       if (label) {
         const reverted = el.checked;
-        label.textContent = reverted ? "Active" : "Inactive";
+        label.textContent = reverted ? "Active" : "Disabled";
         label.className =
           "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
       }
@@ -4293,7 +4292,7 @@ function getRowMood(row) {
 
     if (label) {
       const reverted = el.checked;
-      label.textContent = reverted ? "Active" : "Inactive";
+      label.textContent = reverted ? "Active" : "Disabled";
       label.className =
         "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
     }
