@@ -4367,114 +4367,253 @@ window.refreshSummary = (sessionId) => window.Chats.refreshSummary(sessionId);
 // ----------------------------
 window.Upgrades = {
   loaded: false,
+  searchValue: "",
 
-async refresh() {
-  const listEl = document.getElementById("upgrades-list");
-  if (!listEl) return;
-
-  const pid = document.getElementById("upgradesPropertyFilter")?.value || "";
-  const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
-
-  listEl.innerHTML = "Loading…";
-
-  try {
-    const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
-      credentials: "include",
-      headers: { "X-Requested-With": "fetch" },
-    });
-
-    if (res.status === 401 || res.status === 403) return loginRedirect();
-    if (!res.ok) {
-      listEl.innerHTML = "Could not load upgrades.";
-      return;
-    }
-
-    const html = await res.text();
-    listEl.innerHTML = html;
-
-    // ✅ Always rebind after injection (don’t rely on local query only)
-    initAllReorderTables();
-
-    console.log("Upgrades list refreshed; reorder bound:", !!listEl.querySelector("table[data-list-kind]"));
-  } catch (err) {
-    console.error("Upgrades.refresh error:", err);
-    listEl.innerHTML = "Could not load upgrades.";
-  }
-},
-
-  openNew() {
-    return window.Upgrades.openEditor(null);
+  getEls() {
+    return {
+      search: document.getElementById("upgradesSearch"),
+      property: document.getElementById("upgradesPropertyFilter"),
+      list: document.getElementById("upgrades-list"),
+      editor: document.getElementById("upgrades-editor"),
+      panel: document.getElementById("upgrades-editor-panel"),
+      backdrop: document.getElementById("upgrades-editor-backdrop"),
+      editorBody: document.getElementById("upgrades-editor-body"),
+      editorTitle: document.getElementById("upgrades-editor-title"),
+      reset: document.getElementById("upgradesResetFilters"),
+      flash: document.getElementById("upgrades-flash"),
+    };
   },
 
-async openEditor(id) {
-  if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
+  flash(msg, ok = true) {
+    const { flash } = this.getEls();
+    if (!flash) return toast(msg);
 
-  const editorWrap = document.getElementById("upgrades-editor");
-  const editorBody = document.getElementById("upgrades-editor-body");
-  const editorTitle = document.getElementById("upgrades-editor-title");
-  if (!editorWrap || !editorBody) return;
+    flash.innerHTML = `
+      <div class="rounded-xl border ${
+        ok
+          ? "border-emerald-200 bg-emerald-50 text-emerald-900"
+          : "border-rose-200 bg-rose-50 text-rose-900"
+      } p-3 text-sm">
+        ${msg}
+      </div>
+    `;
 
-  const url = id
-    ? `/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`
-    : `/admin/upgrades/partial/form`;
+    setTimeout(() => {
+      if (flash) flash.innerHTML = "";
+    }, 2400);
+  },
 
-  // Show modal immediately (better UX, and ensures DOM exists)
-  if (editorTitle) editorTitle.textContent = id ? "Edit Upgrade" : "New Upgrade";
-  editorWrap.classList.remove("hidden");
-  editorBody.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
+  bindUI() {
+    const { search, property, reset } = this.getEls();
 
-  try {
-    const res = await fetch(url, { credentials: "include" });
+    if (search && !search.dataset.upgradesBound) {
+      search.dataset.upgradesBound = "1";
+      search.addEventListener("input", () => {
+        this.searchValue = (search.value || "").trim().toLowerCase();
+        this.applyClientFilters();
+      });
+    }
 
-    if (res.status === 401 || res.status === 403) return loginRedirect();
-    if (!res.ok) {
-      editorBody.innerHTML = `<div class="text-sm text-rose-700">Could not load upgrade editor.</div>`;
+    if (property && !property.dataset.upgradesBound) {
+      property.dataset.upgradesBound = "1";
+      property.addEventListener("change", () => {
+        this.refresh();
+      });
+    }
+
+    if (reset && !reset.dataset.upgradesBound) {
+      reset.dataset.upgradesBound = "1";
+      reset.addEventListener("click", () => {
+        if (search) search.value = "";
+        if (property) property.value = "";
+        this.searchValue = "";
+        this.refresh();
+      });
+    }
+
+    if (!document.body.dataset.upgradesEscBound) {
+      document.body.dataset.upgradesEscBound = "1";
+      document.addEventListener("keydown", (e) => {
+        const { editor } = this.getEls();
+        if (!editor) return;
+        if (e.key === "Escape" && !editor.classList.contains("pointer-events-none")) {
+          this.closeEditor();
+        }
+      });
+    }
+  },
+
+  async refresh() {
+    const { list, property } = this.getEls();
+    if (!list) return;
+
+    const pid = property?.value || "";
+    const qs = pid ? `?property_id=${encodeURIComponent(pid)}` : "";
+
+    list.innerHTML = "Loading…";
+
+    try {
+      const res = await fetch(`/admin/upgrades/partial/list${qs}`, {
+        credentials: "include",
+        headers: { "X-Requested-With": "fetch" },
+      });
+
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+
+      if (!res.ok) {
+        list.innerHTML = "Could not load upgrades.";
+        return;
+      }
+
+      const html = await res.text();
+      list.innerHTML = html;
+
+      initAllReorderTables();
+      this.applyClientFilters();
+    } catch (err) {
+      console.error("Upgrades.refresh error:", err);
+      list.innerHTML = "Could not load upgrades.";
+    }
+  },
+
+  applyClientFilters() {
+    const { list } = this.getEls();
+    if (!list) return;
+
+    const q = this.searchValue;
+    const cards = Array.from(list.querySelectorAll("[data-upgrade-property-card]"));
+
+    if (cards.length) {
+      cards.forEach((card) => {
+        const rows = Array.from(card.querySelectorAll("[data-upgrade-row]"));
+        let visibleCount = 0;
+
+        rows.forEach((row) => {
+          const text = (row.textContent || "").toLowerCase();
+          const show = !q || text.includes(q);
+          row.classList.toggle("hidden", !show);
+          if (show) visibleCount += 1;
+        });
+
+        card.classList.toggle("hidden", visibleCount === 0);
+      });
       return;
     }
 
-    editorBody.innerHTML = await res.text();
+    const rows = Array.from(
+      list.querySelectorAll("[data-upgrade-row], [data-upgrades-row], tr[data-upgrade-row], tr[data-upgrades-row]")
+    );
 
-  } catch (err) {
-    console.error("Fetch failed:", err);
-    editorBody.innerHTML = `<div class="text-sm text-rose-700">Network error loading editor.</div>`;
-  }
-},
+    rows.forEach((row) => {
+      const text = (row.textContent || "").toLowerCase();
+      const show = !q || text.includes(q);
+      row.classList.toggle("hidden", !show);
+    });
+  },
 
+  openDrawer() {
+    const { editor, panel, backdrop } = this.getEls();
+    if (!editor || !panel || !backdrop) return;
+
+    editor.classList.remove("pointer-events-none");
+    editor.setAttribute("aria-hidden", "false");
+    backdrop.classList.remove("opacity-0");
+    panel.classList.remove("translate-x-full");
+    document.body.classList.add("overflow-hidden");
+  },
 
   closeEditor() {
-    document.getElementById("upgrades-editor")?.classList.add("hidden");
-    const body = document.getElementById("upgrades-editor-body");
-    if (body) body.innerHTML = "";
+    const { editor, panel, backdrop, editorBody } = this.getEls();
+    if (!editor || !panel || !backdrop) return;
+
+    editor.classList.add("pointer-events-none");
+    editor.setAttribute("aria-hidden", "true");
+    backdrop.classList.add("opacity-0");
+    panel.classList.add("translate-x-full");
+    document.body.classList.remove("overflow-hidden");
+
+    if (editorBody) editorBody.innerHTML = "";
   },
 
-  async submit(form) {
+  openNew() {
+    return this.openForm("/admin/upgrades/partial/form", "New Upgrade");
+  },
+
+  openEdit(id) {
+    return this.openForm(`/admin/upgrades/partial/form?id=${encodeURIComponent(id)}`, "Edit Upgrade");
+  },
+
+  async openForm(url, title) {
     if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
-    if (!form) return;
 
-    const flash = document.getElementById("upgrades-flash");
+    const { editorTitle, editorBody } = this.getEls();
+    if (editorTitle) editorTitle.textContent = title || "Upgrade";
+    if (editorBody) editorBody.innerHTML = `<div class="text-sm text-slate-500">Loading…</div>`;
 
-    const showFlash = (msg, ok = true) => {
-      if (!flash) return toast(msg);
+    this.openDrawer();
 
-      flash.innerHTML = `
-        <div class="rounded-xl border ${
-          ok
-            ? "border-emerald-200 bg-emerald-50 text-emerald-900"
-            : "border-rose-200 bg-rose-50 text-rose-900"
-        } p-3 text-sm">
-          ${msg}
-        </div>`;
+    try {
+      const res = await fetch(url, { credentials: "include" });
 
-      setTimeout(() => {
-        if (flash) flash.innerHTML = "";
-      }, 2400);
-    };
+      if (res.status === 401 || res.status === 403) return loginRedirect();
+
+      if (!res.ok) {
+        if (editorBody) {
+          editorBody.innerHTML = `<div class="text-sm text-rose-700">Could not load upgrade editor.</div>`;
+        }
+        return;
+      }
+
+      if (editorBody) editorBody.innerHTML = await res.text();
+    } catch (err) {
+      console.error("Fetch failed:", err);
+      if (editorBody) {
+        editorBody.innerHTML = `<div class="text-sm text-rose-700">Network error loading editor.</div>`;
+      }
+    }
+  },
+
+  async duplicate(id) {
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
+
+    try {
+      const r = await fetch(`/admin/upgrades/ajax/duplicate?id=${encodeURIComponent(id)}`, {
+        method: "POST",
+        credentials: "include",
+      });
+
+      if (r.status === 401 || r.status === 403) return loginRedirect();
+
+      const j = await r.json().catch(() => ({}));
+
+      if (!r.ok || !j.ok) {
+        this.flash(j.error || j.detail || "Duplicate failed", false);
+        return;
+      }
+
+      this.flash("Upgrade duplicated");
+      await this.refresh();
+    } catch (err) {
+      console.error(err);
+      this.flash("Duplicate failed.", false);
+    }
+  },
+
+  async submit(formEl) {
+    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock Upgrades.");
+    if (!formEl) return;
+    if (formEl.dataset.submitting === "1") return;
+
+    formEl.dataset.submitting = "1";
+
+    const submitBtn = formEl.querySelector('button[type="submit"]');
+    if (submitBtn) submitBtn.disabled = true;
 
     try {
       const res = await fetch("/admin/upgrades/ajax/save", {
         method: "POST",
         credentials: "include",
-        body: new FormData(form),
+        body: new FormData(formEl),
       });
 
       if (res.status === 401 || res.status === 403) return loginRedirect();
@@ -4487,31 +4626,38 @@ async openEditor(id) {
           contentType,
           preview: text.slice(0, 500),
         });
-        showFlash("Save failed (server returned non-JSON).", false);
+        this.flash("Save failed (server returned non-JSON).", false);
         return;
       }
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok || !data.ok) {
-        showFlash(data.error || data.detail || data.message || "Save failed.", false);
+        this.flash(data.error || data.detail || data.message || "Save failed.", false);
         return;
       }
 
-      showFlash("Saved ✓", true);
-      await window.Upgrades.refresh();
-      window.Upgrades.closeEditor();
+      this.flash("Saved ✓", true);
+      this.closeEditor();
+      await this.refresh();
     } catch (err) {
       console.error(err);
-      showFlash("Network error saving upgrade.", false);
+      this.flash("Network error saving upgrade.", false);
+    } finally {
+      delete formEl.dataset.submitting;
+      if (submitBtn) submitBtn.disabled = false;
     }
+  },
+
+  init() {
+    if (this.loaded) return;
+    this.loaded = true;
+    this.bindUI();
+    this.refresh();
   },
 };
 
-
-
-
-   document.addEventListener("input", (e) => {
+document.addEventListener("input", (e) => {
   const titleInput = e.target;
   if (!(titleInput instanceof HTMLInputElement)) return;
   if (!titleInput.matches('input[name="title"]')) return;
@@ -4519,10 +4665,8 @@ async openEditor(id) {
   const form = titleInput.closest("form");
   if (!form) return;
 
-  const slugInput = form.querySelector('[data-upgrade-slug]');
+  const slugInput = form.querySelector("[data-upgrade-slug]");
   if (!slugInput) return;
-
-  // Only auto-generate if slug is empty (don’t overwrite existing edits)
   if (slugInput.value) return;
 
   slugInput.value = titleInput.value
@@ -4533,8 +4677,6 @@ async openEditor(id) {
     .replace(/-+/g, "-");
 });
 
-
-// Upload image (delegated) — works after partial loads
 document.addEventListener("click", async (e) => {
   const uploadBtn = e.target.closest("[data-upgrade-image-upload]");
   if (!uploadBtn) return;
@@ -4545,7 +4687,7 @@ document.addEventListener("click", async (e) => {
   const fileInput = form.querySelector("[data-upgrade-image-file]");
   const preview = form.querySelector("[data-upgrade-image-preview]");
   const tmpKeyInput = form.querySelector('input[name="image_tmp_key"]');
-  const imageUrlInput = form.querySelector('input[name="image_url"]'); // keep existing DB value!
+  const imageUrlInput = form.querySelector('input[name="image_url"]');
 
   const file = fileInput?.files?.[0];
   if (!file) return toast("Choose an image first.");
@@ -4553,11 +4695,9 @@ document.addEventListener("click", async (e) => {
   const fd = new FormData();
   fd.append("file", file);
 
-  // If editing, pass upgrade id (optional, but useful on backend)
   const upgradeId = (form.querySelector('input[name="id"]')?.value || "").trim();
   if (upgradeId) fd.append("upgrade_id", upgradeId);
 
-  // IMPORTANT: pass previous tmp key so backend can delete/replace it
   const prevTmpKey = (tmpKeyInput?.value || "").trim();
   if (prevTmpKey) fd.append("prev_tmp_key", prevTmpKey);
 
@@ -4580,26 +4720,15 @@ document.addEventListener("click", async (e) => {
       return;
     }
 
-    // Set ONLY the temp key (for finalize on Save)
     if (tmpKeyInput) tmpKeyInput.value = data.tmp_key || "";
 
-    // DO NOT overwrite the saved image_url here if using tmp-key finalize workflow.
-    // Keep existing DB image_url until Save runs.
-    // imageUrlInput.value should only be changed in /admin/upgrades/ajax/save after finalize.
-    // (But we can still show preview below.)
-
-    // Preview from returned preview_url (could be temp-served or final)
     const previewUrl = data.preview_url || "";
     if (preview) {
       preview.src = previewUrl;
       preview.classList.toggle("hidden", !previewUrl);
     }
 
-    // Optional: visually indicate pending unsaved change
-    // e.g., store a data flag for later if you want
     if (imageUrlInput) imageUrlInput.dataset.pendingUpload = "1";
-
-    // Clear file input so user can reselect same file again if needed
     if (fileInput) fileInput.value = "";
 
     toast("Image uploaded. Click Save Upgrade to apply.");
@@ -4611,7 +4740,6 @@ document.addEventListener("click", async (e) => {
     uploadBtn.textContent = original;
   }
 });
-
 
 document.addEventListener("click", async (e) => {
   const clearBtn = e.target.closest("[data-upgrade-image-clear]");
@@ -4626,15 +4754,13 @@ document.addEventListener("click", async (e) => {
 
   const tmpKey = (tmpKeyInput?.value || "").trim();
 
-  // Clear UI immediately
   if (preview) {
     preview.src = "";
     preview.classList.add("hidden");
   }
-  if (imageUrlInput) imageUrlInput.value = "";   // clear persisted url
-  if (tmpKeyInput) tmpKeyInput.value = "";       // clear temp key
+  if (imageUrlInput) imageUrlInput.value = "";
+  if (tmpKeyInput) tmpKeyInput.value = "";
 
-  // If there was a temp upload, delete it server-side
   if (tmpKey) {
     try {
       const res = await fetch("/admin/upgrades/ajax/delete-temp-image", {
@@ -4652,103 +4778,130 @@ document.addEventListener("click", async (e) => {
   toast("Image removed.");
 });
 
-
-// Upgrades: delegated events (ONLY ONCE)
 document.addEventListener("click", async (e) => {
-  // Edit
   const editBtn = e.target.closest("[data-upgrade-edit]");
   if (editBtn) {
+    e.preventDefault();
     const id = (editBtn.getAttribute("data-upgrade-edit") || "").trim();
     if (!id || id === "None" || id === "null" || id === "undefined") return;
-    Upgrades.openEditor(id);
+    Upgrades.openEdit(id);
     return;
   }
 
-  // Delete
+  const dupBtn = e.target.closest("[data-upgrade-duplicate]");
+  if (dupBtn) {
+    e.preventDefault();
+    const id = (dupBtn.getAttribute("data-upgrade-duplicate") || "").trim();
+    if (!id || id === "None" || id === "null" || id === "undefined") return;
+    Upgrades.duplicate(id);
+    return;
+  }
+
   const delBtn = e.target.closest("[data-upgrade-delete]");
-  if (!delBtn) return;
+  if (delBtn) {
+    e.preventDefault();
 
-  if (window.CONTENT_LOCKED) {
-    toast("Complete payment to unlock Upgrades.");
-    return;
-  }
-
-  const id = (delBtn.getAttribute("data-upgrade-delete") || "").trim();
-  if (!id || id === "None" || id === "null" || id === "undefined") return;
-
-  if (!confirm("Delete this upgrade?")) return;
-
-  try {
-    const { res, data } = await apiJson(`/admin/upgrades/ajax/delete?id=${encodeURIComponent(id)}`, {
-      method: "POST",
-    });
-
-    if (!res.ok || !data.ok) {
-      toast(data.error || data.detail || "Delete failed.");
+    if (window.CONTENT_LOCKED) {
+      toast("Complete payment to unlock Upgrades.");
       return;
     }
 
-    toast("Upgrade deleted");
-    await Upgrades.refresh();
-    Upgrades.closeEditor();
-  } catch (err) {
-    console.error(err);
-    toast("Delete failed.");
-  }
-});
+    const id = (delBtn.getAttribute("data-upgrade-delete") || "").trim();
+    if (!id || id === "None" || id === "null" || id === "undefined") return;
 
-
-
-  document.addEventListener("change", async (e) => {
-    const el = e.target;
-    if (!(el instanceof HTMLInputElement)) return;
-    if (!el.matches("[data-upgrade-active]")) return;
-
-    const id = el.dataset.upgradeId;
-    const checked = el.checked;
-
-    // Optional: label support if you add it in the table partial
-    const row = el.closest("[data-upgrade-row]");
-    const label = row?.querySelector("[data-upgrade-status-label]");
-    if (label) {
-      label.textContent = checked ? "Active" : "Inactive";
-      label.className =
-        "text-xs font-semibold " +
-        (checked ? "text-emerald-700" : "text-slate-400");
-    }
+    if (!confirm("Delete this upgrade?")) return;
 
     try {
-      const { res, data } = await apiJson("/admin/upgrades/ajax/toggle-active", {
+      const { res, data } = await apiJson(`/admin/upgrades/ajax/delete?id=${encodeURIComponent(id)}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id, is_active: checked }),
       });
 
       if (!res.ok || !data.ok) {
-        toast(data.error || "Failed to update.");
-        el.checked = !checked;
-
-        if (label) {
-          const reverted = el.checked;
-          label.textContent = reverted ? "Active" : "Inactive";
-          label.className =
-            "text-xs font-semibold " +
-            (reverted ? "text-emerald-700" : "text-slate-400");
-        }
+        toast(data.error || data.detail || "Delete failed.");
+        return;
       }
+
+      toast("Upgrade deleted");
+      await Upgrades.refresh();
+      Upgrades.closeEditor();
     } catch (err) {
-      toast("Failed to update.");
-      el.checked = !checked;
-
-      if (label) {
-        const reverted = el.checked;
-        label.textContent = reverted ? "Active" : "Inactive";
-        label.className =
-          "text-xs font-semibold " +
-          (reverted ? "text-emerald-700" : "text-slate-400");
-      }
+      console.error(err);
+      toast("Delete failed.");
     }
-  });
+    return;
+  }
+
+  const propertyToggle = e.target.closest("[data-upgrade-property-toggle]");
+  if (propertyToggle) {
+    const card = propertyToggle.closest("[data-upgrade-property-card]");
+    const body = card?.querySelector("[data-upgrade-property-body]");
+    const chevron = propertyToggle.querySelector("[data-upgrade-property-chevron]");
+    if (!card || !body) return;
+
+    body.classList.toggle("hidden");
+    chevron?.classList.toggle("rotate-180");
+  }
+});
+
+document.addEventListener("change", async (e) => {
+  const el = e.target;
+  if (!(el instanceof HTMLInputElement)) return;
+  if (!el.matches("[data-upgrade-active]")) return;
+
+  const id = el.dataset.upgradeId;
+  const checked = el.checked;
+  const row = el.closest("[data-upgrade-row]");
+  const label = row?.querySelector("[data-upgrade-status-label]");
+  const track = row?.querySelector("[data-upgrade-toggle-track]");
+  const knob = row?.querySelector("[data-upgrade-toggle-knob]");
+
+  const paintToggle = (isChecked) => {
+    if (label) {
+      label.textContent = isChecked ? "Active" : "Disabled";
+      label.className =
+        "text-xs font-semibold " + (isChecked ? "text-emerald-700" : "text-slate-400");
+    }
+
+    if (track) {
+      track.classList.remove("bg-emerald-600", "bg-slate-200");
+      track.classList.add(isChecked ? "bg-emerald-600" : "bg-slate-200");
+    }
+
+    if (knob) {
+      knob.classList.remove("translate-x-5");
+      if (isChecked) knob.classList.add("translate-x-5");
+    }
+  };
+
+  paintToggle(checked);
+
+  try {
+    const { res, data } = await apiJson("/admin/upgrades/ajax/toggle-active", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ id, is_active: checked }),
+    });
+
+    if (!res.ok || !data.ok) {
+      toast(data.error || "Failed to update.");
+      el.checked = !checked;
+      paintToggle(el.checked);
+    }
+  } catch (err) {
+    toast("Failed to update.");
+    el.checked = !checked;
+    paintToggle(el.checked);
+  }
+});
+
+document.addEventListener("submit", (e) => {
+  const form = e.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  if (!form.closest("#upgrades-editor-body")) return;
+
+  e.preventDefault();
+  Upgrades.submit(form);
+});
 
   // ----------------------------
   // Guides (single definition)
@@ -5593,10 +5746,9 @@ function initRouting() {
       Guides.init();
     }
 
-    if (key === "upgrades" && window.Upgrades && !Upgrades.loaded) {
-      Upgrades.loaded = true;
-      Upgrades.refresh();
-    }
+if (key === "upgrades" && window.Upgrades) {
+  Upgrades.init();
+}
 
     if (key === "tasks") {
       window.Tasks?.init?.();
