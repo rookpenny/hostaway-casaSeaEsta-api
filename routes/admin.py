@@ -490,7 +490,42 @@ def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)
     except Exception as e:
         return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
 
+@router.post("/admin/upgrades/ajax/duplicate")
+def upgrades_ajax_duplicate(
+    request: Request,
+    db: Session = Depends(get_db),
+    id: int = Query(...),
+):
+    upgrade = db.query(Upgrade).filter(Upgrade.id == int(id)).first()
+    if not upgrade:
+        return JSONResponse({"ok": False, "error": "Upgrade not found"}, status_code=404)
 
+    require_property_in_scope(request, db, int(upgrade.property_id))
+
+    max_sort = (
+        db.query(func.max(Upgrade.sort_order))
+        .filter(Upgrade.property_id == upgrade.property_id)
+        .scalar()
+    )
+    next_sort = (max_sort or 0) + 1
+
+    copied = Upgrade(
+        property_id=upgrade.property_id,
+        title=f"{upgrade.title} (Copy)",
+        slug=f"{upgrade.slug}-copy" if getattr(upgrade, "slug", None) else None,
+        long_description=getattr(upgrade, "long_description", None),
+        price_cents=getattr(upgrade, "price_cents", 0) or 0,
+        is_active=False,
+        image_url=getattr(upgrade, "image_url", None),
+        sort_order=next_sort,
+        updated_at=datetime.utcnow(),
+    )
+
+    db.add(copied)
+    db.commit()
+    db.refresh(copied)
+
+    return {"ok": True, "id": copied.id}
 
 
 @router.get("/admin/config-ui", response_class=HTMLResponse)
