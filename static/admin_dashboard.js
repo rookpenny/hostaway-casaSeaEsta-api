@@ -4258,15 +4258,30 @@ document.addEventListener("change", async (e) => {
 
   const id = el.dataset.guideId;
   const checked = el.checked;
-
   const row = el.closest("[data-guide-row]");
   const label = row?.querySelector("[data-guide-status-label]");
+  const track = row?.querySelector("[data-guide-toggle-track]");
+  const knob = row?.querySelector("[data-guide-toggle-knob]");
 
-  if (label) {
-    label.textContent = checked ? "Active" : "Disabled";
-    label.className =
-      "text-xs font-semibold " + (checked ? "text-emerald-700" : "text-slate-400");
-  }
+  const paintToggle = (isChecked) => {
+    if (label) {
+      label.textContent = isChecked ? "Active" : "Disabled";
+      label.className =
+        "text-xs font-semibold " + (isChecked ? "text-emerald-700" : "text-slate-400");
+    }
+
+    if (track) {
+      track.classList.remove("bg-emerald-600", "bg-slate-200");
+      track.classList.add(isChecked ? "bg-emerald-600" : "bg-slate-200");
+    }
+
+    if (knob) {
+      knob.classList.remove("translate-x-5");
+      if (isChecked) knob.classList.add("translate-x-5");
+    }
+  };
+
+  paintToggle(checked);
 
   try {
     const { res, data } = await apiJson("/admin/guides/ajax/toggle-active", {
@@ -4278,24 +4293,12 @@ document.addEventListener("change", async (e) => {
     if (!res.ok || !data.ok) {
       toast(data.error || "Failed to update.");
       el.checked = !checked;
-
-      if (label) {
-        const reverted = el.checked;
-        label.textContent = reverted ? "Active" : "Disabled";
-        label.className =
-          "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
-      }
+      paintToggle(el.checked);
     }
   } catch (err) {
     toast("Failed to update.");
     el.checked = !checked;
-
-    if (label) {
-      const reverted = el.checked;
-      label.textContent = reverted ? "Active" : "Disabled";
-      label.className =
-        "text-xs font-semibold " + (reverted ? "text-emerald-700" : "text-slate-400");
-    }
+    paintToggle(el.checked);
   }
 });
 
