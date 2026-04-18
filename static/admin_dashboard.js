@@ -1642,9 +1642,11 @@ window.openInlineConfig = async function (e, filePath) {
 
   const hostEl = document.getElementById("configInlineContainer");
   const wrap = document.getElementById("configPanelWrap");
+  const hero = document.getElementById("propertiesHeroCard");
+  const header = document.getElementById("propertiesHeaderCard");
   const gridView = document.getElementById("propertiesGridView");
   const listView = document.getElementById("propertiesListView");
-  const header = document.getElementById("propertiesHeaderCard");
+
   if (!hostEl || !wrap) return false;
 
   window.__configInlineOpenToken = (window.__configInlineOpenToken || 0) + 1;
@@ -1679,9 +1681,10 @@ window.openInlineConfig = async function (e, filePath) {
     window.initConfigUI?.(hostEl);
 
     wrap.classList.remove("hidden");
-    gridView?.classList.add("hidden");
-    listView?.classList.add("hidden");    
+    hero?.classList.add("hidden");
     header?.classList.add("hidden");
+    gridView?.classList.add("hidden");
+    listView?.classList.add("hidden");
   } catch (err) {
     console.error("openInlineConfig failed:", err);
     hostEl.innerHTML = `<div class="p-4 text-rose-700">Failed to load config</div>`;
@@ -1699,9 +1702,10 @@ window.closeInlineConfig = function () {
 
   const wrap = document.getElementById("configPanelWrap");
   const label = document.getElementById("configScopeLabel");
+  const hero = document.getElementById("propertiesHeroCard");
+  const header = document.getElementById("propertiesHeaderCard");
   const gridView = document.getElementById("propertiesGridView");
   const listView = document.getElementById("propertiesListView");
-  const header = document.getElementById("propertiesHeaderCard");
 
   if (host) {
     host.innerHTML = "";
@@ -1712,16 +1716,18 @@ window.closeInlineConfig = function () {
   if (label) label.textContent = "Editing…";
 
   wrap?.classList.add("hidden");
+  hero?.classList.remove("hidden");
+  header?.classList.remove("hidden");
+
   const savedMode = localStorage.getItem("properties_view_mode") || "grid";
   if (savedMode === "list") {
     listView?.classList.remove("hidden");
   } else {
     gridView?.classList.remove("hidden");
   }
-  header?.classList.remove("hidden");
+
   header?.scrollIntoView?.({ behavior: "smooth", block: "start" });
 };
-
 
 
 
@@ -2565,43 +2571,70 @@ if (!window.__MANUAL_EDITOR_STATUS_V2__) {
 
 
 window.openInlineManual = async function (e, filePath) {
-  e.preventDefault();
+  if (e && typeof e.preventDefault === "function") e.preventDefault();
 
   const hostEl = document.getElementById("configInlineContainer");
-  hostEl.dataset.filePath = filePath;
-
   const wrap = document.getElementById("configPanelWrap");
-  const grid = document.getElementById("propertiesGridWrap");
+  const hero = document.getElementById("propertiesHeroCard");
   const header = document.getElementById("propertiesHeaderCard");
+  const gridView = document.getElementById("propertiesGridView");
+  const listView = document.getElementById("propertiesListView");
 
-  const res = await fetch(`/admin/edit-config?file=${encodeURIComponent(filePath)}&embed=1`, {
-    credentials: "include",
-  });
+  if (!hostEl || !wrap) return false;
 
-  hostEl.innerHTML = res.ok
-  ? await res.text()
-  : `<div class="p-4 text-rose-700">Failed to load manual</div>`;
+  hostEl.dataset.filePath = filePath;
+  hostEl.innerHTML = `<div class="p-4 muted">Loading manual…</div>`;
 
-  //window.initManualEditor?.(hostEl); // ✅ ADD THIS
+  try {
+    const res = await fetch(
+      `/admin/edit-config?file=${encodeURIComponent(filePath)}&embed=1`,
+      { credentials: "include" }
+    );
 
-  wrap.classList.remove("hidden");
-  gridView?.classList.add("hidden");
-  listView?.classList.add("hidden");
-  header?.classList.add("hidden");
+    hostEl.innerHTML = res.ok
+      ? await res.text()
+      : `<div class="p-4 text-rose-700">Failed to load manual</div>`;
+
+    wrap.classList.remove("hidden");
+    hero?.classList.add("hidden");
+    header?.classList.add("hidden");
+    gridView?.classList.add("hidden");
+    listView?.classList.add("hidden");
+  } catch (err) {
+    console.error("openInlineManual failed:", err);
+    hostEl.innerHTML = `<div class="p-4 text-rose-700">Failed to load manual</div>`;
+  }
+
+  return false;
 };
 
 
 window.closeInlineManual = function () {
   const wrap = document.getElementById("configPanelWrap");
   const host = document.getElementById("configInlineContainer");
-  const grid = document.getElementById("propertiesGridWrap");
+  const hero = document.getElementById("propertiesHeroCard");
   const header = document.getElementById("propertiesHeaderCard");
+  const gridView = document.getElementById("propertiesGridView");
+  const listView = document.getElementById("propertiesListView");
 
   if (host) {
     host.innerHTML = "";
     delete host.dataset.filePath;
   }
 
+  wrap?.classList.add("hidden");
+  hero?.classList.remove("hidden");
+  header?.classList.remove("hidden");
+
+  const savedMode = localStorage.getItem("properties_view_mode") || "grid";
+  if (savedMode === "list") {
+    listView?.classList.remove("hidden");
+  } else {
+    gridView?.classList.remove("hidden");
+  }
+
+  header?.scrollIntoView({ behavior: "smooth", block: "start" });
+};
   wrap?.classList.add("hidden");
   const savedMode = localStorage.getItem("properties_view_mode") || "grid";
   if (savedMode === "list") {
