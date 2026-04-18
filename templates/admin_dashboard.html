@@ -1211,126 +1211,176 @@
              
 
         <!-- PROPERTIES -->
-        <section id="view-properties" class="view space-y-4 {% if initial_view != 'properties' %}hidden{% endif %}">
+<section id="view-properties" class="view space-y-6 {% if initial_view != 'properties' %}hidden{% endif %}">
 
-          <div id="propertiesHeaderCard" class="bg-white border border-slate-200 rounded-2xl p-4 card">
-            <div class="flex flex-col lg:flex-row lg:items-center gap-3 justify-between">
-              <div>
-                <div class="text-sm font-semibold">Properties</div>
-                <div class="text-xs text-slate-500">Search and manage your portfolio</div>
-              </div>
+  <!-- Hero -->
+  <div class="relative overflow-hidden rounded-[28px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-8 text-white shadow-[0_20px_60px_rgba(40,50,160,0.18)]">
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,190,150,0.14),transparent_28%)]"></div>
+    <div class="absolute bottom-0 right-0 h-40 w-56 translate-x-10 translate-y-10 rotate-[-18deg] rounded-[40px] bg-gradient-to-br from-[#ffd3c1] via-[#f8b9b8] to-transparent opacity-90"></div>
 
-              <div class="flex flex-col sm:flex-row gap-2 w-full lg:w-auto">
-                <input
-                  type="text"
-                  id="searchInput"
-                  placeholder="Search properties…"
-                  class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-72"
-                />
-                <select
-                  id="statusFilter"
-                  class="h-10 px-3 rounded-xl border border-slate-200 bg-white text-sm w-full sm:w-48"
-                >
-                  <option value="all">All statuses</option>
-                  <option value="live">LIVE</option>
-                  <option value="offline">OFFLINE</option>
-                </select>
-                <button
-                  id="sync-all-properties-btn"
-                  type="button"
-                  class="px-4 py-2 rounded-lg bg-slate-900 text-white font-semibold hover:bg-slate-800 transition"
-                >
-                  Sync all
-                </button>
-              </div>
-            </div>
-          </div>
+    <div class="relative z-10 max-w-3xl">
+      <div class="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
+        ✦ Portfolio management
+      </div>
 
-          <!-- Inline Assistant Config Panel -->
-          <div id="configPanelWrap" class="hidden">
-            <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-              <div class="flex items-center justify-between gap-3">
-                <div>
-                  <div class="text-sm font-semibold">Assistant Config</div>
-                  <div class="text-xs text-slate-500" id="configScopeLabel">Editing…</div>
-                </div>
+      <h1 class="text-[34px] font-semibold tracking-[-0.04em] sm:text-[44px]">
+        Manage every property from one clean control surface.
+      </h1>
 
-                <button
-                  type="button"
-                  class="h-9 px-3 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-sm"
-                  onclick="closeInlineConfig()"
-                >
-                  Close
-                </button>
-              </div>
+      <p class="mt-4 text-[15px] leading-7 text-white/75">
+        Sync listings, control live status, update assistant behavior, and manage house manuals across your portfolio.
+      </p>
 
-             <div class="mt-4">
-  <div id="configInlineContainer" class="config-ui-scope">
-    <!-- injected config UI goes here -->
+      <div class="mt-6 flex flex-wrap items-center gap-3">
+        <button
+          id="sync-all-properties-btn"
+          type="button"
+          class="inline-flex h-12 items-center justify-center rounded-full bg-white px-5 text-[14px] font-semibold text-slate-950 transition hover:bg-slate-100"
+        >
+          Sync all
+        </button>
+
+        <button
+          id="add-property-btn"
+          type="button"
+          class="inline-flex h-12 items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 text-[14px] font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
+        >
+          Add another property
+        </button>
+      </div>
+    </div>
   </div>
-</div>
 
-            </div>
+  <!-- Filters -->
+  <div id="propertiesHeaderCard" class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+    <div class="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+      <div class="flex w-full flex-col gap-3 lg:flex-row lg:items-center">
+        <label class="flex h-12 flex-1 items-center gap-3 rounded-full border border-slate-200 bg-white px-4">
+          <svg class="h-4 w-4 text-slate-400" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="m21 21-4.35-4.35" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"></path>
+            <circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="1.8"></circle>
+          </svg>
+          <input
+            type="text"
+            id="searchInput"
+            placeholder="Search properties..."
+            class="w-full bg-transparent text-[14px] text-slate-900 placeholder:text-slate-400 focus:outline-none"
+          />
+        </label>
+
+        <div class="flex flex-wrap items-center gap-3">
+          <select
+            id="statusFilter"
+            class="h-12 rounded-full border border-slate-200 bg-white px-5 text-[14px] text-slate-700 focus:outline-none"
+          >
+            <option value="all">All statuses</option>
+            <option value="live">Live</option>
+            <option value="offline">Offline</option>
+          </select>
+
+          <div class="inline-flex rounded-full bg-slate-100 p-1">
+            <button
+              id="properties-view-grid-btn"
+              type="button"
+              class="rounded-full bg-white px-4 py-2 text-sm font-semibold text-slate-900 shadow-sm"
+            >
+              Grid
+            </button>
+            <button
+              id="properties-view-list-btn"
+              type="button"
+              class="rounded-full px-4 py-2 text-sm font-semibold text-slate-500"
+            >
+              List
+            </button>
           </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
-          <!-- Property cards -->
-<div id="propertiesGridWrap" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-  {% for prop in properties %}
-    <div class="bg-white border border-slate-200 rounded-2xl p-4 card"
-         data-property-card
-         data-name="{{ prop.property_name }}"
-         data-live="{{ 'true' if prop.sandy_enabled else 'false' }}">
+  <!-- Inline Assistant Config Panel -->
+  <div id="configPanelWrap" class="hidden">
+    <div class="rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <div class="text-[18px] font-semibold tracking-[-0.02em] text-slate-950">Assistant Config</div>
+          <div class="mt-1 text-[13px] text-slate-500" id="configScopeLabel">Editing…</div>
+        </div>
 
-      <!-- NEW: left photo + right content layout -->
-      <div class="flex gap-4">
+        <button
+          type="button"
+          class="inline-flex h-11 items-center rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-800"
+          onclick="closeInlineConfig()"
+        >
+          Close
+        </button>
+      </div>
 
-        <!-- Left: Property profile photo -->
-        <div class="shrink-0">
+      <div class="mt-5">
+        <div id="configInlineContainer" class="config-ui-scope"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Grid View -->
+  <div id="propertiesGridView" class="grid grid-cols-1 gap-5 xl:grid-cols-2 2xl:grid-cols-3">
+    {% for prop in properties %}
+      <div
+        class="property-item overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-[0_10px_30px_rgba(15,23,42,0.04)] transition duration-200 hover:-translate-y-[1px] hover:shadow-[0_16px_40px_rgba(15,23,42,0.08)]"
+        data-property-item
+        data-name="{{ prop.property_name|lower }}"
+        data-live="{{ 'true' if prop.sandy_enabled else 'false' }}"
+      >
+        <div class="relative">
           {% if prop.hero_image_url %}
             <img
               src="{{ prop.hero_image_url }}"
               alt="{{ prop.property_name|e }} photo"
-              class="h-20 w-20 rounded-xl object-cover border border-slate-200 bg-slate-100"
+              class="h-[220px] w-full object-cover"
               loading="lazy"
               referrerpolicy="no-referrer"
             />
           {% else %}
-            <div class="h-20 w-20 rounded-xl border border-slate-200 bg-slate-100 grid place-items-center text-[11px] font-semibold text-slate-500">
-              No photo
+            <div class="grid h-[220px] w-full place-items-center bg-slate-100 text-[13px] font-semibold text-slate-500">
+              No property photo
             </div>
+          {% endif %}
+
+          <div class="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-t from-black/20 to-transparent"></div>
+
+          {% if is_locked %}
+            <div class="absolute right-4 top-4 inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-800">
+              LOCKED
+            </div>
+          {% else %}
+            <button
+              type="button"
+              class="absolute right-4 top-4 inline-flex items-center rounded-full {% if prop.sandy_enabled %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} p-1 text-xs font-semibold"
+              onclick="toggleProperty({{ prop.id }}, this)"
+              {% if is_locked %}disabled{% endif %}
+            >
+              <span class="{% if prop.sandy_enabled %}rounded-full bg-emerald-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">LIVE</span>
+              <span class="{% if not prop.sandy_enabled %}rounded-full bg-rose-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">OFFLINE</span>
+            </button>
           {% endif %}
         </div>
 
-        <!-- Right: Everything else -->
-        <div class="min-w-0 flex-1">
+        <div class="p-5">
+          <div class="text-[28px] font-semibold tracking-[-0.03em] text-slate-950">
+            {{ prop.property_name }}
+          </div>
 
-          <div class="flex items-start justify-between gap-3">
-            <div class="min-w-0">
-              <div class="text-[14px] font-semibold truncate">{{ prop.property_name }}</div>
-              <div class="mt-1 text-xs text-slate-500">
-                ID: {{ prop.id }}{% if prop.pms_property_id %} • PMS: {{ prop.pms_property_id }}{% endif %} • UNLOCK = 4242
-              </div>
-            </div>
-
-            {% if is_locked %}
-              <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-amber-50 text-amber-800 border border-amber-200 font-semibold">
-                LOCKED
-              </span>
-            {% else %}
-              {% if prop.sandy_enabled %}
-                <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold">
-                  <a href="https://hostaway-casaseaesta-api.onrender.com/guest/{{ prop.id }}" target="_blank">LIVE</a>
-                </span>
-              {% else %}
-                <span class="shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold">
-                  OFFLINE
-                </span>
-              {% endif %}
+          <div class="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-slate-500">
+            <span>ID {{ prop.id }}</span>
+            {% if prop.pms_property_id %}
+              <span>•</span>
+              <span>PMS {{ prop.pms_property_id }}</span>
             {% endif %}
           </div>
 
-          <div class="mt-3 text-xs text-slate-500">
-            <span class="font-semibold text-slate-700">Last synced:</span>
+          <div class="mt-5 text-[14px] text-slate-600">
+            <span class="font-medium text-slate-700">Last synced</span>
             {% if prop.last_synced %}
               {% set seconds = (now - prop.last_synced).total_seconds() %}
               {% if seconds < 60 %} just now
@@ -1343,61 +1393,162 @@
             {% endif %}
           </div>
 
-          <div class="mt-4 flex gap-2 flex-wrap items-center">
-            {% if prop.data_folder_path %}
-              <a
-                href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
-                onclick="openInlineConfig(event, '{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
-                class="btn btn-primary"
+          <div class="mt-5 rounded-2xl bg-slate-50 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-2">
+                {% if prop.data_folder_path %}
+                  <a
+                    href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
+                    onclick="openInlineConfig(event, '{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
+                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:from-indigo-500 hover:to-indigo-400"
+                  >
+                    ⚙️ Config
+                  </a>
+
+                  <a
+                    href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+                    onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt')"
+                    class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                    {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                  >
+                    📘 Manual
+                  </a>
+                {% endif %}
+              </div>
+
+              <button
+                onclick="syncProperty({{ prop.id }}, this)"
+                class="inline-flex h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-100"
+                type="button"
+                {% if is_locked %}disabled{% endif %}
               >
-                Assistant Config
-              </a>
+                Sync
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    {% endfor %}
+  </div>
 
-              <a
-                href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                class="btn btn-secondary {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
-                {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
-                onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt')"
-              >
-                House Manual
-              </a>
-            {% endif %}
+  <!-- List View -->
+  <div id="propertiesListView" class="hidden overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
+    <div class="hidden lg:grid grid-cols-[132px_minmax(0,1.2fr)_190px_1fr] gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
+      <div>Property</div>
+      <div>Details</div>
+      <div>Status</div>
+      <div>Actions</div>
+    </div>
 
-            <button
-              onclick="syncProperty({{ prop.id }}, this)"
-              class="btn btn-secondary"
-              type="button"
-              {% if is_locked %}disabled{% endif %}
-            >
-              Sync
-            </button>
-            
+    {% for prop in properties %}
+      <div
+        class="property-item grid grid-cols-1 gap-4 border-b border-slate-100 px-5 py-5 last:border-b-0 lg:grid-cols-[132px_minmax(0,1.2fr)_190px_1fr] lg:items-center lg:px-6"
+        data-property-item
+        data-name="{{ prop.property_name|lower }}"
+        data-live="{{ 'true' if prop.sandy_enabled else 'false' }}"
+      >
+        <div>
+          {% if prop.hero_image_url %}
+            <img
+              src="{{ prop.hero_image_url }}"
+              alt="{{ prop.property_name|e }} photo"
+              class="h-24 w-full rounded-2xl object-cover lg:w-[112px]"
+              loading="lazy"
+              referrerpolicy="no-referrer"
+            />
+          {% else %}
+            <div class="grid h-24 w-full place-items-center rounded-2xl bg-slate-100 text-[12px] font-semibold text-slate-500 lg:w-[112px]">
+              No photo
+            </div>
+          {% endif %}
+        </div>
 
-            <button
-              onclick="toggleProperty({{ prop.id }}, this)"
-              class="btn btn-indigo"
-              type="button"
-              {% if is_locked %}disabled{% endif %}
-            >
-              {% if prop.sandy_enabled %}Take Offline{% else %}Go Live{% endif %}
-            </button>
+        <div class="min-w-0">
+          <div class="text-[20px] font-semibold tracking-[-0.02em] text-slate-950">
+            {{ prop.property_name }}
+          </div>
 
-            {% if is_locked %}
-              <a href="/pmc/signup" class="text-xs font-semibold text-amber-700 hover:underline ml-1">
-                Unlock →
-              </a>
+          <div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[14px] text-slate-500">
+            <span>ID {{ prop.id }}</span>
+            {% if prop.pms_property_id %}
+              <span>•</span>
+              <span>PMS {{ prop.pms_property_id }}</span>
             {% endif %}
           </div>
 
+          <div class="mt-2 text-[14px] text-slate-600">
+            <span class="font-medium text-slate-700">Last synced</span>
+            {% if prop.last_synced %}
+              {% set seconds = (now - prop.last_synced).total_seconds() %}
+              {% if seconds < 60 %} just now
+              {% elif seconds < 3600 %} {{ (seconds // 60)|int }} minutes ago
+              {% elif seconds < 86400 %} {{ (seconds // 3600)|int }} hours ago
+              {% else %} {{ (seconds // 86400)|int }} days ago
+              {% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </div>
+        </div>
+
+        <div>
+          {% if is_locked %}
+            <div class="inline-flex rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-[11px] font-semibold text-amber-800">
+              LOCKED
+            </div>
+          {% else %}
+            <button
+              type="button"
+              class="inline-flex items-center rounded-full {% if prop.sandy_enabled %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} p-1 text-xs font-semibold"
+              onclick="toggleProperty({{ prop.id }}, this)"
+              {% if is_locked %}disabled{% endif %}
+            >
+              <span class="{% if prop.sandy_enabled %}rounded-full bg-emerald-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">LIVE</span>
+              <span class="{% if not prop.sandy_enabled %}rounded-full bg-rose-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">OFFLINE</span>
+            </button>
+          {% endif %}
+        </div>
+
+        <div>
+          <div class="rounded-2xl bg-slate-50 p-3">
+            <div class="flex flex-wrap items-center justify-between gap-3">
+              <div class="flex flex-wrap items-center gap-2">
+                {% if prop.data_folder_path %}
+                  <a
+                    href="/admin/config-ui?file={{ prop.data_folder_path }}/config.json"
+                    onclick="openInlineConfig(event, '{{ prop.data_folder_path }}/config.json', '{{ prop.property_name|e }}');"
+                    class="inline-flex h-10 items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-indigo-600 to-indigo-500 px-4 text-sm font-semibold text-white shadow-sm transition hover:from-indigo-500 hover:to-indigo-400"
+                  >
+                    ⚙️ Config
+                  </a>
+
+                  <a
+                    href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
+                    onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt')"
+                    class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                    {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
+                  >
+                    📘 Manual
+                  </a>
+                {% endif %}
+              </div>
+
+              <button
+                onclick="syncProperty({{ prop.id }}, this)"
+                class="inline-flex h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100"
+                type="button"
+                {% if is_locked %}disabled{% endif %}
+              >
+                Sync
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-  {% endfor %}
-</div>
-
-
-
-        </section>
+    {% endfor %}
+  </div>
+</section>
+        
 
         <!--script>
           // Opens the full Config UI in an iframe (keeps its CSS intact),
