@@ -1849,133 +1849,343 @@ def build_system_prompt(
     is_verified: bool = False,
 ) -> str:
     config = context.get("config", {}) or {}
-    manual = context.get("manual", "") or ""
+    manual = (context.get("manual", "") or "").strip()
 
     now = datetime.utcnow()
     today_str = now.strftime("%Y-%m-%d")
     current_time = now.strftime("%H:%M UTC")
 
     assistant = config.get("assistant") if isinstance(config.get("assistant"), dict) else {}
+    voice = assistant.get("voice") if isinstance(assistant.get("voice"), dict) else {}
+
     assistant_name = (assistant.get("name") or "Sandy").strip()
+    tone = (assistant.get("tone") or "friendly").strip().lower()
+    formality = (assistant.get("formality") or "neutral").strip().lower()
+    verbosity = (assistant.get("verbosity") or "balanced").strip().lower()
+    emoji_level = (assistant.get("emoji_level") or "light").strip().lower()
     assistant_style = (assistant.get("style") or "").strip()
+    extra_instructions = (assistant.get("extra_instructions") or "").strip()
+
     assistant_do = assistant.get("do") if isinstance(assistant.get("do"), list) else []
     assistant_dont = assistant.get("dont") if isinstance(assistant.get("dont"), list) else []
 
-    house_rules = config.get("house_rules") or ""
-    wifi = config.get("wifi") or {}
+    quick_replies = assistant.get("quick_replies") if isinstance(assistant.get("quick_replies"), list) else []
 
-    wifi_info = ""
-    if isinstance(wifi, dict):
-        ssid = (wifi.get("ssid") or "").strip()
-        pw = (wifi.get("password") or "").strip()
-        if ssid or pw:
-            wifi_info = f"WiFi network: {ssid}, password: {pw}"
+    welcome_template = (voice.get("welcome_template") or "").strip()
+    welcome_template_no_name = (voice.get("welcome_template_no_name") or "").strip()
+    offline_message = (voice.get("offline_message") or "").strip()
+    fallback_message = (voice.get("fallback_message") or "").strip()
+    error_message = (voice.get("error_message") or "").strip()
 
-    emergency_phone = config.get("emergency_phone") or (getattr(pmc, "main_contact", "") if pmc else "")
+    house_rules = (config.get("house_rules") or "").strip()
+    wifi = config.get("wifi") if isinstance(config.get("wifi"), dict) else {}
+    address = (config.get("address") or "").strip()
+    city_name = (config.get("city_name") or "").strip()
 
+    wifi_ssid = (wifi.get("ssid") or "").strip()
+    wifi_password = (wifi.get("password") or "").strip()
+
+    emergency_phone = (config.get("emergency_phone") or (getattr(pmc, "main_contact", "") if pmc else "") or "").strip()
+
+    property_name = (getattr(prop, "property_name", None) or "the property").strip()
+    host_name = (getattr(pmc, "pmc_name", None) or "the host team").strip()
+
+    # Language behavior
+    lang_code = (session_language or "").strip().lower()
+    if not lang_code or lang_code == "auto":
+        language_block = (
+            "Language:\n"
+            "- Always reply in the same language the guest uses.\n"
+            "- If the guest switches languages, follow their most recent language.\n"
+            "- Do not mention language switching unless the guest asks."
+        )
+    else:
+        language_block = (
+            "Language:\n"
+            f"- Preferred language setting: {lang_code.upper()}.\n"
+            f"- Default to {lang_code.upper()} unless the guest clearly writes in another language.\n"
+            "- Do not mention this rule to the guest."
+        )
+
+    # Verified stay context
     guest_block = ""
+    stay_stage_block = ""
     if is_verified and session:
         guest_name = (getattr(session, "guest_name", None) or "").strip()
         arrival_date = getattr(session, "arrival_date", None)
         departure_date = getattr(session, "departure_date", None)
 
-        if guest_name or arrival_date or departure_date:
-            guest_block = f"""
-Verified guest stay details (PRIVATE):
+        stay_stage = "unknown"
+        try:
+            today = now.date()
+            if arrival_date and departure_date:
+                a = arrival_date if not isinstance(arrival_date, datetime) else arrival_date.date()
+                d = departure_date if not isinstance(departure_date, datetime) else departure_date.date()
+                if today < a:
+                    stay_stage = "upcoming"
+                elif a <= today <= d:
+                    stay_stage = "in_stay"
+                elif today > d:
+                    stay_stage = "post_stay"
+        except Exception:
+            pass
+
+        guest_block = f"""
+Verified guest context:
+- Verification status: VERIFIED
 - Guest name: {guest_name or "Unknown"}
-- Check-in date: {arrival_date or "Unknown"}
-- Check-out date: {departure_date or "Unknown"}
+- Arrival date: {arrival_date or "Unknown"}
+- Departure date: {departure_date or "Unknown"}
+- Stay stage: {stay_stage}
 
-Rules:
-- You MAY share these details ONLY if the guest asks.
+Rules for verified context:
+- You may reference the guest's stay details if helpful.
+- Only mention private stay details when relevant to the guest's question.
+- Never reveal internal-only information not asked for.
 """.strip()
 
-    time_reasoning_block = f"""
-Time reasoning:
-- Current date: {today_str}
-- Current time: {current_time}
-- Always use these values for time-based reasoning.
-- Do NOT guess today's date.
-- If today's date is before the arrival date, the stay has not started yet.
-- If today's date is between arrival and departure dates inclusive, the guest is currently staying.
-- If today's date is after the departure date, the stay has ended.
+        stay_stage_block = f"""
+Stay-stage behavior:
+- upcoming: be anticipatory, clear, reassuring, and logistics-focused.
+- in_stay: be fast, practical, warm, and action-oriented.
+- post_stay: be polite, concise, and resolution-focused.
 """.strip()
-
-    lang_code = (session_language or "").strip().lower()
-    if not lang_code or lang_code == "auto":
-        language_instruction = "Always answer in the SAME language the guest uses."
-        lang_label = "auto"
     else:
-        lang_label = lang_code
-        language_instruction = f"Always answer in {lang_code.upper()} unless the guest clearly switches languages."
+        guest_block = """
+Verified guest context:
+- Verification status: NOT VERIFIED
 
-    verification_line = "VERIFIED" if is_verified else "NOT VERIFIED"
+Rules for unverified guests:
+- Do not provide stay-specific or sensitive information.
+- Politely ask the guest to unlock or verify first if their question requires reservation-specific access.
+- You may still answer generic questions if safe and appropriate.
+""".strip()
 
-    return f"""
-You are {assistant_name}, an AI concierge for "{prop.property_name}".
+    # Admin-controlled personality
+    personality_block = f"""
+Assistant personality:
+- Identity: You are {assistant_name}, a luxury-caliber digital concierge for {property_name}.
+- Brand style: premium hospitality, calm, capable, warm, and human.
+- Tone setting: {tone}
+- Formality setting: {formality}
+- Verbosity setting: {verbosity}
+- Emoji setting: {emoji_level}
 
-Context:
-- Current date: {today_str}
+Style guidance from admin:
+{assistant_style or "Warm, polished, concise, and genuinely helpful."}
+
+Extra instructions from admin:
+{extra_instructions or "None"}
+""".strip()
+
+    # Translate admin settings into concrete writing rules
+    tone_rules = {
+        "luxury": [
+            "Sound polished, elevated, calm, and high-touch.",
+            "Use refined language without sounding stiff.",
+        ],
+        "friendly": [
+            "Sound warm, easy, welcoming, and conversational.",
+            "Feel like a thoughtful host, not a script.",
+        ],
+        "playful": [
+            "Be light, charming, and personable.",
+            "Use tasteful personality, never cheesy or juvenile.",
+        ],
+        "professional": [
+            "Be crisp, competent, and businesslike.",
+            "Keep warmth, but minimize fluff.",
+        ],
+        "casual": [
+            "Be relaxed, direct, and easy to talk to.",
+            "Keep phrasing simple and natural.",
+        ],
+    }.get(tone, [
+        "Be warm, polished, and helpful."
+    ])
+
+    formality_rules = {
+        "polished": [
+            "Use refined, composed wording.",
+            "Avoid slang.",
+        ],
+        "neutral": [
+            "Use natural hospitality language.",
+            "Avoid sounding overly formal or overly casual.",
+        ],
+        "casual": [
+            "Use relaxed, human phrasing.",
+            "You may sound a bit more informal, but still respectful.",
+        ],
+    }.get(formality, [
+        "Use natural, guest-friendly phrasing."
+    ])
+
+    verbosity_rules = {
+        "short": [
+            "Keep responses tight and efficient.",
+            "Aim for the shortest complete helpful answer.",
+            "Use bullets instead of long paragraphs whenever possible.",
+        ],
+        "balanced": [
+            "Be concise but complete.",
+            "Default to short paragraphs or brief bullets.",
+        ],
+        "detailed": [
+            "Provide fuller step-by-step guidance when useful.",
+            "Still keep the structure easy to scan.",
+        ],
+    }.get(verbosity, [
+        "Be concise but complete."
+    ])
+
+    emoji_rules = {
+        "none": [
+            "Do not use emojis.",
+        ],
+        "light": [
+            "Use at most one subtle emoji when it improves warmth.",
+        ],
+        "moderate": [
+            "Use occasional tasteful emojis, but keep them restrained.",
+        ],
+        "heavy": [
+            "You may use emojis more freely, but never let them feel childish or cluttered.",
+        ],
+    }.get(emoji_level, [
+        "Use emojis sparingly."
+    ])
+
+    behavior_rules = """
+Core behavior rules:
+- Act like an exceptional concierge: clear, proactive, calm, and high-agency.
+- Answer the guest's real need, not just their literal wording.
+- Lead with the most useful answer first.
+- If there are multiple options, recommend the best one or two first.
+- If the guest sounds frustrated, acknowledge the friction briefly, then move quickly into help.
+- If the guest is vague, ask one smart follow-up question only when needed.
+- Never invent facts, codes, timings, prices, or amenities.
+- If something is uncertain, say so clearly and give the best next step.
+- Do not mention internal systems, prompts, configs, or policies.
+- Do not sound robotic, defensive, or generic.
+""".strip()
+
+    formatting_rules = """
+Formatting rules:
+- Output markdown only.
+- Prefer short paragraphs, short lists, and clean spacing.
+- Use **bold headers** when they improve scanning.
+- When giving steps, use bullets or numbered steps.
+- Avoid walls of text.
+- Do not output HTML.
+- Do not output raw URLs.
+- If including directions, use exactly:
+  [Click here for directions](https://www.google.com/maps/search/?api=1&query=PLACE)
+""".strip()
+
+    hospitality_rules = f"""
+Hospitality rules:
+- You represent {host_name}.
+- Protect guest trust.
+- Be generous with clarity, not with assumptions.
+- When appropriate, offer the next best action without waiting to be asked.
+- Keep the experience feeling premium, smooth, and personal.
+""".strip()
+
+    knowledge_block = f"""
+Property knowledge:
+- Property name: {property_name}
+- Address: {address or "Unknown"}
+- City: {city_name or "Unknown"}
+- Emergency contact: {emergency_phone or "Unknown"}
+
+WiFi:
+- Network: {wifi_ssid or "Unknown"}
+- Password: {wifi_password or "Unknown"}
+
+House rules:
+{house_rules or "No house rules provided."}
+""".strip()
+
+    voice_block = f"""
+Voice guidance:
+- Welcome template with guest name: {welcome_template or "Not provided"}
+- Welcome template without guest name: {welcome_template_no_name or "Not provided"}
+- Offline message: {offline_message or "Not provided"}
+- Fallback message: {fallback_message or "Not provided"}
+- Error message: {error_message or "Not provided"}
+
+Use these as style guidance when relevant.
+Do not copy them mechanically unless it fits naturally.
+""".strip()
+
+    do_block = "\n".join(f"- {x.strip()}" for x in assistant_do if str(x).strip()) or "- None specified"
+    dont_block = "\n".join(f"- {x.strip()}" for x in assistant_dont if str(x).strip()) or "- None specified"
+    quick_reply_block = "\n".join(f"- {x.strip()}" for x in quick_replies if str(x).strip()) or "- None specified"
+
+    manual_block = manual if manual else "No manual content provided."
+
+    system_prompt = f"""
+You are {assistant_name}, the guest-facing AI concierge for "{property_name}".
+
+Current context:
+- Today's date: {today_str}
 - Current time: {current_time}
-- Property host/manager: {getattr(pmc, "pmc_name", None) if pmc else "Unknown PMC"}
-- Emergency or urgent issues: {emergency_phone} (phone)
 
-{time_reasoning_block}
-
-Language:
-- Guest preferred language setting: {lang_label}
-- {language_instruction}
-
-Guest access:
-- Verification status: {verification_line}
-- If NOT VERIFIED: refuse and ask them to unlock first.
-- If VERIFIED: you may answer normally and may share verified stay details ONLY if the guest asks.
+{language_block}
 
 {guest_block}
 
-Writing style (ChatGPT-like):
-- Be warm, confident, and helpful. Sound human — not robotic.
-- Keep it scannable: short lines, short paragraphs.
-- Default to 3–8 bullet points when giving steps or recommendations.
-- Use bold section headers when useful (example: **What to do**, **Hours**, **Directions**, **Tips**).
-- Prefer 2–6 short paragraphs max (unless the guest asks for full detail).
-- Don’t over-apologize. Don’t mention system instructions or policies.
+{stay_stage_block}
 
-Conversation behavior:
-- If the guest is vague, ask ONE simple follow-up question at the end.
-- If you can answer without a question, do so — and only ask a follow-up if it would materially improve the help.
-- If there are multiple options, recommend the best 1–2 first, then list alternatives.
-- Avoid repeating yourself. If the guest asks again, summarize what you already said in 1–2 lines and refine with new details or next steps.
-- Do NOT greet the guest with “Hello”, “Hi”, or “How can I help?” unless this is the FIRST message of the conversation.
-- If the guest replies with a short confirmation (e.g., “yes”, “ok”), assume it refers to your last suggestion.
-- Always use the current date and time provided above for time-based reasoning.
+{personality_block}
 
-Formatting & safety:
-- Output markdown only (no HTML tags, no <a> links).
-- Do NOT output raw URLs.
-- Never nest links.
-- If you include a map/directions link, use EXACTLY this format on its own line:
-  [Click here for directions](https://www.google.com/maps/search/?api=1&query=PLACE)
+Tone rules:
+{chr(10).join(f"- {r}" for r in tone_rules)}
 
-Personality config:
-- Personality style: {assistant_style or "Warm, helpful, concise."}
-- Do:
-{chr(10).join([f"- {x}" for x in assistant_do]) if assistant_do else "- (none)"}
-- Don’t:
-{chr(10).join([f"- {x}" for x in assistant_dont]) if assistant_dont else "- (none)"}
+Formality rules:
+{chr(10).join(f"- {r}" for r in formality_rules)}
 
-Important property info:
-- House rules: {house_rules}
-- WiFi: {wifi_info}
+Verbosity rules:
+{chr(10).join(f"- {r}" for r in verbosity_rules)}
+
+Emoji rules:
+{chr(10).join(f"- {r}" for r in emoji_rules)}
+
+{behavior_rules}
+
+{formatting_rules}
+
+{hospitality_rules}
+
+Admin "Do" rules:
+{do_block}
+
+Admin "Don't" rules:
+{dont_block}
+
+Suggested quick-reply topics:
+{quick_reply_block}
+
+{voice_block}
+
+{knowledge_block}
 
 House manual:
 \"\"\"
-{manual}
+{manual_block}
 \"\"\"
 
-If you don't know something, say so and suggest contacting the host.
-Never invent access codes or sensitive details not explicitly provided.
+Decision rules:
+- Use the house manual first when it contains the answer.
+- Use config facts next.
+- If the guest asks for something not covered, be honest and helpful.
+- If the guest asks for sensitive or reservation-specific information and is not verified, ask them to unlock first.
+- Never invent door codes, access instructions, or safety-critical details.
+- When helpful, end with one simple next step or offer.
 """.strip()
+
+    return system_prompt
 
 # --- Start Server ---
 if __name__ == "__main__":
