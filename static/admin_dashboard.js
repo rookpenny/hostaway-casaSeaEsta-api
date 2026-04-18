@@ -3463,12 +3463,28 @@ document.addEventListener("change", (e) => {
   if (!(el instanceof HTMLInputElement)) return;
   if (!el.matches('#upgrades-editor-body input[name="is_active"]')) return;
 
-  const label = el.closest("label")?.querySelector("span:last-child");
-  if (!label) return;
+  const wrap = el.closest("label");
+  const track = wrap?.querySelector("[data-upgrade-form-toggle-track]");
+  const knob = wrap?.querySelector("[data-upgrade-form-toggle-knob]");
+  const label = wrap?.querySelector("[data-upgrade-form-toggle-label]");
 
-  label.textContent = el.checked ? "Active" : "Disabled";
+  if (track) {
+    track.classList.remove("bg-emerald-600", "bg-slate-200");
+    track.classList.add(el.checked ? "bg-emerald-600" : "bg-slate-200");
+  }
+
+  if (knob) {
+    knob.classList.remove("translate-x-5");
+    if (el.checked) knob.classList.add("translate-x-5");
+  }
+
+  if (label) {
+    label.textContent = el.checked ? "Active" : "Disabled";
+    label.className =
+      "min-w-[62px] text-left text-xs font-semibold " +
+      (el.checked ? "text-emerald-700" : "text-slate-400");
+  }
 });
-
 
 document.addEventListener("change", (e) => {
   const t = e.target;
