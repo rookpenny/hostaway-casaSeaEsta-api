@@ -1526,8 +1526,9 @@ def property_chat(
         prop,
         pmc,
         context,
-        payload.language,
-        session,
+        guest_message=payload.message,
+        session_language=payload.language,
+        session=session,
         is_verified=True,
     )
 
@@ -1718,9 +1719,9 @@ def get_today_reservation(db: Session, property_id: int) -> Reservation | None:
 
 def load_property_context(prop: "Property", db) -> dict:
     """
-    Loads config/manual for a property.
+    Loads config/manual/guides/upgrades for a property.
 
-    Resolution order:
+    Resolution order for file-based assets:
       1) prop.data_folder_path (absolute OR relative to DATA_REPO_DIR)
       2) {DATA_REPO_DIR}/data/{provider}_{account_id}/{provider}_{pms_property_id}/
       3) {DATA_REPO_DIR}/defaults/
@@ -1747,16 +1748,6 @@ def load_property_context(prop: "Property", db) -> dict:
             logger.warning("load_property_context: failed text %s: %r", path, e)
             return ""
 
-    def _slugify(value: str, max_length: int = 128) -> str:
-        if not value:
-            return "unknown"
-        value = unicodedata.normalize("NFKD", value)
-        value = value.encode("ascii", "ignore").decode("ascii")
-        value = value.lower()
-        value = re.sub(r"[^\w\-]+", "_", value)
-        value = re.sub(r"_+", "_", value).strip("_")
-        return value[:max_length]
-
     def _abs_in_repo(path: str) -> str:
         p = (path or "").strip()
         if not p:
@@ -1766,6 +1757,13 @@ def load_property_context(prop: "Property", db) -> dict:
         if not DATA_REPO_DIR:
             return p
         return os.path.join(DATA_REPO_DIR, p)
+
+    def _clean_text(value: str | None) -> str:
+        return re.sub(r"\s+", " ", (value or "").strip())
+
+    def _strip_html(value: str | None) -> str:
+        txt = re.sub(r"<[^>]+>", " ", value or "")
+        return re.sub(r"\s+", " ", txt).strip()
 
     used_default_cfg = False
     used_default_manual = False
@@ -1825,8 +1823,99 @@ def load_property_context(prop: "Property", db) -> dict:
             manual_text = _read_text(fallback_man)
             used_default_manual = True
 
+    # Load active guides from DB
+    guide_rows = (
+        db.query(Guide)
+        .filter(Guide.property_id == prop.id, Guide.is_active == True)
+        .order_by(Guide.sort_order.asc(), Guide.id.asc())
+        .all()
+    )
+
+    guides = []
+    guide_lines = []
+
+    for g in guide_rows:
+        title = _clean_text(getattr(g, "title", None))
+        category = _clean_text(getattr(g, "category", None))
+        short_description = _clean_text(getattr(g, "short_description", None))
+        long_description = _clean_text(getattr(g, "long_description", None))
+        body_text = _strip_html(getattr(g, "body_html", None))
+
+        guides.append({
+            "id": g.id,
+            "title": title,
+            "category": category,
+            "short_description": short_description,
+            "long_description": long_description,
+            "body_text": body_text,
+        })
+
+        block_parts = [f"Guide: {title or 'Untitled'}"]
+        if category:
+            block_parts.append(f"Category: {category}")
+        if short_description:
+            block_parts.append(f"Summary: {short_description}")
+        elif long_description:
+            block_parts.append(f"Summary: {long_description}")
+        if body_text:
+            block_parts.append(f"Details: {body_text}")
+
+        guide_lines.append("\n".join(block_parts))
+
+    guides_text = "\n\n".join(guide_lines).strip()
+
+    # Load active upgrades from DB
+    upgrade_rows = (
+        db.query(Upgrade)
+        .filter(Upgrade.property_id == prop.id, Upgrade.is_active == True)
+        .order_by(Upgrade.sort_order.asc(), Upgrade.id.asc())
+        .all()
+    )
+
+    upgrades = []
+    upgrade_lines = []
+
+    for u in upgrade_rows:
+        title = _clean_text(getattr(u, "title", None))
+        slug = _clean_text(getattr(u, "slug", None))
+        short_description = _clean_text(getattr(u, "short_description", None))
+        long_description = _clean_text(getattr(u, "long_description", None))
+        price_cents = getattr(u, "price_cents", None)
+        currency = (getattr(u, "currency", None) or "usd").upper()
+
+        price_display = None
+        if price_cents is not None:
+            try:
+                amount = int(price_cents) / 100.0
+                price_display = f"${amount:,.2f}" if currency == "USD" else f"{amount:,.2f} {currency}"
+            except Exception:
+                price_display = None
+
+        upgrades.append({
+            "id": u.id,
+            "title": title,
+            "slug": slug,
+            "short_description": short_description,
+            "long_description": long_description,
+            "price_cents": price_cents,
+            "currency": currency,
+            "price_display": price_display,
+        })
+
+        block_parts = [f"Upgrade: {title or 'Untitled'}"]
+        if price_display:
+            block_parts.append(f"Price: {price_display}")
+        if short_description:
+            block_parts.append(f"Summary: {short_description}")
+        elif long_description:
+            block_parts.append(f"Summary: {long_description}")
+
+        upgrade_lines.append("\n".join(block_parts))
+
+    upgrades_text = "\n\n".join(upgrade_lines).strip()
+
     logger.info(
-        "context: prop_id=%s provider=%s pms_property_id=%s base_dir=%s resolved_from=%s default_cfg=%s default_manual=%s manual_len=%s",
+        "context: prop_id=%s provider=%s pms_property_id=%s base_dir=%s resolved_from=%s default_cfg=%s default_manual=%s manual_len=%s guides=%s upgrades=%s",
         getattr(prop, "id", None),
         (getattr(prop, "provider", None) or "").strip().lower(),
         getattr(prop, "pms_property_id", None),
@@ -1835,21 +1924,90 @@ def load_property_context(prop: "Property", db) -> dict:
         used_default_cfg,
         used_default_manual,
         len((manual_text or "").strip()),
+        len(guides),
+        len(upgrades),
     )
 
-    return {"config": config, "manual": manual_text, "base_dir": base_dir}
+    return {
+        "config": config,
+        "manual": manual_text,
+        "base_dir": base_dir,
+        "guides": guides,
+        "guides_text": guides_text,
+        "upgrades": upgrades,
+        "upgrades_text": upgrades_text,
+    }
+
+
+def classify_guest_intent(message: str) -> str:
+    text = (message or "").strip().lower()
+
+    logistics_keywords = [
+        "check in", "check-in", "check out", "checkout", "check-out",
+        "door code", "code", "lock", "key", "keypad", "entry", "enter",
+        "wifi", "wi-fi", "internet", "password",
+        "parking", "park", "car",
+        "house rules", "rules", "trash", "quiet hours", "thermostat", "ac", "a/c"
+    ]
+
+    recommendation_keywords = [
+        "restaurant", "restaurants", "food", "coffee", "breakfast", "dinner",
+        "things to do", "what should we do", "recommend", "recommendation",
+        "beach", "bar", "shopping", "activities", "nearby", "local"
+    ]
+
+    upgrade_keywords = [
+        "early check in", "early check-in", "late checkout", "late check-out",
+        "late check out", "upgrade", "add on", "add-on", "extra", "extras",
+        "perk", "perks"
+    ]
+
+    issue_keywords = [
+        "not working", "doesn't work", "doesnt work", "broken", "can't", "cannot",
+        "help", "problem", "issue", "urgent", "asap", "wrong", "stuck", "locked out"
+    ]
+
+    if any(k in text for k in upgrade_keywords):
+        return "upgrade"
+    if any(k in text for k in recommendation_keywords):
+        return "recommendation"
+    if any(k in text for k in issue_keywords):
+        return "issue"
+    if any(k in text for k in logistics_keywords):
+        return "logistics"
+    return "general"
 
 
 def build_system_prompt(
     prop: Property,
     pmc,
     context: dict,
+    guest_message: str | None = None,
     session_language: str | None = None,
     session: ChatSession | None = None,
     is_verified: bool = False,
 ) -> str:
     config = context.get("config", {}) or {}
     manual = (context.get("manual", "") or "").strip()
+    guides_text = (context.get("guides_text", "") or "").strip()
+    upgrades_text = (context.get("upgrades_text", "") or "").strip()
+    guest_intent = classify_guest_intent(guest_message or "")
+
+    guides_block = f"""
+Property guides:
+{guides_text or "No active guides provided."}
+""".strip()
+
+    upgrades_block = f"""
+Available upgrades:
+{upgrades_text or "No active upgrades provided."}
+
+Upgrade rules:
+- Mention upgrades only when relevant.
+- Never push upgrades aggressively.
+- If a guest asks about add-ons, perks, early check-in, late checkout, or extras, use this section.
+- Never invent upgrade pricing or availability beyond what is listed.
+""".strip()
 
     now = datetime.utcnow()
     today_str = now.strftime("%Y-%m-%d")
@@ -1868,7 +2026,6 @@ def build_system_prompt(
 
     assistant_do = assistant.get("do") if isinstance(assistant.get("do"), list) else []
     assistant_dont = assistant.get("dont") if isinstance(assistant.get("dont"), list) else []
-
     quick_replies = assistant.get("quick_replies") if isinstance(assistant.get("quick_replies"), list) else []
 
     welcome_template = (voice.get("welcome_template") or "").strip()
@@ -1886,13 +2043,10 @@ def build_system_prompt(
     wifi_password = (wifi.get("password") or "").strip()
 
     emergency_phone = (config.get("emergency_phone") or (getattr(pmc, "main_contact", "") if pmc else "") or "").strip()
-
     property_name = (getattr(prop, "property_name", None) or "the property").strip()
     host_name = (getattr(pmc, "pmc_name", None) or "the host team").strip()
 
-    # Language behavior
-    lang_code = (session_language or "").strip().lower()
-    if not lang_code or lang_code == "auto":
+    if not session_language or session_language.strip().lower() == "auto":
         language_block = (
             "Language:\n"
             "- Always reply in the same language the guest uses.\n"
@@ -1900,6 +2054,7 @@ def build_system_prompt(
             "- Do not mention language switching unless the guest asks."
         )
     else:
+        lang_code = session_language.strip().lower()
         language_block = (
             "Language:\n"
             f"- Preferred language setting: {lang_code.upper()}.\n"
@@ -1907,9 +2062,9 @@ def build_system_prompt(
             "- Do not mention this rule to the guest."
         )
 
-    # Verified stay context
     guest_block = ""
     stay_stage_block = ""
+
     if is_verified and session:
         guest_name = (getattr(session, "guest_name", None) or "").strip()
         arrival_date = getattr(session, "arrival_date", None)
@@ -1944,7 +2099,7 @@ Rules for verified context:
 - Never reveal internal-only information not asked for.
 """.strip()
 
-        stay_stage_block = f"""
+        stay_stage_block = """
 Stay-stage behavior:
 - upcoming: be anticipatory, clear, reassuring, and logistics-focused.
 - in_stay: be fast, practical, warm, and action-oriented.
@@ -1961,7 +2116,6 @@ Rules for unverified guests:
 - You may still answer generic questions if safe and appropriate.
 """.strip()
 
-    # Admin-controlled personality
     personality_block = f"""
 Assistant personality:
 - Identity: You are {assistant_name}, a luxury-caliber digital concierge for {property_name}.
@@ -1978,7 +2132,6 @@ Extra instructions from admin:
 {extra_instructions or "None"}
 """.strip()
 
-    # Translate admin settings into concrete writing rules
     tone_rules = {
         "luxury": [
             "Sound polished, elevated, calm, and high-touch.",
@@ -2000,9 +2153,7 @@ Extra instructions from admin:
             "Be relaxed, direct, and easy to talk to.",
             "Keep phrasing simple and natural.",
         ],
-    }.get(tone, [
-        "Be warm, polished, and helpful."
-    ])
+    }.get(tone, ["Be warm, polished, and helpful."])
 
     formality_rules = {
         "polished": [
@@ -2017,9 +2168,7 @@ Extra instructions from admin:
             "Use relaxed, human phrasing.",
             "You may sound a bit more informal, but still respectful.",
         ],
-    }.get(formality, [
-        "Use natural, guest-friendly phrasing."
-    ])
+    }.get(formality, ["Use natural, guest-friendly phrasing."])
 
     verbosity_rules = {
         "short": [
@@ -2035,9 +2184,7 @@ Extra instructions from admin:
             "Provide fuller step-by-step guidance when useful.",
             "Still keep the structure easy to scan.",
         ],
-    }.get(verbosity, [
-        "Be concise but complete."
-    ])
+    }.get(verbosity, ["Be concise but complete."])
 
     emoji_rules = {
         "none": [
@@ -2052,9 +2199,7 @@ Extra instructions from admin:
         "heavy": [
             "You may use emojis more freely, but never let them feel childish or cluttered.",
         ],
-    }.get(emoji_level, [
-        "Use emojis sparingly."
-    ])
+    }.get(emoji_level, ["Use emojis sparingly."])
 
     behavior_rules = """
 Core behavior rules:
@@ -2122,8 +2267,31 @@ Do not copy them mechanically unless it fits naturally.
     do_block = "\n".join(f"- {x.strip()}" for x in assistant_do if str(x).strip()) or "- None specified"
     dont_block = "\n".join(f"- {x.strip()}" for x in assistant_dont if str(x).strip()) or "- None specified"
     quick_reply_block = "\n".join(f"- {x.strip()}" for x in quick_replies if str(x).strip()) or "- None specified"
-
     manual_block = manual if manual else "No manual content provided."
+
+    intent_block = f"""
+Detected guest intent:
+- Intent: {guest_intent}
+
+Intent routing rules:
+- logistics: prioritize config facts and house manual first.
+- recommendation: prioritize property guides first, then concise local suggestions.
+- upgrade: prioritize available upgrades and explain only what is actually offered.
+- issue: prioritize practical troubleshooting, safety, and next steps.
+- general: answer clearly using the best available source.
+
+Source priority:
+- For logistics questions, use: config -> manual -> guides
+- For recommendation questions, use: guides -> config -> manual
+- For upgrade questions, use: upgrades -> config
+- For issue questions, use: manual -> config -> escalation guidance
+
+Behavior:
+- If the question is about restaurants, beaches, coffee, activities, or nearby spots, use the guides section before giving generic advice.
+- If the question is about early check-in, late checkout, add-ons, or extras, use the upgrades section and never invent pricing or availability.
+- If the question is about access, WiFi, parking, rules, or check-in/out, use property facts and the manual first.
+- If the guest sounds frustrated or blocked, solve the immediate problem first and keep the tone calm.
+""".strip()
 
     system_prompt = f"""
 You are {assistant_name}, the guest-facing AI concierge for "{property_name}".
@@ -2139,6 +2307,8 @@ Current context:
 {stay_stage_block}
 
 {personality_block}
+
+{intent_block}
 
 Tone rules:
 {chr(10).join(f"- {r}" for r in tone_rules)}
@@ -2171,18 +2341,25 @@ Suggested quick-reply topics:
 
 {knowledge_block}
 
+{guides_block}
+
+{upgrades_block}
+
 House manual:
 \"\"\"
 {manual_block}
 \"\"\"
 
 Decision rules:
-- Use the house manual first when it contains the answer.
-- Use config facts next.
+- Use the best source for the guest's intent, not just the first available source.
+- For logistics questions, prefer config facts and the house manual.
+- For recommendations, prefer guides before generic suggestions.
+- For upgrades, use only the listed upgrades and their provided details.
 - If the guest asks for something not covered, be honest and helpful.
 - If the guest asks for sensitive or reservation-specific information and is not verified, ask them to unlock first.
-- Never invent door codes, access instructions, or safety-critical details.
-- When helpful, end with one simple next step or offer.
+- Never invent door codes, access instructions, safety-critical details, pricing, or amenity availability.
+- If unsure, say what you do know and give the best next step.
+- When helpful, end with one clear next action or offer.
 """.strip()
 
     return system_prompt
