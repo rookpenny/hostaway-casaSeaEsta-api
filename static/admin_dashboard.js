@@ -2635,19 +2635,7 @@ window.closeInlineManual = function () {
 
   header?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
-  wrap?.classList.add("hidden");
-  const savedMode = localStorage.getItem("properties_view_mode") || "grid";
-  if (savedMode === "list") {
-    listView?.classList.remove("hidden");
-  } else {
-    gridView?.classList.remove("hidden");
-  }
-  header?.classList.remove("hidden");
-  header?.scrollIntoView({ behavior: "smooth", block: "start" });
-};
-
-
-
+  
 
 // ----------------------------
 // Analytics
