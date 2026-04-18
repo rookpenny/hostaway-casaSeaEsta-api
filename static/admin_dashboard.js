@@ -1660,7 +1660,7 @@ window.openInlineConfig = async function (e, filePath) {
 
   try {
     const res = await fetch(
-      `/admin/config-ui?file=${encodeURIComponent(filePath)}&partial=1`,
+      `/admin/config-ui?file=${encodeURIComponent(filePath)}&embed=1`,
       { credentials: "include" }
     );
 
