@@ -2635,7 +2635,6 @@ window.closeInlineManual = function () {
 
   header?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
-  
 
 // ----------------------------
 // Analytics
