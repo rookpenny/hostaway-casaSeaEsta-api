@@ -4182,6 +4182,8 @@ function applyPropertiesFilters() {
   });
 }
 
+window.filterProperties = applyPropertiesFilters;
+
 function setPropertiesView(mode) {
   const gridView = document.getElementById("propertiesGridView");
   const listView = document.getElementById("propertiesListView");
@@ -4341,16 +4343,18 @@ window.toggleProperty = async function (id, btn) {
     if (data && data.status === "success") {
       const isLive = data.new_status === "LIVE";
 
-      document.querySelectorAll(`[data-property-item]`).forEach((item) => {
-        const toggle = item.querySelector(`[data-property-toggle-id="${id}"]`);
-        if (!toggle) return;
-
-        item.dataset.live = isLive ? "true" : "false";
+      // update every copy of this property toggle (grid + list)
+      document.querySelectorAll(`[data-property-toggle-id="${id}"]`).forEach((toggle) => {
         paintPropertyToggle(toggle, isLive);
       });
 
-      applyPropertiesFilters();
-      updateOverviewUI();
+      // update every property item live state
+      document.querySelectorAll(`[data-property-id="${id}"]`).forEach((item) => {
+        item.dataset.live = isLive ? "true" : "false";
+      });
+
+      applyPropertiesFilters?.();
+      updateOverviewUI?.();
       return;
     }
 
@@ -6808,9 +6812,6 @@ populateCategorySelect($id("taskCategory"));
   })();
 
 
-// ------------------------------
-// DOM ready (single, clean)
-// ------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
   initRouting();
   initSidebar();
@@ -6818,7 +6819,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAnalyticsSection();
   initRevenueReports();
   initSyncAllProperties();
-  
 
   initChatBatchActions();
   initChatDetailDelete();
@@ -6832,8 +6832,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   initSettingsUI();
   initAllReorderTables();
   initPropertiesUI();
-
-  
 
   document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
   document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
@@ -6862,11 +6860,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   if ((params.get("view") || "overview") === "analytics") {
-  initAnalyticsSection();
-  loadChatAnalytics();
-}
+    initAnalyticsSection();
+    loadChatAnalytics();
+  }
 });
-
 // ------------------------------
 // View switching (matches HTML: data-view)
 // Uses "hidden" class (matches template)
