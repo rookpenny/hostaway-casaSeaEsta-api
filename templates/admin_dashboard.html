@@ -1834,14 +1834,30 @@
 
 
 <section id="view-chats" class="view {% if selected_session %}space-y-0{% else %}space-y-6{% endif %} {% if initial_view != 'chats' %}hidden{% endif %}">
-  <!--{% if not selected_session %}
-  <div>
-    <div class="text-[32px] font-semibold tracking-[-0.04em] text-slate-950">Conversations</div>
-    <div class="mt-1 text-sm text-slate-500">
-      Monitor how your AI is performing across every stage of the stay lifecycle.
+
+<div class="relative overflow-hidden rounded-[28px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-8 text-white shadow-[0_20px_60px_rgba(40,50,160,0.18)]">
+    <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,190,150,0.14),transparent_28%)]"></div>
+    <div class="absolute bottom-0 right-0 h-40 w-56 translate-x-10 translate-y-10 rotate-[-18deg] rounded-[40px] bg-gradient-to-br from-[#ffd3c1] via-[#f8b9b8] to-transparent opacity-90"></div>
+
+    <div class="relative z-10 max-w-3xl">
+      <div class="mb-4 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-white/85">
+        ✦ Chat system
+      </div>
+
+      <h1 class="text-[34px] font-semibold tracking-[-0.04em] sm:text-[44px]">
+        Build guides your guests actually use.
+      </h1>
+
+      <p class="mt-4 text-[15px] leading-7 text-white/75">
+        Create, organize, and optimize property guides to reduce repetitive questions and improve the guest experience.
+      </p>
+
     </div>
   </div>
-  {% endif %}-->
+
+
+
+  
 
   <div class="space-y-5">
     {% if not selected_session %}
