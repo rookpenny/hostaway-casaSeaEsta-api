@@ -1642,7 +1642,8 @@ window.openInlineConfig = async function (e, filePath) {
 
   const hostEl = document.getElementById("configInlineContainer");
   const wrap = document.getElementById("configPanelWrap");
-  const grid = document.getElementById("propertiesGridWrap");
+  const gridView = document.getElementById("propertiesGridView");
+  const listView = document.getElementById("propertiesListView");
   const header = document.getElementById("propertiesHeaderCard");
   if (!hostEl || !wrap) return false;
 
@@ -1678,7 +1679,8 @@ window.openInlineConfig = async function (e, filePath) {
     window.initConfigUI?.(hostEl);
 
     wrap.classList.remove("hidden");
-    grid?.classList.add("hidden");
+    gridView?.classList.add("hidden");
+    listView?.classList.add("hidden");    
     header?.classList.add("hidden");
   } catch (err) {
     console.error("openInlineConfig failed:", err);
@@ -1697,7 +1699,8 @@ window.closeInlineConfig = function () {
 
   const wrap = document.getElementById("configPanelWrap");
   const label = document.getElementById("configScopeLabel");
-  const grid = document.getElementById("propertiesGridWrap");
+  const gridView = document.getElementById("propertiesGridView");
+  const listView = document.getElementById("propertiesListView");
   const header = document.getElementById("propertiesHeaderCard");
 
   if (host) {
@@ -1709,7 +1712,12 @@ window.closeInlineConfig = function () {
   if (label) label.textContent = "Editing…";
 
   wrap?.classList.add("hidden");
-  grid?.classList.remove("hidden");
+  const savedMode = localStorage.getItem("properties_view_mode") || "grid";
+  if (savedMode === "list") {
+    listView?.classList.remove("hidden");
+  } else {
+    gridView?.classList.remove("hidden");
+  }
   header?.classList.remove("hidden");
   header?.scrollIntoView?.({ behavior: "smooth", block: "start" });
 };
@@ -2577,7 +2585,8 @@ window.openInlineManual = async function (e, filePath) {
   //window.initManualEditor?.(hostEl); // ✅ ADD THIS
 
   wrap.classList.remove("hidden");
-  grid?.classList.add("hidden");
+  gridView?.classList.add("hidden");
+  listView?.classList.add("hidden");
   header?.classList.add("hidden");
 };
 
@@ -2594,7 +2603,12 @@ window.closeInlineManual = function () {
   }
 
   wrap?.classList.add("hidden");
-  grid?.classList.remove("hidden");
+  const savedMode = localStorage.getItem("properties_view_mode") || "grid";
+  if (savedMode === "list") {
+    listView?.classList.remove("hidden");
+  } else {
+    gridView?.classList.remove("hidden");
+  }
   header?.classList.remove("hidden");
   header?.scrollIntoView({ behavior: "smooth", block: "start" });
 };
@@ -4145,133 +4159,209 @@ function getRowMood(row) {
     });
   }
 
-  // ----------------------------
-  // Properties filter
-  // ----------------------------
-  function filterProperties() {
-    const search = (
-      document.getElementById("searchInput")?.value || ""
-    ).toLowerCase();
-    const status = document.getElementById("statusFilter")?.value || "all";
-    const cards = document.querySelectorAll("[data-property-card]");
+// ----------------------------
+// Properties UI
+// ----------------------------
+function applyPropertiesFilters() {
+  const search = (document.getElementById("searchInput")?.value || "").toLowerCase().trim();
+  const status = document.getElementById("statusFilter")?.value || "all";
 
-    cards.forEach((card) => {
-      const name = (card.dataset.name || "").toLowerCase();
-      const live = card.dataset.live === "true";
-      const matchesSearch = name.includes(search);
-      const matchesStatus =
-        status === "all" ||
-        (status === "live" && live) ||
-        (status === "offline" && !live);
+  const allItems = document.querySelectorAll("[data-property-item]");
 
-      card.style.display = matchesSearch && matchesStatus ? "" : "none";
+  allItems.forEach((item) => {
+    const name = (item.dataset.name || "").toLowerCase();
+    const live = item.dataset.live === "true";
+
+    const matchesSearch = !search || name.includes(search);
+    const matchesStatus =
+      status === "all" ||
+      (status === "live" && live) ||
+      (status === "offline" && !live);
+
+    item.classList.toggle("hidden", !(matchesSearch && matchesStatus));
+  });
+}
+
+function setPropertiesView(mode) {
+  const gridView = document.getElementById("propertiesGridView");
+  const listView = document.getElementById("propertiesListView");
+  const gridBtn = document.getElementById("properties-view-grid-btn");
+  const listBtn = document.getElementById("properties-view-list-btn");
+
+  const isGrid = mode === "grid";
+
+  gridView?.classList.toggle("hidden", !isGrid);
+  listView?.classList.toggle("hidden", isGrid);
+
+  if (gridBtn) {
+    gridBtn.classList.toggle("bg-white", isGrid);
+    gridBtn.classList.toggle("text-slate-900", isGrid);
+    gridBtn.classList.toggle("shadow-sm", isGrid);
+    gridBtn.classList.toggle("text-slate-500", !isGrid);
+  }
+
+  if (listBtn) {
+    listBtn.classList.toggle("bg-white", !isGrid);
+    listBtn.classList.toggle("text-slate-900", !isGrid);
+    listBtn.classList.toggle("shadow-sm", !isGrid);
+    listBtn.classList.toggle("text-slate-500", isGrid);
+  }
+
+  try {
+    localStorage.setItem("properties_view_mode", mode);
+  } catch {}
+}
+
+function initPropertiesUI() {
+  const gridBtn = document.getElementById("properties-view-grid-btn");
+  const listBtn = document.getElementById("properties-view-list-btn");
+  const searchInput = document.getElementById("searchInput");
+  const statusFilter = document.getElementById("statusFilter");
+  const addPropertyBtn = document.getElementById("add-property-btn");
+
+  if (gridBtn && !gridBtn.dataset.wired) {
+    gridBtn.dataset.wired = "1";
+    gridBtn.addEventListener("click", () => setPropertiesView("grid"));
+  }
+
+  if (listBtn && !listBtn.dataset.wired) {
+    listBtn.dataset.wired = "1";
+    listBtn.addEventListener("click", () => setPropertiesView("list"));
+  }
+
+  if (searchInput && !searchInput.dataset.wired) {
+    searchInput.dataset.wired = "1";
+    searchInput.addEventListener("input", applyPropertiesFilters);
+  }
+
+  if (statusFilter && !statusFilter.dataset.wired) {
+    statusFilter.dataset.wired = "1";
+    statusFilter.addEventListener("change", applyPropertiesFilters);
+  }
+
+  if (addPropertyBtn && !addPropertyBtn.dataset.wired) {
+    addPropertyBtn.dataset.wired = "1";
+    addPropertyBtn.addEventListener("click", () => {
+      toast("Connect this button to your add/import property flow.");
     });
   }
-  window.filterProperties = filterProperties;
 
- 
+  let savedMode = "grid";
+  try {
+    savedMode = localStorage.getItem("properties_view_mode") || "grid";
+  } catch {}
 
-  // ----------------------------
-  // Property actions
-  // ----------------------------
-  window.syncProperty = async function (id, btn) {
-    if (IS_LOCKED) return toast("Complete payment to unlock property syncing.");
+  setPropertiesView(savedMode);
+  applyPropertiesFilters();
+}
 
-    btn.disabled = true;
-    const original = btn.innerHTML;
-    btn.innerHTML = "Syncing…";
+window.filterProperties = applyPropertiesFilters;
 
+window.syncProperty = async function (id, btn) {
+  if (IS_LOCKED) return toast("Complete payment to unlock property syncing.");
+
+  btn.disabled = true;
+  const original = btn.innerHTML;
+  btn.innerHTML = "Syncing…";
+
+  try {
+    const res = await postJson(`/auth/sync-property/${id}`);
+
+    if (res.status === 401 || res.status === 403) return loginRedirect();
+    if (res.status === 402) return (window.location.href = "/pmc/signup");
+
+    let data = {};
     try {
-      const res = await postJson(`/auth/sync-property/${id}`);
+      data = await res.json();
+    } catch {}
 
-      if (res.status === 401 || res.status === 403) return loginRedirect();
-      if (res.status === 402) return (window.location.href = "/pmc/signup");
-
-      let data = {};
-      try {
-        data = await res.json();
-      } catch {}
-      btn.innerHTML =
-        res.ok && data.status === "success"
-          ? "Synced ✓"
-          : data.message || data.detail || "Failed";
-    } catch (err) {
-      console.error("Sync error:", err);
-      btn.innerHTML = "Error";
-    } finally {
-      setTimeout(() => {
-        btn.innerHTML = original;
-        btn.disabled = false;
-      }, 1200);
-    }
-  };
-
-  window.toggleProperty = async function (id, btn) {
-    if (IS_LOCKED) return toast("Complete payment to unlock Sandy activation.");
-
-    btn.disabled = true;
-    const original = btn.innerHTML;
-    btn.innerHTML = "Toggling…";
-
-    try {
-      const res = await postJson(`/auth/toggle-property/${id}`);
-      if (res.status === 401 || res.status === 403) return loginRedirect();
-
-      let data = null;
-      try {
-        data = await res.json();
-      } catch {
-        data = null;
-      }
-
-      if (data && data.status === "needs_billing" && data.checkout_url) {
-        window.location.href = data.checkout_url;
-        return;
-      }
-
-      if (!res.ok) {
-        toast((data && (data.detail || data.message)) || "Request failed");
-        btn.innerHTML = original;
-        return;
-      }
-
-      if (data && data.status === "success") {
-        const isLive = data.new_status === "LIVE";
-        btn.innerHTML = isLive ? "Take Offline" : "Go Live";
-
-        const card = btn.closest("[data-property-card]");
-        if (card) {
-          card.dataset.live = isLive ? "true" : "false";
-
-          const pill = card.querySelector("span.rounded-full");
-          if (pill) {
-            if (isLive) {
-              pill.textContent = "LIVE";
-              pill.className =
-                "shrink-0 text-xs px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 font-semibold";
-            } else {
-              pill.textContent = "OFFLINE";
-              pill.className =
-                "shrink-0 text-xs px-2.5 py-1 rounded-full bg-rose-50 text-rose-700 border border-rose-100 font-semibold";
-            }
-          }
-        }
-
-        filterProperties();
-        updateOverviewUI(); // ✅ update overview immediately
-        return;
-      }
-
+    btn.innerHTML =
+      res.ok && data.status === "success"
+        ? "Synced ✓"
+        : data.message || data.detail || "Failed";
+  } catch (err) {
+    console.error("Sync error:", err);
+    btn.innerHTML = "Error";
+  } finally {
+    setTimeout(() => {
       btn.innerHTML = original;
-      toast("Toggle failed.");
-    } catch (err) {
-      console.error("Toggle error:", err);
-      btn.innerHTML = original;
-      toast("Network error. Please try again.");
-    } finally {
       btn.disabled = false;
+    }, 1200);
+  }
+};
+
+function paintPropertyToggle(buttonEl, isLive) {
+  if (!buttonEl) return;
+
+  buttonEl.className = isLive
+    ? "inline-flex items-center rounded-full bg-emerald-100 p-1 text-xs font-semibold text-emerald-700"
+    : "inline-flex items-center rounded-full bg-rose-100 p-1 text-xs font-semibold text-rose-700";
+
+  const spans = buttonEl.querySelectorAll("span");
+  if (spans.length < 2) return;
+
+  const liveSpan = spans[0];
+  const offlineSpan = spans[1];
+
+  liveSpan.className = isLive
+    ? "rounded-full bg-emerald-600 px-3 py-1 text-white"
+    : "px-3 py-1 text-slate-600";
+
+  offlineSpan.className = !isLive
+    ? "rounded-full bg-rose-600 px-3 py-1 text-white"
+    : "px-3 py-1 text-slate-600";
+}
+
+window.toggleProperty = async function (id, btn) {
+  if (IS_LOCKED) return toast("Complete payment to unlock Sandy activation.");
+
+  btn.disabled = true;
+
+  try {
+    const res = await postJson(`/auth/toggle-property/${id}`);
+    if (res.status === 401 || res.status === 403) return loginRedirect();
+
+    let data = null;
+    try {
+      data = await res.json();
+    } catch {
+      data = null;
     }
-  };
+
+    if (data && data.status === "needs_billing" && data.checkout_url) {
+      window.location.href = data.checkout_url;
+      return;
+    }
+
+    if (!res.ok) {
+      toast((data && (data.detail || data.message)) || "Request failed");
+      return;
+    }
+
+    if (data && data.status === "success") {
+      const isLive = data.new_status === "LIVE";
+
+      document.querySelectorAll(`[data-property-item]`).forEach((item) => {
+        const toggle = item.querySelector(`[data-property-toggle-id="${id}"]`);
+        if (!toggle) return;
+
+        item.dataset.live = isLive ? "true" : "false";
+        paintPropertyToggle(toggle, isLive);
+      });
+
+      applyPropertiesFilters();
+      updateOverviewUI();
+      return;
+    }
+
+    toast("Toggle failed.");
+  } catch (err) {
+    console.error("Toggle error:", err);
+    toast("Network error. Please try again.");
+  } finally {
+    btn.disabled = false;
+  }
+};
 
 document.addEventListener("change", async (e) => {
   const el = e.target;
@@ -5763,7 +5853,7 @@ function initRouting() {
         : (subtitles[key] || "");
     }
 
-    if (key === "properties") filterProperties();
+    if (key === "properties") initPropertiesUI();
 
     if (key === "settings") {
       initSettingsUI();
@@ -6741,9 +6831,9 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   initSettingsUI();
   initAllReorderTables();
+  initPropertiesUI();
 
-  document.getElementById("searchInput")?.addEventListener("input", filterProperties);
-  document.getElementById("statusFilter")?.addEventListener("change", filterProperties);
+  
 
   document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
   document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
@@ -6755,7 +6845,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   window.rerenderAllMoodBadges?.();
   window.applyMoodConfidenceHints?.(document);
 
-  filterProperties();
   updateOverviewUI();
 
   const params = new URLSearchParams(window.location.search);
