@@ -1356,12 +1356,12 @@
             </div>
           {% else %}
             <button
-              type="button"
-              data-property-toggle-id="{{ prop.id }}"
-              class="absolute right-4 top-4 inline-flex items-center rounded-full {% if prop.sandy_enabled %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} p-1 text-xs font-semibold"
-              onclick="toggleProperty({{ prop.id }}, this)"
-              {% if is_locked %}disabled{% endif %}
-            >
+                type="button"
+                data-property-toggle-id="{{ prop.id }}"
+                class="inline-flex items-center rounded-full {% if prop.sandy_enabled %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} p-1 text-xs font-semibold"
+                onclick="toggleProperty({{ prop.id }}, this)"
+                {% if is_locked %}disabled{% endif %}
+              >
               <span class="{% if prop.sandy_enabled %}rounded-full bg-emerald-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">LIVE</span>
               <span class="{% if not prop.sandy_enabled %}rounded-full bg-rose-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">OFFLINE</span>
             </button>
@@ -1445,6 +1445,7 @@
     {% for prop in properties %}
       <div
         class="property-item grid grid-cols-1 gap-4 border-b border-slate-100 px-5 py-5 last:border-b-0 lg:grid-cols-[132px_minmax(0,1.2fr)_190px_1fr] lg:items-center lg:px-6"
+        data-property-id="{{ prop.id }}"
         data-property-item
         data-name="{{ prop.property_name|lower }}"
         data-live="{{ 'true' if prop.sandy_enabled else 'false' }}"
@@ -1500,11 +1501,12 @@
             </div>
           {% else %}
             <button
-              type="button"
-              class="inline-flex items-center rounded-full {% if prop.sandy_enabled %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} p-1 text-xs font-semibold"
-              onclick="toggleProperty({{ prop.id }}, this)"
-              {% if is_locked %}disabled{% endif %}
-            >
+                type="button"
+                data-property-toggle-id="{{ prop.id }}"
+                class="inline-flex items-center rounded-full {% if prop.sandy_enabled %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} p-1 text-xs font-semibold"
+                onclick="toggleProperty({{ prop.id }}, this)"
+                {% if is_locked %}disabled{% endif %}
+              >
               <span class="{% if prop.sandy_enabled %}rounded-full bg-emerald-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">LIVE</span>
               <span class="{% if not prop.sandy_enabled %}rounded-full bg-rose-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">OFFLINE</span>
             </button>
