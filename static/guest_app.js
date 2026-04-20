@@ -3515,37 +3515,20 @@ await refreshUpgradeEligibility();
 document.addEventListener("DOMContentLoaded", () => {
   const logoutBtn = document.getElementById("guest-logout-btn");
 
-  if (!logoutBtn) {
-    console.error("guest-logout-btn not found");
-    return;
-  }
+  if (!logoutBtn) return;
 
   logoutBtn.addEventListener("click", async () => {
-    console.log("Logout clicked");
-
     try {
-      const res = await fetch("/auth/logout", {
+      await fetch("/auth/logout", {
         method: "POST",
         credentials: "include",
-        headers: {
-          "Content-Type": "application/json"
-        }
       });
 
-      console.log("Logout response status:", res.status);
-
-      if (!res.ok) {
-        const text = await res.text();
-        console.error("Logout failed response:", text);
-        alert("Logout failed. Check console.");
-        return;
-      }
-
-      // Hard reset back to locked page state
+      // 🔥 THIS IS THE KEY LINE
       window.location.href = window.location.pathname;
+
     } catch (err) {
-      console.error("Logout request failed:", err);
-      alert("Logout request failed. Check console.");
+      console.error("Logout failed", err);
     }
   });
 });
