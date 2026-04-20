@@ -478,31 +478,6 @@ def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)
 
     user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
 
-    # ----------------------------
-    # Chats badge count: new since last login
-    # ----------------------------
-    last_login_at = getattr(pmc_user, "last_login_at", None) if pmc_user else None
-    new_chats_since_login = 0
-
-    chats_badge_q = db.query(ChatSession).join(
-        Property, Property.id == ChatSession.property_id
-    )
-
-    if user_role == "pmc" and pmc_obj:
-        chats_badge_q = chats_badge_q.filter(Property.pmc_id == pmc_obj.id)
-    elif user_role == "super" and pmc_id_int:
-        chats_badge_q = chats_badge_q.filter(Property.pmc_id == pmc_id_int)
-
-    if last_login_at:
-        chats_badge_q = chats_badge_q.filter(ChatSession.last_activity_at > last_login_at)
-    else:
-        # fallback for first login / missing timestamp
-        chats_badge_q = chats_badge_q.filter(
-            ChatSession.last_activity_at > datetime.utcnow() - timedelta(hours=24)
-        )
-
-    new_chats_since_login = chats_badge_q.count()
-
     if user_role != "pmc" or not pmc_obj:
         raise HTTPException(status_code=403, detail="Only PMC users can sync this way")
 
@@ -3877,6 +3852,32 @@ def admin_dashboard(
         )
 
     user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
+
+    # ----------------------------
+    # Chats badge count: new since last login
+    # ----------------------------
+
+    last_login_at = getattr(pmc_user, "last_login_at", None) if pmc_user else None
+
+    chats_badge_q = db.query(ChatSession).join(
+        Property, Property.id == ChatSession.property_id
+    )
+
+    if user_role == "pmc" and pmc_obj:
+        chats_badge_q = chats_badge_q.filter(Property.pmc_id == pmc_obj.id)
+    elif user_role == "super" and pmc_id_int:
+        chats_badge_q = chats_badge_q.filter(Property.pmc_id == pmc_id_int)
+
+    if last_login_at:
+        chats_badge_q = chats_badge_q.filter(
+            ChatSession.last_activity_at > last_login_at
+        )
+    else:
+        chats_badge_q = chats_badge_q.filter(
+            ChatSession.last_activity_at > datetime.utcnow() - timedelta(hours=24)
+        )
+
+    new_chats_since_login = chats_badge_q.count()
 
     if user_role == "pmc" and not pmc_obj:
         return templates.TemplateResponse(
