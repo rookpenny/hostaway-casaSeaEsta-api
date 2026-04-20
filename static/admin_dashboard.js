@@ -4315,23 +4315,26 @@ window.syncProperty = async function (id, btn) {
 function paintPropertyToggle(buttonEl, isLive) {
   if (!buttonEl) return;
 
-  const isCardToggle = buttonEl.classList.contains("absolute");
+  const isAbsolute = buttonEl.classList.contains("absolute");
 
-  buttonEl.className = isLive
-    ? `${isCardToggle ? "absolute right-4 top-4 " : ""}inline-flex items-center rounded-full bg-emerald-100 p-1 text-xs font-semibold text-emerald-700`
-    : `${isCardToggle ? "absolute right-4 top-4 " : ""}inline-flex items-center rounded-full bg-rose-100 p-1 text-xs font-semibold text-rose-700`;
+  const baseClasses = isAbsolute
+    ? ["absolute", "right-4", "top-4", "inline-flex", "items-center", "rounded-full", "p-1", "text-xs", "font-semibold"]
+    : ["inline-flex", "items-center", "rounded-full", "p-1", "text-xs", "font-semibold"];
+
+  const stateClasses = isLive
+    ? ["bg-emerald-100", "text-emerald-700"]
+    : ["bg-rose-100", "text-rose-700"];
+
+  buttonEl.className = [...baseClasses, ...stateClasses].join(" ");
 
   const spans = buttonEl.querySelectorAll("span");
   if (spans.length < 2) return;
 
-  const liveSpan = spans[0];
-  const offlineSpan = spans[1];
-
-  liveSpan.className = isLive
+  spans[0].className = isLive
     ? "rounded-full bg-emerald-600 px-3 py-1 text-white"
     : "px-3 py-1 text-slate-600";
 
-  offlineSpan.className = !isLive
+  spans[1].className = !isLive
     ? "rounded-full bg-rose-600 px-3 py-1 text-white"
     : "px-3 py-1 text-slate-600";
 }
