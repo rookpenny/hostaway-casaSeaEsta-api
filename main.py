@@ -359,7 +359,7 @@ def enforce_click_here_links(text: str) -> str:
     return out
 
 
-@router.post("/auth/logout")
+@app.post("/auth/logout")
 def logout(request: Request):
     request.session.clear()
     return {"success": True}
