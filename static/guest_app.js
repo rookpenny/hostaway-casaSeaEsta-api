@@ -3524,8 +3524,24 @@ document.addEventListener("DOMContentLoaded", () => {
         credentials: "include",
       });
 
-      // Reset UI to locked state
-      window.location.reload();
+      // 🔥 Force reset to login/unlock state
+      document.getElementById("home-login")?.classList.remove("hidden");
+      document.getElementById("home-stay")?.classList.add("hidden");
+
+      // Clear any chat / session memory
+      localStorage.clear();
+      sessionStorage.clear();
+
+      // Close menu if open
+      document.body.classList.remove("menu-open");
+
+      // Optional: clear chat UI
+      const chatBox = document.getElementById("chat-box");
+      if (chatBox) chatBox.innerHTML = "";
+
+      // Scroll back to top
+      window.scrollTo({ top: 0, behavior: "smooth" });
+
     } catch (err) {
       console.error("Logout failed", err);
     }
