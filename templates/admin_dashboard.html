@@ -1413,7 +1413,7 @@
 
                   <a
                     href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                    onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt')"
+                    onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt', '{{ prop.property_name|e }}')"
                     class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
                     {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
                   >
@@ -1531,7 +1531,7 @@
 
                   <a
                     href="/admin/edit-file?file={{ prop.data_folder_path }}/manual.txt"
-                    onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt')"
+                    onclick="openInlineManual(event, '{{ prop.data_folder_path }}/manual.txt', '{{ prop.property_name|e }}')"
                     class="inline-flex h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
                     {% if is_locked %}aria-disabled="true" tabindex="-1"{% endif %}
                   >
