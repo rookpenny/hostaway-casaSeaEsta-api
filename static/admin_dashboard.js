@@ -2572,14 +2572,13 @@ if (!window.__MANUAL_EDITOR_STATUS_V2__) {
 }
 
 
-
-
-
-window.openInlineManual = async function (e, filePath) {
+window.openInlineManual = async function (e, filePath, propertyName) {
   if (e && typeof e.preventDefault === "function") e.preventDefault();
 
   const hostEl = document.getElementById("configInlineContainer");
   const wrap = document.getElementById("configPanelWrap");
+  const propertyTitle = document.getElementById("configPropertyName");
+  const subtitle = document.getElementById("configPanelSubtitle");
   const hero = document.getElementById("propertiesHeroCard");
   const header = document.getElementById("propertiesHeaderCard");
   const gridView = document.getElementById("propertiesGridView");
@@ -2587,18 +2586,43 @@ window.openInlineManual = async function (e, filePath) {
 
   if (!hostEl || !wrap) return false;
 
+  window.__configInlineOpenToken = (window.__configInlineOpenToken || 0) + 1;
+  const myToken = window.__configInlineOpenToken;
+
+  hostEl.__configUIAlive = true;
+  delete hostEl.__configUIInited;
   hostEl.dataset.filePath = filePath;
+
+  if (propertyTitle) {
+    propertyTitle.textContent = propertyName || "Property";
+  }
+  if (subtitle) {
+    subtitle.textContent = "House manual";
+  }
+
   hostEl.innerHTML = `<div class="p-4 muted">Loading manual…</div>`;
 
   try {
     const res = await fetch(
-      `/admin/edit-config?file=${encodeURIComponent(filePath)}&embed=1`,
+      `/admin/manual-ui?file=${encodeURIComponent(filePath)}&embed=1`,
       { credentials: "include" }
     );
 
-    hostEl.innerHTML = res.ok
-      ? await res.text()
-      : `<div class="p-4 text-rose-700">Failed to load manual</div>`;
+    const html = await res.text();
+
+    if (myToken !== window.__configInlineOpenToken) return false;
+
+    if (!res.ok) {
+      hostEl.innerHTML = `<div class="p-4 text-rose-700">Failed to load manual (${res.status})</div>`;
+      return false;
+    }
+
+    hostEl.innerHTML = html;
+
+    const fpInput = hostEl.querySelector("#manualFilePath");
+    if (fpInput) fpInput.value = filePath;
+
+    window.initManualUI?.(hostEl);
 
     wrap.classList.remove("hidden");
     hero?.classList.add("hidden");
@@ -2613,10 +2637,11 @@ window.openInlineManual = async function (e, filePath) {
   return false;
 };
 
-
 window.closeInlineManual = function () {
   const wrap = document.getElementById("configPanelWrap");
   const host = document.getElementById("configInlineContainer");
+  const propertyTitle = document.getElementById("configPropertyName");
+  const subtitle = document.getElementById("configPanelSubtitle");
   const hero = document.getElementById("propertiesHeroCard");
   const header = document.getElementById("propertiesHeaderCard");
   const gridView = document.getElementById("propertiesGridView");
@@ -2625,6 +2650,13 @@ window.closeInlineManual = function () {
   if (host) {
     host.innerHTML = "";
     delete host.dataset.filePath;
+  }
+
+  if (propertyTitle) {
+    propertyTitle.textContent = "Property";
+  }
+  if (subtitle) {
+    subtitle.textContent = "Assistant configuration";
   }
 
   wrap?.classList.add("hidden");
