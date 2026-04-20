@@ -3515,35 +3515,37 @@ await refreshUpgradeEligibility();
 document.addEventListener("DOMContentLoaded", () => {
   const logoutBtn = document.getElementById("guest-logout-btn");
 
-  if (!logoutBtn) return;
+  if (!logoutBtn) {
+    console.error("guest-logout-btn not found");
+    return;
+  }
 
   logoutBtn.addEventListener("click", async () => {
+    console.log("Logout clicked");
+
     try {
-      await fetch("/auth/logout", {
+      const res = await fetch("/auth/logout", {
         method: "POST",
         credentials: "include",
+        headers: {
+          "Content-Type": "application/json"
+        }
       });
 
-      // 🔥 Force reset to login/unlock state
-      document.getElementById("home-login")?.classList.remove("hidden");
-      document.getElementById("home-stay")?.classList.add("hidden");
+      console.log("Logout response status:", res.status);
 
-      // Clear any chat / session memory
-      localStorage.clear();
-      sessionStorage.clear();
+      if (!res.ok) {
+        const text = await res.text();
+        console.error("Logout failed response:", text);
+        alert("Logout failed. Check console.");
+        return;
+      }
 
-      // Close menu if open
-      document.body.classList.remove("menu-open");
-
-      // Optional: clear chat UI
-      const chatBox = document.getElementById("chat-box");
-      if (chatBox) chatBox.innerHTML = "";
-
-      // Scroll back to top
-      window.scrollTo({ top: 0, behavior: "smooth" });
-
+      // Hard reset back to locked page state
+      window.location.href = window.location.pathname;
     } catch (err) {
-      console.error("Logout failed", err);
+      console.error("Logout request failed:", err);
+      alert("Logout request failed. Check console.");
     }
   });
 });
