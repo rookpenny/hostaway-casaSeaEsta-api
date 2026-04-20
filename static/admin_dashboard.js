@@ -1637,11 +1637,12 @@ let CATEGORIES = [];
 // ----------------------------
 // Inline open/close (CLEAN)
 // ----------------------------
-window.openInlineConfig = async function (e, filePath) {
+window.openInlineConfig = async function (e, filePath, propertyName) {
   if (e && typeof e.preventDefault === "function") e.preventDefault();
 
   const hostEl = document.getElementById("configInlineContainer");
   const wrap = document.getElementById("configPanelWrap");
+  const propertyTitle = document.getElementById("configPropertyName");
   const hero = document.getElementById("propertiesHeroCard");
   const header = document.getElementById("propertiesHeaderCard");
   const gridView = document.getElementById("propertiesGridView");
@@ -1655,6 +1656,10 @@ window.openInlineConfig = async function (e, filePath) {
   hostEl.__configUIAlive = true;
   delete hostEl.__configUIInited;
   hostEl.dataset.filePath = filePath;
+
+  if (propertyTitle) {
+    propertyTitle.textContent = propertyName || "Property";
+  }
 
   hostEl.innerHTML = `<div class="p-4 muted">Loading config…</div>`;
 
@@ -1701,7 +1706,7 @@ window.closeInlineConfig = function () {
   window.__configInlineOpenToken = (window.__configInlineOpenToken || 0) + 1;
 
   const wrap = document.getElementById("configPanelWrap");
-  const label = document.getElementById("configScopeLabel");
+  const propertyTitle = document.getElementById("configPropertyName");
   const hero = document.getElementById("propertiesHeroCard");
   const header = document.getElementById("propertiesHeaderCard");
   const gridView = document.getElementById("propertiesGridView");
@@ -1713,7 +1718,7 @@ window.closeInlineConfig = function () {
     delete host.dataset.filePath;
   }
 
-  if (label) label.textContent = "Editing…";
+  if (propertyTitle) propertyTitle.textContent = "Property";
 
   wrap?.classList.add("hidden");
   hero?.classList.remove("hidden");
