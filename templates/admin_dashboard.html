@@ -283,16 +283,16 @@
           <path d="M8 9h8M8 13h5" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
         </svg>
       </span>
-     <span class="flex min-w-0 flex-1 items-center justify-between gap-2">
-        <span class="truncate">Chats</span>
-        {% set chats_nav_count = sessions | rejectattr('is_resolved') | list | length if sessions is defined and sessions else 0 %}
-        <span
-          id="chats-nav-badge"
-          class="nav-badge {% if chats_nav_count == 0 %}hidden{% endif %}"
-        >
-          {{ chats_nav_count }}
-        </span>
-      </span>
+      <span class="flex min-w-0 flex-1 items-center justify-between gap-2">
+    <span class="truncate">Chats</span>
+    {% set chats_nav_count = new_chats_since_login or 0 %}
+    <span
+      id="chats-nav-badge"
+      class="nav-badge {% if chats_nav_count == 0 %}hidden{% endif %}"
+    >
+      {{ chats_nav_count }}
+    </span>
+  </span>
     </a>
 
     <a
