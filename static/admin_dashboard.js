@@ -4315,9 +4315,11 @@ window.syncProperty = async function (id, btn) {
 function paintPropertyToggle(buttonEl, isLive) {
   if (!buttonEl) return;
 
+  const isCardToggle = buttonEl.classList.contains("absolute");
+
   buttonEl.className = isLive
-    ? "inline-flex items-center rounded-full bg-emerald-100 p-1 text-xs font-semibold text-emerald-700"
-    : "inline-flex items-center rounded-full bg-rose-100 p-1 text-xs font-semibold text-rose-700";
+    ? `${isCardToggle ? "absolute right-4 top-4 " : ""}inline-flex items-center rounded-full bg-emerald-100 p-1 text-xs font-semibold text-emerald-700`
+    : `${isCardToggle ? "absolute right-4 top-4 " : ""}inline-flex items-center rounded-full bg-rose-100 p-1 text-xs font-semibold text-rose-700`;
 
   const spans = buttonEl.querySelectorAll("span");
   if (spans.length < 2) return;
