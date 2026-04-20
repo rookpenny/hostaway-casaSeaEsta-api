@@ -301,6 +301,7 @@ def _extract_first_url(s: str) -> str:
     if not m:
         return ""
     return _normalize_url(m.group(1))
+    
 
 def enforce_click_here_links(text: str) -> str:
     """
@@ -358,6 +359,11 @@ def enforce_click_here_links(text: str) -> str:
     return out
 
 
+@router.post("/auth/logout")
+def logout(request: Request):
+    request.session.clear()
+    return {"success": True}
+    
 # --- OpenAI bootstrap (single source of truth) ---
 def init_openai_client(app: FastAPI) -> None:
     api_key = (os.getenv("OPENAI_API_KEY") or "").strip()
