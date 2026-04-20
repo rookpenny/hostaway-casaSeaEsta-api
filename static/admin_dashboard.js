@@ -2604,7 +2604,7 @@ window.openInlineManual = async function (e, filePath, propertyName) {
 
   try {
     const res = await fetch(
-      `/admin/manual-ui?file=${encodeURIComponent(filePath)}&embed=1`,
+      `/admin/edit-config?file=${encodeURIComponent(filePath)}&embed=1`,
       { credentials: "include" }
     );
 
@@ -2619,10 +2619,11 @@ window.openInlineManual = async function (e, filePath, propertyName) {
 
     hostEl.innerHTML = html;
 
-    const fpInput = hostEl.querySelector("#manualFilePath");
+    const fpInput = hostEl.querySelector("#configFilePath, #manualFilePath");
     if (fpInput) fpInput.value = filePath;
 
     window.initManualUI?.(hostEl);
+    window.initConfigUI?.(hostEl);
 
     wrap.classList.remove("hidden");
     hero?.classList.add("hidden");
