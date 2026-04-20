@@ -1356,14 +1356,10 @@
             </div>
           {% else %}
             <button
-              type="button"
               data-property-toggle-id="{{ prop.id }}"
-              class="absolute right-4 top-4 inline-flex items-center rounded-full {% if prop.sandy_enabled %}bg-emerald-100 text-emerald-700{% else %}bg-rose-100 text-rose-700{% endif %} p-1 text-xs font-semibold"
               onclick="toggleProperty({{ prop.id }}, this)"
-              {% if is_locked %}disabled{% endif %}
-            >
-              <span class="{% if prop.sandy_enabled %}rounded-full bg-emerald-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">LIVE</span>
-              <span class="{% if not prop.sandy_enabled %}rounded-full bg-rose-600 text-white{% else %}text-slate-600{% endif %} px-3 py-1">OFFLINE</span>
+              class="toggle-switch {% if prop.sandy_enabled %}on{% endif %}">
+              <span class="toggle-knob"></span>
             </button>
           {% endif %}
         </div>
