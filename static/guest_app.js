@@ -3511,3 +3511,23 @@ await handleUpgradeReturnFromStripe();
 await refreshUpgradeEligibility();
 
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  const logoutBtn = document.getElementById("guest-logout-btn");
+
+  if (!logoutBtn) return;
+
+  logoutBtn.addEventListener("click", async () => {
+    try {
+      await fetch("/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+
+      // Reset UI to locked state
+      window.location.reload();
+    } catch (err) {
+      console.error("Logout failed", err);
+    }
+  });
+});
