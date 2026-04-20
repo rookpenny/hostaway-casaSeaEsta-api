@@ -4335,7 +4335,26 @@ function paintPropertyToggle(buttonEl, isLive) {
 }
 
 window.toggleProperty = async function (id, btn) {
-  if (IS_LOCKED) return toast("Complete payment to unlock Sandy activation.");
+  if (typeof IS_LOCKED !== "undefined" && IS_LOCKED) {
+    toast("Complete payment to unlock Sandy activation.");
+    return;
+  }
+
+  const propertyItems = document.querySelectorAll(`[data-property-id="${id}"]`);
+  const currentLive = [...propertyItems].some(el => el.dataset.live === "true");
+  const optimisticNext = !currentLive;
+
+  // optimistic UI update
+  document.querySelectorAll(`[data-property-toggle-id="${id}"]`).forEach((toggle) => {
+    paintPropertyToggle(toggle, optimisticNext);
+  });
+  propertyItems.forEach((item) => {
+    item.dataset.live = optimisticNext ? "true" : "false";
+  });
+
+  if (typeof applyPropertiesFilters === "function") {
+    applyPropertiesFilters();
+  }
 
   btn.disabled = true;
 
@@ -4355,33 +4374,42 @@ window.toggleProperty = async function (id, btn) {
       return;
     }
 
-    if (!res.ok) {
-      toast((data && (data.detail || data.message)) || "Request failed");
-      return;
+    if (!res.ok || !data || data.status !== "success") {
+      throw new Error((data && (data.detail || data.message)) || "Toggle failed");
     }
 
-    if (data && data.status === "success") {
-      const isLive = data.new_status === "LIVE";
+    const isLive = data.new_status === "LIVE";
 
-      // update every copy of this property toggle (grid + list)
-      document.querySelectorAll(`[data-property-toggle-id="${id}"]`).forEach((toggle) => {
-        paintPropertyToggle(toggle, isLive);
-      });
+    document.querySelectorAll(`[data-property-toggle-id="${id}"]`).forEach((toggle) => {
+      paintPropertyToggle(toggle, isLive);
+    });
+    propertyItems.forEach((item) => {
+      item.dataset.live = isLive ? "true" : "false";
+    });
 
-      // update every property item live state
-      document.querySelectorAll(`[data-property-id="${id}"]`).forEach((item) => {
-        item.dataset.live = isLive ? "true" : "false";
-      });
-
-      applyPropertiesFilters?.();
-      updateOverviewUI?.();
-      return;
+    if (typeof applyPropertiesFilters === "function") {
+      applyPropertiesFilters();
     }
-
-    toast("Toggle failed.");
+    if (typeof updateOverviewUI === "function") {
+      updateOverviewUI();
+    }
   } catch (err) {
     console.error("Toggle error:", err);
-    toast("Network error. Please try again.");
+
+    // revert optimistic update
+    document.querySelectorAll(`[data-property-toggle-id="${id}"]`).forEach((toggle) => {
+      paintPropertyToggle(toggle, currentLive);
+    });
+    propertyItems.forEach((item) => {
+      item.dataset.live = currentLive ? "true" : "false";
+    });
+
+    if (typeof applyPropertiesFilters === "function") {
+      applyPropertiesFilters();
+    }
+    if (typeof toast === "function") {
+      toast("Network error. Please try again.");
+    }
   } finally {
     btn.disabled = false;
   }
