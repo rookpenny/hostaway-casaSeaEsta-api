@@ -3514,7 +3514,6 @@ await refreshUpgradeEligibility();
 
 document.addEventListener("DOMContentLoaded", () => {
   const logoutBtn = document.getElementById("guest-logout-btn");
-
   if (!logoutBtn) return;
 
   logoutBtn.addEventListener("click", async () => {
@@ -3523,12 +3522,63 @@ document.addEventListener("DOMContentLoaded", () => {
         method: "POST",
         credentials: "include",
       });
-
-      // 🔥 THIS IS THE KEY LINE
-      window.location.href = window.location.pathname;
-
     } catch (err) {
-      console.error("Logout failed", err);
+      console.error("Logout request failed:", err);
     }
+
+    // Hard reset all guest-side state
+    try {
+      localStorage.removeItem("guestVerified");
+      localStorage.removeItem("guestSessionId");
+      localStorage.removeItem("guestScreen");
+      localStorage.removeItem("reservationVerified");
+      localStorage.removeItem("initial_session_id");
+      sessionStorage.clear();
+    } catch (e) {
+      console.warn("Storage clear skipped:", e);
+    }
+
+    // Reset runtime globals if your app reads them later
+    window.INITIAL_VERIFIED = false;
+    window.INITIAL_SESSION_ID = null;
+
+    // Reset menu state
+    document.body.classList.remove("menu-open", "chat-screen", "guide-open", "modal-open");
+
+    const mobileMenu = document.getElementById("mobile-menu");
+    if (mobileMenu) {
+      mobileMenu.classList.remove("show-links", "fade-out", "translate-y-0");
+      mobileMenu.classList.add("-translate-y-full", "pointer-events-none");
+    }
+
+    const menuToggle = document.getElementById("menu-toggle");
+    if (menuToggle) {
+      menuToggle.classList.remove("menu-toggle-open");
+      menuToggle.setAttribute("aria-expanded", "false");
+    }
+
+    // Show locked home state
+    document.getElementById("home-login")?.classList.remove("hidden");
+    document.getElementById("home-stay")?.classList.add("hidden");
+
+    // Put user back on the home screen
+    document.getElementById("screen-home")?.classList.remove("hidden");
+    document.getElementById("screen-chat")?.classList.add("hidden");
+    document.getElementById("screen-experiences")?.classList.add("hidden");
+    document.getElementById("screen-upgrades")?.classList.add("hidden");
+
+    // Clear form + chat UI
+    const unlockInput = document.getElementById("unlock-code");
+    if (unlockInput) unlockInput.value = "";
+
+    const unlockError = document.getElementById("unlock-error");
+    if (unlockError) unlockError.textContent = "";
+
+    const chatBox = document.getElementById("chat-box");
+    if (chatBox) chatBox.innerHTML = "";
+
+    // Remove query params like ?session_id=86 and hard reload
+    const cleanUrl = window.location.origin + window.location.pathname;
+    window.location.replace(cleanUrl);
   });
 });
