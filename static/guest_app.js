@@ -89,6 +89,36 @@ function getChatStorageKey() {
 }
 
 
+
+
+function renderImageGallery(images = [], parent_id = null) {
+  if (!chatBox || !Array.isArray(images) || !images.length) return;
+
+  const wrap = document.createElement("div");
+  wrap.className = "ml-[52px] mt-3 mb-4 grid grid-cols-2 gap-2 max-w-[360px]";
+
+  if (parent_id) wrap.dataset.parentId = parent_id;
+
+  images.slice(0, 4).forEach((src) => {
+    const a = document.createElement("a");
+    a.href = src;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.className = "block rounded-2xl overflow-hidden border border-slate-200 bg-white";
+
+    const img = document.createElement("img");
+    img.src = src;
+    img.alt = "Recommendation photo";
+    img.className = "w-full h-32 object-cover block";
+
+    a.appendChild(img);
+    wrap.appendChild(a);
+  });
+
+  chatBox.appendChild(wrap);
+  scrollChatToBottom();
+}
+    
 // ===============================
 // IDs / Threading / Reactions / Analytics
 // ===============================
@@ -1914,13 +1944,18 @@ function renderMessage(text, sender, opts = {}) {
     // ✅ bot response parented to user msg
     const botEntry = await commitBotMessage(finalBotText, "normal", userEntry.id, { typewriter: true });
 
+    // ✅ render images directly under the bot reply
+    if (Array.isArray(data.images) && data.images.length) {
+      renderImageGallery(data.images, botEntry.id);
+    }
+    
     autoActOnIntent(lastBotIntent, text);
-
+    
     const followups =
       Array.isArray(data.suggestions) && data.suggestions.length
         ? data.suggestions
         : buildFollowups(text, finalBotText);
-
+    
     // ✅ chips parented to bot msg
     renderFollowupChips(followups, { parent_id: botEntry.id });
     renderCardsFromText(finalBotText);
