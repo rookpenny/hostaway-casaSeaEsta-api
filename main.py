@@ -11,6 +11,9 @@ import traceback
 import stripe
 import uvicorn
 
+from urllib.parse import quote_plus, quote
+from urllib.request import urlopen, Request as UrlRequest
+
 from utils.hostaway import (
     get_upcoming_phone_for_listing,  # (optional now; can remove later)
     get_listing_overview,
@@ -1483,6 +1486,101 @@ def _new_chat_message(session_id: int, role: str, content: str) -> ChatMessage:
     return ChatMessage(**data)
 
 
+PHOTO_REQUEST_TRIGGERS = (
+    "photo", "photos", "picture", "pictures", "image", "images",
+    "what does it look like", "show me", "can i see", "are there photos"
+)
+
+def user_wants_photos(message: str) -> bool:
+    text = (message or "").strip().lower()
+    return any(trigger in text for trigger in PHOTO_REQUEST_TRIGGERS)
+
+
+def extract_candidate_place_name(text: str) -> str | None:
+    """
+    Very simple first pass:
+    grab the first bolded phrase like **The Cottage** if present.
+    Falls back to None.
+    """
+    if not text:
+        return None
+
+    m = re.search(r"\*\*([^*]{2,80})\*\*", text)
+    if m:
+        return m.group(1).strip()
+
+    return None
+
+
+def google_place_photo_urls(place_query: str, city_hint: str | None = None, max_photos: int = 4) -> list[str]:
+    """
+    Uses Google Places Text Search (New) + Place Photos (New).
+    Returns photoUri URLs suitable for your frontend gallery.
+    """
+    api_key = (os.getenv("GOOGLE_MAPS_API_KEY") or "").strip()
+    if not api_key or not place_query:
+        return []
+
+    query = place_query.strip()
+    if city_hint:
+        query = f"{query} {city_hint.strip()}"
+
+    try:
+        # 1) Text Search (New)
+        search_url = "https://places.googleapis.com/v1/places:searchText"
+        search_payload = json.dumps({
+            "textQuery": query,
+            "pageSize": 1,
+        }).encode("utf-8")
+
+        search_req = UrlRequest(
+            search_url,
+            data=search_payload,
+            headers={
+                "Content-Type": "application/json",
+                "X-Goog-Api-Key": api_key,
+                "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.photos",
+            },
+            method="POST",
+        )
+
+        with urlopen(search_req, timeout=8) as resp:
+            search_data = json.loads(resp.read().decode("utf-8"))
+
+        places = search_data.get("places") or []
+        if not places:
+            return []
+
+        first = places[0]
+        photos = first.get("photos") or []
+        if not photos:
+            return []
+
+        # 2) Convert photo resource names -> photoUri
+        out = []
+        for p in photos[:max_photos]:
+            photo_name = (p.get("name") or "").strip()
+            if not photo_name:
+                continue
+
+            media_url = (
+                f"https://places.googleapis.com/v1/{quote(photo_name, safe='/')}/media"
+                f"?maxWidthPx=800&skipHttpRedirect=true&key={quote_plus(api_key)}"
+            )
+
+            photo_req = UrlRequest(media_url, method="GET")
+            with urlopen(photo_req, timeout=8) as photo_resp:
+                photo_data = json.loads(photo_resp.read().decode("utf-8"))
+
+            photo_uri = (photo_data.get("photoUri") or "").strip()
+            if photo_uri:
+                out.append(photo_uri)
+
+        return out
+
+    except Exception:
+        logger.exception("google_place_photo_urls failed for query=%s", place_query)
+        return []
 
 
 
@@ -1583,6 +1681,15 @@ def property_chat(
         assistant_text = (resp.choices[0].message.content or "").strip()
         assistant_text = enforce_click_here_links(assistant_text)
 
+        images = []
+
+        if user_wants_photos(user_message):
+            candidate_place = extract_candidate_place_name(assistant_text)
+            city_hint = (config.get("city_name") or "").strip() if isinstance(config, dict) else ""
+
+            if candidate_place:
+                images = google_place_photo_urls(candidate_place, city_hint=city_hint, max_photos=4)
+
         # 8) Sentiment tagging (OpenAI-first + fallback) using conversation context
         sent = classify_guest_sentiment(client, history_rows, user_message)
 
@@ -1633,6 +1740,7 @@ def property_chat(
 
         return {
             "response": assistant_text,
+            "images": images,
             "session_id": session_id,
             "thread_id": payload.thread_id,
             "reply_to": payload.client_message_id,
