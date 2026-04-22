@@ -792,6 +792,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
         )
     
     reservation_name = (current_session.guest_name if current_session and current_session.guest_name else None)
+    first_name = (reservation_name.split()[0] if reservation_name and reservation_name.strip() else "Guest")
     arrival_date_db = (current_session.arrival_date if current_session and current_session.arrival_date else None)
     departure_date_db = (current_session.departure_date if current_session and current_session.departure_date else None)
     reservation_id_db = (getattr(current_session, "reservation_id", None) if current_session else None)
@@ -889,6 +890,7 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
             "property_id": prop.id,
             "property_name": prop.property_name,
             "reservation_name": reservation_name,
+            "first_name": first_name,
             "property_address": address,
             "wifi_ssid": wifi.get("ssid"),
             "wifi_password": wifi.get("password"),
