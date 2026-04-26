@@ -39,6 +39,11 @@
   data-action-priority="{{ ap|e }}"
   data-is-resolved="{{ '1' if session.is_resolved else '0' }}"
 >
+  {% if grouped_session_ids and grouped_session_ids|length > 1 %}
+  <div class="rounded-[22px] border border-blue-100 bg-blue-50 px-5 py-4 text-[14px] font-medium text-blue-800">
+    {{ grouped_session_ids|length }} conversations grouped into this guest history.
+  </div>
+{% endif %}
 
   <div class="flex items-center justify-between gap-4">
     <div>
