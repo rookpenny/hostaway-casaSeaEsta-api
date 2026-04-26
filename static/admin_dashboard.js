@@ -76,7 +76,14 @@ window.Chats = window.Chats || {};
 function goToView(view) {
   const url = new URL(window.location.href);
   url.searchParams.set("view", view);
-  if (view !== "chats") url.searchParams.delete("session_id");
+
+  if (view !== "chats") {
+    url.searchParams.delete("session_id");
+  }
+
+  // Clear stale hashes like #overview
+  url.hash = "";
+
   window.history.pushState({}, "", url.toString());
   window.dispatchEvent(new PopStateEvent("popstate"));
 }
@@ -5979,7 +5986,7 @@ if (key === "upgrades" && window.Upgrades) {
     const params = new URLSearchParams(window.location.search);
     const keyFromHash = (location.hash || "").slice(1).split("?")[0].toLowerCase();
     const keyFromView = (params.get("view") || "").toLowerCase();
-    const view = keyFromHash || keyFromView || "overview";
+    const view = keyFromView || keyFromHash || "overview";
     const sessionId = params.get("session_id");
 
     await showView(view);
