@@ -421,6 +421,8 @@ function pushChatUrl(sessionId, groupedIds = "") {
 function clearChatUrl() {
   const url = new URL(window.location.href);
   url.searchParams.delete("session_id");
+  url.searchParams.delete("grouped_session_ids");
+  url.searchParams.set("view", "chats");
   window.history.pushState({}, "", url.toString());
 }
 
@@ -436,6 +438,7 @@ let currentViewKey = null;
 function closeChatDetail() {
   const url = new URL(window.location.href);
   url.searchParams.delete("session_id");
+  url.searchParams.delete("grouped_session_ids");
   url.searchParams.set("view", "chats");
   history.pushState(null, "", url.toString());
 
@@ -6003,14 +6006,24 @@ if (key === "upgrades" && window.Upgrades) {
     const keyFromView = (params.get("view") || "").toLowerCase();
     const view = keyFromView || keyFromHash || "overview";
     const sessionId = params.get("session_id");
+    const groupedIds = params.get("grouped_session_ids") || "";
 
     await showView(view);
 
     if (view === "chats" && sessionId) {
       setInlineDetailOpen(true);
-      await loadChatDetail(sessionId);
+      await loadChatDetail(sessionId, groupedIds);
     } else {
       setInlineDetailOpen(false);
+    
+      const panel = document.getElementById("chat-detail-panel");
+      if (panel) {
+        panel.innerHTML = `
+          <div id="chat-detail-empty" class="text-sm text-slate-500">
+            Select a chat session to view details.
+          </div>
+        `;
+      }
     }
   }
 
