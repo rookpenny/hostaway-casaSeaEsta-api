@@ -4,7 +4,7 @@
 
   if (!widgetKey) return;
 
-  const API_BASE = "https://YOUR-DOMAIN.com";
+  const API_BASE = "https://hostaway-casaseaesta-api.onrender.com";
 
   const bubble = document.createElement("button");
   bubble.innerHTML = "Ask about this stay";
