@@ -3561,8 +3561,8 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
             "kind": "content",
         },
         "general_info_gap": {
-            "title": "Key guest information is not surfacing early enough",
-            "action": "Move the highest-friction details earlier in the stay journey and make them easier to scan.",
+            "title": "Guests may not be finding the basics fast enough",
+            "action": "Create a short “Start here” guide with the highest-use details: WiFi, parking, entry, checkout, emergency contacts, house rules, and how to get help.",
             "cta_primary": "View chats",
             "cta_secondary": "",
             "target": "chats",
@@ -3638,6 +3638,9 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
 
     for row in sessions:
         issue_key = classify_issue(row)
+        if not issue_key:
+            continue
+    
         ensure_issue(issue_key)
 
         prop_id = row.get("property_id")
@@ -3745,8 +3748,11 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
             return f"{stats['negative_count'] or stats['count']} negatively toned conversation{'s' if (stats['negative_count'] or stats['count']) != 1 else ''}{loc} may be tied to cleanliness or readiness concerns."
         if issue_key == "local_recommendation_gap":
             return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} show demand for stronger local recommendations."
-        return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} suggest guests are looking for information that should be easier to find."
-
+        return (
+            f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} suggest guests are asking broad stay questions "
+            f"instead of finding key details on their own. This usually points to missing or buried basics like "
+            f"WiFi, parking, entry, checkout, house rules, emergency contacts, or how to get help."
+        )
     def should_emit(stats: dict) -> bool:
         return (
             stats["count"] >= 2
