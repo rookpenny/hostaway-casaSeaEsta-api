@@ -2316,7 +2316,13 @@
                   </thead>
 
                   <tbody>
+                    {% set seen_guest_threads = [] %}
+
                     {% for s in group_sessions %}
+                      {% set guest_thread_key = (s.guest_name or "Guest") ~ "-" ~ (s.property_id or "") ~ "-" ~ (s.stay_cycle or "") %}
+                    
+                      {% if guest_thread_key not in seen_guest_threads %}
+                        {% set _ = seen_guest_threads.append(guest_thread_key) %}
                     <tr
                       data-session-row="{{ s.id }}"
                       data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'
@@ -2346,6 +2352,20 @@
                         <div class="font-medium text-slate-900 truncate">
                           {{ s.guest_name or "Guest" }}
                         </div>
+                      
+                        {% set guest_repeat_count = namespace(value=0) %}
+                        {% for other in group_sessions %}
+                          {% set other_key = (other.guest_name or "Guest") ~ "-" ~ (other.property_id or "") ~ "-" ~ (other.stay_cycle or "") %}
+                          {% if other_key == guest_thread_key %}
+                            {% set guest_repeat_count.value = guest_repeat_count.value + 1 %}
+                          {% endif %}
+                        {% endfor %}
+                      
+                        {% if guest_repeat_count.value > 1 %}
+                          <div class="mt-1 text-[12px] font-medium text-slate-400">
+                            {{ guest_repeat_count.value }} conversations grouped
+                          </div>
+                        {% endif %}
                       </td>
 
                       <td class="w-[460px] px-4 py-4 align-top text-xs">
@@ -2392,6 +2412,7 @@
                         {% endif %}
                       </td>
                     </tr>
+                        {% endif %}
                     {% endfor %}
                   </tbody>
                 </table>
