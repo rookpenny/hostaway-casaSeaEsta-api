@@ -469,8 +469,7 @@ def _normalize_config(cfg: dict) -> dict:
 @router.post("/auth/sync-pmc-properties")
 def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)):
     """
-    Sync all properties for the logged-in PMC across all integrations.
-    (PMC users generally only have 1 integration, but this supports multiple safely.)
+    Sync all properties for the active PMC across all integrations.
     """
     user = request.session.get("user")
     if not user:
@@ -478,18 +477,24 @@ def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)
 
     user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
 
-    if user_role != "pmc" or not pmc_obj:
-        raise HTTPException(status_code=403, detail="Only PMC users can sync this way")
+    if not pmc_obj:
+        raise HTTPException(status_code=403, detail="No PMC selected for sync")
 
-    if needs_payment:
+    if user_role == "pmc" and needs_payment:
         return JSONResponse(status_code=402, content={"status": "needs_billing"})
 
     try:
         n = sync_all_integrations_for_pmc(int(pmc_obj.id))
-        return {"status": "success", "synced": n}
+        return {
+            "status": "success",
+            "synced": n,
+            "message": f"Synced {n} properties."
+        }
     except Exception as e:
-        return JSONResponse(status_code=500, content={"status": "error", "message": str(e)})
-
+        return JSONResponse(
+            status_code=500,
+            content={"status": "error", "message": str(e)}
+        )
 @router.post("/admin/upgrades/ajax/duplicate")
 def upgrades_ajax_duplicate(
     request: Request,
