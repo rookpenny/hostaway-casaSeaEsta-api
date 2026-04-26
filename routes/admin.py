@@ -3747,16 +3747,16 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
             return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} show demand for stronger local recommendations."
         return f"{stats['count']} conversation{'s' if stats['count'] != 1 else ''}{loc} suggest guests are looking for information that should be easier to find."
 
-    #def should_emit(stats: dict) -> bool:
-        #return (
-            #stats["count"] >= 2
-            #or stats["repeat_count"] >= 1
-            #or stats["urgent_count"] >= 1
-            #or stats["negative_count"] >= 1
-        #)
-
     def should_emit(stats: dict) -> bool:
-        return stats["count"] >= 1
+        return (
+            stats["count"] >= 2
+            or stats["repeat_count"] >= 1
+            or stats["urgent_count"] >= 1
+            or stats["negative_count"] >= 1
+        )
+
+    #def should_emit(stats: dict) -> bool:
+        #return stats["count"] >= 1
 
     for issue_key, template in ISSUE_DEFS.items():
         stats = issue_stats.get(issue_key)
