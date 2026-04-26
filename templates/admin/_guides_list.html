@@ -52,7 +52,20 @@
 
             <tbody data-reorder-body>
               {% for guide in property_guides %}
-                <tr data-guide-row="{{ guide.id }}" class="border-t border-slate-100 hover:bg-slate-50">
+                <tr
+                  data-guide-row="{{ guide.id }}"
+                  data-guide-search="{{ (
+                    (guide.title or '') ~ ' ' ~
+                    (guide.category or guide.type or '') ~ ' ' ~
+                    (guide.body_plain or '') ~ ' ' ~
+                    (guide.body or '') ~ ' ' ~
+                    (guide.content or '') ~ ' ' ~
+                    (guide.summary or '') ~ ' ' ~
+                    (guide.short_description or '') ~ ' ' ~
+                    (guide.description or '')
+                  ) | lower | e }}"
+                  class="border-t border-slate-100 hover:bg-slate-50"
+                >
                   <td class="px-4 py-4 text-slate-400">
                     <span data-reorder-handle class="cursor-grab select-none">⋮⋮</span>
                   </td>
