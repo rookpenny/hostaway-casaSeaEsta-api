@@ -5288,39 +5288,49 @@ window.Guides = {
   },
 
   applyClientFilters() {
-    const { list } = this.getEls();
-    if (!list) return;
+  const { list } = this.getEls();
+  if (!list) return;
 
-    const q = this.searchValue;
-    const cards = Array.from(list.querySelectorAll("[data-guide-property-card]"));
+  const q = this.searchValue;
+  const cards = Array.from(list.querySelectorAll("[data-guide-property-card]"));
 
-    if (cards.length) {
-      cards.forEach((card) => {
-        const rows = Array.from(card.querySelectorAll("[data-guide-row]"));
-        let visibleCount = 0;
+  if (cards.length) {
+    cards.forEach((card) => {
+      const rows = Array.from(card.querySelectorAll("[data-guide-row]"));
+      let visibleCount = 0;
 
-        rows.forEach((row) => {
-          const text = (row.textContent || "").toLowerCase();
-          const show = !q || text.includes(q);
-          row.classList.toggle("hidden", !show);
-          if (show) visibleCount += 1;
-        });
+      rows.forEach((row) => {
+        const text = (
+          row.getAttribute("data-guide-search") ||
+          row.textContent ||
+          ""
+        ).toLowerCase();
 
-        card.classList.toggle("hidden", visibleCount === 0);
+        const show = !q || text.includes(q);
+        row.classList.toggle("hidden", !show);
+        if (show) visibleCount += 1;
       });
-      return;
-    }
 
-    const rows = Array.from(
-      list.querySelectorAll("[data-guide-row], [data-guides-row], tr[data-guide-row], tr[data-guides-row]")
-    );
-
-    rows.forEach((row) => {
-      const text = (row.textContent || "").toLowerCase();
-      const show = !q || text.includes(q);
-      row.classList.toggle("hidden", !show);
+      card.classList.toggle("hidden", visibleCount === 0);
     });
-  },
+    return;
+  }
+
+  const rows = Array.from(
+    list.querySelectorAll("[data-guide-row], [data-guides-row], tr[data-guide-row], tr[data-guides-row]")
+  );
+
+  rows.forEach((row) => {
+    const text = (
+      row.getAttribute("data-guide-search") ||
+      row.textContent ||
+      ""
+    ).toLowerCase();
+
+    const show = !q || text.includes(q);
+    row.classList.toggle("hidden", !show);
+  });
+},
 
   openDrawer() {
     const { editor, panel, backdrop } = this.getEls();
