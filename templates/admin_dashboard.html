@@ -544,84 +544,37 @@
   <div class="grid grid-cols-12 gap-5">
     <!-- Main left column -->
     <div class="col-span-12 space-y-5 xl:col-span-8">
-      <!-- Hero -->
+      <!-- Welcome Hero -->
 <div class="relative overflow-hidden rounded-[32px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-8 text-white shadow-[0_20px_60px_rgba(40,50,160,0.18)]">
   <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,190,150,0.14),transparent_28%)]"></div>
-  <div class="pointer-events-none absolute -bottom-16 -right-20 h-56 w-72 rotate-[-18deg] rounded-[52px] bg-gradient-to-br from-[#ffd3c1] via-[#f8b9b8] to-transparent opacity-75"></div>
+  <div class="pointer-events-none absolute -bottom-20 -right-24 h-64 w-80 rotate-[-18deg] rounded-[56px] bg-gradient-to-br from-[#ffd3c1] via-[#f8b9b8] to-transparent opacity-75"></div>
 
-  <div class="relative z-10">
-    <div class="mb-10 flex items-center gap-4">
-      <div class="grid h-14 w-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
-        <svg class="h-7 w-7 text-white/90" viewBox="0 0 24 24" fill="none">
-          <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-          <path d="M19 14l.8 2 .2.2 2 .8-2 .8-.2.2-.8 2-.8-2-.2-.2-2-.8 2-.8.2-.2.8-2Z" fill="currentColor"/>
-          <path d="M5 15l.8 2 .2.2 2 .8-2 .8-.2.2-.8 2-.8-2-.2-.2-2-.8 2-.8.2-.2.8-2Z" fill="currentColor"/>
-        </svg>
-      </div>
-
-      <div>
-        <div class="text-[15px] font-semibold text-white/90">
-          Since your last login
-        </div>
-        <div class="mt-1 text-[13px] text-white/55">
-          A quick read on what changed while you were away.
-        </div>
-      </div>
+  <div class="relative z-10 max-w-4xl">
+    <div class="inline-flex items-center gap-2 rounded-full bg-white/10 px-4 py-2 text-[12px] font-semibold uppercase tracking-[0.18em] text-white/80 ring-1 ring-white/10">
+      ✦ Welcome back
     </div>
 
-    <div class="grid gap-4 lg:grid-cols-3">
+    <h1 class="mt-7 max-w-3xl text-[42px] font-semibold leading-[1.02] tracking-[-0.055em] text-white sm:text-[56px]">
+      Good to see you, {{ user_full_name or "there" }}.
+    </h1>
+
+    <p class="mt-5 max-w-2xl text-[16px] leading-8 text-white/72">
+      HostScout is keeping an eye on your guest conversations, property activity, and the little moments that can turn into better stays.
+    </p>
+
+    <div class="mt-8 flex flex-wrap items-center gap-3">
       <a
         href="/admin/dashboard?view=chats"
-        class="group rounded-[24px] border border-white/10 bg-white/8 p-6 backdrop-blur-sm transition hover:bg-white/12"
+        class="inline-flex h-12 items-center justify-center rounded-full bg-white px-5 text-[14px] font-semibold text-slate-950 shadow-sm transition hover:bg-slate-100"
       >
-        <div class="text-[56px] font-semibold leading-none tracking-[-0.05em]">
-          {{ total_chats_est }}
-        </div>
-        <div class="mt-4 text-[17px] font-semibold text-white">
-          Guest questions
-        </div>
-        <div class="mt-2 text-[14px] leading-6 text-white/62">
-          Questions asked across your active guest conversations.
-        </div>
-        <div class="mt-6 inline-flex items-center gap-2 text-[15px] font-semibold text-[#9fd0ff] group-hover:text-white">
-          View chats <span>→</span>
-        </div>
+        Review conversations
       </a>
 
       <a
-        href="/admin/dashboard?view=analytics"
-        class="group rounded-[24px] border border-white/10 bg-white/8 p-6 backdrop-blur-sm transition hover:bg-white/12"
+        href="/admin/dashboard?view=properties"
+        class="inline-flex h-12 items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 text-[14px] font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
       >
-        <div class="text-[56px] font-semibold leading-none tracking-[-0.05em]">
-          {{ booking_count }}
-        </div>
-        <div class="mt-4 text-[17px] font-semibold text-white">
-          Bookings made
-        </div>
-        <div class="mt-2 text-[14px] leading-6 text-white/62">
-          Booking activity connected to your portfolio.
-        </div>
-        <div class="mt-6 inline-flex items-center gap-2 text-[15px] font-semibold text-[#9fd0ff] group-hover:text-white">
-          View analytics <span>→</span>
-        </div>
-      </a>
-
-      <a
-        href="/admin/dashboard?view=chats&conversation_group=needs_attention"
-        class="group rounded-[24px] border border-white/10 bg-white/8 p-6 backdrop-blur-sm transition hover:bg-white/12"
-      >
-        <div class="text-[56px] font-semibold leading-none tracking-[-0.05em]">
-          {{ urgent_issues }}
-        </div>
-        <div class="mt-4 text-[17px] font-semibold text-white">
-          Needs attention
-        </div>
-        <div class="mt-2 text-[14px] leading-6 text-white/62">
-          Chats showing urgency, friction, or guest distress.
-        </div>
-        <div class="mt-6 inline-flex items-center gap-2 text-[15px] font-semibold text-[#9fd0ff] group-hover:text-white">
-          View issues <span>→</span>
-        </div>
+        Manage properties
       </a>
     </div>
   </div>
