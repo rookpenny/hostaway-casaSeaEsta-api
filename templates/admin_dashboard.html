@@ -2322,12 +2322,21 @@
                       {% set guest_thread_key = (s.guest_name or "Guest") ~ "-" ~ (s.property_id or "") ~ "-" ~ (s.stay_cycle or "") %}
                     
                       {% if guest_thread_key not in seen_guest_threads %}
-                        {% set _ = seen_guest_threads.append(guest_thread_key) %}
+                      {% set _ = seen_guest_threads.append(guest_thread_key) %}
+                    
+                      {% set grouped_session_ids = [] %}
+                      {% for other in group_sessions %}
+                        {% set other_key = (other.guest_name or "Guest") ~ "-" ~ (other.property_id or "") ~ "-" ~ (other.stay_cycle or "") %}
+                        {% if other_key == guest_thread_key %}
+                          {% set _ = grouped_session_ids.append(other.id) %}
+                        {% endif %}
+                      {% endfor %}
+                    
                     <tr
                       data-session-row="{{ s.id }}"
+                      data-grouped-session-ids="{{ grouped_session_ids | join(',') }}"
                       data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'
                       class="chat-row cursor-pointer border-t border-slate-100/80 transition-colors duration-150 hover:bg-slate-50/70">
-
                       <td class="w-[180px] px-4 py-3.5 align-top">
                         {% if s.stay_cycle == 'current' %}
                         <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
