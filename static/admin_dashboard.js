@@ -690,54 +690,66 @@ function initPortfolioChart() {
   }
 
   // -----------------------------------
-  // Single chat delete
-  // -----------------------------------
-  function initChatDetailDelete() {
-    document.addEventListener("click", async (e) => {
-      const btn = e.target instanceof Element
-        ? e.target.closest('[data-role="delete-chat-btn"]')
-        : null;
-      if (!btn) return;
+// Single / grouped chat delete
+// -----------------------------------
+function initChatDetailDelete() {
+  document.addEventListener("click", async (e) => {
+    const btn = e.target instanceof Element
+      ? e.target.closest('[data-role="delete-chat-btn"]')
+      : null;
+    if (!btn) return;
 
-      const panel = qs("[data-chat-panel]");
-      const sessionId =
-        panel?.getAttribute("data-session-id") ||
-        panel?.getAttribute("data-chat-panel");
+    const panel = qs("[data-chat-panel]");
+    const sessionId =
+      panel?.getAttribute("data-session-id") ||
+      panel?.getAttribute("data-chat-panel");
 
-      if (!sessionId) {
-        window.alert("Could not find chat ID.");
+    if (!sessionId) {
+      window.alert("Could not find chat ID.");
+      return;
+    }
+
+    const groupedIds =
+      new URLSearchParams(window.location.search).get("grouped_session_ids") || "";
+
+    const sessionIds = groupedIds
+      ? groupedIds.split(",").map((id) => id.trim()).filter(Boolean)
+      : [sessionId];
+
+    const ok = window.confirm(
+      sessionIds.length > 1
+        ? `Delete all ${sessionIds.length} grouped conversations?`
+        : "Delete this chat?"
+    );
+
+    if (!ok) return;
+
+    btn.disabled = true;
+
+    try {
+      const res = await fetch("/admin/chats/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ session_ids: sessionIds }),
+      });
+
+      const data = await safeJson(res);
+
+      if (!res.ok) {
+        window.alert(data.detail || "Failed to delete chat.");
         return;
       }
 
-      const ok = window.confirm("Delete this chat?");
-      if (!ok) return;
-
-      btn.disabled = true;
-
-      try {
-        const res = await fetch("/admin/chats/delete", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ session_ids: [sessionId] }),
-        });
-
-        const data = await safeJson(res);
-
-        if (!res.ok) {
-          window.alert(data.detail || "Failed to delete chat.");
-          return;
-        }
-
-        window.location.href = "/admin/dashboard?view=chats";
-      } catch (err) {
-        console.error(err);
-        window.alert("Something went wrong while deleting the chat.");
-      } finally {
-        btn.disabled = false;
-      }
-    });
-  }
+      window.location.href = "/admin/dashboard?view=chats";
+    } catch (err) {
+      console.error(err);
+      window.alert("Something went wrong while deleting the chat.");
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
 
   // -----------------------------------
   // Revenue reports
@@ -2028,37 +2040,50 @@ document.addEventListener("click", async (e) => {
 
   // Delete chat
   if (action === "delete-chat") {
-    e.preventDefault();
+  e.preventDefault();
 
-    const ok = window.confirm("Delete this chat?");
-    if (!ok) return;
+  const groupedIds =
+    new URLSearchParams(window.location.search).get("grouped_session_ids") || "";
 
-    actionBtn.disabled = true;
+  const sessionIds = groupedIds
+    ? groupedIds.split(",").map((id) => id.trim()).filter(Boolean)
+    : [chatId];
 
-    try {
-      const res = await fetch("/admin/chats/delete", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ session_ids: [chatId] }),
-      });
+  const ok = window.confirm(
+    sessionIds.length > 1
+      ? `Delete all ${sessionIds.length} grouped conversations?`
+      : "Delete this chat?"
+  );
 
-      const data = await safeJson(res);
+  if (!ok) return;
 
-      if (!res.ok) {
-        window.alert(data.detail || "Failed to delete chat.");
-        return;
-      }
+  actionBtn.disabled = true;
 
-      window.location.href = "/admin/dashboard?view=chats";
-    } catch (err) {
-      console.error(err);
-      window.alert("Something went wrong while deleting the chat.");
-    } finally {
-      actionBtn.disabled = false;
+  try {
+    const res = await fetch("/admin/chats/delete", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ session_ids: sessionIds }),
+    });
+
+    const data = await safeJson(res);
+
+    if (!res.ok) {
+      window.alert(data.detail || "Failed to delete chat.");
+      return;
     }
-    return;
+
+    window.location.href = "/admin/dashboard?view=chats";
+  } catch (err) {
+    console.error(err);
+    window.alert("Something went wrong while deleting the chat.");
+  } finally {
+    actionBtn.disabled = false;
   }
+
+  return;
+}
 });
 
   // Keyboard shortcuts: N / S (toggle current open detail panel if present)
