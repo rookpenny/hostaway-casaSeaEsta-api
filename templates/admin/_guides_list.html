@@ -57,13 +57,14 @@
                   data-guide-search="{{ (
                     (guide.title or '') ~ ' ' ~
                     (guide.category or guide.type or '') ~ ' ' ~
+                    (guide.body_html or '') ~ ' ' ~
                     (guide.body_plain or '') ~ ' ' ~
                     (guide.body or '') ~ ' ' ~
                     (guide.content or '') ~ ' ' ~
                     (guide.summary or '') ~ ' ' ~
                     (guide.short_description or '') ~ ' ' ~
                     (guide.description or '')
-                  ) | lower | e }}"
+                  ) | striptags | lower | e }}"
                   class="border-t border-slate-100 hover:bg-slate-50"
                 >
                   <td class="px-4 py-4 text-slate-400">
