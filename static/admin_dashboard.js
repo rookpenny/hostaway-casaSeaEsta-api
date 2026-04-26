@@ -6946,6 +6946,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   initAllReorderTables();
   initPropertiesUI();
 
+  requestAnimationFrame(() => {
+    initPortfolioChart();
+  });
+
   document.getElementById("guidesPropertyFilter")?.addEventListener("change", () => Guides.refresh());
   document.getElementById("upgradesPropertyFilter")?.addEventListener("change", () => {
     Upgrades.closeEditor();
