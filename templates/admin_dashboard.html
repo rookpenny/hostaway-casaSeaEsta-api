@@ -859,9 +859,8 @@
               {% endfor %}
             </div>
           
-            <button
-              type="button"
-              onclick="window.DashboardOverview?.jumpTo('analytics')"
+            <a
+              href="/admin/dashboard?view=analytics"
               class="mt-6 inline-flex items-center gap-2 text-[15px] font-semibold text-[#316CFF] hover:text-[#2456D8]"
             >
               View all analytics
@@ -869,7 +868,7 @@
                 <path d="M4 10h10" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
                 <path d="m10 6 4 4-4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
-            </button>
+            </a>
           </div>
         </div>
       </div>
@@ -889,14 +888,13 @@
       </div>
     </div>
 
-    <button
-      type="button"
-      onclick="window.DashboardOverview?.jumpTo('chats')"
-      class="hidden items-center gap-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
-    >
-      View all chats
-      <span>→</span>
-    </button>
+    <a
+  href="/admin/dashboard?view=chats"
+  class="hidden items-center gap-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1] md:inline-flex"
+>
+  View all chats
+  <span>→</span>
+</a>
   </div>
 
   <div class="mt-5 divide-y divide-slate-100">
