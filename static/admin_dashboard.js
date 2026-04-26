@@ -17,6 +17,8 @@ window.CONTENT_LOCKED = IS_LOCKED;
 window.Chats = window.Chats || {};
 
 
+
+
   // -----------------------------------
   // Small helpers
   // -----------------------------------
@@ -553,6 +555,107 @@ function initRelativeTimes() {
   window.setInterval(updateRelativeTimes, 60 * 1000);
 }
 
+  // -----------------------------------
+  // START WEB CHAT
+  // -----------------------------------
+
+let currentWebsiteWidgetPropertyId = null;
+let currentWebsiteWidgetKey = null;
+
+function openWebsiteWidgetPanel(propertyId, propertyName, widgetKey, enabled) {
+  currentWebsiteWidgetPropertyId = propertyId;
+  currentWebsiteWidgetKey = widgetKey || "";
+
+  const panel = document.getElementById("websiteWidgetPanel");
+  const name = document.getElementById("websiteWidgetPropertyName");
+  const btn = document.getElementById("websiteWidgetToggleBtn");
+
+  if (!panel || !name || !btn) return;
+
+  name.textContent = `${propertyName} Website Chat`;
+  btn.textContent = enabled ? "Disable Website Chat" : "Enable Website Chat";
+  btn.onclick = () => toggleWebsiteWidget(!enabled);
+
+  renderWebsiteWidgetCode();
+
+  panel.classList.remove("hidden");
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function closeWebsiteWidgetPanel() {
+  const panel = document.getElementById("websiteWidgetPanel");
+  if (panel) panel.classList.add("hidden");
+}
+
+function renderWebsiteWidgetCode() {
+  const codeEl = document.getElementById("websiteWidgetCode");
+
+  if (!codeEl) return;
+
+  if (!currentWebsiteWidgetKey) {
+    codeEl.textContent = "Enable Website Chat to generate an embed code.";
+    return;
+  }
+
+  codeEl.textContent = `<script src="https://YOUR-DOMAIN.com/widget.js" data-widget-key="${currentWebsiteWidgetKey}"><\/script>`;
+}
+
+async function toggleWebsiteWidget(enable) {
+  if (!currentWebsiteWidgetPropertyId) return;
+
+  const res = await fetch(`/admin/properties/${currentWebsiteWidgetPropertyId}/website-widget`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ enabled: enable })
+  });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    alert(data.detail || "Could not update Website Chat.");
+    return;
+  }
+
+  currentWebsiteWidgetKey = data.widget_key;
+  renderWebsiteWidgetCode();
+
+  const btn = document.getElementById("websiteWidgetToggleBtn");
+  if (btn) {
+    btn.textContent = data.enabled ? "Disable Website Chat" : "Enable Website Chat";
+    btn.onclick = () => toggleWebsiteWidget(!data.enabled);
+  }
+}
+
+async function saveWebsiteWidgetDomain() {
+  const input = document.getElementById("websiteWidgetDomain");
+  if (!currentWebsiteWidgetPropertyId || !input) return;
+
+  const res = await fetch(`/admin/properties/${currentWebsiteWidgetPropertyId}/website-widget/domain`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    credentials: "include",
+    body: JSON.stringify({ domain: input.value.trim() })
+  });
+
+  if (!res.ok) {
+    const data = await res.json();
+    alert(data.detail || "Could not save domain.");
+    return;
+  }
+
+  alert("Domain saved.");
+}
+
+function copyWebsiteWidgetCode() {
+  const code = document.getElementById("websiteWidgetCode")?.textContent || "";
+  navigator.clipboard.writeText(code);
+}
+
+
+  // -----------------------------------
+  // END WEB CHAT
+  // -----------------------------------
   // -----------------------------------
   // Portfolio chart
   // -----------------------------------
