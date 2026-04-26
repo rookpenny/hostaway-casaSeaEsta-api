@@ -1043,8 +1043,13 @@
         <div class="mt-5 grid grid-cols-[140px,1fr] items-center gap-5">
           
           <!-- Chart -->
-          <div class="relative h-[140px] w-[140px] shrink-0">
-  <canvas id="overviewPortfolioChart" class="h-full w-full"></canvas>
+         <div class="relative h-[140px] w-[140px] shrink-0">
+  <canvas
+    id="overviewPortfolioChart"
+    width="140"
+    height="140"
+    class="absolute inset-0 block h-full w-full"
+  ></canvas>
       
             <!-- Center label -->
             <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
