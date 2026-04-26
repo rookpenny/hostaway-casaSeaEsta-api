@@ -1043,8 +1043,8 @@
         <div class="mt-5 grid grid-cols-[140px,1fr] items-center gap-5">
           
           <!-- Chart -->
-          <div class="relative h-[140px] w-[140px]">
-            <canvas id="overviewPortfolioChart"></canvas>
+          <div class="relative h-[140px] w-[140px] shrink-0">
+  <canvas id="overviewPortfolioChart" class="h-full w-full"></canvas>
       
             <!-- Center label -->
             <div class="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -1083,14 +1083,13 @@
               </span>
             </div>
       
-            <button
-              type="button"
-              onclick="window.DashboardOverview?.jumpTo('properties')"
-              class="inline-flex items-center gap-2 pt-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1]"
-            >
-              Manage Properties
-              <span>→</span>
-            </button>
+            <a
+            href="/admin/dashboard?view=properties"
+            class="inline-flex items-center gap-2 pt-2 text-[14px] font-medium text-[#356cf6] hover:text-[#244fd1]"
+          >
+            Manage Properties
+            <span>→</span>
+          </a>
           </div>
         </div>
       </div>
