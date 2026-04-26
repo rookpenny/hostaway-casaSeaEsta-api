@@ -23,6 +23,11 @@ from fastapi.responses import HTMLResponse, RedirectResponse, JSONResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.exceptions import RequestValidationError
 
+
+from fastapi import Body, HTTPException
+from secrets import token_urlsafe
+
+
 from starlette.status import HTTP_303_SEE_OTHER, HTTP_302_FOUND
 from sqlalchemy.orm import Session
 from sqlalchemy.exc import IntegrityError
@@ -257,6 +262,8 @@ def get_ai_insights(
         "needs_human": int(needs_human),
         "needs_human_pct": round((needs_human / total) * 100, 1),
     }
+
+
 
 
 def batch_message_signals(
@@ -532,6 +539,56 @@ def upgrades_ajax_duplicate(
 
     return {"ok": True, "id": copied.id}
 
+
+
+
+@router.post("/admin/properties/{property_id}/website-widget")
+def toggle_website_widget(
+    property_id: int,
+    request: Request,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+):
+    prop = require_property_in_scope(request, db, property_id)
+
+    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
+    if not pmc:
+        raise HTTPException(status_code=404, detail="PMC not found")
+
+    if (pmc.billing_status or "").lower() != "active":
+        raise HTTPException(status_code=402, detail="Active subscription required")
+
+    enabled = bool(payload.get("enabled"))
+    prop.website_chat_enabled = enabled
+
+    if enabled and not prop.website_chat_widget_key:
+        prop.website_chat_widget_key = "pub_" + token_urlsafe(24)
+
+    db.add(prop)
+    db.commit()
+    db.refresh(prop)
+
+    return {
+        "enabled": bool(prop.website_chat_enabled),
+        "widget_key": prop.website_chat_widget_key,
+    }
+
+
+@router.post("/admin/properties/{property_id}/website-widget/domain")
+def update_website_widget_domain(
+    property_id: int,
+    request: Request,
+    payload: dict = Body(...),
+    db: Session = Depends(get_db),
+):
+    prop = require_property_in_scope(request, db, property_id)
+
+    prop.website_chat_allowed_domain = (payload.get("domain") or "").strip() or None
+
+    db.add(prop)
+    db.commit()
+
+    return {"ok": True}
 
 @router.get("/admin/config-ui", response_class=HTMLResponse)
 def admin_config_ui(
