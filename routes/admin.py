@@ -3849,14 +3849,9 @@ def build_stay_pulse(sessions: list[dict]) -> dict:
     if not sessions:
         return {
             "eyebrow": "Stay Pulse",
-            "headline": f"Guests are mostly looking for {top_topic}",
-            "body": body,
-            "filter_payload": {
-                "terms": [top_topic],
-                "moods": [],
-                "stay_cycles": [],
-                "signal_labels": [],
-            },
+            "headline": "No guest conversations yet",
+            "body": "Signals will appear here as guests begin asking questions.",
+            "filter_payload": {},
         }
 
     topic_counts = {}
@@ -3868,15 +3863,14 @@ def build_stay_pulse(sessions: list[dict]) -> dict:
 
         snippet = (s.get("last_snippet") or "").lower()
 
-        # Topic detection (simple but effective)
         if any(k in snippet for k in ["check-in", "check in", "arrival", "access"]):
             topic = "check-in details"
         elif any(k in snippet for k in ["wifi", "wi-fi", "internet"]):
             topic = "WiFi help"
         elif "parking" in snippet:
             topic = "parking"
-        elif any(k in snippet for k in ["late checkout", "late check-out"]):
-            topic = "late checkout"
+        elif any(k in snippet for k in ["late checkout", "late check-out", "checkout"]):
+            topic = "checkout"
         elif any(k in snippet for k in ["recommend", "things to do", "restaurant"]):
             topic = "local recommendations"
         else:
@@ -3884,16 +3878,11 @@ def build_stay_pulse(sessions: list[dict]) -> dict:
 
         topic_counts[topic] = topic_counts.get(topic, 0) + 1
 
-    # Safe fallback
-    if topic_counts:
-        top_topic = max(topic_counts.items(), key=lambda x: x[1])[0]
-    else:
-        top_topic = "stay details"
+    top_topic = max(topic_counts.items(), key=lambda x: x[1])[0] if topic_counts else "stay details"
 
     needs_clarity_count = signal_counts.get("needs_clarity", 0)
     friction_count = signal_counts.get("friction_detected", 0)
 
-    # Better product-style messaging
     if friction_count > 0:
         body = (
             f"{friction_count} conversation{'s' if friction_count != 1 else ''} "
@@ -3909,11 +3898,15 @@ def build_stay_pulse(sessions: list[dict]) -> dict:
 
     return {
         "eyebrow": "Stay Pulse",
-        "headline": "No guest conversations yet",
-        "body": "Signals will appear here as guests begin asking questions.",
-        "filter_payload": {},
+        "headline": f"Guests are mostly looking for {top_topic}",
+        "body": body,
+        "filter_payload": {
+            "terms": [top_topic],
+            "moods": [],
+            "stay_cycles": [],
+            "signal_labels": [],
+        },
     }
-
 @router.get("/admin/dashboard", response_class=HTMLResponse)
 def admin_dashboard(
     request: Request,
