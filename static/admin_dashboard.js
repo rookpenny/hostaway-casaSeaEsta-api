@@ -373,6 +373,7 @@ function setInlineDetailOpen(open) {
   const filterCard = document.getElementById("chat-filter-card");
   const insightCards = chatsView?.querySelector(".grid.gap-4");
   const heroBanner = chatsView?.querySelector(".relative.overflow-hidden.rounded-\\[24px\\]");
+  const chatsHero = document.getElementById("chats-hero");
 
   if (!inline || !list || !chatsView) return;
 
@@ -384,6 +385,7 @@ function setInlineDetailOpen(open) {
   if (filterCard) filterCard.classList.toggle("hidden", open);
   if (insightCards) insightCards.classList.toggle("hidden", open);
   if (heroBanner) heroBanner.classList.toggle("hidden", open);
+  if (chatsHero) chatsHero.classList.toggle("hidden", open);
 
   // Tighten spacing when in detail mode
   chatsView.classList.toggle("space-y-0", open);
