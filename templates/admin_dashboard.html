@@ -2489,7 +2489,7 @@
 
       <div class="flex flex-wrap gap-3">
         {% if user_role == "super" %}
-        <select id="analyticsPmcFilter" class="h-11 rounded-full border border-white/15 bg-white/10 px-4 text-sm font-medium text-white backdrop-blur-sm focus:outline-none">
+        <select id="analyticsPmcFilter" class="hidden h-11 rounded-full border border-white/15 bg-white/10 px-4 text-sm font-medium text-white backdrop-blur-sm focus:outline-none">
           <option value="" class="text-slate-900">All PMCs</option>
           {% for p in pmcs %}
             <option value="{{ p.id }}" class="text-slate-900">{{ p.pmc_name }}</option>
