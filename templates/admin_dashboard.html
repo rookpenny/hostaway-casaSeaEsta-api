@@ -989,11 +989,11 @@
       <div class="mt-5 flex flex-wrap gap-3">
   {% if s.target == "chats" %}
     <a
-      href="/admin/dashboard?view=chats"
-      class="inline-flex h-11 items-center justify-center rounded-2xl bg-[#356cf6] px-5 text-[14px] font-semibold text-white hover:bg-[#2457d9]"
-    >
-      {{ s.cta_primary or "View Chats" }}
-    </a>
+  href="/admin/dashboard?view=chats{% if s.property_id %}&property_id={{ s.property_id }}{% endif %}&q={{ s.title }}"
+  class="inline-flex h-11 items-center justify-center rounded-2xl bg-[#356cf6] px-5 text-[14px] font-semibold text-white hover:bg-[#2457d9]"
+>
+  {{ s.cta_primary or "View Chats" }}
+</a>
   {% else %}
     <button
       type="button"
