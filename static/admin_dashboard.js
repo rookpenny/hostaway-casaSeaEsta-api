@@ -539,48 +539,48 @@ function initRelativeTimes() {
   // -----------------------------------
   // Portfolio chart
   // -----------------------------------
-  function initPortfolioChart() {
-    const ctx = $("overviewPortfolioChart");
-    if (!ctx || typeof Chart === "undefined") return;
+function initPortfolioChart() {
+  const ctx = $("overviewPortfolioChart");
+  if (!ctx || typeof Chart === "undefined") return;
 
-    const live = Number(BOOT.live_props || 0);
-    const offline = Number(BOOT.offline_props || 0);
+  const live = Number(BOOT.live_props || 0);
+  const offline = Number(BOOT.offline_props || 0);
 
-    if (window.__overviewPortfolioChart) {
-      window.__overviewPortfolioChart.destroy();
-    }
-
-    window.__overviewPortfolioChart = new Chart(ctx, {
-      type: "doughnut",
-      data: {
-        labels: ["Live", "Offline"],
-        datasets: [{
-          data: [live, offline],
-          backgroundColor: ["#356cf6", "#47c5c9"],
-          borderWidth: 0,
-          hoverOffset: 4,
-        }],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        cutout: "72%",
-        animation: {
-          animateRotate: true,
-          duration: 800,
-        },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: "#0f172a",
-            titleColor: "#fff",
-            bodyColor: "#cbd5f5",
-            padding: 10,
-          },
-        },
-      },
-    });
+  if (window.__overviewPortfolioChart) {
+    window.__overviewPortfolioChart.destroy();
   }
+
+  window.__overviewPortfolioChart = new Chart(ctx, {
+    type: "doughnut",
+    data: {
+      labels: ["Live", "Offline"],
+      datasets: [{
+        data: [live, offline],
+        backgroundColor: ["#356cf6", "#47c5c9"],
+        borderWidth: 0,
+        hoverOffset: 4,
+      }],
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      cutout: "72%",
+      animation: {
+        animateRotate: true,
+        duration: 800,
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          backgroundColor: "#0f172a",
+          titleColor: "#fff",
+          bodyColor: "#cbd5f5",
+          padding: 10,
+        },
+      },
+    },
+  });
+}
 
   // -----------------------------------
   // Chat batch actions
