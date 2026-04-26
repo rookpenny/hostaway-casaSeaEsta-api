@@ -271,6 +271,10 @@ class Property(Base):
 
     chat_enabled = Column(Boolean, nullable=False, default=False)
 
+    website_chat_enabled = Column(Boolean, nullable=False, default=False)
+    website_chat_widget_key = Column(String, nullable=True, unique=True, index=True)
+    website_chat_allowed_domain = Column(String, nullable=True)
+
     __table_args__ = (
         # ✅ New correct uniqueness rule (what your sync uses)
         UniqueConstraint("integration_id", "external_property_id", name="uq_properties_integration_external"),
