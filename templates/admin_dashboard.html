@@ -545,73 +545,87 @@
     <!-- Main left column -->
     <div class="col-span-12 space-y-5 xl:col-span-8">
       <!-- Hero -->
-      <div class="relative overflow-hidden rounded-[24px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-7 text-white shadow-[0_20px_60px_rgba(40,50,160,0.18)]">
-        <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.18),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,190,150,0.18),transparent_28%)]"></div>
-        <div class="absolute bottom-0 right-0 h-40 w-56 translate-x-10 translate-y-10 rotate-[-18deg] rounded-[40px] bg-gradient-to-br from-[#ffd3c1] via-[#f8b9b8] to-[#ffffff00] opacity-90"></div>
+<div class="relative overflow-hidden rounded-[32px] border border-indigo-900/20 bg-gradient-to-br from-[#081a72] via-[#2e33b9] to-[#d764ce] p-8 text-white shadow-[0_20px_60px_rgba(40,50,160,0.18)]">
+  <div class="absolute inset-0 bg-[radial-gradient(circle_at_top_right,rgba(255,255,255,0.16),transparent_32%),radial-gradient(circle_at_bottom_left,rgba(255,190,150,0.14),transparent_28%)]"></div>
+  <div class="pointer-events-none absolute -bottom-16 -right-20 h-56 w-72 rotate-[-18deg] rounded-[52px] bg-gradient-to-br from-[#ffd3c1] via-[#f8b9b8] to-transparent opacity-75"></div>
 
-        <div class="relative z-10">
-          <div class="flex items-center gap-3 text-[13px] font-medium text-white/85">
-            <span class="inline-flex h-9 w-9 items-center justify-center rounded-2xl bg-white/10 ring-1 ring-white/15">
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="none">
-                <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
-                <path d="M19 14l.8 2 .2.2 2 .8-2 .8-.2.2-.8 2-.8-2-.2-.2-2-.8 2-.8.2-.2.8-2Z" fill="currentColor"/>
-                <path d="M5 15l.8 2 .2.2 2 .8-2 .8-.2.2-.8 2-.8-2-.2-.2-2-.8 2-.8.2-.2.8-2Z" fill="currentColor"/>
-              </svg>
-            </span>
-            <span>Since your last login</span>
-          </div>
+  <div class="relative z-10">
+    <div class="mb-10 flex items-center gap-4">
+      <div class="grid h-14 w-14 place-items-center rounded-2xl bg-white/10 ring-1 ring-white/15">
+        <svg class="h-7 w-7 text-white/90" viewBox="0 0 24 24" fill="none">
+          <path d="M12 3l1.7 4.3L18 9l-4.3 1.7L12 15l-1.7-4.3L6 9l4.3-1.7L12 3Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+          <path d="M19 14l.8 2 .2.2 2 .8-2 .8-.2.2-.8 2-.8-2-.2-.2-2-.8 2-.8.2-.2.8-2Z" fill="currentColor"/>
+          <path d="M5 15l.8 2 .2.2 2 .8-2 .8-.2.2-.8 2-.8-2-.2-.2-2-.8 2-.8.2-.2.8-2Z" fill="currentColor"/>
+        </svg>
+      </div>
 
-          <div class="mt-7 grid grid-cols-1 gap-5 md:grid-cols-3">
-            <div class="md:border-r md:border-white/15 md:pr-5">
-              <div class="text-[38px] font-semibold tracking-tight">{{ total_chats_est }}</div>
-              <div class="mt-1.5 text-[14px] text-white/72">guest questions asked</div>
-              <button
-                type="button"
-                onclick="window.DashboardOverview?.jumpTo('chats')"
-                class="mt-4 inline-flex items-center gap-2 text-[14px] font-medium text-[#9fd0ff] hover:text-white"
-              >
-                View chats
-                <span>→</span>
-              </button>
-            </div>
-
-            <div class="md:border-r md:border-white/15 md:px-5">
-              <div class="text-[38px] font-semibold tracking-tight">{{ booking_count }}</div>
-              <div class="mt-1.5 text-[14px] text-white/72">bookings made</div>
-              <button
-                type="button"
-                onclick="window.DashboardOverview?.jumpTo('analytics')"
-                class="mt-4 inline-flex items-center gap-2 text-[14px] font-medium text-[#9fd0ff] hover:text-white"
-              >
-                View bookings
-                <span>→</span>
-              </button>
-            </div>
-
-            <div class="md:pl-5">
-              <div class="text-[38px] font-semibold tracking-tight">{{ urgent_issues }}</div>
-              <div class="mt-1.5 text-[14px] text-white/72">new urgent issues</div>
-              <button
-                type="button"
-                onclick="window.DashboardOverview?.jumpTo('chats')"
-                class="mt-4 inline-flex items-center gap-2 text-[14px] font-medium text-[#9fd0ff] hover:text-white"
-              >
-                View issues
-                <span>→</span>
-              </button>
-            </div>
-          </div>
-
-          <div class="absolute bottom-6 right-6 hidden md:block">
-            <div class="grid h-14 w-14 place-items-center rounded-2xl bg-white text-indigo-600 shadow-lg ring-1 ring-black/5">
-              <svg class="h-7 w-7" viewBox="0 0 24 24" fill="none">
-                <path d="M5 18V10M10 18V6M15 18v-4M20 18V8M4 20h17" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-                <path d="m7 7 3-2 3 2 5-3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-              </svg>
-            </div>
-          </div>
+      <div>
+        <div class="text-[15px] font-semibold text-white/90">
+          Since your last login
+        </div>
+        <div class="mt-1 text-[13px] text-white/55">
+          A quick read on what changed while you were away.
         </div>
       </div>
+    </div>
+
+    <div class="grid gap-4 lg:grid-cols-3">
+      <a
+        href="/admin/dashboard?view=chats"
+        class="group rounded-[24px] border border-white/10 bg-white/8 p-6 backdrop-blur-sm transition hover:bg-white/12"
+      >
+        <div class="text-[56px] font-semibold leading-none tracking-[-0.05em]">
+          {{ total_chats_est }}
+        </div>
+        <div class="mt-4 text-[17px] font-semibold text-white">
+          Guest questions
+        </div>
+        <div class="mt-2 text-[14px] leading-6 text-white/62">
+          Questions asked across your active guest conversations.
+        </div>
+        <div class="mt-6 inline-flex items-center gap-2 text-[15px] font-semibold text-[#9fd0ff] group-hover:text-white">
+          View chats <span>→</span>
+        </div>
+      </a>
+
+      <a
+        href="/admin/dashboard?view=analytics"
+        class="group rounded-[24px] border border-white/10 bg-white/8 p-6 backdrop-blur-sm transition hover:bg-white/12"
+      >
+        <div class="text-[56px] font-semibold leading-none tracking-[-0.05em]">
+          {{ booking_count }}
+        </div>
+        <div class="mt-4 text-[17px] font-semibold text-white">
+          Bookings made
+        </div>
+        <div class="mt-2 text-[14px] leading-6 text-white/62">
+          Booking activity connected to your portfolio.
+        </div>
+        <div class="mt-6 inline-flex items-center gap-2 text-[15px] font-semibold text-[#9fd0ff] group-hover:text-white">
+          View analytics <span>→</span>
+        </div>
+      </a>
+
+      <a
+        href="/admin/dashboard?view=chats&conversation_group=needs_attention"
+        class="group rounded-[24px] border border-white/10 bg-white/8 p-6 backdrop-blur-sm transition hover:bg-white/12"
+      >
+        <div class="text-[56px] font-semibold leading-none tracking-[-0.05em]">
+          {{ urgent_issues }}
+        </div>
+        <div class="mt-4 text-[17px] font-semibold text-white">
+          Needs attention
+        </div>
+        <div class="mt-2 text-[14px] leading-6 text-white/62">
+          Chats showing urgency, friction, or guest distress.
+        </div>
+        <div class="mt-6 inline-flex items-center gap-2 text-[15px] font-semibold text-[#9fd0ff] group-hover:text-white">
+          View issues <span>→</span>
+        </div>
+      </a>
+    </div>
+  </div>
+</div>
 
       <!-- Guest Intelligence -->
       <div class="rounded-[28px] border border-[#D9E0EA] bg-[#F8FAFC] px-5 py-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_8px_24px_rgba(15,23,42,0.03)] sm:px-6 sm:py-6">
