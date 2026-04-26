@@ -6032,28 +6032,54 @@ function initSyncAllProperties() {
   const btn = document.getElementById("sync-all-properties-btn");
   if (!btn) return;
 
+  // prevents double-binding if init runs more than once
+  if (btn.dataset.wired === "1") return;
+  btn.dataset.wired = "1";
+
   btn.addEventListener("click", async () => {
-    if (window.CONTENT_LOCKED) return toast("Complete payment to unlock property syncing.");
+    if (window.CONTENT_LOCKED) {
+      return toast("Complete payment to unlock property syncing.");
+    }
 
     btn.disabled = true;
     const original = btn.textContent;
     btn.textContent = "Syncing…";
 
     try {
-      const res = await fetch(`/auth/sync-pmc-properties`, {
+      const res = await fetch("/auth/sync-pmc-properties", {
         method: "POST",
         credentials: "include",
+        headers: {
+          Accept: "application/json",
+        },
       });
 
-      if (res.status === 401 || res.status === 403) return loginRedirect();
-      if (res.status === 402) return (window.location.href = "/pmc/signup");
+      let data = {};
+      try {
+        data = await res.json();
+      } catch {}
 
-      if (!res.ok) throw new Error(await res.text());
+      console.log("Sync all response:", res.status, data);
 
+      if (res.status === 401 || res.status === 403) {
+        alert(data.detail || "You do not have permission to sync these properties.");
+        return;
+      }
+
+      if (res.status === 402) {
+        window.location.href = "/pmc/signup";
+        return;
+      }
+
+      if (!res.ok || data.status === "error") {
+        throw new Error(data.message || data.detail || `Sync failed with status ${res.status}`);
+      }
+
+      toast(data.message || `Synced ${data.synced || 0} properties.`);
       window.location.reload();
     } catch (err) {
-      console.error(err);
-      alert("Failed to sync properties");
+      console.error("Sync all failed:", err);
+      alert("Failed to sync properties: " + (err.message || err));
     } finally {
       btn.disabled = false;
       btn.textContent = original;
