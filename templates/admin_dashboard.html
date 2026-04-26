@@ -1015,11 +1015,11 @@
       </button>
     {% else %}
       <a
-        href="/admin/dashboard?view=chats"
-        class="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-700 hover:bg-slate-50"
-      >
-        {{ s.cta_secondary }}
-      </a>
+  href="/admin/dashboard?view=chats{% if s.property_id %}&property_id={{ s.property_id }}{% endif %}{% if s.chat_filter_q %}&q={{ s.chat_filter_q | urlencode }}{% endif %}"
+  class="inline-flex h-11 items-center justify-center rounded-2xl border border-slate-200 bg-white px-5 text-[14px] font-semibold text-slate-700 hover:bg-slate-50"
+>
+  {{ s.cta_secondary }}
+</a>
     {% endif %}
   {% endif %}
 </div>
