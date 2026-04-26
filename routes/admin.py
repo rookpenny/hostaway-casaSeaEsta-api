@@ -3780,7 +3780,13 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
         "negative_count": stats["negative_count"],
     
         # Used by the View chats button to show chats behind this suggestion
-        "chat_filter_q": " ".join(stats.get("sample_texts", [])[:2])[:120],
+        "chat_filter_q": "",
+        "filter_payload": {
+            "terms": [],
+            "moods": [],
+            "stay_cycles": [],
+            "signal_labels": [],
+        },
     
         **prop,
     })
