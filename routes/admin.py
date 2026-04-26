@@ -377,6 +377,140 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
+
+
+class PublicPropertyChatPayload(BaseModel):
+    widget_key: str
+    message: str
+    visitor_name: Optional[str] = None
+    visitor_email: Optional[str] = None
+
+
+def _origin_domain(request: Request) -> str:
+    origin = request.headers.get("origin") or request.headers.get("referer") or ""
+    try:
+        host = urlparse(origin).netloc.lower()
+        return host.replace("www.", "")
+    except Exception:
+        return ""
+
+
+@router.post("/api/public-property-chat")
+def public_property_chat(
+    request: Request,
+    payload: PublicPropertyChatPayload,
+    db: Session = Depends(get_db),
+):
+    widget_key = (payload.widget_key or "").strip()
+    user_message = (payload.message or "").strip()
+
+    if not widget_key or not user_message:
+        raise HTTPException(status_code=400, detail="Missing widget key or message")
+
+    prop = (
+        db.query(Property)
+        .filter(Property.website_chat_widget_key == widget_key)
+        .first()
+    )
+
+    if not prop:
+        raise HTTPException(status_code=404, detail="Widget not found")
+
+    if not bool(getattr(prop, "website_chat_enabled", False)):
+        raise HTTPException(status_code=403, detail="Website chat is disabled")
+
+    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
+    if not pmc:
+        raise HTTPException(status_code=404, detail="PMC not found")
+
+    if (getattr(pmc, "billing_status", "") or "").lower() != "active":
+        raise HTTPException(status_code=402, detail="Active subscription required")
+
+    allowed_domain = (getattr(prop, "website_chat_allowed_domain", None) or "").lower().replace("www.", "").strip()
+    request_domain = _origin_domain(request)
+
+    if allowed_domain and request_domain and allowed_domain not in request_domain:
+        raise HTTPException(status_code=403, detail="Widget domain not allowed")
+
+    guides = (
+        db.query(Guide)
+        .filter(Guide.property_id == prop.id)
+        .filter(Guide.is_active == True)
+        .order_by(Guide.sort_order.asc(), Guide.updated_at.desc())
+        .limit(25)
+        .all()
+    )
+
+    guide_text = "\n\n".join(
+        f"Title: {g.title}\nCategory: {g.category or ''}\nContent: {re.sub(r'<[^>]+>', ' ', g.body_html or '')}"
+        for g in guides
+    )
+
+    system_prompt = f"""
+You are the public website assistant for {prop.property_name}.
+
+This chat is for pre-booking guests on a direct booking website.
+
+You may answer public questions about:
+- property features
+- amenities
+- location
+- parking availability if public
+- family friendliness
+- house rules if public
+- nearby recommendations
+- booking questions
+- what guests can expect before booking
+
+Never reveal private stay information, including:
+- door codes
+- lockbox codes
+- WiFi passwords
+- exact private access instructions
+- guest reservation details
+- owner/admin/internal details
+- security information
+- private emergency contacts
+- anything meant only for confirmed guests
+
+If asked for private stay details, say those are shared after booking or through the confirmed guest portal.
+
+Keep answers helpful, warm, concise, and sales-friendly.
+Encourage direct booking when relevant.
+
+Property knowledge:
+{guide_text}
+"""
+
+    try:
+        resp = client.chat.completions.create(
+            model=SUMMARY_MODEL,
+            temperature=0.45,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_message},
+            ],
+        )
+
+        reply = resp.choices[0].message.content or "Sorry, I could not answer that right now."
+
+        return {
+            "ok": True,
+            "reply": reply,
+            "property_name": prop.property_name,
+        }
+
+    except Exception as e:
+        logging.exception("Public property chat failed")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "ok": False,
+                "detail": str(e),
+                "reply": "Sorry, I had trouble answering that. Please try again in a moment.",
+            },
+        )
+        
 # ----------------------------
 # GitHub helpers
 # ----------------------------
