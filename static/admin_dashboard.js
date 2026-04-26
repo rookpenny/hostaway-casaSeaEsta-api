@@ -404,10 +404,17 @@ function setInlineDetailOpen(open) {
   }
 }
 
-function pushChatUrl(sessionId) {
+function pushChatUrl(sessionId, groupedIds = "") {
   const url = new URL(window.location.href);
   url.searchParams.set("view", "chats");
   url.searchParams.set("session_id", String(sessionId));
+
+  if (groupedIds && groupedIds.includes(",")) {
+    url.searchParams.set("grouped_session_ids", groupedIds);
+  } else {
+    url.searchParams.delete("grouped_session_ids");
+  }
+
   window.history.pushState({}, "", url.toString());
 }
 
@@ -417,10 +424,10 @@ function clearChatUrl() {
   window.history.pushState({}, "", url.toString());
 }
 
-async function openChatDetail(sessionId) {
+async function openChatDetail(sessionId, groupedIds = "") {
   setInlineDetailOpen(true);
-  pushChatUrl(sessionId);
-  await loadChatDetail(String(sessionId));
+  pushChatUrl(sessionId, groupedIds);
+  await loadChatDetail(String(sessionId), groupedIds);
 }
 
 let routingInitialized = false;
@@ -2185,7 +2192,7 @@ async function chatPostRoute(routeKey, params, body) {
 let chatDetailAbort = null;
 let chatDetailRequestToken = 0;
 
-async function loadChatDetail(sessionId) {
+async function loadChatDetail(sessionId, groupedIds = "") {
   const panel = document.getElementById("chat-detail-panel");
   if (!panel) return;
 
@@ -2197,9 +2204,15 @@ async function loadChatDetail(sessionId) {
   panel.classList.add("opacity-60", "pointer-events-none");
 
   try {
-    const url =
+    let url =
       apiRoute("chat_detail_partial", { session_id: sessionId }) ||
       `/admin/chats/partial/detail?session_id=${encodeURIComponent(sessionId)}`;
+    
+    if (groupedIds && groupedIds.includes(",")) {
+      const detailUrl = new URL(url, window.location.origin);
+      detailUrl.searchParams.set("grouped_session_ids", groupedIds);
+      url = detailUrl.pathname + detailUrl.search;
+    }
 
     const res = await fetch(url, {
       credentials: "include",
@@ -3601,13 +3614,15 @@ document.addEventListener("click", (e) => {
   if (e.target.closest("a, button, input, textarea, select, label")) return;
 
   const sid = row.getAttribute("data-session-row");
+  const groupedIds = row.getAttribute("data-grouped-session-ids") || "";
+
   if (!sid) return;
 
   // Avoid double-open if you still have inline onclick on the <tr>
   if (row.__opening) return;
   row.__opening = true;
 
-  Promise.resolve(openChatDetail(sid)).finally(() => {
+  Promise.resolve(openChatDetail(sid, groupedIds)).finally(() => {
     row.__opening = false;
   });
 });
