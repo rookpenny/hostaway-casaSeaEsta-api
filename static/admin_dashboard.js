@@ -1912,14 +1912,6 @@ window.rerenderAllMoodBadges = rerenderAllMoodBadges;
 
 
 
-// Back button
-document.addEventListener("click", (e) => {
-  const btn = e.target.closest("#chat-detail-back");
-  if (!btn) return;
-
-  e.preventDefault();
-  closeChatDetail();
-});
 
 (function initAdminChatPanelGlobal() {
   if (window.__ADMIN_CHAT_PANEL_GLOBAL_INIT__) return;
