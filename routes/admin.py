@@ -3311,17 +3311,159 @@ def build_signal_detail(session_row: dict) -> str:
 @router.get("/admin/suggestions/draft")
 def get_suggestion_draft(
     request: Request,
-    target: str,
+    target: str = Query(default="general"),
     db: Session = Depends(get_db),
 ):
     user = request.session.get("user")
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
 
-    draft = build_suggestion_draft(target or "general")
-    return JSONResponse(draft)
+    user_role, pmc_obj, *_ = get_user_role_and_scope(request, db)
 
+    q = (
+        db.query(ChatSession)
+        .join(Property, Property.id == ChatSession.property_id)
+    )
 
+    if user_role == "pmc":
+        require_pmc_linked(user_role, pmc_obj)
+        q = q.filter(Property.pmc_id == pmc_obj.id)
+    elif user_role != "super":
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+    target = (target or "general").strip().lower()
+
+    sessions = (
+        q.order_by(ChatSession.last_activity_at.desc().nullslast(), ChatSession.id.desc())
+        .limit(75)
+        .all()
+    )
+
+    session_ids = [int(s.id) for s in sessions]
+
+    messages = []
+    if session_ids:
+        messages = (
+            db.query(ChatMessage, ChatSession, Property)
+            .join(ChatSession, ChatSession.id == ChatMessage.session_id)
+            .join(Property, Property.id == ChatSession.property_id)
+            .filter(ChatMessage.session_id.in_(session_ids))
+            .filter(ChatMessage.sender.in_(["guest", "user"]))
+            .filter(func.length(func.coalesce(ChatMessage.content, "")) > 0)
+            .order_by(ChatMessage.created_at.desc())
+            .limit(200)
+            .all()
+        )
+
+    keyword_map = {
+        "checkin": ["check-in", "check in", "arrival", "entry", "door", "keypad", "lock", "code"],
+        "wifi": ["wifi", "wi-fi", "internet", "password", "router", "connect"],
+        "parking": ["parking", "garage", "driveway", "park"],
+        "checkout": ["checkout", "check-out", "late checkout", "leave by"],
+        "quiet_hours": ["noise", "quiet", "loud", "neighbor", "music"],
+        "thermostat": ["ac", "a/c", "thermostat", "heat", "heater", "temperature", "cold", "hot"],
+        "local_guide": ["restaurant", "recommend", "things to do", "coffee", "food", "nearby", "beach"],
+    }
+
+    keywords = keyword_map.get(target, [])
+
+    examples = []
+    for msg, sess, prop in messages:
+        text = (msg.content or "").strip()
+        text_l = text.lower()
+
+        if keywords and not any(k in text_l for k in keywords):
+            continue
+
+        examples.append({
+            "property": prop.property_name or "Property",
+            "guest_message": text[:500],
+            "guest_mood": getattr(sess, "guest_mood", None),
+            "action_priority": getattr(sess, "action_priority", None),
+        })
+
+        if len(examples) >= 30:
+            break
+
+    if not examples:
+        for msg, sess, prop in messages[:30]:
+            text = (msg.content or "").strip()
+            if not text:
+                continue
+            examples.append({
+                "property": prop.property_name or "Property",
+                "guest_message": text[:500],
+                "guest_mood": getattr(sess, "guest_mood", None),
+                "action_priority": getattr(sess, "action_priority", None),
+            })
+
+    if not examples:
+        return {
+            "title": "Suggested update",
+            "body": "No recent guest chat examples were found yet. As guests ask more questions, HostScout will generate this from real conversation patterns.",
+        }
+
+    example_text = "\n".join(
+        f"- Property: {e['property']} | Mood: {e.get('guest_mood') or 'unknown'} | Priority: {e.get('action_priority') or 'normal'} | Guest said: {e['guest_message']}"
+        for e in examples
+    )
+
+    prompt = f"""
+You are helping a short-term rental property manager improve their guest guide.
+
+Create a guest-facing guide section based only on the real guest chat examples below.
+
+Target topic: {target}
+
+Real guest chat examples:
+{example_text}
+
+Write something practical, clear, and ready to paste into a house manual.
+
+Rules:
+- Do not invent property-specific details like exact door codes, WiFi passwords, addresses, or parking spot numbers.
+- Use placeholders where exact details are missing, like [ADD WIFI PASSWORD] or [ADD PARKING LOCATION].
+- Keep it friendly, clear, and concise.
+- Return valid JSON only with:
+  {{
+    "title": "...",
+    "body": "..."
+  }}
+"""
+
+    try:
+        resp = client.chat.completions.create(
+            model=SUMMARY_MODEL,
+            temperature=0.35,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You return valid JSON only. No markdown fences.",
+                },
+                {
+                    "role": "user",
+                    "content": prompt,
+                },
+            ],
+        )
+
+        raw = resp.choices[0].message.content or "{}"
+        data = json.loads(raw)
+
+        return {
+            "title": data.get("title") or f"Suggested {target} update",
+            "body": data.get("body") or "",
+        }
+
+    except Exception as e:
+        logging.exception("Suggestion draft generation failed")
+        return JSONResponse(
+            status_code=500,
+            content={
+                "error": "Suggestion draft generation failed",
+                "detail": str(e),
+            },
+        )
 
 def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
     property_meta = {
