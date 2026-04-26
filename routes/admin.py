@@ -3762,21 +3762,25 @@ def build_suggestions(sessions: list[dict], properties: list) -> list[dict]:
 
         prop = top_property(issue_key)
         suggestions.append({
-            "id": f"suggestion_{issue_key}",
-            "title": template["title"],
-            "reason": reason(issue_key, stats, prop.get("property_name") or "Across properties"),
-            "action": template["action"],
-            "cta_primary": template["cta_primary"],
-            "cta_secondary": template["cta_secondary"],
-            "target": template["target"],
-            "impact_score": impact(stats, template["kind"]),
-            "confidence": confidence(stats),
-            "topic_count": stats["count"],
-            "repeat_count": stats["repeat_count"],
-            "urgent_count": stats["urgent_count"],
-            "negative_count": stats["negative_count"],
-            **prop,
-        })
+        "id": f"suggestion_{issue_key}",
+        "title": template["title"],
+        "reason": reason(issue_key, stats, prop.get("property_name") or "Across properties"),
+        "action": template["action"],
+        "cta_primary": template["cta_primary"],
+        "cta_secondary": template["cta_secondary"],
+        "target": template["target"],
+        "impact_score": impact(stats, template["kind"]),
+        "confidence": confidence(stats),
+        "topic_count": stats["count"],
+        "repeat_count": stats["repeat_count"],
+        "urgent_count": stats["urgent_count"],
+        "negative_count": stats["negative_count"],
+    
+        # Used by the View chats button to show chats behind this suggestion
+        "chat_filter_q": " ".join(stats.get("sample_texts", [])[:2])[:120],
+    
+        **prop,
+    })
 
     suggestions.sort(
         key=lambda s: (
