@@ -2115,9 +2115,12 @@
           <option value="calm" {% if filters.emotional_signals_filter == "calm" %}selected{% endif %}>Calm</option>
         </select>
 
-        <a href="/admin/dashboard?view=chats" class="inline-flex h-11 items-center px-2 text-sm font-medium text-slate-500 hover:text-slate-700">
-          Reset
-        </a>
+        <a
+  href="/admin/dashboard?view=chats"
+  class="inline-flex h-11 items-center justify-center rounded-full border border-slate-300 bg-slate-100 px-5 text-[15px] font-semibold text-slate-700 shadow-sm transition hover:border-slate-400 hover:bg-slate-200 hover:text-slate-950"
+>
+  Reset
+</a>
       </div>
     </form>
 
