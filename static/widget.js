@@ -5,6 +5,9 @@
   if (!widgetKey) return;
 
   const API_BASE = "https://hostaway-casaseaesta-api.onrender.com";
+  const STORAGE_KEY = `hostscout_webchat_${widgetKey}`;
+
+  let webchatSessionId = localStorage.getItem(STORAGE_KEY);
 
   const bubble = document.createElement("button");
   bubble.innerHTML = "Ask about this stay";
@@ -64,7 +67,7 @@
         font-size:14px;
         outline:none;
       " />
-      <button style="
+      <button id="hsw-send" type="submit" style="
         height:44px;
         border:0;
         border-radius:999px;
@@ -83,9 +86,11 @@
   const messages = panel.querySelector("#hsw-messages");
   const form = panel.querySelector("#hsw-form");
   const input = panel.querySelector("#hsw-input");
+  const sendBtn = panel.querySelector("#hsw-send");
 
   bubble.addEventListener("click", () => {
     panel.style.display = panel.style.display === "flex" ? "none" : "flex";
+    if (panel.style.display === "flex") input.focus();
   });
 
   function addMessage(text, who) {
@@ -114,8 +119,11 @@
     if (!text) return;
 
     input.value = "";
-    addMessage(text, "user");
+    input.disabled = true;
+    sendBtn.disabled = true;
+    sendBtn.style.opacity = "0.65";
 
+    addMessage(text, "user");
     const loading = addMessage("Thinking...", "assistant");
 
     try {
@@ -124,14 +132,31 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           widget_key: widgetKey,
-          message: text
+          message: text,
+          session_id: webchatSessionId ? Number(webchatSessionId) : null
         })
       });
 
-      const data = await res.json();
-      loading.textContent = data.reply || data.detail || "Sorry, I could not answer that.";
+      const data = await res.json().catch(() => ({}));
+
+      if (data.session_id) {
+        webchatSessionId = String(data.session_id);
+        localStorage.setItem(STORAGE_KEY, webchatSessionId);
+      }
+
+      if (!res.ok) {
+        loading.textContent = data.detail || data.reply || "Sorry, I could not answer that.";
+        return;
+      }
+
+      loading.textContent = data.reply || "Sorry, I could not answer that.";
     } catch (err) {
       loading.textContent = "Sorry, something went wrong. Please try again.";
+    } finally {
+      input.disabled = false;
+      sendBtn.disabled = false;
+      sendBtn.style.opacity = "1";
+      input.focus();
     }
   });
 })();
