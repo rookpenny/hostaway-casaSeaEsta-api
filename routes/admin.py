@@ -427,10 +427,11 @@ def public_property_chat(
         raise HTTPException(status_code=402, detail="Active subscription required")
 
     allowed_domain = (getattr(prop, "website_chat_allowed_domain", None) or "").lower().replace("www.", "").strip()
-    request_domain = _origin_domain(request)
-
-    if allowed_domain and request_domain and allowed_domain not in request_domain:
-        raise HTTPException(status_code=403, detail="Widget domain not allowed")
+    request_domain = _origin_domain(request).lower().replace("www.", "").strip()
+    
+    if allowed_domain and request_domain:
+        if request_domain != allowed_domain and not request_domain.endswith("." + allowed_domain):
+            raise HTTPException(status_code=403, detail="Widget domain not allowed")
 
     guides = (
         db.query(Guide)
