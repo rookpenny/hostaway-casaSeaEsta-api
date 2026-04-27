@@ -377,11 +377,10 @@ if not OPENAI_API_KEY:
 client = OpenAI(api_key=OPENAI_API_KEY)
 
 
-
-
 class PublicPropertyChatPayload(BaseModel):
     widget_key: str
     message: str
+    session_id: Optional[int] = None
     visitor_name: Optional[str] = None
     visitor_email: Optional[str] = None
 
@@ -428,10 +427,41 @@ def public_property_chat(
 
     allowed_domain = (getattr(prop, "website_chat_allowed_domain", None) or "").lower().replace("www.", "").strip()
     request_domain = _origin_domain(request).lower().replace("www.", "").strip()
-    
+
     if allowed_domain and request_domain:
         if request_domain != allowed_domain and not request_domain.endswith("." + allowed_domain):
             raise HTTPException(status_code=403, detail="Widget domain not allowed")
+
+    now = datetime.utcnow()
+
+    chat_session = None
+
+    if getattr(payload, "session_id", None):
+        chat_session = (
+            db.query(ChatSession)
+            .filter(ChatSession.id == int(payload.session_id))
+            .filter(ChatSession.property_id == prop.id)
+            .first()
+        )
+
+    if not chat_session:
+        chat_session = ChatSession(
+            property_id=prop.id,
+            source="webchat",
+            guest_name=(payload.visitor_name or f"Webchat — {prop.property_name}"),
+            created_at=now,
+            last_activity_at=now,
+        )
+
+        if hasattr(chat_session, "reservation_status"):
+            chat_session.reservation_status = "pre_booking"
+
+        if hasattr(chat_session, "is_verified"):
+            chat_session.is_verified = False
+
+        db.add(chat_session)
+        db.commit()
+        db.refresh(chat_session)
 
     guides = (
         db.query(Guide)
@@ -452,27 +482,7 @@ You are the public website assistant for {prop.property_name}.
 
 This chat is for pre-booking guests on a direct booking website.
 
-You may answer public questions about:
-- property features
-- amenities
-- location
-- parking availability if public
-- family friendliness
-- house rules if public
-- nearby recommendations
-- booking questions
-- what guests can expect before booking
-
-Never reveal private stay information, including:
-- door codes
-- lockbox codes
-- WiFi passwords
-- exact private access instructions
-- guest reservation details
-- owner/admin/internal details
-- security information
-- private emergency contacts
-- anything meant only for confirmed guests
+Never reveal private stay information, including door codes, lockbox codes, WiFi passwords, private access instructions, reservation details, owner/admin/internal details, security information, or private emergency contacts.
 
 If asked for private stay details, say those are shared after booking or through the confirmed guest portal.
 
@@ -495,10 +505,30 @@ Property knowledge:
 
         reply = resp.choices[0].message.content or "Sorry, I could not answer that right now."
 
+        db.add(ChatMessage(
+            session_id=chat_session.id,
+            sender="user",
+            content=user_message,
+            created_at=now,
+        ))
+
+        db.add(ChatMessage(
+            session_id=chat_session.id,
+            sender="assistant",
+            content=reply,
+            created_at=datetime.utcnow(),
+        ))
+
+        chat_session.last_activity_at = datetime.utcnow()
+        db.add(chat_session)
+        db.commit()
+
         return {
             "ok": True,
             "reply": reply,
             "property_name": prop.property_name,
+            "session_id": chat_session.id,
+            "source": "webchat",
         }
 
     except Exception as e:
@@ -510,8 +540,7 @@ Property knowledge:
                 "detail": str(e),
                 "reply": "Sorry, I had trouble answering that. Please try again in a moment.",
             },
-        )
-        
+        )       
 # ----------------------------
 # GitHub helpers
 # ----------------------------
