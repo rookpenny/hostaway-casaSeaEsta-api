@@ -82,9 +82,6 @@ from utils.ai_summary import maybe_autosummarize_on_new_guest_message
 from utils.sentiment import classify_guest_sentiment
 
 
-from fastapi.middleware.cors import CORSMiddleware
-
-
 
 logger = logging.getLogger("uvicorn.error")
 DATA_REPO_DIR = (os.getenv("DATA_REPO_DIR") or "").strip()
@@ -148,14 +145,6 @@ app.add_middleware(
     secret_key=SESSION_SECRET,
     same_site="none",
     https_only=True,
-)
-
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 
 templates = Jinja2Templates(directory="templates")
