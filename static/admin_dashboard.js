@@ -3109,6 +3109,7 @@ function renderSimpleChatBars(payload) {
 
 function renderAnalyticsLifecycle(lifecycle) {
   const stages = {
+    webchat: Number(lifecycle?.webchat || 0),
     inquiry: Number(lifecycle?.inquiry || 0),
     upcoming: Number(lifecycle?.upcoming || 0),
     current: Number(lifecycle?.current || lifecycle?.in_stay || 0),
