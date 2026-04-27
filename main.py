@@ -123,11 +123,7 @@ app.mount("/static", StaticFiles(directory="static"), name="static")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://www.neatsleeps.com",
-        "https://neatsleeps.com",
-        "https://hostaway-casaseaesta-api.onrender.com",
-    ],
+    allow_origin_regex=r"https://.*",
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
