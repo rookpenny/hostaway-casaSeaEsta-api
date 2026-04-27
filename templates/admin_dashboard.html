@@ -2230,6 +2230,7 @@
 
         <select name="conversation_group" class="h-11 min-w-[180px] rounded-full border border-slate-200 bg-white px-4 text-sm text-slate-800">
           <option value="" {% if not conversation_group %}selected{% endif %}>Conversation type</option>
+          <option value="webchat" {% if conversation_group == "webchat" %}selected{% endif %}>🌐 Webchat</option>
           <option value="needs_attention" {% if conversation_group == "needs_attention" %}selected{% endif %}>Needs attention</option>
           <option value="monitor" {% if conversation_group == "monitor" %}selected{% endif %}>Monitor</option>
           <option value="healthy" {% if conversation_group == "healthy" %}selected{% endif %}>Healthy</option>
@@ -2333,7 +2334,9 @@
               {% set derived_group = 'monitor' %}
             {% endif %}
 
-            {% if filters.conversation_group %}
+            {% if filters.conversation_group == 'webchat' %}
+              {% set matches_group = s.source == 'webchat' %}
+            {% elif filters.conversation_group %}
               {% set matches_group = derived_group == filters.conversation_group %}
             {% endif %}
 
