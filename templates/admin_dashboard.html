@@ -1376,6 +1376,20 @@
                   >
                     📘 Manual
                   </a>
+
+                <button
+  type="button"
+  onclick="openWebsiteWidgetPanel(
+    {{ prop.id }},
+    '{{ prop.property_name|e }}',
+    '{{ prop.website_chat_widget_key or '' }}',
+    {{ 'true' if prop.website_chat_enabled else 'false' }}
+  )"
+  class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+  {% if is_locked %}disabled{% endif %}
+>
+  🌐 Website Chat
+</button>
                 {% endif %}
               </div>
 
@@ -1475,6 +1489,93 @@
           
 </div>
 
+
+
+<div id="websiteWidgetPanel" class="hidden rounded-[28px] border border-slate-200 bg-white p-5 shadow-sm">
+  <div class="flex items-start justify-between gap-4">
+    <div>
+      <div id="websiteWidgetPropertyName" class="text-[28px] font-semibold tracking-[-0.03em] text-slate-950">
+        Website Chat
+      </div>
+      <div class="mt-1 text-sm text-slate-500">
+        Add this no-login property assistant to a direct booking website.
+      </div>
+    </div>
+
+    <button
+      type="button"
+      onclick="closeWebsiteWidgetPanel()"
+      class="inline-flex h-11 items-center rounded-full border border-slate-200 bg-white px-5 text-sm font-medium text-slate-800"
+    >
+      Close
+    </button>
+  </div>
+
+  <div class="mt-6 grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
+    <div class="rounded-2xl bg-slate-50 p-4">
+      <div class="text-sm font-semibold text-slate-900">Widget status</div>
+      <div class="mt-2 text-sm text-slate-500">
+        Turn this on only when the property should answer public pre-booking questions.
+      </div>
+
+      <button
+        id="websiteWidgetToggleBtn"
+        type="button"
+        class="mt-4 inline-flex h-11 items-center rounded-full bg-slate-900 px-5 text-sm font-semibold text-white"
+      >
+        Enable Website Chat
+      </button>
+
+      <div class="mt-5">
+        <label class="text-xs font-semibold uppercase tracking-[0.14em] text-slate-400">
+          Allowed domain
+        </label>
+        <input
+          id="websiteWidgetDomain"
+          type="text"
+          placeholder="example: casaseaesta.com"
+          class="mt-2 h-12 w-full rounded-2xl border border-slate-200 px-4 text-sm focus:outline-none"
+        />
+        <button
+          type="button"
+          onclick="saveWebsiteWidgetDomain()"
+          class="mt-3 inline-flex h-10 items-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700"
+        >
+          Save domain
+        </button>
+      </div>
+    </div>
+
+    <div class="rounded-2xl border border-slate-200 p-4">
+      <div class="flex items-center justify-between gap-3">
+        <div>
+          <div class="text-sm font-semibold text-slate-900">Embed code</div>
+          <div class="mt-1 text-sm text-slate-500">
+            Paste this before the closing body tag on the direct booking website.
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onclick="copyWebsiteWidgetCode()"
+          class="inline-flex h-10 items-center rounded-xl bg-indigo-600 px-4 text-sm font-semibold text-white"
+        >
+          Copy
+        </button>
+      </div>
+
+      <pre id="websiteWidgetCode" class="mt-4 overflow-x-auto rounded-2xl bg-slate-950 p-4 text-xs leading-6 text-white"></pre>
+    </div>
+  </div>
+</div>
+
+
+
+
+
+
+                
+
         <div>
           <div class="rounded-2xl bg-slate-50 p-3">
             <div class="flex flex-wrap items-center justify-between gap-3">
@@ -1496,6 +1597,19 @@
                   >
                     📘 Manual
                   </a>
+                <button
+                  type="button"
+                  onclick="openWebsiteWidgetPanel(
+                    {{ prop.id }},
+                    '{{ prop.property_name|e }}',
+                    '{{ prop.website_chat_widget_key or '' }}',
+                    {{ 'true' if prop.website_chat_enabled else 'false' }}
+                  )"
+                  class="inline-flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 {% if is_locked %}opacity-50 pointer-events-none{% endif %}"
+                  {% if is_locked %}disabled{% endif %}
+                >
+                  🌐 Website Chat
+                </button>
                 {% endif %}
               </div>
 
