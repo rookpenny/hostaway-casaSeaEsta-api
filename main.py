@@ -84,13 +84,6 @@ from utils.sentiment import classify_guest_sentiment
 
 from fastapi.middleware.cors import CORSMiddleware
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -127,6 +120,15 @@ register_guest_upgrades_routes(app)
 
 
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # --- Middleware ---
 ALLOWED_ORIGINS = [
