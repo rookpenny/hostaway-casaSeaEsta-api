@@ -4215,7 +4215,7 @@ def admin_dashboard(
         lifecycle = None
     
     # Validate conversation group
-    allowed_groups = {"needs_attention", "monitor", "healthy"}
+    allowed_groups = {"webchat", "needs_attention", "monitor", "healthy"}
     if conversation_group not in allowed_groups:
         conversation_group = None
 
