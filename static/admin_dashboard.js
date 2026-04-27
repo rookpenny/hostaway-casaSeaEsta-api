@@ -597,7 +597,7 @@ function renderWebsiteWidgetCode() {
     return;
   }
 
-  codeEl.textContent = `<script src="https://YOUR-DOMAIN.com/widget.js" data-widget-key="${currentWebsiteWidgetKey}"><\/script>`;
+  codeEl.textContent = `<script src="https://hostaway-casaseaesta-api.onrender.com/widget.js" data-widget-key="${currentWebsiteWidgetKey}"><\/script>`;
 }
 
 async function toggleWebsiteWidget(enable) {
