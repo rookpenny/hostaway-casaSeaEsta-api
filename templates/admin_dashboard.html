@@ -2455,22 +2455,26 @@
                       data-emotional-signals='{{ (s.emotional_signals or [])|tojson }}'
                       class="chat-row cursor-pointer border-t border-slate-100/80 transition-colors duration-150 hover:bg-slate-50/70">
                       <td class="w-[180px] px-4 py-3.5 align-top">
-                        {% if s.stay_cycle == 'current' %}
-                        <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
-                          🏡 Currently staying
-                        </span>
+                        {% if s.source == 'webchat' %}
+                          <span class="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700">
+                            🌐 Webchat
+                          </span>
+                        {% elif s.stay_cycle == 'current' %}
+                          <span class="inline-flex rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold text-emerald-700">
+                            🏡 Currently staying
+                          </span>
                         {% elif s.stay_cycle == 'upcoming' %}
-                        <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
-                          🗓️ Upcoming stay
-                        </span>
+                          <span class="inline-flex rounded-full border border-blue-200 bg-blue-50 px-3 py-1 text-[11px] font-semibold text-blue-700">
+                            🗓️ Upcoming stay
+                          </span>
                         {% elif s.stay_cycle == 'checked_out' %}
-                        <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
-                          ✅ Checked out
-                        </span>
+                          <span class="inline-flex rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-[11px] font-semibold text-slate-700">
+                            ✅ Checked out
+                          </span>
                         {% else %}
-                        <span class="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700">
-                          Inquiry
-                        </span>
+                          <span class="inline-flex rounded-full border border-violet-200 bg-violet-50 px-3 py-1 text-[11px] font-semibold text-violet-700">
+                            Inquiry
+                          </span>
                         {% endif %}
                       </td>
 
