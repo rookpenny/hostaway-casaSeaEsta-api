@@ -722,6 +722,29 @@ def _normalize_config(cfg: dict) -> dict:
     if not isinstance(a.get("quick_replies"), list):
         a["quick_replies"] = ["WiFi", "Door code", "Parking", "Check-out time", "Local restaurants", "House rules"]
 
+    
+    # Public website chat visibility / safety
+    pw = cfg.get("public_webchat")
+    if not isinstance(pw, dict):
+        pw = {}
+        cfg["public_webchat"] = pw
+
+    pw.setdefault("share_address", False)
+    pw.setdefault("share_wifi", False)
+    pw.setdefault("share_access_instructions", False)
+    pw.setdefault("share_emergency_contacts", False)
+    pw.setdefault("share_house_manual", False)
+
+    pw.setdefault(
+        "public_notes",
+        "Share only public pre-booking information: property highlights, amenities, general location, nearby attractions, booking benefits, and what guests can expect."
+    )
+
+    pw.setdefault(
+        "private_never_share",
+        "Never share the exact street address, unit number, door codes, lockbox codes, keypad codes, WiFi details, access instructions, owner/admin/internal details, security information, private emergency contacts, or reservation-specific information in public website chat."
+    )
+    
     return cfg
 
 
