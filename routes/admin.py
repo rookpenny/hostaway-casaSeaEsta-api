@@ -473,13 +473,23 @@ def public_property_chat(
         db.refresh(chat_session)
 
     # ------------------------------------------------------------
-    # Use the same property context source as the guest app
-    # Important: import inside function to avoid circular import
+    # Use the same property context source as the guest app.
+    # Import inside function to avoid circular import.
     # ------------------------------------------------------------
     from main import load_property_context, hour_to_ampm
 
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
+
+    public_webchat = (
+        cfg.get("public_webchat")
+        if isinstance(cfg.get("public_webchat"), dict)
+        else {}
+    )
+
+    share_address = bool(public_webchat.get("share_address", False))
+    share_wifi = bool(public_webchat.get("share_wifi", False))
+    share_house_manual = bool(public_webchat.get("share_house_manual", False))
 
     manual_text = (
         context.get("manual")
@@ -488,26 +498,48 @@ def public_property_chat(
         or ""
     ) if isinstance(context, dict) else ""
 
-    wifi = cfg.get("wifi") or {}
-    assistant_config = cfg.get("assistant") if isinstance(cfg.get("assistant"), dict) else {}
+    if not share_house_manual:
+        manual_text = ""
+
+    privacy_rules = public_webchat.get("private_never_share") or (
+        "Never share the exact street address, unit number, door codes, lockbox codes, "
+        "keypad codes, WiFi details, access instructions, owner/admin/internal details, "
+        "security information, private emergency contacts, or reservation-specific information "
+        "in public website chat."
+    )
+
+    assistant_config = (
+        cfg.get("assistant")
+        if isinstance(cfg.get("assistant"), dict)
+        else {}
+    )
 
     checkin_time_display = hour_to_ampm(
         cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart")
     )
 
     checkout_time_display = hour_to_ampm(
-        cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd")
+        cfg.get("checkOutTime")
+        or cfg.get("checkoutTime")
+        or cfg.get("checkOutTimeEnd")
     )
 
-    property_summary = "\n".join([
+    property_summary_parts = [
         f"Property name: {prop.property_name or ''}",
-        f"Address: {cfg.get('address') or ''}",
-        f"City: {cfg.get('city_name') or ''}",
+        f"City/area: {cfg.get('city_name') or cfg.get('city') or ''}",
         f"Check-in time: {checkin_time_display or ''}",
         f"Checkout time: {checkout_time_display or ''}",
-        f"WiFi network: {wifi.get('ssid') or ''}",
-        # Do not include WiFi password in public pre-booking widget.
-    ])
+        public_webchat.get("public_notes") or "",
+    ]
+
+    if share_address:
+        property_summary_parts.append(f"Address: {cfg.get('address') or ''}")
+
+    if share_wifi:
+        wifi = cfg.get("wifi") or {}
+        property_summary_parts.append(f"WiFi network: {wifi.get('ssid') or ''}")
+
+    property_summary = "\n".join([p for p in property_summary_parts if p])
 
     guides = (
         db.query(Guide)
@@ -524,6 +556,14 @@ def public_property_chat(
         f"Summary: {g.short_description or g.description or ''}\n"
         f"Content: {re.sub(r'<[^>]+>', ' ', g.body_html or '')}"
         for g in guides
+    )
+
+    # Safety net: active guides may contain private guest-only details.
+    # Until guides have their own public/private visibility setting, redact obvious sensitive lines.
+    guide_text = re.sub(
+        r"(?i)(street address|exact address|address|unit number|door code|lockbox|keypad|wifi|wi-fi|password|gate code|garage code|access code|entry code|emergency contact|owner contact|admin note)[^\n]{0,240}",
+        "[Private detail hidden from public webchat]",
+        guide_text,
     )
 
     # Include recent conversation so follow-ups work.
@@ -555,16 +595,19 @@ You are {assistant_name}, the public website assistant for {prop.property_name}.
 This visitor is on this property's direct booking website. The property has already been resolved from the widget key.
 Never ask which property they mean.
 
-Use the same property knowledge as the guest app:
+Use only public-safe property knowledge for the website chat.
 
 PROPERTY SUMMARY
 {property_summary}
 
-HOUSE MANUAL / PROPERTY CONTEXT
+OPTIONAL PUBLIC MANUAL CONTEXT
 {manual_text}
 
 ACTIVE GUIDES
 {guide_text}
+
+PUBLIC WEBCHAT PRIVACY RULES
+{privacy_rules}
 
 VOICE / STYLE
 Tone: {tone}
@@ -573,11 +616,11 @@ Style: {style}
 IMPORTANT RULES
 - The visitor is asking about this specific property, not travel in general.
 - Never answer with generic definitions when a property-specific answer is possible.
-- If someone asks "what is check in", "check in", "how does check-in work", or "property details", interpret it as a request for this property's details.
-- For "property details", summarize the actual property, amenities, location, sleeping/stay highlights, check-in/check-out basics, and booking benefits using the context above.
-- Do not reveal private stay information to pre-booking visitors, including door codes, lockbox codes, WiFi passwords, private access instructions, reservation details, owner/admin/internal details, security information, or private emergency contacts.
-- If asked for private stay details, say those are shared after booking or through the confirmed guest portal.
-- If exact information is missing from the context, say what you do know and suggest booking/contacting the host for the missing detail.
+- If someone asks "what is check in", "check in", "how does check-in work", or "property details", interpret it as a request for this property's public-safe details.
+- For "property details", summarize the actual property, amenities, general location, sleeping/stay highlights, check-in/check-out basics, and booking benefits using the public-safe context above.
+- Never share anything blocked by the public webchat privacy rules.
+- If asked for private details, say those are shared after booking or through the confirmed guest portal.
+- If exact information is missing from the public-safe context, say what you do know and suggest booking/contacting the host for the missing detail.
 - Keep answers helpful, warm, concise, and sales-friendly.
 - Encourage direct booking when relevant.
 """
@@ -631,7 +674,6 @@ IMPORTANT RULES
                 "reply": "Sorry, I had trouble answering that. Please try again in a moment.",
             },
         )
-
 # ----------------------------
 # GitHub helpers
 # ----------------------------
