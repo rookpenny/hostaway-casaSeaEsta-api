@@ -393,6 +393,9 @@ def _origin_domain(request: Request) -> str:
     except Exception:
         return ""
 
+# ----------------------------
+# PUBLIC Chat
+# ----------------------------
 
 @router.post("/api/public-property-chat")
 def public_property_chat(
@@ -425,7 +428,12 @@ def public_property_chat(
     if (getattr(pmc, "billing_status", "") or "").lower() != "active":
         raise HTTPException(status_code=402, detail="Active subscription required")
 
-    allowed_domain = (getattr(prop, "website_chat_allowed_domain", None) or "").lower().replace("www.", "").strip()
+    allowed_domain = (
+        (getattr(prop, "website_chat_allowed_domain", None) or "")
+        .lower()
+        .replace("www.", "")
+        .strip()
+    )
     request_domain = _origin_domain(request).lower().replace("www.", "").strip()
 
     if allowed_domain and request_domain:
@@ -463,44 +471,118 @@ def public_property_chat(
         db.commit()
         db.refresh(chat_session)
 
+    # ------------------------------------------------------------
+    # Use the same property context source as the guest app
+    # ------------------------------------------------------------
+    context = load_property_context(prop, db)
+    cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
+    manual_text = (
+        context.get("manual")
+        or context.get("manual_text")
+        or context.get("house_manual")
+        or ""
+    ) if isinstance(context, dict) else ""
+
+    wifi = cfg.get("wifi") or {}
+    assistant_config = cfg.get("assistant") if isinstance(cfg.get("assistant"), dict) else {}
+
+    checkin_time_display = hour_to_ampm(
+        cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart")
+    )
+    checkout_time_display = hour_to_ampm(
+        cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd")
+    )
+
+    property_summary = "\n".join([
+        f"Property name: {prop.property_name or ''}",
+        f"Address: {cfg.get('address') or ''}",
+        f"City: {cfg.get('city_name') or ''}",
+        f"Check-in time: {checkin_time_display or ''}",
+        f"Checkout time: {checkout_time_display or ''}",
+        f"WiFi network: {wifi.get('ssid') or ''}",
+        # Do not include WiFi password in public pre-booking widget.
+    ])
+
     guides = (
         db.query(Guide)
         .filter(Guide.property_id == prop.id)
         .filter(Guide.is_active == True)
         .order_by(Guide.sort_order.asc(), Guide.updated_at.desc())
-        .limit(25)
+        .limit(40)
         .all()
     )
 
     guide_text = "\n\n".join(
-        f"Title: {g.title}\nCategory: {g.category or ''}\nContent: {re.sub(r'<[^>]+>', ' ', g.body_html or '')}"
+        f"Title: {g.title}\n"
+        f"Category: {g.category or ''}\n"
+        f"Summary: {g.short_description or g.description or ''}\n"
+        f"Content: {re.sub(r'<[^>]+>', ' ', g.body_html or '')}"
         for g in guides
     )
 
+    # Optional: include a small amount of prior conversation so follow-ups work.
+    recent_messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == chat_session.id)
+        .order_by(ChatMessage.created_at.desc())
+        .limit(8)
+        .all()
+    )
+    recent_messages = list(reversed(recent_messages))
+
+    conversation_history = []
+    for m in recent_messages:
+        role = "assistant" if m.sender == "assistant" else "user"
+        conversation_history.append({
+            "role": role,
+            "content": m.content or "",
+        })
+
+    assistant_name = assistant_config.get("name") or "the property assistant"
+    style = assistant_config.get("style") or ""
+    tone = assistant_config.get("tone") or "warm, helpful, concise"
+
     system_prompt = f"""
-You are the public website assistant for {prop.property_name}.
+You are {assistant_name}, the public website assistant for {prop.property_name}.
 
-This chat is for pre-booking guests on a direct booking website.
+This visitor is on this property's direct booking website. The property has already been resolved from the widget key.
+Never ask which property they mean.
 
-Never reveal private stay information, including door codes, lockbox codes, WiFi passwords, private access instructions, reservation details, owner/admin/internal details, security information, or private emergency contacts.
+Use the same property knowledge as the guest app:
+PROPERTY SUMMARY
+{property_summary}
 
-If asked for private stay details, say those are shared after booking or through the confirmed guest portal.
+HOUSE MANUAL / PROPERTY CONTEXT
+{manual_text}
 
-Keep answers helpful, warm, concise, and sales-friendly.
-Encourage direct booking when relevant.
-
-Property knowledge:
+ACTIVE GUIDES
 {guide_text}
+
+VOICE / STYLE
+Tone: {tone}
+Style: {style}
+
+IMPORTANT RULES
+- The visitor is asking about this specific property, not travel in general.
+- Never answer with generic definitions when a property-specific answer is possible.
+- If someone asks "what is check in", "check in", "how does check-in work", or "property details", interpret it as a request for this property's details.
+- For "property details", summarize the actual property, amenities, location, sleeping/stay highlights, check-in/check-out basics, and booking benefits using the context above.
+- Do not reveal private stay information to pre-booking visitors, including door codes, lockbox codes, WiFi passwords, private access instructions, reservation details, owner/admin/internal details, security information, or private emergency contacts.
+- If asked for private stay details, say those are shared after booking or through the confirmed guest portal.
+- If exact information is missing from the context, say what you do know and suggest booking/contacting the host for the missing detail.
+- Keep answers helpful, warm, concise, and sales-friendly.
+- Encourage direct booking when relevant.
 """
 
     try:
+        messages_for_llm = [{"role": "system", "content": system_prompt}]
+        messages_for_llm.extend(conversation_history)
+        messages_for_llm.append({"role": "user", "content": user_message})
+
         resp = client.chat.completions.create(
             model=SUMMARY_MODEL,
-            temperature=0.45,
-            messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_message},
-            ],
+            temperature=0.35,
+            messages=messages_for_llm,
         )
 
         reply = resp.choices[0].message.content or "Sorry, I could not answer that right now."
@@ -540,7 +622,9 @@ Property knowledge:
                 "detail": str(e),
                 "reply": "Sorry, I had trouble answering that. Please try again in a moment.",
             },
-        )       
+        )
+
+
 # ----------------------------
 # GitHub helpers
 # ----------------------------
