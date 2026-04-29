@@ -434,6 +434,7 @@ def public_property_chat(
         .replace("www.", "")
         .strip()
     )
+
     request_domain = _origin_domain(request).lower().replace("www.", "").strip()
 
     if allowed_domain and request_domain:
@@ -473,9 +474,13 @@ def public_property_chat(
 
     # ------------------------------------------------------------
     # Use the same property context source as the guest app
+    # Important: import inside function to avoid circular import
     # ------------------------------------------------------------
+    from main import load_property_context, hour_to_ampm
+
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
+
     manual_text = (
         context.get("manual")
         or context.get("manual_text")
@@ -489,6 +494,7 @@ def public_property_chat(
     checkin_time_display = hour_to_ampm(
         cfg.get("checkInTimeStart") or cfg.get("checkinTimeStart")
     )
+
     checkout_time_display = hour_to_ampm(
         cfg.get("checkOutTime") or cfg.get("checkoutTime") or cfg.get("checkOutTimeEnd")
     )
@@ -520,7 +526,7 @@ def public_property_chat(
         for g in guides
     )
 
-    # Optional: include a small amount of prior conversation so follow-ups work.
+    # Include recent conversation so follow-ups work.
     recent_messages = (
         db.query(ChatMessage)
         .filter(ChatMessage.session_id == chat_session.id)
@@ -528,6 +534,7 @@ def public_property_chat(
         .limit(8)
         .all()
     )
+
     recent_messages = list(reversed(recent_messages))
 
     conversation_history = []
@@ -549,6 +556,7 @@ This visitor is on this property's direct booking website. The property has alre
 Never ask which property they mean.
 
 Use the same property knowledge as the guest app:
+
 PROPERTY SUMMARY
 {property_summary}
 
@@ -623,7 +631,6 @@ IMPORTANT RULES
                 "reply": "Sorry, I had trouble answering that. Please try again in a moment.",
             },
         )
-
 
 # ----------------------------
 # GitHub helpers
