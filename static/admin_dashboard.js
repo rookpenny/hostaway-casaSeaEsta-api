@@ -79,9 +79,9 @@ function goToView(view) {
   const url = new URL(window.location.href);
   url.searchParams.set("view", view);
 
-  if (view !== "chats") {
-    url.searchParams.delete("session_id");
-  }
+  // Always clear chat detail/group state when changing views through app navigation.
+  url.searchParams.delete("session_id");
+  url.searchParams.delete("grouped_session_ids");
 
   // Clear stale hashes like #overview
   url.hash = "";
@@ -6166,25 +6166,31 @@ if (key === "upgrades" && window.Upgrades) {
     }
   }
 
-  navItems.forEach((btn) => {
-    btn.addEventListener("click", async (e) => {
-      e.preventDefault();
-      const key = (btn.dataset.view || "overview").toLowerCase();
+navItems.forEach((btn) => {
+  btn.addEventListener("click", async (e) => {
+    e.preventDefault();
 
-      const url = new URL(window.location.href);
-      url.searchParams.delete("session_id");
-      url.searchParams.set("view", key);
+    const key = (btn.dataset.view || "overview").toLowerCase();
 
-      if (key === "chats") {
-        url.hash = "";
-      } else {
-        url.hash = `#${key}`;
-      }
+    const url = new URL(window.location.href);
+    url.searchParams.set("view", key);
 
-      history.pushState(null, "", url.toString());
-      await route();
-    });
+    // Always clear chat detail/group state when using the left nav.
+    url.searchParams.delete("session_id");
+    url.searchParams.delete("grouped_session_ids");
+
+    // Clear filters/detail-only state when returning to the full Chats page.
+    if (key === "chats") {
+      url.searchParams.delete("trend_filter");
+      url.hash = "";
+    } else {
+      url.hash = `#${key}`;
+    }
+
+    history.pushState(null, "", url.toString());
+    await route();
   });
+});
 
   document.addEventListener("click", (e) => {
     const btn = e.target.closest("#chat-detail-back");
