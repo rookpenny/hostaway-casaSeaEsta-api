@@ -1345,19 +1345,100 @@ let CATEGORIES = [];
 
   
 
-  function ensureShape() {
-    cfg.assistant = cfg.assistant || {};
-    const a = cfg.assistant;
-    a.voice = a.voice || {};
-    a.do = Array.isArray(a.do) ? a.do : a.do ? [String(a.do)] : [];
-    a.dont = Array.isArray(a.dont) ? a.dont : a.dont ? [String(a.dont)] : [];
-    a.quick_replies = Array.isArray(a.quick_replies)
-      ? a.quick_replies
-      : a.quick_replies
-      ? [String(a.quick_replies)]
-      : [];
+function ensureShape() {
+  cfg.assistant = cfg.assistant || {};
+  const a = cfg.assistant;
+
+  a.voice = a.voice || {};
+
+  a.do = Array.isArray(a.do) ? a.do : a.do ? [String(a.do)] : [];
+  a.dont = Array.isArray(a.dont) ? a.dont : a.dont ? [String(a.dont)] : [];
+
+  a.quick_replies = Array.isArray(a.quick_replies)
+    ? a.quick_replies
+    : a.quick_replies
+    ? [String(a.quick_replies)]
+    : [];
+
+  ensurePublicWebchatShape();
+}
+
+  function ensurePublicWebchatShape() {
+  cfg.public_webchat = cfg.public_webchat || {};
+
+  cfg.public_webchat.enabled = !!cfg.public_webchat.enabled;
+  cfg.public_webchat.share_address = !!cfg.public_webchat.share_address;
+  cfg.public_webchat.share_wifi = !!cfg.public_webchat.share_wifi;
+  cfg.public_webchat.share_access_instructions = !!cfg.public_webchat.share_access_instructions;
+  cfg.public_webchat.share_emergency_contacts = !!cfg.public_webchat.share_emergency_contacts;
+  cfg.public_webchat.share_house_manual = !!cfg.public_webchat.share_house_manual;
+
+  cfg.public_webchat.public_notes = cfg.public_webchat.public_notes || "";
+  cfg.public_webchat.private_never_share = cfg.public_webchat.private_never_share || "";
+  cfg.public_webchat.welcome_message = cfg.public_webchat.welcome_message || "";
+  cfg.public_webchat.booking_cta = cfg.public_webchat.booking_cta || "";
+}
+
+function setByPath(obj, path, value) {
+  const parts = String(path || "").split(".").filter(Boolean);
+  if (!parts.length) return;
+
+  let cur = obj;
+  for (let i = 0; i < parts.length - 1; i++) {
+    const key = parts[i];
+    cur[key] = cur[key] || {};
+    cur = cur[key];
   }
 
+  cur[parts[parts.length - 1]] = value;
+}
+
+function getByPath(obj, path, fallback = "") {
+  const parts = String(path || "").split(".").filter(Boolean);
+  let cur = obj;
+
+  for (const key of parts) {
+    if (cur == null || typeof cur !== "object" || !(key in cur)) return fallback;
+    cur = cur[key];
+  }
+
+  return cur ?? fallback;
+}
+
+function renderConfigPathFields() {
+  ensurePublicWebchatShape();
+
+  $$("[data-config-path]").forEach((el) => {
+    const path = el.getAttribute("data-config-path");
+    const fallback = el.type === "checkbox" ? false : "";
+    const value = getByPath(cfg, path, fallback);
+
+    if (el.type === "checkbox") {
+      el.checked = !!value;
+    } else {
+      el.value = value == null ? "" : String(value);
+    }
+  });
+}
+
+function readConfigPathFieldsIntoCfg() {
+  $$("[data-config-path]").forEach((el) => {
+    const path = el.getAttribute("data-config-path");
+    if (!path) return;
+
+    let value;
+    if (el.type === "checkbox") {
+      value = !!el.checked;
+    } else {
+      value = el.value || "";
+    }
+
+    setByPath(cfg, path, value);
+  });
+}
+
+
+  
   function setStatus(kind, text) {
     const dot = hostEl.querySelector("#dot");
     const statusText = hostEl.querySelector("#statusText");
@@ -1514,6 +1595,7 @@ let CATEGORIES = [];
     $("voice_error_message").value = a.voice.error_message || "";
 
     renderQuickReplies();
+    renderConfigPathFields();
 
     if (!editingRaw) $("rawJson").value = JSON.stringify(cfg, null, 2);
 
@@ -1544,6 +1626,7 @@ let CATEGORIES = [];
     a.voice.offline_message = $("voice_offline_message").value;
     a.voice.fallback_message = $("voice_fallback_message").value;
     a.voice.error_message = $("voice_error_message").value;
+    readConfigPathFieldsIntoCfg();
   }
 
   function markDirtyAndRender() {
