@@ -18,7 +18,7 @@
         </h1>
 
         <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-          Train how this property’s AI assistant sounds, what it can say, and what stays protected in public website chat.
+          Train how this property’s AI assistant sounds and what public website visitors can ask before booking.
         </p>
 
         <div class="mt-4 hidden text-xs text-slate-400 md:block">
@@ -317,129 +317,74 @@
       </section>
 
       <!-- Website chat controls -->
-      <section class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
-        <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-          <div class="flex items-start gap-4">
-            <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-cyan-50 text-xl">
-              🌐
-            </div>
-            <div>
-              <h2 class="text-[20px] font-semibold tracking-[-0.03em] text-slate-950">
-                Website chat controls
-              </h2>
-              <p class="mt-1 text-sm leading-6 text-slate-500">
-                Decide what the public webchat can share before someone books.
-              </p>
-            </div>
-          </div>
+      <!-- Website chat knowledge -->
+<section class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+  <div class="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+    <div class="flex items-start gap-4">
+      <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-[18px] bg-cyan-50 text-xl">
+        🌐
+      </div>
+      <div>
+        <h2 class="text-[20px] font-semibold tracking-[-0.03em] text-slate-950">
+          Website chat knowledge
+        </h2>
+        <p class="mt-1 text-sm leading-6 text-slate-500">
+          Add the public-safe information this website chat can use before someone books.
+        </p>
+      </div>
+    </div>
 
-          <div class="rounded-full bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-700">
-            Public safety settings
-          </div>
-        </div>
+    <div class="rounded-full bg-cyan-50 px-3 py-1 text-xs font-semibold text-cyan-700">
+      Public website chat
+    </div>
+  </div>
 
-        <div class="mt-6 rounded-[24px] border border-rose-100 bg-rose-50/50 p-4">
-          <div class="text-sm font-semibold text-rose-800">
-            Recommended: keep private stay details off
-          </div>
-          <p class="mt-1 text-sm leading-6 text-rose-700/80">
-            Exact address, WiFi, door codes, lockbox instructions, and emergency contacts should usually stay hidden until a guest is confirmed.
-          </p>
-        </div>
+  <div class="mt-6 rounded-[24px] border border-cyan-100 bg-cyan-50/60 p-4">
+    <div class="text-sm font-semibold text-cyan-900">
+      Simple rule: the website chat only knows what you publish here and in active guides.
+    </div>
+    <p class="mt-1 text-sm leading-6 text-cyan-800/80">
+      Use this for public pre-booking information like property highlights, amenities, general location,
+      nearby attractions, booking benefits, and what guests can expect.
+    </p>
+  </div>
 
-        <div class="mt-5 grid gap-4 md:grid-cols-2">
-          <label class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-            <span>
-              <span class="block text-sm font-semibold text-slate-800">Share exact address</span>
-              <span class="block text-xs leading-5 text-slate-500">Usually keep this off before booking.</span>
-            </span>
-            <input
-              type="checkbox"
-              data-config-path="public_webchat.share_address"
-              class="h-5 w-5"
-              {% if config_json.public_webchat.share_address %}checked{% endif %}
-            />
-          </label>
+  <label class="mt-5 block">
+    <span class="text-sm font-semibold text-slate-700">Public webchat knowledge</span>
+    <span class="mt-1 block text-xs leading-5 text-slate-500">
+      Safe information the AI can use before someone books.
+    </span>
+    <textarea
+      rows="8"
+      data-config-path="public_webchat.public_notes"
+      placeholder="Example: Sea Esta is a family-friendly Siesta Key stay near the beach with a private pool, outdoor space, and easy access to local restaurants. Guests can book direct for the best available rate."
+      class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-cyan-300"
+    >{{ config_json.public_webchat.public_notes or "" }}</textarea>
+  </label>
 
-          <label class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-            <span>
-              <span class="block text-sm font-semibold text-slate-800">Share WiFi details</span>
-              <span class="block text-xs leading-5 text-slate-500">Recommended off for public webchat.</span>
-            </span>
-            <input
-              type="checkbox"
-              data-config-path="public_webchat.share_wifi"
-              class="h-5 w-5"
-              {% if config_json.public_webchat.share_wifi %}checked{% endif %}
-            />
-          </label>
+  <label class="mt-5 block">
+    <span class="text-sm font-semibold text-slate-700">Booking call-to-action</span>
+    <span class="mt-1 block text-xs leading-5 text-slate-500">
+      Optional message the assistant can use when a visitor is considering booking.
+    </span>
+    <textarea
+      rows="3"
+      data-config-path="public_webchat.booking_cta"
+      placeholder="Example: For the best rate and easiest booking experience, book directly through this website."
+      class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-cyan-300"
+    >{{ config_json.public_webchat.booking_cta or "" }}</textarea>
+  </label>
 
-          <label class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-            <span>
-              <span class="block text-sm font-semibold text-slate-800">Share access instructions</span>
-              <span class="block text-xs leading-5 text-slate-500">Door, lockbox, keypad, or entry details.</span>
-            </span>
-            <input
-              type="checkbox"
-              data-config-path="public_webchat.share_access_instructions"
-              class="h-5 w-5"
-              {% if config_json.public_webchat.share_access_instructions %}checked{% endif %}
-            />
-          </label>
-
-          <label class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4">
-            <span>
-              <span class="block text-sm font-semibold text-slate-800">Share emergency contacts</span>
-              <span class="block text-xs leading-5 text-slate-500">Usually only for confirmed guests.</span>
-            </span>
-            <input
-              type="checkbox"
-              data-config-path="public_webchat.share_emergency_contacts"
-              class="h-5 w-5"
-              {% if config_json.public_webchat.share_emergency_contacts %}checked{% endif %}
-            />
-          </label>
-
-          <label class="flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 md:col-span-2">
-            <span>
-              <span class="block text-sm font-semibold text-slate-800">Allow house manual in public webchat</span>
-              <span class="block text-xs leading-5 text-slate-500">Keep off unless your manual contains only public-safe information.</span>
-            </span>
-            <input
-              type="checkbox"
-              data-config-path="public_webchat.share_house_manual"
-              class="h-5 w-5"
-              {% if config_json.public_webchat.share_house_manual %}checked{% endif %}
-            />
-          </label>
-        </div>
-
-        <div class="mt-5 grid gap-4">
-          <label class="block">
-            <span class="text-sm font-semibold text-slate-700">Public webchat knowledge</span>
-            <span class="mt-1 block text-xs leading-5 text-slate-500">
-              Safe information the AI can use before someone books.
-            </span>
-            <textarea
-              rows="5"
-              data-config-path="public_webchat.public_notes"
-              class="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-800 outline-none focus:border-blue-300"
-            >{{ config_json.public_webchat.public_notes or "" }}</textarea>
-          </label>
-
-          <label class="block">
-            <span class="text-sm font-semibold text-slate-700">Extra private notes</span>
-            <span class="mt-1 block text-xs leading-5 text-slate-500">
-              Add anything else the assistant should never share publicly. The safety toggles above are handled automatically.
-            </span>
-            <textarea
-              rows="5"
-              data-config-path="public_webchat.private_never_share"
-              class="mt-2 w-full rounded-2xl border border-rose-100 bg-rose-50/40 px-4 py-3 text-sm text-slate-800 outline-none focus:border-rose-300"
-            >{{ config_json.public_webchat.private_never_share or "" }}</textarea>
-          </label>
-        </div>
-      </section>
+  <div class="mt-5 rounded-[24px] border border-slate-200 bg-slate-50 p-4">
+    <div class="text-sm font-semibold text-slate-800">
+      Active guides can also help the website chat.
+    </div>
+    <p class="mt-1 text-sm leading-6 text-slate-500">
+      The public webchat can reference active guide content, with obvious private details like door codes,
+      lockbox details, WiFi passwords, emergency contacts, and exact address lines redacted automatically.
+    </p>
+  </div>
+</section>
     </div>
 
     <!-- Sticky preview column -->
@@ -489,11 +434,11 @@
             </span>
           </div>
         </div>
-
+      </div>
       <div class="mt-4 rounded-[28px] border border-slate-200 bg-slate-950 p-5 text-white shadow-sm">
         <div class="text-sm font-semibold">Website chat safety</div>
         <p class="mt-2 text-sm leading-6 text-slate-300">
-          Public webchat should answer sales and amenity questions while protecting private guest-only details.
+          Website chat answers from public webchat knowledge and active guides. Keep private guest-only details out of public notes.
         </p>
       </div>
     </aside>
