@@ -691,24 +691,24 @@ def public_property_chat(
         public_webchat.get("public_notes") or "",
     ]
 
-property_cfg = cfg.get("property") if isinstance(cfg.get("property"), dict) else {}
+    property_cfg = cfg.get("property") if isinstance(cfg.get("property"), dict) else {}
 
-if share_address:
-    address = (
-        property_cfg.get("address_line")
-        or cfg.get("address")
-        or cfg.get("address_line")
-        or getattr(prop, "address", None)
-        or getattr(prop, "address_line", None)
-        or ""
-    ).strip()
+    if share_address:
+        address = (
+            property_cfg.get("address_line")
+            or cfg.get("address")
+            or cfg.get("address_line")
+            or getattr(prop, "address", None)
+            or getattr(prop, "address_line", None)
+            or ""
+        ).strip()
 
-    if address:
-        property_summary_parts.append(f"Exact address: {address}")
+        if address:
+            property_summary_parts.append(f"Exact address: {address}")
 
     if share_wifi:
         wifi = cfg.get("wifi") if isinstance(cfg.get("wifi"), dict) else {}
-    
+
         wifi_network = (
             wifi.get("ssid")
             or wifi.get("network")
@@ -717,17 +717,17 @@ if share_address:
             or cfg.get("wifi_network")
             or ""
         )
-    
+
         wifi_password = (
             wifi.get("password")
             or wifi.get("passcode")
             or cfg.get("wifi_password")
             or ""
         )
-    
+
         if wifi_network:
             property_summary_parts.append(f"WiFi network: {wifi_network}")
-    
+
         if wifi_password:
             property_summary_parts.append(f"WiFi password: {wifi_password}")
 
