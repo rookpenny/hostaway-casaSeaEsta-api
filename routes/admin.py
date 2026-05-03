@@ -898,7 +898,82 @@ def upgrades_ajax_duplicate(
     return {"ok": True, "id": copied.id}
 
 
+@router.get("/api/public-property-chat/status")
+def public_property_chat_status(
+    widget_key: str = Query(...),
+    request: Request = None,
+    db: Session = Depends(get_db),
+):
+    widget_key = (widget_key or "").strip()
 
+    if not widget_key:
+        return {
+            "ok": False,
+            "enabled": False,
+            "reason": "missing_widget_key",
+        }
+
+    prop = (
+        db.query(Property)
+        .filter(Property.website_chat_widget_key == widget_key)
+        .first()
+    )
+
+    if not prop:
+        return {
+            "ok": False,
+            "enabled": False,
+            "reason": "widget_not_found",
+        }
+
+    if not bool(getattr(prop, "website_chat_enabled", False)):
+        return {
+            "ok": True,
+            "enabled": False,
+            "reason": "disabled",
+            "property_name": prop.property_name,
+        }
+
+    pmc = db.query(PMC).filter(PMC.id == prop.pmc_id).first()
+    if not pmc:
+        return {
+            "ok": False,
+            "enabled": False,
+            "reason": "pmc_not_found",
+        }
+
+    if (getattr(pmc, "billing_status", "") or "").lower() != "active":
+        return {
+            "ok": True,
+            "enabled": False,
+            "reason": "billing_inactive",
+            "property_name": prop.property_name,
+        }
+
+    allowed_domain = (
+        (getattr(prop, "website_chat_allowed_domain", None) or "")
+        .lower()
+        .replace("www.", "")
+        .strip()
+    )
+
+    request_domain = _origin_domain(request).lower().replace("www.", "").strip() if request else ""
+
+    if allowed_domain and request_domain:
+        if request_domain != allowed_domain and not request_domain.endswith("." + allowed_domain):
+            return {
+                "ok": True,
+                "enabled": False,
+                "reason": "domain_not_allowed",
+                "property_name": prop.property_name,
+            }
+
+    return {
+        "ok": True,
+        "enabled": True,
+        "reason": "enabled",
+        "property_name": prop.property_name,
+    }
 
 @router.post("/admin/properties/{property_id}/website-widget")
 def toggle_website_widget(
