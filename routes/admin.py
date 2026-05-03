@@ -407,21 +407,47 @@ def _html_to_plain_text(value: str | None) -> str:
 def _redact_sensitive_public_webchat_text(text: str | None) -> str:
     """
     Safety net for public website chat.
-    Public webchat should answer from public notes + active guides, but obvious
-    guest-only/private details should not leak accidentally.
+    Keeps useful public/manual/guide content while removing obvious guest-only details.
     """
     text = text or ""
 
-    sensitive_patterns = [
-        r"(?i)(door code|lockbox|keypad|gate code|garage code|access code|entry code)[^\n]{0,240}",
-        r"(?i)(wifi|wi-fi|network name|password)[^\n]{0,240}",
-        r"(?i)(emergency contact|owner contact|admin note|internal note)[^\n]{0,240}",
-        r"(?i)(exact address|street address|unit number)[^\n]{0,240}",
+    # Remove titled sensitive sections, including the line after the heading.
+    section_patterns = [
+        r"(?ims)^\s*(property information\s*)?\n?\s*address\s*\n.+?(?=\n\s*\n|\Z)",
+        r"(?ims)^\s*wifi information\s*\n.+?(?=\n\s*\n|\Z)",
+        r"(?ims)^\s*(door|entry|access|lockbox|keypad|gate)\s*(information|instructions)?\s*\n.+?(?=\n\s*\n|\Z)",
+        r"(?ims)^\s*emergency\s*(contacts|contact information)?\s*\n.+?(?=\n\s*\n|\Z)",
     ]
 
-    for pattern in sensitive_patterns:
+    for pattern in section_patterns:
+        text = re.sub(pattern, "[Private detail hidden from public webchat]\n\n", text)
+
+    # Remove individual sensitive lines.
+    line_patterns = [
+        r"(?im)^\s*(address|exact address|street address|unit number)\s*:?.*$",
+        r"(?im)^\s*(network name|wifi|wi-fi|password)\s*:?.*$",
+        r"(?im)^\s*(door code|lockbox code|keypad code|gate code|garage code|access code|entry code)\s*:?.*$",
+        r"(?im)^\s*(emergency contact|owner contact|admin note|internal note)\s*:?.*$",
+    ]
+
+    for pattern in line_patterns:
         text = re.sub(pattern, "[Private detail hidden from public webchat]", text)
 
+    # Remove US-style street addresses even when they appear on their own line.
+    text = re.sub(
+        r"(?im)^\s*\d{2,6}\s+[A-Za-z0-9 .'-]+(?:Road|Rd|Street|St|Avenue|Ave|Boulevard|Blvd|Drive|Dr|Lane|Ln|Court|Ct|Circle|Cir|Way|Place|Pl|Trail|Trl|Pass|Parkway|Pkwy)\b.*$",
+        "[Private detail hidden from public webchat]",
+        text,
+    )
+
+    # Remove placeholder or real-looking WiFi passwords.
+    text = re.sub(
+        r"(?im)^\s*(password|wifi password|wi-fi password)\s*:?.*$",
+        "[Private detail hidden from public webchat]",
+        text,
+    )
+
+    text = re.sub(r"\n{3,}", "\n\n", text)
     return text.strip()
 
 
@@ -629,6 +655,7 @@ Style: {style}
 IMPORTANT RULES
 - The visitor is asking about this specific property, not travel in general.
 - Never answer with generic definitions when a property-specific answer is available.
+- Never share exact street address, unit number, WiFi password, door codes, lockbox codes, keypad codes, access instructions, emergency contacts, owner contact details, or internal notes in public website chat, even if they appear in the property instructions/manual.
 - Source priority: first use PROPERTY INSTRUCTIONS / MANUAL, then this property's active guides, then property summary.
 - If the answer is present in property instructions/manual, answer from those instructions first.
 - If the answer is present in this property's active guides, answer from the guides.
