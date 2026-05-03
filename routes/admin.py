@@ -569,7 +569,8 @@ def public_property_chat(
 
     if share_wifi:
         wifi = cfg.get("wifi") or {}
-        property_summary_parts.append(f"WiFi network: {wifi.get('ssid') or ''}")
+        property_summary_parts.append(f"WiFi network: {wifi.get('ssid') or wifi.get('network') or ''}")
+        property_summary_parts.append(f"WiFi password: {wifi.get('password') or ''}")
 
     property_summary = "\n".join([p for p in property_summary_parts if p])
 
@@ -650,8 +651,8 @@ IMPORTANT RULES
 - Never answer with generic definitions when a property-specific answer is possible.
 - If someone asks "what is check in", "check in", "how does check-in work", or "property details", interpret it as a request for this property's public-safe details.
 - For "property details", summarize the actual property, amenities, general location, sleeping/stay highlights, check-in/check-out basics, and booking benefits using the public-safe context above.
-- Never share anything blocked by the public webchat privacy rules.
-- If asked for private details, say those are shared after booking or through the confirmed guest portal.
+- Follow the Public Webchat Sharing Rules exactly. If a category is marked YES, you may share that information when it exists in the property summary or public-safe context. If a category is marked NO, do not share it.
+- If asked for a detail marked NO or missing from the context, say it is shared after booking or through the confirmed guest portal.
 - If exact information is missing from the public-safe context, say what you do know and suggest booking/contacting the host for the missing detail.
 - Keep answers helpful, warm, concise, and sales-friendly.
 - Encourage direct booking when relevant.
