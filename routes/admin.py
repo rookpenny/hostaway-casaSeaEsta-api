@@ -720,17 +720,25 @@ def public_property_chat(
         address = (
             _clean_context_value(context.get("address") if isinstance(context, dict) else None)
             or _clean_context_value(context.get("full_address") if isinstance(context, dict) else None)
+            or _clean_context_value(context.get("address_line") if isinstance(context, dict) else None)
+            or _clean_context_value(context.get("property_address") if isinstance(context, dict) else None)
+            or _clean_context_value(context.get("listing_address") if isinstance(context, dict) else None)
             or _clean_context_value(cfg.get("address"))
             or _clean_context_value(cfg.get("full_address"))
+            or _clean_context_value(cfg.get("address_line"))
+            or _clean_context_value(property_cfg.get("address_line"))
+            or _clean_context_value(property_cfg.get("full_address"))
+            or _clean_context_value(property_cfg.get("address"))
             or _clean_context_value(getattr(prop, "address", None))
             or _clean_context_value(getattr(prop, "full_address", None))
             or _clean_context_value(getattr(prop, "address_line", None))
-            or _clean_context_value(property_cfg.get("address_line"))
-            or _clean_context_value(cfg.get("address_line"))
+            or _clean_context_value(getattr(prop, "street_address", None))
+            or _clean_context_value(getattr(prop, "listing_address", None))
         )
 
         if address:
             property_summary_parts.append(f"Exact address: {address}")
+            property_summary_parts.append("Address sharing is explicitly enabled for this public webchat.")
 
     if share_wifi:
         wifi = cfg.get("wifi") if isinstance(cfg.get("wifi"), dict) else {}
@@ -807,6 +815,19 @@ def public_property_chat(
     style = assistant_config.get("style") or ""
     tone = assistant_config.get("tone") or "warm, helpful, concise"
 
+    print("PUBLIC WEBCHAT DEBUG", {
+        "property": prop.property_name,
+        "share_address": share_address,
+        "share_wifi": share_wifi,
+        "property_summary": property_summary,
+        "privacy_rules": privacy_rules,
+        "context_keys": list(context.keys()) if isinstance(context, dict) else [],
+        "cfg_keys": list(cfg.keys()) if isinstance(cfg, dict) else [],
+        "prop_address": getattr(prop, "address", None),
+        "prop_full_address": getattr(prop, "full_address", None),
+        "prop_address_line": getattr(prop, "address_line", None),
+    })
+
     system_prompt = f"""
 You are {assistant_name}, the public website assistant for {prop.property_name}.
 
@@ -837,7 +858,9 @@ IMPORTANT RULES
 - If someone asks "what is check in", "check in", "how does check-in work", or "property details", interpret it as a request for this property's public-safe details.
 - For "property details", summarize the actual property, amenities, general location, sleeping/stay highlights, check-in/check-out basics, and booking benefits using the public-safe context above.
 - Follow the Public Webchat Sharing Rules exactly. The YES/NO settings are the source of truth.
-- If a category is marked YES and the information exists in PROPERTY SUMMARY, you may share it directly.
+- If Share exact address is YES and Exact address appears in PROPERTY SUMMARY, you MUST provide the exact address when the visitor asks for the address. Do not say the address cannot be shared publicly.
+- If Share WiFi network/password is YES and WiFi details appear in PROPERTY SUMMARY, you MUST provide the WiFi details when the visitor asks for WiFi.
+- If any other category is marked YES and the information exists in PROPERTY SUMMARY, you may share it directly.
 - If a category is marked NO, do not share it publicly.
 - If asked for a detail marked YES but the information is missing from PROPERTY SUMMARY, say you do not have that exact detail here and suggest contacting the host.
 - If asked for a detail marked NO, say it is shared after booking or through the confirmed guest portal.
