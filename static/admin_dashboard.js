@@ -729,13 +729,16 @@ async function copyWebsiteWidgetCode() {
     await navigator.clipboard.writeText(code);
 
     if (btn) {
-      const originalText = btn.textContent;
+      const originalText = btn.textContent.trim() || "Copy";
+
       btn.textContent = "Copied!";
+      btn.classList.remove("bg-indigo-600");
       btn.classList.add("bg-emerald-500");
 
       setTimeout(() => {
-        btn.textContent = originalText || "Copy";
+        btn.textContent = originalText;
         btn.classList.remove("bg-emerald-500");
+        btn.classList.add("bg-indigo-600");
       }, 1600);
     }
   } catch (err) {
