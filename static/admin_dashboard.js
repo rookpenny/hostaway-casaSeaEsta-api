@@ -1270,6 +1270,8 @@ window.initConfigUI = function initConfigUI(hostEl) {
   hostEl.__configUIInited = true;
   hostEl.__configUIAlive = true;
 
+  
+
   function getFilePath() {
     if (!hostEl) return "";
 
@@ -1640,41 +1642,41 @@ function readConfigPathFieldsIntoCfg() {
   // Save
   // -----------------------
   async function saveNow() {
-    if (!hostEl.__configUIAlive) return;
-    if (saving) return;
+  if (!hostEl.__configUIAlive) return;
+  if (saving) return;
 
-    saving = true;
-    const btnSave = hostEl.querySelector("#btnSave");
-    if (btnSave) btnSave.disabled = true;
+  saving = true;
+  const btnSave = hostEl.querySelector("#btnSave");
+  if (btnSave) btnSave.disabled = true;
 
-    setStatus("warn", "Saving…");
+  setStatus("warn", "Saving…");
 
-    try {
-      readFormIntoCfg();
+  try {
+    readFormIntoCfg();
 
-      const file_path = getFilePath();
-      if (!file_path) throw new Error("Missing file_path");
+    const file_path = getFilePath();
+    if (!file_path) throw new Error("Missing file_path");
 
-      const resp = await fetch("/admin/config-ui/save", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ file_path, config: cfg }),
-      });
+    const resp = await fetch("/admin/config-ui/save", {
+      method: "POST",
+      credentials: "include",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ file_path, config: cfg }),
+    });
 
-      const data = await resp.json().catch(() => ({}));
-      if (!resp.ok || !data.ok) throw new Error(data.error || "Save failed");
+    const data = await resp.json().catch(() => ({}));
+    if (!resp.ok || !data.ok) throw new Error(data.error || "Save failed");
 
-      dirty = false;
-      setStatus("ok", "Saved ✓");
-    } catch (e) {
-      console.error(e);
-      setStatus("err", "Save failed: " + (e.message || e));
-    } finally {
-      saving = false;
-      if (btnSave) btnSave.disabled = false;
-    }
+    dirty = false;
+    setStatus("ok", "Saved ✓");
+  } catch (e) {
+    console.error(e);
+    setStatus("err", "Save failed: " + (e.message || e));
+  } finally {
+    saving = false;
+    if (btnSave) btnSave.disabled = false;
   }
+}
 
   const scheduleAutosave = debounce(() => {
     if (dirty) saveNow();
@@ -1748,7 +1750,7 @@ function readConfigPathFieldsIntoCfg() {
     $("rawJson").addEventListener("focus", () => (editingRaw = true));
     $("rawJson").addEventListener("blur", () => (editingRaw = false));
 
-    const onAnyChange = () => {
+    const onAnyChange = (e) => {
       readFormIntoCfg();
       dirty = true;
       setStatus("warn", "Unsaved changes…");
