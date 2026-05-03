@@ -506,6 +506,29 @@ def _clean_extra_private_notes_for_public_webchat(
 
     return " ".join(cleaned).strip()
 
+
+def _clean_context_value(value: str | None) -> str:
+    value = (value or "").strip()
+    if not value:
+        return ""
+
+    placeholders = {
+        "YOUR PROPERTY ADDRESS HERE",
+        "REAL ADDRESS GOES HERE",
+        "YOUR ADDRESS HERE",
+        "ADDRESS GOES HERE",
+        "ADD ADDRESS HERE",
+        "[ADD ADDRESS]",
+        "[PROPERTY ADDRESS]",
+        "YOUR WIFI PASSWORD",
+        "YOUR WIFI NETWORK",
+    }
+
+    if value.upper() in {p.upper() for p in placeholders}:
+        return ""
+
+    return value
+    
 @router.post("/api/public-property-chat")
 def public_property_chat(
     request: Request,
@@ -695,13 +718,16 @@ def public_property_chat(
 
     if share_address:
         address = (
-            property_cfg.get("address_line")
-            or cfg.get("address")
-            or cfg.get("address_line")
-            or getattr(prop, "address", None)
-            or getattr(prop, "address_line", None)
-            or ""
-        ).strip()
+            _clean_context_value(context.get("address") if isinstance(context, dict) else None)
+            or _clean_context_value(context.get("full_address") if isinstance(context, dict) else None)
+            or _clean_context_value(cfg.get("address"))
+            or _clean_context_value(cfg.get("full_address"))
+            or _clean_context_value(getattr(prop, "address", None))
+            or _clean_context_value(getattr(prop, "full_address", None))
+            or _clean_context_value(getattr(prop, "address_line", None))
+            or _clean_context_value(property_cfg.get("address_line"))
+            or _clean_context_value(cfg.get("address_line"))
+        )
 
         if address:
             property_summary_parts.append(f"Exact address: {address}")
