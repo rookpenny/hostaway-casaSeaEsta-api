@@ -501,12 +501,44 @@ def public_property_chat(
     if not share_house_manual:
         manual_text = ""
 
-    privacy_rules = public_webchat.get("private_never_share") or (
-        "Never share the exact street address, unit number, door codes, lockbox codes, "
-        "keypad codes, WiFi details, access instructions, owner/admin/internal details, "
-        "security information, private emergency contacts, or reservation-specific information "
-        "in public website chat."
+    blocked_public_items = []
+    
+    if not share_address:
+        blocked_public_items.append("exact street address or unit number")
+    
+    if not share_wifi:
+        blocked_public_items.append("WiFi network name or WiFi password")
+    
+    if not bool(public_webchat.get("share_access_instructions", False)):
+        blocked_public_items.append("door codes, lockbox codes, keypad codes, gate codes, or access instructions")
+    
+    if not bool(public_webchat.get("share_emergency_contacts", False)):
+        blocked_public_items.append("private emergency contacts")
+    
+    blocked_public_items.extend([
+        "owner/admin/internal details",
+        "security information",
+        "reservation-specific information for unverified visitors",
+    ])
+    
+    custom_never_share = (public_webchat.get("private_never_share") or "").strip()
+    
+    privacy_rules = (
+        "Public webchat sharing rules:\n"
+        f"- Share exact address: {'YES' if share_address else 'NO'}\n"
+        f"- Share WiFi details: {'YES' if share_wifi else 'NO'}\n"
+        f"- Share access instructions: {'YES' if bool(public_webchat.get('share_access_instructions', False)) else 'NO'}\n"
+        f"- Share emergency contacts: {'YES' if bool(public_webchat.get('share_emergency_contacts', False)) else 'NO'}\n\n"
+        "Do not share these items publicly:\n"
+        + "\n".join(f"- {item}" for item in blocked_public_items)
     )
+    
+    if custom_never_share:
+        privacy_rules += (
+            "\n\nAdditional custom private notes. Follow these only when they do not conflict "
+            "with the explicit YES/NO sharing settings above:\n"
+            f"{custom_never_share}"
+        )
 
     assistant_config = (
         cfg.get("assistant")
