@@ -397,6 +397,115 @@ def _origin_domain(request: Request) -> str:
 # PUBLIC Chat
 # ----------------------------
 
+def _clean_extra_private_notes_for_public_webchat(
+    text: str,
+    *,
+    share_address: bool,
+    share_wifi: bool,
+    share_access_instructions: bool,
+    share_emergency_contacts: bool,
+    share_house_manual: bool,
+) -> str:
+    """
+    Host-entered private notes are extra notes only.
+    They should never override the explicit YES/NO public-webchat toggles.
+    """
+    text = (text or "").strip()
+    if not text:
+        return ""
+
+    # Ignore the old default placeholder/instruction text.
+    old_default = (
+        "Never share the exact street address, unit number, door codes, lockbox codes, "
+        "keypad codes, WiFi details, access instructions, owner/admin/internal details, "
+        "security information, private emergency contacts, or reservation-specific information "
+        "in public website chat."
+    )
+
+    if text == old_default:
+        return ""
+
+    placeholder = (
+        "Add any extra private details the public webchat should never share. "
+        "The safety toggles above are handled automatically."
+    )
+
+    if text == placeholder:
+        return ""
+
+    # Remove any host-entered sentence that contradicts enabled toggles.
+    sentences = re.split(r"(?<=[.!?])\s+", text)
+    cleaned = []
+
+    for sentence in sentences:
+        s = sentence.strip()
+        if not s:
+            continue
+
+        low = s.lower()
+
+        contradicts_address = share_address and any(
+            term in low
+            for term in [
+                "street address",
+                "exact address",
+                "address",
+                "unit number",
+            ]
+        )
+
+        contradicts_wifi = share_wifi and any(
+            term in low
+            for term in [
+                "wifi",
+                "wi-fi",
+                "network name",
+                "password",
+            ]
+        )
+
+        contradicts_access = share_access_instructions and any(
+            term in low
+            for term in [
+                "door code",
+                "lockbox",
+                "keypad",
+                "gate code",
+                "garage code",
+                "access instruction",
+                "entry code",
+            ]
+        )
+
+        contradicts_emergency = share_emergency_contacts and any(
+            term in low
+            for term in [
+                "emergency contact",
+                "emergency contacts",
+            ]
+        )
+
+        contradicts_manual = share_house_manual and any(
+            term in low
+            for term in [
+                "house manual",
+                "manual content",
+            ]
+        )
+
+        if (
+            contradicts_address
+            or contradicts_wifi
+            or contradicts_access
+            or contradicts_emergency
+            or contradicts_manual
+        ):
+            continue
+
+        cleaned.append(s)
+
+    return " ".join(cleaned).strip()
+
 @router.post("/api/public-property-chat")
 def public_property_chat(
     request: Request,
@@ -489,6 +598,8 @@ def public_property_chat(
 
     share_address = bool(public_webchat.get("share_address", False))
     share_wifi = bool(public_webchat.get("share_wifi", False))
+    share_access_instructions = bool(public_webchat.get("share_access_instructions", False))
+    share_emergency_contacts = bool(public_webchat.get("share_emergency_contacts", False))
     share_house_manual = bool(public_webchat.get("share_house_manual", False))
 
     manual_text = (
@@ -502,18 +613,21 @@ def public_property_chat(
         manual_text = ""
 
     blocked_public_items = []
-    
+
     if not share_address:
         blocked_public_items.append("exact street address or unit number")
     
     if not share_wifi:
         blocked_public_items.append("WiFi network name or WiFi password")
     
-    if not bool(public_webchat.get("share_access_instructions", False)):
+    if not share_access_instructions:
         blocked_public_items.append("door codes, lockbox codes, keypad codes, gate codes, or access instructions")
     
-    if not bool(public_webchat.get("share_emergency_contacts", False)):
+    if not share_emergency_contacts:
         blocked_public_items.append("private emergency contacts")
+    
+    if not share_house_manual:
+        blocked_public_items.append("full private house manual content")
     
     blocked_public_items.extend([
         "owner/admin/internal details",
@@ -521,25 +635,38 @@ def public_property_chat(
         "reservation-specific information for unverified visitors",
     ])
     
-    custom_never_share = (public_webchat.get("private_never_share") or "").strip()
-    
     privacy_rules = (
-        "Public webchat sharing rules:\n"
+        "Public Webchat Sharing Rules:\n"
         f"- Share exact address: {'YES' if share_address else 'NO'}\n"
-        f"- Share WiFi details: {'YES' if share_wifi else 'NO'}\n"
-        f"- Share access instructions: {'YES' if bool(public_webchat.get('share_access_instructions', False)) else 'NO'}\n"
-        f"- Share emergency contacts: {'YES' if bool(public_webchat.get('share_emergency_contacts', False)) else 'NO'}\n\n"
+        f"- Share WiFi network/password: {'YES' if share_wifi else 'NO'}\n"
+        f"- Share access instructions: {'YES' if share_access_instructions else 'NO'}\n"
+        f"- Share emergency contacts: {'YES' if share_emergency_contacts else 'NO'}\n"
+        f"- Use full house manual content: {'YES' if share_house_manual else 'NO'}\n\n"
+        "Rules:\n"
+        "- The YES/NO settings above are the source of truth.\n"
+        "- If a category is marked YES and the information is available in the property context, you may share it.\n"
+        "- If a category is marked NO, do not share it publicly.\n"
+        "- Extra private notes are secondary and must not override an explicit YES setting.\n"
+        "- Do not invent missing details.\n\n"
         "Do not share these items publicly:\n"
         + "\n".join(f"- {item}" for item in blocked_public_items)
     )
     
-    if custom_never_share:
+    extra_private_notes = _clean_extra_private_notes_for_public_webchat(
+        public_webchat.get("private_never_share") or "",
+        share_address=share_address,
+        share_wifi=share_wifi,
+        share_access_instructions=share_access_instructions,
+        share_emergency_contacts=share_emergency_contacts,
+        share_house_manual=share_house_manual,
+    )
+    
+    if extra_private_notes:
         privacy_rules += (
-            "\n\nAdditional custom private notes. Follow these only when they do not conflict "
+            "\n\nExtra private notes from host. Follow these only when they do not conflict "
             "with the explicit YES/NO sharing settings above:\n"
-            f"{custom_never_share}"
+            f"{extra_private_notes}"
         )
-
     assistant_config = (
         cfg.get("assistant")
         if isinstance(cfg.get("assistant"), dict)
@@ -564,13 +691,45 @@ def public_property_chat(
         public_webchat.get("public_notes") or "",
     ]
 
-    if share_address:
-        property_summary_parts.append(f"Address: {cfg.get('address') or ''}")
+property_cfg = cfg.get("property") if isinstance(cfg.get("property"), dict) else {}
+
+if share_address:
+    address = (
+        property_cfg.get("address_line")
+        or cfg.get("address")
+        or cfg.get("address_line")
+        or getattr(prop, "address", None)
+        or getattr(prop, "address_line", None)
+        or ""
+    ).strip()
+
+    if address:
+        property_summary_parts.append(f"Exact address: {address}")
 
     if share_wifi:
-        wifi = cfg.get("wifi") or {}
-        property_summary_parts.append(f"WiFi network: {wifi.get('ssid') or wifi.get('network') or ''}")
-        property_summary_parts.append(f"WiFi password: {wifi.get('password') or ''}")
+        wifi = cfg.get("wifi") if isinstance(cfg.get("wifi"), dict) else {}
+    
+        wifi_network = (
+            wifi.get("ssid")
+            or wifi.get("network")
+            or wifi.get("name")
+            or cfg.get("wifi_ssid")
+            or cfg.get("wifi_network")
+            or ""
+        )
+    
+        wifi_password = (
+            wifi.get("password")
+            or wifi.get("passcode")
+            or cfg.get("wifi_password")
+            or ""
+        )
+    
+        if wifi_network:
+            property_summary_parts.append(f"WiFi network: {wifi_network}")
+    
+        if wifi_password:
+            property_summary_parts.append(f"WiFi password: {wifi_password}")
 
     property_summary = "\n".join([p for p in property_summary_parts if p])
 
@@ -651,8 +810,11 @@ IMPORTANT RULES
 - Never answer with generic definitions when a property-specific answer is possible.
 - If someone asks "what is check in", "check in", "how does check-in work", or "property details", interpret it as a request for this property's public-safe details.
 - For "property details", summarize the actual property, amenities, general location, sleeping/stay highlights, check-in/check-out basics, and booking benefits using the public-safe context above.
-- Follow the Public Webchat Sharing Rules exactly. If a category is marked YES, you may share that information when it exists in the property summary or public-safe context. If a category is marked NO, do not share it.
-- If asked for a detail marked NO or missing from the context, say it is shared after booking or through the confirmed guest portal.
+- Follow the Public Webchat Sharing Rules exactly. The YES/NO settings are the source of truth.
+- If a category is marked YES and the information exists in PROPERTY SUMMARY, you may share it directly.
+- If a category is marked NO, do not share it publicly.
+- If asked for a detail marked YES but the information is missing from PROPERTY SUMMARY, say you do not have that exact detail here and suggest contacting the host.
+- If asked for a detail marked NO, say it is shared after booking or through the confirmed guest portal.
 - If exact information is missing from the public-safe context, say what you do know and suggest booking/contacting the host for the missing detail.
 - Keep answers helpful, warm, concise, and sales-friendly.
 - Encourage direct booking when relevant.
@@ -817,7 +979,7 @@ def _normalize_config(cfg: dict) -> dict:
 
     pw.setdefault(
         "private_never_share",
-        "Never share the exact street address, unit number, door codes, lockbox codes, keypad codes, WiFi details, access instructions, owner/admin/internal details, security information, private emergency contacts, or reservation-specific information in public website chat."
+        "Add any extra private details the public webchat should never share. The safety toggles above are handled automatically."
     )
     
     return cfg
