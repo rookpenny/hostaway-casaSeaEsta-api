@@ -716,15 +716,32 @@ async function saveWebsiteWidgetDomain() {
   }
 }
 
-function copyWebsiteWidgetCode() {
+async function copyWebsiteWidgetCode() {
   const code = document.getElementById("websiteWidgetCode")?.textContent || "";
+  const btn = document.getElementById("websiteWidgetCopyBtn");
 
   if (!currentWebsiteWidgetEnabled || !currentWebsiteWidgetKey) {
     alert("Enable Website Chat before copying the embed code.");
     return;
   }
 
-  navigator.clipboard.writeText(code);
+  try {
+    await navigator.clipboard.writeText(code);
+
+    if (btn) {
+      const originalText = btn.textContent;
+      btn.textContent = "Copied!";
+      btn.classList.add("bg-emerald-500");
+
+      setTimeout(() => {
+        btn.textContent = originalText || "Copy";
+        btn.classList.remove("bg-emerald-500");
+      }, 1600);
+    }
+  } catch (err) {
+    console.error(err);
+    alert("Could not copy the embed code. Please select and copy it manually.");
+  }
 }
 
 // -----------------------------------
