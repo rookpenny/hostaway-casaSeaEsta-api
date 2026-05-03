@@ -694,6 +694,56 @@ def __routes():
     return JSONResponse(out)
 
 
+def extract_wifi_from_manual(text: str | None) -> dict:
+    text = text or ""
+
+    network = ""
+    password = ""
+
+    network_patterns = [
+        r"(?im)^\s*(?:network name|wifi network|wi-fi network|ssid)\s*:?\s*(.+?)\s*$",
+        r"(?im)^\s*network\s*:?\s*(.+?)\s*$",
+    ]
+
+    password_patterns = [
+        r"(?im)^\s*(?:password|wifi password|wi-fi password)\s*:?\s*(.+?)\s*$",
+    ]
+
+    for pattern in network_patterns:
+        match = re.search(pattern, text)
+        if match:
+            network = (match.group(1) or "").strip()
+            break
+
+    for pattern in password_patterns:
+        match = re.search(pattern, text)
+        if match:
+            password = (match.group(1) or "").strip()
+            break
+
+    placeholders = {
+        "",
+        "[wifi password]",
+        "[wi-fi password]",
+        "your wifi password",
+        "your wifi network",
+        "[add password]",
+        "[add wifi password]",
+        "[add network]",
+        "[add wifi network]",
+    }
+
+    if network.strip().lower() in placeholders:
+        network = ""
+
+    if password.strip().lower() in placeholders:
+        password = ""
+
+    return {
+        "ssid": network,
+        "password": password,
+    }
+
 @app.get("/guest/{property_id}", response_class=HTMLResponse)
 def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_db)):
     request.session["last_property"] = property_id
@@ -739,7 +789,24 @@ def guest_app_ui(request: Request, property_id: int, db: Session = Depends(get_d
     # Load config/manual from disk
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
-    wifi = cfg.get("wifi") or {}
+    
+    manual_text = (
+        context.get("manual")
+        or context.get("manual_text")
+        or context.get("house_manual")
+        or context.get("instructions")
+        or context.get("instructions_text")
+        or ""
+    ) if isinstance(context, dict) else ""
+    
+    manual_wifi = extract_wifi_from_manual(manual_text)
+    
+    cfg_wifi = cfg.get("wifi") if isinstance(cfg.get("wifi"), dict) else {}
+    
+    wifi = {
+        "ssid": manual_wifi.get("ssid") or cfg_wifi.get("ssid"),
+        "password": manual_wifi.get("password") or cfg_wifi.get("password"),
+    }
 
     assistant_config = cfg.get("assistant") if isinstance(cfg.get("assistant"), dict) else {}
 
