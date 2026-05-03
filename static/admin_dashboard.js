@@ -556,27 +556,81 @@ function initRelativeTimes() {
 }
 
   // -----------------------------------
-  // START WEB CHAT
-  // -----------------------------------
+// START WEB CHAT
+// -----------------------------------
 
 let currentWebsiteWidgetPropertyId = null;
 let currentWebsiteWidgetKey = null;
+let currentWebsiteWidgetEnabled = false;
 
-function openWebsiteWidgetPanel(propertyId, propertyName, widgetKey, enabled) {
+function setWebsiteWidgetBusy(isBusy) {
+  const btn = document.getElementById("websiteWidgetToggleBtn");
+  const domainBtn = document.getElementById("websiteWidgetDomainSaveBtn");
+  const copyBtn = document.getElementById("websiteWidgetCopyBtn");
+
+  if (btn) btn.disabled = !!isBusy;
+  if (domainBtn) domainBtn.disabled = !!isBusy;
+  if (copyBtn) copyBtn.disabled = !!isBusy;
+}
+
+function renderWebsiteWidgetStatus() {
+  const btn = document.getElementById("websiteWidgetToggleBtn");
+  const codeEl = document.getElementById("websiteWidgetCode");
+  const domainInput = document.getElementById("websiteWidgetDomain");
+  const copyBtn = document.getElementById("websiteWidgetCopyBtn");
+
+  if (btn) {
+    btn.textContent = currentWebsiteWidgetEnabled
+      ? "Disable Website Chat"
+      : "Enable Website Chat";
+
+    btn.onclick = () => toggleWebsiteWidget(!currentWebsiteWidgetEnabled);
+  }
+
+  if (domainInput) {
+    domainInput.disabled = !currentWebsiteWidgetEnabled;
+    domainInput.classList.toggle("opacity-50", !currentWebsiteWidgetEnabled);
+  }
+
+  if (copyBtn) {
+    const disabled = !currentWebsiteWidgetEnabled || !currentWebsiteWidgetKey;
+    copyBtn.disabled = disabled;
+    copyBtn.classList.toggle("opacity-50", disabled);
+  }
+
+  if (!codeEl) return;
+
+  if (!currentWebsiteWidgetEnabled) {
+    codeEl.textContent = "Enable Website Chat to generate an embed code.";
+    return;
+  }
+
+  if (!currentWebsiteWidgetKey) {
+    codeEl.textContent = "Saving… widget key will appear here.";
+    return;
+  }
+
+  codeEl.textContent = `<script src="https://hostaway-casaseaesta-api.onrender.com/static/widget.js" data-widget-key="${currentWebsiteWidgetKey}"><\/script>`;
+}
+
+function openWebsiteWidgetPanel(propertyId, propertyName, widgetKey, enabled, allowedDomain = "") {
   currentWebsiteWidgetPropertyId = propertyId;
   currentWebsiteWidgetKey = widgetKey || "";
+  currentWebsiteWidgetEnabled = !!enabled;
 
   const panel = document.getElementById("websiteWidgetPanel");
   const name = document.getElementById("websiteWidgetPropertyName");
-  const btn = document.getElementById("websiteWidgetToggleBtn");
+  const domainInput = document.getElementById("websiteWidgetDomain");
 
-  if (!panel || !name || !btn) return;
+  if (!panel || !name) return;
 
   name.textContent = `${propertyName} Website Chat`;
-  btn.textContent = enabled ? "Disable Website Chat" : "Enable Website Chat";
-  btn.onclick = () => toggleWebsiteWidget(!enabled);
 
-  renderWebsiteWidgetCode();
+  if (domainInput) {
+    domainInput.value = allowedDomain || domainInput.value || "";
+  }
+
+  renderWebsiteWidgetStatus();
 
   panel.classList.remove("hidden");
   panel.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -588,42 +642,46 @@ function closeWebsiteWidgetPanel() {
 }
 
 function renderWebsiteWidgetCode() {
-  const codeEl = document.getElementById("websiteWidgetCode");
-
-  if (!codeEl) return;
-
-  if (!currentWebsiteWidgetKey) {
-    codeEl.textContent = "Enable Website Chat to generate an embed code.";
-    return;
-  }
-
-  codeEl.textContent = `<script src="https://hostaway-casaseaesta-api.onrender.com/static/widget.js" data-widget-key="${currentWebsiteWidgetKey}"><\/script>`;
+  renderWebsiteWidgetStatus();
 }
 
 async function toggleWebsiteWidget(enable) {
   if (!currentWebsiteWidgetPropertyId) return;
 
-  const res = await fetch(`/admin/properties/${currentWebsiteWidgetPropertyId}/website-widget`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ enabled: enable })
-  });
+  setWebsiteWidgetBusy(true);
 
-  const data = await res.json();
+  try {
+    const res = await fetch(`/admin/properties/${currentWebsiteWidgetPropertyId}/website-widget`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ enabled: !!enable })
+    });
 
-  if (!res.ok) {
-    alert(data.detail || "Could not update Website Chat.");
-    return;
-  }
+    const data = await res.json().catch(() => ({}));
 
-  currentWebsiteWidgetKey = data.widget_key;
-  renderWebsiteWidgetCode();
+    if (!res.ok) {
+      alert(data.detail || "Could not update Website Chat.");
+      return;
+    }
 
-  const btn = document.getElementById("websiteWidgetToggleBtn");
-  if (btn) {
-    btn.textContent = data.enabled ? "Disable Website Chat" : "Enable Website Chat";
-    btn.onclick = () => toggleWebsiteWidget(!data.enabled);
+    currentWebsiteWidgetEnabled = !!data.enabled;
+    currentWebsiteWidgetKey = data.widget_key || "";
+
+    renderWebsiteWidgetStatus();
+
+    document
+      .querySelectorAll(`[data-website-widget-property-id="${currentWebsiteWidgetPropertyId}"]`)
+      .forEach((el) => {
+        el.dataset.websiteWidgetEnabled = currentWebsiteWidgetEnabled ? "true" : "false";
+        el.dataset.websiteWidgetKey = currentWebsiteWidgetKey || "";
+        el.textContent = currentWebsiteWidgetEnabled ? "Website chat on" : "Website chat off";
+      });
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong while updating Website Chat.");
+  } finally {
+    setWebsiteWidgetBusy(false);
   }
 }
 
@@ -631,31 +689,47 @@ async function saveWebsiteWidgetDomain() {
   const input = document.getElementById("websiteWidgetDomain");
   if (!currentWebsiteWidgetPropertyId || !input) return;
 
-  const res = await fetch(`/admin/properties/${currentWebsiteWidgetPropertyId}/website-widget/domain`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    credentials: "include",
-    body: JSON.stringify({ domain: input.value.trim() })
-  });
+  setWebsiteWidgetBusy(true);
 
-  if (!res.ok) {
-    const data = await res.json();
-    alert(data.detail || "Could not save domain.");
-    return;
+  try {
+    const res = await fetch(`/admin/properties/${currentWebsiteWidgetPropertyId}/website-widget/domain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      credentials: "include",
+      body: JSON.stringify({ domain: input.value.trim() })
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (!res.ok) {
+      alert(data.detail || "Could not save domain.");
+      return;
+    }
+
+    input.value = input.value.trim();
+    alert("Domain saved.");
+  } catch (err) {
+    console.error(err);
+    alert("Something went wrong while saving the domain.");
+  } finally {
+    setWebsiteWidgetBusy(false);
   }
-
-  alert("Domain saved.");
 }
 
 function copyWebsiteWidgetCode() {
   const code = document.getElementById("websiteWidgetCode")?.textContent || "";
+
+  if (!currentWebsiteWidgetEnabled || !currentWebsiteWidgetKey) {
+    alert("Enable Website Chat before copying the embed code.");
+    return;
+  }
+
   navigator.clipboard.writeText(code);
 }
 
-
-  // -----------------------------------
-  // END WEB CHAT
-  // -----------------------------------
+// -----------------------------------
+// END WEB CHAT
+// -----------------------------------
   // -----------------------------------
   // Portfolio chart
   // -----------------------------------
