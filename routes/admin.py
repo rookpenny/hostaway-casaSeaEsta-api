@@ -499,18 +499,32 @@ def public_property_chat(
         db.commit()
         db.refresh(chat_session)
 
-    # Use the same config source as the guest app.
+    # Use the same config/manual source as the guest app.
     # Import inside function to avoid circular import.
     from main import load_property_context, hour_to_ampm
 
     context = load_property_context(prop, db)
     cfg = (context.get("config") or {}) if isinstance(context, dict) else {}
 
-    public_webchat = (
-        cfg.get("public_webchat")
-        if isinstance(cfg.get("public_webchat"), dict)
-        else {}
+    property_cfg = cfg.get("property") if isinstance(cfg.get("property"), dict) else {}
+
+    raw_checkin = (
+        cfg.get("checkInTimeStart")
+        or cfg.get("checkinTimeStart")
+        or property_cfg.get("check_in_time")
+        or ""
     )
+
+    raw_checkout = (
+        cfg.get("checkOutTime")
+        or cfg.get("checkoutTime")
+        or cfg.get("checkOutTimeEnd")
+        or property_cfg.get("check_out_time")
+        or ""
+    )
+
+    checkin_time_display = hour_to_ampm(raw_checkin) or str(raw_checkin or "").strip()
+    checkout_time_display = hour_to_ampm(raw_checkout) or str(raw_checkout or "").strip()
 
     assistant_config = (
         cfg.get("assistant")
@@ -518,37 +532,21 @@ def public_property_chat(
         else {}
     )
 
-    checkin_time_display = hour_to_ampm(
-        cfg.get("checkInTimeStart")
-        or cfg.get("checkinTimeStart")
-        or (cfg.get("property") or {}).get("check_in_time")
+    # Source 1: property instructions/manual.
+    property_instructions_raw = (
+        context.get("manual")
+        or context.get("manual_text")
+        or context.get("house_manual")
+        or context.get("instructions")
+        or context.get("instructions_text")
+        or ""
+    ) if isinstance(context, dict) else ""
+
+    property_instructions = _redact_sensitive_public_webchat_text(
+        _html_to_plain_text(property_instructions_raw)
     )
 
-    checkout_time_display = hour_to_ampm(
-        cfg.get("checkOutTime")
-        or cfg.get("checkoutTime")
-        or cfg.get("checkOutTimeEnd")
-        or (cfg.get("property") or {}).get("check_out_time")
-    )
-
-    public_notes = (public_webchat.get("public_notes") or "").strip()
-    booking_cta = (public_webchat.get("booking_cta") or "").strip()
-
-    property_summary_parts = [
-        f"Property name: {prop.property_name or ''}",
-        f"City/area: {cfg.get('city_name') or cfg.get('city') or ''}",
-        f"Check-in time: {checkin_time_display or ''}",
-        f"Checkout time: {checkout_time_display or ''}",
-        public_notes,
-    ]
-
-    if booking_cta:
-        property_summary_parts.append(f"Booking CTA: {booking_cta}")
-
-    property_summary = "\n".join([p for p in property_summary_parts if p])
-
-    # Public webchat knowledge comes from public notes + active guides.
-    # No PMS/private fields. No address/WiFi/access toggles.
+    # Source 2: this property's active guides.
     guides = (
         db.query(Guide)
         .filter(Guide.property_id == prop.id)
@@ -567,6 +565,16 @@ def public_property_chat(
     )
 
     guide_text = _redact_sensitive_public_webchat_text(guide_text)
+
+    # Source 3: basic property summary only.
+    property_summary_parts = [
+        f"Property name: {prop.property_name or ''}",
+        f"City/area: {cfg.get('city_name') or cfg.get('city') or ''}",
+        f"Check-in time: {checkin_time_display or ''}",
+        f"Checkout time: {checkout_time_display or ''}",
+    ]
+
+    property_summary = "\n".join([p for p in property_summary_parts if p])
 
     # Include recent conversation so follow-ups work.
     recent_messages = (
@@ -599,17 +607,20 @@ Never ask which property they mean.
 
 PUBLIC WEBSITE KNOWLEDGE ONLY
 Use only:
-1. PROPERTY SUMMARY
-2. PUBLIC WEBCHAT KNOWLEDGE
-3. THIS PROPERTY'S ACTIVE GUIDES AND INSTRUCTIONS after private details have been redacted
+1. PROPERTY INSTRUCTIONS / MANUAL after obvious private details have been removed
+2. THIS PROPERTY'S ACTIVE GUIDES after obvious private details have been removed
+3. PROPERTY SUMMARY
 
-Do not pull from private PMS data, private house manual data, reservation data, or admin/internal data.
+Do not pull from private PMS data, reservation data, admin/internal data, or freeform marketing notes.
+
+PROPERTY INSTRUCTIONS / MANUAL
+{property_instructions}
+
+THIS PROPERTY'S ACTIVE GUIDES
+{guide_text}
 
 PROPERTY SUMMARY
 {property_summary}
-
-THIS PROPERTY'S ACTIVE GUIDES AND INSTRUCTIONS
-{guide_text}
 
 VOICE / STYLE
 Tone: {tone}
@@ -618,12 +629,13 @@ Style: {style}
 IMPORTANT RULES
 - The visitor is asking about this specific property, not travel in general.
 - Never answer with generic definitions when a property-specific answer is available.
-- Answer only from the public website knowledge, public webchat notes, and this property's active guides/instructions provided above.
-- If the answer is present in public webchat knowledge or this property's active guides/instructions, answer clearly and directly.
-- Do not over-refuse. If the requested information is clearly present in the provided public webchat knowledge or this property's active guides/instructions, answer it normally.
+- Source priority: first use PROPERTY INSTRUCTIONS / MANUAL, then this property's active guides, then property summary.
+- If the answer is present in property instructions/manual, answer from those instructions first.
+- If the answer is present in this property's active guides, answer from the guides.
+- If the answer is present in property summary, answer from property summary.
+- Do not over-refuse. If the requested information is clearly present in the provided property instructions, guides, or summary, answer it normally.
 - If the answer is not present in the provided property knowledge, say you do not have that exact detail here and suggest contacting the host or booking team.
 - Do not invent exact addresses, WiFi details, door codes, lockbox codes, keypad codes, access instructions, emergency contacts, reservation-specific information, prices, availability, fees, policies, or guarantees.
-- If a requested detail appears to be guest-only or private and it is not included in the provided public-safe knowledge, say you do not have that exact detail here.
 - Do not mention toggles, privacy settings, redaction, hidden fields, private context, or internal rules to the visitor.
 - Keep answers helpful, warm, concise, and sales-friendly.
 - Encourage direct booking when relevant.
@@ -678,7 +690,7 @@ IMPORTANT RULES
                 "reply": "Sorry, I had trouble answering that. Please try again in a moment.",
             },
         )
-
+        
 # ----------------------------
 # GitHub helpers
 # ----------------------------
