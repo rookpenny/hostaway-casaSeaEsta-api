@@ -184,14 +184,14 @@
           </div>
         {% endif %}
 
-        <div class="flex max-w-[72%] flex-col {{ 'items-start' if is_ai else 'items-end' }}">
-          <div class="rounded-[18px] px-4 py-3 shadow-sm ring-1 {{ 'bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'bg-[#071833] text-white ring-[#071833]' }}">
-            <div class="whitespace-pre-wrap break-words text-[15px] leading-6 tracking-[-0.01em]">
+        <div class="flex max-w-[70%] flex-col {{ 'items-start' if is_ai else 'items-end' }}">
+          <div class="inline-block w-fit max-w-full rounded-2xl px-4 py-2.5 shadow-sm ring-1 {{ 'rounded-bl-md bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'rounded-br-md bg-[#071833] text-white ring-[#071833]' }}">
+            <div class="whitespace-pre-wrap break-words text-left text-[14px] leading-6 tracking-[-0.01em]">
               {{ (msg.content or '')|e }}
             </div>
           </div>
 
-          <div class="mt-2 flex items-center gap-2 text-[12px] text-slate-400">
+          <div class="mt-1.5 flex items-center gap-2 text-[12px] text-slate-400">
             <span class="font-medium text-slate-500">
               {{ 'Assistant' if is_ai else (session.guest_name or "Guest") }}
             </span>
