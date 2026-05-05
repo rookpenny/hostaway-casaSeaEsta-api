@@ -4607,6 +4607,7 @@ function initPropertiesUI() {
   const searchInput = document.getElementById("searchInput");
   const statusFilter = document.getElementById("statusFilter");
   const addPropertyBtn = document.getElementById("add-property-btn");
+  const syncAllBtn = document.getElementById("sync-all-properties-btn");
 
   if (gridBtn && !gridBtn.dataset.wired) {
     gridBtn.dataset.wired = "1";
@@ -4628,11 +4629,14 @@ function initPropertiesUI() {
     statusFilter.addEventListener("change", applyPropertiesFilters);
   }
 
+  if (syncAllBtn && !syncAllBtn.dataset.wired) {
+    syncAllBtn.dataset.wired = "1";
+    syncAllBtn.addEventListener("click", syncAllProperties);
+  }
+  
   if (addPropertyBtn && !addPropertyBtn.dataset.wired) {
     addPropertyBtn.dataset.wired = "1";
-    addPropertyBtn.addEventListener("click", () => {
-      toast("Connect this button to your add/import property flow.");
-    });
+    addPropertyBtn.addEventListener("click", openAddPropertyFlow);
   }
 
   let savedMode = "grid";
@@ -4644,7 +4648,71 @@ function initPropertiesUI() {
   applyPropertiesFilters();
 }
 
-window.filterProperties = applyPropertiesFilters;
+async function syncAllProperties() {
+  if (IS_LOCKED) {
+    toast("Complete payment to unlock property syncing.");
+    return;
+  }
+
+  const btn = document.getElementById("sync-all-properties-btn");
+  if (!btn) return;
+
+  const originalText = btn.textContent;
+
+  btn.disabled = true;
+  btn.textContent = "Syncing…";
+  btn.classList.add("opacity-60", "cursor-not-allowed");
+
+  try {
+    const res = await fetch("/auth/sync-properties", {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
+
+    const data = await res.json().catch(() => ({}));
+
+    if (res.status === 401 || res.status === 403) {
+      loginRedirect();
+      return;
+    }
+
+    if (res.status === 402) {
+      window.location.href = "/pmc/signup";
+      return;
+    }
+
+    if (!res.ok) {
+      toast(data.detail || data.message || "Could not sync properties.");
+      return;
+    }
+
+    btn.textContent = "Synced ✓";
+    toast(data.message || "Properties synced.");
+    setTimeout(() => {
+      window.location.href = "/admin/dashboard?view=properties";
+    }, 700);
+  } catch (err) {
+    console.error("Sync all error:", err);
+    toast("Something went wrong while syncing properties.");
+  } finally {
+    setTimeout(() => {
+      btn.disabled = false;
+      btn.textContent = originalText || "Sync all";
+      btn.classList.remove("opacity-60", "cursor-not-allowed");
+    }, 900);
+  }
+}
+
+function openAddPropertyFlow() {
+  const ok = window.confirm(
+    "To add another property, HostScout will sync listings from your connected PMS. Continue?"
+  );
+
+  if (!ok) return;
+
+  syncAllProperties();
+}
 
 window.syncProperty = async function (id, btn) {
   if (IS_LOCKED) return toast("Complete payment to unlock property syncing.");
