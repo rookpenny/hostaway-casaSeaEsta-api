@@ -4664,11 +4664,11 @@ async function syncAllProperties() {
   btn.classList.add("opacity-60", "cursor-not-allowed");
 
   try {
-    const res = await fetch("/auth/sync-properties", {
-      method: "POST",
-      credentials: "include",
-      headers: { Accept: "application/json" },
-    });
+  const res = await fetch("/auth/sync-pmc-properties", {
+    method: "POST",
+    credentials: "include",
+    headers: { Accept: "application/json" },
+  });
 
     const data = await res.json().catch(() => ({}));
 
