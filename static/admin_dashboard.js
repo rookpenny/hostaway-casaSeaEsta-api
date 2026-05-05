@@ -4601,6 +4601,35 @@ function setPropertiesView(mode) {
   } catch {}
 }
 
+
+function openAddPropertyModal() {
+  const modal = document.getElementById("addPropertyModal");
+  const iframe = document.getElementById("addPropertyIframe");
+
+  if (!modal || !iframe) {
+    window.location.href = "/pmc/onboarding/pms?return_to=admin_properties";
+    return;
+  }
+
+  iframe.src = "/pmc/onboarding/pms?return_to=admin_properties&embedded=1";
+  modal.classList.remove("hidden");
+  document.body.classList.add("overflow-hidden");
+}
+
+window.closeAddPropertyModal = function (shouldRefresh = false) {
+  const modal = document.getElementById("addPropertyModal");
+  const iframe = document.getElementById("addPropertyIframe");
+
+  if (modal) modal.classList.add("hidden");
+  if (iframe) iframe.src = "";
+
+  document.body.classList.remove("overflow-hidden");
+
+  if (shouldRefresh) {
+    window.location.href = "/admin/dashboard?view=properties";
+  }
+};
+
 function initPropertiesUI() {
   const gridBtn = document.getElementById("properties-view-grid-btn");
   const listBtn = document.getElementById("properties-view-list-btn");
@@ -4636,9 +4665,7 @@ function initPropertiesUI() {
   
 if (addPropertyBtn && !addPropertyBtn.dataset.wired) {
   addPropertyBtn.dataset.wired = "1";
-  addPropertyBtn.addEventListener("click", () => {
-    window.location.href = "/pmc/onboarding/pms?return_to=admin_properties";
-  });
+  addPropertyBtn.addEventListener("click", openAddPropertyModal);
 }
 
   let savedMode = "grid";
