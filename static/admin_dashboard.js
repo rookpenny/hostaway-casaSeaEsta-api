@@ -4634,10 +4634,12 @@ function initPropertiesUI() {
     syncAllBtn.addEventListener("click", syncAllProperties);
   }
   
-  if (addPropertyBtn && !addPropertyBtn.dataset.wired) {
-    addPropertyBtn.dataset.wired = "1";
-    addPropertyBtn.addEventListener("click", openAddPropertyFlow);
-  }
+if (addPropertyBtn && !addPropertyBtn.dataset.wired) {
+  addPropertyBtn.dataset.wired = "1";
+  addPropertyBtn.addEventListener("click", () => {
+    window.location.href = "/pmc/onboarding/pms?return_to=admin_properties";
+  });
+}
 
   let savedMode = "grid";
   try {
