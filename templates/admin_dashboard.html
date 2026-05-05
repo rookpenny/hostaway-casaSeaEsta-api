@@ -3215,6 +3215,35 @@
                   </table>
                 </div>
 
+
+
+                <-- Add properties modal -->
+                  <div id="addPropertyModal" class="fixed inset-0 z-50 hidden bg-slate-950/60 p-6">
+                    <div class="mx-auto h-full max-w-6xl overflow-hidden rounded-[28px] bg-white shadow-2xl">
+                      <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                        <div>
+                          <div class="text-lg font-semibold text-slate-950">Add another property</div>
+                          <div class="text-sm text-slate-500">Connect PMS properties and update billing.</div>
+                        </div>
+                  
+                        <button
+                          type="button"
+                          onclick="closeAddPropertyModal(true)"
+                          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold"
+                        >
+                          Close
+                        </button>
+                      </div>
+                  
+                      <iframe
+                        id="addPropertyIframe"
+                        class="h-[calc(100%-73px)] w-full"
+                        src=""
+                      ></iframe>
+                    </div>
+                  </div>
+                  <-- End properties modal -->                  
+
                 <!-- Invite modal -->
                 <div id="inviteModal" class="hidden fixed inset-0 z-[9999] bg-black/30 p-4">
                   <div class="max-w-lg mx-auto mt-24 bg-white rounded-2xl border border-slate-200 p-4 card">
