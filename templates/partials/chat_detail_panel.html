@@ -185,8 +185,8 @@
         {% endif %}
 
         <div class="flex min-w-0 max-w-[62%] flex-col {{ 'items-start' if is_ai else 'items-end' }}">
-          <div class="inline-block w-fit max-w-full rounded-2xl px-4 py-2.5 shadow-sm ring-1 {{ 'rounded-bl-md bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'rounded-br-md bg-[#071833] text-white ring-[#071833]' }}">
-            <div class="whitespace-pre-wrap break-words text-left text-[14px] leading-6 tracking-[-0.01em]">
+          <div class="inline-block w-fit max-w-full rounded-2xl px-4 py-2 shadow-sm ring-1 {{ 'rounded-bl-md bg-slate-50 text-slate-800 ring-slate-200' if is_ai else 'rounded-br-md bg-[#071833] text-white ring-[#071833]' }}">
+            <div class="whitespace-pre-wrap break-words text-left text-[14px] leading-[1.45] tracking-[-0.01em]">
               {{ (msg.content or '')|e }}
             </div>
           </div>
