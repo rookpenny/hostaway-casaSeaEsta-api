@@ -5098,6 +5098,19 @@ def admin_dashboard(
 
     for row in needs_attention_rows:
         row["property_image_url"] = property_image_by_id.get(row.get("property_id"))
+
+
+    # ----------------------------
+    # Billing summary for Settings → Billing
+    # ----------------------------
+    active_billing_properties = [
+        p for p in (properties or [])
+        if bool(getattr(p, "sandy_enabled", False))
+    ]
+
+    billing_active_property_count = len(active_billing_properties)
+    billing_price_per_property_cents = 999
+    billing_monthly_total_cents = billing_active_property_count * billing_price_per_property_cents
         
 
     return templates.TemplateResponse(
@@ -5147,6 +5160,11 @@ def admin_dashboard(
                     )
                 )
             ),
+
+            "billing_active_property_count": billing_active_property_count,
+            "billing_price_per_property_cents": billing_price_per_property_cents,
+            "billing_monthly_total_cents": billing_monthly_total_cents,
+            "active_billing_properties": active_billing_properties,
 
             # Guest intelligence range data
             "selected_range_days": selected_range_days,
