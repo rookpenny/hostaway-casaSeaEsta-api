@@ -3168,7 +3168,10 @@
                                 {{ property.property_name }}
                               </div>
                         
-                              <div class="mt-1 space-y-1 text-xs text-slate-500">
+                              <div
+                                class="mt-1 space-y-1 text-xs text-slate-500"
+                                data-billing-status="{{ property.id }}"
+                              >
                                 {% if property.sandy_enabled %}
                                   <div class="font-medium text-emerald-700">Charging now</div>
                         
@@ -3188,20 +3191,25 @@
                                   {% endif %}
                         
                                 {% elif property.billing_cancel_at_period_end and property.billing_current_period_end %}
-                                  <div class="font-medium text-amber-700">Not renewing</div>
+                                  <div class="font-medium text-amber-700">Turning off at period end</div>
                                   <div>
                                     Paid through:
                                     {{ property.billing_current_period_end.strftime("%b %d, %Y") }}
                                   </div>
+                                  <div>No future monthly charge after this date.</div>
                         
                                 {% else %}
-                                  <div>Not currently billing</div>
+                                  <div class="font-medium text-slate-500">Not currently billing</div>
                                 {% endif %}
                               </div>
                             </div>
                         
                             <div class="text-right text-sm font-semibold text-slate-900">
-                              ${{ "%.2f"|format(billing_price_per_property_cents / 100) }}/mo
+                              {% if property.sandy_enabled or property.billing_cancel_at_period_end %}
+                                ${{ "%.2f"|format(billing_price_per_property_cents / 100) }}/mo
+                              {% else %}
+                                —
+                              {% endif %}
                             </div>
                           </div>
                         {% endfor %}
