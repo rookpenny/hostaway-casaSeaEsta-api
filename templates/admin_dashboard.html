@@ -1221,15 +1221,13 @@
         Sync listings, control live status, update assistant behavior, and manage house manuals across your portfolio.
       </p>
 
-      <div class="mt-6 flex flex-wrap items-center">
-        
+            <div class="mt-6 flex flex-wrap items-center">
         <button
-          id="add-property-btn"
+          id="sync-all-properties-btn"
           type="button"
-          onclick="openAddPropertyModalFromButton(event)"
           class="inline-flex h-12 items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 text-[14px] font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
         >
-          Add another property
+          Sync PMS
         </button>
       </div>
     </div>
@@ -1528,32 +1526,7 @@
 
 
 
-                <!-- Add properties modal -->
-                  <div id="addPropertyModal" class="hidden fixed inset-0 z-[99999] bg-slate-950/75 p-6">
-                    <div class="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
-                      <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                        <div>
-                          <div class="text-lg font-semibold text-slate-950">Add another property</div>
-                          <div class="text-sm text-slate-500">Connect PMS properties and update billing.</div>
-                        </div>
-                  
-                        <button
-                          type="button"
-                          onclick="closeAddPropertyModal(true)"
-                          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
-                        >
-                          Close
-                        </button>
-                      </div>
-                  
-                      <iframe
-                        id="addPropertyIframe"
-                        class="min-h-0 flex-1 w-full border-0"
-                        src=""
-                      ></iframe>
-                    </div>
-                  </div>
-                  <!-- End properties modal --> 
+                
 
   <!-- List View -->
   <div id="propertiesListView" class="hidden overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
@@ -3543,34 +3516,6 @@
     "notifications_mark_read": "/admin/notifications/{notification_id}/read"
   }
 }
-</script>
-<script>
-  window.openAddPropertyModalFromButton = function(event) {
-    if (event) event.preventDefault();
-
-    const modal = document.getElementById("addPropertyModal");
-    const iframe = document.getElementById("addPropertyIframe");
-
-    if (!modal || !iframe) {
-      window.location.href = "/pmc/onboarding/pms?return_to=admin_properties";
-      return;
-    }
-
-    iframe.src = "/pmc/onboarding/pms?return_to=admin_properties&embedded=1";
-    modal.classList.remove("hidden");
-  };
-
-  window.closeAddPropertyModal = function(shouldRefresh) {
-    const modal = document.getElementById("addPropertyModal");
-    const iframe = document.getElementById("addPropertyIframe");
-
-    if (modal) modal.classList.add("hidden");
-    if (iframe) iframe.src = "";
-
-    if (shouldRefresh) {
-      window.location.href = "/admin/dashboard?view=properties";
-    }
-  };
 </script>
 </body>
 </html>
