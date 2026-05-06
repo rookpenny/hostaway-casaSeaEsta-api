@@ -203,67 +203,64 @@ def get_ai_insights(
 
     q = db.query(ChatSession).join(Property, Property.id == ChatSession.property_id)
 
-    # Scope by role
     if user_role == "pmc":
         if not pmc_obj:
             raise HTTPException(status_code=403, detail="PMC account not linked")
         q = q.filter(Property.pmc_id == pmc_obj.id)
+
     elif user_role == "super":
         if pmc_id_int:
             q = q.filter(Property.pmc_id == pmc_id_int)
+
     else:
         raise HTTPException(status_code=403, detail="Forbidden")
 
-    # Optional property filter
     if property_id_int:
         q = q.filter(ChatSession.property_id == property_id_int)
 
     total = q.with_entities(func.count(ChatSession.id)).scalar() or 1
 
-    top_issue = (
-        q.with_entities(ChatSession.signal_label, func.count().label("count"))
-        .filter(ChatSession.signal_label.isnot(None))
-        .group_by(ChatSession.signal_label)
-        .order_by(func.count().desc())
-        .first()
-    )
-
-    high_risk = (
-        q.with_entities(ChatSession.signal_label, func.count().label("count"))
-        .filter(ChatSession.severity == "high")
-        .filter(ChatSession.signal_label.isnot(None))
-        .group_by(ChatSession.signal_label)
-        .order_by(func.count().desc())
-        .first()
-    )
-
-    automation = (
-        q.with_entities(ChatSession.signal_label, func.count().label("count"))
-        .filter(ChatSession.severity == "low")
-        .filter(ChatSession.signal_label.isnot(None))
-        .group_by(ChatSession.signal_label)
-        .order_by(func.count().desc())
-        .first()
-    )
-
-    needs_human = (
+    high_risk_count = (
         q.with_entities(func.count(ChatSession.id))
-        .filter(ChatSession.needs_human == True)
+        .filter(ChatSession.escalation_level.in_(["high", "critical", "urgent"]))
         .scalar()
     ) or 0
 
+    unresolved_count = (
+        q.with_entities(func.count(ChatSession.id))
+        .filter(ChatSession.is_resolved == False)
+        .scalar()
+    ) or 0
+
+    priority_issue = (
+        q.with_entities(ChatSession.action_priority, func.count().label("count"))
+        .filter(ChatSession.action_priority.isnot(None))
+        .group_by(ChatSession.action_priority)
+        .order_by(func.count().desc())
+        .first()
+    )
+
+    top_mood = (
+        q.with_entities(ChatSession.guest_mood, func.count().label("count"))
+        .filter(ChatSession.guest_mood.isnot(None))
+        .group_by(ChatSession.guest_mood)
+        .order_by(func.count().desc())
+        .first()
+    )
+
     return {
-        "top_issue": top_issue[0] if top_issue else None,
-        "top_issue_count": int(top_issue[1]) if top_issue else 0,
-        "high_risk": high_risk[0] if high_risk else None,
-        "high_risk_count": int(high_risk[1]) if high_risk else 0,
-        "automation": automation[0] if automation else None,
-        "automation_count": int(automation[1]) if automation else 0,
-        "needs_human": int(needs_human),
-        "needs_human_pct": round((needs_human / total) * 100, 1),
+        "top_issue": priority_issue[0] if priority_issue else None,
+        "top_issue_count": int(priority_issue[1]) if priority_issue else 0,
+
+        "high_risk": "high escalation" if high_risk_count else None,
+        "high_risk_count": int(high_risk_count),
+
+        "automation": top_mood[0] if top_mood else None,
+        "automation_count": int(top_mood[1]) if top_mood else 0,
+
+        "needs_human": int(unresolved_count),
+        "needs_human_pct": round((unresolved_count / total) * 100, 1),
     }
-
-
 
 
 def batch_message_signals(
