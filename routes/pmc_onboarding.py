@@ -212,9 +212,9 @@ def onboarding_hostaway_import(
 
     if imported_count == 0:
         return templates.TemplateResponse(
+            request,
             "pmc_onboarding_pms.html",
             {
-                "request": request,
                 "pmc": pmc,
                 "existing": integ,
                 "error": (
@@ -228,7 +228,12 @@ def onboarding_hostaway_import(
     integ.last_synced_at = datetime.utcnow()
     db.commit()
 
-    return RedirectResponse(f"/pmc/onboarding/properties?integration_id={integ.id}", status_code=303)
+    return RedirectResponse(
+        f"/pmc/onboarding/properties?integration_id={integ.id}"
+        f"&return_to={request.query_params.get('return_to', '')}"
+        f"&embedded={request.query_params.get('embedded', '')}",
+        status_code=303,
+    )
 
 
 # ----------------------------
@@ -299,6 +304,9 @@ async def onboarding_properties_submit(
         raise HTTPException(status_code=404, detail="Integration not found")
 
     form = await request.form()
+    
+    return_to = (form.get("return_to") or request.query_params.get("return_to") or "").strip()
+    embedded = (form.get("embedded") or request.query_params.get("embedded") or "").strip()
 
     selected_ids: set[int] = set()
     for pid in form.getlist("property_ids"):
@@ -335,7 +343,9 @@ async def onboarding_properties_submit(
             # don’t block onboarding UI hard; they can retry toggling later if needed
 
     return RedirectResponse(
-        f"/pmc/onboarding/billing-review?integration_id={integration_id}",
+        f"/pmc/onboarding/billing-review?integration_id={integration_id}"
+        f"&return_to={return_to}"
+        f"&embedded={embedded}",
         status_code=303,
     )
 
@@ -378,10 +388,12 @@ def onboarding_billing_review(
     )
 
     # UI numbers (informational)
-    setup_fee_cents = 49900
+    is_admin_add_property = request.query_params.get("return_to") == "admin_properties"
+    
+    setup_fee_cents = 0 if is_admin_add_property else 49900
     monthly_cents_each = 999
     monthly_total_cents = enabled_count * monthly_cents_each
-    due_today_cents = setup_fee_cents  # ✅ due today is setup only (monthly is charged on enable via invoicing)
+    due_today_cents = setup_fee_cents
 
     return templates.TemplateResponse(
         request,
@@ -394,6 +406,9 @@ def onboarding_billing_review(
             "monthly_cents_each": monthly_cents_each,
             "monthly_total_cents": monthly_total_cents,
             "due_today_cents": due_today_cents,
+            "is_admin_add_property": is_admin_add_property,
+            "return_to": request.query_params.get("return_to", ""),
+            "embedded": request.query_params.get("embedded", ""),
         },
     )
 
