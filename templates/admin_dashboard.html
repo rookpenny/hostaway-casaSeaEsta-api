@@ -2988,25 +2988,6 @@
 </section>
         <section id="view-settings" class="view hidden space-y-4">
 
-          <div class="bg-white border border-slate-200 rounded-2xl p-4 card">
-            <div class="flex items-start justify-between gap-4">
-              <div>
-                <div class="text-sm font-semibold">Settings</div>
-                <div class="mt-1 text-sm text-slate-500">
-                  {% if user_role == "super" %}
-                    Manage your profile, PMCs, roles, and platform notifications.
-                  {% else %}
-                    Manage your profile, team, and notifications for your PMC.
-                  {% endif %}
-                </div>
-              </div>
-
-              <div class="text-xs text-slate-500">
-                Signed in as <span class="font-semibold text-slate-700">{{ user_email }}</span>
-              </div>
-            </div>
-          </div>
-
           <div class="grid grid-cols-12 gap-4">
 
             <aside class="col-span-12 lg:col-span-3">
