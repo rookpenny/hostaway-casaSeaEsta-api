@@ -479,6 +479,8 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
             },
         }
     )
+
+
 @router.post("/sync-property/{property_id}")
 def sync_single_property(property_id: int, request: Request, db: Session = Depends(get_db)):
     prop = require_property_in_scope(request, db, property_id)
