@@ -7,6 +7,8 @@ import smtplib
 from email.mime.text import MIMEText
 from typing import Optional, Dict, Any, List
 
+from datetime import datetime, timezone, timedelta
+
 from fastapi import (
     APIRouter,
     Request,
@@ -370,7 +372,6 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
                 prop.billing_current_period_start = now
 
             if not prop.billing_current_period_end:
-                from datetime import timedelta
                 prop.billing_current_period_end = now + timedelta(days=30)
 
             db.commit()
@@ -417,7 +418,6 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
 
         # Billing period:
         # Starts immediately when turned on.
-        from datetime import timedelta
 
         if not prop.billing_started_at:
             prop.billing_started_at = now
