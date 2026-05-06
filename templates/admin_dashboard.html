@@ -3091,13 +3091,16 @@
                         </p>
                       </div>
                 
-                      <div class="rounded-full px-4 py-2 text-sm font-semibold
-                        {% if billing_active_property_count > 0 %}
-                          bg-emerald-50 text-emerald-700
-                        {% else %}
-                          bg-slate-100 text-slate-600
-                        {% endif %}
-                      ">
+                      <div
+                        id="billing-status-badge"
+                        class="rounded-full px-4 py-2 text-sm font-semibold
+                          {% if billing_active_property_count > 0 %}
+                            bg-emerald-50 text-emerald-700
+                          {% else %}
+                            bg-slate-100 text-slate-600
+                          {% endif %}
+                        "
+                      >
                         {% if billing_active_property_count > 0 %}
                           Monthly billing active
                         {% else %}
@@ -3200,8 +3203,10 @@
                               </div>
                 
                               <div class="text-right text-sm font-semibold text-slate-900">
-                                {% if property.sandy_enabled or property.billing_cancel_at_period_end %}
+                                {% if property.sandy_enabled %}
                                   ${{ "%.2f"|format(billing_price_per_property_cents / 100) }}/mo
+                                {% elif property.billing_cancel_at_period_end %}
+                                  <span class="text-amber-700">No renewal</span>
                                 {% else %}
                                   —
                                 {% endif %}
