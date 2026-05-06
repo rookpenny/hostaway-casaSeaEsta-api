@@ -1233,6 +1233,7 @@
         <button
           id="add-property-btn"
           type="button"
+          onclick="openAddPropertyModalFromButton(event)"
           class="inline-flex h-12 items-center justify-center rounded-full border border-white/20 bg-white/10 px-5 text-[14px] font-semibold text-white backdrop-blur-sm transition hover:bg-white/15"
         >
           Add another property
@@ -3525,7 +3526,22 @@
 <script>
   window.PMC_STRIPE_CONNECTED = {{ stripe_connected | tojson }};
 </script>
+<script>
+  function openAddPropertyModalFromButton(event) {
+    if (event) event.preventDefault();
 
+    const modal = document.getElementById("addPropertyModal");
+    const iframe = document.getElementById("addPropertyIframe");
+
+    if (!modal || !iframe) {
+      window.location.href = "/pmc/onboarding/pms?return_to=admin_properties";
+      return;
+    }
+
+    iframe.src = "/pmc/onboarding/pms?return_to=admin_properties&embedded=1";
+    modal.classList.remove("hidden");
+  }
+</script>
 <script id="dashboard-bootstrap" type="application/json">
 {
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
