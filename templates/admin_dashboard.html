@@ -3526,22 +3526,7 @@
 <script>
   window.PMC_STRIPE_CONNECTED = {{ stripe_connected | tojson }};
 </script>
-<script>
-  function openAddPropertyModalFromButton(event) {
-    if (event) event.preventDefault();
 
-    const modal = document.getElementById("addPropertyModal");
-    const iframe = document.getElementById("addPropertyIframe");
-
-    if (!modal || !iframe) {
-      window.location.href = "/pmc/onboarding/pms?return_to=admin_properties";
-      return;
-    }
-
-    iframe.src = "/pmc/onboarding/pms?return_to=admin_properties&embedded=1";
-    modal.classList.remove("hidden");
-  }
-</script>
 <script id="dashboard-bootstrap" type="application/json">
 {
   "is_locked": {{ (user_role == 'pmc' and needs_payment) | tojson }},
@@ -3565,6 +3550,27 @@
   }
 }
 </script>
+<script>
+  window.openAddPropertyModalFromButton = function(event) {
+    if (event) event.preventDefault();
 
+    alert("clicked");
+
+    const modal = document.getElementById("addPropertyModal");
+    const iframe = document.getElementById("addPropertyIframe");
+
+    console.log("modal", modal);
+    console.log("iframe", iframe);
+
+    if (!modal || !iframe) {
+      alert("Missing modal or iframe");
+      return;
+    }
+
+    iframe.src = "/pmc/onboarding/pms?return_to=admin_properties&embedded=1";
+    modal.classList.remove("hidden");
+    modal.style.display = "block";
+  };
+</script>
 </body>
 </html>
