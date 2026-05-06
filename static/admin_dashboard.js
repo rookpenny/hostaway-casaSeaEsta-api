@@ -4623,8 +4623,6 @@ window.closeAddPropertyModal = function (shouldRefresh = false) {
   if (modal) modal.classList.add("hidden");
   if (iframe) iframe.src = "";
 
-  document.body.classList.remove("overflow-hidden");
-
   if (shouldRefresh) {
     window.location.href = "/admin/dashboard?view=properties";
   }
@@ -7456,7 +7454,6 @@ document.addEventListener("click", function (e) {
 
   iframe.src = "/pmc/onboarding/pms?return_to=admin_properties&embedded=1";
   modal.classList.remove("hidden");
-  document.body.classList.add("overflow-hidden");
 });
 
 window.DashboardOverview = window.DashboardOverview || {};
