@@ -221,9 +221,9 @@ def get_ai_insights(
     total = q.with_entities(func.count(ChatSession.id)).scalar() or 1
 
     top_issue = (
-        q.with_entities(ChatSession.ops_category, func.count().label("count"))
-        .filter(ChatSession.ops_category.isnot(None))
-        .group_by(ChatSession.ops_category)
+        q.with_entities(ChatSession.signal_label, func.count().label("count"))
+        .filter(ChatSession.signal_label.isnot(None))
+        .group_by(ChatSession.signal_label)
         .order_by(func.count().desc())
         .first()
     )
