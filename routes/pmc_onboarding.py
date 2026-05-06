@@ -384,9 +384,9 @@ def onboarding_billing_review(
     due_today_cents = setup_fee_cents  # ✅ due today is setup only (monthly is charged on enable via invoicing)
 
     return templates.TemplateResponse(
+        request,
         "pmc_onboarding_billing_review.html",
         {
-            "request": request,
             "pmc": pmc,
             "integration_id": integration_id,
             "enabled_count": enabled_count,
