@@ -254,6 +254,13 @@ class Property(Base):
     property_name = Column(String, nullable=False)
     sandy_enabled = Column(Boolean, default=False, nullable=False)
 
+    # Billing lifecycle for per-property monthly charges
+    billing_started_at = Column(DateTime, nullable=True)
+    billing_current_period_start = Column(DateTime, nullable=True)
+    billing_current_period_end = Column(DateTime, nullable=True)
+    billing_cancel_at_period_end = Column(Boolean, default=False, nullable=False)
+    billing_disabled_at = Column(DateTime, nullable=True)
+
     data_folder_path = Column(String, nullable=True)
     last_synced = Column(DateTime, nullable=True)
 
