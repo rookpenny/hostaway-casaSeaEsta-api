@@ -113,11 +113,18 @@ def onboarding_pms_page(request: Request, db: Session = Depends(get_db)):
         .first()
     )
 
+    '''
     return templates.TemplateResponse(
         "pmc_onboarding_pms.html",
         {"request": request, "pmc": pmc, "existing": existing, "error": None, "provider": provider},
     )
-
+    '''
+    
+    return templates.TemplateResponse(
+        request,
+        "pmc_onboarding_pms.html",
+        {"pmc": pmc, "existing": existing, "error": None, "provider": provider},
+    )
 
 # ----------------------------
 # POST: Save Hostaway creds and import properties
