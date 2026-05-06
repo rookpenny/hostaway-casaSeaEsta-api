@@ -3500,6 +3500,7 @@
   "live_props": {{ live_props | tojson }},
   "offline_props": {{ offline_props | tojson }},
   "user_role": {{ user_role | tojson }},
+  "pmc_id": {{ (pmc.id if pmc else none) | tojson }},
   "api": {
     "chat_detail_partial": "/admin/chats/partial/detail?session_id={session_id}",
     "chat_summarize": "/admin/chats/{session_id}/summarize",
