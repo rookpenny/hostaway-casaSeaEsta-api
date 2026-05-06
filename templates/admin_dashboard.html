@@ -1526,6 +1526,35 @@
     {% endfor %}
   </div>
 
+
+
+                <!-- Add properties modal -->
+                  <div id="addPropertyModal" class="hidden fixed inset-0 z-[99999] bg-slate-950/75 p-6">
+                    <div class="mx-auto flex h-full max-w-6xl flex-col overflow-hidden rounded-[28px] bg-white shadow-2xl">
+                      <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
+                        <div>
+                          <div class="text-lg font-semibold text-slate-950">Add another property</div>
+                          <div class="text-sm text-slate-500">Connect PMS properties and update billing.</div>
+                        </div>
+                  
+                        <button
+                          type="button"
+                          onclick="closeAddPropertyModal(true)"
+                          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700"
+                        >
+                          Close
+                        </button>
+                      </div>
+                  
+                      <iframe
+                        id="addPropertyIframe"
+                        class="min-h-0 flex-1 w-full border-0"
+                        src=""
+                      ></iframe>
+                    </div>
+                  </div>
+                  <!-- End properties modal --> 
+
   <!-- List View -->
   <div id="propertiesListView" class="hidden overflow-hidden rounded-[28px] border border-slate-200 bg-white shadow-sm">
     <div class="hidden lg:grid grid-cols-[132px_minmax(0,1.2fr)_190px_1fr] gap-4 border-b border-slate-200 bg-slate-50 px-6 py-4 text-xs font-semibold uppercase tracking-[0.12em] text-slate-400">
@@ -3209,34 +3238,6 @@
                   </table>
                 </div>
 
-<!-- Add properties modal -->
-                  <div id="addPropertyModal" class="fixed inset-0 z-50 hidden bg-slate-950/60 p-6">
-                    <div class="mx-auto h-full max-w-6xl overflow-hidden rounded-[28px] bg-white shadow-2xl">
-                      <div class="flex items-center justify-between border-b border-slate-200 px-6 py-4">
-                        <div>
-                          <div class="text-lg font-semibold text-slate-950">Add another property</div>
-                          <div class="text-sm text-slate-500">Connect PMS properties and update billing.</div>
-                        </div>
-                  
-                        <button
-                          type="button"
-                          onclick="closeAddPropertyModal(true)"
-                          class="rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold"
-                        >
-                          Close
-                        </button>
-                      </div>
-                  
-                      <iframe
-                        id="addPropertyIframe"
-                        class="h-[calc(100%-73px)] w-full"
-                        src=""
-                      ></iframe>
-                    </div>
-                  </div>
-                  <!-- End properties modal --> 
-
-                                 
 
                 <!-- Invite modal -->
                 <div id="inviteModal" class="hidden fixed inset-0 z-[9999] bg-black/30 p-4">
