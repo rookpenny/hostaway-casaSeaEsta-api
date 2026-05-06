@@ -121,7 +121,12 @@
           </div>
         </div>
 
-        <form id="props-form" method="post" action="/pmc/onboarding/properties" class="mt-6 space-y-4">
+        <form
+          id="props-form"
+          method="post"
+          action="/pmc/onboarding/properties?return_to={{ request.query_params.get('return_to', '') }}&embedded={{ request.query_params.get('embedded', '') }}"
+          class="mt-6 space-y-4"
+        >
           <input type="hidden" name="integration_id" value="{{ integration_id }}">
           <input type="hidden" name="return_to" value="{{ request.query_params.get('return_to', '') }}">
           <input type="hidden" name="embedded" value="{{ request.query_params.get('embedded', '') }}">
