@@ -3116,7 +3116,11 @@
                         bg-amber-50 text-amber-700
                       {% endif %}
                     ">
-                      {{ billing_status or "pending" }}
+                      {% if billing_active_property_count > 0 %}
+                        Monthly billing active
+                      {% else %}
+                        No active property billing
+                      {% endif %}
                     </div>
                   </div>
               
