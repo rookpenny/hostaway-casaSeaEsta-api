@@ -4686,21 +4686,25 @@ async function syncAllProperties() {
   btn.classList.add("opacity-60", "cursor-not-allowed");
 
   try {
-  const pmcId = BOOT.pmc_id;
-  const syncUrl = pmcId
-    ? `/auth/sync-pmc-properties?pmc_id=${encodeURIComponent(pmcId)}`
-    : "/auth/sync-pmc-properties";
-  
-  const res = await fetch(syncUrl, {
-    method: "POST",
-    credentials: "include",
-    headers: { Accept: "application/json" },
-  });
+    const pmcId = BOOT.pmc_id;
+
+    if (!pmcId) {
+      alert("No PMC is connected to this dashboard user yet. Please make sure this login is linked to a PMC account.");
+      return;
+    }
+
+    const syncUrl = `/auth/sync-pmc-properties?pmc_id=${encodeURIComponent(pmcId)}`;
+
+    const res = await fetch(syncUrl, {
+      method: "POST",
+      credentials: "include",
+      headers: { Accept: "application/json" },
+    });
 
     const data = await res.json().catch(() => ({}));
 
     if (res.status === 401 || res.status === 403) {
-      loginRedirect();
+      toast(data.detail || "You are not authorized to sync this PMC.");
       return;
     }
 
@@ -4716,6 +4720,7 @@ async function syncAllProperties() {
 
     btn.textContent = "Synced ✓";
     toast(data.message || "Properties synced.");
+
     setTimeout(() => {
       window.location.href = "/admin/dashboard?view=properties";
     }, 700);
@@ -4725,7 +4730,7 @@ async function syncAllProperties() {
   } finally {
     setTimeout(() => {
       btn.disabled = false;
-      btn.textContent = originalText || "Sync all";
+      btn.textContent = originalText || "Sync PMS";
       btn.classList.remove("opacity-60", "cursor-not-allowed");
     }, 900);
   }
