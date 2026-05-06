@@ -3015,6 +3015,13 @@
                         data-settings="profile" type="button">
                   Profile
                 </button>
+                <button
+                  type="button"
+                  class="settings-tab flex w-full items-center justify-between rounded-2xl px-4 py-3 text-left text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                  data-settings="billing"
+                >
+                  <span>Billing</span>
+                </button>
 {% if user_role == "super" %}
                 <button class="settings-tab w-full text-left px-3 py-2 rounded-xl hover:bg-slate-50 text-sm font-medium"
                         data-settings="team" type="button">
@@ -3083,6 +3090,104 @@
                     </button>
                   </div>
                 </form>
+              </div>
+
+
+              <div id="settings-billing" class="settings-panel hidden">
+                <div class="rounded-[28px] border border-slate-200 bg-white p-6 shadow-sm">
+                  <div class="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p class="text-sm font-semibold uppercase tracking-[0.18em] text-slate-400">
+                        Billing
+                      </p>
+                      <h2 class="mt-2 text-2xl font-semibold text-slate-950">
+                        Current monthly billing
+                      </h2>
+                      <p class="mt-2 max-w-2xl text-sm text-slate-500">
+                        Your monthly total is based on properties currently turned on for HostScout.
+                        Turning a property off stops future monthly billing, but does not prorate the current month.
+                      </p>
+                    </div>
+              
+                    <div class="rounded-full px-4 py-2 text-sm font-semibold
+                      {% if is_paid %}
+                        bg-emerald-50 text-emerald-700
+                      {% else %}
+                        bg-amber-50 text-amber-700
+                      {% endif %}
+                    ">
+                      {{ billing_status or "pending" }}
+                    </div>
+                  </div>
+              
+                  <div class="mt-6 grid gap-4 md:grid-cols-3">
+                    <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                      <div class="text-sm font-medium text-slate-500">Active properties</div>
+                      <div class="mt-3 text-3xl font-semibold text-slate-950">
+                        {{ billing_active_property_count }}
+                      </div>
+                    </div>
+              
+                    <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
+                      <div class="text-sm font-medium text-slate-500">Price per property</div>
+                      <div class="mt-3 text-3xl font-semibold text-slate-950">
+                        ${{ "%.2f"|format(billing_price_per_property_cents / 100) }}
+                      </div>
+                      <div class="mt-1 text-sm text-slate-500">per month</div>
+                    </div>
+              
+                    <div class="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-white">
+                      <div class="text-sm font-medium text-white/60">Estimated monthly total</div>
+                      <div class="mt-3 text-3xl font-semibold">
+                        ${{ "%.2f"|format(billing_monthly_total_cents / 100) }}
+                      </div>
+                      <div class="mt-1 text-sm text-white/60">before any taxes or Stripe adjustments</div>
+                    </div>
+                  </div>
+              
+                  <div class="mt-6 rounded-3xl border border-slate-200 bg-white">
+                    <div class="border-b border-slate-200 px-5 py-4">
+                      <h3 class="text-sm font-semibold text-slate-950">
+                        Billable properties
+                      </h3>
+                    </div>
+              
+                    {% if active_billing_properties and active_billing_properties|length > 0 %}
+                      <div class="divide-y divide-slate-100">
+                        {% for property in active_billing_properties %}
+                          <div class="flex items-center justify-between gap-4 px-5 py-4">
+                            <div>
+                              <div class="text-sm font-semibold text-slate-950">
+                                {{ property.property_name }}
+                              </div>
+                              <div class="mt-1 text-xs text-slate-500">
+                                HostScout enabled
+                              </div>
+                            </div>
+              
+                            <div class="text-sm font-semibold text-slate-900">
+                              ${{ "%.2f"|format(billing_price_per_property_cents / 100) }}/mo
+                            </div>
+                          </div>
+                        {% endfor %}
+                      </div>
+                    {% else %}
+                      <div class="px-5 py-6 text-sm text-slate-500">
+                        No properties are currently enabled for monthly billing.
+                      </div>
+                    {% endif %}
+                  </div>
+              
+                  <div class="mt-6 rounded-3xl border border-amber-200 bg-amber-50 p-5">
+                    <div class="text-sm font-semibold text-amber-900">
+                      Billing rule
+                    </div>
+                    <p class="mt-1 text-sm text-amber-800">
+                      When a property is turned on, monthly billing starts for that property.
+                      When a property is turned off, future billing stops. The current month is not prorated.
+                    </p>
+                  </div>
+                </div>
               </div>
 
               <!-- Team -->
