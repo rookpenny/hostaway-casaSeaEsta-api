@@ -4825,6 +4825,60 @@ function updateBillingSummaryUI(billing) {
 }
 
 
+function formatBillingDate(isoString) {
+  if (!isoString) return "";
+  const d = new Date(isoString);
+  if (Number.isNaN(d.getTime())) return "";
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+function updateBillingPropertyRowUI(propertyId, billingProperty) {
+  if (!billingProperty) return;
+
+  const statusWrap = document.querySelector(`[data-billing-status="${propertyId}"]`);
+  const row = document.querySelector(`[data-billing-property-row="${propertyId}"]`);
+
+  if (!statusWrap || !row) return;
+
+  const periodStart = formatBillingDate(billingProperty.billing_current_period_start);
+  const periodEnd = formatBillingDate(billingProperty.billing_current_period_end);
+
+  let html = "";
+
+  if (billingProperty.sandy_enabled) {
+    html += `<div class="font-medium text-emerald-700">Charging now</div>`;
+
+    if (periodStart && periodEnd) {
+      html += `<div>Billing period: ${periodStart} → ${periodEnd}</div>`;
+      html += `<div>Next charge: ${periodEnd}</div>`;
+    } else {
+      html += `<div>Billing period will appear after this property is activated.</div>`;
+    }
+  } else if (billingProperty.billing_cancel_at_period_end && periodEnd) {
+    html += `<div class="font-medium text-amber-700">Turning off at period end</div>`;
+    html += `<div>Paid through: ${periodEnd}</div>`;
+    html += `<div>No future monthly charge after this date.</div>`;
+  } else {
+    html += `<div class="font-medium text-slate-500">Not currently billing</div>`;
+  }
+
+  statusWrap.innerHTML = html;
+
+  const amountEl = row.querySelector(".text-right");
+  if (amountEl) {
+    if (billingProperty.sandy_enabled || billingProperty.billing_cancel_at_period_end) {
+      amountEl.textContent = "$9.99/mo";
+    } else {
+      amountEl.textContent = "—";
+    }
+  }
+}
+
+
 window.toggleProperty = async function (id, btn) {
   if (typeof IS_LOCKED !== "undefined" && IS_LOCKED) {
     toast("Complete payment to unlock Sandy activation.");
@@ -4886,6 +4940,9 @@ window.toggleProperty = async function (id, btn) {
     }
     if (data.billing) {
       updateBillingSummaryUI(data.billing);
+    }
+    if (data.billing && data.billing.property) {
+      updateBillingPropertyRowUI(id, data.billing.property);
     }
   } catch (err) {
     console.error("Toggle error:", err);
