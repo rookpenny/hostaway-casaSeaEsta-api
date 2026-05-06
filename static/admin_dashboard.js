@@ -4884,7 +4884,6 @@ window.toggleProperty = async function (id, btn) {
     if (typeof updateOverviewUI === "function") {
       updateOverviewUI();
     }
-    
     if (data.billing) {
       updateBillingSummaryUI(data.billing);
     }
