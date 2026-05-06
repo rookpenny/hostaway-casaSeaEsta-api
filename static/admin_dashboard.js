@@ -4662,11 +4662,6 @@ function initPropertiesUI() {
     syncAllBtn.dataset.wired = "1";
     syncAllBtn.addEventListener("click", syncAllProperties);
   }
-  
-if (addPropertyBtn && !addPropertyBtn.dataset.wired) {
-  addPropertyBtn.dataset.wired = "1";
-  addPropertyBtn.addEventListener("click", openAddPropertyModal);
-}
 
   let savedMode = "grid";
   try {
@@ -7443,6 +7438,26 @@ document.addEventListener("DOMContentLoaded", async () => {
 // Keeps Tasks init + ALWAYS refresh
 // ------------------------------
 
+document.addEventListener("click", function (e) {
+  const btn = e.target.closest("#add-property-btn");
+  if (!btn) return;
+
+  e.preventDefault();
+  console.log("Add property clicked");
+
+  const modal = document.getElementById("addPropertyModal");
+  const iframe = document.getElementById("addPropertyIframe");
+
+  if (!modal || !iframe) {
+    console.error("Missing addPropertyModal or addPropertyIframe");
+    window.location.href = "/pmc/onboarding/pms?return_to=admin_properties";
+    return;
+  }
+
+  iframe.src = "/pmc/onboarding/pms?return_to=admin_properties&embedded=1";
+  modal.classList.remove("hidden");
+  document.body.classList.add("overflow-hidden");
+});
 
 window.DashboardOverview = window.DashboardOverview || {};
 window.DashboardOverview.jumpTo = function (view) {
