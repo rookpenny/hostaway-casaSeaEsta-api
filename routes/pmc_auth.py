@@ -353,21 +353,60 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
 
     previous = bool(prop.sandy_enabled)
     new_value = not previous
+    now = datetime.utcnow()
 
     # ---- Turning OFF ----
     if new_value is False:
         try:
             prop.sandy_enabled = False
+
+            # Billing rule:
+            # Turn off future renewal, but keep the current paid month visible.
+            prop.billing_disabled_at = now
+            prop.billing_cancel_at_period_end = True
+
+            # If somehow no period exists yet, create a 30-day paid-through window.
+            if not prop.billing_current_period_start:
+                prop.billing_current_period_start = now
+
+            if not prop.billing_current_period_end:
+                from datetime import timedelta
+                prop.billing_current_period_end = now + timedelta(days=30)
+
             db.commit()
+            db.refresh(prop)
+
         except Exception as e:
             db.rollback()
             raise HTTPException(status_code=500, detail=f"Toggle failed: {str(e)}")
+
+        active_property_count = (
+            db.query(Property)
+            .filter(Property.pmc_id == prop.pmc_id)
+            .filter(Property.sandy_enabled == True)
+            .count()
+        )
 
         return JSONResponse(
             {
                 "status": "success",
                 "new_status": "OFFLINE",
-                "billing_note": "Offline now. You won’t be charged again unless you turn it back on in a new month.",
+                "property_id": prop.id,
+                "billing_note": "Offline now. Future billing stops, but the current month is not prorated.",
+                "billing": {
+                    "active_property_count": active_property_count,
+                    "price_per_property_cents": 999,
+                    "monthly_total_cents": active_property_count * 999,
+                    "property": {
+                        "id": prop.id,
+                        "sandy_enabled": bool(prop.sandy_enabled),
+                        "billing_started_at": prop.billing_started_at.isoformat() if prop.billing_started_at else None,
+                        "billing_current_period_start": prop.billing_current_period_start.isoformat() if prop.billing_current_period_start else None,
+                        "billing_current_period_end": prop.billing_current_period_end.isoformat() if prop.billing_current_period_end else None,
+                        "billing_cancel_at_period_end": bool(prop.billing_cancel_at_period_end),
+                        "billing_disabled_at": prop.billing_disabled_at.isoformat() if prop.billing_disabled_at else None,
+                    },
+                },
             }
         )
 
@@ -375,6 +414,18 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
     try:
         # Make the enable + charge atomic
         prop.sandy_enabled = True
+
+        # Billing period:
+        # Starts immediately when turned on.
+        from datetime import timedelta
+
+        if not prop.billing_started_at:
+            prop.billing_started_at = now
+
+        prop.billing_current_period_start = now
+        prop.billing_current_period_end = now + timedelta(days=30)
+        prop.billing_cancel_at_period_end = False
+        prop.billing_disabled_at = None
 
         charged = charge_property_for_month_if_needed(db, pmc, prop)
 
@@ -393,14 +444,41 @@ def toggle_property(property_id: int, request: Request, db: Session = Depends(ge
 
         raise HTTPException(status_code=500, detail=f"Billing failed, change reverted: {str(e)}")
 
+    active_property_count = (
+        db.query(Property)
+        .filter(Property.pmc_id == prop.pmc_id)
+        .filter(Property.sandy_enabled == True)
+        .count()
+    )
+
     note = (
         "Live now. Charged for this month."
         if charged
         else "Live now. Already covered for this month (no additional charge)."
     )
 
-    return JSONResponse({"status": "success", "new_status": "LIVE", "billing_note": note})
-
+    return JSONResponse(
+        {
+            "status": "success",
+            "new_status": "LIVE",
+            "property_id": prop.id,
+            "billing_note": note,
+            "billing": {
+                "active_property_count": active_property_count,
+                "price_per_property_cents": 999,
+                "monthly_total_cents": active_property_count * 999,
+                "property": {
+                    "id": prop.id,
+                    "sandy_enabled": bool(prop.sandy_enabled),
+                    "billing_started_at": prop.billing_started_at.isoformat() if prop.billing_started_at else None,
+                    "billing_current_period_start": prop.billing_current_period_start.isoformat() if prop.billing_current_period_start else None,
+                    "billing_current_period_end": prop.billing_current_period_end.isoformat() if prop.billing_current_period_end else None,
+                    "billing_cancel_at_period_end": bool(prop.billing_cancel_at_period_end),
+                    "billing_disabled_at": prop.billing_disabled_at.isoformat() if prop.billing_disabled_at else None,
+                },
+            },
+        }
+    )
 @router.post("/sync-property/{property_id}")
 def sync_single_property(property_id: int, request: Request, db: Session = Depends(get_db)):
     prop = require_property_in_scope(request, db, property_id)
