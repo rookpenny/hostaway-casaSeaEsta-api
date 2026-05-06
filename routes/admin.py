@@ -830,11 +830,17 @@ def _normalize_config(cfg: dict) -> dict:
 
 
 
-
 @router.post("/auth/sync-pmc-properties")
-def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)):
+def auth_sync_all_pmc_properties(
+    request: Request,
+    db: Session = Depends(get_db),
+    pmc_id: int | None = Query(default=None),
+):
     """
-    Sync all properties for the active PMC across all integrations.
+    Sync all properties for a PMC across all integrations.
+
+    PMC users sync their own PMC.
+    Super users sync the selected pmc_id.
     """
     user = request.session.get("user")
     if not user:
@@ -842,23 +848,45 @@ def auth_sync_all_pmc_properties(request: Request, db: Session = Depends(get_db)
 
     user_role, pmc_obj, pmc_user, billing_status, needs_payment = get_user_role_and_scope(request, db)
 
-    if not pmc_obj:
-        raise HTTPException(status_code=403, detail="No PMC selected for sync")
+    target_pmc_id = None
 
-    if user_role == "pmc" and needs_payment:
-        return JSONResponse(status_code=402, content={"status": "needs_billing"})
+    if user_role == "pmc":
+        if not pmc_obj:
+            raise HTTPException(status_code=403, detail="PMC account not linked")
+
+        target_pmc_id = int(pmc_obj.id)
+
+        if needs_payment:
+            return JSONResponse(
+                status_code=402,
+                content={"status": "needs_billing"},
+            )
+
+    elif user_role == "super":
+        if pmc_id is None:
+            raise HTTPException(status_code=400, detail="No PMC selected for sync")
+
+        target_pmc_id = int(pmc_id)
+
+    else:
+        raise HTTPException(status_code=403, detail="Forbidden")
 
     try:
-        n = sync_all_integrations_for_pmc(int(pmc_obj.id))
+        n = sync_all_integrations_for_pmc(target_pmc_id)
+
         return {
             "status": "success",
             "synced": n,
-            "message": f"Synced {n} properties."
+            "message": f"Synced {n} properties.",
         }
+
     except Exception as e:
         return JSONResponse(
             status_code=500,
-            content={"status": "error", "message": str(e)}
+            content={
+                "status": "error",
+                "message": str(e),
+            },
         )
 @router.post("/admin/upgrades/ajax/duplicate")
 def upgrades_ajax_duplicate(
@@ -5106,7 +5134,19 @@ def admin_dashboard(
             "selected_session": selected_session,
             "selected_property": selected_property,
             "selected_messages": selected_messages,
-            "pmc_id": (pmc_obj.id if pmc_obj else None),
+            "pmc_id": (
+                int(pmc_obj.id)
+                if pmc_obj
+                else (
+                    int(pmc_id_int)
+                    if pmc_id_int
+                    else (
+                        int(properties[0].pmc_id)
+                        if properties and getattr(properties[0], "pmc_id", None)
+                        else None
+                    )
+                )
+            ),
 
             # Guest intelligence range data
             "selected_range_days": selected_range_days,
