@@ -3124,7 +3124,7 @@
                     <div class="rounded-3xl border border-slate-200 bg-slate-50 p-5">
                       <div class="text-sm font-medium text-slate-500">Active properties</div>
                       <div class="mt-3 text-3xl font-semibold text-slate-950">
-                        {{ billing_active_property_count }}
+                        <span id="billing-active-property-count">{{ billing_active_property_count }}</span>
                       </div>
                     </div>
               
@@ -3139,7 +3139,7 @@
                     <div class="rounded-3xl border border-slate-200 bg-slate-950 p-5 text-white">
                       <div class="text-sm font-medium text-white/60">Estimated monthly total</div>
                       <div class="mt-3 text-3xl font-semibold">
-                        ${{ "%.2f"|format(billing_monthly_total_cents / 100) }}
+                        $<span id="billing-monthly-total">{{ "%.2f"|format(billing_monthly_total_cents / 100) }}</span>
                       </div>
                       <div class="mt-1 text-sm text-white/60">before any taxes or Stripe adjustments</div>
                     </div>
@@ -3152,20 +3152,51 @@
                       </h3>
                     </div>
               
-                    {% if active_billing_properties and active_billing_properties|length > 0 %}
+                    {% if properties and properties|length > 0 %}
                       <div class="divide-y divide-slate-100">
-                        {% for property in active_billing_properties %}
-                          <div class="flex items-center justify-between gap-4 px-5 py-4">
+                        {% for property in properties %}
+                          <div
+                            class="flex items-center justify-between gap-4 px-5 py-4"
+                            data-billing-property-row="{{ property.id }}"
+                          >
                             <div>
                               <div class="text-sm font-semibold text-slate-950">
                                 {{ property.property_name }}
                               </div>
-                              <div class="mt-1 text-xs text-slate-500">
-                                HostScout enabled
+                        
+                              <div class="mt-1 space-y-1 text-xs text-slate-500">
+                                {% if property.sandy_enabled %}
+                                  <div class="font-medium text-emerald-700">Charging now</div>
+                        
+                                  {% if property.billing_current_period_start and property.billing_current_period_end %}
+                                    <div>
+                                      Billing period:
+                                      {{ property.billing_current_period_start.strftime("%b %d, %Y") }}
+                                      →
+                                      {{ property.billing_current_period_end.strftime("%b %d, %Y") }}
+                                    </div>
+                                    <div>
+                                      Next charge:
+                                      {{ property.billing_current_period_end.strftime("%b %d, %Y") }}
+                                    </div>
+                                  {% else %}
+                                    <div>Billing period will appear after this property is activated.</div>
+                                  {% endif %}
+                        
+                                {% elif property.billing_cancel_at_period_end and property.billing_current_period_end %}
+                                  <div class="font-medium text-amber-700">Not renewing</div>
+                                  <div>
+                                    Paid through:
+                                    {{ property.billing_current_period_end.strftime("%b %d, %Y") }}
+                                  </div>
+                        
+                                {% else %}
+                                  <div>Not currently billing</div>
+                                {% endif %}
                               </div>
                             </div>
-              
-                            <div class="text-sm font-semibold text-slate-900">
+                        
+                            <div class="text-right text-sm font-semibold text-slate-900">
                               ${{ "%.2f"|format(billing_price_per_property_cents / 100) }}/mo
                             </div>
                           </div>
@@ -3173,7 +3204,7 @@
                       </div>
                     {% else %}
                       <div class="px-5 py-6 text-sm text-slate-500">
-                        No properties are currently enabled for monthly billing.
+                        No properties have been imported yet.
                       </div>
                     {% endif %}
                   </div>
