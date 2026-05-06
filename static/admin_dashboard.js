@@ -4811,6 +4811,7 @@ function updateBillingSummaryUI(billing) {
 
   const activeCountEl = document.getElementById("billing-active-property-count");
   const monthlyTotalEl = document.getElementById("billing-monthly-total");
+  const badgeEl = document.getElementById("billing-status-badge");
 
   const activeCount = Number(billing.active_property_count || 0);
   const monthlyCents = Number(billing.monthly_total_cents || 0);
@@ -4821,6 +4822,16 @@ function updateBillingSummaryUI(billing) {
 
   if (monthlyTotalEl) {
     monthlyTotalEl.textContent = (monthlyCents / 100).toFixed(2);
+  }
+
+  if (badgeEl) {
+    if (activeCount > 0) {
+      badgeEl.textContent = "Monthly billing active";
+      badgeEl.className = "rounded-full bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-700";
+    } else {
+      badgeEl.textContent = "No active property billing";
+      badgeEl.className = "rounded-full bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-600";
+    }
   }
 }
 
@@ -4870,10 +4881,14 @@ function updateBillingPropertyRowUI(propertyId, billingProperty) {
 
   const amountEl = row.querySelector(".text-right");
   if (amountEl) {
-    if (billingProperty.sandy_enabled || billingProperty.billing_cancel_at_period_end) {
+    if (billingProperty.sandy_enabled) {
       amountEl.textContent = "$9.99/mo";
+    } else if (billingProperty.billing_cancel_at_period_end) {
+      amountEl.textContent = "No renewal";
+      amountEl.classList.add("text-amber-700");
     } else {
       amountEl.textContent = "—";
+      amountEl.classList.remove("text-amber-700");
     }
   }
 }
