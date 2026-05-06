@@ -171,10 +171,22 @@ def onboarding_hostaway_import(
     try:
         synced = sync_properties(integration_id=integ.id)
     except Exception as e:
+        '''
         return templates.TemplateResponse(
             "pmc_onboarding_pms.html",
             {
                 "request": request,
+                "pmc": pmc,
+                "existing": integ,
+                "error": f"Hostaway import failed: {str(e)}",
+                "provider": provider,
+            },
+        )'''
+
+        return templates.TemplateResponse(
+            request,
+            "pmc_onboarding_pms.html",
+            {
                 "pmc": pmc,
                 "existing": integ,
                 "error": f"Hostaway import failed: {str(e)}",
@@ -249,9 +261,15 @@ def onboarding_properties_page(
         .all()
     )
 
+    '''
     return templates.TemplateResponse(
         "pmc_onboarding_properties.html",
         {"request": request, "pmc": pmc, "properties": properties, "integration_id": integ.id},
+    )'''
+    return templates.TemplateResponse(
+        request,
+        "pmc_onboarding_properties.html",
+        {"pmc": pmc, "properties": properties, "integration_id": integ.id},
     )
 
 
@@ -536,10 +554,17 @@ def onboarding_billing_success(
             except Exception:
                 db.rollback()
 
-    return templates.TemplateResponse(
+    '''return templates.TemplateResponse(
         "pmc_signup_success.html",
         {
             "request": request,
+            "session_id": session_id,
+        },
+    )'''
+    return templates.TemplateResponse(
+        request,
+        "pmc_signup_success.html",
+        {
             "session_id": session_id,
         },
     )
