@@ -4806,6 +4806,25 @@ function paintPropertyToggle(buttonEl, isLive) {
     : "px-3 py-1 text-slate-600";
 }
 
+function updateBillingSummaryUI(billing) {
+  if (!billing) return;
+
+  const activeCountEl = document.getElementById("billing-active-property-count");
+  const monthlyTotalEl = document.getElementById("billing-monthly-total");
+
+  const activeCount = Number(billing.active_property_count || 0);
+  const monthlyCents = Number(billing.monthly_total_cents || 0);
+
+  if (activeCountEl) {
+    activeCountEl.textContent = String(activeCount);
+  }
+
+  if (monthlyTotalEl) {
+    monthlyTotalEl.textContent = (monthlyCents / 100).toFixed(2);
+  }
+}
+
+
 window.toggleProperty = async function (id, btn) {
   if (typeof IS_LOCKED !== "undefined" && IS_LOCKED) {
     toast("Complete payment to unlock Sandy activation.");
@@ -4864,6 +4883,10 @@ window.toggleProperty = async function (id, btn) {
     }
     if (typeof updateOverviewUI === "function") {
       updateOverviewUI();
+    }
+    
+    if (data.billing) {
+      updateBillingSummaryUI(data.billing);
     }
   } catch (err) {
     console.error("Toggle error:", err);
