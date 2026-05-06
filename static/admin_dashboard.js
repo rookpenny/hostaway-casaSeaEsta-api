@@ -4686,7 +4686,12 @@ async function syncAllProperties() {
   btn.classList.add("opacity-60", "cursor-not-allowed");
 
   try {
-  const res = await fetch("/auth/sync-pmc-properties", {
+  const pmcId = BOOT.pmc_id;
+  const syncUrl = pmcId
+    ? `/auth/sync-pmc-properties?pmc_id=${encodeURIComponent(pmcId)}`
+    : "/auth/sync-pmc-properties";
+  
+  const res = await fetch(syncUrl, {
     method: "POST",
     credentials: "include",
     headers: { Accept: "application/json" },
