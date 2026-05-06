@@ -3552,18 +3552,24 @@
     const iframe = document.getElementById("addPropertyIframe");
 
     if (!modal || !iframe) {
-      alert("Missing modal or iframe");
+      window.location.href = "/pmc/onboarding/pms?return_to=admin_properties";
       return;
     }
 
     iframe.src = "/pmc/onboarding/pms?return_to=admin_properties&embedded=1";
-
     modal.classList.remove("hidden");
-    modal.style.display = "block";
-    modal.style.position = "fixed";
-    modal.style.inset = "0";
-    modal.style.zIndex = "99999";
-    modal.style.background = "rgba(15, 23, 42, 0.75)";
+  };
+
+  window.closeAddPropertyModal = function(shouldRefresh) {
+    const modal = document.getElementById("addPropertyModal");
+    const iframe = document.getElementById("addPropertyIframe");
+
+    if (modal) modal.classList.add("hidden");
+    if (iframe) iframe.src = "";
+
+    if (shouldRefresh) {
+      window.location.href = "/admin/dashboard?view=properties";
+    }
   };
 </script>
 </body>
